@@ -14,6 +14,7 @@ import {
   seedGraph,
   spawnGap,
   unmetPathOf,
+  type AltKey,
   type ConceptGraph,
   type ConceptNode,
   type GapSpec,
@@ -25,13 +26,16 @@ import { color, font } from "@/lib/theme";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
+import ConsumeView, {
+  type ConsumeSession,
+} from "@/components/session/ConsumeView";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
 import Toast, { type ToastData } from "@/components/Toast";
 
-type Screen = "welcome" | "building" | "diagnostic" | "map";
+type Screen = "welcome" | "building" | "diagnostic" | "map" | "consume";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
@@ -67,6 +71,9 @@ export default function AtlasApp() {
   const [spawnedIds, setSpawnedIds] = useState<Set<string>>(() => new Set());
   const [states, setStates] = useState<StateMap>(initialStates);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The active Consume (Learn) session, or null when not in one. Phase 2 is a
+  // full surface, not a rail — entering a frontier node opens it here.
+  const [consume, setConsume] = useState<ConsumeSession | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -273,22 +280,108 @@ export default function AtlasApp() {
 
   // ---- map actions ------------------------------------------------------
 
-  const enterSession = useCallback(
-    (node: ConceptNode) => {
-      // Entering a session is the map's first write-back: the frontier node
-      // flips to Learning, and dependents whose prerequisites are now all
-      // touched light up as the new frontier.
-      setStates((prev) =>
-        prev[node.id] === "unknown"
-          ? { ...prev, [node.id]: "learning" }
+  const enterSession = useCallback((node: ConceptNode) => {
+    // Entering a frontier node opens Phase 2 · Consume. The write-back to
+    // Learning happens on exit (finishing the last chunk), per the spec —
+    // reading isn't learning until the retrieval passes have run.
+    setConsume({
+      nodeId: node.id,
+      idx: 0,
+      answered: {},
+      variant: {},
+      term: null,
+      aside: null,
+    });
+    setSelectedId(node.id);
+    setScreen("consume");
+  }, []);
+
+  // ---- Consume (Learn view) --------------------------------------------
+
+  const consumeAnswer = useCallback(
+    (chunkId: string, oi: number, correct: boolean) => {
+      setConsume((prev) =>
+        prev
+          ? {
+              ...prev,
+              answered: { ...prev.answered, [chunkId]: { oi, correct } },
+            }
           : prev,
       );
-      showToast(
-        `Session · ${node.label} → Consume — marked Learning (the session spiral is the next milestone)`,
-      );
     },
-    [showToast],
+    [],
   );
+
+  const consumeContinue = useCallback((chunkIndex: number) => {
+    setConsume((prev) =>
+      prev ? { ...prev, idx: Math.max(prev.idx, chunkIndex + 1) } : prev,
+    );
+  }, []);
+
+  const consumeSetVariant = useCallback((chunkId: string, key: AltKey) => {
+    setConsume((prev) => {
+      if (!prev) return prev;
+      const cur = prev.variant[chunkId];
+      return {
+        ...prev,
+        variant: { ...prev.variant, [chunkId]: cur === key ? null : key },
+      };
+    });
+  }, []);
+
+  const consumeToggleTerm = useCallback((key: string) => {
+    setConsume((prev) =>
+      prev ? { ...prev, term: prev.term === key ? null : key } : prev,
+    );
+  }, []);
+
+  const consumeToggleAside = useCallback((chunkId: string) => {
+    setConsume((prev) =>
+      prev ? { ...prev, aside: prev.aside === chunkId ? null : chunkId } : prev,
+    );
+  }, []);
+
+  const exitConsume = useCallback(() => setScreen("map"), []);
+
+  /**
+   * Finishing the last chunk: the node moves Unknown/Frontier → Learning and
+   * the learner auto-advances toward Socratic (not yet a screen — voiced as a
+   * toast). Returns to the map centered on the node so the new state is visible.
+   */
+  const finishConsume = useCallback(() => {
+    const nodeId = consume?.nodeId;
+    setScreen("map");
+    setConsume(null);
+    if (!nodeId) return;
+    setStates((prev) =>
+      prev[nodeId] === "unknown" ? { ...prev, [nodeId]: "learning" } : prev,
+    );
+    const node = graphRef.current.nodes.find((n) => n.id === nodeId);
+    setSelectedId(nodeId);
+    later(() => centerOn(nodeId), 30);
+    showToast(
+      `Consume complete · ${node?.label ?? "Node"} → Learning. Socratic is the next milestone.`,
+    );
+  }, [centerOn, consume, later, showToast]);
+
+  const consumeSkipCrucible = useCallback(() => {
+    const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
+    setScreen("map");
+    setConsume(null);
+    showToast(
+      `Diagnostic overshoot — skipping ahead to the Crucible for ${node?.label ?? "this node"}`,
+      "Fast-forward",
+    );
+  }, [consume, showToast]);
+
+  const consumeRoutePrereq = useCallback(() => {
+    setScreen("map");
+    setConsume(null);
+    showToast(
+      "Routing to a prerequisite — an earlier concept looks shaky",
+      "Map updated",
+    );
+  }, [showToast]);
 
   const onNodeDoubleClick = useCallback(
     (id: string) => {
@@ -433,7 +526,9 @@ export default function AtlasApp() {
   // ---- derived ----------------------------------------------------------
 
   const isMap = screen === "map";
-  const showCanvas = screen !== "welcome";
+  // The canvas backs onboarding + the map, but Consume is a full surface.
+  const showCanvas =
+    screen === "building" || screen === "diagnostic" || screen === "map";
 
   // What the canvas shows: the live state map, masked during onboarding
   // (generations beyond the diagnostic reveal stay hidden) and during the
@@ -588,6 +683,24 @@ export default function AtlasApp() {
           form={form}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onBuild={build}
+        />
+      )}
+
+      {screen === "consume" && consume && (
+        <ConsumeView
+          title={
+            graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
+          }
+          session={consume}
+          onExit={exitConsume}
+          onAnswer={consumeAnswer}
+          onContinue={consumeContinue}
+          onFinish={finishConsume}
+          onSetVariant={consumeSetVariant}
+          onToggleTerm={consumeToggleTerm}
+          onToggleAside={consumeToggleAside}
+          onSkipCrucible={consumeSkipCrucible}
+          onRoutePrereq={consumeRoutePrereq}
         />
       )}
 
