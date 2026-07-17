@@ -16,6 +16,8 @@ import { color, font, kicker } from "@/lib/theme";
 interface NodeDetailProps {
   node: ConceptNode;
   displayState: NodeState;
+  /** Display state of every node — colors the prerequisite/unlock chips. */
+  display: Record<string, NodeState>;
   onSelect: (id: string) => void;
   onPrimaryAction: (node: ConceptNode, displayState: NodeState) => void;
 }
@@ -36,6 +38,7 @@ function labelOf(id: string): string {
 export default function NodeDetail({
   node,
   displayState,
+  display,
   onSelect,
   onPrimaryAction,
 }: NodeDetailProps) {
@@ -51,6 +54,9 @@ export default function NodeDetail({
   );
 
   const chipStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 7,
     fontSize: 12.5,
     color: color.inkSoft,
     background: color.card,
@@ -59,6 +65,21 @@ export default function NodeDetail({
     padding: "5px 10px",
     cursor: "pointer",
   } as const;
+
+  const chip = (id: string) => (
+    <button key={id} onClick={() => onSelect(id)} style={chipStyle}>
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: STATE_COLOR[display[id] ?? "unknown"],
+          flex: "0 0 auto",
+        }}
+      />
+      {labelOf(id)}
+    </button>
+  );
 
   return (
     <div
@@ -237,13 +258,11 @@ export default function NodeDetail({
 
       {prereqIds.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <div style={{ ...kicker(10), marginBottom: 10 }}>Prerequisites</div>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>
+            {locked ? "Learn these first" : "Prerequisites"}
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {prereqIds.map((id) => (
-              <button key={id} onClick={() => onSelect(id)} style={chipStyle}>
-                {labelOf(id)}
-              </button>
-            ))}
+            {prereqIds.map(chip)}
           </div>
         </div>
       )}
@@ -252,11 +271,7 @@ export default function NodeDetail({
         <div style={{ marginTop: 20 }}>
           <div style={{ ...kicker(10), marginBottom: 10 }}>Unlocks</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {dependentIds.map((id) => (
-              <button key={id} onClick={() => onSelect(id)} style={chipStyle}>
-                {labelOf(id)}
-              </button>
-            ))}
+            {dependentIds.map(chip)}
           </div>
         </div>
       )}
