@@ -199,7 +199,10 @@ export default function LeftRail({
               textAlign: "center",
             }}
           >
-            Week {momentumWeek} of 3 — watch it light up
+            {momentumWeek === 0
+              ? "Placement diagnostic"
+              : `Week ${momentumWeek} of 3`}{" "}
+            — watch it light up
           </div>
         )}
       </div>

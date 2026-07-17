@@ -11,40 +11,49 @@ export type NodeState =
   | "mastered"
   | "gap";
 
+/**
+ * A node's stored progress. `frontier` is never stored — it is derived:
+ * an `unknown` node whose prerequisites have all been learned displays as
+ * frontier, otherwise it displays as locked-unknown.
+ */
+export type ProgressState = Exclude<NodeState, "frontier">;
+
 export interface ConceptNode {
   id: string;
   label: string;
-  state: NodeState;
+  /** Seed progress state for the demo map (see `initialStates`). */
+  state: ProgressState;
   /** Generation (topological depth) — controls staged reveal during the diagnostic. */
   g: number;
+  /** Week the node first lit up (0 = placement diagnostic) — drives the momentum replay. */
+  week: number;
   x: number;
   y: number;
   gap?: boolean;
-  locked?: boolean;
 }
 
 /** [from, to, dashed?] — direction is prerequisite → dependent. */
 export type ConceptEdge = readonly [string, string, boolean?];
 
 export const NODES: ConceptNode[] = [
-  { id: "vec", label: "Vectors", state: "mastered", g: 1, x: 110, y: 400 },
-  { id: "vecops", label: "Vector Operations", state: "mastered", g: 1, x: 320, y: 250 },
-  { id: "matrices", label: "Matrices", state: "mastered", g: 1, x: 320, y: 520 },
-  { id: "systems", label: "Linear Systems", state: "mastered", g: 1, x: 320, y: 720 },
-  { id: "lincomb", label: "Linear Combinations", state: "mastered", g: 2, x: 560, y: 180 },
-  { id: "matmul", label: "Matrix Multiplication", state: "learning", g: 2, x: 560, y: 430 },
-  { id: "gauss", label: "Gaussian Elimination", state: "shaky", g: 2, x: 560, y: 700 },
-  { id: "span", label: "Span", state: "mastered", g: 2, x: 800, y: 160 },
-  { id: "lintrans", label: "Linear Transformations", state: "frontier", g: 3, x: 820, y: 420 },
-  { id: "det", label: "Determinants", state: "frontier", g: 3, x: 820, y: 670 },
-  { id: "linind", label: "Linear Independence", state: "shaky", g: 3, x: 1055, y: 150 },
-  { id: "gap1", label: "Base-case independence", state: "gap", g: 3, x: 975, y: 295, gap: true },
-  { id: "rank", label: "Rank & Nullspace", state: "unknown", g: 3, x: 1065, y: 470, locked: true },
-  { id: "inverse", label: "Inverse Matrices", state: "unknown", g: 3, x: 1065, y: 695, locked: true },
-  { id: "basis", label: "Basis", state: "frontier", g: 3, x: 1310, y: 180 },
-  { id: "eigval", label: "Eigenvalues", state: "unknown", g: 3, x: 1340, y: 445, locked: true },
-  { id: "eigvec", label: "Eigenvectors", state: "unknown", g: 3, x: 1570, y: 345, locked: true },
-  { id: "diag", label: "Diagonalization", state: "unknown", g: 3, x: 1795, y: 345, locked: true },
+  { id: "vec", label: "Vectors", state: "mastered", g: 1, week: 0, x: 110, y: 400 },
+  { id: "vecops", label: "Vector Operations", state: "mastered", g: 1, week: 0, x: 320, y: 250 },
+  { id: "matrices", label: "Matrices", state: "mastered", g: 1, week: 0, x: 320, y: 520 },
+  { id: "systems", label: "Linear Systems", state: "mastered", g: 1, week: 0, x: 320, y: 720 },
+  { id: "lincomb", label: "Linear Combinations", state: "mastered", g: 2, week: 0, x: 560, y: 180 },
+  { id: "matmul", label: "Matrix Multiplication", state: "learning", g: 2, week: 3, x: 560, y: 430 },
+  { id: "gauss", label: "Gaussian Elimination", state: "shaky", g: 2, week: 1, x: 560, y: 700 },
+  { id: "span", label: "Span", state: "mastered", g: 2, week: 0, x: 800, y: 160 },
+  { id: "lintrans", label: "Linear Transformations", state: "unknown", g: 3, week: 4, x: 820, y: 420 },
+  { id: "det", label: "Determinants", state: "unknown", g: 3, week: 4, x: 820, y: 670 },
+  { id: "linind", label: "Linear Independence", state: "shaky", g: 3, week: 2, x: 1055, y: 150 },
+  { id: "gap1", label: "Base-case independence", state: "gap", g: 3, week: 2, x: 975, y: 295, gap: true },
+  { id: "rank", label: "Rank & Nullspace", state: "unknown", g: 3, week: 4, x: 1065, y: 470 },
+  { id: "inverse", label: "Inverse Matrices", state: "unknown", g: 3, week: 4, x: 1065, y: 695 },
+  { id: "basis", label: "Basis", state: "unknown", g: 3, week: 4, x: 1310, y: 180 },
+  { id: "eigval", label: "Eigenvalues", state: "unknown", g: 3, week: 4, x: 1340, y: 445 },
+  { id: "eigvec", label: "Eigenvectors", state: "unknown", g: 3, week: 4, x: 1570, y: 345 },
+  { id: "diag", label: "Diagonalization", state: "unknown", g: 3, week: 4, x: 1795, y: 345 },
 ];
 
 export const EDGES: ConceptEdge[] = [
@@ -120,6 +129,21 @@ export const PHASES = [
   "Crucible",
   "Retained",
 ] as const;
+
+export type Phase = (typeof PHASES)[number];
+
+/**
+ * The gentle skip flag: what's still unfinished when the learner jumps past
+ * the recommended next phase. Keyed by the phase being skipped over.
+ */
+export const PHASE_SKIP_NUDGE: Record<Phase, string> = {
+  Consume: "You haven't read this yet — want to?",
+  Socratic: "You haven't reasoned this out yet — want to?",
+  Feynman: "You haven't taught this back yet — want to?",
+  Connect: "You haven't linked this into your map yet — want to?",
+  Crucible: "You haven't applied this in a novel context yet — want to?",
+  Retained: "This isn't in your review rotation yet — want to?",
+};
 
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
@@ -205,4 +229,65 @@ export function ancestorsOf(id: string, edges: ConceptEdge[]): Set<string> {
     }
   }
   return seen;
+}
+
+// ---- live mastery state ----------------------------------------------------
+// The app holds one `Record<node id, ProgressState>`; every surface reads it
+// and every phase writes it back. Frontier and locking are derived, never set.
+
+/** Solid prerequisite edges into each node (dashed gap edges don't lock). */
+const PREREQS: Record<string, string[]> = {};
+for (const [from, to, dashed] of EDGES) {
+  if (!dashed) (PREREQS[to] = PREREQS[to] ?? []).push(from);
+}
+
+export type StateMap = Record<string, ProgressState>;
+
+export function initialStates(): StateMap {
+  return Object.fromEntries(NODES.map((n) => [n.id, n.state]));
+}
+
+/** A prerequisite is met once the node has been learned at least once. */
+function isLearned(state: ProgressState | undefined): boolean {
+  return state === "learning" || state === "shaky" || state === "mastered";
+}
+
+/**
+ * What each node shows on the map: stored progress, except that an `unknown`
+ * node with every prerequisite learned lights up as `frontier` (the ZPD).
+ * A node left `unknown` here is locked by definition.
+ */
+export function displayStates(states: StateMap): Record<string, NodeState> {
+  const out: Record<string, NodeState> = {};
+  for (const node of NODES) {
+    const state = states[node.id] ?? "unknown";
+    // Gap nodes never join the frontier — they hang off their parent via a
+    // dashed edge and are entered from its detail rail, not unlocked.
+    out[node.id] =
+      state === "unknown" &&
+      !node.gap &&
+      (PREREQS[node.id] ?? []).every((p) => isLearned(states[p]))
+        ? "frontier"
+        : state;
+  }
+  return out;
+}
+
+/** Frontier nodes, foundations-first (left to right). */
+export function frontierIds(display: Record<string, NodeState>): string[] {
+  return NODES.filter((n) => display[n.id] === "frontier")
+    .sort((a, b) => a.x - b.x)
+    .map((n) => n.id);
+}
+
+/**
+ * Why a node is locked: its unlearned ancestors (plus the node itself),
+ * i.e. the "learn these first" path highlighted on the map.
+ */
+export function unmetPathOf(id: string, states: StateMap): Set<string> {
+  const path = new Set<string>();
+  for (const anc of ancestorsOf(id, EDGES)) {
+    if (anc === id || !isLearned(states[anc])) path.add(anc);
+  }
+  return path;
 }

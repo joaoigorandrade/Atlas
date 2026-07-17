@@ -1,12 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_FORM,
   NODES,
+  PHASES,
+  displayStates,
+  frontierIds,
+  initialStates,
+  phaseIndex,
+  unmetPathOf,
   type ConceptNode,
   type NodeState,
   type OnboardingForm,
+  type StateMap,
 } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
@@ -22,7 +29,10 @@ type Screen = "welcome" | "building" | "diagnostic" | "map";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
+/** The diagnostic narrative pins the frontier here ("basis is your edge"). */
 const FRONTIER_START = "basis";
+/** The momentum replay spans onboarding (week 0) plus three weeks of work. */
+const MOMENTUM_WEEKS = 3;
 
 interface DragState {
   id: string;
@@ -45,11 +55,12 @@ export default function AtlasApp() {
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
   const [answered, setAnswered] = useState(0);
   const [reveal, setReveal] = useState(0);
+  const [states, setStates] = useState<StateMap>(initialStates);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
-  const [momentumWeek, setMomentumWeek] = useState(1);
+  const [momentumWeek, setMomentumWeek] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
@@ -60,6 +71,8 @@ export default function AtlasApp() {
   viewRef.current = view;
   const positionsRef = useRef(positions);
   positionsRef.current = positions;
+  // Assigned in the derived section below; read by event handlers.
+  const displayRef = useRef<Record<string, NodeState>>({});
 
   const dragRef = useRef<DragState | null>(null);
   const panRef = useRef<PanState | null>(null);
@@ -116,10 +129,17 @@ export default function AtlasApp() {
     });
   }, []);
 
+  /** The node the "Start here →" / "Jump to frontier" affordances target. */
+  const frontierTargetId = useCallback(() => {
+    const ids = frontierIds(displayRef.current);
+    return ids.includes(FRONTIER_START) ? FRONTIER_START : (ids[0] ?? null);
+  }, []);
+
   const startMap = useCallback(() => {
+    const target = frontierTargetId() ?? FRONTIER_START;
     setScreen("map");
-    setSelectedId(FRONTIER_START);
-    later(() => centerOn(FRONTIER_START), 30);
+    setSelectedId(target);
+    later(() => centerOn(target), 30);
     later(
       () =>
         showToast(
@@ -127,7 +147,7 @@ export default function AtlasApp() {
         ),
       BUILD_MS,
     );
-  }, [centerOn, later, showToast]);
+  }, [centerOn, frontierTargetId, later, showToast]);
 
   // ---- canvas interactions ---------------------------------------------
 
@@ -193,7 +213,11 @@ export default function AtlasApp() {
     };
     const onUp = () => {
       const drag = dragRef.current;
-      if (drag && !drag.moved) setSelectedId(drag.id);
+      if (drag && !drag.moved) {
+        setSelectedId(drag.id);
+        if (displayRef.current[drag.id] === "unknown")
+          showToast("Locked — learn the highlighted path first");
+      }
       dragRef.current = null;
       panRef.current = null;
     };
@@ -203,14 +227,22 @@ export default function AtlasApp() {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, []);
+  }, [showToast]);
 
   // ---- map actions ------------------------------------------------------
 
   const enterSession = useCallback(
     (node: ConceptNode) => {
+      // Entering a session is the map's first write-back: the frontier node
+      // flips to Learning, and dependents whose prerequisites are now all
+      // touched light up as the new frontier.
+      setStates((prev) =>
+        prev[node.id] === "unknown"
+          ? { ...prev, [node.id]: "learning" }
+          : prev,
+      );
       showToast(
-        `Session · ${node.label} → Consume — the session spiral is the next milestone`,
+        `Session · ${node.label} → Consume — marked Learning (the session spiral is the next milestone)`,
       );
     },
     [showToast],
@@ -220,9 +252,12 @@ export default function AtlasApp() {
     (id: string) => {
       const node = NODES.find((n) => n.id === id);
       if (!node) return;
-      if (node.state === "frontier") enterSession(node);
-      else if (node.locked) showToast("Locked — clear its prerequisites first");
-      else setSelectedId(id);
+      const state = displayRef.current[id];
+      if (state === "frontier") enterSession(node);
+      else if (state === "unknown") {
+        setSelectedId(id);
+        showToast("Locked — learn the highlighted path first");
+      } else setSelectedId(id);
     },
     [enterSession, showToast],
   );
@@ -252,6 +287,31 @@ export default function AtlasApp() {
     [enterSession, showToast],
   );
 
+  const onPhaseAction = useCallback(
+    (node: ConceptNode, displayState: NodeState, idx: number) => {
+      const current = phaseIndex(displayState);
+      if (current < 0) return;
+      const phase = PHASES[idx];
+      if (idx === current) {
+        onPrimaryAction(node, displayState);
+      } else if (idx < current) {
+        // Secondary action: any completed phase stays open for a re-do.
+        if (phase === "Retained")
+          showToast(`Queuing review cards for ${node.label}`);
+        else showToast(`Re-doing ${phase} · ${node.label} — the spiral stays open`);
+      } else {
+        // The learner jumped the recommended step — allowed, already nudged.
+        setStates((prev) =>
+          prev[node.id] === "unknown"
+            ? { ...prev, [node.id]: "learning" }
+            : prev,
+        );
+        showToast(`Jumping ahead · ${node.label} → ${phase}`);
+      }
+    },
+    [onPrimaryAction, showToast],
+  );
+
   const onSurface = useCallback(
     (surface: Surface) => {
       if (surface === "map") return;
@@ -260,8 +320,9 @@ export default function AtlasApp() {
         return;
       }
       const node = NODES.find((n) => n.id === selectedId);
-      if (node && node.state === "frontier") enterSession(node);
-      else if (node && node.state === "learning")
+      const state = node ? displayRef.current[node.id] : undefined;
+      if (node && state === "frontier") enterSession(node);
+      else if (node && state === "learning")
         showToast(`Session · resuming ${node.label} → Feynman`);
       else showToast("Session · double-click a glowing frontier node to begin");
     },
@@ -269,27 +330,27 @@ export default function AtlasApp() {
   );
 
   const jumpFrontier = useCallback(() => {
-    setSelectedId(FRONTIER_START);
-    centerOn(FRONTIER_START);
-  }, [centerOn]);
+    const target = frontierTargetId();
+    if (!target) return;
+    setSelectedId(target);
+    centerOn(target);
+  }, [centerOn, frontierTargetId]);
 
   const toggleMomentum = useCallback(() => {
     if (momentumPlaying) {
       if (momentumRef.current) clearInterval(momentumRef.current);
       setMomentumPlaying(false);
-      setReveal(3);
       return;
     }
     setMomentumPlaying(true);
-    setReveal(0);
-    setMomentumWeek(1);
+    setMomentumWeek(0);
     momentumRef.current = setInterval(() => {
-      setReveal((prev) => {
-        const next = Math.min(3, prev + 1);
-        if (next >= 3 && momentumRef.current) clearInterval(momentumRef.current);
+      setMomentumWeek((prev) => {
+        const next = Math.min(MOMENTUM_WEEKS, prev + 1);
+        if (next >= MOMENTUM_WEEKS && momentumRef.current)
+          clearInterval(momentumRef.current);
         return next;
       });
-      setMomentumWeek((prev) => Math.min(3, prev + 1));
     }, 1000);
   }, [momentumPlaying]);
 
@@ -297,19 +358,46 @@ export default function AtlasApp() {
 
   const isMap = screen === "map";
   const showCanvas = screen !== "welcome";
-  // Reveal depth: the map always shows true state unless the momentum
-  // replay is running; onboarding stages reveal as the diagnostic answers.
-  const eff = isMap && !momentumPlaying ? 3 : reveal;
 
-  const masteredCount = NODES.filter((n) => n.state === "mastered").length;
+  // What the canvas shows: the live state map, masked during onboarding
+  // (generations beyond the diagnostic reveal stay hidden) and during the
+  // momentum replay (states that lit after the replay week stay hidden).
+  // Frontier/locking are derived from the masked states, so the glowing
+  // frontier advances live through both the diagnostic and the replay.
+  const visibleStates = useMemo<StateMap>(
+    () =>
+      Object.fromEntries(
+        NODES.map((n) => [
+          n.id,
+          (!isMap && n.g > reveal) || (momentumPlaying && n.week > momentumWeek)
+            ? "unknown"
+            : states[n.id],
+        ]),
+      ),
+    [isMap, reveal, momentumPlaying, momentumWeek, states],
+  );
+  const display = useMemo(() => displayStates(visibleStates), [visibleStates]);
+  displayRef.current = display;
+
+  const masteredCount = NODES.filter(
+    (n) => states[n.id] === "mastered",
+  ).length;
   const masteryPct = Math.round((masteredCount / NODES.length) * 100);
 
   const selectedNode = NODES.find((n) => n.id === selectedId) ?? null;
   const selectedDisplayState: NodeState | null = selectedNode
-    ? selectedNode.g <= 3
-      ? selectedNode.state
-      : "unknown"
+    ? display[selectedNode.id]
     : null;
+
+  // "Learn these first": a selected locked node highlights its unlearned
+  // prerequisite chain on the canvas.
+  const lockedPath = useMemo(
+    () =>
+      isMap && selectedId && display[selectedId] === "unknown"
+        ? unmetPathOf(selectedId, states)
+        : null,
+    [isMap, selectedId, display, states],
+  );
 
   return (
     <div
@@ -327,7 +415,8 @@ export default function AtlasApp() {
       {showCanvas && (
         <MapCanvas
           screen={screen as "map" | "building" | "diagnostic"}
-          eff={eff}
+          display={display}
+          lockedPath={lockedPath}
           positions={positions}
           view={view}
           selectedId={selectedId}
@@ -367,8 +456,10 @@ export default function AtlasApp() {
             <NodeDetail
               node={selectedNode}
               displayState={selectedDisplayState}
+              display={display}
               onSelect={setSelectedId}
               onPrimaryAction={onPrimaryAction}
+              onPhaseAction={onPhaseAction}
             />
           )}
           <div
