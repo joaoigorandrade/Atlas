@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_FORM,
   NODES,
+  PHASES,
   displayStates,
   frontierIds,
   initialStates,
+  phaseIndex,
   unmetPathOf,
   type ConceptNode,
   type NodeState,
@@ -285,6 +287,31 @@ export default function AtlasApp() {
     [enterSession, showToast],
   );
 
+  const onPhaseAction = useCallback(
+    (node: ConceptNode, displayState: NodeState, idx: number) => {
+      const current = phaseIndex(displayState);
+      if (current < 0) return;
+      const phase = PHASES[idx];
+      if (idx === current) {
+        onPrimaryAction(node, displayState);
+      } else if (idx < current) {
+        // Secondary action: any completed phase stays open for a re-do.
+        if (phase === "Retained")
+          showToast(`Queuing review cards for ${node.label}`);
+        else showToast(`Re-doing ${phase} · ${node.label} — the spiral stays open`);
+      } else {
+        // The learner jumped the recommended step — allowed, already nudged.
+        setStates((prev) =>
+          prev[node.id] === "unknown"
+            ? { ...prev, [node.id]: "learning" }
+            : prev,
+        );
+        showToast(`Jumping ahead · ${node.label} → ${phase}`);
+      }
+    },
+    [onPrimaryAction, showToast],
+  );
+
   const onSurface = useCallback(
     (surface: Surface) => {
       if (surface === "map") return;
@@ -432,6 +459,7 @@ export default function AtlasApp() {
               display={display}
               onSelect={setSelectedId}
               onPrimaryAction={onPrimaryAction}
+              onPhaseAction={onPhaseAction}
             />
           )}
           <div

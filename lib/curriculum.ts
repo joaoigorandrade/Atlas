@@ -130,6 +130,21 @@ export const PHASES = [
   "Retained",
 ] as const;
 
+export type Phase = (typeof PHASES)[number];
+
+/**
+ * The gentle skip flag: what's still unfinished when the learner jumps past
+ * the recommended next phase. Keyed by the phase being skipped over.
+ */
+export const PHASE_SKIP_NUDGE: Record<Phase, string> = {
+  Consume: "You haven't read this yet — want to?",
+  Socratic: "You haven't reasoned this out yet — want to?",
+  Feynman: "You haven't taught this back yet — want to?",
+  Connect: "You haven't linked this into your map yet — want to?",
+  Crucible: "You haven't applied this in a novel context yet — want to?",
+  Retained: "This isn't in your review rotation yet — want to?",
+};
+
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
   switch (state) {
