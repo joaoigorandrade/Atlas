@@ -12,6 +12,8 @@ import {
   paceStatus,
   phaseIndex,
   seedGraph,
+  socraticReducer,
+  socraticStart,
   spawnGap,
   unmetPathOf,
   type AltKey,
@@ -20,6 +22,8 @@ import {
   type GapSpec,
   type NodeState,
   type OnboardingForm,
+  type SocraticAction,
+  type SocraticSession,
   type StateMap,
 } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
@@ -29,13 +33,20 @@ import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import ConsumeView, {
   type ConsumeSession,
 } from "@/components/session/ConsumeView";
+import SocraticView from "@/components/session/SocraticView";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
 import Toast, { type ToastData } from "@/components/Toast";
 
-type Screen = "welcome" | "building" | "diagnostic" | "map" | "consume";
+type Screen =
+  | "welcome"
+  | "building"
+  | "diagnostic"
+  | "map"
+  | "consume"
+  | "socratic";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
@@ -74,6 +85,9 @@ export default function AtlasApp() {
   // The active Consume (Learn) session, or null when not in one. Phase 2 is a
   // full surface, not a rail — entering a frontier node opens it here.
   const [consume, setConsume] = useState<ConsumeSession | null>(null);
+  // The active Socratic (Phase 3a) session, or null. Like Consume it's a full
+  // surface; the contingent-tutor logic lives in `socraticReducer`.
+  const [socratic, setSocratic] = useState<SocraticSession | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -343,26 +357,87 @@ export default function AtlasApp() {
 
   const exitConsume = useCallback(() => setScreen("map"), []);
 
+  // ---- Socratic (Phase 3a) ---------------------------------------------
+
+  /**
+   * Open the Socratic surface on a node. The node moves Unknown/Frontier →
+   * Learning (understanding is forming), and the contingent-questioning
+   * session begins on its first probe.
+   */
+  const enterSocratic = useCallback((node: ConceptNode) => {
+    setStates((prev) =>
+      prev[node.id] === "unknown" || prev[node.id] === undefined
+        ? { ...prev, [node.id]: "learning" }
+        : prev,
+    );
+    setSocratic(socraticStart(node.id));
+    setSelectedId(node.id);
+    setScreen("socratic");
+  }, []);
+
+  const dispatchSocratic = useCallback(
+    (action: SocraticAction) => {
+      setSocratic((prev) => {
+        if (!prev) return prev;
+        const next = socraticReducer(prev, action);
+        // Repeated "Just tell me" flags a likely prerequisite gap (the spec's
+        // logged-drop-to-instruction signal).
+        if (action.type === "tell" && next.tells >= 2)
+          showToast(
+            "Leaning on “Just tell me” — an earlier concept may be shaky. I'll flag it on the map.",
+            "Prerequisite gap",
+          );
+        return next;
+      });
+    },
+    [showToast],
+  );
+
+  const clearSocraticPad = useCallback(() => {
+    setSocratic((prev) => (prev ? { ...prev, padReaction: null } : prev));
+  }, []);
+
+  const exitSocratic = useCallback(() => {
+    setScreen("map");
+    const nodeId = socratic?.nodeId;
+    if (nodeId) {
+      setSelectedId(nodeId);
+      later(() => centerOn(nodeId), 30);
+    }
+    setSocratic(null);
+  }, [centerOn, later, socratic]);
+
+  /**
+   * Understanding established: the learner answered the core probes unaided,
+   * so Socratic (Phase 3a) is complete and Feynman is next. The node stays
+   * Learning — mastery isn't granted until the Crucible + retention.
+   */
+  const advanceFromSocratic = useCallback(() => {
+    const node = graphRef.current.nodes.find((n) => n.id === socratic?.nodeId);
+    setScreen("map");
+    setSocratic(null);
+    if (node) {
+      setSelectedId(node.id);
+      later(() => centerOn(node.id), 30);
+    }
+    showToast(
+      `Understanding established · ${node?.label ?? "Node"} — Feynman teach-back is next.`,
+    );
+  }, [centerOn, later, showToast, socratic]);
+
+  // ---- Consume → Socratic hand-off -------------------------------------
+
   /**
    * Finishing the last chunk: the node moves Unknown/Frontier → Learning and
-   * the learner auto-advances toward Socratic (not yet a screen — voiced as a
-   * toast). Returns to the map centered on the node so the new state is visible.
+   * auto-advances into Socratic (Phase 3a), per the spec's Consume exit.
    */
   const finishConsume = useCallback(() => {
     const nodeId = consume?.nodeId;
-    setScreen("map");
     setConsume(null);
     if (!nodeId) return;
-    setStates((prev) =>
-      prev[nodeId] === "unknown" ? { ...prev, [nodeId]: "learning" } : prev,
-    );
     const node = graphRef.current.nodes.find((n) => n.id === nodeId);
-    setSelectedId(nodeId);
-    later(() => centerOn(nodeId), 30);
-    showToast(
-      `Consume complete · ${node?.label ?? "Node"} → Learning. Socratic is the next milestone.`,
-    );
-  }, [centerOn, consume, later, showToast]);
+    if (node) enterSocratic(node);
+  }, [consume, enterSocratic]);
 
   const consumeSkipCrucible = useCallback(() => {
     const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
@@ -461,6 +536,12 @@ export default function AtlasApp() {
       const current = phaseIndex(displayState);
       if (current < 0) return;
       const phase = PHASES[idx];
+      // Socratic (Phase 3a) is a real surface — open it whether the learner is
+      // starting it, re-doing it, or jumping ahead to it.
+      if (phase === "Socratic") {
+        enterSocratic(node);
+        return;
+      }
       if (idx === current) {
         onPrimaryAction(node, displayState);
       } else if (idx < current) {
@@ -478,7 +559,7 @@ export default function AtlasApp() {
         showToast(`Jumping ahead · ${node.label} → ${phase}`);
       }
     },
-    [onPrimaryAction, showToast],
+    [enterSocratic, onPrimaryAction, showToast],
   );
 
   const onSurface = useCallback(
@@ -701,6 +782,23 @@ export default function AtlasApp() {
           onToggleAside={consumeToggleAside}
           onSkipCrucible={consumeSkipCrucible}
           onRoutePrereq={consumeRoutePrereq}
+        />
+      )}
+
+      {screen === "socratic" && socratic && (
+        <SocraticView
+          title={
+            graph.nodes.find((n) => n.id === socratic.nodeId)?.label ??
+            "Concept"
+          }
+          session={socratic}
+          onExit={exitSocratic}
+          onReply={(index) => dispatchSocratic({ type: "reply", index })}
+          onSubmitScratch={() => dispatchSocratic({ type: "scratch" })}
+          onStuck={() => dispatchSocratic({ type: "stuck" })}
+          onTell={() => dispatchSocratic({ type: "tell" })}
+          onClearPad={clearSocraticPad}
+          onAdvance={advanceFromSocratic}
         />
       )}
 
