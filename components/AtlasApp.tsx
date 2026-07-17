@@ -6,6 +6,9 @@ import {
   NODES,
   PHASES,
   displayStates,
+  feynmanGaps,
+  feynmanReducer,
+  feynmanStart,
   initialStates,
   nextGapFor,
   orderedFrontier,
@@ -19,6 +22,8 @@ import {
   type AltKey,
   type ConceptGraph,
   type ConceptNode,
+  type FeynmanAction,
+  type FeynmanSession,
   type GapSpec,
   type NodeState,
   type OnboardingForm,
@@ -34,6 +39,7 @@ import ConsumeView, {
   type ConsumeSession,
 } from "@/components/session/ConsumeView";
 import SocraticView from "@/components/session/SocraticView";
+import FeynmanView from "@/components/session/FeynmanView";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -46,7 +52,8 @@ type Screen =
   | "diagnostic"
   | "map"
   | "consume"
-  | "socratic";
+  | "socratic"
+  | "feynman";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
@@ -88,6 +95,9 @@ export default function AtlasApp() {
   // The active Socratic (Phase 3a) session, or null. Like Consume it's a full
   // surface; the contingent-tutor logic lives in `socraticReducer`.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
+  // The active Feynman (Phase 3b) teach-back session, or null. The naive-student
+  // engine lives in `feynmanReducer`; unresolved gaps write back to the map.
+  const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -407,23 +417,91 @@ export default function AtlasApp() {
     setSocratic(null);
   }, [centerOn, later, socratic]);
 
+  // ---- Feynman (Phase 3b) ----------------------------------------------
+
   /**
-   * Understanding established: the learner answered the core probes unaided,
-   * so Socratic (Phase 3a) is complete and Feynman is next. The node stays
-   * Learning — mastery isn't granted until the Crucible + retention.
+   * Open the Feynman teach-back on a node. Like Socratic it's a full surface;
+   * the node moves Unknown/Frontier → Learning (understanding is forming) and
+   * the naive-student session begins on its opening prompt.
    */
-  const advanceFromSocratic = useCallback(() => {
-    const node = graphRef.current.nodes.find((n) => n.id === socratic?.nodeId);
+  const enterFeynman = useCallback((node: ConceptNode) => {
+    setStates((prev) =>
+      prev[node.id] === "unknown" || prev[node.id] === undefined
+        ? { ...prev, [node.id]: "learning" }
+        : prev,
+    );
+    setFeynman(feynmanStart(node.id));
+    setSelectedId(node.id);
+    setScreen("feynman");
+  }, []);
+
+  const dispatchFeynman = useCallback((action: FeynmanAction) => {
+    setFeynman((prev) => (prev ? feynmanReducer(prev, action) : prev));
+  }, []);
+
+  const exitFeynman = useCallback(() => {
     setScreen("map");
-    setSocratic(null);
+    const nodeId = feynman?.nodeId;
+    if (nodeId) {
+      setSelectedId(nodeId);
+      later(() => centerOn(nodeId), 30);
+    }
+    setFeynman(null);
+  }, [centerOn, later, feynman]);
+
+  /**
+   * The write-back — Feynman's connective tissue. Every unresolved gap becomes
+   * a red Gap sub-node hung under the parent by a dashed edge (via `spawnGap`,
+   * idempotent so re-teaching never duplicates), then Feynman closes toward
+   * Connect. The node stays Learning — mastery waits for the Crucible.
+   */
+  const advanceFromFeynman = useCallback(() => {
+    if (!feynman) return;
+    const node = graphRef.current.nodes.find((n) => n.id === feynman.nodeId);
+    const specs = feynmanGaps(feynman);
+    const base = node ? positionsRef.current[node.id] : undefined;
+    if (node && base) {
+      specs.forEach((spec) => {
+        setGraph((g) => spawnGap(g, node.id, spec));
+        setStates((prev) =>
+          prev[spec.id] ? prev : { ...prev, [spec.id]: "gap" },
+        );
+        setPositions((prev) =>
+          prev[spec.id]
+            ? prev
+            : { ...prev, [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy } },
+        );
+        setSpawnedIds((prev) => new Set(prev).add(spec.id));
+      });
+    }
+    setScreen("map");
+    setFeynman(null);
     if (node) {
       setSelectedId(node.id);
       later(() => centerOn(node.id), 30);
     }
-    showToast(
-      `Understanding established · ${node?.label ?? "Node"} — Feynman teach-back is next.`,
-    );
-  }, [centerOn, later, showToast, socratic]);
+    if (specs.length)
+      showToast(
+        `Attached ${specs.length} gap${specs.length === 1 ? "" : "s"} under ${node?.label ?? "the node"} — Connect is next once you close them.`,
+        "Map updated",
+      );
+    else
+      showToast(
+        `Clean teach-back · ${node?.label ?? "Node"} — Connect (elaboration) is next.`,
+      );
+  }, [centerOn, feynman, later, showToast]);
+
+  /**
+   * Understanding established: the learner answered the core probes unaided,
+   * so Socratic (Phase 3a) is complete. Hand straight off to Feynman — the
+   * node stays Learning; mastery isn't granted until the Crucible + retention.
+   */
+  const advanceFromSocratic = useCallback(() => {
+    const node = graphRef.current.nodes.find((n) => n.id === socratic?.nodeId);
+    setSocratic(null);
+    if (node) enterFeynman(node);
+    else setScreen("map");
+  }, [enterFeynman, socratic]);
 
   // ---- Consume → Socratic hand-off -------------------------------------
 
@@ -479,7 +557,7 @@ export default function AtlasApp() {
           enterSession(node);
           break;
         case "learning":
-          showToast(`Resuming · ${node.label} → Feynman teach-back`);
+          enterFeynman(node);
           break;
         case "shaky":
           // The Crucible's write-back drives the re-plan: while the node
@@ -512,7 +590,7 @@ export default function AtlasApp() {
           showToast("Clear its prerequisites first");
       }
     },
-    [enterSession, later, showToast, spawnFailureGap],
+    [enterFeynman, enterSession, later, showToast, spawnFailureGap],
   );
 
   /**
@@ -542,6 +620,12 @@ export default function AtlasApp() {
         enterSocratic(node);
         return;
       }
+      // Feynman (Phase 3b) is a real surface too — open it whether starting,
+      // re-doing, or jumping ahead to the teach-back.
+      if (phase === "Feynman") {
+        enterFeynman(node);
+        return;
+      }
       if (idx === current) {
         onPrimaryAction(node, displayState);
       } else if (idx < current) {
@@ -559,7 +643,7 @@ export default function AtlasApp() {
         showToast(`Jumping ahead · ${node.label} → ${phase}`);
       }
     },
-    [enterSocratic, onPrimaryAction, showToast],
+    [enterFeynman, enterSocratic, onPrimaryAction, showToast],
   );
 
   const onSurface = useCallback(
@@ -572,11 +656,10 @@ export default function AtlasApp() {
       const node = graphRef.current.nodes.find((n) => n.id === selectedId);
       const state = node ? displayRef.current[node.id] : undefined;
       if (node && state === "frontier") enterSession(node);
-      else if (node && state === "learning")
-        showToast(`Session · resuming ${node.label} → Feynman`);
+      else if (node && state === "learning") enterFeynman(node);
       else showToast("Session · double-click a glowing frontier node to begin");
     },
-    [enterSession, selectedId, showToast],
+    [enterFeynman, enterSession, selectedId, showToast],
   );
 
   const jumpFrontier = useCallback(() => {
@@ -799,6 +882,25 @@ export default function AtlasApp() {
           onTell={() => dispatchSocratic({ type: "tell" })}
           onClearPad={clearSocraticPad}
           onAdvance={advanceFromSocratic}
+        />
+      )}
+
+      {screen === "feynman" && feynman && (
+        <FeynmanView
+          title={
+            graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"
+          }
+          session={feynman}
+          onExit={exitFeynman}
+          onBegin={() => dispatchFeynman({ type: "begin" })}
+          onSpeak={() => dispatchFeynman({ type: "speak" })}
+          onReply={(index) => dispatchFeynman({ type: "reply", index })}
+          onScaffold={() => dispatchFeynman({ type: "scaffold" })}
+          onOpenFix={(beatId) => dispatchFeynman({ type: "openFix", beatId })}
+          onCloseFix={() => dispatchFeynman({ type: "closeFix" })}
+          onFix={(index) => dispatchFeynman({ type: "fix", index })}
+          onTeachAgain={() => dispatchFeynman({ type: "teachAgain" })}
+          onAdvance={advanceFromFeynman}
         />
       )}
 
