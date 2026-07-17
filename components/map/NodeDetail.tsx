@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import {
-  EDGES,
-  NODES,
   PHASES,
   PHASE_SKIP_NUDGE,
   STATE_COLOR,
   STATE_CONFIDENCE,
   STATE_LABEL,
   phaseIndex,
+  type ConceptEdge,
   type ConceptNode,
   type NodeState,
 } from "@/lib/curriculum";
@@ -18,6 +17,9 @@ import { color, font, kicker } from "@/lib/theme";
 interface NodeDetailProps {
   node: ConceptNode;
   displayState: NodeState;
+  /** The live graph — spawned gap nodes appear here too. */
+  nodes: ConceptNode[];
+  edges: ConceptEdge[];
   /** Display state of every node — colors the prerequisite/unlock chips. */
   display: Record<string, NodeState>;
   onSelect: (id: string) => void;
@@ -28,6 +30,8 @@ interface NodeDetailProps {
     displayState: NodeState,
     phaseIdx: number,
   ) => void;
+  /** Prune a frontier node as diagnosed-known — the aggressive faster lever. */
+  onSkipKnown: (node: ConceptNode) => void;
 }
 
 const CTA_LABEL: Record<NodeState, string> = {
@@ -39,18 +43,19 @@ const CTA_LABEL: Record<NodeState, string> = {
   unknown: "Locked",
 };
 
-function labelOf(id: string): string {
-  return NODES.find((n) => n.id === id)?.label ?? id;
-}
-
 export default function NodeDetail({
   node,
   displayState,
+  nodes,
+  edges,
   display,
   onSelect,
   onPrimaryAction,
   onPhaseAction,
+  onSkipKnown,
 }: NodeDetailProps) {
+  const labelOf = (id: string) =>
+    nodes.find((n) => n.id === id)?.label ?? id;
   const stateColor = STATE_COLOR[displayState];
   const currentPhase = phaseIndex(displayState);
   const locked = displayState === "unknown";
@@ -59,12 +64,17 @@ export default function NodeDetail({
   const [pendingSkip, setPendingSkip] = useState<number | null>(null);
   useEffect(() => setPendingSkip(null), [node.id, displayState]);
 
-  const prereqIds = EDGES.filter(
-    ([, to]) => to === node.id && !to.startsWith("gap"),
-  ).map(([from]) => from);
-  const dependentIds = EDGES.filter(([from]) => from === node.id).map(
-    ([, to]) => to,
-  );
+  const prereqIds = edges
+    .filter(([, to, dashed]) => to === node.id && !dashed)
+    .map(([from]) => from);
+  const dependentIds = edges
+    .filter(([from, , dashed]) => from === node.id && !dashed)
+    .map(([, to]) => to);
+  // Dashed children are the sub-concepts the re-planner split out of this
+  // node's failures — surfaced separately from what it unlocks.
+  const gapIds = edges
+    .filter(([from, , dashed]) => from === node.id && dashed)
+    .map(([, to]) => to);
 
   const chipStyle = {
     display: "inline-flex",
@@ -363,6 +373,36 @@ export default function NodeDetail({
       >
         {CTA_LABEL[displayState]}
       </button>
+
+      {displayState === "frontier" && (
+        <button
+          onClick={() => onSkipKnown(node)}
+          style={{
+            width: "100%",
+            marginTop: 10,
+            padding: "11px 15px",
+            background: "none",
+            border: `1px solid ${color.hairlineStrong}`,
+            borderRadius: 12,
+            fontSize: 13.5,
+            color: color.inkMuted,
+            cursor: "pointer",
+          }}
+        >
+          I already know this — skip it
+        </button>
+      )}
+
+      {gapIds.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>
+            Open gaps · spawned from failures
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {gapIds.map(chip)}
+          </div>
+        </div>
+      )}
 
       {prereqIds.length > 0 && (
         <div style={{ marginTop: 24 }}>

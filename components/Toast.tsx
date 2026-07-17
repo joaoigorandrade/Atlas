@@ -1,8 +1,14 @@
 "use client";
 
-import { color } from "@/lib/theme";
+import { color, font } from "@/lib/theme";
 
-export default function Toast({ message }: { message: string }) {
+export interface ToastData {
+  /** Small mono label above the message — "Map updated" for re-plans. */
+  kicker?: string;
+  message: string;
+}
+
+export default function Toast({ toast }: { toast: ToastData }) {
   return (
     <div
       style={{
@@ -21,7 +27,21 @@ export default function Toast({ message }: { message: string }) {
         maxWidth: 520,
       }}
     >
-      {message}
+      {toast.kicker && (
+        <div
+          style={{
+            fontFamily: font.mono,
+            fontSize: 9.5,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+            color: "#c99a2e",
+            marginBottom: 5,
+          }}
+        >
+          {toast.kicker}
+        </div>
+      )}
+      {toast.message}
     </div>
   );
 }
