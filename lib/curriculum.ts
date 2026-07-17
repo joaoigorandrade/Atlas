@@ -365,6 +365,358 @@ export const CONSUME_CHUNKS: ConsumeChunk[] = [
   },
 ];
 
+// ---- Phase 3a · Socratic (during learning) --------------------------------
+// The learner *constructs* the idea through guided questioning. The AI is
+// contingent (hint when near, teach when lost), and — the single most
+// important behavior — anti-sycophantic: it catches wrong reasoning and
+// surfaces it gently, never smoothing it over. Scaffolding fades as the
+// learner answers unaided. Content ships the Linear Transformations pass so
+// the probe → reply → catch → advance mechanic is real.
+
+/** The scaffolding dial, least help → most. Falls toward Silent with mastery. */
+export const HELP_LABELS = ["Silent", "Hint", "Guide", "Show me"] as const;
+export type HelpLevel = 0 | 1 | 2 | 3;
+
+/** Warmer = more help. The dial and its active cell read this. */
+export const HELP_COLOR: Record<HelpLevel, string> = {
+  0: STATE_COLOR.mastered, // Silent — the learner is carrying it
+  1: STATE_COLOR.learning, // Hint
+  2: STATE_COLOR.frontier, // Guide
+  3: STATE_COLOR.shaky, // Show me — dropped to direct instruction
+};
+
+/** The classic Socratic moves, tagged on each probe so the intent is legible. */
+export type SocraticMove =
+  | "Clarify"
+  | "Challenge the assumption"
+  | "Probe the reasoning"
+  | "Probe the implications";
+
+/**
+ * How true a reply is. `correct` advances; `near` earns a hint and another
+ * try; `wrong` gets caught (anti-sycophancy); `lost` drops the act and teaches.
+ */
+export type ReplyQuality = "correct" | "near" | "wrong" | "lost";
+
+export interface SocraticReply {
+  label: string;
+  quality: ReplyQuality;
+  /** The AI's honest, contingent response to this reply. */
+  response: string;
+}
+
+export interface SocraticStep {
+  id: string;
+  move: SocraticMove;
+  /** The probing question the AI opens the step with. */
+  prompt: string;
+  replies: SocraticReply[];
+  /** Raised-help scaffold ("I'm stuck") — a nudge that doesn't give it away. */
+  hint: string;
+  /** Direct instruction for "Just tell me" — drops the Socratic act entirely. */
+  tell: string;
+  /**
+   * An optional scratchpad task. When present the reply panel stays locked
+   * until the learner works on the pad and submits it — the AI then reacts to
+   * what's written there, not just to chat text.
+   */
+  scratch?: {
+    /** Instruction overlaid on the pad. */
+    prompt: string;
+    /** The AI's reaction to the pad — catches the common error it finds. */
+    reaction: string;
+  };
+}
+
+export const SOCRATIC_STEPS: SocraticStep[] = [
+  {
+    id: "s1",
+    move: "Clarify",
+    prompt:
+      "In Consume you saw a matrix's columns are “where î and ĵ land.” Before we build one from scratch — what, precisely, is the first column of a 2×2 matrix?",
+    replies: [
+      {
+        label: "It's T(î) — the whole vector î = (1,0) turns into.",
+        quality: "correct",
+        response:
+          "Said plainly, and correct. The first column is T(î), both coordinates — keep that anchor.",
+      },
+      {
+        label: "The x-coordinates of the outputs.",
+        quality: "wrong",
+        response:
+          "I'll stop you there — that's the common slip, and it's wrong. The first column isn't a row of x-coordinates; it's one whole vector, T(î). For [[2,1],[0,3]] the first column is (2,0) — that's where î goes. Try again.",
+      },
+      {
+        label: "Honestly, I've lost what the columns mean.",
+        quality: "lost",
+        response:
+          "Fine — let me just show you, then we resume. Apply the matrix to î = (1,0): only the first column survives the multiply. So column one is T(î); column two is T(ĵ). Now you hold it.",
+      },
+    ],
+    hint: "Don't think “coordinates.” Think: I feed in î. What single vector comes out?",
+    tell: "The first column is T(î): the vector î = (1,0) maps to. The second is T(ĵ). Columns are destinations, not coordinate rows.",
+  },
+  {
+    id: "s2",
+    move: "Probe the reasoning",
+    prompt:
+      "Good. Now build one yourself. On the scratchpad, work out where î and ĵ land under a 90° counter-clockwise rotation, then write the 2×2 matrix. Show your working — I'm reading the pad.",
+    scratch: {
+      prompt: "Sketch î, ĵ after a 90° CCW turn — then write the matrix.",
+      reaction:
+        "I can read your pad. The images are right — î → (0,1), ĵ → (−1,0). But the matrix you wrote, [[0,1],[−1,0]], doesn't say that. Images go in as columns, top-to-bottom: (0,1) and (−1,0) give [[0,−1],[1,0]]. You laid them in as rows — the transpose trap. Which is right?",
+    },
+    replies: [
+      {
+        label: "Right — images are columns, so it's [[0,−1],[1,0]].",
+        quality: "correct",
+        response:
+          "Yes. You caught your own transpose once I pointed at it — that's the muscle we're building.",
+      },
+      {
+        label:
+          "But (0,1) and (−1,0) are correct, so the matrix must be fine.",
+        quality: "wrong",
+        response:
+          "The vectors are correct; their placement isn't. Rows vs columns changes the map entirely — [[0,1],[−1,0]] rotates the other way. Put each image in as a column and check î again.",
+      },
+      {
+        label: "So I just swap the rows and columns?",
+        quality: "near",
+        response:
+          "Careful with “just swap” — that's the transpose trick, and here it happens to fix it. But you want the reason: each image is a column because the matrix times î must return column one. Say it back that way.",
+      },
+    ],
+    hint: "Feed î = (1,0) into your matrix. If the first column isn't the vector you drew î turning into, the matrix is wrong — not the drawing.",
+    tell: "90° CCW sends î=(1,0)→(0,1) and ĵ=(0,1)→(−1,0). Those are the columns, so the matrix is [[0,−1],[1,0]]. Written as rows, you'd get the clockwise rotation instead.",
+  },
+  {
+    id: "s3",
+    move: "Challenge the assumption",
+    prompt:
+      "You've got a reliable rule now: images of î and ĵ become the columns. So — does every transformation have a matrix? What about one that bends straight lines into curves?",
+    replies: [
+      {
+        label:
+          "No. A matrix only makes linear maps — straight stays straight. A bend isn't linear, so it has no matrix.",
+        quality: "correct",
+        response:
+          "Exactly the line to hold. The tool doesn't cover everything; it covers linear everything. Bending breaks T(v+w) = T(v)+T(w).",
+      },
+      {
+        label: "Yes — you can always find a matrix for any transformation.",
+        quality: "wrong",
+        response:
+          "That's the assumption I wanted you to challenge, and it's false. A matrix only ever produces linear maps: straight lines stay straight, spacing stays even. A curve-maker has no matrix at all. Don't let a powerful tool convince you it's universal.",
+      },
+      {
+        label: "Only if it keeps the origin fixed?",
+        quality: "near",
+        response:
+          "Closer, but origin-fixed is necessary, not sufficient — a bend can fix the origin and still fail. The real test is preserving addition and scaling. Why does bending break T(v+w) = T(v)+T(w)?",
+      },
+    ],
+    hint: "A matrix on v+w always equals the matrix on v plus the matrix on w. Can a curve-maker promise that? Try two vectors.",
+    tell: "No. Matrices produce exactly the linear maps — those preserving addition and scaling, keeping lines straight and the origin fixed. A transformation that curves lines is non-linear and has no matrix.",
+  },
+  {
+    id: "s4",
+    move: "Probe the implications",
+    prompt:
+      "Last one, and it's yours alone. Compose two motions: first the shear [[1,1],[0,1]], then your 90° rotation. Which matrix sits on the right of the product — and what does that force to be true about matrix multiplication?",
+    replies: [
+      {
+        label:
+          "The shear is first, so it sits on the right: R·S, acting right-to-left. Order matters — that's why AB ≠ BA.",
+        quality: "correct",
+        response:
+          "That's the whole implication, unaided. The motion you do first hugs the vector on the right, and because motions don't commute, neither does the multiplication.",
+      },
+      {
+        label: "Rotation first, so S·R, read left-to-right.",
+        quality: "wrong",
+        response:
+          "Reversed — and this is the trap left-to-right reading sets. The map you apply first sits next to the vector: R(S·v) = (R·S)·v, so the shear is on the right. That right-to-left order is exactly why AB ≠ BA.",
+      },
+      {
+        label: "R·S, but I think the order wouldn't change the result.",
+        quality: "near",
+        response:
+          "Half right — R·S is the correct product. But “wouldn't change the result” is the part to test: shear-then-rotate î, then rotate-then-shear it, and watch them disagree. Non-commuting is the point.",
+      },
+    ],
+    hint: "Write (R·S)·v = R·(S·v). Which matrix touches v first? That one is applied first — and sits on the right.",
+    tell: "Applying S then R to a vector is R(S·v) = (R·S)v, so S — the first motion — sits on the right. Swapping to S·R gives a different motion, so matrix multiplication is order-dependent: AB ≠ BA in general.",
+  },
+];
+
+/** One line of the Socratic transcript. */
+export interface SocraticTurn {
+  role: "ai" | "learner";
+  text: string;
+  /** Present on AI probes: the Socratic move being made. */
+  move?: SocraticMove;
+  /** Colors the AI bubble: a caught error, an affirmation, or direct teaching. */
+  tone?: "neutral" | "catch" | "affirm" | "teach";
+}
+
+/** The live state of one Socratic session — held by AtlasApp, read by the view. */
+export interface SocraticSession {
+  nodeId: string;
+  step: number;
+  help: HelpLevel;
+  log: SocraticTurn[];
+  /** Whether the current step's scratch task is submitted (true when it has none). */
+  scratchDone: boolean;
+  /** Reply labels already ruled out on this step (caught wrong / spent hints). */
+  ruledOut: string[];
+  /** The AI's latest reaction to the pad, shown beside the canvas. */
+  padReaction: string | null;
+  /** "Just tell me" uses — repeated use flags a prerequisite gap. */
+  tells: number;
+  done: boolean;
+}
+
+/** Clamp a help level into the dial's range. */
+function clampHelp(n: number): HelpLevel {
+  return Math.max(0, Math.min(3, n)) as HelpLevel;
+}
+
+/** Push a step's opening probe onto the log and reset the per-step gates. */
+function openStep(session: SocraticSession, step: number): SocraticSession {
+  const s = SOCRATIC_STEPS[step];
+  return {
+    ...session,
+    step,
+    scratchDone: !s.scratch,
+    ruledOut: [],
+    padReaction: null,
+    log: [...session.log, { role: "ai", text: s.prompt, move: s.move }],
+  };
+}
+
+/** A fresh session, opened on its first probe. Starts mid-dial, at Hint. */
+export function socraticStart(nodeId: string): SocraticSession {
+  const first = SOCRATIC_STEPS[0];
+  return {
+    nodeId,
+    step: 0,
+    help: 1,
+    scratchDone: !first.scratch,
+    ruledOut: [],
+    padReaction: null,
+    tells: 0,
+    done: false,
+    log: [{ role: "ai", text: first.prompt, move: first.move }],
+  };
+}
+
+const REPLY_TONE: Record<ReplyQuality, SocraticTurn["tone"]> = {
+  correct: "affirm",
+  near: "neutral",
+  wrong: "catch",
+  lost: "teach",
+};
+
+export type SocraticAction =
+  | { type: "reply"; index: number }
+  | { type: "scratch" }
+  | { type: "stuck" }
+  | { type: "tell" };
+
+/**
+ * The contingent tutor, as a pure transition. Correct answers advance and let
+ * scaffolding fade; near answers earn a hint and another try; wrong answers get
+ * caught and raise help; "lost"/"just tell me" drop the act and teach. This is
+ * where the anti-sycophancy lives — a wrong reply is surfaced, never advanced.
+ */
+export function socraticReducer(
+  session: SocraticSession,
+  action: SocraticAction,
+): SocraticSession {
+  if (session.done) return session;
+  const step = SOCRATIC_STEPS[session.step];
+  const last = session.step === SOCRATIC_STEPS.length - 1;
+
+  const advance = (base: SocraticSession): SocraticSession =>
+    last ? { ...base, done: true } : openStep(base, session.step + 1);
+
+  switch (action.type) {
+    case "scratch": {
+      if (!step.scratch || session.scratchDone) return session;
+      return {
+        ...session,
+        scratchDone: true,
+        padReaction: step.scratch.reaction,
+        log: [
+          ...session.log,
+          { role: "learner", text: "✎ Worked it out on the scratchpad." },
+          { role: "ai", text: step.scratch.reaction, tone: "catch" },
+        ],
+      };
+    }
+    case "stuck": {
+      return {
+        ...session,
+        help: clampHelp(session.help + 1),
+        ruledOut: [...session.ruledOut],
+        log: [
+          ...session.log,
+          { role: "learner", text: "I'm stuck — more help." },
+          { role: "ai", text: step.hint, tone: "teach" },
+        ],
+      };
+    }
+    case "tell": {
+      const base: SocraticSession = {
+        ...session,
+        help: 3,
+        tells: session.tells + 1,
+        log: [
+          ...session.log,
+          { role: "learner", text: "Just tell me." },
+          { role: "ai", text: step.tell, tone: "teach" },
+        ],
+      };
+      return advance(base);
+    }
+    case "reply": {
+      const reply = step.replies[action.index];
+      if (!reply || session.ruledOut.includes(reply.label)) return session;
+      const logged: SocraticSession = {
+        ...session,
+        log: [
+          ...session.log,
+          { role: "learner", text: reply.label },
+          { role: "ai", text: reply.response, tone: REPLY_TONE[reply.quality] },
+        ],
+      };
+      if (reply.quality === "correct" || reply.quality === "lost") {
+        // Correct fades the scaffolding; a "lost" reply was just taught, so
+        // help ticks up before we move on.
+        const help =
+          reply.quality === "correct"
+            ? clampHelp(session.help - 1)
+            : clampHelp(session.help + 1);
+        return advance({ ...logged, help });
+      }
+      // near → hint and let them try again; wrong → caught, help rises. Both
+      // rule the reply out so the learner converges instead of re-picking it.
+      return {
+        ...logged,
+        help:
+          reply.quality === "wrong"
+            ? clampHelp(session.help + 1)
+            : session.help,
+        ruledOut: [...session.ruledOut, reply.label],
+      };
+    }
+    default:
+      return session;
+  }
+}
+
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
   switch (state) {
