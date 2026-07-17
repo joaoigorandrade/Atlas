@@ -18,6 +18,8 @@ export interface ViewTransform {
 
 /** Amber used for the "learn these first" path (the frontier glow color). */
 const PATH_COLOR = "#c99a2e";
+/** Green used for the goal-conditioned critical path (Phase 1 — Plan). */
+const GOAL_COLOR = "#2f6b4f";
 
 interface MapCanvasProps {
   screen: "map" | "building" | "diagnostic";
@@ -25,6 +27,8 @@ interface MapCanvasProps {
   display: Record<string, NodeState>;
   /** Unlearned prerequisite chain of a selected locked node ("learn these first"). */
   lockedPath: Set<string> | null;
+  /** Critical path to the goal when Plan's prioritize toggle is on. */
+  goalPath: Set<string> | null;
   positions: Record<string, { x: number; y: number }>;
   view: ViewTransform;
   selectedId: string | null;
@@ -41,6 +45,7 @@ export default function MapCanvas({
   screen,
   display,
   lockedPath,
+  goalPath,
   positions,
   view,
   selectedId,
@@ -111,6 +116,7 @@ export default function MapCanvas({
             if (!pa || !pb) return null;
             const hoverLit = highlighted?.has(a) && highlighted?.has(b);
             const pathLit = lockedPath?.has(a) && lockedPath?.has(b);
+            const goalLit = goalPath?.has(a) && goalPath?.has(b);
             return (
               <g key={i}>
                 <line
@@ -125,9 +131,11 @@ export default function MapCanvas({
                         ? color.accent
                         : pathLit
                           ? PATH_COLOR
-                          : "rgba(44,40,35,0.16)"
+                          : goalLit
+                            ? GOAL_COLOR
+                            : "rgba(44,40,35,0.16)"
                   }
-                  strokeWidth={hoverLit || pathLit ? 2 : 1.2}
+                  strokeWidth={hoverLit || pathLit || goalLit ? 2 : 1.2}
                   strokeDasharray={dashed ? "5 6" : "0"}
                   strokeLinecap="round"
                 />
@@ -156,10 +164,22 @@ export default function MapCanvas({
           const isFrontier = displayState === "frontier";
           const isSelected = selectedId === node.id;
           const onPath = Boolean(lockedPath?.has(node.id)) && !isSelected;
+          const onGoalPath = Boolean(goalPath?.has(node.id)) && !isSelected;
+          // With Plan's prioritize on, concepts off the goal's critical path
+          // recede so the route to the goal reads at a glance.
+          const offGoal =
+            Boolean(goalPath) && !goalPath!.has(node.id) && !isSelected;
           const matches = !q || node.label.toLowerCase().includes(q);
           // A node left unknown after derivation is locked by definition;
           // keep the assemble moment uniform while the map is building.
           const dimmedLock = displayState === "unknown" && screen !== "building";
+          const baseOpacity =
+            dimmedLock && !onPath && !onGoalPath && !isSelected
+              ? 0.5
+              : matches
+                ? 1
+                : 0.26;
+          const nodeOpacity = offGoal ? Math.min(baseOpacity, 0.32) : baseOpacity;
           const animation =
             screen === "building"
               ? `assemble 0.5s ${(0.04 * i).toFixed(2)}s both`
@@ -189,9 +209,11 @@ export default function MapCanvas({
                     ? color.accent
                     : onPath
                       ? "rgba(201,154,46,0.75)"
-                      : isFrontier
-                        ? "rgba(201,154,46,0.5)"
-                        : color.hairlineStrong
+                      : onGoalPath && !isFrontier
+                        ? "rgba(47,107,79,0.65)"
+                        : isFrontier
+                          ? "rgba(201,154,46,0.5)"
+                          : color.hairlineStrong
                 }`,
                 borderStyle: dimmedLock ? "dashed" : "solid",
                 borderRadius: 12,
@@ -201,17 +223,19 @@ export default function MapCanvas({
                 fontFamily: font.serif,
                 fontSize: 15,
                 color: color.ink,
-                opacity: dimmedLock && !onPath && !isSelected ? 0.5 : matches ? 1 : 0.26,
+                opacity: nodeOpacity,
                 boxShadow: isFrontier
                   ? "0 0 0 1px rgba(201,154,46,0.5), 0 6px 22px rgba(201,154,46,0.26)"
                   : isSelected
                     ? "0 10px 26px rgba(47,107,79,0.2)"
                     : onPath
                       ? "0 0 0 1px rgba(201,154,46,0.45), 0 4px 14px rgba(201,154,46,0.18)"
-                      : "0 2px 7px rgba(44,40,35,0.06)",
+                      : onGoalPath
+                        ? "0 0 0 1px rgba(47,107,79,0.4), 0 4px 14px rgba(47,107,79,0.16)"
+                        : "0 2px 7px rgba(44,40,35,0.06)",
                 animation,
                 transition: "border-color .2s, opacity .25s, box-shadow .2s",
-                zIndex: isSelected ? 6 : isFrontier ? 4 : 2,
+                zIndex: isSelected ? 6 : isFrontier ? 4 : onGoalPath ? 3 : 2,
               }}
             >
               <span

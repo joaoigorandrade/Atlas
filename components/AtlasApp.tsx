@@ -15,6 +15,12 @@ import {
   type OnboardingForm,
   type StateMap,
 } from "@/lib/curriculum";
+import {
+  criticalPathTo,
+  goalNode,
+  pace as computePace,
+  planSummary,
+} from "@/lib/planner";
 import { color, font } from "@/lib/theme";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
@@ -62,10 +68,16 @@ export default function AtlasApp() {
   const [momentumPlaying, setMomentumPlaying] = useState(false);
   const [momentumWeek, setMomentumWeek] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  // Phase 1 — Plan: goal-conditioned ordering made visible. When on, the map
+  // highlights the critical path to the goal (SPEC §5).
+  const [prioritize, setPrioritize] = useState(false);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
   >(() => Object.fromEntries(NODES.map((n) => [n.id, { x: n.x, y: n.y }])));
   const [view, setView] = useState<ViewTransform>({ x: 40, y: 30, scale: 0.72 });
+
+  // The map's summit — what goal-conditioned ordering steers toward (SPEC §5).
+  const goal = useMemo(() => goalNode(), []);
 
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -140,14 +152,25 @@ export default function AtlasApp() {
     setScreen("map");
     setSelectedId(target);
     later(() => centerOn(target), 30);
+    // The diagnostic just re-planned the map: raise the "Map updated" toast
+    // (SPEC §5) built from what it actually pruned, where the frontier landed,
+    // and the pace verdict — not a canned string.
+    const frontierLabel = NODES.find((n) => n.id === target)?.label ?? null;
     later(
       () =>
         showToast(
-          "Map updated · added 2 sub-concepts under Linear Independence — you keep missing base cases",
+          planSummary(
+            goal.id,
+            goal.label,
+            states,
+            form.goal,
+            frontierLabel,
+            form.target,
+          ),
         ),
       BUILD_MS,
     );
-  }, [centerOn, frontierTargetId, later, showToast]);
+  }, [centerOn, frontierTargetId, form.goal, form.target, goal, later, showToast, states]);
 
   // ---- canvas interactions ---------------------------------------------
 
@@ -241,11 +264,14 @@ export default function AtlasApp() {
           ? { ...prev, [node.id]: "learning" }
           : prev,
       );
+      const onGoalPath = criticalPathTo(goal.id, states).has(node.id);
       showToast(
-        `Session · ${node.label} → Consume — marked Learning (the session spiral is the next milestone)`,
+        onGoalPath
+          ? `Session · ${node.label} → Consume — marked Learning · on the critical path to ${goal.label}`
+          : `Session · ${node.label} → Consume — marked Learning (the session spiral is the next milestone)`,
       );
     },
-    [showToast],
+    [goal, showToast, states],
   );
 
   const onNodeDoubleClick = useCallback(
@@ -336,6 +362,21 @@ export default function AtlasApp() {
     centerOn(target);
   }, [centerOn, frontierTargetId]);
 
+  // Goal-conditioned ordering: light the critical path to the goal and raise a
+  // "Map updated" re-plan toast naming how many concepts got reordered ahead.
+  const togglePrioritize = useCallback(() => {
+    setPrioritize((prev) => {
+      const next = !prev;
+      if (next) {
+        const count = criticalPathTo(goal.id, states).size;
+        showToast(
+          `Map updated · ordered ${count} concepts toward ${goal.label} — its critical path is lit`,
+        );
+      }
+      return next;
+    });
+  }, [goal, showToast, states]);
+
   const toggleMomentum = useCallback(() => {
     if (momentumPlaying) {
       if (momentumRef.current) clearInterval(momentumRef.current);
@@ -384,6 +425,17 @@ export default function AtlasApp() {
   ).length;
   const masteryPct = Math.round((masteredCount / NODES.length) * 100);
 
+  // Phase 1 — Plan derived surfaces: the goal's pace against the deadline, and
+  // (when prioritizing) the critical path the map lights up.
+  const paceReading = useMemo(
+    () => computePace(goal.id, goal.label, states, form.target),
+    [goal, states, form.target],
+  );
+  const goalPath = useMemo(
+    () => (isMap && prioritize ? criticalPathTo(goal.id, states) : null),
+    [isMap, prioritize, goal, states],
+  );
+
   const selectedNode = NODES.find((n) => n.id === selectedId) ?? null;
   const selectedDisplayState: NodeState | null = selectedNode
     ? display[selectedNode.id]
@@ -417,6 +469,7 @@ export default function AtlasApp() {
           screen={screen as "map" | "building" | "diagnostic"}
           display={display}
           lockedPath={lockedPath}
+          goalPath={goalPath}
           positions={positions}
           view={view}
           selectedId={selectedId}
@@ -447,9 +500,13 @@ export default function AtlasApp() {
             subject={form.topic.trim() || "Linear Algebra"}
             showDeadline={form.goal === "exam"}
             masteryPct={masteryPct}
+            goalLabel={goal.label}
+            pace={paceReading}
+            prioritize={prioritize}
             momentumPlaying={momentumPlaying}
             momentumWeek={momentumWeek}
             onJumpFrontier={jumpFrontier}
+            onTogglePrioritize={togglePrioritize}
             onToggleMomentum={toggleMomentum}
           />
           {selectedNode && selectedDisplayState && (

@@ -26,6 +26,7 @@ npm run typecheck  # tsc --noEmit
 - `components/AtlasApp.tsx` — the single client-side state machine (screen, form, selection, canvas view). All cross-screen state lives here.
 - `components/onboarding/`, `components/map/` — presentational screens; they receive state + callbacks as props and hold no app state.
 - `lib/curriculum.ts` — the concept graph, mastery-state vocabulary, diagnostic script. All domain data goes here, never inline in components.
+- `lib/planner.ts` — Phase 1 (Plan): pure functions over the `StateMap` for goal-conditioned ordering (critical path to the goal), deadline pace warnings, and the "Map updated" re-plan toast copy. No state of its own — the map re-plans live as mastery flows through it.
 - `lib/theme.ts` — design tokens. Never hard-code a color/font that has a token.
 
 ## Conventions

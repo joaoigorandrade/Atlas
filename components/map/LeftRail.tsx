@@ -1,7 +1,15 @@
 "use client";
 
 import { STATE_COLOR, STATE_LABEL, type NodeState } from "@/lib/curriculum";
+import { EXAM_DAYS, type Pace } from "@/lib/planner";
 import { color, font, kicker } from "@/lib/theme";
+
+/** Pace verdict → the amber/green treatment the Plan panel wears. */
+const PACE_TONE: Record<Pace["verdict"], { ink: string; bg: string; border: string }> = {
+  behind: { ink: color.amberInk, bg: color.amberBg, border: "rgba(160,106,48,0.24)" },
+  ontrack: { ink: color.accent, bg: color.accentBg, border: "rgba(47,107,79,0.22)" },
+  ahead: { ink: color.accent, bg: color.accentBg, border: "rgba(47,107,79,0.22)" },
+};
 
 const LEGEND_ORDER: NodeState[] = [
   "frontier",
@@ -16,9 +24,13 @@ interface LeftRailProps {
   subject: string;
   showDeadline: boolean;
   masteryPct: number;
+  goalLabel: string;
+  pace: Pace;
+  prioritize: boolean;
   momentumPlaying: boolean;
   momentumWeek: number;
   onJumpFrontier: () => void;
+  onTogglePrioritize: () => void;
   onToggleMomentum: () => void;
 }
 
@@ -26,11 +38,16 @@ export default function LeftRail({
   subject,
   showDeadline,
   masteryPct,
+  goalLabel,
+  pace,
+  prioritize,
   momentumPlaying,
   momentumWeek,
   onJumpFrontier,
+  onTogglePrioritize,
   onToggleMomentum,
 }: LeftRailProps) {
+  const tone = PACE_TONE[pace.verdict];
   return (
     <div
       style={{
@@ -76,10 +93,52 @@ export default function LeftRail({
                 background: "#c99a2e",
               }}
             />
-            Final exam · 24 days
+            Final exam · {EXAM_DAYS} days
           </div>
         )}
       </div>
+
+      {showDeadline && (
+        <div>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>Plan · pace</div>
+          <div
+            style={{
+              background: tone.bg,
+              border: `1px solid ${tone.border}`,
+              borderRadius: 10,
+              padding: "12px 13px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: tone.ink,
+                marginBottom: 6,
+              }}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: tone.ink,
+                  flex: "0 0 auto",
+                }}
+              />
+              {pace.headline}
+            </div>
+            <div
+              style={{ fontSize: 12.5, lineHeight: 1.5, color: color.inkMuted }}
+            >
+              {pace.detail}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <div
@@ -136,6 +195,35 @@ export default function LeftRail({
       >
         <span>Jump to frontier</span>
         <span style={{ color: "#c99a2e" }}>→</span>
+      </button>
+
+      <button
+        onClick={onTogglePrioritize}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          padding: "12px 15px",
+          marginTop: -12,
+          background: prioritize ? color.accentBg : color.card,
+          border: `1px solid ${
+            prioritize ? "rgba(47,107,79,0.4)" : "rgba(44,40,35,0.16)"
+          }`,
+          borderRadius: 11,
+          fontSize: 14,
+          color: prioritize ? color.accent : color.ink,
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span>
+          {prioritize ? "Path to " : "Prioritize path to "}
+          {goalLabel}
+        </span>
+        <span style={{ color: color.accent, flex: "0 0 auto" }}>
+          {prioritize ? "✓" : "◇"}
+        </span>
       </button>
 
       <div>
