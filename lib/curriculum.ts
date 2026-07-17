@@ -35,6 +35,20 @@ export interface ConceptNode {
 /** [from, to, dashed?] — direction is prerequisite → dependent. */
 export type ConceptEdge = readonly [string, string, boolean?];
 
+/**
+ * The live graph. Re-planning (Phase 1) restructures it — spawning gap
+ * sub-nodes from failures — so the app holds it as state seeded from
+ * `NODES`/`EDGES`, never the module constants directly.
+ */
+export interface ConceptGraph {
+  nodes: ConceptNode[];
+  edges: ConceptEdge[];
+}
+
+export function seedGraph(): ConceptGraph {
+  return { nodes: [...NODES], edges: [...EDGES] };
+}
+
 export const NODES: ConceptNode[] = [
   { id: "vec", label: "Vectors", state: "mastered", g: 1, week: 0, x: 110, y: 400 },
   { id: "vecops", label: "Vector Operations", state: "mastered", g: 1, week: 0, x: 320, y: 250 },
@@ -231,15 +245,29 @@ export function ancestorsOf(id: string, edges: ConceptEdge[]): Set<string> {
   return seen;
 }
 
+/** Every descendant of `id` (excluding itself) along solid prerequisite edges. */
+export function descendantsOf(id: string, edges: ConceptEdge[]): Set<string> {
+  const fwd: Record<string, string[]> = {};
+  for (const [a, b, dashed] of edges) {
+    if (!dashed) (fwd[a] = fwd[a] ?? []).push(b);
+  }
+  const seen = new Set<string>();
+  const stack = [id];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    for (const d of fwd[cur] ?? []) {
+      if (!seen.has(d)) {
+        seen.add(d);
+        stack.push(d);
+      }
+    }
+  }
+  return seen;
+}
+
 // ---- live mastery state ----------------------------------------------------
 // The app holds one `Record<node id, ProgressState>`; every surface reads it
 // and every phase writes it back. Frontier and locking are derived, never set.
-
-/** Solid prerequisite edges into each node (dashed gap edges don't lock). */
-const PREREQS: Record<string, string[]> = {};
-for (const [from, to, dashed] of EDGES) {
-  if (!dashed) (PREREQS[to] = PREREQS[to] ?? []).push(from);
-}
 
 export type StateMap = Record<string, ProgressState>;
 
@@ -252,42 +280,215 @@ function isLearned(state: ProgressState | undefined): boolean {
   return state === "learning" || state === "shaky" || state === "mastered";
 }
 
+/** Solid prerequisite edges into each node (dashed gap edges don't lock). */
+function prereqMap(edges: ConceptEdge[]): Record<string, string[]> {
+  const prereqs: Record<string, string[]> = {};
+  for (const [from, to, dashed] of edges) {
+    if (!dashed) (prereqs[to] = prereqs[to] ?? []).push(from);
+  }
+  return prereqs;
+}
+
 /**
  * What each node shows on the map: stored progress, except that an `unknown`
  * node with every prerequisite learned lights up as `frontier` (the ZPD).
  * A node left `unknown` here is locked by definition.
  */
-export function displayStates(states: StateMap): Record<string, NodeState> {
+export function displayStates(
+  states: StateMap,
+  graph: ConceptGraph,
+): Record<string, NodeState> {
+  const prereqs = prereqMap(graph.edges);
   const out: Record<string, NodeState> = {};
-  for (const node of NODES) {
+  for (const node of graph.nodes) {
     const state = states[node.id] ?? "unknown";
     // Gap nodes never join the frontier — they hang off their parent via a
     // dashed edge and are entered from its detail rail, not unlocked.
     out[node.id] =
       state === "unknown" &&
       !node.gap &&
-      (PREREQS[node.id] ?? []).every((p) => isLearned(states[p]))
+      (prereqs[node.id] ?? []).every((p) => isLearned(states[p]))
         ? "frontier"
         : state;
   }
   return out;
 }
 
-/** Frontier nodes, foundations-first (left to right). */
-export function frontierIds(display: Record<string, NodeState>): string[] {
-  return NODES.filter((n) => display[n.id] === "frontier")
-    .sort((a, b) => a.x - b.x)
-    .map((n) => n.id);
-}
-
 /**
  * Why a node is locked: its unlearned ancestors (plus the node itself),
  * i.e. the "learn these first" path highlighted on the map.
  */
-export function unmetPathOf(id: string, states: StateMap): Set<string> {
+export function unmetPathOf(
+  id: string,
+  states: StateMap,
+  graph: ConceptGraph,
+): Set<string> {
   const path = new Set<string>();
-  for (const anc of ancestorsOf(id, EDGES)) {
+  for (const anc of ancestorsOf(id, graph.edges)) {
     if (anc === id || !isLearned(states[anc])) path.add(anc);
   }
   return path;
+}
+
+// ---- Phase 1 · Plan (the re-planning behavior of the map) ------------------
+// Not a screen: the map continuously reorders to the goal, warns about pace,
+// prunes diagnosed-known material, and spawns gap sub-nodes from failures.
+// The only recurring UI is the "Map updated" toast when it restructures.
+
+/** Goal-conditioned frontier ordering: which lit node to attack, and why. */
+export interface PlanEntry {
+  node: ConceptNode;
+  /** How many not-yet-learned concepts this node transitively unlocks. */
+  unlocks: number;
+}
+
+export const GOAL_ORDER_CAPTION: Record<GoalKind, string> = {
+  exam: "ordered to your exam — highest leverage first",
+  project: "ordered to your build — unlocks the tools first",
+  mastery: "foundations first — depth over speed",
+};
+
+/**
+ * The plan itself: frontier nodes ordered to the goal. A deadline-driven
+ * goal attacks the nodes that unlock the most remaining territory; general
+ * mastery walks foundations-to-frontier.
+ */
+export function orderedFrontier(
+  display: Record<string, NodeState>,
+  graph: ConceptGraph,
+  goal: GoalKind,
+): PlanEntry[] {
+  const entries: PlanEntry[] = graph.nodes
+    .filter((n) => display[n.id] === "frontier")
+    .map((node) => ({
+      node,
+      unlocks: [...descendantsOf(node.id, graph.edges)].filter((d) => {
+        const s = display[d];
+        return s === "unknown" || s === "frontier";
+      }).length,
+    }));
+  entries.sort((a, b) =>
+    goal === "mastery"
+      ? a.node.x - b.node.x
+      : b.unlocks - a.unlocks || a.node.x - b.node.x,
+  );
+  return entries;
+}
+
+/** Days until the demo exam deadline (the left-rail countdown chip). */
+export const EXAM_DAYS = 24;
+/** Rough minutes of focused work to take one concept through the spiral. */
+export const NODE_MINUTES = 35;
+
+export interface PaceStatus {
+  /** Non-gap concepts not yet mastered. */
+  remaining: number;
+  daysLeft: number;
+  /** Minutes/day the remaining territory demands before the deadline. */
+  neededPerDay: number;
+  /** The learner's daily target from onboarding. */
+  targetPerDay: number;
+  onTrack: boolean;
+}
+
+/** Pace against the deadline — the map's warning when it won't make it. */
+export function paceStatus(
+  states: StateMap,
+  graph: ConceptGraph,
+  targetPerDay: number,
+): PaceStatus {
+  const remaining = graph.nodes.filter(
+    (n) => !n.gap && states[n.id] !== "mastered",
+  ).length;
+  const neededPerDay = Math.ceil((remaining * NODE_MINUTES) / EXAM_DAYS);
+  return {
+    remaining,
+    daysLeft: EXAM_DAYS,
+    neededPerDay,
+    targetPerDay,
+    onTrack: neededPerDay <= targetPerDay,
+  };
+}
+
+/** A sub-concept the re-planner can spawn under a node when it keeps failing. */
+export interface GapSpec {
+  id: string;
+  label: string;
+  /** Why the AI split it out — quoted in the "Map updated" toast. */
+  reason: string;
+  /** Placement offset from the parent node. */
+  dx: number;
+  dy: number;
+}
+
+/**
+ * What a failure under each node splits into, in order. Each failed
+ * application (or diagnostic hesitation) spawns the next unspawned spec;
+ * when the list is exhausted the re-attempt is allowed to succeed.
+ */
+export const FAILURE_GAPS: Record<string, GapSpec[]> = {
+  gauss: [
+    {
+      id: "gap-backsub",
+      label: "Back-substitution",
+      reason: "you hesitated walking back up the rows in the diagnostic",
+      dx: -85,
+      dy: 148,
+    },
+    {
+      id: "gap-pivot",
+      label: "Pivot bookkeeping",
+      reason: "row swaps keep scrambling your signs",
+      dx: 130,
+      dy: 138,
+    },
+  ],
+  linind: [
+    {
+      id: "gap-zerovec",
+      label: "Zero-vector traps",
+      reason: "the zero vector keeps slipping through your independence checks",
+      dx: 140,
+      dy: 120,
+    },
+  ],
+};
+
+/** Nodes spawned mid-map belong to the current (post-replay) week. */
+const SPAWN_WEEK = 4;
+
+/** The next sub-concept a failure under `parentId` would split out, if any. */
+export function nextGapFor(
+  graph: ConceptGraph,
+  parentId: string,
+): GapSpec | null {
+  const specs = FAILURE_GAPS[parentId] ?? [];
+  return specs.find((s) => graph.nodes.every((n) => n.id !== s.id)) ?? null;
+}
+
+/**
+ * The restructure itself: a new red gap node hung under its parent by a
+ * dashed edge. Idempotent — an already-spawned spec returns the graph as-is.
+ */
+export function spawnGap(
+  graph: ConceptGraph,
+  parentId: string,
+  spec: GapSpec,
+): ConceptGraph {
+  const parent = graph.nodes.find((n) => n.id === parentId);
+  if (!parent || graph.nodes.some((n) => n.id === spec.id)) return graph;
+  const node: ConceptNode = {
+    id: spec.id,
+    label: spec.label,
+    state: "gap",
+    g: parent.g,
+    week: SPAWN_WEEK,
+    x: parent.x + spec.dx,
+    y: parent.y + spec.dy,
+    gap: true,
+  };
+  return {
+    nodes: [...graph.nodes, node],
+    edges: [...graph.edges, [parentId, spec.id, true]],
+  };
 }

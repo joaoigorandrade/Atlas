@@ -1,6 +1,14 @@
 "use client";
 
-import { STATE_COLOR, STATE_LABEL, type NodeState } from "@/lib/curriculum";
+import {
+  GOAL_ORDER_CAPTION,
+  STATE_COLOR,
+  STATE_LABEL,
+  type GoalKind,
+  type NodeState,
+  type PaceStatus,
+  type PlanEntry,
+} from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 
 const LEGEND_ORDER: NodeState[] = [
@@ -14,22 +22,30 @@ const LEGEND_ORDER: NodeState[] = [
 
 interface LeftRailProps {
   subject: string;
-  showDeadline: boolean;
+  goal: GoalKind;
+  /** Pace against the deadline — null when the goal has no deadline. */
+  pace: PaceStatus | null;
+  /** Goal-ordered frontier: the plan's next moves. */
+  nextUp: PlanEntry[];
   masteryPct: number;
   momentumPlaying: boolean;
   momentumWeek: number;
   onJumpFrontier: () => void;
   onToggleMomentum: () => void;
+  onPickNode: (id: string) => void;
 }
 
 export default function LeftRail({
   subject,
-  showDeadline,
+  goal,
+  pace,
+  nextUp,
   masteryPct,
   momentumPlaying,
   momentumWeek,
   onJumpFrontier,
   onToggleMomentum,
+  onPickNode,
 }: LeftRailProps) {
   return (
     <div
@@ -46,6 +62,7 @@ export default function LeftRail({
         display: "flex",
         flexDirection: "column",
         gap: 24,
+        overflowY: "auto",
       }}
     >
       <div>
@@ -53,7 +70,7 @@ export default function LeftRail({
         <div style={{ fontFamily: font.serif, fontSize: 24, lineHeight: 1.1 }}>
           {subject}
         </div>
-        {showDeadline && (
+        {pace && (
           <div
             style={{
               marginTop: 8,
@@ -76,10 +93,92 @@ export default function LeftRail({
                 background: "#c99a2e",
               }}
             />
-            Final exam · 24 days
+            Final exam · {pace.daysLeft} days
+          </div>
+        )}
+        {pace && (
+          <div
+            style={{
+              marginTop: 9,
+              fontSize: 12.5,
+              lineHeight: 1.5,
+              color: pace.onTrack ? color.accent : color.amberInk,
+            }}
+          >
+            {pace.onTrack
+              ? `On pace — ~${pace.neededPerDay} min/day covers the ${pace.remaining} concepts left.`
+              : `Behind pace — the map needs ~${pace.neededPerDay} min/day; your target is ${pace.targetPerDay}. Skip what you already know.`}
           </div>
         )}
       </div>
+
+      {nextUp.length > 0 && (
+        <div>
+          <div style={{ ...kicker(10), marginBottom: 5 }}>Next up</div>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: color.inkGhost,
+              marginBottom: 10,
+            }}
+          >
+            {GOAL_ORDER_CAPTION[goal]}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {nextUp.map(({ node, unlocks }) => (
+              <button
+                key={node.id}
+                onClick={() => onPickNode(node.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  padding: "8px 11px",
+                  background: color.card,
+                  border: `1px solid ${color.hairlineStrong}`,
+                  borderRadius: 9,
+                  fontSize: 13.5,
+                  color: color.ink,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: STATE_COLOR.frontier,
+                    boxShadow: `0 0 6px ${STATE_COLOR.frontier}`,
+                    flex: "0 0 auto",
+                  }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    fontFamily: font.serif,
+                  }}
+                >
+                  {node.label}
+                </span>
+                <span
+                  style={{
+                    fontFamily: font.mono,
+                    fontSize: 10,
+                    color: color.inkFaint,
+                    flex: "0 0 auto",
+                  }}
+                >
+                  +{unlocks}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <div
