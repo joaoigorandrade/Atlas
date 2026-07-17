@@ -159,6 +159,212 @@ export const PHASE_SKIP_NUDGE: Record<Phase, string> = {
   Retained: "This isn't in your review rotation yet — want to?",
 };
 
+// ---- Phase 2 · Consume (the Learn view) ------------------------------------
+// The segmented, dual-coded reading content for a Consume session. In the
+// final product each chunk is generated per node from a grounded source; the
+// demo ships the Linear Transformations pass from the design so the
+// predict → reveal → continue mechanic is real.
+
+/** The on-demand rewrite modalities offered under each revealed chunk. */
+export type AltKey = "simpler" | "example" | "analogy" | "deeper";
+
+export const ALT_CONTROLS: ReadonlyArray<[AltKey, string]> = [
+  ["simpler", "Simpler"],
+  ["example", "Example"],
+  ["analogy", "Analogy"],
+  ["deeper", "Go deeper"],
+];
+
+/** A key term pre-taught before the paragraph that first uses it. */
+export interface ConsumeTerm {
+  /** The term itself — shown on the pill and used as its inline key. */
+  t: string;
+  /** Its pre-taught definition, revealed inline on tap. */
+  d: string;
+}
+
+export interface ConsumePrediction {
+  q: string;
+  opts: ReadonlyArray<{ label: string; correct: boolean }>;
+}
+
+export interface ConsumeChunk {
+  id: string;
+  /** Segment label, e.g. "1 · What it is". */
+  kicker: string;
+  terms: ConsumeTerm[];
+  /** The desirable-difficulty guess posed before the explanation reveals. */
+  pred: ConsumePrediction;
+  /** Verdict copy after a right / wrong guess. */
+  right: string;
+  wrong: string;
+  /** The explanation itself, revealed only after the learner guesses. */
+  body: string;
+  /** Source citation — trust is visible; no memorizing hallucinations. */
+  cite: string;
+  /** Caption for the auto-generated dual-coded diagram beside the prose. */
+  diagram: string;
+  /** The mini-Socratic aside opened from "ask about this passage". */
+  ask: string;
+  /** Adaptive-modality rewrites of this chunk, keyed by control. */
+  alt: Record<AltKey, string>;
+}
+
+export const CONSUME_CHUNKS: ConsumeChunk[] = [
+  {
+    id: "c1",
+    kicker: "1 · What it is",
+    terms: [
+      {
+        t: "mapping",
+        d: "A rule that sends every input vector to exactly one output vector.",
+      },
+      {
+        t: "preserve",
+        d: "The structure before and after the map matches — nothing about how vectors combine is lost.",
+      },
+    ],
+    pred: {
+      q: "You apply some rule to every vector in the plane. What must be true for that rule to count as a linear transformation?",
+      opts: [
+        { label: "It keeps every vector the same length", correct: false },
+        { label: "It respects vector addition and scaling", correct: true },
+        { label: "It only rotates, never stretches", correct: false },
+      ],
+    },
+    right: "Exactly — linearity is about preserving structure, not size.",
+    wrong:
+      "Not quite. Length and rotation are too specific; linearity is the weaker, deeper condition spelled out below.",
+    body: "A linear transformation is a mapping T that sends vectors to vectors while preserving two operations: T(v+w) = T(v)+T(w) and T(cv) = cT(v). Stretching, rotating, shearing, and projecting all qualify — bending a straight line into a curve does not.",
+    cite: "Strang, Introduction to Linear Algebra, §7.1",
+    diagram: "grid before → after: straight lines stay straight",
+    ask: "Before I answer — try a rule that fails: does T(v) = v + (1,0) preserve addition? Compare T(v+w) against T(v)+T(w) and tell me what breaks.",
+    alt: {
+      simpler:
+        "Plain version: a linear map moves vectors around, but only in ways that keep sums and scalings intact.",
+      example:
+        "Worked example: T(x,y) = (2x, y) doubles width. Check T(v+w): each part of the sum doubles, so addition survives. ✓",
+      analogy:
+        "Like chess: a linear map is a legal move-set. Combine two legal moves and the result is still reachable the same way — the structure is preserved.",
+      deeper:
+        "Deeper: the two rules collapse into one, T(av+bw) = aT(v)+bT(w). That single identity is exactly what lets a finite matrix stand in for a map on the whole infinite plane.",
+    },
+  },
+  {
+    id: "c2",
+    kicker: "2 · The geometric picture",
+    terms: [
+      {
+        t: "origin fixed",
+        d: "T(0) = 0 always — under a linear map the origin can never move.",
+      },
+    ],
+    pred: {
+      q: "Under a linear transformation, where does the origin end up?",
+      opts: [
+        { label: "It can move anywhere", correct: false },
+        { label: "It stays exactly where it is", correct: true },
+        { label: "It depends on the matrix", correct: false },
+      ],
+    },
+    right: "Right — T(0) = 0 falls straight out of the scaling rule.",
+    wrong:
+      "Watch the scaling rule: T(0) = T(0·v) = 0·T(v) = 0. The origin is pinned in place.",
+    body: "Geometrically, a linear map keeps grid lines straight, parallel, and evenly spaced, and it holds the origin in place. That one picture — an evenly-ruled grid tilted and stretched but never torn — is enough to reason about almost everything that follows.",
+    cite: "3Blue1Brown, Essence of Linear Algebra, ch. 3",
+    diagram: "square grid sheared into a lattice of parallelograms",
+    ask: "Before I answer — what would break if the origin could move? Trace T(0) through the scaling rule and tell me what you get.",
+    alt: {
+      simpler:
+        "Plain version: the grid tilts and stretches like a rubber sheet, but the lines never bend and the center pin never moves.",
+      example:
+        "Worked example: rotate 90°. î = (1,0) → (0,1), ĵ = (0,1) → (−1,0). The grid spins, spacing unchanged, origin fixed.",
+      analogy:
+        "Like a chessboard photographed at an angle: squares become parallelograms and rows stay parallel — it is still a regular grid.",
+      deeper:
+        'Deeper: "evenly spaced" is the visual signature of linearity. The moment spacing varies across the grid, you have left the linear world.',
+    },
+  },
+  {
+    id: "c3",
+    kicker: "3 · Why a matrix is enough",
+    terms: [
+      {
+        t: "basis vectors",
+        d: "î = (1,0) and ĵ = (0,1) — the two unit steps every other vector is built from.",
+      },
+      {
+        t: "columns",
+        d: "The columns of the matrix are literally where î and ĵ land after the map.",
+      },
+    ],
+    pred: {
+      q: "You know where î and ĵ land after the map. Is that enough to know where every vector lands?",
+      opts: [
+        { label: "No — you'd have to track each vector", correct: false },
+        {
+          label: "Yes — every vector is a combination of î and ĵ",
+          correct: true,
+        },
+        { label: "Only for vectors on the axes", correct: false },
+      ],
+    },
+    right: "Yes. Linearity carries the combination straight through the map.",
+    wrong:
+      "It is enough: any v = xî + yĵ, and linearity gives T(v) = xT(î) + yT(ĵ).",
+    body: "Because every vector is a linear combination of the basis vectors, the whole map is determined by where those two go. Stack their images as columns and you have the transformation's matrix — applying the matrix to a vector is exactly this combination, computed for you.",
+    cite: "Strang, Introduction to Linear Algebra, §7.1",
+    diagram: "î, ĵ arrows → their images become the matrix columns",
+    ask: "Before I answer — if you only knew where î lands, what could you still not determine? Say what ĵ adds.",
+    alt: {
+      simpler:
+        "Plain version: pin down where the two arrows î and ĵ go, and every other arrow follows automatically.",
+      example:
+        "Worked example: î → (2,0), ĵ → (1,3) gives matrix [[2,1],[0,3]]. Then (3,1) → 3·(2,0) + 1·(1,3) = (7,3).",
+      analogy:
+        "Like a chess opening: fix the first two moves and the whole line of play is determined from them.",
+      deeper:
+        "Deeper: this is why an infinite-dimensional idea — a map on every point of the plane — compresses down to just four numbers.",
+    },
+  },
+  {
+    id: "c4",
+    kicker: "4 · Reading a matrix as motion",
+    terms: [
+      {
+        t: "shear",
+        d: "A slide that fixes one axis and pushes the other sideways, like a deck of cards nudged askew.",
+      },
+    ],
+    pred: {
+      q: "The matrix [[1,1],[0,1]] leaves î untouched and sends ĵ to (1,1). What motion is that?",
+      opts: [
+        { label: "A rotation", correct: false },
+        { label: "A horizontal shear", correct: true },
+        { label: "A uniform stretch", correct: false },
+      ],
+    },
+    right:
+      "A shear — the top of the grid slides right while the base stays put.",
+    wrong:
+      "Read the columns: î fixed, ĵ tilted right. That sideways slide is a shear, not a rotation or a stretch.",
+    body: "Reading columns as destinations lets you see any 2×2 matrix as a physical motion. Once you can look at four numbers and picture the grid moving, you are ready to construct and compose these maps yourself — which is exactly where the Socratic phase picks up.",
+    cite: "3Blue1Brown, Essence of Linear Algebra, ch. 3",
+    diagram: "unit square sliding into a leaning parallelogram",
+    ask: "Before I answer — read [[0,-1],[1,0]] as columns. Where do î and ĵ land, and what single motion is that?",
+    alt: {
+      simpler:
+        "Plain version: read the columns to see where the grid corners go, then picture the shape sliding to match.",
+      example:
+        "Worked example: [[2,0],[0,1]] keeps ĵ and doubles î, so the unit square stretches into a wide rectangle.",
+      analogy:
+        "Like reading a chess diagram: the piece positions (the columns) tell you the whole board state at a glance.",
+      deeper:
+        "Deeper: composing two matrices is doing one motion then the next — matrix multiplication is choreography, not arithmetic.",
+    },
+  },
+];
+
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
   switch (state) {
