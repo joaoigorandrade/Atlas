@@ -22,6 +22,9 @@ import {
   paceStatus,
   phaseIndex,
   removeNode,
+  retainReducer,
+  retainStart,
+  reviewCard,
   seedGraph,
   socraticReducer,
   socraticStart,
@@ -39,6 +42,9 @@ import {
   type GapSpec,
   type NodeState,
   type OnboardingForm,
+  type RetainSession,
+  type ReviewConfidence,
+  type ReviewGrade,
   type SocraticAction,
   type SocraticSession,
   type StateMap,
@@ -54,6 +60,7 @@ import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
+import RetainView from "@/components/session/RetainView";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -69,7 +76,8 @@ type Screen =
   | "socratic"
   | "feynman"
   | "connect"
-  | "crucible";
+  | "crucible"
+  | "review";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
@@ -121,6 +129,10 @@ export default function AtlasApp() {
   // a first-attempt failure writes a precise gap back to the map, a
   // recalibrated re-attempt transfers, and only that lifts the node to Mastered.
   const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
+  // The active Retain (Phase 6 · Review queue / FSRS) session, or null. Unlike
+  // the node-scoped phases this is a global daily surface reached from the top
+  // bar; a missed card writes its node back to Shaky, re-entering the loop.
+  const [retain, setRetain] = useState<RetainSession | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -141,6 +153,10 @@ export default function AtlasApp() {
   // (they write gap nodes and mastery back to the map outside the reducer).
   const crucibleRef = useRef(crucible);
   crucibleRef.current = crucible;
+  // The live Retain session, read by its grade handler (which flags a missed
+  // card's node Shaky on the map, outside the reducer).
+  const retainRef = useRef(retain);
+  retainRef.current = retain;
   // Assigned in the derived section below; read by event handlers.
   const displayRef = useRef<Record<string, NodeState>>({});
 
@@ -685,6 +701,89 @@ export default function AtlasApp() {
     setCrucible(null);
   }, [centerOn, later]);
 
+  // ---- Retain (Phase 6 · Review queue / FSRS) --------------------------
+
+  /**
+   * Open the daily Review queue — a global surface, not scoped to a node. The
+   * session starts on the first card's confidence tap (the calibration hook
+   * that precedes every flip).
+   */
+  const enterReview = useCallback(() => {
+    setRetain(retainStart());
+    setScreen("review");
+  }, []);
+
+  const retainConfidence = useCallback((level: ReviewConfidence) => {
+    setRetain((prev) =>
+      prev ? retainReducer(prev, { type: "confidence", level }) : prev,
+    );
+  }, []);
+
+  const retainToggleAside = useCallback(() => {
+    setRetain((prev) =>
+      prev ? retainReducer(prev, { type: "toggleAside" }) : prev,
+    );
+  }, []);
+
+  const retainContinue = useCallback(() => {
+    setRetain((prev) =>
+      prev ? retainReducer(prev, { type: "continue" }) : prev,
+    );
+  }, []);
+
+  /**
+   * Grade a card — feeds FSRS and advances. "Again" is the alive-loop: the
+   * reducer opens the fail stage, and here we do the map write-back the spec
+   * calls for, flagging the card's node Shaky so retention failure re-enters
+   * Phase 1. The reducer owns the session; the map write lives here (as with the
+   * Crucible's gap write-back).
+   */
+  const retainGrade = useCallback(
+    (grade: ReviewGrade) => {
+      const cur = retainRef.current;
+      if (!cur) return;
+      const card = reviewCard(cur);
+      setRetain(retainReducer(cur, { type: "grade", grade }));
+      if (grade === "again" && card.fails) {
+        setStates((prev) =>
+          prev[card.node] === "shaky"
+            ? prev
+            : { ...prev, [card.node]: "shaky" },
+        );
+        showToast(
+          `“${graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? "This node"}” flagged Shaky — retention failure re-enters the loop`,
+          "Map updated",
+        );
+      }
+    },
+    [showToast],
+  );
+
+  const retainReteach = useCallback(() => {
+    const cur = retainRef.current;
+    if (!cur) return;
+    const card = reviewCard(cur);
+    const node = graphRef.current.nodes.find((n) => n.id === card.node);
+    setRetain(null);
+    if (node) {
+      enterSession(node);
+      later(
+        () =>
+          showToast(
+            `Re-entering the loop · ${node.label} — retention failure routes back to Consume`,
+          ),
+        420,
+      );
+    } else {
+      setScreen("map");
+    }
+  }, [enterSession, later, showToast]);
+
+  const exitReview = useCallback(() => {
+    setScreen("map");
+    setRetain(null);
+  }, []);
+
   /**
    * Understanding established: the learner answered the core probes unaided,
    * so Socratic (Phase 3a) is complete. Hand straight off to Feynman — the
@@ -760,7 +859,8 @@ export default function AtlasApp() {
           enterCrucible(node);
           break;
         case "mastered":
-          showToast(`Queuing review cards for ${node.label}`);
+          // Mastered feeds Review — "Review now" opens the daily FSRS queue.
+          enterReview();
           break;
         case "gap":
           showToast(`Targeted Socratic pass on ${node.label}`);
@@ -769,7 +869,7 @@ export default function AtlasApp() {
           showToast("Clear its prerequisites first");
       }
     },
-    [enterCrucible, enterFeynman, enterSession, showToast],
+    [enterCrucible, enterFeynman, enterReview, enterSession, showToast],
   );
 
   /**
@@ -821,8 +921,7 @@ export default function AtlasApp() {
         onPrimaryAction(node, displayState);
       } else if (idx < current) {
         // Secondary action: any completed phase stays open for a re-do.
-        if (phase === "Retained")
-          showToast(`Queuing review cards for ${node.label}`);
+        if (phase === "Retained") enterReview();
         else showToast(`Re-doing ${phase} · ${node.label} — the spiral stays open`);
       } else {
         // The learner jumped the recommended step — allowed, already nudged.
@@ -838,6 +937,7 @@ export default function AtlasApp() {
       enterConnect,
       enterCrucible,
       enterFeynman,
+      enterReview,
       enterSocratic,
       onPrimaryAction,
       showToast,
@@ -848,7 +948,7 @@ export default function AtlasApp() {
     (surface: Surface) => {
       if (surface === "map") return;
       if (surface === "review") {
-        showToast("Review · opening today's queue — ~8 min, 14 cards due");
+        enterReview();
         return;
       }
       const node = graphRef.current.nodes.find((n) => n.id === selectedId);
@@ -858,7 +958,14 @@ export default function AtlasApp() {
       else if (node && state === "shaky") enterCrucible(node);
       else showToast("Session · double-click a glowing frontier node to begin");
     },
-    [enterCrucible, enterFeynman, enterSession, selectedId, showToast],
+    [
+      enterCrucible,
+      enterFeynman,
+      enterReview,
+      enterSession,
+      selectedId,
+      showToast,
+    ],
   );
 
   const jumpFrontier = useCallback(() => {
@@ -1134,6 +1241,24 @@ export default function AtlasApp() {
           onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
           onRetry={() => dispatchCrucible({ type: "retry" })}
           onFinish={advanceFromCrucible}
+        />
+      )}
+
+      {screen === "review" && retain && (
+        <RetainView
+          session={retain}
+          nodeLabel={
+            graph.nodes.find((n) => n.id === reviewCard(retain).node)?.label ??
+            "This node"
+          }
+          litNodes={masteredCount}
+          streak={12}
+          onExit={exitReview}
+          onConfidence={retainConfidence}
+          onGrade={retainGrade}
+          onToggleAside={retainToggleAside}
+          onReteach={retainReteach}
+          onContinue={retainContinue}
         />
       )}
 
