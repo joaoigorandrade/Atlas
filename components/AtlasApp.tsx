@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ADHERENCE,
   DEFAULT_FORM,
   NODES,
   PHASES,
@@ -13,12 +14,14 @@ import {
   crucibleFor,
   crucibleReducer,
   crucibleStart,
+  dailyQueue,
   displayStates,
   elaborationFor,
   feynmanGaps,
   feynmanReducer,
   feynmanStart,
   initialStates,
+  markTodayMet,
   nextGapFor,
   orderedFrontier,
   paceStatus,
@@ -31,7 +34,9 @@ import {
   socraticReducer,
   socraticStart,
   spawnGap,
+  toggleReminder,
   unmetPathOf,
+  type AdherenceState,
   type AltKey,
   type ConceptGraph,
   type ConceptNode,
@@ -141,6 +146,13 @@ export default function AtlasApp() {
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
   const [momentumWeek, setMomentumWeek] = useState(0);
+  // §13 Adherence — the wrapper: a forgiving streak (a banked freeze absorbs one
+  // missed day), the honest queue, and a right-moment reminder. The flame reads
+  // it everywhere; clearing the queue or mastering a node marks today met.
+  const [adherence, setAdherence] = useState<AdherenceState>(ADHERENCE);
+  // Labels of nodes that reached Mastered this session run — the "what lit up"
+  // the done-for-today surface shows, so the day ends on visible progress.
+  const [litToday, setLitToday] = useState<string[]>([]);
   const [toast, setToast] = useState<ToastData | null>(null);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
@@ -184,6 +196,17 @@ export default function AtlasApp() {
     if (toastRef.current) clearTimeout(toastRef.current);
     toastRef.current = setTimeout(() => setToast(null), kicker ? 3400 : 2400);
   }, []);
+
+  // Clearing the daily queue is the honest "done for today" — it marks the day
+  // met, so the streak ticks forward and the flame reads lit everywhere.
+  useEffect(() => {
+    if (retain?.finished) setAdherence((prev) => markTodayMet(prev));
+  }, [retain?.finished]);
+
+  const onToggleReminder = useCallback(
+    () => setAdherence((prev) => toggleReminder(prev)),
+    [],
+  );
 
   /**
    * The re-plan restructure: split the next sub-concept out of a failing
@@ -689,6 +712,12 @@ export default function AtlasApp() {
     if (node) {
       setSelectedId(node.id);
       later(() => centerOn(node.id), 30);
+      // Adherence: a node just went green — the day's winnable end. Record what
+      // lit up and mark today met so the flame reads lit and the streak ticks.
+      setLitToday((prev) =>
+        prev.includes(node.label) ? prev : [...prev, node.label],
+      );
+      setAdherence((prev) => markTodayMet(prev));
       showToast(
         `Transfer confirmed · ${node.label} is Mastered — it now feeds Review`,
       );
@@ -1136,7 +1165,14 @@ export default function AtlasApp() {
 
       {isMap && (
         <>
-          <TopBar query={query} onQuery={setQuery} onSurface={onSurface} />
+          <TopBar
+            query={query}
+            onQuery={setQuery}
+            onSurface={onSurface}
+            adherence={adherence}
+            queue={dailyQueue()}
+            onToggleReminder={onToggleReminder}
+          />
           <LeftRail
             subject={form.topic.trim() || "Linear Algebra"}
             goal={form.goal}
@@ -1288,7 +1324,9 @@ export default function AtlasApp() {
             "This node"
           }
           litNodes={masteredCount}
-          streak={12}
+          adherence={adherence}
+          litToday={litToday}
+          onToggleReminder={onToggleReminder}
           onExit={exitReview}
           onConfidence={retainConfidence}
           onGrade={retainGrade}
