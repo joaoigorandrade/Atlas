@@ -1179,6 +1179,341 @@ export function feynmanClean(session: FeynmanSession): boolean {
   return FEYNMAN_BEATS.every((b) => session.verdicts[b.id] === "good");
 }
 
+// ---- Phase 4 · Connect (the Elaboration station) --------------------------
+// Durable encoding through *elaboration*: the learner wires the new node into
+// concepts they already own. The links are real — candidates are pulled from
+// this learner's mastered nodes, not generic trivia — so every connection is
+// personal and true, and each confirmed link drafts a card for Retain.
+//
+// The encoding method is *auto-detected*: conceptual material gets elaboration
+// and the mnemonic tool stays hidden (a mnemonic there is noise); genuinely
+// list-like material — sequences, taxonomies, vocab — unlocks method-of-loci /
+// acronym / vivid-association tools instead. Content ships the Linear
+// Transformations pass (conceptual, per the design) plus the Gaussian
+// Elimination procedure (list-like) so the conditional is real, not decorative.
+
+/** The Connect phase's violet palette (its accent everywhere it appears). */
+export const CONNECT_COLOR = {
+  accent: "#8c6b9e",
+  soft: "#f4eef7",
+  border: "rgba(140,107,158,0.35)",
+  glow: "rgba(140,107,158,0.26)",
+} as const;
+
+/** How the app encodes a node — the auto-detected choice the whole phase turns on. */
+export type EncodingKind = "conceptual" | "list-like";
+
+/** A candidate prior node to link to — a real mastered node from the map. */
+export interface ElaborationLink {
+  /** The prior node's id (must be a mastered node the learner already owns). */
+  id: string;
+  label: string;
+  /** Placement in the 560×440 concept-web canvas. */
+  x: number;
+  y: number;
+  /** The relationship draft pulled from the map — accepted or rewritten. */
+  rel: string;
+}
+
+/** One offered memory aid, shown only when the content is detected as list-like. */
+export interface MnemonicOption {
+  /** Method-of-loci · Acronym · Vivid image — the tool kind. */
+  kind: string;
+  /** The aid's short title (e.g. the acronym itself). */
+  title: string;
+  /** The generated aid, editable before the learner accepts it. */
+  body: string;
+}
+
+/** Everything the Connect surface needs for one node's elaboration pass. */
+export interface ElaborationContent {
+  centerId: string;
+  centerLabel: string;
+  /** The auto-detected encoding — drives whether the mnemonic tool appears. */
+  encoding: EncodingKind;
+  /** The detector's plain-language rationale, shown in the method panel. */
+  detectNote: string;
+  /** The current node's spot in the concept web. */
+  center: { x: number; y: number };
+  /** Candidate prior nodes to link — drawn from the learner's mastered map. */
+  cands: ElaborationLink[];
+  /** The ordered/enumerated items a mnemonic organizes (list-like only). */
+  items?: string[];
+  /** The offered memory aids (list-like only). */
+  mnemonics?: MnemonicOption[];
+}
+
+export const ELABORATIONS: Record<string, ElaborationContent> = {
+  // Conceptual — a mental model. Elaboration only; the mnemonic tool stays
+  // suppressed. This is the design's demo pass for Linear Transformations.
+  lintrans: {
+    centerId: "lintrans",
+    centerLabel: "Linear Transformations",
+    encoding: "conceptual",
+    detectNote:
+      "This is a mental-model concept, so I’m using elaboration — wiring, not memorizing. A mnemonic here would be noise.",
+    center: { x: 290, y: 210 },
+    cands: [
+      {
+        id: "matrices",
+        label: "Matrices",
+        x: 104,
+        y: 66,
+        rel: "A matrix is just the notation for a transformation — its columns are literally where î and ĵ land.",
+      },
+      {
+        id: "lincomb",
+        label: "Linear Combinations",
+        x: 408,
+        y: 92,
+        rel: "Applying T to a vector IS taking a linear combination of the column images: T(v) = x·col₁ + y·col₂.",
+      },
+      {
+        id: "span",
+        label: "Span",
+        x: 472,
+        y: 314,
+        rel: "The span of the columns is the transformation’s range — every place in the plane it can send a vector.",
+      },
+      {
+        id: "vecops",
+        label: "Vector Operations",
+        x: 250,
+        y: 404,
+        rel: "Linearity is exactly the promise that addition and scaling survive the map — the two operations I already own.",
+      },
+      {
+        id: "vec",
+        label: "Vectors",
+        x: 64,
+        y: 300,
+        rel: "A transformation is defined by what it does to vectors — the objects come first, the machinery second.",
+      },
+    ],
+  },
+  // List-like — a fixed procedural *sequence*. Elaboration still runs (the
+  // links are real), but here the mnemonic tool earns its keep: it pins the
+  // step order so the learner never loses their place mid-reduction.
+  gauss: {
+    centerId: "gauss",
+    centerLabel: "Gaussian Elimination",
+    encoding: "list-like",
+    detectNote:
+      "Elimination is a fixed sequence of steps — genuinely list-like. Here a mnemonic earns its keep: it pins the order so you never lose your place mid-reduction. (The reasoning still gets elaborated below — the aid is for recall of the sequence, not a substitute for the idea.)",
+    center: { x: 280, y: 208 },
+    cands: [
+      {
+        id: "systems",
+        label: "Linear Systems",
+        x: 96,
+        y: 74,
+        rel: "Elimination is the algorithm that actually solves a linear system — it’s the procedure behind the idea.",
+      },
+      {
+        id: "matrices",
+        label: "Matrices",
+        x: 442,
+        y: 78,
+        rel: "You run the steps on the augmented matrix — the grid is the workspace the sequence acts on.",
+      },
+      {
+        id: "vecops",
+        label: "Vector Operations",
+        x: 470,
+        y: 320,
+        rel: "Each step is a row operation — scaling a row and adding it to another, the operations I already own.",
+      },
+      {
+        id: "lincomb",
+        label: "Linear Combinations",
+        x: 248,
+        y: 408,
+        rel: "Row-reducing asks whether one equation is a linear combination of the others — that’s what a zero row reveals.",
+      },
+      {
+        id: "vec",
+        label: "Vectors",
+        x: 68,
+        y: 316,
+        rel: "The rows and columns I’m pushing around are just vectors wearing a grid.",
+      },
+    ],
+    items: [
+      "Write the augmented matrix",
+      "Swap a nonzero entry up into the pivot",
+      "Zero out every entry below the pivot",
+      "Advance to the next column and repeat (row-echelon form)",
+      "Back-substitute from the bottom row up",
+    ],
+    mnemonics: [
+      {
+        kind: "Acronym",
+        title: "STEP",
+        body: "S — Swap a nonzero entry up into the pivot. T — Trim every entry below it to zero. E — Extend to the next column and repeat. P — Pop the values back out, bottom row up. STEP — and the reduced matrix even looks like a staircase.",
+      },
+      {
+        kind: "Method of loci",
+        title: "The staircase",
+        body: "Put each pivot on its own stair. Walk down the staircase clearing the rows below you (forward elimination); at the bottom, climb back up, solving one unknown per stair (back-substitution).",
+      },
+      {
+        kind: "Vivid image",
+        title: "The escalator",
+        body: "An escalator of rows carries you down as zeros fall into place below each pivot, then reverses and lifts you back up as each variable pops out.",
+      },
+    ],
+  },
+};
+
+/** The three memory aids shown struck-through when the content is conceptual. */
+export const MNEMONIC_TOOLS_OFF = ["Memory palace", "Acronym", "Vivid image"] as const;
+
+/**
+ * The node's elaboration content. Unseeded nodes fall back to the conceptual
+ * Linear Transformations pass — the demo only routes real content through
+ * lintrans (conceptual) and gauss (list-like).
+ */
+export function elaborationFor(nodeId: string): ElaborationContent {
+  return ELABORATIONS[nodeId] ?? ELABORATIONS.lintrans;
+}
+
+/** The live state of one Connect session — held by AtlasApp, read by the view. */
+export interface ConnectSession {
+  nodeId: string;
+  /** The candidate whose linking prompt is open, or null (idle). */
+  active: string | null;
+  /** The relationship draft per candidate — seeded from the map, then edited. */
+  drafts: Record<string, string>;
+  /** Which links the learner has confirmed as true. */
+  linked: Record<string, boolean>;
+  /** The chosen memory aid (index into content.mnemonics), or null (list-like). */
+  mnemonicPick: number | null;
+  /** The editable mnemonic text — the learner accepts or rewrites the aid. */
+  mnemonicDraft: string;
+  /** True once the learner accepts the aid — it then drafts its own card. */
+  mnemonicAccepted: boolean;
+}
+
+export function connectStart(nodeId: string): ConnectSession {
+  return {
+    nodeId,
+    active: null,
+    drafts: {},
+    linked: {},
+    mnemonicPick: null,
+    mnemonicDraft: "",
+    mnemonicAccepted: false,
+  };
+}
+
+export type ConnectAction =
+  | { type: "select"; id: string }
+  | { type: "draft"; id: string; value: string }
+  | { type: "confirm"; id: string }
+  | { type: "pickMnemonic"; index: number }
+  | { type: "draftMnemonic"; value: string }
+  | { type: "acceptMnemonic" };
+
+/**
+ * The elaboration engine, as a pure transition. Selecting a candidate opens
+ * its linking prompt with a draft pulled from the map; confirming links it;
+ * for list-like content the learner can pick a memory aid, edit it, and accept
+ * it. Everything confirmed here becomes raw material for cards in Retain.
+ */
+export function connectReducer(
+  session: ConnectSession,
+  action: ConnectAction,
+  content: ElaborationContent,
+): ConnectSession {
+  switch (action.type) {
+    case "select": {
+      // Seed the draft from the map's suggested relationship the first time a
+      // candidate is opened — the learner accepts or rewrites it.
+      const drafts =
+        session.drafts[action.id] !== undefined
+          ? session.drafts
+          : {
+              ...session.drafts,
+              [action.id]:
+                content.cands.find((c) => c.id === action.id)?.rel ?? "",
+            };
+      return { ...session, active: action.id, drafts };
+    }
+    case "draft":
+      return {
+        ...session,
+        drafts: { ...session.drafts, [action.id]: action.value },
+      };
+    case "confirm":
+      return { ...session, linked: { ...session.linked, [action.id]: true } };
+    case "pickMnemonic": {
+      const opt = content.mnemonics?.[action.index];
+      if (!opt) return session;
+      return {
+        ...session,
+        mnemonicPick: action.index,
+        mnemonicDraft: opt.body,
+        mnemonicAccepted: false,
+      };
+    }
+    case "draftMnemonic":
+      return { ...session, mnemonicDraft: action.value };
+    case "acceptMnemonic":
+      return session.mnemonicPick === null
+        ? session
+        : { ...session, mnemonicAccepted: true };
+    default:
+      return session;
+  }
+}
+
+/** How many real links the learner has confirmed. */
+export function connectLinkedCount(session: ConnectSession): number {
+  return Object.values(session.linked).filter(Boolean).length;
+}
+
+/** Two real connections is plenty to move on (the design's advance gate). */
+export function connectReady(session: ConnectSession): boolean {
+  return connectLinkedCount(session) >= 2;
+}
+
+/** A card drafted from the Connect phase — raw material for the Retain queue. */
+export interface ConnectCard {
+  front: string;
+  back: string;
+  kind: "link" | "mnemonic";
+}
+
+/**
+ * The cards this session drafts: one per confirmed link, plus the accepted
+ * memory aid when the content is list-like. This is the "tedious step humans
+ * skip," done automatically — the phase's write-back into Retain.
+ */
+export function connectCards(
+  session: ConnectSession,
+  content: ElaborationContent,
+): ConnectCard[] {
+  const cards: ConnectCard[] = content.cands
+    .filter((c) => session.linked[c.id])
+    .map((c) => ({
+      front: `${content.centerLabel} ↔ ${c.label}: what’s the connection?`,
+      back: (session.drafts[c.id] || c.rel).trim(),
+      kind: "link" as const,
+    }));
+  if (
+    content.encoding === "list-like" &&
+    session.mnemonicAccepted &&
+    session.mnemonicDraft.trim()
+  ) {
+    cards.push({
+      front: `${content.centerLabel} · what’s the order of the steps?`,
+      back: session.mnemonicDraft.trim(),
+      kind: "mnemonic",
+    });
+  }
+  return cards;
+}
+
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
   switch (state) {
