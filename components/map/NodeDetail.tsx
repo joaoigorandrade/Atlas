@@ -1,13 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
-  EDGES,
-  NODES,
   PHASES,
+  PHASE_SKIP_NUDGE,
   STATE_COLOR,
   STATE_CONFIDENCE,
   STATE_LABEL,
   phaseIndex,
+  type ConceptEdge,
   type ConceptNode,
   type NodeState,
 } from "@/lib/curriculum";
@@ -16,10 +17,21 @@ import { color, font, kicker } from "@/lib/theme";
 interface NodeDetailProps {
   node: ConceptNode;
   displayState: NodeState;
+  /** The live graph — spawned gap nodes appear here too. */
+  nodes: ConceptNode[];
+  edges: ConceptEdge[];
   /** Display state of every node — colors the prerequisite/unlock chips. */
   display: Record<string, NodeState>;
   onSelect: (id: string) => void;
   onPrimaryAction: (node: ConceptNode, displayState: NodeState) => void;
+  /** A phase-row action: re-do a done phase, start the current, or jump ahead. */
+  onPhaseAction: (
+    node: ConceptNode,
+    displayState: NodeState,
+    phaseIdx: number,
+  ) => void;
+  /** Prune a frontier node as diagnosed-known — the aggressive faster lever. */
+  onSkipKnown: (node: ConceptNode) => void;
 }
 
 const CTA_LABEL: Record<NodeState, string> = {
@@ -31,27 +43,38 @@ const CTA_LABEL: Record<NodeState, string> = {
   unknown: "Locked",
 };
 
-function labelOf(id: string): string {
-  return NODES.find((n) => n.id === id)?.label ?? id;
-}
-
 export default function NodeDetail({
   node,
   displayState,
+  nodes,
+  edges,
   display,
   onSelect,
   onPrimaryAction,
+  onPhaseAction,
+  onSkipKnown,
 }: NodeDetailProps) {
+  const labelOf = (id: string) =>
+    nodes.find((n) => n.id === id)?.label ?? id;
   const stateColor = STATE_COLOR[displayState];
   const currentPhase = phaseIndex(displayState);
   const locked = displayState === "unknown";
 
-  const prereqIds = EDGES.filter(
-    ([, to]) => to === node.id && !to.startsWith("gap"),
-  ).map(([from]) => from);
-  const dependentIds = EDGES.filter(([from]) => from === node.id).map(
-    ([, to]) => to,
-  );
+  // A tapped ahead-of-recommendation phase awaiting the gentle skip nudge.
+  const [pendingSkip, setPendingSkip] = useState<number | null>(null);
+  useEffect(() => setPendingSkip(null), [node.id, displayState]);
+
+  const prereqIds = edges
+    .filter(([, to, dashed]) => to === node.id && !dashed)
+    .map(([from]) => from);
+  const dependentIds = edges
+    .filter(([from, , dashed]) => from === node.id && !dashed)
+    .map(([, to]) => to);
+  // Dashed children are the sub-concepts the re-planner split out of this
+  // node's failures — surfaced separately from what it unlocks.
+  const gapIds = edges
+    .filter(([from, , dashed]) => from === node.id && dashed)
+    .map(([, to]) => to);
 
   const chipStyle = {
     display: "inline-flex",
@@ -175,14 +198,32 @@ export default function NodeDetail({
           const isCurrent = status === "current";
           const markerColor =
             status === "done" ? "#4c8b63" : isCurrent ? stateColor : "#c3bdb2";
+          // Done phases re-open, the current one starts, and later ones can
+          // be jumped to (after the nudge). Only a locked node stays inert.
+          const clickable = currentPhase >= 0;
+          const isJump = clickable && i > currentPhase;
           return (
-            <div
+            <button
               key={name}
+              disabled={!clickable}
+              onClick={() =>
+                isJump
+                  ? setPendingSkip(i)
+                  : onPhaseAction(node, displayState, i)
+              }
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
                 padding: "9px 4px",
+                background: "none",
+                border: "none",
+                borderRadius: 8,
+                width: "100%",
+                textAlign: "left",
+                fontFamily: "inherit",
+                color: "inherit",
+                cursor: clickable ? "pointer" : "default",
               }}
             >
               <span
@@ -233,10 +274,87 @@ export default function NodeDetail({
                   next
                 </span>
               )}
-            </div>
+              {status === "done" && (
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontFamily: font.mono,
+                    fontSize: 10,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    color: color.inkGhost,
+                  }}
+                >
+                  redo
+                </span>
+              )}
+            </button>
           );
         })}
       </div>
+
+      {pendingSkip !== null && currentPhase >= 0 && (
+        <div
+          style={{
+            background: color.amberBg,
+            border: "1px solid rgba(160,106,48,0.25)",
+            borderRadius: 10,
+            padding: "13px 15px",
+            marginTop: -8,
+            marginBottom: 18,
+            animation: "fadeUp 0.25s both",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13.5,
+              lineHeight: 1.5,
+              color: color.amberInk,
+              marginBottom: 11,
+            }}
+          >
+            {PHASE_SKIP_NUDGE[PHASES[currentPhase]]}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={() => {
+                setPendingSkip(null);
+                onPhaseAction(node, displayState, currentPhase);
+              }}
+              style={{
+                padding: "8px 13px",
+                background: color.accent,
+                color: color.accentInk,
+                border: "none",
+                borderRadius: 9,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Do {PHASES[currentPhase]} first
+            </button>
+            <button
+              onClick={() => {
+                const target = pendingSkip;
+                setPendingSkip(null);
+                onPhaseAction(node, displayState, target);
+              }}
+              style={{
+                padding: "8px 4px",
+                background: "none",
+                border: "none",
+                fontSize: 13,
+                color: color.amberInk,
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Skip to {PHASES[pendingSkip]} →
+            </button>
+          </div>
+        </div>
+      )}
 
       <button
         onClick={() => onPrimaryAction(node, displayState)}
@@ -255,6 +373,36 @@ export default function NodeDetail({
       >
         {CTA_LABEL[displayState]}
       </button>
+
+      {displayState === "frontier" && (
+        <button
+          onClick={() => onSkipKnown(node)}
+          style={{
+            width: "100%",
+            marginTop: 10,
+            padding: "11px 15px",
+            background: "none",
+            border: `1px solid ${color.hairlineStrong}`,
+            borderRadius: 12,
+            fontSize: 13.5,
+            color: color.inkMuted,
+            cursor: "pointer",
+          }}
+        >
+          I already know this — skip it
+        </button>
+      )}
+
+      {gapIds.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>
+            Open gaps · spawned from failures
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {gapIds.map(chip)}
+          </div>
+        </div>
+      )}
 
       {prereqIds.length > 0 && (
         <div style={{ marginTop: 24 }}>

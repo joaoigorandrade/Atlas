@@ -2,8 +2,10 @@
 
 Atlas is a learning platform built around a living concept map (see `docs/SPEC.md`
 for the full product spec, `README.md` for the overview). The onboarding flow
-(welcome → building → diagnostic → map) is implemented; the session phases
-(Consume, Socratic, Feynman, Connect, Crucible, Retain) are not yet.
+(welcome → building → diagnostic → map) and Phase 1 (Plan — the map's
+re-planning behavior: gap spawning, goal-conditioned ordering, pace warnings,
+skip pruning) are implemented; the session phases (Consume, Socratic, Feynman,
+Connect, Crucible, Retain) are not yet.
 
 ## Stack
 
@@ -25,7 +27,7 @@ npm run typecheck  # tsc --noEmit
 - `app/` — App Router shell only (layout, fonts, global keyframes). Pages stay thin; screens live in `components/`.
 - `components/AtlasApp.tsx` — the single client-side state machine (screen, form, selection, canvas view). All cross-screen state lives here.
 - `components/onboarding/`, `components/map/` — presentational screens; they receive state + callbacks as props and hold no app state.
-- `lib/curriculum.ts` — the concept graph, mastery-state vocabulary, diagnostic script. All domain data goes here, never inline in components.
+- `lib/curriculum.ts` — the concept graph, mastery-state vocabulary, diagnostic script, and the re-planning model (gap specs, goal ordering, pace math). All domain data goes here, never inline in components.
 - `lib/theme.ts` — design tokens. Never hard-code a color/font that has a token.
 
 ## Conventions

@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import {
-  EDGES,
-  NODES,
   STATE_COLOR,
   ancestorsOf,
+  type ConceptEdge,
+  type ConceptNode,
   type NodeState,
 } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
@@ -21,6 +21,11 @@ const PATH_COLOR = "#c99a2e";
 
 interface MapCanvasProps {
   screen: "map" | "building" | "diagnostic";
+  /** The live graph — re-planning spawns nodes into it mid-session. */
+  nodes: ConceptNode[];
+  edges: ConceptEdge[];
+  /** Nodes the re-planner just spawned — they assemble into place. */
+  spawnedIds: Set<string>;
   /** Display state per node id — frontier/locking already derived. */
   display: Record<string, NodeState>;
   /** Unlearned prerequisite chain of a selected locked node ("learn these first"). */
@@ -39,6 +44,9 @@ interface MapCanvasProps {
 
 export default function MapCanvas({
   screen,
+  nodes,
+  edges,
+  spawnedIds,
   display,
   lockedPath,
   positions,
@@ -65,8 +73,8 @@ export default function MapCanvas({
   }, []);
 
   const highlighted = useMemo(
-    () => (hoverId ? ancestorsOf(hoverId, EDGES) : null),
-    [hoverId],
+    () => (hoverId ? ancestorsOf(hoverId, edges) : null),
+    [hoverId, edges],
   );
 
   const q = query.trim().toLowerCase();
@@ -105,7 +113,7 @@ export default function MapCanvas({
           width={2000}
           height={860}
         >
-          {EDGES.map(([a, b, dashed], i) => {
+          {edges.map(([a, b, dashed], i) => {
             const pa = positions[a];
             const pb = positions[b];
             if (!pa || !pb) return null;
@@ -149,7 +157,7 @@ export default function MapCanvas({
           })}
         </svg>
 
-        {NODES.map((node, i) => {
+        {nodes.map((node, i) => {
           const pos = positions[node.id];
           const displayState = display[node.id] ?? "unknown";
           const dotColor = STATE_COLOR[displayState];
@@ -163,9 +171,11 @@ export default function MapCanvas({
           const animation =
             screen === "building"
               ? `assemble 0.5s ${(0.04 * i).toFixed(2)}s both`
-              : isFrontier
-                ? "pulseGlow 2.8s ease-in-out infinite"
-                : "none";
+              : spawnedIds.has(node.id)
+                ? "assemble 0.45s both"
+                : isFrontier
+                  ? "pulseGlow 2.8s ease-in-out infinite"
+                  : "none";
 
           return (
             <div

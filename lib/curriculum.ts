@@ -35,6 +35,20 @@ export interface ConceptNode {
 /** [from, to, dashed?] — direction is prerequisite → dependent. */
 export type ConceptEdge = readonly [string, string, boolean?];
 
+/**
+ * The live graph. Re-planning (Phase 1) restructures it — spawning gap
+ * sub-nodes from failures — so the app holds it as state seeded from
+ * `NODES`/`EDGES`, never the module constants directly.
+ */
+export interface ConceptGraph {
+  nodes: ConceptNode[];
+  edges: ConceptEdge[];
+}
+
+export function seedGraph(): ConceptGraph {
+  return { nodes: [...NODES], edges: [...EDGES] };
+}
+
 export const NODES: ConceptNode[] = [
   { id: "vec", label: "Vectors", state: "mastered", g: 1, week: 0, x: 110, y: 400 },
   { id: "vecops", label: "Vector Operations", state: "mastered", g: 1, week: 0, x: 320, y: 250 },
@@ -130,6 +144,1981 @@ export const PHASES = [
   "Retained",
 ] as const;
 
+export type Phase = (typeof PHASES)[number];
+
+/**
+ * The gentle skip flag: what's still unfinished when the learner jumps past
+ * the recommended next phase. Keyed by the phase being skipped over.
+ */
+export const PHASE_SKIP_NUDGE: Record<Phase, string> = {
+  Consume: "You haven't read this yet — want to?",
+  Socratic: "You haven't reasoned this out yet — want to?",
+  Feynman: "You haven't taught this back yet — want to?",
+  Connect: "You haven't linked this into your map yet — want to?",
+  Crucible: "You haven't applied this in a novel context yet — want to?",
+  Retained: "This isn't in your review rotation yet — want to?",
+};
+
+// ---- Phase 2 · Consume (the Learn view) ------------------------------------
+// The segmented, dual-coded reading content for a Consume session. In the
+// final product each chunk is generated per node from a grounded source; the
+// demo ships the Linear Transformations pass from the design so the
+// predict → reveal → continue mechanic is real.
+
+/** The on-demand rewrite modalities offered under each revealed chunk. */
+export type AltKey = "simpler" | "example" | "analogy" | "deeper";
+
+export const ALT_CONTROLS: ReadonlyArray<[AltKey, string]> = [
+  ["simpler", "Simpler"],
+  ["example", "Example"],
+  ["analogy", "Analogy"],
+  ["deeper", "Go deeper"],
+];
+
+/** A key term pre-taught before the paragraph that first uses it. */
+export interface ConsumeTerm {
+  /** The term itself — shown on the pill and used as its inline key. */
+  t: string;
+  /** Its pre-taught definition, revealed inline on tap. */
+  d: string;
+}
+
+export interface ConsumePrediction {
+  q: string;
+  opts: ReadonlyArray<{ label: string; correct: boolean }>;
+}
+
+export interface ConsumeChunk {
+  id: string;
+  /** Segment label, e.g. "1 · What it is". */
+  kicker: string;
+  terms: ConsumeTerm[];
+  /** The desirable-difficulty guess posed before the explanation reveals. */
+  pred: ConsumePrediction;
+  /** Verdict copy after a right / wrong guess. */
+  right: string;
+  wrong: string;
+  /** The explanation itself, revealed only after the learner guesses. */
+  body: string;
+  /** Source citation — trust is visible; no memorizing hallucinations. */
+  cite: string;
+  /** Caption for the auto-generated dual-coded diagram beside the prose. */
+  diagram: string;
+  /** The mini-Socratic aside opened from "ask about this passage". */
+  ask: string;
+  /** Adaptive-modality rewrites of this chunk, keyed by control. */
+  alt: Record<AltKey, string>;
+}
+
+export const CONSUME_CHUNKS: ConsumeChunk[] = [
+  {
+    id: "c1",
+    kicker: "1 · What it is",
+    terms: [
+      {
+        t: "mapping",
+        d: "A rule that sends every input vector to exactly one output vector.",
+      },
+      {
+        t: "preserve",
+        d: "The structure before and after the map matches — nothing about how vectors combine is lost.",
+      },
+    ],
+    pred: {
+      q: "You apply some rule to every vector in the plane. What must be true for that rule to count as a linear transformation?",
+      opts: [
+        { label: "It keeps every vector the same length", correct: false },
+        { label: "It respects vector addition and scaling", correct: true },
+        { label: "It only rotates, never stretches", correct: false },
+      ],
+    },
+    right: "Exactly — linearity is about preserving structure, not size.",
+    wrong:
+      "Not quite. Length and rotation are too specific; linearity is the weaker, deeper condition spelled out below.",
+    body: "A linear transformation is a mapping T that sends vectors to vectors while preserving two operations: T(v+w) = T(v)+T(w) and T(cv) = cT(v). Stretching, rotating, shearing, and projecting all qualify — bending a straight line into a curve does not.",
+    cite: "Strang, Introduction to Linear Algebra, §7.1",
+    diagram: "grid before → after: straight lines stay straight",
+    ask: "Before I answer — try a rule that fails: does T(v) = v + (1,0) preserve addition? Compare T(v+w) against T(v)+T(w) and tell me what breaks.",
+    alt: {
+      simpler:
+        "Plain version: a linear map moves vectors around, but only in ways that keep sums and scalings intact.",
+      example:
+        "Worked example: T(x,y) = (2x, y) doubles width. Check T(v+w): each part of the sum doubles, so addition survives. ✓",
+      analogy:
+        "Like chess: a linear map is a legal move-set. Combine two legal moves and the result is still reachable the same way — the structure is preserved.",
+      deeper:
+        "Deeper: the two rules collapse into one, T(av+bw) = aT(v)+bT(w). That single identity is exactly what lets a finite matrix stand in for a map on the whole infinite plane.",
+    },
+  },
+  {
+    id: "c2",
+    kicker: "2 · The geometric picture",
+    terms: [
+      {
+        t: "origin fixed",
+        d: "T(0) = 0 always — under a linear map the origin can never move.",
+      },
+    ],
+    pred: {
+      q: "Under a linear transformation, where does the origin end up?",
+      opts: [
+        { label: "It can move anywhere", correct: false },
+        { label: "It stays exactly where it is", correct: true },
+        { label: "It depends on the matrix", correct: false },
+      ],
+    },
+    right: "Right — T(0) = 0 falls straight out of the scaling rule.",
+    wrong:
+      "Watch the scaling rule: T(0) = T(0·v) = 0·T(v) = 0. The origin is pinned in place.",
+    body: "Geometrically, a linear map keeps grid lines straight, parallel, and evenly spaced, and it holds the origin in place. That one picture — an evenly-ruled grid tilted and stretched but never torn — is enough to reason about almost everything that follows.",
+    cite: "3Blue1Brown, Essence of Linear Algebra, ch. 3",
+    diagram: "square grid sheared into a lattice of parallelograms",
+    ask: "Before I answer — what would break if the origin could move? Trace T(0) through the scaling rule and tell me what you get.",
+    alt: {
+      simpler:
+        "Plain version: the grid tilts and stretches like a rubber sheet, but the lines never bend and the center pin never moves.",
+      example:
+        "Worked example: rotate 90°. î = (1,0) → (0,1), ĵ = (0,1) → (−1,0). The grid spins, spacing unchanged, origin fixed.",
+      analogy:
+        "Like a chessboard photographed at an angle: squares become parallelograms and rows stay parallel — it is still a regular grid.",
+      deeper:
+        'Deeper: "evenly spaced" is the visual signature of linearity. The moment spacing varies across the grid, you have left the linear world.',
+    },
+  },
+  {
+    id: "c3",
+    kicker: "3 · Why a matrix is enough",
+    terms: [
+      {
+        t: "basis vectors",
+        d: "î = (1,0) and ĵ = (0,1) — the two unit steps every other vector is built from.",
+      },
+      {
+        t: "columns",
+        d: "The columns of the matrix are literally where î and ĵ land after the map.",
+      },
+    ],
+    pred: {
+      q: "You know where î and ĵ land after the map. Is that enough to know where every vector lands?",
+      opts: [
+        { label: "No — you'd have to track each vector", correct: false },
+        {
+          label: "Yes — every vector is a combination of î and ĵ",
+          correct: true,
+        },
+        { label: "Only for vectors on the axes", correct: false },
+      ],
+    },
+    right: "Yes. Linearity carries the combination straight through the map.",
+    wrong:
+      "It is enough: any v = xî + yĵ, and linearity gives T(v) = xT(î) + yT(ĵ).",
+    body: "Because every vector is a linear combination of the basis vectors, the whole map is determined by where those two go. Stack their images as columns and you have the transformation's matrix — applying the matrix to a vector is exactly this combination, computed for you.",
+    cite: "Strang, Introduction to Linear Algebra, §7.1",
+    diagram: "î, ĵ arrows → their images become the matrix columns",
+    ask: "Before I answer — if you only knew where î lands, what could you still not determine? Say what ĵ adds.",
+    alt: {
+      simpler:
+        "Plain version: pin down where the two arrows î and ĵ go, and every other arrow follows automatically.",
+      example:
+        "Worked example: î → (2,0), ĵ → (1,3) gives matrix [[2,1],[0,3]]. Then (3,1) → 3·(2,0) + 1·(1,3) = (7,3).",
+      analogy:
+        "Like a chess opening: fix the first two moves and the whole line of play is determined from them.",
+      deeper:
+        "Deeper: this is why an infinite-dimensional idea — a map on every point of the plane — compresses down to just four numbers.",
+    },
+  },
+  {
+    id: "c4",
+    kicker: "4 · Reading a matrix as motion",
+    terms: [
+      {
+        t: "shear",
+        d: "A slide that fixes one axis and pushes the other sideways, like a deck of cards nudged askew.",
+      },
+    ],
+    pred: {
+      q: "The matrix [[1,1],[0,1]] leaves î untouched and sends ĵ to (1,1). What motion is that?",
+      opts: [
+        { label: "A rotation", correct: false },
+        { label: "A horizontal shear", correct: true },
+        { label: "A uniform stretch", correct: false },
+      ],
+    },
+    right:
+      "A shear — the top of the grid slides right while the base stays put.",
+    wrong:
+      "Read the columns: î fixed, ĵ tilted right. That sideways slide is a shear, not a rotation or a stretch.",
+    body: "Reading columns as destinations lets you see any 2×2 matrix as a physical motion. Once you can look at four numbers and picture the grid moving, you are ready to construct and compose these maps yourself — which is exactly where the Socratic phase picks up.",
+    cite: "3Blue1Brown, Essence of Linear Algebra, ch. 3",
+    diagram: "unit square sliding into a leaning parallelogram",
+    ask: "Before I answer — read [[0,-1],[1,0]] as columns. Where do î and ĵ land, and what single motion is that?",
+    alt: {
+      simpler:
+        "Plain version: read the columns to see where the grid corners go, then picture the shape sliding to match.",
+      example:
+        "Worked example: [[2,0],[0,1]] keeps ĵ and doubles î, so the unit square stretches into a wide rectangle.",
+      analogy:
+        "Like reading a chess diagram: the piece positions (the columns) tell you the whole board state at a glance.",
+      deeper:
+        "Deeper: composing two matrices is doing one motion then the next — matrix multiplication is choreography, not arithmetic.",
+    },
+  },
+];
+
+// ---- Phase 3a · Socratic (during learning) --------------------------------
+// The learner *constructs* the idea through guided questioning. The AI is
+// contingent (hint when near, teach when lost), and — the single most
+// important behavior — anti-sycophantic: it catches wrong reasoning and
+// surfaces it gently, never smoothing it over. Scaffolding fades as the
+// learner answers unaided. Content ships the Linear Transformations pass so
+// the probe → reply → catch → advance mechanic is real.
+
+/** The scaffolding dial, least help → most. Falls toward Silent with mastery. */
+export const HELP_LABELS = ["Silent", "Hint", "Guide", "Show me"] as const;
+export type HelpLevel = 0 | 1 | 2 | 3;
+
+/** Warmer = more help. The dial and its active cell read this. */
+export const HELP_COLOR: Record<HelpLevel, string> = {
+  0: STATE_COLOR.mastered, // Silent — the learner is carrying it
+  1: STATE_COLOR.learning, // Hint
+  2: STATE_COLOR.frontier, // Guide
+  3: STATE_COLOR.shaky, // Show me — dropped to direct instruction
+};
+
+/** The classic Socratic moves, tagged on each probe so the intent is legible. */
+export type SocraticMove =
+  | "Clarify"
+  | "Challenge the assumption"
+  | "Probe the reasoning"
+  | "Probe the implications";
+
+/**
+ * How true a reply is. `correct` advances; `near` earns a hint and another
+ * try; `wrong` gets caught (anti-sycophancy); `lost` drops the act and teaches.
+ */
+export type ReplyQuality = "correct" | "near" | "wrong" | "lost";
+
+export interface SocraticReply {
+  label: string;
+  quality: ReplyQuality;
+  /** The AI's honest, contingent response to this reply. */
+  response: string;
+}
+
+export interface SocraticStep {
+  id: string;
+  move: SocraticMove;
+  /** The probing question the AI opens the step with. */
+  prompt: string;
+  replies: SocraticReply[];
+  /** Raised-help scaffold ("I'm stuck") — a nudge that doesn't give it away. */
+  hint: string;
+  /** Direct instruction for "Just tell me" — drops the Socratic act entirely. */
+  tell: string;
+  /**
+   * An optional scratchpad task. When present the reply panel stays locked
+   * until the learner works on the pad and submits it — the AI then reacts to
+   * what's written there, not just to chat text.
+   */
+  scratch?: {
+    /** Instruction overlaid on the pad. */
+    prompt: string;
+    /** The AI's reaction to the pad — catches the common error it finds. */
+    reaction: string;
+  };
+}
+
+export const SOCRATIC_STEPS: SocraticStep[] = [
+  {
+    id: "s1",
+    move: "Clarify",
+    prompt:
+      "In Consume you saw a matrix's columns are “where î and ĵ land.” Before we build one from scratch — what, precisely, is the first column of a 2×2 matrix?",
+    replies: [
+      {
+        label: "It's T(î) — the whole vector î = (1,0) turns into.",
+        quality: "correct",
+        response:
+          "Said plainly, and correct. The first column is T(î), both coordinates — keep that anchor.",
+      },
+      {
+        label: "The x-coordinates of the outputs.",
+        quality: "wrong",
+        response:
+          "I'll stop you there — that's the common slip, and it's wrong. The first column isn't a row of x-coordinates; it's one whole vector, T(î). For [[2,1],[0,3]] the first column is (2,0) — that's where î goes. Try again.",
+      },
+      {
+        label: "Honestly, I've lost what the columns mean.",
+        quality: "lost",
+        response:
+          "Fine — let me just show you, then we resume. Apply the matrix to î = (1,0): only the first column survives the multiply. So column one is T(î); column two is T(ĵ). Now you hold it.",
+      },
+    ],
+    hint: "Don't think “coordinates.” Think: I feed in î. What single vector comes out?",
+    tell: "The first column is T(î): the vector î = (1,0) maps to. The second is T(ĵ). Columns are destinations, not coordinate rows.",
+  },
+  {
+    id: "s2",
+    move: "Probe the reasoning",
+    prompt:
+      "Good. Now build one yourself. On the scratchpad, work out where î and ĵ land under a 90° counter-clockwise rotation, then write the 2×2 matrix. Show your working — I'm reading the pad.",
+    scratch: {
+      prompt: "Sketch î, ĵ after a 90° CCW turn — then write the matrix.",
+      reaction:
+        "I can read your pad. The images are right — î → (0,1), ĵ → (−1,0). But the matrix you wrote, [[0,1],[−1,0]], doesn't say that. Images go in as columns, top-to-bottom: (0,1) and (−1,0) give [[0,−1],[1,0]]. You laid them in as rows — the transpose trap. Which is right?",
+    },
+    replies: [
+      {
+        label: "Right — images are columns, so it's [[0,−1],[1,0]].",
+        quality: "correct",
+        response:
+          "Yes. You caught your own transpose once I pointed at it — that's the muscle we're building.",
+      },
+      {
+        label:
+          "But (0,1) and (−1,0) are correct, so the matrix must be fine.",
+        quality: "wrong",
+        response:
+          "The vectors are correct; their placement isn't. Rows vs columns changes the map entirely — [[0,1],[−1,0]] rotates the other way. Put each image in as a column and check î again.",
+      },
+      {
+        label: "So I just swap the rows and columns?",
+        quality: "near",
+        response:
+          "Careful with “just swap” — that's the transpose trick, and here it happens to fix it. But you want the reason: each image is a column because the matrix times î must return column one. Say it back that way.",
+      },
+    ],
+    hint: "Feed î = (1,0) into your matrix. If the first column isn't the vector you drew î turning into, the matrix is wrong — not the drawing.",
+    tell: "90° CCW sends î=(1,0)→(0,1) and ĵ=(0,1)→(−1,0). Those are the columns, so the matrix is [[0,−1],[1,0]]. Written as rows, you'd get the clockwise rotation instead.",
+  },
+  {
+    id: "s3",
+    move: "Challenge the assumption",
+    prompt:
+      "You've got a reliable rule now: images of î and ĵ become the columns. So — does every transformation have a matrix? What about one that bends straight lines into curves?",
+    replies: [
+      {
+        label:
+          "No. A matrix only makes linear maps — straight stays straight. A bend isn't linear, so it has no matrix.",
+        quality: "correct",
+        response:
+          "Exactly the line to hold. The tool doesn't cover everything; it covers linear everything. Bending breaks T(v+w) = T(v)+T(w).",
+      },
+      {
+        label: "Yes — you can always find a matrix for any transformation.",
+        quality: "wrong",
+        response:
+          "That's the assumption I wanted you to challenge, and it's false. A matrix only ever produces linear maps: straight lines stay straight, spacing stays even. A curve-maker has no matrix at all. Don't let a powerful tool convince you it's universal.",
+      },
+      {
+        label: "Only if it keeps the origin fixed?",
+        quality: "near",
+        response:
+          "Closer, but origin-fixed is necessary, not sufficient — a bend can fix the origin and still fail. The real test is preserving addition and scaling. Why does bending break T(v+w) = T(v)+T(w)?",
+      },
+    ],
+    hint: "A matrix on v+w always equals the matrix on v plus the matrix on w. Can a curve-maker promise that? Try two vectors.",
+    tell: "No. Matrices produce exactly the linear maps — those preserving addition and scaling, keeping lines straight and the origin fixed. A transformation that curves lines is non-linear and has no matrix.",
+  },
+  {
+    id: "s4",
+    move: "Probe the implications",
+    prompt:
+      "Last one, and it's yours alone. Compose two motions: first the shear [[1,1],[0,1]], then your 90° rotation. Which matrix sits on the right of the product — and what does that force to be true about matrix multiplication?",
+    replies: [
+      {
+        label:
+          "The shear is first, so it sits on the right: R·S, acting right-to-left. Order matters — that's why AB ≠ BA.",
+        quality: "correct",
+        response:
+          "That's the whole implication, unaided. The motion you do first hugs the vector on the right, and because motions don't commute, neither does the multiplication.",
+      },
+      {
+        label: "Rotation first, so S·R, read left-to-right.",
+        quality: "wrong",
+        response:
+          "Reversed — and this is the trap left-to-right reading sets. The map you apply first sits next to the vector: R(S·v) = (R·S)·v, so the shear is on the right. That right-to-left order is exactly why AB ≠ BA.",
+      },
+      {
+        label: "R·S, but I think the order wouldn't change the result.",
+        quality: "near",
+        response:
+          "Half right — R·S is the correct product. But “wouldn't change the result” is the part to test: shear-then-rotate î, then rotate-then-shear it, and watch them disagree. Non-commuting is the point.",
+      },
+    ],
+    hint: "Write (R·S)·v = R·(S·v). Which matrix touches v first? That one is applied first — and sits on the right.",
+    tell: "Applying S then R to a vector is R(S·v) = (R·S)v, so S — the first motion — sits on the right. Swapping to S·R gives a different motion, so matrix multiplication is order-dependent: AB ≠ BA in general.",
+  },
+];
+
+/** One line of the Socratic transcript. */
+export interface SocraticTurn {
+  role: "ai" | "learner";
+  text: string;
+  /** Present on AI probes: the Socratic move being made. */
+  move?: SocraticMove;
+  /** Colors the AI bubble: a caught error, an affirmation, or direct teaching. */
+  tone?: "neutral" | "catch" | "affirm" | "teach";
+}
+
+/** The live state of one Socratic session — held by AtlasApp, read by the view. */
+export interface SocraticSession {
+  nodeId: string;
+  step: number;
+  help: HelpLevel;
+  log: SocraticTurn[];
+  /** Whether the current step's scratch task is submitted (true when it has none). */
+  scratchDone: boolean;
+  /** Reply labels already ruled out on this step (caught wrong / spent hints). */
+  ruledOut: string[];
+  /** The AI's latest reaction to the pad, shown beside the canvas. */
+  padReaction: string | null;
+  /** "Just tell me" uses — repeated use flags a prerequisite gap. */
+  tells: number;
+  done: boolean;
+}
+
+/** Clamp a help level into the dial's range. */
+function clampHelp(n: number): HelpLevel {
+  return Math.max(0, Math.min(3, n)) as HelpLevel;
+}
+
+/** Push a step's opening probe onto the log and reset the per-step gates. */
+function openStep(session: SocraticSession, step: number): SocraticSession {
+  const s = SOCRATIC_STEPS[step];
+  return {
+    ...session,
+    step,
+    scratchDone: !s.scratch,
+    ruledOut: [],
+    padReaction: null,
+    log: [...session.log, { role: "ai", text: s.prompt, move: s.move }],
+  };
+}
+
+/** A fresh session, opened on its first probe. Starts mid-dial, at Hint. */
+export function socraticStart(nodeId: string): SocraticSession {
+  const first = SOCRATIC_STEPS[0];
+  return {
+    nodeId,
+    step: 0,
+    help: 1,
+    scratchDone: !first.scratch,
+    ruledOut: [],
+    padReaction: null,
+    tells: 0,
+    done: false,
+    log: [{ role: "ai", text: first.prompt, move: first.move }],
+  };
+}
+
+const REPLY_TONE: Record<ReplyQuality, SocraticTurn["tone"]> = {
+  correct: "affirm",
+  near: "neutral",
+  wrong: "catch",
+  lost: "teach",
+};
+
+export type SocraticAction =
+  | { type: "reply"; index: number }
+  | { type: "scratch" }
+  | { type: "stuck" }
+  | { type: "tell" };
+
+/**
+ * The contingent tutor, as a pure transition. Correct answers advance and let
+ * scaffolding fade; near answers earn a hint and another try; wrong answers get
+ * caught and raise help; "lost"/"just tell me" drop the act and teach. This is
+ * where the anti-sycophancy lives — a wrong reply is surfaced, never advanced.
+ */
+export function socraticReducer(
+  session: SocraticSession,
+  action: SocraticAction,
+): SocraticSession {
+  if (session.done) return session;
+  const step = SOCRATIC_STEPS[session.step];
+  const last = session.step === SOCRATIC_STEPS.length - 1;
+
+  const advance = (base: SocraticSession): SocraticSession =>
+    last ? { ...base, done: true } : openStep(base, session.step + 1);
+
+  switch (action.type) {
+    case "scratch": {
+      if (!step.scratch || session.scratchDone) return session;
+      return {
+        ...session,
+        scratchDone: true,
+        padReaction: step.scratch.reaction,
+        log: [
+          ...session.log,
+          { role: "learner", text: "✎ Worked it out on the scratchpad." },
+          { role: "ai", text: step.scratch.reaction, tone: "catch" },
+        ],
+      };
+    }
+    case "stuck": {
+      return {
+        ...session,
+        help: clampHelp(session.help + 1),
+        ruledOut: [...session.ruledOut],
+        log: [
+          ...session.log,
+          { role: "learner", text: "I'm stuck — more help." },
+          { role: "ai", text: step.hint, tone: "teach" },
+        ],
+      };
+    }
+    case "tell": {
+      const base: SocraticSession = {
+        ...session,
+        help: 3,
+        tells: session.tells + 1,
+        log: [
+          ...session.log,
+          { role: "learner", text: "Just tell me." },
+          { role: "ai", text: step.tell, tone: "teach" },
+        ],
+      };
+      return advance(base);
+    }
+    case "reply": {
+      const reply = step.replies[action.index];
+      if (!reply || session.ruledOut.includes(reply.label)) return session;
+      const logged: SocraticSession = {
+        ...session,
+        log: [
+          ...session.log,
+          { role: "learner", text: reply.label },
+          { role: "ai", text: reply.response, tone: REPLY_TONE[reply.quality] },
+        ],
+      };
+      if (reply.quality === "correct" || reply.quality === "lost") {
+        // Correct fades the scaffolding; a "lost" reply was just taught, so
+        // help ticks up before we move on.
+        const help =
+          reply.quality === "correct"
+            ? clampHelp(session.help - 1)
+            : clampHelp(session.help + 1);
+        return advance({ ...logged, help });
+      }
+      // near → hint and let them try again; wrong → caught, help rises. Both
+      // rule the reply out so the learner converges instead of re-picking it.
+      return {
+        ...logged,
+        help:
+          reply.quality === "wrong"
+            ? clampHelp(session.help + 1)
+            : session.help,
+        ruledOut: [...session.ruledOut, reply.label],
+      };
+    }
+    default:
+      return session;
+  }
+}
+
+// ---- Phase 3b · Feynman (teach it back) -----------------------------------
+// Gap detection through self-explanation. The learner teaches; the AI plays a
+// naive student, interrupting with the questions that surface exactly what got
+// hand-waved. The output is a Gap Report — a visual diff of the explanation,
+// green/grey/red — and each unresolved gap writes back to the map as a red Gap
+// sub-node, so the phase is the loop's connective tissue, not a checklist.
+// Content ships the Linear Transformations teach-back so the speak → interrupt
+// → diff mechanic is real.
+
+/** A beat's verdict in the Gap Report: explained, skipped/hand-waved, or wrong. */
+export type TeachVerdict = "good" | "skipped" | "confused";
+
+/** The visual-diff colors — green = explained well, grey = skipped, red = wrong. */
+export const VERDICT_COLOR: Record<TeachVerdict, string> = {
+  good: STATE_COLOR.mastered,
+  skipped: STATE_COLOR.unknown,
+  confused: STATE_COLOR.gap,
+};
+
+export const VERDICT_LABEL: Record<TeachVerdict, string> = {
+  good: "Explained well",
+  skipped: "Skipped · hand-waved",
+  confused: "Wrong · confused",
+};
+
+/** One line of the teach-back transcript — the learner speaking, or the student. */
+export interface TeachLine {
+  role: "learner" | "ai";
+  text: string;
+  /** AI lines: a naive question, an affirmation, a caught error, a skipped bit. */
+  tone?: "naive" | "affirm" | "catch" | "skip";
+}
+
+/** How the learner answers a naive interruption — each sets the beat's verdict. */
+export interface TeachReply {
+  label: string;
+  verdict: TeachVerdict;
+  /** The naive student's reaction — pleased, still puzzled, or wrong-footed. */
+  response: string;
+}
+
+/** A single-probe corrective for a gap — the targeted Socratic micro-pass. */
+export interface TeachFixReply {
+  label: string;
+  correct: boolean;
+  response: string;
+}
+
+/** One beat of the explanation — a sub-point the learner teaches, then defends. */
+export interface FeynmanBeat {
+  id: string;
+  /** The sub-point being taught — the Gap Report row label. */
+  subPoint: string;
+  /** The learner's spoken explanation, streamed in as a live transcript. */
+  transcript: string;
+  /** The naive student's interrupting question ("wait, why does that matter?"). */
+  interjection: string;
+  /** How the learner can answer it — each answer sets this beat's verdict. */
+  replies: TeachReply[];
+  /** The targeted Socratic micro-pass "Fix this" opens on just this sub-point. */
+  fix: { probe: string; replies: TeachFixReply[] };
+  /** The red Gap sub-node this beat writes back to the map when left unresolved. */
+  gap: GapSpec;
+}
+
+/** The scaffold offered when the learner freezes — never a blank wall. */
+export const FEYNMAN_SCAFFOLD =
+  "No blank-wall panic. Start with the simplest thing: what problem does a linear transformation actually solve? Teach me that first — the rest pulls itself out.";
+
+export const FEYNMAN_BEATS: FeynmanBeat[] = [
+  {
+    id: "ft-rules",
+    subPoint: "What makes a map linear",
+    transcript:
+      "Alright — a linear transformation is a function that takes every vector in the plane and moves it somewhere else. The catch is it has to play nice with addition and scaling. Those two rules are what make it “linear.”",
+    interjection:
+      "Wait, hold on — I'm the student here, remember. “Play nice” how? What actually goes wrong if a map doesn't follow those two rules?",
+    replies: [
+      {
+        label:
+          "Concretely: T(v+w) = T(v)+T(w) and T(cv) = cT(v). Break either and a straight line can come out bent — and knowing where a couple of vectors go stops telling you where the rest go.",
+        verdict: "good",
+        response:
+          "Ohh — okay. So the two rules are exactly what keep it predictable. That I actually get now.",
+      },
+      {
+        label: "It just… preserves the structure. You'll feel it once we do examples.",
+        verdict: "skipped",
+        response:
+          "Hmm. You said “structure” but not which structure. I still don't know what the two rules are — I think you skipped the actual definition.",
+      },
+      {
+        label: "It means every vector keeps its length — a linear map never stretches anything.",
+        verdict: "confused",
+        response:
+          "Wait, that can't be right — you told me earlier stretching was fine. Doubling the x-axis is linear and it clearly changes lengths. I think you've mixed something up.",
+      },
+    ],
+    fix: {
+      probe:
+        "Forget length for a second. A map is linear exactly when it keeps two operations intact — which two?",
+      replies: [
+        {
+          label: "Addition and scaling: T(v+w) = T(v)+T(w) and T(cv) = cT(v).",
+          correct: true,
+          response:
+            "Right — that's the definition, no mention of length. Now you can teach it clean.",
+        },
+        {
+          label: "It preserves the distance between points.",
+          correct: false,
+          response:
+            "That's the isometry trap — distance-preserving is a different, stronger property. Linearity is only addition and scaling.",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-rules",
+      label: "The two linearity rules",
+      reason: "you taught linear as “keeps length” — the isometry trap",
+      dx: -140,
+      dy: 150,
+    },
+  },
+  {
+    id: "ft-origin",
+    subPoint: "Why the origin stays fixed",
+    transcript:
+      "Geometrically, picture a grid over the plane. After a linear map the grid lines are still straight, still parallel, still evenly spaced — and the origin stays exactly where it is.",
+    interjection:
+      "Okay, but why does the origin have to stay put? That feels like a random extra rule you're bolting on.",
+    replies: [
+      {
+        label:
+          "It isn't random — it drops out of the scaling rule. Set c = 0: T(0) = T(0·v) = 0·T(v) = 0. A linear map literally can't move the origin.",
+        verdict: "good",
+        response:
+          "Oh nice — so it's forced, not a rule you tacked on. That's much more convincing.",
+      },
+      {
+        label: "It just always does — that's part of being linear, don't worry about it.",
+        verdict: "skipped",
+        response:
+          "But that's exactly the bit I'd want explained. “It just does” doesn't tell me why — I think you skipped the reason.",
+      },
+      {
+        label: "Because we always draw the grid centered on the origin.",
+        verdict: "confused",
+        response:
+          "That's about how we draw it, though, not about the map itself. I don't think that's the real reason.",
+      },
+    ],
+    fix: {
+      probe: "Use the scaling rule with c = 0. What is T(0)?",
+      replies: [
+        {
+          label: "T(0) = T(0·v) = 0·T(v) = 0 — the origin is pinned.",
+          correct: true,
+          response:
+            "Exactly. Now the fixed origin is something you can explain, not just assert.",
+        },
+        {
+          label: "It depends on the matrix — it could land anywhere.",
+          correct: false,
+          response:
+            "No — every linear map sends 0 to 0, always. Run the scaling rule with c = 0 and it falls right out.",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-origin",
+      label: "Why the origin is fixed",
+      reason: "you couldn't say why T(0) = 0",
+      dx: 70,
+      dy: 172,
+    },
+  },
+  {
+    id: "ft-columns",
+    subPoint: "Why a matrix captures the whole map",
+    transcript:
+      "Here's the payoff — you don't track every vector. You only need to know where î and ĵ land. Stack those two landing spots as the columns of a matrix, and that matrix is the transformation.",
+    interjection:
+      "Whoa, slow down. How can two little arrows tell you what happens to every other vector on the whole plane?",
+    replies: [
+      {
+        label:
+          "Because every vector is a combination v = xî + yĵ, and linearity carries it through: T(v) = xT(î) + yT(ĵ). Pin those two images and every vector comes along free.",
+        verdict: "good",
+        response:
+          "Ahh — so the two rules from before are exactly what make that work. It all connects.",
+      },
+      {
+        label: "You just trust the matrix — plug a vector in and it handles it.",
+        verdict: "skipped",
+        response:
+          "But I wanted to know why two arrows are enough, and “just trust it” skips that. I still don't understand it.",
+      },
+      {
+        label: "Well, it only really works for vectors that sit on the axes.",
+        verdict: "confused",
+        response:
+          "That can't be right — a matrix acts on every vector, not only the ones on the axes. I think that's a mistake.",
+      },
+    ],
+    fix: {
+      probe:
+        "Write any vector v in terms of î and ĵ, then apply T and use linearity. What comes out?",
+      replies: [
+        {
+          label: "v = xî + yĵ, so T(v) = xT(î) + yT(ĵ) — the two column images decide it.",
+          correct: true,
+          response:
+            "That's the whole argument. Two images, every vector — linearity carries the combination through.",
+        },
+        {
+          label: "T(v) = T(x)î + T(y)ĵ.",
+          correct: false,
+          response:
+            "Careful — x and y are scalars, not vectors; you don't apply T to them. It's T(v) = xT(î) + yT(ĵ).",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-columns",
+      label: "Why a matrix suffices",
+      reason: "you skipped why î and ĵ determine every vector",
+      dx: -168,
+      dy: 66,
+    },
+  },
+  {
+    id: "ft-order",
+    subPoint: "Composition order (AB ≠ BA)",
+    transcript:
+      "Last thing — if you do two transformations in a row, you multiply their matrices. So a shear followed by a rotation is one combined matrix.",
+    interjection:
+      "Cool. And the order doesn't matter, right? Multiplication is multiplication — 3 times 4 is the same as 4 times 3.",
+    replies: [
+      {
+        label:
+          "That's the trap — order matters here. The map you apply first sits on the right: R(S·v) = (R·S)v. Swap to S·R and you get a different motion, so AB ≠ BA.",
+        verdict: "good",
+        response:
+          "Okay, that's surprising, but it makes sense — it's motions in sequence, not plain numbers.",
+      },
+      {
+        label: "Order's probably fine to ignore for most cases.",
+        verdict: "skipped",
+        response:
+          "“Probably fine” worries me — either it matters or it doesn't. I don't think you're sure, and I'd get this wrong on a test.",
+      },
+      {
+        label: "Right — order never matters in multiplication.",
+        verdict: "confused",
+        response:
+          "But these are motions, not numbers. Shear-then-rotate looks different from rotate-then-shear if I picture it. I think that's wrong.",
+      },
+    ],
+    fix: {
+      probe:
+        "Take (R·S)·v = R·(S·v). Which matrix touches the vector first — and where does it sit in the product?",
+      replies: [
+        {
+          label: "S touches v first, so it sits on the right: R·S, applied right-to-left.",
+          correct: true,
+          response:
+            "Right. The first motion hugs the vector; because motions don't commute, neither does the product.",
+        },
+        {
+          label: "R is written first, so R acts first — on the left.",
+          correct: false,
+          response:
+            "Reversed — left-to-right reading is the trap. R(S·v) means S acts first, so S sits on the right.",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-order",
+      label: "Order of composition",
+      reason: "you taught matrix order as not mattering",
+      dx: 120,
+      dy: 150,
+    },
+  },
+];
+
+/** The live state of one Feynman session — held by AtlasApp, read by the view. */
+export interface FeynmanSession {
+  nodeId: string;
+  /** The beat currently being taught (index into FEYNMAN_BEATS). */
+  beat: number;
+  /** True once teaching has begun (past the opening prompt). */
+  started: boolean;
+  /** Within the current beat: waiting for the learner to speak, or to answer. */
+  awaiting: "speak" | "reply";
+  /** The teach-back transcript + naive-student interruptions, in order. */
+  log: TeachLine[];
+  /** Verdict per beat id, set when its interruption is answered (or fixed). */
+  verdicts: Record<string, TeachVerdict>;
+  /** True once every beat is taught — the Gap Report shows. */
+  reported: boolean;
+  /** A Fix-this micro-pass open on this beat id, or null. */
+  fixing: string | null;
+  /** Fix replies already caught in the open micro-pass. */
+  fixRuledOut: string[];
+  /** The naive student's latest reaction inside an open fix, or null. */
+  fixReaction: string | null;
+  /** Whether the stuck-scaffold has been offered. */
+  scaffolded: boolean;
+}
+
+export function feynmanStart(nodeId: string): FeynmanSession {
+  return {
+    nodeId,
+    beat: 0,
+    started: false,
+    awaiting: "speak",
+    log: [],
+    verdicts: {},
+    reported: false,
+    fixing: null,
+    fixRuledOut: [],
+    fixReaction: null,
+    scaffolded: false,
+  };
+}
+
+/** The naive student's reaction tone, by the verdict the learner earned. */
+const VERDICT_TONE: Record<TeachVerdict, TeachLine["tone"]> = {
+  good: "affirm",
+  skipped: "skip",
+  confused: "catch",
+};
+
+export type FeynmanAction =
+  | { type: "begin" }
+  | { type: "scaffold" }
+  | { type: "speak" }
+  | { type: "reply"; index: number }
+  | { type: "openFix"; beatId: string }
+  | { type: "closeFix" }
+  | { type: "fix"; index: number }
+  | { type: "teachAgain" };
+
+/**
+ * The naive-student engine, as a pure transition. The learner speaks a beat →
+ * the student interrupts with a naive question → the learner's answer sets that
+ * beat's verdict (good/skipped/confused). After the last beat the Gap Report
+ * opens; "Fix this" runs a one-probe corrective that flips a gap to good, and
+ * "Teach again" resets for a fresh pass.
+ */
+export function feynmanReducer(
+  session: FeynmanSession,
+  action: FeynmanAction,
+): FeynmanSession {
+  switch (action.type) {
+    case "begin":
+      // Leave the opening prompt and enter the teach-back surface, ready to
+      // speak the first beat.
+      return { ...session, started: true };
+    case "scaffold":
+      // The freeze-scaffold: reveal the "start with the problem" nudge and drop
+      // the learner straight into teaching the first beat.
+      return { ...session, started: true, scaffolded: true };
+    case "speak": {
+      if (session.reported || session.awaiting !== "speak") return session;
+      const beat = FEYNMAN_BEATS[session.beat];
+      if (!beat) return session;
+      return {
+        ...session,
+        started: true,
+        awaiting: "reply",
+        log: [
+          ...session.log,
+          { role: "learner", text: beat.transcript },
+          { role: "ai", text: beat.interjection, tone: "naive" },
+        ],
+      };
+    }
+    case "reply": {
+      if (session.reported || session.awaiting !== "reply") return session;
+      const beat = FEYNMAN_BEATS[session.beat];
+      const reply = beat?.replies[action.index];
+      if (!reply) return session;
+      const last = session.beat === FEYNMAN_BEATS.length - 1;
+      return {
+        ...session,
+        awaiting: "speak",
+        beat: last ? session.beat : session.beat + 1,
+        reported: last,
+        verdicts: { ...session.verdicts, [beat.id]: reply.verdict },
+        log: [
+          ...session.log,
+          { role: "learner", text: reply.label },
+          { role: "ai", text: reply.response, tone: VERDICT_TONE[reply.verdict] },
+        ],
+      };
+    }
+    case "openFix":
+      return {
+        ...session,
+        fixing: action.beatId,
+        fixRuledOut: [],
+        fixReaction: null,
+      };
+    case "closeFix":
+      return { ...session, fixing: null, fixRuledOut: [], fixReaction: null };
+    case "fix": {
+      if (!session.fixing) return session;
+      const beat = FEYNMAN_BEATS.find((b) => b.id === session.fixing);
+      const reply = beat?.fix.replies[action.index];
+      if (!reply || session.fixRuledOut.includes(reply.label)) return session;
+      if (reply.correct) {
+        // Gap closed: the sub-point flips to good and won't write back.
+        return {
+          ...session,
+          verdicts: { ...session.verdicts, [beat!.id]: "good" },
+          fixing: null,
+          fixRuledOut: [],
+          fixReaction: null,
+        };
+      }
+      // Caught: surface the correction, rule the wrong answer out, keep trying.
+      return {
+        ...session,
+        fixReaction: reply.response,
+        fixRuledOut: [...session.fixRuledOut, reply.label],
+      };
+    }
+    case "teachAgain":
+      return {
+        ...session,
+        beat: 0,
+        started: true,
+        awaiting: "speak",
+        log: [],
+        verdicts: {},
+        reported: false,
+        fixing: null,
+        fixRuledOut: [],
+        fixReaction: null,
+      };
+    default:
+      return session;
+  }
+}
+
+/** Beats still red or grey — the gaps that write back to the map as sub-nodes. */
+export function feynmanGaps(session: FeynmanSession): GapSpec[] {
+  return FEYNMAN_BEATS.filter(
+    (b) =>
+      session.verdicts[b.id] === "skipped" ||
+      session.verdicts[b.id] === "confused",
+  ).map((b) => b.gap);
+}
+
+/** A clean-enough diff: every sub-point explained well, nothing wrong or skipped. */
+export function feynmanClean(session: FeynmanSession): boolean {
+  return FEYNMAN_BEATS.every((b) => session.verdicts[b.id] === "good");
+}
+
+// ---- Phase 4 · Connect (the Elaboration station) --------------------------
+// Durable encoding through *elaboration*: the learner wires the new node into
+// concepts they already own. The links are real — candidates are pulled from
+// this learner's mastered nodes, not generic trivia — so every connection is
+// personal and true, and each confirmed link drafts a card for Retain.
+//
+// The encoding method is *auto-detected*: conceptual material gets elaboration
+// and the mnemonic tool stays hidden (a mnemonic there is noise); genuinely
+// list-like material — sequences, taxonomies, vocab — unlocks method-of-loci /
+// acronym / vivid-association tools instead. Content ships the Linear
+// Transformations pass (conceptual, per the design) plus the Gaussian
+// Elimination procedure (list-like) so the conditional is real, not decorative.
+
+/** The Connect phase's violet palette (its accent everywhere it appears). */
+export const CONNECT_COLOR = {
+  accent: "#8c6b9e",
+  soft: "#f4eef7",
+  border: "rgba(140,107,158,0.35)",
+  glow: "rgba(140,107,158,0.26)",
+} as const;
+
+/** How the app encodes a node — the auto-detected choice the whole phase turns on. */
+export type EncodingKind = "conceptual" | "list-like";
+
+/** A candidate prior node to link to — a real mastered node from the map. */
+export interface ElaborationLink {
+  /** The prior node's id (must be a mastered node the learner already owns). */
+  id: string;
+  label: string;
+  /** Placement in the 560×440 concept-web canvas. */
+  x: number;
+  y: number;
+  /** The relationship draft pulled from the map — accepted or rewritten. */
+  rel: string;
+}
+
+/** One offered memory aid, shown only when the content is detected as list-like. */
+export interface MnemonicOption {
+  /** Method-of-loci · Acronym · Vivid image — the tool kind. */
+  kind: string;
+  /** The aid's short title (e.g. the acronym itself). */
+  title: string;
+  /** The generated aid, editable before the learner accepts it. */
+  body: string;
+}
+
+/** Everything the Connect surface needs for one node's elaboration pass. */
+export interface ElaborationContent {
+  centerId: string;
+  centerLabel: string;
+  /** The auto-detected encoding — drives whether the mnemonic tool appears. */
+  encoding: EncodingKind;
+  /** The detector's plain-language rationale, shown in the method panel. */
+  detectNote: string;
+  /** The current node's spot in the concept web. */
+  center: { x: number; y: number };
+  /** Candidate prior nodes to link — drawn from the learner's mastered map. */
+  cands: ElaborationLink[];
+  /** The ordered/enumerated items a mnemonic organizes (list-like only). */
+  items?: string[];
+  /** The offered memory aids (list-like only). */
+  mnemonics?: MnemonicOption[];
+}
+
+export const ELABORATIONS: Record<string, ElaborationContent> = {
+  // Conceptual — a mental model. Elaboration only; the mnemonic tool stays
+  // suppressed. This is the design's demo pass for Linear Transformations.
+  lintrans: {
+    centerId: "lintrans",
+    centerLabel: "Linear Transformations",
+    encoding: "conceptual",
+    detectNote:
+      "This is a mental-model concept, so I’m using elaboration — wiring, not memorizing. A mnemonic here would be noise.",
+    center: { x: 290, y: 210 },
+    cands: [
+      {
+        id: "matrices",
+        label: "Matrices",
+        x: 104,
+        y: 66,
+        rel: "A matrix is just the notation for a transformation — its columns are literally where î and ĵ land.",
+      },
+      {
+        id: "lincomb",
+        label: "Linear Combinations",
+        x: 408,
+        y: 92,
+        rel: "Applying T to a vector IS taking a linear combination of the column images: T(v) = x·col₁ + y·col₂.",
+      },
+      {
+        id: "span",
+        label: "Span",
+        x: 472,
+        y: 314,
+        rel: "The span of the columns is the transformation’s range — every place in the plane it can send a vector.",
+      },
+      {
+        id: "vecops",
+        label: "Vector Operations",
+        x: 250,
+        y: 404,
+        rel: "Linearity is exactly the promise that addition and scaling survive the map — the two operations I already own.",
+      },
+      {
+        id: "vec",
+        label: "Vectors",
+        x: 64,
+        y: 300,
+        rel: "A transformation is defined by what it does to vectors — the objects come first, the machinery second.",
+      },
+    ],
+  },
+  // List-like — a fixed procedural *sequence*. Elaboration still runs (the
+  // links are real), but here the mnemonic tool earns its keep: it pins the
+  // step order so the learner never loses their place mid-reduction.
+  gauss: {
+    centerId: "gauss",
+    centerLabel: "Gaussian Elimination",
+    encoding: "list-like",
+    detectNote:
+      "Elimination is a fixed sequence of steps — genuinely list-like. Here a mnemonic earns its keep: it pins the order so you never lose your place mid-reduction. (The reasoning still gets elaborated below — the aid is for recall of the sequence, not a substitute for the idea.)",
+    center: { x: 280, y: 208 },
+    cands: [
+      {
+        id: "systems",
+        label: "Linear Systems",
+        x: 96,
+        y: 74,
+        rel: "Elimination is the algorithm that actually solves a linear system — it’s the procedure behind the idea.",
+      },
+      {
+        id: "matrices",
+        label: "Matrices",
+        x: 442,
+        y: 78,
+        rel: "You run the steps on the augmented matrix — the grid is the workspace the sequence acts on.",
+      },
+      {
+        id: "vecops",
+        label: "Vector Operations",
+        x: 470,
+        y: 320,
+        rel: "Each step is a row operation — scaling a row and adding it to another, the operations I already own.",
+      },
+      {
+        id: "lincomb",
+        label: "Linear Combinations",
+        x: 248,
+        y: 408,
+        rel: "Row-reducing asks whether one equation is a linear combination of the others — that’s what a zero row reveals.",
+      },
+      {
+        id: "vec",
+        label: "Vectors",
+        x: 68,
+        y: 316,
+        rel: "The rows and columns I’m pushing around are just vectors wearing a grid.",
+      },
+    ],
+    items: [
+      "Write the augmented matrix",
+      "Swap a nonzero entry up into the pivot",
+      "Zero out every entry below the pivot",
+      "Advance to the next column and repeat (row-echelon form)",
+      "Back-substitute from the bottom row up",
+    ],
+    mnemonics: [
+      {
+        kind: "Acronym",
+        title: "STEP",
+        body: "S — Swap a nonzero entry up into the pivot. T — Trim every entry below it to zero. E — Extend to the next column and repeat. P — Pop the values back out, bottom row up. STEP — and the reduced matrix even looks like a staircase.",
+      },
+      {
+        kind: "Method of loci",
+        title: "The staircase",
+        body: "Put each pivot on its own stair. Walk down the staircase clearing the rows below you (forward elimination); at the bottom, climb back up, solving one unknown per stair (back-substitution).",
+      },
+      {
+        kind: "Vivid image",
+        title: "The escalator",
+        body: "An escalator of rows carries you down as zeros fall into place below each pivot, then reverses and lifts you back up as each variable pops out.",
+      },
+    ],
+  },
+};
+
+/** The three memory aids shown struck-through when the content is conceptual. */
+export const MNEMONIC_TOOLS_OFF = ["Memory palace", "Acronym", "Vivid image"] as const;
+
+/**
+ * The node's elaboration content. Unseeded nodes fall back to the conceptual
+ * Linear Transformations pass — the demo only routes real content through
+ * lintrans (conceptual) and gauss (list-like).
+ */
+export function elaborationFor(nodeId: string): ElaborationContent {
+  return ELABORATIONS[nodeId] ?? ELABORATIONS.lintrans;
+}
+
+/** The live state of one Connect session — held by AtlasApp, read by the view. */
+export interface ConnectSession {
+  nodeId: string;
+  /** The candidate whose linking prompt is open, or null (idle). */
+  active: string | null;
+  /** The relationship draft per candidate — seeded from the map, then edited. */
+  drafts: Record<string, string>;
+  /** Which links the learner has confirmed as true. */
+  linked: Record<string, boolean>;
+  /** The chosen memory aid (index into content.mnemonics), or null (list-like). */
+  mnemonicPick: number | null;
+  /** The editable mnemonic text — the learner accepts or rewrites the aid. */
+  mnemonicDraft: string;
+  /** True once the learner accepts the aid — it then drafts its own card. */
+  mnemonicAccepted: boolean;
+}
+
+export function connectStart(nodeId: string): ConnectSession {
+  return {
+    nodeId,
+    active: null,
+    drafts: {},
+    linked: {},
+    mnemonicPick: null,
+    mnemonicDraft: "",
+    mnemonicAccepted: false,
+  };
+}
+
+export type ConnectAction =
+  | { type: "select"; id: string }
+  | { type: "draft"; id: string; value: string }
+  | { type: "confirm"; id: string }
+  | { type: "pickMnemonic"; index: number }
+  | { type: "draftMnemonic"; value: string }
+  | { type: "acceptMnemonic" };
+
+/**
+ * The elaboration engine, as a pure transition. Selecting a candidate opens
+ * its linking prompt with a draft pulled from the map; confirming links it;
+ * for list-like content the learner can pick a memory aid, edit it, and accept
+ * it. Everything confirmed here becomes raw material for cards in Retain.
+ */
+export function connectReducer(
+  session: ConnectSession,
+  action: ConnectAction,
+  content: ElaborationContent,
+): ConnectSession {
+  switch (action.type) {
+    case "select": {
+      // Seed the draft from the map's suggested relationship the first time a
+      // candidate is opened — the learner accepts or rewrites it.
+      const drafts =
+        session.drafts[action.id] !== undefined
+          ? session.drafts
+          : {
+              ...session.drafts,
+              [action.id]:
+                content.cands.find((c) => c.id === action.id)?.rel ?? "",
+            };
+      return { ...session, active: action.id, drafts };
+    }
+    case "draft":
+      return {
+        ...session,
+        drafts: { ...session.drafts, [action.id]: action.value },
+      };
+    case "confirm":
+      return { ...session, linked: { ...session.linked, [action.id]: true } };
+    case "pickMnemonic": {
+      const opt = content.mnemonics?.[action.index];
+      if (!opt) return session;
+      return {
+        ...session,
+        mnemonicPick: action.index,
+        mnemonicDraft: opt.body,
+        mnemonicAccepted: false,
+      };
+    }
+    case "draftMnemonic":
+      return { ...session, mnemonicDraft: action.value };
+    case "acceptMnemonic":
+      return session.mnemonicPick === null
+        ? session
+        : { ...session, mnemonicAccepted: true };
+    default:
+      return session;
+  }
+}
+
+/** How many real links the learner has confirmed. */
+export function connectLinkedCount(session: ConnectSession): number {
+  return Object.values(session.linked).filter(Boolean).length;
+}
+
+/** Two real connections is plenty to move on (the design's advance gate). */
+export function connectReady(session: ConnectSession): boolean {
+  return connectLinkedCount(session) >= 2;
+}
+
+/** A card drafted from the Connect phase — raw material for the Retain queue. */
+export interface ConnectCard {
+  front: string;
+  back: string;
+  kind: "link" | "mnemonic";
+}
+
+/**
+ * The cards this session drafts: one per confirmed link, plus the accepted
+ * memory aid when the content is list-like. This is the "tedious step humans
+ * skip," done automatically — the phase's write-back into Retain.
+ */
+export function connectCards(
+  session: ConnectSession,
+  content: ElaborationContent,
+): ConnectCard[] {
+  const cards: ConnectCard[] = content.cands
+    .filter((c) => session.linked[c.id])
+    .map((c) => ({
+      front: `${content.centerLabel} ↔ ${c.label}: what’s the connection?`,
+      back: (session.drafts[c.id] || c.rel).trim(),
+      kind: "link" as const,
+    }));
+  if (
+    content.encoding === "list-like" &&
+    session.mnemonicAccepted &&
+    session.mnemonicDraft.trim()
+  ) {
+    cards.push({
+      front: `${content.centerLabel} · what’s the order of the steps?`,
+      back: session.mnemonicDraft.trim(),
+      kind: "mnemonic",
+    });
+  }
+  return cards;
+}
+
+// ---- Phase 5 · Crucible (application / transfer) — the depth engine --------
+// Force the knowledge into a *novel* context it wasn't taught in — the truest
+// signal of mastery, far better than card recall. A confidence prompt comes
+// first (the calibration hook), then a problem generated to sit at the edge of
+// the learner's ability, escalating up a difficulty ladder (deliberate
+// practice). Feedback is specific: not right/wrong but *which sub-concept*
+// transferred and which didn't. A failure is diagnostically rich — it names the
+// sub-concept that didn't transfer, writes it to the map as a red Gap node and
+// flips the parent Shaky, then offers a 30-second Socratic re-explanation before
+// a recalibrated re-attempt one rung down. Only Crucible success (plus
+// retention) grants green. Content ships the Linear Transformations transfer
+// problem — a type-designer shear the learner was never handed — so the
+// confidence → attempt → diagnostic → re-attempt loop is real, not decorative.
+
+/** The Crucible's deep-rust palette (its accent everywhere it appears). */
+export const CRUCIBLE_COLOR = {
+  accent: "#a23b34",
+  soft: "rgba(162,59,52,0.08)",
+  border: "rgba(162,59,52,0.28)",
+  glow: "rgba(162,59,52,0.24)",
+} as const;
+
+/** The stated-confidence levels captured before the problem is revealed. */
+export const CONFIDENCE_LEVELS = [
+  "Not sure",
+  "Fairly confident",
+  "Very confident",
+] as const;
+export type ConfidenceLevel = 0 | 1 | 2;
+
+/** One rung of the escalating difficulty ladder (deliberate practice). */
+export interface CrucibleRung {
+  label: string;
+}
+
+/** A transfer-diagnostic verdict: a sub-concept that carried over, or didn't. */
+export type TransferVerdict = "good" | "red";
+
+/** The visual-diff colors — green = transferred, red = didn't carry over. */
+export const TRANSFER_COLOR: Record<TransferVerdict, string> = {
+  good: STATE_COLOR.mastered,
+  red: STATE_COLOR.gap,
+};
+
+/** One row of the transfer diagnostic — which sub-concept moved to the new frame. */
+export interface TransferRow {
+  verdict: TransferVerdict;
+  text: string;
+}
+
+/** One problem on the ladder — a framing the learner was never handed. */
+export interface CrucibleProblem {
+  /** The rung label + framing note shown as a pill above the problem. */
+  tag: string;
+  q: string;
+  /** A nudge that reframes without giving it away (contingent difficulty). */
+  hint: string;
+  placeholder: string;
+  /** A pre-written attempt the learner can drop in (a demo affordance). */
+  sample: string;
+}
+
+/** Everything the Crucible surface needs for one node's transfer pass. */
+export interface CrucibleContent {
+  centerId: string;
+  centerLabel: string;
+  /** Mastered nodes the problem interleaves — retrieval isn't blocked on one idea. */
+  draws: string[];
+  /** The escalating difficulty ladder shown in the sidebar. */
+  rungs: CrucibleRung[];
+  /** The precise sub-concept a first-attempt failure writes back to the map. */
+  gap: GapSpec;
+  /** The problem per rung — [0] the novel transfer, [1] the scaffolded re-attempt. */
+  problems: CrucibleProblem[];
+  /** The transfer diagnostic shown on submission (what carried over, what didn't). */
+  transfer: TransferRow[];
+  /** The 30-second Socratic re-explanation aimed straight at the gap. */
+  reExplain: string;
+}
+
+export const CRUCIBLES: Record<string, CrucibleContent> = {
+  // The design's demo pass for Linear Transformations: a type-designer shear the
+  // learner was never taught as "a shear," so recognizing it *is* transfer.
+  lintrans: {
+    centerId: "lintrans",
+    centerLabel: "Linear Transformations",
+    draws: ["Matrix Multiplication", "Linear Combinations", "Span"],
+    rungs: [
+      { label: "Recall a definition" },
+      { label: "Guided application" },
+      { label: "Novel transfer" },
+      { label: "Interleaved mix" },
+      { label: "Boss · whole branch" },
+    ],
+    gap: {
+      id: "gap-shear",
+      label: "Shear preserves the moved axis’ own length",
+      reason:
+        "your first-try transfer flattened the sheared axis — the height didn’t carry over",
+      dx: 165,
+      dy: 78,
+    },
+    problems: [
+      {
+        tag: "Novel transfer · a framing you were never handed",
+        q: "A type designer wants a slanted display face. Each letter must keep its baseline (the x-axis) pinned and keep its full height unchanged, while leaning the verticals right by a factor of 0.3. Give the 2×2 matrix that does it — and, from the column picture, say why it leaves the baseline untouched.",
+        hint: "Nothing here says “shear.” Ask where î and ĵ each have to land.",
+        placeholder: "Write the two columns and your reasoning…",
+        sample:
+          "Baseline pinned → î stays (1,0), so column one is (1,0). The verticals lean right, so ĵ gains a horizontal part: ĵ → (0.3, 0). Matrix = [[1, 0.3],[0, 0]].",
+      },
+      {
+        tag: "Guided application · one rung down",
+        q: "Same idea, scaffolded. î stays (1,0). For a rightward lean that keeps every letter’s height intact, ĵ → (0.3, ?). Fill the missing entry and give the full matrix.",
+        hint: "A shear never rescales the axis it moves along — so ĵ’s own vertical part is unchanged.",
+        placeholder: "Fill in ĵ’s vertical component and the matrix…",
+        sample:
+          "ĵ → (0.3, 1) — the height is preserved. Matrix = [[1, 0.3],[0, 1]].",
+      },
+    ],
+    transfer: [
+      {
+        verdict: "good",
+        text: "Baseline fixed — you set î → (1,0), reading “baseline pinned” straight off the first column. The column picture transferred cleanly.",
+      },
+      {
+        verdict: "good",
+        text: "Lean direction — you saw ĵ must gain a horizontal component (the 0.3). Right concept, right axis.",
+      },
+      {
+        verdict: "red",
+        text: "Height collapsed — you wrote ĵ → (0.3, 0), flattening every letter onto the baseline. A shear must keep ĵ’s own vertical part; it should be (0.3, 1). The rule “grid spacing survives” didn’t carry over.",
+      },
+    ],
+    reExplain:
+      "You froze the baseline by keeping î → (1,0). Now ask the same of the height: a shear never rescales the axis it moves along, so ĵ keeps its own vertical part — it becomes (0.3, 1), not (0.3, 0). What’s the one number you have to change?",
+  },
+};
+
+/**
+ * The node's Crucible content. Unseeded nodes fall back to the Linear
+ * Transformations transfer problem — the demo only ships that one pass, exactly
+ * as `elaborationFor` falls back for Connect.
+ */
+export function crucibleFor(nodeId: string): CrucibleContent {
+  return CRUCIBLES[nodeId] ?? CRUCIBLES.lintrans;
+}
+
+/** The two stages of a Crucible attempt: state confidence, then work. */
+export type CrucibleStage = "confidence" | "work";
+/** A submission's result: a first-rung failure, or a transferred re-attempt. */
+export type CrucibleOutcome = "partial" | "pass";
+
+/** The live state of one Crucible session — held by AtlasApp, read by the view. */
+export interface CrucibleSession {
+  nodeId: string;
+  stage: CrucibleStage;
+  /** Stated confidence before the problem is revealed (the calibration hook). */
+  conf: ConfidenceLevel | null;
+  /** Current rung of the ladder (0 = novel transfer, 1 = scaffolded re-attempt). */
+  rung: number;
+  attempt: string;
+  submitted: boolean;
+  outcome: CrucibleOutcome | null;
+  /** Whether the 30-second Socratic re-explanation is expanded. */
+  reExplain: boolean;
+}
+
+export function crucibleStart(nodeId: string): CrucibleSession {
+  return {
+    nodeId,
+    stage: "confidence",
+    conf: null,
+    rung: 0,
+    attempt: "",
+    submitted: false,
+    outcome: null,
+    reExplain: false,
+  };
+}
+
+export type CrucibleAction =
+  | { type: "confidence"; level: ConfidenceLevel }
+  | { type: "attempt"; value: string }
+  | { type: "sample" }
+  | { type: "submit" }
+  | { type: "toggleReExplain" }
+  | { type: "retry" };
+
+/**
+ * The transfer engine, as a pure transition. Stating confidence opens the
+ * workspace; the learner attempts, then submits. The first rung fails
+ * precisely — the caller writes the named sub-concept back to the map as a red
+ * Gap node — and a re-attempt one rung down transfers. The write-back itself
+ * (spawning/removing the gap node, flipping mastery) lives in AtlasApp; this
+ * reducer only owns the session.
+ */
+export function crucibleReducer(
+  session: CrucibleSession,
+  action: CrucibleAction,
+  content: CrucibleContent,
+): CrucibleSession {
+  switch (action.type) {
+    case "confidence":
+      return { ...session, conf: action.level, stage: "work" };
+    case "attempt":
+      return { ...session, attempt: action.value };
+    case "sample": {
+      const prob = crucibleProblem(session, content);
+      return prob ? { ...session, attempt: prob.sample } : session;
+    }
+    case "submit":
+      // An empty workspace isn't diagnostic; the caller nudges instead.
+      if (session.submitted || !session.attempt.trim()) return session;
+      return {
+        ...session,
+        submitted: true,
+        outcome: session.rung === 0 ? "partial" : "pass",
+      };
+    case "toggleReExplain":
+      return { ...session, reExplain: !session.reExplain };
+    case "retry":
+      // Recalibrate down one step and re-open the workspace — confidence is
+      // re-read against the easier rung, so it clears back to unstated.
+      return {
+        ...session,
+        stage: "work",
+        conf: null,
+        rung: 1,
+        attempt: "",
+        submitted: false,
+        outcome: null,
+        reExplain: false,
+      };
+    default:
+      return session;
+  }
+}
+
+/** The problem for the session's current rung (clamped to the ladder we ship). */
+export function crucibleProblem(
+  session: CrucibleSession,
+  content: CrucibleContent,
+): CrucibleProblem | undefined {
+  return content.problems[Math.min(session.rung, content.problems.length - 1)];
+}
+
+/**
+ * Where the ladder sits: the first attempt starts high (a Novel transfer, with
+ * the two easier rungs already behind the learner); a re-attempt drops to the
+ * Guided-application rung. Rungs before this show done, this one current.
+ */
+export function crucibleCurrentRung(session: CrucibleSession): number {
+  return session.rung === 0 ? 2 : 1;
+}
+
+/**
+ * The calibration read-back: predicted confidence held against what actually
+ * happened. Overconfidence (felt sure, transfer broke) is the thing this phase
+ * exists to catch; low confidence that proved real is well-calibrated.
+ */
+export function crucibleCalib(session: CrucibleSession): string {
+  if (session.outcome === "partial") {
+    if (session.conf === 2)
+      return "You said “Very confident” — and the first-try transfer still broke. That distance between the feeling and the result is exactly the overconfidence this phase exists to catch.";
+    if (session.conf === 0)
+      return "You flagged low confidence, and the shaky spot was real — that’s well-calibrated. Now close it.";
+    return "You felt fairly confident, but one sub-concept didn’t transfer. Register the gap between feeling ready and being ready.";
+  }
+  if (session.outcome === "pass")
+    return "Confidence and result now line up — that’s calibrated mastery, not fluency.";
+  return "";
+}
+
+// ---- Phase 6 · Retain (Review queue / FSRS) — the daily spine -------------
+// Keep mastered knowledge alive with optimally-spaced retrieval. This is the
+// habit surface — designed for adherence as much as scheduling. Cards are
+// auto-generated from the earlier phases (the tedious step humans skip):
+// atomic, cloze where apt, varied by type (recall / explain-why / application).
+// The queue is honest — framed in *minutes* against the daily target, never a
+// wall of cards — and one card shows at a time: confidence tap (the calibration
+// hook), flip, grade (feeds FSRS). The alive-loop is the difference from "Anki
+// plus a chatbot": a missed card doesn't just reschedule — it triggers a
+// 30-second Socratic re-explanation right there and flags its node Shaky on the
+// map, so retention failure re-enters Phase 1. Content ships the Linear
+// Transformations rotation of cards so the tap → flip → grade → alive-loop is
+// real, not decorative.
+
+/** The three card kinds — review isn't only fill-in-the-blank. */
+export type ReviewCardType = "recall" | "why" | "apply";
+
+/** Each type's label + accent (recall = learning, why = Connect, apply = Crucible). */
+export const REVIEW_TYPE_META: Record<
+  ReviewCardType,
+  { label: string; color: string }
+> = {
+  recall: { label: "Recall", color: STATE_COLOR.learning },
+  why: { label: "Explain why", color: CONNECT_COLOR.accent },
+  apply: { label: "Application", color: CRUCIBLE_COLOR.accent },
+};
+
+/** The FSRS grade after reveal — sets the next interval. */
+export type ReviewGrade = "again" | "hard" | "good" | "easy";
+
+/** The grade buttons, worst → best, each colored by the state it echoes. */
+export const REVIEW_GRADES: ReadonlyArray<{
+  key: ReviewGrade;
+  label: string;
+  color: string;
+}> = [
+  { key: "again", label: "Again", color: STATE_COLOR.gap },
+  { key: "hard", label: "Hard", color: STATE_COLOR.shaky },
+  { key: "good", label: "Good", color: STATE_COLOR.learning },
+  { key: "easy", label: "Easy", color: STATE_COLOR.mastered },
+];
+
+/** The pre-flip confidence tap — the calibration hook, least → most solid. */
+export const REVIEW_CONFIDENCE = ["Blank", "Shaky", "Solid"] as const;
+export type ReviewConfidence = 0 | 1 | 2;
+
+/** Retention-health forecast tone: due now, softening, or rock-solid. */
+export type ForecastTone = "due" | "soft" | "solid";
+
+/** The forecast bar colors — due borrows the accent, soft/solid the states. */
+export const FORECAST_COLOR: Record<ForecastTone, string> = {
+  due: "#2f6b4f", // color.accent — surfaced now
+  soft: STATE_COLOR.shaky,
+  solid: STATE_COLOR.mastered,
+};
+
+/** One row of the FSRS forecast shown in the sidebar. */
+export interface ForecastRow {
+  label: string;
+  count: string;
+  sub: string;
+  tone: ForecastTone;
+}
+
+/**
+ * One review card — atomic, one fact. Cloze cards carry `cloze`/`answer`;
+ * others carry a plain `front`. `fails` marks the card whose miss re-enters the
+ * loop (flags its node Shaky), and `reExplain` is the 30-second Socratic aside
+ * shown right there when it's missed.
+ */
+export interface ReviewCard {
+  id: string;
+  type: ReviewCardType;
+  /** Which session auto-generated it — the provenance line ("from your … session"). */
+  source: string;
+  /** The node this card keeps alive; a miss flags it Shaky on the map. */
+  node: string;
+  /** Cloze halves around the blank (recall cloze cards only). */
+  cloze?: [string, string];
+  /** The answer filled into the cloze blank. */
+  answer?: string;
+  /** A plain question front (why / apply cards). */
+  front?: string;
+  /** The full answer revealed on flip. */
+  back: string;
+  /** FSRS next-interval per grade — shown on the grade buttons. */
+  fsrs: Record<ReviewGrade, string>;
+  /** A card whose miss re-enters Phase 1 (writes its node Shaky). */
+  fails?: boolean;
+  /** The 30-second Socratic re-explanation shown when it's missed. */
+  reExplain?: string;
+}
+
+/** Everything the Retain surface needs for one day's honest queue. */
+export interface RetainContent {
+  /** The daily target from onboarding — the queue budget, in minutes. */
+  budgetMin: number;
+  forecast: ForecastRow[];
+  cards: ReviewCard[];
+}
+
+/** The micro-Socratic aside "Explain" opens on any revealed card. */
+export const REVIEW_ASIDE =
+  "A 30-second Socratic aside: don’t restate the answer — ask what forces it. What has to be true about the columns for this to hold? Trace one vector through and watch where linearity sends it.";
+
+export const RETAIN: RetainContent = {
+  budgetMin: 8,
+  forecast: [
+    { label: "Due now", count: "6 cards", sub: "~8 min", tone: "due" },
+    {
+      label: "Decaying this week",
+      count: "9 cards",
+      sub: "recall dropping below 90%",
+      tone: "soft",
+    },
+    {
+      label: "Rock-solid",
+      count: "23 cards",
+      sub: "next lift 30 d+ out",
+      tone: "solid",
+    },
+  ],
+  cards: [
+    {
+      id: "r1",
+      type: "recall",
+      source: "Connect",
+      node: "lintrans",
+      cloze: [
+        "A matrix’s columns are the images of the ",
+        " — each column is where that basis vector lands.",
+      ],
+      answer: "basis vectors î and ĵ",
+      back: "Each column of the matrix is literally where a basis vector goes. Column one is where î lands, column two is where ĵ lands.",
+      fsrs: { again: "<10 min", hard: "1 d", good: "4 d", easy: "9 d" },
+    },
+    {
+      id: "r2",
+      type: "why",
+      source: "Socratic",
+      node: "lintrans",
+      front:
+        "Why does knowing only where î and ĵ land pin down the whole transformation?",
+      back: "Every vector is a linear combination x·î + y·ĵ. Linearity means T(v) = x·T(î) + y·T(ĵ), so the two column images determine every output — nothing else is free.",
+      fsrs: { again: "<10 min", hard: "2 d", good: "6 d", easy: "13 d" },
+    },
+    {
+      id: "r3",
+      type: "apply",
+      source: "Feynman",
+      node: "lintrans",
+      fails: true,
+      front:
+        "A shear leans verticals right by 0.3 while keeping every letter’s full height. Where does ĵ land?",
+      back: "ĵ → (0.3, 1). The vertical part stays 1 — a shear never rescales the axis it moves along. Matrix = [[1, 0.3],[0, 1]].",
+      fsrs: { again: "<10 min", hard: "8 hr", good: "2 d", easy: "5 d" },
+      reExplain:
+        "You flattened ĵ to (0.3, 0), collapsing height onto the baseline. Hold the rule: the moved axis keeps its own length. So only î’s horizontal spills in — ĵ keeps its vertical 1. One number changes.",
+    },
+    {
+      id: "r4",
+      type: "recall",
+      source: "Consume",
+      node: "span",
+      cloze: [
+        "The span of a transformation’s columns is its ",
+        " — every place in the plane it can reach.",
+      ],
+      answer: "range (image)",
+      back: "The range is everywhere outputs can land. If both columns sit on one line, the range is that line — the plane got squashed.",
+      fsrs: { again: "<10 min", hard: "1 d", good: "5 d", easy: "11 d" },
+    },
+    {
+      id: "r5",
+      type: "why",
+      source: "Socratic",
+      node: "det",
+      front: "Why is a matrix with columns (1,0) and (2,0) not invertible?",
+      back: "Both columns land on the x-axis, so the image collapses to a line — area goes to zero, determinant 0. Many inputs map to the same output, so there’s nothing to invert.",
+      fsrs: { again: "<10 min", hard: "2 d", good: "7 d", easy: "15 d" },
+    },
+    {
+      id: "r6",
+      type: "recall",
+      source: "Connect",
+      node: "lincomb",
+      cloze: [
+        "Applying T to v is the same as taking a ",
+        " of the column images: T(v) = x·col₁ + y·col₂.",
+      ],
+      answer: "linear combination",
+      back: "T just re-weights the columns by v’s coordinates. That’s why the columns tell you everything.",
+      fsrs: { again: "<10 min", hard: "1 d", good: "4 d", easy: "10 d" },
+    },
+  ],
+};
+
+/** The stages of one card: confidence tap → flip → grade, or the fail aside. */
+export type RetainStage = "confidence" | "reveal" | "aside" | "failed";
+
+/** The live state of one Retain session — held by AtlasApp, read by the view. */
+export interface RetainSession {
+  /** Index of the card on screen. */
+  idx: number;
+  stage: RetainStage;
+  /** Confidence tapped before the flip (the calibration hook). */
+  conf: ReviewConfidence | null;
+  /** Grade recorded per card id — drives the honest-queue progress + budget. */
+  done: Record<string, ReviewGrade>;
+  /** True once a missed card has flagged its node Shaky on the map. */
+  wroteBack: boolean;
+  /** True once the queue is cleared — the done-for-today surface. */
+  finished: boolean;
+}
+
+export function retainStart(): RetainSession {
+  return {
+    idx: 0,
+    stage: "confidence",
+    conf: null,
+    done: {},
+    wroteBack: false,
+    finished: false,
+  };
+}
+
+export type RetainAction =
+  | { type: "confidence"; level: ReviewConfidence }
+  | { type: "grade"; grade: ReviewGrade }
+  | { type: "toggleAside" }
+  | { type: "continue" };
+
+/** Move to the next card, or finish the queue when it's the last. */
+function retainAdvance(
+  session: RetainSession,
+  done: Record<string, ReviewGrade>,
+): RetainSession {
+  const next = session.idx + 1;
+  if (next >= RETAIN.cards.length) return { ...session, done, finished: true };
+  return { ...session, idx: next, stage: "confidence", conf: null, done };
+}
+
+/**
+ * The review engine, as a pure transition. Confidence flips the card; a grade
+ * feeds FSRS and advances — except "Again", which opens the alive-loop (the
+ * fail stage with its instant re-explanation). The map write-back (flagging the
+ * node Shaky) is a side effect that lives in AtlasApp, exactly as the Crucible's
+ * gap write-back does; this reducer only owns the session.
+ */
+export function retainReducer(
+  session: RetainSession,
+  action: RetainAction,
+): RetainSession {
+  switch (action.type) {
+    case "confidence":
+      if (session.stage !== "confidence") return session;
+      return { ...session, conf: action.level, stage: "reveal" };
+    case "toggleAside":
+      if (session.stage !== "reveal" && session.stage !== "aside")
+        return session;
+      return {
+        ...session,
+        stage: session.stage === "aside" ? "reveal" : "aside",
+      };
+    case "grade": {
+      if (session.stage !== "reveal" && session.stage !== "aside")
+        return session;
+      const card = RETAIN.cards[session.idx];
+      const done = { ...session.done, [card.id]: action.grade };
+      // A miss doesn't just reschedule — it opens the alive-loop and flags the
+      // node Shaky (the write-back happens in AtlasApp).
+      if (action.grade === "again")
+        return { ...session, stage: "failed", done, wroteBack: !!card.fails };
+      return retainAdvance(session, done);
+    }
+    case "continue":
+      // "Schedule re-teach · continue" — leave the fail stage and move on.
+      if (session.stage !== "failed") return session;
+      return retainAdvance(session, session.done);
+    default:
+      return session;
+  }
+}
+
+/** The card on screen (clamped to the deck we ship). */
+export function reviewCard(session: RetainSession): ReviewCard {
+  return RETAIN.cards[Math.min(session.idx, RETAIN.cards.length - 1)];
+}
+
+/** The honest queue's time math — minutes, never a card count. */
+export interface RetainBudget {
+  doneCount: number;
+  total: number;
+  /** Minutes spent so far. */
+  spent: number;
+  /** Minutes left against the daily target. */
+  left: number;
+  /** Fill percent of the budget bar. */
+  pct: number;
+}
+
+export function retainBudget(session: RetainSession): RetainBudget {
+  const total = RETAIN.cards.length;
+  const doneCount = session.finished ? total : Object.keys(session.done).length;
+  const perCard = RETAIN.budgetMin / total;
+  const spent = Math.round(doneCount * perCard);
+  const left = Math.max(0, RETAIN.budgetMin - spent);
+  const pct = Math.min(100, Math.round((spent / RETAIN.budgetMin) * 100));
+  return { doneCount, total, spent, left, pct };
+}
+
+/** The header queue chip — time and cards left, or "Queue clear". */
+export function retainQueueLabel(session: RetainSession): string {
+  if (session.finished) return "Queue clear";
+  const { left, total, doneCount } = retainBudget(session);
+  return `~${left} min left · ${total - doneCount} cards`;
+}
+
+/**
+ * The failure calibration read-back: the confidence tap held against the miss.
+ * A "Solid" tap that then missed is the overconfidence Review exists to catch.
+ */
+export function retainCalib(session: RetainSession): string {
+  if (session.stage !== "failed") return "";
+  if (session.conf === 2)
+    return "You tapped “Solid” before flipping — and missed it. That over-confidence is the exact signal Review is built to catch.";
+  if (session.conf === 0)
+    return "You flagged it blank, and it was. Well-calibrated — now let’s close it for real.";
+  return "You felt shaky, and it was. The card goes back to the front of the queue and the node re-enters the loop.";
+}
+
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
   switch (state) {
@@ -216,15 +2205,29 @@ export function ancestorsOf(id: string, edges: ConceptEdge[]): Set<string> {
   return seen;
 }
 
+/** Every descendant of `id` (excluding itself) along solid prerequisite edges. */
+export function descendantsOf(id: string, edges: ConceptEdge[]): Set<string> {
+  const fwd: Record<string, string[]> = {};
+  for (const [a, b, dashed] of edges) {
+    if (!dashed) (fwd[a] = fwd[a] ?? []).push(b);
+  }
+  const seen = new Set<string>();
+  const stack = [id];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    for (const d of fwd[cur] ?? []) {
+      if (!seen.has(d)) {
+        seen.add(d);
+        stack.push(d);
+      }
+    }
+  }
+  return seen;
+}
+
 // ---- live mastery state ----------------------------------------------------
 // The app holds one `Record<node id, ProgressState>`; every surface reads it
 // and every phase writes it back. Frontier and locking are derived, never set.
-
-/** Solid prerequisite edges into each node (dashed gap edges don't lock). */
-const PREREQS: Record<string, string[]> = {};
-for (const [from, to, dashed] of EDGES) {
-  if (!dashed) (PREREQS[to] = PREREQS[to] ?? []).push(from);
-}
 
 export type StateMap = Record<string, ProgressState>;
 
@@ -237,42 +2240,227 @@ function isLearned(state: ProgressState | undefined): boolean {
   return state === "learning" || state === "shaky" || state === "mastered";
 }
 
+/** Solid prerequisite edges into each node (dashed gap edges don't lock). */
+function prereqMap(edges: ConceptEdge[]): Record<string, string[]> {
+  const prereqs: Record<string, string[]> = {};
+  for (const [from, to, dashed] of edges) {
+    if (!dashed) (prereqs[to] = prereqs[to] ?? []).push(from);
+  }
+  return prereqs;
+}
+
 /**
  * What each node shows on the map: stored progress, except that an `unknown`
  * node with every prerequisite learned lights up as `frontier` (the ZPD).
  * A node left `unknown` here is locked by definition.
  */
-export function displayStates(states: StateMap): Record<string, NodeState> {
+export function displayStates(
+  states: StateMap,
+  graph: ConceptGraph,
+): Record<string, NodeState> {
+  const prereqs = prereqMap(graph.edges);
   const out: Record<string, NodeState> = {};
-  for (const node of NODES) {
+  for (const node of graph.nodes) {
     const state = states[node.id] ?? "unknown";
     // Gap nodes never join the frontier — they hang off their parent via a
     // dashed edge and are entered from its detail rail, not unlocked.
     out[node.id] =
       state === "unknown" &&
       !node.gap &&
-      (PREREQS[node.id] ?? []).every((p) => isLearned(states[p]))
+      (prereqs[node.id] ?? []).every((p) => isLearned(states[p]))
         ? "frontier"
         : state;
   }
   return out;
 }
 
-/** Frontier nodes, foundations-first (left to right). */
-export function frontierIds(display: Record<string, NodeState>): string[] {
-  return NODES.filter((n) => display[n.id] === "frontier")
-    .sort((a, b) => a.x - b.x)
-    .map((n) => n.id);
-}
-
 /**
  * Why a node is locked: its unlearned ancestors (plus the node itself),
  * i.e. the "learn these first" path highlighted on the map.
  */
-export function unmetPathOf(id: string, states: StateMap): Set<string> {
+export function unmetPathOf(
+  id: string,
+  states: StateMap,
+  graph: ConceptGraph,
+): Set<string> {
   const path = new Set<string>();
-  for (const anc of ancestorsOf(id, EDGES)) {
+  for (const anc of ancestorsOf(id, graph.edges)) {
     if (anc === id || !isLearned(states[anc])) path.add(anc);
   }
   return path;
+}
+
+// ---- Phase 1 · Plan (the re-planning behavior of the map) ------------------
+// Not a screen: the map continuously reorders to the goal, warns about pace,
+// prunes diagnosed-known material, and spawns gap sub-nodes from failures.
+// The only recurring UI is the "Map updated" toast when it restructures.
+
+/** Goal-conditioned frontier ordering: which lit node to attack, and why. */
+export interface PlanEntry {
+  node: ConceptNode;
+  /** How many not-yet-learned concepts this node transitively unlocks. */
+  unlocks: number;
+}
+
+export const GOAL_ORDER_CAPTION: Record<GoalKind, string> = {
+  exam: "ordered to your exam — highest leverage first",
+  project: "ordered to your build — unlocks the tools first",
+  mastery: "foundations first — depth over speed",
+};
+
+/**
+ * The plan itself: frontier nodes ordered to the goal. A deadline-driven
+ * goal attacks the nodes that unlock the most remaining territory; general
+ * mastery walks foundations-to-frontier.
+ */
+export function orderedFrontier(
+  display: Record<string, NodeState>,
+  graph: ConceptGraph,
+  goal: GoalKind,
+): PlanEntry[] {
+  const entries: PlanEntry[] = graph.nodes
+    .filter((n) => display[n.id] === "frontier")
+    .map((node) => ({
+      node,
+      unlocks: [...descendantsOf(node.id, graph.edges)].filter((d) => {
+        const s = display[d];
+        return s === "unknown" || s === "frontier";
+      }).length,
+    }));
+  entries.sort((a, b) =>
+    goal === "mastery"
+      ? a.node.x - b.node.x
+      : b.unlocks - a.unlocks || a.node.x - b.node.x,
+  );
+  return entries;
+}
+
+/** Days until the demo exam deadline (the left-rail countdown chip). */
+export const EXAM_DAYS = 24;
+/** Rough minutes of focused work to take one concept through the spiral. */
+export const NODE_MINUTES = 35;
+
+export interface PaceStatus {
+  /** Non-gap concepts not yet mastered. */
+  remaining: number;
+  daysLeft: number;
+  /** Minutes/day the remaining territory demands before the deadline. */
+  neededPerDay: number;
+  /** The learner's daily target from onboarding. */
+  targetPerDay: number;
+  onTrack: boolean;
+}
+
+/** Pace against the deadline — the map's warning when it won't make it. */
+export function paceStatus(
+  states: StateMap,
+  graph: ConceptGraph,
+  targetPerDay: number,
+): PaceStatus {
+  const remaining = graph.nodes.filter(
+    (n) => !n.gap && states[n.id] !== "mastered",
+  ).length;
+  const neededPerDay = Math.ceil((remaining * NODE_MINUTES) / EXAM_DAYS);
+  return {
+    remaining,
+    daysLeft: EXAM_DAYS,
+    neededPerDay,
+    targetPerDay,
+    onTrack: neededPerDay <= targetPerDay,
+  };
+}
+
+/** A sub-concept the re-planner can spawn under a node when it keeps failing. */
+export interface GapSpec {
+  id: string;
+  label: string;
+  /** Why the AI split it out — quoted in the "Map updated" toast. */
+  reason: string;
+  /** Placement offset from the parent node. */
+  dx: number;
+  dy: number;
+}
+
+/**
+ * What a failure under each node splits into, in order. Each failed
+ * application (or diagnostic hesitation) spawns the next unspawned spec;
+ * when the list is exhausted the re-attempt is allowed to succeed.
+ */
+export const FAILURE_GAPS: Record<string, GapSpec[]> = {
+  gauss: [
+    {
+      id: "gap-backsub",
+      label: "Back-substitution",
+      reason: "you hesitated walking back up the rows in the diagnostic",
+      dx: -85,
+      dy: 148,
+    },
+    {
+      id: "gap-pivot",
+      label: "Pivot bookkeeping",
+      reason: "row swaps keep scrambling your signs",
+      dx: 130,
+      dy: 138,
+    },
+  ],
+  linind: [
+    {
+      id: "gap-zerovec",
+      label: "Zero-vector traps",
+      reason: "the zero vector keeps slipping through your independence checks",
+      dx: 140,
+      dy: 120,
+    },
+  ],
+};
+
+/** Nodes spawned mid-map belong to the current (post-replay) week. */
+const SPAWN_WEEK = 4;
+
+/** The next sub-concept a failure under `parentId` would split out, if any. */
+export function nextGapFor(
+  graph: ConceptGraph,
+  parentId: string,
+): GapSpec | null {
+  const specs = FAILURE_GAPS[parentId] ?? [];
+  return specs.find((s) => graph.nodes.every((n) => n.id !== s.id)) ?? null;
+}
+
+/**
+ * The restructure itself: a new red gap node hung under its parent by a
+ * dashed edge. Idempotent — an already-spawned spec returns the graph as-is.
+ */
+export function spawnGap(
+  graph: ConceptGraph,
+  parentId: string,
+  spec: GapSpec,
+): ConceptGraph {
+  const parent = graph.nodes.find((n) => n.id === parentId);
+  if (!parent || graph.nodes.some((n) => n.id === spec.id)) return graph;
+  const node: ConceptNode = {
+    id: spec.id,
+    label: spec.label,
+    state: "gap",
+    g: parent.g,
+    week: SPAWN_WEEK,
+    x: parent.x + spec.dx,
+    y: parent.y + spec.dy,
+    gap: true,
+  };
+  return {
+    nodes: [...graph.nodes, node],
+    edges: [...graph.edges, [parentId, spec.id, true]],
+  };
+}
+
+/**
+ * Remove a node and every edge touching it. The Crucible calls this to close
+ * its first-attempt gap once the re-attempt finally transfers — the diagnosed
+ * sub-node is resolved, so it leaves the map.
+ */
+export function removeNode(graph: ConceptGraph, id: string): ConceptGraph {
+  return {
+    nodes: graph.nodes.filter((n) => n.id !== id),
+    edges: graph.edges.filter(([from, to]) => from !== id && to !== id),
+  };
 }
