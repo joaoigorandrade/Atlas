@@ -5,7 +5,11 @@ import {
   DEFAULT_FORM,
   NODES,
   PHASES,
+  connectCards,
+  connectReducer,
+  connectStart,
   displayStates,
+  elaborationFor,
   feynmanGaps,
   feynmanReducer,
   feynmanStart,
@@ -22,6 +26,8 @@ import {
   type AltKey,
   type ConceptGraph,
   type ConceptNode,
+  type ConnectAction,
+  type ConnectSession,
   type FeynmanAction,
   type FeynmanSession,
   type GapSpec,
@@ -40,6 +46,7 @@ import ConsumeView, {
 } from "@/components/session/ConsumeView";
 import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
+import ConnectView from "@/components/session/ConnectView";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -53,7 +60,8 @@ type Screen =
   | "map"
   | "consume"
   | "socratic"
-  | "feynman";
+  | "feynman"
+  | "connect";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
@@ -98,6 +106,10 @@ export default function AtlasApp() {
   // The active Feynman (Phase 3b) teach-back session, or null. The naive-student
   // engine lives in `feynmanReducer`; unresolved gaps write back to the map.
   const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
+  // The active Connect (Phase 4 · Elaboration) session, or null. The learner
+  // wires the node into prior mastered nodes; confirmed links (and an accepted
+  // mnemonic, when the content is list-like) draft cards for Retain.
+  const [connect, setConnect] = useState<ConnectSession | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -449,11 +461,46 @@ export default function AtlasApp() {
     setFeynman(null);
   }, [centerOn, later, feynman]);
 
+  // ---- Connect (Phase 4 · Elaboration) ---------------------------------
+
+  /**
+   * Open the Connect surface on a node. Like the other phases it's a full
+   * surface; the node moves Unknown/Frontier → Learning (understanding is
+   * forming), and the elaboration session begins idle, waiting for the learner
+   * to pick a prior node to link.
+   */
+  const enterConnect = useCallback((node: ConceptNode) => {
+    setStates((prev) =>
+      prev[node.id] === "unknown" || prev[node.id] === undefined
+        ? { ...prev, [node.id]: "learning" }
+        : prev,
+    );
+    setConnect(connectStart(node.id));
+    setSelectedId(node.id);
+    setScreen("connect");
+  }, []);
+
+  const dispatchConnect = useCallback((action: ConnectAction) => {
+    setConnect((prev) =>
+      prev ? connectReducer(prev, action, elaborationFor(prev.nodeId)) : prev,
+    );
+  }, []);
+
+  const exitConnect = useCallback(() => {
+    setScreen("map");
+    const nodeId = connect?.nodeId;
+    if (nodeId) {
+      setSelectedId(nodeId);
+      later(() => centerOn(nodeId), 30);
+    }
+    setConnect(null);
+  }, [centerOn, later, connect]);
+
   /**
    * The write-back — Feynman's connective tissue. Every unresolved gap becomes
    * a red Gap sub-node hung under the parent by a dashed edge (via `spawnGap`,
-   * idempotent so re-teaching never duplicates), then Feynman closes toward
-   * Connect. The node stays Learning — mastery waits for the Crucible.
+   * idempotent so re-teaching never duplicates), then the phase hands straight
+   * off to Connect. The node stays Learning — mastery waits for the Crucible.
    */
   const advanceFromFeynman = useCallback(() => {
     if (!feynman) return;
@@ -474,22 +521,45 @@ export default function AtlasApp() {
         setSpawnedIds((prev) => new Set(prev).add(spec.id));
       });
     }
-    setScreen("map");
     setFeynman(null);
+    if (node) {
+      enterConnect(node);
+      if (specs.length)
+        showToast(
+          `Attached ${specs.length} gap${specs.length === 1 ? "" : "s"} under ${node.label} — now wire it into what you already know.`,
+          "Map updated",
+        );
+    } else {
+      setScreen("map");
+    }
+  }, [enterConnect, feynman, showToast]);
+
+  /**
+   * Understood and connected: the learner made real links (each drafted a card
+   * for Retain), so Connect (Phase 4) is complete. The node moves Learning →
+   * Shaky — its next phase is the Crucible, where transfer is proven. Mastery
+   * is still withheld until that passes.
+   */
+  const advanceFromConnect = useCallback(() => {
+    if (!connect) return;
+    const node = graphRef.current.nodes.find((n) => n.id === connect.nodeId);
+    const cardCount = connectCards(connect, elaborationFor(connect.nodeId)).length;
+    if (node)
+      setStates((prev) =>
+        prev[node.id] === "learning" || prev[node.id] === "unknown"
+          ? { ...prev, [node.id]: "shaky" }
+          : prev,
+      );
+    setScreen("map");
+    setConnect(null);
     if (node) {
       setSelectedId(node.id);
       later(() => centerOn(node.id), 30);
+      showToast(
+        `${cardCount} card${cardCount === 1 ? "" : "s"} drafted for Review · now prove it transfers — the Crucible.`,
+      );
     }
-    if (specs.length)
-      showToast(
-        `Attached ${specs.length} gap${specs.length === 1 ? "" : "s"} under ${node?.label ?? "the node"} — Connect is next once you close them.`,
-        "Map updated",
-      );
-    else
-      showToast(
-        `Clean teach-back · ${node?.label ?? "Node"} — Connect (elaboration) is next.`,
-      );
-  }, [centerOn, feynman, later, showToast]);
+  }, [centerOn, connect, later, showToast]);
 
   /**
    * Understanding established: the learner answered the core probes unaided,
@@ -626,6 +696,12 @@ export default function AtlasApp() {
         enterFeynman(node);
         return;
       }
+      // Connect (Phase 4 · Elaboration) is a real surface as well — open it to
+      // start it, re-do it, or jump ahead to wiring the node into prior nodes.
+      if (phase === "Connect") {
+        enterConnect(node);
+        return;
+      }
       if (idx === current) {
         onPrimaryAction(node, displayState);
       } else if (idx < current) {
@@ -643,7 +719,7 @@ export default function AtlasApp() {
         showToast(`Jumping ahead · ${node.label} → ${phase}`);
       }
     },
-    [enterFeynman, enterSocratic, onPrimaryAction, showToast],
+    [enterConnect, enterFeynman, enterSocratic, onPrimaryAction, showToast],
   );
 
   const onSurface = useCallback(
@@ -901,6 +977,25 @@ export default function AtlasApp() {
           onFix={(index) => dispatchFeynman({ type: "fix", index })}
           onTeachAgain={() => dispatchFeynman({ type: "teachAgain" })}
           onAdvance={advanceFromFeynman}
+        />
+      )}
+
+      {screen === "connect" && connect && (
+        <ConnectView
+          content={elaborationFor(connect.nodeId)}
+          session={connect}
+          onExit={exitConnect}
+          onSelect={(id) => dispatchConnect({ type: "select", id })}
+          onDraft={(id, value) => dispatchConnect({ type: "draft", id, value })}
+          onConfirm={(id) => dispatchConnect({ type: "confirm", id })}
+          onPickMnemonic={(index) =>
+            dispatchConnect({ type: "pickMnemonic", index })
+          }
+          onDraftMnemonic={(value) =>
+            dispatchConnect({ type: "draftMnemonic", value })
+          }
+          onAcceptMnemonic={() => dispatchConnect({ type: "acceptMnemonic" })}
+          onFinish={advanceFromConnect}
         />
       )}
 
