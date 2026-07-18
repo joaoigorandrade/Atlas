@@ -6,8 +6,10 @@
 //   OPENROUTER_MODEL    — model slug (default: a cheap, structured-output-capable model)
 //   OPENROUTER_BASE_URL — override for tests/self-hosted gateways
 
-/** Cheap default that reliably produces the structured JSON this app needs. */
-export const DEFAULT_MODEL = "openai/gpt-4o-mini";
+/** Cheap default that reliably produces the structured JSON this app needs.
+ *  `deepseek/deepseek-chat` is OpenRouter's alias for DeepSeek's latest V3
+ *  flagship chat model — cheap and strong at structured JSON. */
+export const DEFAULT_MODEL = "deepseek/deepseek-chat";
 
 const BASE_URL =
   process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
