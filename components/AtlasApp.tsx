@@ -8,6 +8,9 @@ import {
   connectCards,
   connectReducer,
   connectStart,
+  crucibleFor,
+  crucibleReducer,
+  crucibleStart,
   displayStates,
   elaborationFor,
   feynmanGaps,
@@ -18,6 +21,7 @@ import {
   orderedFrontier,
   paceStatus,
   phaseIndex,
+  removeNode,
   seedGraph,
   socraticReducer,
   socraticStart,
@@ -28,6 +32,8 @@ import {
   type ConceptNode,
   type ConnectAction,
   type ConnectSession,
+  type CrucibleAction,
+  type CrucibleSession,
   type FeynmanAction,
   type FeynmanSession,
   type GapSpec,
@@ -47,6 +53,7 @@ import ConsumeView, {
 import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
+import CrucibleView from "@/components/session/CrucibleView";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -61,14 +68,13 @@ type Screen =
   | "consume"
   | "socratic"
   | "feynman"
-  | "connect";
+  | "connect"
+  | "crucible";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
 /** The momentum replay spans onboarding (week 0) plus three weeks of work. */
 const MOMENTUM_WEEKS = 3;
-/** A simulated Crucible re-attempt "runs" this long before writing back. */
-const CRUCIBLE_MS = 1200;
 
 interface DragState {
   id: string;
@@ -110,6 +116,11 @@ export default function AtlasApp() {
   // wires the node into prior mastered nodes; confirmed links (and an accepted
   // mnemonic, when the content is list-like) draft cards for Retain.
   const [connect, setConnect] = useState<ConnectSession | null>(null);
+  // The active Crucible (Phase 5 · application/transfer) session, or null. The
+  // learner states confidence, attempts a novel-framing problem, and submits;
+  // a first-attempt failure writes a precise gap back to the map, a
+  // recalibrated re-attempt transfers, and only that lifts the node to Mastered.
+  const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -126,6 +137,10 @@ export default function AtlasApp() {
   positionsRef.current = positions;
   const graphRef = useRef(graph);
   graphRef.current = graph;
+  // The live Crucible session, read by its side-effecting submit/finish handlers
+  // (they write gap nodes and mastery back to the map outside the reducer).
+  const crucibleRef = useRef(crucible);
+  crucibleRef.current = crucible;
   // Assigned in the derived section below; read by event handlers.
   const displayRef = useRef<Record<string, NodeState>>({});
 
@@ -561,6 +576,115 @@ export default function AtlasApp() {
     }
   }, [centerOn, connect, later, showToast]);
 
+  // ---- Crucible (Phase 5 · application / transfer) ---------------------
+
+  /**
+   * Open the Crucible surface on a node. Unlike the earlier phases it doesn't
+   * pre-move mastery — the node is already Shaky (Connect left it there) and the
+   * Crucible is where transfer is proven. The session opens on the confidence
+   * gate, the calibration hook that precedes the problem.
+   */
+  const enterCrucible = useCallback((node: ConceptNode) => {
+    setCrucible(crucibleStart(node.id));
+    setSelectedId(node.id);
+    setScreen("crucible");
+  }, []);
+
+  const dispatchCrucible = useCallback((action: CrucibleAction) => {
+    setCrucible((prev) =>
+      prev ? crucibleReducer(prev, action, crucibleFor(prev.nodeId)) : prev,
+    );
+  }, []);
+
+  /**
+   * Submitting an attempt. An empty workspace isn't diagnostic — nudge instead.
+   * A first-rung failure is precise: it spawns its named sub-concept as a red
+   * Gap node under the parent (via `spawnGap`, idempotent) and flips the parent
+   * Shaky — the diagnostically-rich write-back the spec calls for. The reducer
+   * owns only the session; the map write lives here.
+   */
+  const crucibleSubmit = useCallback(() => {
+    const cur = crucibleRef.current;
+    if (!cur || cur.submitted) return;
+    if (!cur.attempt.trim()) {
+      showToast(
+        "Put something in the workspace — even a wrong attempt is diagnostic",
+      );
+      return;
+    }
+    const content = crucibleFor(cur.nodeId);
+    const next = crucibleReducer(cur, { type: "submit" }, content);
+    setCrucible(next);
+    if (next.outcome !== "partial") return;
+    const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
+    const base = positionsRef.current[cur.nodeId];
+    if (!node || !base) return;
+    const gap = content.gap;
+    if (graphRef.current.nodes.some((n) => n.id === gap.id)) return;
+    setGraph((g) => spawnGap(g, node.id, gap));
+    setStates((prev) => ({ ...prev, [gap.id]: "gap", [node.id]: "shaky" }));
+    setPositions((prev) => ({
+      ...prev,
+      [gap.id]: { x: base.x + gap.dx, y: base.y + gap.dy },
+    }));
+    setSpawnedIds((prev) => new Set(prev).add(gap.id));
+    showToast(
+      `Transfer broke on “${gap.label}” — written back as a red gap under ${node.label}`,
+      "Map updated",
+    );
+  }, [showToast]);
+
+  /**
+   * Transfer confirmed: the recalibrated re-attempt carried the concept into a
+   * framing it was never taught in, so the first-attempt gap is resolved — it
+   * leaves the map — and the node lifts Shaky → Mastered, the only path to
+   * green (Crucible success). It now feeds Review.
+   */
+  const advanceFromCrucible = useCallback(() => {
+    const cur = crucibleRef.current;
+    if (!cur) return;
+    const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
+    const gapId = crucibleFor(cur.nodeId).gap.id;
+    setGraph((g) => removeNode(g, gapId));
+    setStates((prev) => {
+      const nextStates = { ...prev };
+      delete nextStates[gapId];
+      if (node) nextStates[node.id] = "mastered";
+      return nextStates;
+    });
+    setPositions((prev) => {
+      if (!prev[gapId]) return prev;
+      const nextPos = { ...prev };
+      delete nextPos[gapId];
+      return nextPos;
+    });
+    setSpawnedIds((prev) => {
+      if (!prev.has(gapId)) return prev;
+      const nextIds = new Set(prev);
+      nextIds.delete(gapId);
+      return nextIds;
+    });
+    setScreen("map");
+    setCrucible(null);
+    if (node) {
+      setSelectedId(node.id);
+      later(() => centerOn(node.id), 30);
+      showToast(
+        `Transfer confirmed · ${node.label} is Mastered — it now feeds Review`,
+      );
+    }
+  }, [centerOn, later, showToast]);
+
+  const exitCrucible = useCallback(() => {
+    setScreen("map");
+    const nodeId = crucibleRef.current?.nodeId;
+    if (nodeId) {
+      setSelectedId(nodeId);
+      later(() => centerOn(nodeId), 30);
+    }
+    setCrucible(null);
+  }, [centerOn, later]);
+
   /**
    * Understanding established: the learner answered the core probes unaided,
    * so Socratic (Phase 3a) is complete. Hand straight off to Feynman — the
@@ -630,25 +754,10 @@ export default function AtlasApp() {
           enterFeynman(node);
           break;
         case "shaky":
-          // The Crucible's write-back drives the re-plan: while the node
-          // still has undiagnosed sub-concepts the attempt fails and splits
-          // one out; once the well is dry, transfer succeeds and it lifts
-          // to Mastered.
-          showToast(`Re-attempting the Crucible for ${node.label}`);
-          later(() => {
-            const spec = spawnFailureGap(node.id);
-            if (spec)
-              showToast(
-                `Crucible failed · added ${spec.label} under ${node.label} — ${spec.reason}`,
-                "Map updated",
-              );
-            else {
-              setStates((prev) => ({ ...prev, [node.id]: "mastered" }));
-              showToast(
-                `Transfer confirmed · ${node.label} is Mastered — it now feeds Review`,
-              );
-            }
-          }, CRUCIBLE_MS);
+          // The Crucible is a real surface: state confidence, attempt a
+          // novel-framing problem, submit. Its write-back (a precise gap on
+          // failure, mastery on a transferred re-attempt) drives the re-plan.
+          enterCrucible(node);
           break;
         case "mastered":
           showToast(`Queuing review cards for ${node.label}`);
@@ -660,7 +769,7 @@ export default function AtlasApp() {
           showToast("Clear its prerequisites first");
       }
     },
-    [enterFeynman, enterSession, later, showToast, spawnFailureGap],
+    [enterCrucible, enterFeynman, enterSession, showToast],
   );
 
   /**
@@ -702,6 +811,12 @@ export default function AtlasApp() {
         enterConnect(node);
         return;
       }
+      // Crucible (Phase 5 · application/transfer) is a real surface too — open
+      // it to start it, re-do it, or jump ahead to proving transfer.
+      if (phase === "Crucible") {
+        enterCrucible(node);
+        return;
+      }
       if (idx === current) {
         onPrimaryAction(node, displayState);
       } else if (idx < current) {
@@ -719,7 +834,14 @@ export default function AtlasApp() {
         showToast(`Jumping ahead · ${node.label} → ${phase}`);
       }
     },
-    [enterConnect, enterFeynman, enterSocratic, onPrimaryAction, showToast],
+    [
+      enterConnect,
+      enterCrucible,
+      enterFeynman,
+      enterSocratic,
+      onPrimaryAction,
+      showToast,
+    ],
   );
 
   const onSurface = useCallback(
@@ -733,9 +855,10 @@ export default function AtlasApp() {
       const state = node ? displayRef.current[node.id] : undefined;
       if (node && state === "frontier") enterSession(node);
       else if (node && state === "learning") enterFeynman(node);
+      else if (node && state === "shaky") enterCrucible(node);
       else showToast("Session · double-click a glowing frontier node to begin");
     },
-    [enterFeynman, enterSession, selectedId, showToast],
+    [enterCrucible, enterFeynman, enterSession, selectedId, showToast],
   );
 
   const jumpFrontier = useCallback(() => {
@@ -996,6 +1119,21 @@ export default function AtlasApp() {
           }
           onAcceptMnemonic={() => dispatchConnect({ type: "acceptMnemonic" })}
           onFinish={advanceFromConnect}
+        />
+      )}
+
+      {screen === "crucible" && crucible && (
+        <CrucibleView
+          content={crucibleFor(crucible.nodeId)}
+          session={crucible}
+          onExit={exitCrucible}
+          onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}
+          onAttempt={(value) => dispatchCrucible({ type: "attempt", value })}
+          onSample={() => dispatchCrucible({ type: "sample" })}
+          onSubmit={crucibleSubmit}
+          onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
+          onRetry={() => dispatchCrucible({ type: "retry" })}
+          onFinish={advanceFromCrucible}
         />
       )}
 
