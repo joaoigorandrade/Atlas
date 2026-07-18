@@ -5,6 +5,8 @@ import {
   DEFAULT_FORM,
   NODES,
   PHASES,
+  calibItems,
+  calibOverCount,
   connectCards,
   connectReducer,
   connectStart,
@@ -61,6 +63,7 @@ import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
 import RetainView from "@/components/session/RetainView";
+import CalibrationView from "@/components/analytics/CalibrationView";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -77,7 +80,8 @@ type Screen =
   | "feynman"
   | "connect"
   | "crucible"
-  | "review";
+  | "review"
+  | "calibration";
 
 /** How long the map-assembly moment plays before the diagnostic opens. */
 const BUILD_MS = 2600;
@@ -784,6 +788,29 @@ export default function AtlasApp() {
     setRetain(null);
   }, []);
 
+  // ---- Calibration (§12 · Metacognition) -------------------------------
+
+  /** Open the Calibration surface — an Analytics-layer screen, reached from the
+   *  left rail. It reads the confidence-vs-performance history, nothing else. */
+  const enterCalib = useCallback(() => setScreen("calibration"), []);
+
+  const exitCalib = useCallback(() => setScreen("map"), []);
+
+  /**
+   * The calibration payoff: tapping an overconfident node drops straight into
+   * its Crucible to close the real gap — the surface turns a felt/real mismatch
+   * into the one action that resolves it.
+   */
+  const closeCalibGap = useCallback(
+    (nodeId: string) => {
+      const node = graphRef.current.nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      setSelectedId(nodeId);
+      enterCrucible(node);
+    },
+    [enterCrucible],
+  );
+
   /**
    * Understanding established: the learner answered the core probes unaided,
    * so Socratic (Phase 3a) is complete. Hand straight off to Feynman — the
@@ -1056,6 +1083,13 @@ export default function AtlasApp() {
     [form.goal, form.target, states, graph],
   );
 
+  // The calibration readings, resolved against the live node labels — read by
+  // the Calibration surface and the left-rail "N over" alert.
+  const calib = useMemo(
+    () => calibItems((id) => graph.nodes.find((n) => n.id === id)?.label ?? id),
+    [graph],
+  );
+
   return (
     <div
       style={{
@@ -1109,9 +1143,11 @@ export default function AtlasApp() {
             pace={pace}
             nextUp={nextUp}
             masteryPct={masteryPct}
+            calibOver={calibOverCount(calib)}
             momentumPlaying={momentumPlaying}
             momentumWeek={momentumWeek}
             onJumpFrontier={jumpFrontier}
+            onCalibration={enterCalib}
             onToggleMomentum={toggleMomentum}
             onPickNode={(id) => {
               setSelectedId(id);
@@ -1259,6 +1295,14 @@ export default function AtlasApp() {
           onToggleAside={retainToggleAside}
           onReteach={retainReteach}
           onContinue={retainContinue}
+        />
+      )}
+
+      {screen === "calibration" && (
+        <CalibrationView
+          items={calib}
+          onExit={exitCalib}
+          onCloseGap={closeCalibGap}
         />
       )}
 
