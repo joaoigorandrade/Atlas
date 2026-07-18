@@ -2119,6 +2119,141 @@ export function retainCalib(session: RetainSession): string {
   return "You felt shaky, and it was. The card goes back to the front of the queue and the node re-enters the loop.";
 }
 
+// ---- Calibration / Metacognition (§12) — the "learn to learn" edge ---------
+// The learner doesn't just learn the material — they learn *what they actually
+// know*. Confidence is captured cheaply everywhere (predictions in Consume, the
+// tap before every Crucible problem and every review-card flip), then held
+// against first-try performance. Overconfidence — felt solid, failed — is the
+// thing this surface exists to catch, because that gap is fluency masquerading
+// as mastery. Content ships the design's sample confidence-vs-performance set so
+// the curve → per-node breakdown → "jump to its Crucible" loop is real.
+
+/** One calibration sample: stated confidence (felt) vs. first-try result (real), 0–100. */
+export interface CalibSample {
+  /** The node this reading belongs to. */
+  id: string;
+  /** Predicted confidence, averaged across this node's confidence hooks. */
+  felt: number;
+  /** Actual first-attempt performance — the honest signal. */
+  real: number;
+}
+
+/**
+ * The confidence-vs-performance readings. In the final product these aggregate
+ * the learner's real taps; the demo ships the design's Linear Algebra set so
+ * the overconfident independence→basis branch reads exactly as designed.
+ */
+export const CALIB: CalibSample[] = [
+  { id: "linind", felt: 88, real: 46 },
+  { id: "gauss", felt: 74, real: 53 },
+  { id: "det", felt: 70, real: 59 },
+  { id: "matmul", felt: 62, real: 65 },
+  { id: "span", felt: 80, real: 83 },
+  { id: "lincomb", felt: 72, real: 86 },
+  { id: "systems", felt: 52, real: 80 },
+  { id: "vecops", felt: 90, real: 93 },
+];
+
+/** How a reading sits against the diagonal: felt ahead of, behind, or tracking real. */
+export type CalibVerdict = "over" | "under" | "ok";
+
+/** How far felt must lead/lag real to leave the well-calibrated band. */
+export const CALIB_THRESHOLD = 12;
+
+/** The verdict colors — overconfident borrows Shaky, under Learning, ok Mastered. */
+export const CALIB_COLOR: Record<CalibVerdict, string> = {
+  over: STATE_COLOR.shaky,
+  under: STATE_COLOR.learning,
+  ok: STATE_COLOR.mastered,
+};
+
+export const CALIB_VERDICT_LABEL: Record<CalibVerdict, string> = {
+  over: "Overconfident",
+  under: "Underconfident",
+  ok: "Well-calibrated",
+};
+
+/** The violet "your tendency" trend line, shared with the Connect accent. */
+export const CALIB_TREND_COLOR = CONNECT_COLOR.accent;
+
+/** Which side of the diagonal a reading falls on. */
+export function calibVerdict(felt: number, real: number): CalibVerdict {
+  const diff = felt - real;
+  return diff > CALIB_THRESHOLD ? "over" : diff < -CALIB_THRESHOLD ? "under" : "ok";
+}
+
+/** A sample resolved with its verdict and the node's label, ready to render. */
+export interface CalibItem extends CalibSample {
+  /** felt − real: positive = overconfident, negative = under. */
+  diff: number;
+  verdict: CalibVerdict;
+  label: string;
+}
+
+/** Resolve every sample against a node-label lookup (nodes carry the names). */
+export function calibItems(labelOf: (id: string) => string): CalibItem[] {
+  return CALIB.map((d) => ({
+    ...d,
+    diff: d.felt - d.real,
+    verdict: calibVerdict(d.felt, d.real),
+    label: labelOf(d.id) || d.id,
+  }));
+}
+
+/** Sort for the per-node breakdown: overconfident first, then under, then ok;
+ *  within each band the largest miss leads. */
+const CALIB_ORDER: Record<CalibVerdict, number> = { over: 0, under: 1, ok: 2 };
+export function calibRows(items: CalibItem[]): CalibItem[] {
+  return [...items].sort(
+    (a, b) =>
+      CALIB_ORDER[a.verdict] - CALIB_ORDER[b.verdict] ||
+      Math.abs(b.diff) - Math.abs(a.diff),
+  );
+}
+
+/** How many nodes read overconfident — the left-rail alert count. */
+export function calibOverCount(items: CalibItem[]): number {
+  return items.filter((d) => d.verdict === "over").length;
+}
+
+/** The most overconfident reading (largest felt-over-real gap), if any. */
+export function calibWorstOver(items: CalibItem[]): CalibItem | undefined {
+  return items
+    .filter((d) => d.verdict === "over")
+    .sort((a, b) => b.diff - a.diff)[0];
+}
+
+/** The most underconfident reading (largest real-over-felt gap), if any. */
+export function calibWorstUnder(items: CalibItem[]): CalibItem | undefined {
+  return items
+    .filter((d) => d.verdict === "under")
+    .sort((a, b) => a.diff - b.diff)[0];
+}
+
+/**
+ * The plain-language coach line that teaches the *feeling* — the whole point of
+ * the surface. It names the worst overconfident node and spells out that the
+ * sense of knowing outran the doing: fluency, not mastery.
+ */
+export function calibCoach(items: CalibItem[]): string {
+  const w = calibWorstOver(items);
+  return w
+    ? `Re-reading felt like learning on ${w.label} — you were ${w.felt}% sure, then transferred at just ${w.real}% on the first attempt. That’s fluency, not mastery.`
+    : "Confidence and results are tracking closely — well-calibrated across the board.";
+}
+
+/** The per-topic read: the systematic tilt a whole branch shows. */
+export const CALIB_TOPIC =
+  "You’re systematically overconfident across the independence → basis branch. The abstract proofs feel clearer than they’ve proven to be under a novel problem.";
+
+/** The other-direction note: where the learner sells themselves short. */
+export function calibUnderLine(items: CalibItem[]): string {
+  const w = calibWorstUnder(items);
+  return w
+    ? `You sell yourself short on ${w.label}: rated ${w.felt}%, delivered ${w.real}%. Trust it more — spend the time where the real gap is.`
+    : "";
+}
+
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
   switch (state) {

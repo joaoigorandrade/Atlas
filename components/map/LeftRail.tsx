@@ -28,9 +28,12 @@ interface LeftRailProps {
   /** Goal-ordered frontier: the plan's next moves. */
   nextUp: PlanEntry[];
   masteryPct: number;
+  /** How many nodes read overconfident — the Calibration alert count. */
+  calibOver: number;
   momentumPlaying: boolean;
   momentumWeek: number;
   onJumpFrontier: () => void;
+  onCalibration: () => void;
   onToggleMomentum: () => void;
   onPickNode: (id: string) => void;
 }
@@ -41,9 +44,11 @@ export default function LeftRail({
   pace,
   nextUp,
   masteryPct,
+  calibOver,
   momentumPlaying,
   momentumWeek,
   onJumpFrontier,
+  onCalibration,
   onToggleMomentum,
   onPickNode,
 }: LeftRailProps) {
@@ -235,6 +240,50 @@ export default function LeftRail({
       >
         <span>Jump to frontier</span>
         <span style={{ color: "#c99a2e" }}>→</span>
+      </button>
+
+      <button
+        onClick={onCalibration}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 15px",
+          background: color.card,
+          border: "1px solid rgba(44,40,35,0.16)",
+          borderRadius: 11,
+          fontSize: 14,
+          color: color.ink,
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: STATE_COLOR.shaky,
+            }}
+          />
+          Calibration
+        </span>
+        {calibOver > 0 ? (
+          <span
+            style={{
+              fontFamily: font.mono,
+              fontSize: 10.5,
+              color: STATE_COLOR.shaky,
+              border: `1px solid ${STATE_COLOR.shaky}66`,
+              borderRadius: 6,
+              padding: "2px 7px",
+            }}
+          >
+            {calibOver} over
+          </span>
+        ) : (
+          <span style={{ color: color.inkGhost }}>→</span>
+        )}
       </button>
 
       <div>
