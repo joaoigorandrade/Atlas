@@ -1,6 +1,8 @@
 "use client";
 
+import type { AdherenceState, DailyQueue } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
+import StreakFlame from "@/components/map/StreakFlame";
 
 export type Surface = "map" | "session" | "review";
 
@@ -14,9 +16,22 @@ interface TopBarProps {
   query: string;
   onQuery: (value: string) => void;
   onSurface: (surface: Surface) => void;
+  /** Adherence state — drives the flame + freeze badge. */
+  adherence: AdherenceState;
+  /** The honest queue: minutes against the daily target, never a card wall. */
+  queue: DailyQueue;
+  /** Arm / disarm the right-moment reminder from the flame popover. */
+  onToggleReminder: () => void;
 }
 
-export default function TopBar({ query, onQuery, onSurface }: TopBarProps) {
+export default function TopBar({
+  query,
+  onQuery,
+  onSurface,
+  adherence,
+  queue,
+  onToggleReminder,
+}: TopBarProps) {
   return (
     <div
       style={{
@@ -116,27 +131,14 @@ export default function TopBar({ query, onQuery, onSurface }: TopBarProps) {
         />
       </div>
       <div style={{ flex: 1 }} />
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: 13,
-          color: color.inkMuted,
-        }}
-      >
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: "#c99a2e",
-            boxShadow: "0 0 8px rgba(201,154,46,0.6)",
-          }}
-        />
-        <span style={{ fontWeight: 600, color: color.ink }}>12</span> day streak
-      </div>
-      <div
+      <StreakFlame adherence={adherence} onToggleReminder={onToggleReminder} />
+      <button
+        onClick={() => onSurface("review")}
+        title={
+          adherence.metToday
+            ? "Today's queue is clear"
+            : `${queue.cards} cards due now — framed in minutes, not a card wall`
+        }
         style={{
           display: "flex",
           alignItems: "center",
@@ -147,6 +149,7 @@ export default function TopBar({ query, onQuery, onSurface }: TopBarProps) {
           padding: "6px 13px",
           fontSize: 13,
           color: color.accent,
+          cursor: "pointer",
         }}
       >
         <span
@@ -157,8 +160,10 @@ export default function TopBar({ query, onQuery, onSurface }: TopBarProps) {
             background: color.accent,
           }}
         />
-        Review · ~8 min
-      </div>
+        {adherence.metToday
+          ? "Review · clear ✓"
+          : `Review · ~${queue.minutes} min`}
+      </button>
       <div
         style={{
           width: 32,

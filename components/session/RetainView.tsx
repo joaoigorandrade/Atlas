@@ -10,16 +10,20 @@ import {
   REVIEW_TYPE_META,
   RETAIN,
   STATE_COLOR,
+  STREAK_COLOR,
+  reminderCopy,
   retainBudget,
   retainCalib,
   retainQueueLabel,
   reviewCard,
+  type AdherenceState,
   type ReviewCard,
   type ReviewConfidence,
   type ReviewGrade,
   type RetainSession,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import StreakFlame from "@/components/map/StreakFlame";
 
 // The micro-Socratic aside borrows Connect's violet; the fail re-explanation
 // borrows the learning-blue and the flagged node the shaky-amber, so each reads
@@ -32,8 +36,12 @@ interface RetainViewProps {
   nodeLabel: string;
   /** Mastered nodes still alive — shown on the done-for-today surface. */
   litNodes: number;
-  /** The streak count, echoed from the top bar. */
-  streak: number;
+  /** Adherence state — the flame in the header and the streak on the done surface. */
+  adherence: AdherenceState;
+  /** Labels of nodes that lit up (reached mastered) this session run — "what lit up". */
+  litToday: string[];
+  /** Arm / disarm the right-moment reminder from the flame + done surface. */
+  onToggleReminder: () => void;
   onExit: () => void;
   /** Tap confidence before the flip — the calibration hook. */
   onConfidence: (level: ReviewConfidence) => void;
@@ -51,7 +59,9 @@ export default function RetainView({
   session,
   nodeLabel,
   litNodes,
-  streak,
+  adherence,
+  litToday,
+  onToggleReminder,
   onExit,
   onConfidence,
   onGrade,
@@ -116,6 +126,7 @@ export default function RetainView({
           Retain · Review
         </span>
         <div style={{ flex: 1 }} />
+        <StreakFlame adherence={adherence} onToggleReminder={onToggleReminder} />
         <div
           style={{
             display: "flex",
@@ -156,7 +167,13 @@ export default function RetainView({
         >
           <div>
             {session.finished ? (
-              <Finished litNodes={litNodes} streak={streak} onExit={onExit} />
+              <Finished
+                litNodes={litNodes}
+                adherence={adherence}
+                litToday={litToday}
+                onToggleReminder={onToggleReminder}
+                onExit={onExit}
+              />
             ) : (
               <ActiveCard
                 card={card}
@@ -178,14 +195,19 @@ export default function RetainView({
   );
 }
 
-/** The done-for-today surface: short, winnable, ending on a lit node. */
+/** The done-for-today surface: short, winnable, ending on a lit node — and the
+ *  streak ticking forward, so the last thing the learner sees is a good feeling. */
 function Finished({
   litNodes,
-  streak,
+  adherence,
+  litToday,
+  onToggleReminder,
   onExit,
 }: {
   litNodes: number;
-  streak: number;
+  adherence: AdherenceState;
+  litToday: string[];
+  onToggleReminder: () => void;
   onExit: () => void;
 }) {
   return (
@@ -194,7 +216,7 @@ function Finished({
         background: color.card,
         border: "1px solid rgba(76,139,99,0.3)",
         borderRadius: 18,
-        padding: "40px 40px 36px",
+        padding: "40px 40px 32px",
         textAlign: "center",
         animation: "fadeUp .4s both",
       }}
@@ -219,14 +241,65 @@ function Finished({
           color: color.inkMuted,
           lineHeight: 1.55,
           maxWidth: 440,
-          margin: "0 auto 26px",
+          margin: "0 auto 24px",
         }}
       >
         Short, winnable, and it lit something up — the feeling that pulls you
         back tomorrow. FSRS has already scheduled every card for its next optimal
         moment.
       </div>
+
+      {/* What lit up — the concrete "you moved the territory" line, when a node
+          reached green this run. */}
+      {litToday.length > 0 && (
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 9,
+            background: color.successBg,
+            border: "1px solid rgba(76,139,99,0.32)",
+            borderRadius: 10,
+            padding: "9px 15px",
+            margin: "0 auto 24px",
+            fontSize: 13.5,
+            color: color.accent,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: STATE_COLOR.mastered,
+              boxShadow: `0 0 6px ${STATE_COLOR.mastered}`,
+              flex: "0 0 auto",
+            }}
+          />
+          Lit up today · {litToday.join(" · ")}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        <div
+          style={{
+            background: "rgba(201,154,46,0.1)",
+            border: `1px solid ${STREAK_COLOR.flame}44`,
+            borderRadius: 12,
+            padding: "14px 22px",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 26,
+              color: STREAK_COLOR.flame,
+            }}
+          >
+            {adherence.streak}
+          </div>
+          <div style={{ ...kicker(10, "0.08em"), marginTop: 2 }}>day streak</div>
+        </div>
         <div
           style={{
             background: color.accentBg,
@@ -238,9 +311,9 @@ function Finished({
           <div
             style={{ fontFamily: font.serif, fontSize: 26, color: color.accent }}
           >
-            {streak}
+            +1
           </div>
-          <div style={{ ...kicker(10, "0.08em"), marginTop: 2 }}>day streak</div>
+          <div style={{ ...kicker(10, "0.08em"), marginTop: 2 }}>today, in</div>
         </div>
         <div
           style={{
@@ -256,23 +329,59 @@ function Finished({
           <div style={{ ...kicker(10, "0.08em"), marginTop: 2 }}>nodes alive</div>
         </div>
       </div>
+
+      {/* The forgiving-streak reassurance — the banked freezes, so tomorrow's
+          miss never feels like ruin. */}
+      {adherence.freezes > 0 && (
+        <div
+          style={{
+            marginTop: 18,
+            fontSize: 12.5,
+            color: color.inkFaint,
+            lineHeight: 1.5,
+          }}
+        >
+          {adherence.freezes} freeze
+          {adherence.freezes === 1 ? "" : "s"} banked — miss a day and the streak
+          still holds.
+        </div>
+      )}
+
+      {/* Right-moment reminder — set the nudge for the learner's actual rhythm. */}
       <button
-        onClick={onExit}
+        onClick={onToggleReminder}
         style={{
-          marginTop: 28,
-          padding: "14px 26px",
-          background: color.accent,
-          color: color.accentInk,
+          marginTop: 8,
+          background: "none",
           border: "none",
-          borderRadius: 12,
-          fontSize: 15,
-          fontWeight: 600,
+          fontSize: 12.5,
+          color: color.accent,
           cursor: "pointer",
-          boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+          textDecoration: "underline",
         }}
       >
-        Back to the map →
+        {reminderCopy(adherence)}
       </button>
+
+      <div>
+        <button
+          onClick={onExit}
+          style={{
+            marginTop: 22,
+            padding: "14px 26px",
+            background: color.accent,
+            color: color.accentInk,
+            border: "none",
+            borderRadius: 12,
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+          }}
+        >
+          Back to the map →
+        </button>
+      </div>
     </div>
   );
 }
