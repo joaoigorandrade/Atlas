@@ -717,6 +717,468 @@ export function socraticReducer(
   }
 }
 
+// ---- Phase 3b · Feynman (teach it back) -----------------------------------
+// Gap detection through self-explanation. The learner teaches; the AI plays a
+// naive student, interrupting with the questions that surface exactly what got
+// hand-waved. The output is a Gap Report — a visual diff of the explanation,
+// green/grey/red — and each unresolved gap writes back to the map as a red Gap
+// sub-node, so the phase is the loop's connective tissue, not a checklist.
+// Content ships the Linear Transformations teach-back so the speak → interrupt
+// → diff mechanic is real.
+
+/** A beat's verdict in the Gap Report: explained, skipped/hand-waved, or wrong. */
+export type TeachVerdict = "good" | "skipped" | "confused";
+
+/** The visual-diff colors — green = explained well, grey = skipped, red = wrong. */
+export const VERDICT_COLOR: Record<TeachVerdict, string> = {
+  good: STATE_COLOR.mastered,
+  skipped: STATE_COLOR.unknown,
+  confused: STATE_COLOR.gap,
+};
+
+export const VERDICT_LABEL: Record<TeachVerdict, string> = {
+  good: "Explained well",
+  skipped: "Skipped · hand-waved",
+  confused: "Wrong · confused",
+};
+
+/** One line of the teach-back transcript — the learner speaking, or the student. */
+export interface TeachLine {
+  role: "learner" | "ai";
+  text: string;
+  /** AI lines: a naive question, an affirmation, a caught error, a skipped bit. */
+  tone?: "naive" | "affirm" | "catch" | "skip";
+}
+
+/** How the learner answers a naive interruption — each sets the beat's verdict. */
+export interface TeachReply {
+  label: string;
+  verdict: TeachVerdict;
+  /** The naive student's reaction — pleased, still puzzled, or wrong-footed. */
+  response: string;
+}
+
+/** A single-probe corrective for a gap — the targeted Socratic micro-pass. */
+export interface TeachFixReply {
+  label: string;
+  correct: boolean;
+  response: string;
+}
+
+/** One beat of the explanation — a sub-point the learner teaches, then defends. */
+export interface FeynmanBeat {
+  id: string;
+  /** The sub-point being taught — the Gap Report row label. */
+  subPoint: string;
+  /** The learner's spoken explanation, streamed in as a live transcript. */
+  transcript: string;
+  /** The naive student's interrupting question ("wait, why does that matter?"). */
+  interjection: string;
+  /** How the learner can answer it — each answer sets this beat's verdict. */
+  replies: TeachReply[];
+  /** The targeted Socratic micro-pass "Fix this" opens on just this sub-point. */
+  fix: { probe: string; replies: TeachFixReply[] };
+  /** The red Gap sub-node this beat writes back to the map when left unresolved. */
+  gap: GapSpec;
+}
+
+/** The scaffold offered when the learner freezes — never a blank wall. */
+export const FEYNMAN_SCAFFOLD =
+  "No blank-wall panic. Start with the simplest thing: what problem does a linear transformation actually solve? Teach me that first — the rest pulls itself out.";
+
+export const FEYNMAN_BEATS: FeynmanBeat[] = [
+  {
+    id: "ft-rules",
+    subPoint: "What makes a map linear",
+    transcript:
+      "Alright — a linear transformation is a function that takes every vector in the plane and moves it somewhere else. The catch is it has to play nice with addition and scaling. Those two rules are what make it “linear.”",
+    interjection:
+      "Wait, hold on — I'm the student here, remember. “Play nice” how? What actually goes wrong if a map doesn't follow those two rules?",
+    replies: [
+      {
+        label:
+          "Concretely: T(v+w) = T(v)+T(w) and T(cv) = cT(v). Break either and a straight line can come out bent — and knowing where a couple of vectors go stops telling you where the rest go.",
+        verdict: "good",
+        response:
+          "Ohh — okay. So the two rules are exactly what keep it predictable. That I actually get now.",
+      },
+      {
+        label: "It just… preserves the structure. You'll feel it once we do examples.",
+        verdict: "skipped",
+        response:
+          "Hmm. You said “structure” but not which structure. I still don't know what the two rules are — I think you skipped the actual definition.",
+      },
+      {
+        label: "It means every vector keeps its length — a linear map never stretches anything.",
+        verdict: "confused",
+        response:
+          "Wait, that can't be right — you told me earlier stretching was fine. Doubling the x-axis is linear and it clearly changes lengths. I think you've mixed something up.",
+      },
+    ],
+    fix: {
+      probe:
+        "Forget length for a second. A map is linear exactly when it keeps two operations intact — which two?",
+      replies: [
+        {
+          label: "Addition and scaling: T(v+w) = T(v)+T(w) and T(cv) = cT(v).",
+          correct: true,
+          response:
+            "Right — that's the definition, no mention of length. Now you can teach it clean.",
+        },
+        {
+          label: "It preserves the distance between points.",
+          correct: false,
+          response:
+            "That's the isometry trap — distance-preserving is a different, stronger property. Linearity is only addition and scaling.",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-rules",
+      label: "The two linearity rules",
+      reason: "you taught linear as “keeps length” — the isometry trap",
+      dx: -140,
+      dy: 150,
+    },
+  },
+  {
+    id: "ft-origin",
+    subPoint: "Why the origin stays fixed",
+    transcript:
+      "Geometrically, picture a grid over the plane. After a linear map the grid lines are still straight, still parallel, still evenly spaced — and the origin stays exactly where it is.",
+    interjection:
+      "Okay, but why does the origin have to stay put? That feels like a random extra rule you're bolting on.",
+    replies: [
+      {
+        label:
+          "It isn't random — it drops out of the scaling rule. Set c = 0: T(0) = T(0·v) = 0·T(v) = 0. A linear map literally can't move the origin.",
+        verdict: "good",
+        response:
+          "Oh nice — so it's forced, not a rule you tacked on. That's much more convincing.",
+      },
+      {
+        label: "It just always does — that's part of being linear, don't worry about it.",
+        verdict: "skipped",
+        response:
+          "But that's exactly the bit I'd want explained. “It just does” doesn't tell me why — I think you skipped the reason.",
+      },
+      {
+        label: "Because we always draw the grid centered on the origin.",
+        verdict: "confused",
+        response:
+          "That's about how we draw it, though, not about the map itself. I don't think that's the real reason.",
+      },
+    ],
+    fix: {
+      probe: "Use the scaling rule with c = 0. What is T(0)?",
+      replies: [
+        {
+          label: "T(0) = T(0·v) = 0·T(v) = 0 — the origin is pinned.",
+          correct: true,
+          response:
+            "Exactly. Now the fixed origin is something you can explain, not just assert.",
+        },
+        {
+          label: "It depends on the matrix — it could land anywhere.",
+          correct: false,
+          response:
+            "No — every linear map sends 0 to 0, always. Run the scaling rule with c = 0 and it falls right out.",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-origin",
+      label: "Why the origin is fixed",
+      reason: "you couldn't say why T(0) = 0",
+      dx: 70,
+      dy: 172,
+    },
+  },
+  {
+    id: "ft-columns",
+    subPoint: "Why a matrix captures the whole map",
+    transcript:
+      "Here's the payoff — you don't track every vector. You only need to know where î and ĵ land. Stack those two landing spots as the columns of a matrix, and that matrix is the transformation.",
+    interjection:
+      "Whoa, slow down. How can two little arrows tell you what happens to every other vector on the whole plane?",
+    replies: [
+      {
+        label:
+          "Because every vector is a combination v = xî + yĵ, and linearity carries it through: T(v) = xT(î) + yT(ĵ). Pin those two images and every vector comes along free.",
+        verdict: "good",
+        response:
+          "Ahh — so the two rules from before are exactly what make that work. It all connects.",
+      },
+      {
+        label: "You just trust the matrix — plug a vector in and it handles it.",
+        verdict: "skipped",
+        response:
+          "But I wanted to know why two arrows are enough, and “just trust it” skips that. I still don't understand it.",
+      },
+      {
+        label: "Well, it only really works for vectors that sit on the axes.",
+        verdict: "confused",
+        response:
+          "That can't be right — a matrix acts on every vector, not only the ones on the axes. I think that's a mistake.",
+      },
+    ],
+    fix: {
+      probe:
+        "Write any vector v in terms of î and ĵ, then apply T and use linearity. What comes out?",
+      replies: [
+        {
+          label: "v = xî + yĵ, so T(v) = xT(î) + yT(ĵ) — the two column images decide it.",
+          correct: true,
+          response:
+            "That's the whole argument. Two images, every vector — linearity carries the combination through.",
+        },
+        {
+          label: "T(v) = T(x)î + T(y)ĵ.",
+          correct: false,
+          response:
+            "Careful — x and y are scalars, not vectors; you don't apply T to them. It's T(v) = xT(î) + yT(ĵ).",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-columns",
+      label: "Why a matrix suffices",
+      reason: "you skipped why î and ĵ determine every vector",
+      dx: -168,
+      dy: 66,
+    },
+  },
+  {
+    id: "ft-order",
+    subPoint: "Composition order (AB ≠ BA)",
+    transcript:
+      "Last thing — if you do two transformations in a row, you multiply their matrices. So a shear followed by a rotation is one combined matrix.",
+    interjection:
+      "Cool. And the order doesn't matter, right? Multiplication is multiplication — 3 times 4 is the same as 4 times 3.",
+    replies: [
+      {
+        label:
+          "That's the trap — order matters here. The map you apply first sits on the right: R(S·v) = (R·S)v. Swap to S·R and you get a different motion, so AB ≠ BA.",
+        verdict: "good",
+        response:
+          "Okay, that's surprising, but it makes sense — it's motions in sequence, not plain numbers.",
+      },
+      {
+        label: "Order's probably fine to ignore for most cases.",
+        verdict: "skipped",
+        response:
+          "“Probably fine” worries me — either it matters or it doesn't. I don't think you're sure, and I'd get this wrong on a test.",
+      },
+      {
+        label: "Right — order never matters in multiplication.",
+        verdict: "confused",
+        response:
+          "But these are motions, not numbers. Shear-then-rotate looks different from rotate-then-shear if I picture it. I think that's wrong.",
+      },
+    ],
+    fix: {
+      probe:
+        "Take (R·S)·v = R·(S·v). Which matrix touches the vector first — and where does it sit in the product?",
+      replies: [
+        {
+          label: "S touches v first, so it sits on the right: R·S, applied right-to-left.",
+          correct: true,
+          response:
+            "Right. The first motion hugs the vector; because motions don't commute, neither does the product.",
+        },
+        {
+          label: "R is written first, so R acts first — on the left.",
+          correct: false,
+          response:
+            "Reversed — left-to-right reading is the trap. R(S·v) means S acts first, so S sits on the right.",
+        },
+      ],
+    },
+    gap: {
+      id: "gap-ft-order",
+      label: "Order of composition",
+      reason: "you taught matrix order as not mattering",
+      dx: 120,
+      dy: 150,
+    },
+  },
+];
+
+/** The live state of one Feynman session — held by AtlasApp, read by the view. */
+export interface FeynmanSession {
+  nodeId: string;
+  /** The beat currently being taught (index into FEYNMAN_BEATS). */
+  beat: number;
+  /** True once teaching has begun (past the opening prompt). */
+  started: boolean;
+  /** Within the current beat: waiting for the learner to speak, or to answer. */
+  awaiting: "speak" | "reply";
+  /** The teach-back transcript + naive-student interruptions, in order. */
+  log: TeachLine[];
+  /** Verdict per beat id, set when its interruption is answered (or fixed). */
+  verdicts: Record<string, TeachVerdict>;
+  /** True once every beat is taught — the Gap Report shows. */
+  reported: boolean;
+  /** A Fix-this micro-pass open on this beat id, or null. */
+  fixing: string | null;
+  /** Fix replies already caught in the open micro-pass. */
+  fixRuledOut: string[];
+  /** The naive student's latest reaction inside an open fix, or null. */
+  fixReaction: string | null;
+  /** Whether the stuck-scaffold has been offered. */
+  scaffolded: boolean;
+}
+
+export function feynmanStart(nodeId: string): FeynmanSession {
+  return {
+    nodeId,
+    beat: 0,
+    started: false,
+    awaiting: "speak",
+    log: [],
+    verdicts: {},
+    reported: false,
+    fixing: null,
+    fixRuledOut: [],
+    fixReaction: null,
+    scaffolded: false,
+  };
+}
+
+/** The naive student's reaction tone, by the verdict the learner earned. */
+const VERDICT_TONE: Record<TeachVerdict, TeachLine["tone"]> = {
+  good: "affirm",
+  skipped: "skip",
+  confused: "catch",
+};
+
+export type FeynmanAction =
+  | { type: "begin" }
+  | { type: "scaffold" }
+  | { type: "speak" }
+  | { type: "reply"; index: number }
+  | { type: "openFix"; beatId: string }
+  | { type: "closeFix" }
+  | { type: "fix"; index: number }
+  | { type: "teachAgain" };
+
+/**
+ * The naive-student engine, as a pure transition. The learner speaks a beat →
+ * the student interrupts with a naive question → the learner's answer sets that
+ * beat's verdict (good/skipped/confused). After the last beat the Gap Report
+ * opens; "Fix this" runs a one-probe corrective that flips a gap to good, and
+ * "Teach again" resets for a fresh pass.
+ */
+export function feynmanReducer(
+  session: FeynmanSession,
+  action: FeynmanAction,
+): FeynmanSession {
+  switch (action.type) {
+    case "begin":
+      // Leave the opening prompt and enter the teach-back surface, ready to
+      // speak the first beat.
+      return { ...session, started: true };
+    case "scaffold":
+      // The freeze-scaffold: reveal the "start with the problem" nudge and drop
+      // the learner straight into teaching the first beat.
+      return { ...session, started: true, scaffolded: true };
+    case "speak": {
+      if (session.reported || session.awaiting !== "speak") return session;
+      const beat = FEYNMAN_BEATS[session.beat];
+      if (!beat) return session;
+      return {
+        ...session,
+        started: true,
+        awaiting: "reply",
+        log: [
+          ...session.log,
+          { role: "learner", text: beat.transcript },
+          { role: "ai", text: beat.interjection, tone: "naive" },
+        ],
+      };
+    }
+    case "reply": {
+      if (session.reported || session.awaiting !== "reply") return session;
+      const beat = FEYNMAN_BEATS[session.beat];
+      const reply = beat?.replies[action.index];
+      if (!reply) return session;
+      const last = session.beat === FEYNMAN_BEATS.length - 1;
+      return {
+        ...session,
+        awaiting: "speak",
+        beat: last ? session.beat : session.beat + 1,
+        reported: last,
+        verdicts: { ...session.verdicts, [beat.id]: reply.verdict },
+        log: [
+          ...session.log,
+          { role: "learner", text: reply.label },
+          { role: "ai", text: reply.response, tone: VERDICT_TONE[reply.verdict] },
+        ],
+      };
+    }
+    case "openFix":
+      return {
+        ...session,
+        fixing: action.beatId,
+        fixRuledOut: [],
+        fixReaction: null,
+      };
+    case "closeFix":
+      return { ...session, fixing: null, fixRuledOut: [], fixReaction: null };
+    case "fix": {
+      if (!session.fixing) return session;
+      const beat = FEYNMAN_BEATS.find((b) => b.id === session.fixing);
+      const reply = beat?.fix.replies[action.index];
+      if (!reply || session.fixRuledOut.includes(reply.label)) return session;
+      if (reply.correct) {
+        // Gap closed: the sub-point flips to good and won't write back.
+        return {
+          ...session,
+          verdicts: { ...session.verdicts, [beat!.id]: "good" },
+          fixing: null,
+          fixRuledOut: [],
+          fixReaction: null,
+        };
+      }
+      // Caught: surface the correction, rule the wrong answer out, keep trying.
+      return {
+        ...session,
+        fixReaction: reply.response,
+        fixRuledOut: [...session.fixRuledOut, reply.label],
+      };
+    }
+    case "teachAgain":
+      return {
+        ...session,
+        beat: 0,
+        started: true,
+        awaiting: "speak",
+        log: [],
+        verdicts: {},
+        reported: false,
+        fixing: null,
+        fixRuledOut: [],
+        fixReaction: null,
+      };
+    default:
+      return session;
+  }
+}
+
+/** Beats still red or grey — the gaps that write back to the map as sub-nodes. */
+export function feynmanGaps(session: FeynmanSession): GapSpec[] {
+  return FEYNMAN_BEATS.filter(
+    (b) =>
+      session.verdicts[b.id] === "skipped" ||
+      session.verdicts[b.id] === "confused",
+  ).map((b) => b.gap);
+}
+
+/** A clean-enough diff: every sub-point explained well, nothing wrong or skipped. */
+export function feynmanClean(session: FeynmanSession): boolean {
+  return FEYNMAN_BEATS.every((b) => session.verdicts[b.id] === "good");
+}
+
 /** Which phase a node is on, given its mastery state (-1 = locked). */
 export function phaseIndex(state: NodeState): number {
   switch (state) {
