@@ -2,13 +2,13 @@
 
 import {
   CALIB_COLOR,
-  CALIB_TOPIC,
   CALIB_TREND_COLOR,
   CALIB_VERDICT_LABEL,
   CRUCIBLE_COLOR,
   STATE_COLOR,
   calibCoach,
   calibRows,
+  calibTopicLine,
   calibUnderLine,
   type CalibItem,
 } from "@/lib/curriculum";
@@ -332,7 +332,7 @@ function Readout({
           {calibCoach(items)}
         </div>
         <div style={{ fontSize: 13.5, color: color.inkMuted, lineHeight: 1.58 }}>
-          {CALIB_TOPIC}
+          {calibTopicLine(items)}
         </div>
       </div>
 

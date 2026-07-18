@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  FEYNMAN_BEATS,
   FEYNMAN_SCAFFOLD,
   PHASES,
   STATE_COLOR,
@@ -26,6 +25,8 @@ const RED = STATE_COLOR.gap;
 const GREY = STATE_COLOR.unknown;
 
 interface FeynmanViewProps {
+  /** The generated teach-back beats for this node. */
+  beats: FeynmanBeat[];
   /** The node being taught back — titles the view. */
   title: string;
   session: FeynmanSession;
@@ -65,6 +66,7 @@ const WORD_MS = 42;
 
 export default function FeynmanView({
   title,
+  beats,
   session,
   onExit,
   onBegin,
@@ -77,7 +79,7 @@ export default function FeynmanView({
   onTeachAgain,
   onAdvance,
 }: FeynmanViewProps) {
-  const beat = FEYNMAN_BEATS[session.beat];
+  const beat = beats[session.beat];
 
   // ---- the transcript scrolls to the newest line -----------------------
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +202,7 @@ export default function FeynmanView({
         {session.reported ? (
           <GapReport
             title={title}
+            beats={beats}
             session={session}
             onOpenFix={onOpenFix}
             onCloseFix={onCloseFix}
@@ -779,6 +782,7 @@ function Line({ line }: { line: TeachLine }) {
 /** The Gap Report — a visual diff of the explanation, each gap actionable. */
 function GapReport({
   title,
+  beats,
   session,
   onOpenFix,
   onCloseFix,
@@ -787,6 +791,7 @@ function GapReport({
   onAdvance,
 }: {
   title: string;
+  beats: FeynmanBeat[];
   session: FeynmanSession;
   onOpenFix: (beatId: string) => void;
   onCloseFix: () => void;
@@ -794,7 +799,7 @@ function GapReport({
   onTeachAgain: () => void;
   onAdvance: () => void;
 }) {
-  const counts = FEYNMAN_BEATS.reduce(
+  const counts = beats.reduce(
     (acc, b) => {
       const v = session.verdicts[b.id];
       if (v) acc[v] += 1;
@@ -802,8 +807,8 @@ function GapReport({
     },
     { good: 0, skipped: 0, confused: 0 } as Record<TeachVerdict, number>,
   );
-  const clean = feynmanClean(session);
-  const gapCount = feynmanGaps(session).length;
+  const clean = feynmanClean(session, beats);
+  const gapCount = feynmanGaps(session, beats).length;
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "30px 32px 60px" }}>
@@ -833,7 +838,7 @@ function GapReport({
 
         {/* The diff rows */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 26 }}>
-          {FEYNMAN_BEATS.map((b) => {
+          {beats.map((b) => {
             const verdict = session.verdicts[b.id];
             if (!verdict) return null;
             const c = VERDICT_COLOR[verdict];
