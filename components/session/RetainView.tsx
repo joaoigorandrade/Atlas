@@ -8,7 +8,6 @@ import {
   REVIEW_CONFIDENCE,
   REVIEW_GRADES,
   REVIEW_TYPE_META,
-  RETAIN,
   STATE_COLOR,
   STREAK_COLOR,
   reminderCopy,
@@ -17,6 +16,7 @@ import {
   retainQueueLabel,
   reviewCard,
   type AdherenceState,
+  type RetainContent,
   type ReviewCard,
   type ReviewConfidence,
   type ReviewGrade,
@@ -31,6 +31,8 @@ import StreakFlame from "@/components/map/StreakFlame";
 const ASIDE_ACCENT = CONNECT_COLOR.accent;
 
 interface RetainViewProps {
+  /** The generated review queue (cards + forecast + budget). */
+  content: RetainContent;
   session: RetainSession;
   /** Label of the current card's node — the fail write-back names it. */
   nodeLabel: string;
@@ -56,6 +58,7 @@ interface RetainViewProps {
 }
 
 export default function RetainView({
+  content,
   session,
   nodeLabel,
   litNodes,
@@ -69,8 +72,8 @@ export default function RetainView({
   onReteach,
   onContinue,
 }: RetainViewProps) {
-  const card = reviewCard(session);
-  const budget = retainBudget(session);
+  const card = reviewCard(session, content);
+  const budget = retainBudget(session, content);
 
   return (
     <div
@@ -148,7 +151,7 @@ export default function RetainView({
               background: color.accent,
             }}
           />
-          {retainQueueLabel(session)}
+          {retainQueueLabel(session, content)}
         </div>
       </div>
 
@@ -188,7 +191,7 @@ export default function RetainView({
             )}
           </div>
 
-          <Sidebar budget={budget} />
+          <Sidebar content={content} budget={budget} />
         </div>
       </div>
     </div>
@@ -774,7 +777,13 @@ function ActiveCard({
 }
 
 /** The right rail — the honest budget bar and the FSRS retention forecast. */
-function Sidebar({ budget }: { budget: ReturnType<typeof retainBudget> }) {
+function Sidebar({
+  content,
+  budget,
+}: {
+  content: RetainContent;
+  budget: ReturnType<typeof retainBudget>;
+}) {
   return (
     <div>
       {/* Today's budget — minutes, never a wall of cards */}
@@ -791,7 +800,7 @@ function Sidebar({ budget }: { budget: ReturnType<typeof retainBudget> }) {
           Today&rsquo;s budget
         </div>
         <div style={{ fontSize: 13, color: color.inkMuted, marginBottom: 11 }}>
-          Daily target · {RETAIN.budgetMin} min
+          Daily target · {content.budgetMin} min
         </div>
         <div
           style={{
@@ -838,7 +847,7 @@ function Sidebar({ budget }: { budget: ReturnType<typeof retainBudget> }) {
           Retention health · FSRS forecast
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-          {RETAIN.forecast.map((f) => (
+          {content.forecast.map((f) => (
             <div key={f.label} style={{ display: "flex", gap: 12 }}>
               <div
                 style={{

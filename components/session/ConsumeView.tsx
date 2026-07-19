@@ -2,10 +2,10 @@
 
 import {
   ALT_CONTROLS,
-  CONSUME_CHUNKS,
   PHASES,
   STATE_COLOR,
   type AltKey,
+  type ConsumeChunk,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 
@@ -33,6 +33,8 @@ export interface ConsumeSession {
 interface ConsumeViewProps {
   /** The node this session teaches — titles the view. */
   title: string;
+  /** The generated reading pass for this node. */
+  chunks: ConsumeChunk[];
   session: ConsumeSession;
   onExit: () => void;
   onAnswer: (chunkId: string, oi: number, correct: boolean) => void;
@@ -165,6 +167,7 @@ function GridDiagram({ id }: { id: string }) {
 
 export default function ConsumeView({
   title,
+  chunks,
   session,
   onExit,
   onAnswer,
@@ -178,12 +181,12 @@ export default function ConsumeView({
 }: ConsumeViewProps) {
   // Only chunks up to the deepest revealed one are on screen — content
   // reveals in segments, never as a wall.
-  const visible = CONSUME_CHUNKS.slice(0, session.idx + 1);
+  const visible = chunks.slice(0, session.idx + 1);
 
   let answeredCount = 0;
   let rightCount = 0;
   let simpleCount = 0;
-  for (const c of CONSUME_CHUNKS) {
+  for (const c of chunks) {
     const ans = session.answered[c.id];
     if (ans) {
       answeredCount++;
@@ -193,7 +196,7 @@ export default function ConsumeView({
   }
   // Overshoot correction: every prediction right → offer to skip ahead.
   const allRight =
-    answeredCount === CONSUME_CHUNKS.length && rightCount === CONSUME_CHUNKS.length;
+    answeredCount === chunks.length && rightCount === chunks.length;
   // Missing-prerequisite flag: leaning on "simpler" repeatedly.
   const simpleFlag = simpleCount >= 3;
 
@@ -276,7 +279,7 @@ export default function ConsumeView({
           padding: "12px 24px 0",
         }}
       >
-        {CONSUME_CHUNKS.map((c, i) => (
+        {chunks.map((c, i) => (
           <div
             key={c.id}
             style={{
@@ -328,7 +331,7 @@ export default function ConsumeView({
             const vkey = session.variant[c.id] ?? null;
             const altText = vkey ? c.alt[vkey] : null;
             const isDeepest = i === visible.length - 1;
-            const isLast = i === CONSUME_CHUNKS.length - 1;
+            const isLast = i === chunks.length - 1;
             const verdict = revealed
               ? ans!.correct
                 ? { text: c.right, color: RIGHT }

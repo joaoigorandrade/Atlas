@@ -5,10 +5,10 @@ import {
   HELP_COLOR,
   HELP_LABELS,
   PHASES,
-  SOCRATIC_STEPS,
   STATE_COLOR,
   type HelpLevel,
   type SocraticSession,
+  type SocraticStep,
   type SocraticTurn,
 } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
@@ -22,6 +22,8 @@ const GREEN = STATE_COLOR.mastered;
 interface SocraticViewProps {
   /** The node this session teaches — titles the view. */
   title: string;
+  /** The generated questioning script for this node. */
+  steps: SocraticStep[];
   session: SocraticSession;
   onExit: () => void;
   onReply: (index: number) => void;
@@ -48,6 +50,7 @@ function toneColor(tone: SocraticTurn["tone"]): string {
 
 export default function SocraticView({
   title,
+  steps,
   session,
   onExit,
   onReply,
@@ -57,7 +60,7 @@ export default function SocraticView({
   onClearPad,
   onAdvance,
 }: SocraticViewProps) {
-  const step = SOCRATIC_STEPS[session.step];
+  const step = steps[session.step];
   const scratchPending = !!step?.scratch && !session.scratchDone;
 
   // ---- the transcript scrolls to the newest turn -----------------------

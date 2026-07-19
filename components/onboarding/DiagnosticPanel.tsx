@@ -1,22 +1,26 @@
 "use client";
 
-import { DIAGNOSTIC } from "@/lib/curriculum";
+import type { DiagnosticQuestion } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 
 interface DiagnosticPanelProps {
+  /** The generated placement questions for this topic. */
+  questions: DiagnosticQuestion[];
   /** Number of questions answered so far. */
   answered: number;
-  onAnswer: () => void;
+  /** Called with the index of the chosen option — its effect writes back. */
+  onAnswer: (optionIndex: number) => void;
   onStart: () => void;
 }
 
 export default function DiagnosticPanel({
+  questions,
   answered,
   onAnswer,
   onStart,
 }: DiagnosticPanelProps) {
-  const done = answered >= DIAGNOSTIC.length;
-  const question = DIAGNOSTIC[Math.min(answered, DIAGNOSTIC.length - 1)];
+  const done = answered >= questions.length;
+  const question = questions[Math.min(answered, questions.length - 1)];
 
   return (
     <div
@@ -37,7 +41,7 @@ export default function DiagnosticPanel({
     >
       <div style={kicker(11)}>Placement · adaptive</div>
       <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
-        {DIAGNOSTIC.map((_, i) => (
+        {questions.map((_, i) => (
           <div
             key={i}
             style={{
@@ -74,10 +78,10 @@ export default function DiagnosticPanel({
             {question.q}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-            {question.opts.map((label) => (
+            {question.opts.map((opt, oi) => (
               <button
-                key={label}
-                onClick={onAnswer}
+                key={opt.label}
+                onClick={() => onAnswer(oi)}
                 style={{
                   textAlign: "left",
                   padding: "15px 18px",
@@ -90,7 +94,7 @@ export default function DiagnosticPanel({
                   transition: "border-color .15s, background .15s",
                 }}
               >
-                {label}
+                {opt.label}
               </button>
             ))}
           </div>

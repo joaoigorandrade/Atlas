@@ -2,10 +2,11 @@
 
 Atlas is a learning platform built around a living concept map (see `docs/SPEC.md`
 for the full product spec, `README.md` for the overview). The onboarding flow
-(welcome → building → diagnostic → map) and Phase 1 (Plan — the map's
+(welcome → building → diagnostic → map), Phase 1 (Plan — the map's
 re-planning behavior: gap spawning, goal-conditioned ordering, pace warnings,
-skip pruning) are implemented; the session phases (Consume, Socratic, Feynman,
-Connect, Crucible, Retain) are not yet.
+skip pruning), and the session phases (Consume, Socratic, Feynman, Connect,
+Crucible, Retain) are implemented; all content is AI-generated per topic via
+OpenRouter (see "AI content generation" below).
 
 ## Stack
 
@@ -27,8 +28,23 @@ npm run typecheck  # tsc --noEmit
 - `app/` — App Router shell only (layout, fonts, global keyframes). Pages stay thin; screens live in `components/`.
 - `components/AtlasApp.tsx` — the single client-side state machine (screen, form, selection, canvas view). All cross-screen state lives here.
 - `components/onboarding/`, `components/map/` — presentational screens; they receive state + callbacks as props and hold no app state.
-- `lib/curriculum.ts` — the concept graph, mastery-state vocabulary, diagnostic script, and the re-planning model (gap specs, goal ordering, pace math). All domain data goes here, never inline in components.
+- `lib/curriculum.ts` — the mastery-state vocabulary, session engines (pure reducers), and the re-planning model (gap spawning, goal ordering, pace math). Types and logic only — no domain data lives here.
 - `lib/theme.ts` — design tokens. Never hard-code a color/font that has a token.
+- `lib/server/` — the OpenRouter client (`openrouter.ts`) and the per-kind content generators (`generate.ts`: prompts, validators, layout/ids/offsets post-processing). Server-only; the API key never reaches the browser.
+- `app/api/generate/route.ts` — the single generation endpoint the client posts to; `lib/api.ts` is its typed client wrapper.
+
+## AI content generation
+
+All learning content is generated per topic through OpenRouter — the concept
+graph + placement diagnostic at onboarding (`kind: "curriculum"`), and each
+phase's material on first entry (`consume`, `socratic`, `feynman`, `connect`,
+`crucible`, `retain`), cached per node for the run in `AtlasApp`. Configure via
+`.env.local` (see `.env.example`): `OPENROUTER_API_KEY` (required),
+`OPENROUTER_MODEL` (default `openai/gpt-4o-mini` — cheap and structured-output
+reliable), `OPENROUTER_BASE_URL` (override for tests). Generated JSON is
+validated server-side with one corrective retry; ids, graph layout, and gap
+placement offsets are always computed server-side, never trusted from the
+model.
 
 ## Conventions
 

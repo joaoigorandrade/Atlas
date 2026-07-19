@@ -2,27 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ADHERENCE,
   DEFAULT_FORM,
-  NODES,
   PHASES,
+  ancestorsOf,
   calibItems,
   calibOverCount,
   connectCards,
   connectReducer,
   connectStart,
-  crucibleFor,
   crucibleReducer,
   crucibleStart,
   dailyQueue,
   displayStates,
-  elaborationFor,
+  emptyGraph,
   feynmanGaps,
   feynmanReducer,
   feynmanStart,
+  freshAdherence,
   initialStates,
   markTodayMet,
-  nextGapFor,
   orderedFrontier,
   paceStatus,
   phaseIndex,
@@ -30,7 +28,6 @@ import {
   retainReducer,
   retainStart,
   reviewCard,
-  seedGraph,
   socraticReducer,
   socraticStart,
   spawnGap,
@@ -38,24 +35,41 @@ import {
   unmetPathOf,
   type AdherenceState,
   type AltKey,
+  type CalibSample,
   type ConceptGraph,
   type ConceptNode,
   type ConnectAction,
   type ConnectSession,
+  type ConsumeChunk,
   type CrucibleAction,
+  type CrucibleContent,
   type CrucibleSession,
+  type DiagnosticQuestion,
+  type ElaborationContent,
   type FeynmanAction,
+  type FeynmanBeat,
   type FeynmanSession,
   type GapSpec,
   type NodeState,
   type OnboardingForm,
+  type RetainContent,
   type RetainSession,
   type ReviewConfidence,
   type ReviewGrade,
   type SocraticAction,
   type SocraticSession,
+  type SocraticStep,
   type StateMap,
 } from "@/lib/curriculum";
+import {
+  fetchConnect,
+  fetchConsume,
+  fetchCrucible,
+  fetchCurriculum,
+  fetchFeynman,
+  fetchRetain,
+  fetchSocratic,
+} from "@/lib/api";
 import { color, font } from "@/lib/theme";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
@@ -69,6 +83,7 @@ import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
+import GeneratingOverlay from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -88,10 +103,20 @@ type Screen =
   | "review"
   | "calibration";
 
-/** How long the map-assembly moment plays before the diagnostic opens. */
+/** Minimum time the map-assembly moment plays, even when generation is fast. */
 const BUILD_MS = 2600;
 /** The momentum replay spans onboarding (week 0) plus three weeks of work. */
 const MOMENTUM_WEEKS = 3;
+
+/** Confidence tap → a felt-% reading for the calibration curve. */
+const CRUCIBLE_FELT: Record<number, number> = { 0: 35, 1: 65, 2: 90 };
+const REVIEW_FELT: Record<number, number> = { 0: 20, 1: 55, 2: 88 };
+const GRADE_REAL: Record<ReviewGrade, number> = {
+  again: 25,
+  hard: 55,
+  good: 75,
+  easy: 95,
+};
 
 interface DragState {
   id: string;
@@ -114,49 +139,51 @@ export default function AtlasApp() {
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
   const [answered, setAnswered] = useState(0);
   const [reveal, setReveal] = useState(0);
-  // The graph itself is state: Phase 1 (Plan) restructures it live, spawning
-  // gap sub-nodes from failures. Everything derives from it, never from NODES.
-  const [graph, setGraph] = useState<ConceptGraph>(seedGraph);
+  // The graph itself is state: it arrives generated from the AI during
+  // onboarding, and Phase 1 (Plan) restructures it live afterwards.
+  const [graph, setGraph] = useState<ConceptGraph>(emptyGraph);
   const [spawnedIds, setSpawnedIds] = useState<Set<string>>(() => new Set());
-  const [states, setStates] = useState<StateMap>(initialStates);
+  const [states, setStates] = useState<StateMap>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // The active Consume (Learn) session, or null when not in one. Phase 2 is a
-  // full surface, not a rail — entering a frontier node opens it here.
+  // The generated placement diagnostic — arrives with the graph.
+  const [diagnostic, setDiagnostic] = useState<DiagnosticQuestion[]>([]);
+  // The active Consume (Learn) session, or null when not in one.
   const [consume, setConsume] = useState<ConsumeSession | null>(null);
-  // The active Socratic (Phase 3a) session, or null. Like Consume it's a full
-  // surface; the contingent-tutor logic lives in `socraticReducer`.
+  // The active Socratic (Phase 3a) session, or null.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
-  // The active Feynman (Phase 3b) teach-back session, or null. The naive-student
-  // engine lives in `feynmanReducer`; unresolved gaps write back to the map.
+  // The active Feynman (Phase 3b) teach-back session, or null.
   const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
-  // The active Connect (Phase 4 · Elaboration) session, or null. The learner
-  // wires the node into prior mastered nodes; confirmed links (and an accepted
-  // mnemonic, when the content is list-like) draft cards for Retain.
+  // The active Connect (Phase 4 · Elaboration) session, or null.
   const [connect, setConnect] = useState<ConnectSession | null>(null);
-  // The active Crucible (Phase 5 · application/transfer) session, or null. The
-  // learner states confidence, attempts a novel-framing problem, and submits;
-  // a first-attempt failure writes a precise gap back to the map, a
-  // recalibrated re-attempt transfers, and only that lifts the node to Mastered.
+  // The active Crucible (Phase 5 · application/transfer) session, or null.
   const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
-  // The active Retain (Phase 6 · Review queue / FSRS) session, or null. Unlike
-  // the node-scoped phases this is a global daily surface reached from the top
-  // bar; a missed card writes its node back to Shaky, re-entering the loop.
+  // The active Retain (Phase 6 · Review queue) session, or null.
   const [retain, setRetain] = useState<RetainSession | null>(null);
+  // Per-node generated content, cached for the run so re-entering a phase
+  // doesn't re-bill a generation. Retain is global (one queue per day).
+  const [consumeCache, setConsumeCache] = useState<Record<string, ConsumeChunk[]>>({});
+  const [socraticCache, setSocraticCache] = useState<Record<string, SocraticStep[]>>({});
+  const [feynmanCache, setFeynmanCache] = useState<Record<string, FeynmanBeat[]>>({});
+  const [connectCache, setConnectCache] = useState<Record<string, ElaborationContent>>({});
+  const [crucibleCache, setCrucibleCache] = useState<Record<string, CrucibleContent>>({});
+  const [retainContent, setRetainContent] = useState<RetainContent | null>(null);
+  // The "AI is writing this" overlay, or null.
+  const [loading, setLoading] = useState<{ phase: string; message: string } | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
   const [momentumWeek, setMomentumWeek] = useState(0);
-  // §13 Adherence — the wrapper: a forgiving streak (a banked freeze absorbs one
-  // missed day), the honest queue, and a right-moment reminder. The flame reads
-  // it everywhere; clearing the queue or mastering a node marks today met.
-  const [adherence, setAdherence] = useState<AdherenceState>(ADHERENCE);
-  // Labels of nodes that reached Mastered this session run — the "what lit up"
-  // the done-for-today surface shows, so the day ends on visible progress.
+  // §13 Adherence — starts honest: no fabricated streak, one freeze banked.
+  const [adherence, setAdherence] = useState<AdherenceState>(freshAdherence);
+  // Labels of nodes that reached Mastered this session run.
   const [litToday, setLitToday] = useState<string[]>([]);
+  // §12 Calibration — live confidence-vs-performance readings, captured from
+  // the Crucible's confidence gate and Review's pre-flip taps. Starts empty.
+  const [calibSamples, setCalibSamples] = useState<CalibSample[]>([]);
   const [toast, setToast] = useState<ToastData | null>(null);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
-  >(() => Object.fromEntries(NODES.map((n) => [n.id, { x: n.x, y: n.y }])));
+  >({});
   const [view, setView] = useState<ViewTransform>({ x: 40, y: 30, scale: 0.72 });
 
   const viewRef = useRef(view);
@@ -165,14 +192,32 @@ export default function AtlasApp() {
   positionsRef.current = positions;
   const graphRef = useRef(graph);
   graphRef.current = graph;
-  // The live Crucible session, read by its side-effecting submit/finish handlers
-  // (they write gap nodes and mastery back to the map outside the reducer).
+  const formRef = useRef(form);
+  formRef.current = form;
+  const diagnosticRef = useRef(diagnostic);
+  diagnosticRef.current = diagnostic;
+  const statesRef = useRef(states);
+  statesRef.current = states;
   const crucibleRef = useRef(crucible);
   crucibleRef.current = crucible;
-  // The live Retain session, read by its grade handler (which flags a missed
-  // card's node Shaky on the map, outside the reducer).
   const retainRef = useRef(retain);
   retainRef.current = retain;
+  const consumeCacheRef = useRef(consumeCache);
+  consumeCacheRef.current = consumeCache;
+  const socraticCacheRef = useRef(socraticCache);
+  socraticCacheRef.current = socraticCache;
+  const feynmanCacheRef = useRef(feynmanCache);
+  feynmanCacheRef.current = feynmanCache;
+  const connectCacheRef = useRef(connectCache);
+  connectCacheRef.current = connectCache;
+  const crucibleCacheRef = useRef(crucibleCache);
+  crucibleCacheRef.current = crucibleCache;
+  const retainContentRef = useRef(retainContent);
+  retainContentRef.current = retainContent;
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
+  // Gap specs queued by hesitant diagnostic answers, spawned once the map opens.
+  const pendingGapsRef = useRef<Array<{ parentId: string; spec: GapSpec }>>([]);
   // Assigned in the derived section below; read by event handlers.
   const displayRef = useRef<Record<string, NodeState>>({});
 
@@ -208,26 +253,6 @@ export default function AtlasApp() {
     [],
   );
 
-  /**
-   * The re-plan restructure: split the next sub-concept out of a failing
-   * node — new red gap node, dashed edge, assemble animation. Returns the
-   * spec so the caller can voice the "Map updated" toast, or null when the
-   * node has nothing left to split (the failure well has run dry).
-   */
-  const spawnFailureGap = useCallback((parentId: string): GapSpec | null => {
-    const spec = nextGapFor(graphRef.current, parentId);
-    const base = positionsRef.current[parentId];
-    if (!spec || !base) return null;
-    setGraph((g) => spawnGap(g, parentId, spec));
-    setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
-    setPositions((prev) => ({
-      ...prev,
-      [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy },
-    }));
-    setSpawnedIds((prev) => new Set(prev).add(spec.id));
-    return spec;
-  }, []);
-
   const later = useCallback((fn: () => void, ms: number) => {
     timersRef.current.push(setTimeout(fn, ms));
   }, []);
@@ -243,21 +268,114 @@ export default function AtlasApp() {
     });
   }, []);
 
+  /** Merge a felt/real reading into the live calibration set (running average). */
+  const recordCalib = useCallback((nodeId: string, felt: number, real: number) => {
+    setCalibSamples((prev) => {
+      const existing = prev.find((s) => s.id === nodeId);
+      if (!existing) return [...prev, { id: nodeId, felt, real }];
+      return prev.map((s) =>
+        s.id === nodeId
+          ? {
+              id: nodeId,
+              felt: Math.round((s.felt + felt) / 2),
+              real: Math.round((s.real + real) / 2),
+            }
+          : s,
+      );
+    });
+  }, []);
+
+  /**
+   * The re-plan restructure: hang a generated gap sub-node under its parent —
+   * new red node, dashed edge, assemble animation. Idempotent per spec id.
+   */
+  const attachGap = useCallback((parentId: string, spec: GapSpec): boolean => {
+    const parent = graphRef.current.nodes.find((n) => n.id === parentId);
+    const base = positionsRef.current[parentId];
+    if (!parent || !base) return false;
+    if (graphRef.current.nodes.some((n) => n.id === spec.id)) return false;
+    setGraph((g) => spawnGap(g, parentId, spec));
+    setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
+    setPositions((prev) => ({
+      ...prev,
+      [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy },
+    }));
+    setSpawnedIds((prev) => new Set(prev).add(spec.id));
+    return true;
+  }, []);
+
   // ---- onboarding flow -------------------------------------------------
 
+  /**
+   * "Build my map": the AI generates the concept graph + placement diagnostic
+   * for the typed topic. The assembling moment plays while it thinks; the
+   * diagnostic opens once both the content and the animation are done.
+   */
   const build = useCallback(() => {
+    const topic = form.topic.trim();
+    if (!topic) {
+      showToast("Name a topic first — the map is generated from it");
+      return;
+    }
     setScreen("building");
     setReveal(0);
-    later(() => {
-      setScreen("diagnostic");
-      setAnswered(0);
-    }, BUILD_MS);
-  }, [later]);
+    const started = Date.now();
+    fetchCurriculum({ topic, goal: form.goal, interests: form.interests })
+      .then((payload) => {
+        setGraph(payload.graph);
+        setStates(initialStates(payload.graph));
+        setPositions(
+          Object.fromEntries(
+            payload.graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }]),
+          ),
+        );
+        setDiagnostic(payload.diagnostic);
+        setSpawnedIds(new Set());
+        pendingGapsRef.current = [];
+        setConsumeCache({});
+        setSocraticCache({});
+        setFeynmanCache({});
+        setConnectCache({});
+        setCrucibleCache({});
+        setRetainContent(null);
+        setCalibSamples([]);
+        const wait = Math.max(0, BUILD_MS - (Date.now() - started));
+        later(() => {
+          setScreen("diagnostic");
+          setAnswered(0);
+        }, wait);
+      })
+      .catch((err: Error) => {
+        setScreen("welcome");
+        showToast(err.message, "Generation failed");
+      });
+  }, [form, later, showToast]);
 
-  const answerDiagnostic = useCallback(() => {
+  /**
+   * A diagnostic answer writes real mastery back: a confident answer prunes
+   * the concept and its whole prerequisite chain (diagnosed known); a hesitant
+   * one marks it learned-but-shaky and queues its gap sub-node for the first
+   * live re-plan; "no idea" leaves the territory unknown.
+   */
+  const answerDiagnostic = useCallback((optionIndex: number) => {
     setAnswered((prev) => {
+      const q = diagnosticRef.current[prev];
+      const effect = q?.opts[optionIndex]?.effect ?? "none";
+      if (q && effect !== "none") {
+        const chain = ancestorsOf(q.nodeId, graphRef.current.edges);
+        setStates((s) => {
+          const next = { ...s };
+          for (const id of chain) next[id] = "mastered";
+          if (effect === "shaky") next[q.nodeId] = "shaky";
+          return next;
+        });
+        if (effect === "shaky" && q.gap)
+          pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
+      }
       const next = prev + 1;
-      setReveal(Math.min(3, next));
+      const total = diagnosticRef.current.length || 1;
+      const maxG = Math.max(1, ...graphRef.current.nodes.map((n) => n.g));
+      setReveal(Math.ceil((Math.min(next, total) / total) * maxG));
       return next;
     });
   }, []);
@@ -278,19 +396,20 @@ export default function AtlasApp() {
       setSelectedId(target);
       later(() => centerOn(target), 30);
     }
-    // The first live re-plan: the diagnostic caught a hesitation inside
-    // Gaussian Elimination, so the planner splits that sub-concept out.
-    later(() => {
-      const parent = graphRef.current.nodes.find((n) => n.id === "gauss");
-      if (!parent) return;
-      const spec = spawnFailureGap(parent.id);
-      if (spec)
-        showToast(
-          `Added ${spec.label} under ${parent.label} — ${spec.reason}`,
-          "Map updated",
-        );
-    }, BUILD_MS);
-  }, [centerOn, frontierTargetId, later, showToast, spawnFailureGap]);
+    // The first live re-plan: every hesitation the diagnostic caught splits
+    // its sub-concept out under the parent, one "Map updated" beat at a time.
+    const pending = pendingGapsRef.current.splice(0);
+    pending.forEach(({ parentId, spec }, i) => {
+      later(() => {
+        const parent = graphRef.current.nodes.find((n) => n.id === parentId);
+        if (parent && attachGap(parentId, spec))
+          showToast(
+            `Added ${spec.label} under ${parent.label} — ${spec.reason}`,
+            "Map updated",
+          );
+      }, BUILD_MS + i * 1100);
+    });
+  }, [attachGap, centerOn, frontierTargetId, later, showToast]);
 
   // ---- canvas interactions ---------------------------------------------
 
@@ -372,23 +491,93 @@ export default function AtlasApp() {
     };
   }, [showToast]);
 
+  // ---- generation plumbing ---------------------------------------------
+
+  /**
+   * Run one content generation behind the overlay. `phase`/`message` voice the
+   * wait; a failure toasts and leaves the learner where they were.
+   */
+  const generate = useCallback(
+    <T,>(
+      phase: string,
+      message: string,
+      fetcher: () => Promise<T>,
+      onReady: (content: T) => void,
+    ) => {
+      if (loadingRef.current) return;
+      setLoading({ phase, message });
+      fetcher()
+        .then((content) => {
+          onReady(content);
+        })
+        .catch((err: Error) => {
+          showToast(err.message, "Generation failed");
+        })
+        .finally(() => setLoading(null));
+    },
+    [showToast],
+  );
+
+  /** Direct (solid-edge) prerequisite labels of a node — grounds the prompts. */
+  const prereqLabelsOf = useCallback((nodeId: string): string[] => {
+    const g = graphRef.current;
+    return g.edges
+      .filter(([, to, dashed]) => to === nodeId && !dashed)
+      .map(([from]) => g.nodes.find((n) => n.id === from)?.label)
+      .filter((l): l is string => !!l);
+  }, []);
+
+  /** Labels the learner has actually learned — context for transfer problems. */
+  const learnedLabels = useCallback((): string[] => {
+    const g = graphRef.current;
+    return g.nodes
+      .filter((n) => !n.gap && statesRef.current[n.id] === "mastered")
+      .map((n) => n.label);
+  }, []);
+
   // ---- map actions ------------------------------------------------------
 
-  const enterSession = useCallback((node: ConceptNode) => {
-    // Entering a frontier node opens Phase 2 · Consume. The write-back to
-    // Learning happens on exit (finishing the last chunk), per the spec —
-    // reading isn't learning until the retrieval passes have run.
-    setConsume({
-      nodeId: node.id,
-      idx: 0,
-      answered: {},
-      variant: {},
-      term: null,
-      aside: null,
-    });
-    setSelectedId(node.id);
-    setScreen("consume");
-  }, []);
+  /**
+   * Entering a frontier node opens Phase 2 · Consume, generating the node's
+   * reading pass first if this run hasn't yet. The write-back to Learning
+   * happens on exit (finishing the last chunk), per the spec.
+   */
+  const enterSession = useCallback(
+    (node: ConceptNode) => {
+      const open = () => {
+        setConsume({
+          nodeId: node.id,
+          idx: 0,
+          answered: {},
+          variant: {},
+          term: null,
+          aside: null,
+        });
+        setSelectedId(node.id);
+        setScreen("consume");
+      };
+      if (consumeCacheRef.current[node.id]) {
+        open();
+        return;
+      }
+      generate(
+        "Session · Consume",
+        `Writing your reading pass on ${node.label}…`,
+        () =>
+          fetchConsume({
+            topic: formRef.current.topic,
+            nodeLabel: node.label,
+            prereqLabels: prereqLabelsOf(node.id),
+            interests: formRef.current.interests,
+          }),
+        (chunks) => {
+          setConsumeCache((prev) => ({ ...prev, [node.id]: chunks }));
+          open();
+        },
+      );
+    },
+    [generate, prereqLabelsOf],
+  );
 
   // ---- Consume (Learn view) --------------------------------------------
 
@@ -440,26 +629,52 @@ export default function AtlasApp() {
   // ---- Socratic (Phase 3a) ---------------------------------------------
 
   /**
-   * Open the Socratic surface on a node. The node moves Unknown/Frontier →
-   * Learning (understanding is forming), and the contingent-questioning
-   * session begins on its first probe.
+   * Open the Socratic surface on a node, generating its questioning script
+   * first if needed. The node moves Unknown/Frontier → Learning and the
+   * contingent-questioning session begins on its first probe.
    */
-  const enterSocratic = useCallback((node: ConceptNode) => {
-    setStates((prev) =>
-      prev[node.id] === "unknown" || prev[node.id] === undefined
-        ? { ...prev, [node.id]: "learning" }
-        : prev,
-    );
-    setSocratic(socraticStart(node.id));
-    setSelectedId(node.id);
-    setScreen("socratic");
-  }, []);
+  const enterSocratic = useCallback(
+    (node: ConceptNode) => {
+      const open = (steps: SocraticStep[]) => {
+        setStates((prev) =>
+          prev[node.id] === "unknown" || prev[node.id] === undefined
+            ? { ...prev, [node.id]: "learning" }
+            : prev,
+        );
+        setSocratic(socraticStart(node.id, steps));
+        setSelectedId(node.id);
+        setScreen("socratic");
+      };
+      const cached = socraticCacheRef.current[node.id];
+      if (cached) {
+        open(cached);
+        return;
+      }
+      generate(
+        "Session · Socratic",
+        `Preparing the questions that build ${node.label}…`,
+        () =>
+          fetchSocratic({
+            topic: formRef.current.topic,
+            nodeLabel: node.label,
+            interests: formRef.current.interests,
+          }),
+        (steps) => {
+          setSocraticCache((prev) => ({ ...prev, [node.id]: steps }));
+          open(steps);
+        },
+      );
+    },
+    [generate],
+  );
 
   const dispatchSocratic = useCallback(
     (action: SocraticAction) => {
       setSocratic((prev) => {
         if (!prev) return prev;
-        const next = socraticReducer(prev, action);
+        const steps = socraticCacheRef.current[prev.nodeId];
+        if (!steps?.length) return prev;
+        const next = socraticReducer(prev, action, steps);
         // Repeated "Just tell me" flags a likely prerequisite gap (the spec's
         // logged-drop-to-instruction signal).
         if (action.type === "tell" && next.tells >= 2)
@@ -490,23 +705,52 @@ export default function AtlasApp() {
   // ---- Feynman (Phase 3b) ----------------------------------------------
 
   /**
-   * Open the Feynman teach-back on a node. Like Socratic it's a full surface;
-   * the node moves Unknown/Frontier → Learning (understanding is forming) and
-   * the naive-student session begins on its opening prompt.
+   * Open the Feynman teach-back on a node, generating its beats first if
+   * needed. The node moves Unknown/Frontier → Learning and the naive-student
+   * session begins on its opening prompt.
    */
-  const enterFeynman = useCallback((node: ConceptNode) => {
-    setStates((prev) =>
-      prev[node.id] === "unknown" || prev[node.id] === undefined
-        ? { ...prev, [node.id]: "learning" }
-        : prev,
-    );
-    setFeynman(feynmanStart(node.id));
-    setSelectedId(node.id);
-    setScreen("feynman");
-  }, []);
+  const enterFeynman = useCallback(
+    (node: ConceptNode) => {
+      const open = () => {
+        setStates((prev) =>
+          prev[node.id] === "unknown" || prev[node.id] === undefined
+            ? { ...prev, [node.id]: "learning" }
+            : prev,
+        );
+        setFeynman(feynmanStart(node.id));
+        setSelectedId(node.id);
+        setScreen("feynman");
+      };
+      if (feynmanCacheRef.current[node.id]) {
+        open();
+        return;
+      }
+      generate(
+        "Session · Feynman",
+        `Waking the naive student for ${node.label}…`,
+        () =>
+          fetchFeynman({
+            topic: formRef.current.topic,
+            nodeId: node.id,
+            nodeLabel: node.label,
+            interests: formRef.current.interests,
+          }),
+        (beats) => {
+          setFeynmanCache((prev) => ({ ...prev, [node.id]: beats }));
+          open();
+        },
+      );
+    },
+    [generate],
+  );
 
   const dispatchFeynman = useCallback((action: FeynmanAction) => {
-    setFeynman((prev) => (prev ? feynmanReducer(prev, action) : prev));
+    setFeynman((prev) => {
+      if (!prev) return prev;
+      const beats = feynmanCacheRef.current[prev.nodeId];
+      if (!beats?.length) return prev;
+      return feynmanReducer(prev, action, beats);
+    });
   }, []);
 
   const exitFeynman = useCallback(() => {
@@ -522,26 +766,70 @@ export default function AtlasApp() {
   // ---- Connect (Phase 4 · Elaboration) ---------------------------------
 
   /**
-   * Open the Connect surface on a node. Like the other phases it's a full
-   * surface; the node moves Unknown/Frontier → Learning (understanding is
-   * forming), and the elaboration session begins idle, waiting for the learner
-   * to pick a prior node to link.
+   * Open the Connect surface on a node, generating its elaboration content
+   * first if needed. Candidates are drawn from nodes the learner has actually
+   * touched — the links are personal and true, never generic trivia.
    */
-  const enterConnect = useCallback((node: ConceptNode) => {
-    setStates((prev) =>
-      prev[node.id] === "unknown" || prev[node.id] === undefined
-        ? { ...prev, [node.id]: "learning" }
-        : prev,
-    );
-    setConnect(connectStart(node.id));
-    setSelectedId(node.id);
-    setScreen("connect");
-  }, []);
+  const enterConnect = useCallback(
+    (node: ConceptNode) => {
+      const open = () => {
+        setStates((prev) =>
+          prev[node.id] === "unknown" || prev[node.id] === undefined
+            ? { ...prev, [node.id]: "learning" }
+            : prev,
+        );
+        setConnect(connectStart(node.id));
+        setSelectedId(node.id);
+        setScreen("connect");
+      };
+      if (connectCacheRef.current[node.id]) {
+        open();
+        return;
+      }
+      // Prior-node pool: touched (learned/shaky/mastered) non-gap nodes first;
+      // a fresh map falls back to the node's neighborhood so the web is never
+      // empty.
+      const g = graphRef.current;
+      const touched = g.nodes.filter(
+        (n) =>
+          !n.gap &&
+          n.id !== node.id &&
+          ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
+      );
+      const pool = (
+        touched.length >= 2
+          ? touched
+          : g.nodes.filter((n) => !n.gap && n.id !== node.id)
+      )
+        .slice(0, 8)
+        .map((n) => ({ id: n.id, label: n.label }));
+      generate(
+        "Session · Connect",
+        `Finding what ${node.label} wires into…`,
+        () =>
+          fetchConnect({
+            topic: formRef.current.topic,
+            nodeId: node.id,
+            nodeLabel: node.label,
+            pool,
+            interests: formRef.current.interests,
+          }),
+        (content) => {
+          setConnectCache((prev) => ({ ...prev, [node.id]: content }));
+          open();
+        },
+      );
+    },
+    [generate],
+  );
 
   const dispatchConnect = useCallback((action: ConnectAction) => {
-    setConnect((prev) =>
-      prev ? connectReducer(prev, action, elaborationFor(prev.nodeId)) : prev,
-    );
+    setConnect((prev) => {
+      if (!prev) return prev;
+      const content = connectCacheRef.current[prev.nodeId];
+      if (!content) return prev;
+      return connectReducer(prev, action, content);
+    });
   }, []);
 
   const exitConnect = useCallback(() => {
@@ -556,29 +844,16 @@ export default function AtlasApp() {
 
   /**
    * The write-back — Feynman's connective tissue. Every unresolved gap becomes
-   * a red Gap sub-node hung under the parent by a dashed edge (via `spawnGap`,
-   * idempotent so re-teaching never duplicates), then the phase hands straight
-   * off to Connect. The node stays Learning — mastery waits for the Crucible.
+   * a red Gap sub-node hung under the parent (via `attachGap`, idempotent),
+   * then the phase hands straight off to Connect. The node stays Learning —
+   * mastery waits for the Crucible.
    */
   const advanceFromFeynman = useCallback(() => {
     if (!feynman) return;
     const node = graphRef.current.nodes.find((n) => n.id === feynman.nodeId);
-    const specs = feynmanGaps(feynman);
-    const base = node ? positionsRef.current[node.id] : undefined;
-    if (node && base) {
-      specs.forEach((spec) => {
-        setGraph((g) => spawnGap(g, node.id, spec));
-        setStates((prev) =>
-          prev[spec.id] ? prev : { ...prev, [spec.id]: "gap" },
-        );
-        setPositions((prev) =>
-          prev[spec.id]
-            ? prev
-            : { ...prev, [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy } },
-        );
-        setSpawnedIds((prev) => new Set(prev).add(spec.id));
-      });
-    }
+    const beats = feynmanCacheRef.current[feynman.nodeId] ?? [];
+    const specs = feynmanGaps(feynman, beats);
+    if (node) specs.forEach((spec) => attachGap(node.id, spec));
     setFeynman(null);
     if (node) {
       enterConnect(node);
@@ -590,18 +865,18 @@ export default function AtlasApp() {
     } else {
       setScreen("map");
     }
-  }, [enterConnect, feynman, showToast]);
+  }, [attachGap, enterConnect, feynman, showToast]);
 
   /**
    * Understood and connected: the learner made real links (each drafted a card
    * for Retain), so Connect (Phase 4) is complete. The node moves Learning →
-   * Shaky — its next phase is the Crucible, where transfer is proven. Mastery
-   * is still withheld until that passes.
+   * Shaky — its next phase is the Crucible, where transfer is proven.
    */
   const advanceFromConnect = useCallback(() => {
     if (!connect) return;
     const node = graphRef.current.nodes.find((n) => n.id === connect.nodeId);
-    const cardCount = connectCards(connect, elaborationFor(connect.nodeId)).length;
+    const content = connectCacheRef.current[connect.nodeId];
+    const cardCount = content ? connectCards(connect, content).length : 0;
     if (node)
       setStates((prev) =>
         prev[node.id] === "learning" || prev[node.id] === "unknown"
@@ -622,29 +897,55 @@ export default function AtlasApp() {
   // ---- Crucible (Phase 5 · application / transfer) ---------------------
 
   /**
-   * Open the Crucible surface on a node. Unlike the earlier phases it doesn't
-   * pre-move mastery — the node is already Shaky (Connect left it there) and the
-   * Crucible is where transfer is proven. The session opens on the confidence
-   * gate, the calibration hook that precedes the problem.
+   * Open the Crucible surface on a node, generating its transfer problem
+   * first if needed. The session opens on the confidence gate — the
+   * calibration hook that precedes the problem.
    */
-  const enterCrucible = useCallback((node: ConceptNode) => {
-    setCrucible(crucibleStart(node.id));
-    setSelectedId(node.id);
-    setScreen("crucible");
-  }, []);
+  const enterCrucible = useCallback(
+    (node: ConceptNode) => {
+      const open = () => {
+        setCrucible(crucibleStart(node.id));
+        setSelectedId(node.id);
+        setScreen("crucible");
+      };
+      if (crucibleCacheRef.current[node.id]) {
+        open();
+        return;
+      }
+      generate(
+        "Session · Crucible",
+        `Forging a problem ${node.label} was never taught in…`,
+        () =>
+          fetchCrucible({
+            topic: formRef.current.topic,
+            nodeId: node.id,
+            nodeLabel: node.label,
+            masteredLabels: learnedLabels(),
+            interests: formRef.current.interests,
+          }),
+        (content) => {
+          setCrucibleCache((prev) => ({ ...prev, [node.id]: content }));
+          open();
+        },
+      );
+    },
+    [generate, learnedLabels],
+  );
 
   const dispatchCrucible = useCallback((action: CrucibleAction) => {
-    setCrucible((prev) =>
-      prev ? crucibleReducer(prev, action, crucibleFor(prev.nodeId)) : prev,
-    );
+    setCrucible((prev) => {
+      if (!prev) return prev;
+      const content = crucibleCacheRef.current[prev.nodeId];
+      if (!content) return prev;
+      return crucibleReducer(prev, action, content);
+    });
   }, []);
 
   /**
    * Submitting an attempt. An empty workspace isn't diagnostic — nudge instead.
    * A first-rung failure is precise: it spawns its named sub-concept as a red
-   * Gap node under the parent (via `spawnGap`, idempotent) and flips the parent
-   * Shaky — the diagnostically-rich write-back the spec calls for. The reducer
-   * owns only the session; the map write lives here.
+   * Gap node under the parent and flips the parent Shaky. The stated
+   * confidence, held against the outcome, becomes a live calibration reading.
    */
   const crucibleSubmit = useCallback(() => {
     const cur = crucibleRef.current;
@@ -655,65 +956,67 @@ export default function AtlasApp() {
       );
       return;
     }
-    const content = crucibleFor(cur.nodeId);
+    const content = crucibleCacheRef.current[cur.nodeId];
+    if (!content) return;
     const next = crucibleReducer(cur, { type: "submit" }, content);
     setCrucible(next);
+    // The calibration hook made real: felt (the confidence tap) vs. what
+    // actually happened on this attempt.
+    if (cur.conf !== null)
+      recordCalib(
+        cur.nodeId,
+        CRUCIBLE_FELT[cur.conf],
+        next.outcome === "partial" ? 45 : 88,
+      );
     if (next.outcome !== "partial") return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
-    const base = positionsRef.current[cur.nodeId];
-    if (!node || !base) return;
-    const gap = content.gap;
-    if (graphRef.current.nodes.some((n) => n.id === gap.id)) return;
-    setGraph((g) => spawnGap(g, node.id, gap));
-    setStates((prev) => ({ ...prev, [gap.id]: "gap", [node.id]: "shaky" }));
-    setPositions((prev) => ({
-      ...prev,
-      [gap.id]: { x: base.x + gap.dx, y: base.y + gap.dy },
-    }));
-    setSpawnedIds((prev) => new Set(prev).add(gap.id));
-    showToast(
-      `Transfer broke on “${gap.label}” — written back as a red gap under ${node.label}`,
-      "Map updated",
-    );
-  }, [showToast]);
+    if (!node) return;
+    if (attachGap(node.id, content.gap)) {
+      setStates((prev) => ({ ...prev, [node.id]: "shaky" }));
+      showToast(
+        `Transfer broke on “${content.gap.label}” — written back as a red gap under ${node.label}`,
+        "Map updated",
+      );
+    }
+  }, [attachGap, recordCalib, showToast]);
 
   /**
-   * Transfer confirmed: the recalibrated re-attempt carried the concept into a
-   * framing it was never taught in, so the first-attempt gap is resolved — it
-   * leaves the map — and the node lifts Shaky → Mastered, the only path to
-   * green (Crucible success). It now feeds Review.
+   * Transfer confirmed: the re-attempt carried the concept into a framing it
+   * was never taught in, so the first-attempt gap resolves — it leaves the
+   * map — and the node lifts Shaky → Mastered, the only path to green.
    */
   const advanceFromCrucible = useCallback(() => {
     const cur = crucibleRef.current;
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
-    const gapId = crucibleFor(cur.nodeId).gap.id;
-    setGraph((g) => removeNode(g, gapId));
+    const gapId = crucibleCacheRef.current[cur.nodeId]?.gap.id;
+    if (gapId) {
+      setGraph((g) => removeNode(g, gapId));
+      setPositions((prev) => {
+        if (!prev[gapId]) return prev;
+        const nextPos = { ...prev };
+        delete nextPos[gapId];
+        return nextPos;
+      });
+      setSpawnedIds((prev) => {
+        if (!prev.has(gapId)) return prev;
+        const nextIds = new Set(prev);
+        nextIds.delete(gapId);
+        return nextIds;
+      });
+    }
     setStates((prev) => {
       const nextStates = { ...prev };
-      delete nextStates[gapId];
+      if (gapId) delete nextStates[gapId];
       if (node) nextStates[node.id] = "mastered";
       return nextStates;
-    });
-    setPositions((prev) => {
-      if (!prev[gapId]) return prev;
-      const nextPos = { ...prev };
-      delete nextPos[gapId];
-      return nextPos;
-    });
-    setSpawnedIds((prev) => {
-      if (!prev.has(gapId)) return prev;
-      const nextIds = new Set(prev);
-      nextIds.delete(gapId);
-      return nextIds;
     });
     setScreen("map");
     setCrucible(null);
     if (node) {
       setSelectedId(node.id);
       later(() => centerOn(node.id), 30);
-      // Adherence: a node just went green — the day's winnable end. Record what
-      // lit up and mark today met so the flame reads lit and the streak ticks.
+      // Adherence: a node just went green — the day's winnable end.
       setLitToday((prev) =>
         prev.includes(node.label) ? prev : [...prev, node.label],
       );
@@ -737,46 +1040,85 @@ export default function AtlasApp() {
   // ---- Retain (Phase 6 · Review queue / FSRS) --------------------------
 
   /**
-   * Open the daily Review queue — a global surface, not scoped to a node. The
-   * session starts on the first card's confidence tap (the calibration hook
-   * that precedes every flip).
+   * Open the daily Review queue — a global surface. The day's cards are
+   * generated once from the nodes the learner has actually touched; there is
+   * nothing to review until at least one concept has been learned.
    */
   const enterReview = useCallback(() => {
-    setRetain(retainStart());
-    setScreen("review");
-  }, []);
+    const open = () => {
+      setRetain(retainStart());
+      setScreen("review");
+    };
+    if (retainContentRef.current) {
+      open();
+      return;
+    }
+    const g = graphRef.current;
+    const nodes = g.nodes
+      .filter(
+        (n) =>
+          !n.gap &&
+          ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
+      )
+      .map((n) => ({ id: n.id, label: n.label, state: statesRef.current[n.id]! }));
+    if (nodes.length === 0) {
+      showToast("Nothing to review yet — learn your first concept and cards draft themselves");
+      return;
+    }
+    const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
+    generate(
+      "Retain · Review",
+      "Drafting today's queue from what you've learned…",
+      () =>
+        fetchRetain({
+          topic: formRef.current.topic,
+          budgetMin,
+          nodes,
+          interests: formRef.current.interests,
+        }),
+      (content) => {
+        setRetainContent(content);
+        open();
+      },
+    );
+  }, [generate, showToast]);
 
   const retainConfidence = useCallback((level: ReviewConfidence) => {
-    setRetain((prev) =>
-      prev ? retainReducer(prev, { type: "confidence", level }) : prev,
-    );
+    setRetain((prev) => {
+      if (!prev || !retainContentRef.current) return prev;
+      return retainReducer(prev, { type: "confidence", level }, retainContentRef.current);
+    });
   }, []);
 
   const retainToggleAside = useCallback(() => {
-    setRetain((prev) =>
-      prev ? retainReducer(prev, { type: "toggleAside" }) : prev,
-    );
+    setRetain((prev) => {
+      if (!prev || !retainContentRef.current) return prev;
+      return retainReducer(prev, { type: "toggleAside" }, retainContentRef.current);
+    });
   }, []);
 
   const retainContinue = useCallback(() => {
-    setRetain((prev) =>
-      prev ? retainReducer(prev, { type: "continue" }) : prev,
-    );
+    setRetain((prev) => {
+      if (!prev || !retainContentRef.current) return prev;
+      return retainReducer(prev, { type: "continue" }, retainContentRef.current);
+    });
   }, []);
 
   /**
    * Grade a card — feeds FSRS and advances. "Again" is the alive-loop: the
-   * reducer opens the fail stage, and here we do the map write-back the spec
-   * calls for, flagging the card's node Shaky so retention failure re-enters
-   * Phase 1. The reducer owns the session; the map write lives here (as with the
-   * Crucible's gap write-back).
+   * fail stage opens and the card's node is flagged Shaky, so retention
+   * failure re-enters Phase 1. The pre-flip confidence tap, held against the
+   * grade, becomes a live calibration reading.
    */
   const retainGrade = useCallback(
     (grade: ReviewGrade) => {
       const cur = retainRef.current;
-      if (!cur) return;
-      const card = reviewCard(cur);
-      setRetain(retainReducer(cur, { type: "grade", grade }));
+      const content = retainContentRef.current;
+      if (!cur || !content) return;
+      const card = reviewCard(cur, content);
+      setRetain(retainReducer(cur, { type: "grade", grade }, content));
+      if (cur.conf !== null)
+        recordCalib(card.node, REVIEW_FELT[cur.conf], GRADE_REAL[grade]);
       if (grade === "again" && card.fails) {
         setStates((prev) =>
           prev[card.node] === "shaky"
@@ -789,13 +1131,14 @@ export default function AtlasApp() {
         );
       }
     },
-    [showToast],
+    [recordCalib, showToast],
   );
 
   const retainReteach = useCallback(() => {
     const cur = retainRef.current;
-    if (!cur) return;
-    const card = reviewCard(cur);
+    const content = retainContentRef.current;
+    if (!cur || !content) return;
+    const card = reviewCard(cur, content);
     const node = graphRef.current.nodes.find((n) => n.id === card.node);
     setRetain(null);
     if (node) {
@@ -820,15 +1163,14 @@ export default function AtlasApp() {
   // ---- Calibration (§12 · Metacognition) -------------------------------
 
   /** Open the Calibration surface — an Analytics-layer screen, reached from the
-   *  left rail. It reads the confidence-vs-performance history, nothing else. */
+   *  left rail. It reads the live confidence-vs-performance readings. */
   const enterCalib = useCallback(() => setScreen("calibration"), []);
 
   const exitCalib = useCallback(() => setScreen("map"), []);
 
   /**
    * The calibration payoff: tapping an overconfident node drops straight into
-   * its Crucible to close the real gap — the surface turns a felt/real mismatch
-   * into the one action that resolves it.
+   * its Crucible to close the real gap.
    */
   const closeCalibGap = useCallback(
     (nodeId: string) => {
@@ -842,8 +1184,7 @@ export default function AtlasApp() {
 
   /**
    * Understanding established: the learner answered the core probes unaided,
-   * so Socratic (Phase 3a) is complete. Hand straight off to Feynman — the
-   * node stays Learning; mastery isn't granted until the Crucible + retention.
+   * so Socratic (Phase 3a) is complete. Hand straight off to Feynman.
    */
   const advanceFromSocratic = useCallback(() => {
     const node = graphRef.current.nodes.find((n) => n.id === socratic?.nodeId);
@@ -909,13 +1250,9 @@ export default function AtlasApp() {
           enterFeynman(node);
           break;
         case "shaky":
-          // The Crucible is a real surface: state confidence, attempt a
-          // novel-framing problem, submit. Its write-back (a precise gap on
-          // failure, mastery on a transferred re-attempt) drives the re-plan.
           enterCrucible(node);
           break;
         case "mastered":
-          // Mastered feeds Review — "Review now" opens the daily FSRS queue.
           enterReview();
           break;
         case "gap":
@@ -949,26 +1286,18 @@ export default function AtlasApp() {
       const current = phaseIndex(displayState);
       if (current < 0) return;
       const phase = PHASES[idx];
-      // Socratic (Phase 3a) is a real surface — open it whether the learner is
-      // starting it, re-doing it, or jumping ahead to it.
       if (phase === "Socratic") {
         enterSocratic(node);
         return;
       }
-      // Feynman (Phase 3b) is a real surface too — open it whether starting,
-      // re-doing, or jumping ahead to the teach-back.
       if (phase === "Feynman") {
         enterFeynman(node);
         return;
       }
-      // Connect (Phase 4 · Elaboration) is a real surface as well — open it to
-      // start it, re-do it, or jump ahead to wiring the node into prior nodes.
       if (phase === "Connect") {
         enterConnect(node);
         return;
       }
-      // Crucible (Phase 5 · application/transfer) is a real surface too — open
-      // it to start it, re-do it, or jump ahead to proving transfer.
       if (phase === "Crucible") {
         enterCrucible(node);
         return;
@@ -1059,8 +1388,6 @@ export default function AtlasApp() {
   // What the canvas shows: the live state map, masked during onboarding
   // (generations beyond the diagnostic reveal stay hidden) and during the
   // momentum replay (states that lit after the replay week stay hidden).
-  // Frontier/locking are derived from the masked states, so the glowing
-  // frontier advances live through both the diagnostic and the replay.
   const visibleStates = useMemo<StateMap>(
     () =>
       Object.fromEntries(
@@ -1082,7 +1409,9 @@ export default function AtlasApp() {
   const masteredCount = graph.nodes.filter(
     (n) => states[n.id] === "mastered",
   ).length;
-  const masteryPct = Math.round((masteredCount / graph.nodes.length) * 100);
+  const masteryPct = graph.nodes.length
+    ? Math.round((masteredCount / graph.nodes.length) * 100)
+    : 0;
 
   const selectedNode = graph.nodes.find((n) => n.id === selectedId) ?? null;
   const selectedDisplayState: NodeState | null = selectedNode
@@ -1099,8 +1428,7 @@ export default function AtlasApp() {
     [isMap, selectedId, display, states, graph],
   );
 
-  // The plan, continuously re-derived: the frontier ordered to the goal
-  // (what the left rail lists and "jump to frontier" targets)…
+  // The plan, continuously re-derived: the frontier ordered to the goal…
   const nextUp = useMemo(
     () => orderedFrontier(display, graph, form.goal).slice(0, 3),
     [display, graph, form.goal],
@@ -1112,12 +1440,22 @@ export default function AtlasApp() {
     [form.goal, form.target, states, graph],
   );
 
-  // The calibration readings, resolved against the live node labels — read by
+  // The live calibration readings, resolved against the node labels — read by
   // the Calibration surface and the left-rail "N over" alert.
   const calib = useMemo(
-    () => calibItems((id) => graph.nodes.find((n) => n.id === id)?.label ?? id),
-    [graph],
+    () =>
+      calibItems(
+        calibSamples,
+        (id) => graph.nodes.find((n) => n.id === id)?.label ?? id,
+      ),
+    [calibSamples, graph],
   );
+
+  const consumeChunks = consume ? consumeCache[consume.nodeId] : undefined;
+  const socraticSteps = socratic ? socraticCache[socratic.nodeId] : undefined;
+  const feynmanBeats = feynman ? feynmanCache[feynman.nodeId] : undefined;
+  const connectContent = connect ? connectCache[connect.nodeId] : undefined;
+  const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
 
   return (
     <div
@@ -1155,8 +1493,9 @@ export default function AtlasApp() {
 
       {screen === "building" && <BuildingOverlay />}
 
-      {screen === "diagnostic" && (
+      {screen === "diagnostic" && diagnostic.length > 0 && (
         <DiagnosticPanel
+          questions={diagnostic}
           answered={answered}
           onAnswer={answerDiagnostic}
           onStart={startMap}
@@ -1170,11 +1509,11 @@ export default function AtlasApp() {
             onQuery={setQuery}
             onSurface={onSurface}
             adherence={adherence}
-            queue={dailyQueue()}
+            queue={dailyQueue(retainContent, form.target)}
             onToggleReminder={onToggleReminder}
           />
           <LeftRail
-            subject={form.topic.trim() || "Linear Algebra"}
+            subject={form.topic.trim() || "Your topic"}
             goal={form.goal}
             pace={pace}
             nextUp={nextUp}
@@ -1228,11 +1567,12 @@ export default function AtlasApp() {
         />
       )}
 
-      {screen === "consume" && consume && (
+      {screen === "consume" && consume && consumeChunks && (
         <ConsumeView
           title={
             graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
           }
+          chunks={consumeChunks}
           session={consume}
           onExit={exitConsume}
           onAnswer={consumeAnswer}
@@ -1246,12 +1586,13 @@ export default function AtlasApp() {
         />
       )}
 
-      {screen === "socratic" && socratic && (
+      {screen === "socratic" && socratic && socraticSteps && (
         <SocraticView
           title={
             graph.nodes.find((n) => n.id === socratic.nodeId)?.label ??
             "Concept"
           }
+          steps={socraticSteps}
           session={socratic}
           onExit={exitSocratic}
           onReply={(index) => dispatchSocratic({ type: "reply", index })}
@@ -1263,11 +1604,12 @@ export default function AtlasApp() {
         />
       )}
 
-      {screen === "feynman" && feynman && (
+      {screen === "feynman" && feynman && feynmanBeats && (
         <FeynmanView
           title={
             graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"
           }
+          beats={feynmanBeats}
           session={feynman}
           onExit={exitFeynman}
           onBegin={() => dispatchFeynman({ type: "begin" })}
@@ -1282,9 +1624,9 @@ export default function AtlasApp() {
         />
       )}
 
-      {screen === "connect" && connect && (
+      {screen === "connect" && connect && connectContent && (
         <ConnectView
-          content={elaborationFor(connect.nodeId)}
+          content={connectContent}
           session={connect}
           onExit={exitConnect}
           onSelect={(id) => dispatchConnect({ type: "select", id })}
@@ -1301,9 +1643,9 @@ export default function AtlasApp() {
         />
       )}
 
-      {screen === "crucible" && crucible && (
+      {screen === "crucible" && crucible && crucibleContent && (
         <CrucibleView
-          content={crucibleFor(crucible.nodeId)}
+          content={crucibleContent}
           session={crucible}
           onExit={exitCrucible}
           onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}
@@ -1316,12 +1658,13 @@ export default function AtlasApp() {
         />
       )}
 
-      {screen === "review" && retain && (
+      {screen === "review" && retain && retainContent && (
         <RetainView
+          content={retainContent}
           session={retain}
           nodeLabel={
-            graph.nodes.find((n) => n.id === reviewCard(retain).node)?.label ??
-            "This node"
+            graph.nodes.find((n) => n.id === reviewCard(retain, retainContent).node)
+              ?.label ?? "This node"
           }
           litNodes={masteredCount}
           adherence={adherence}
@@ -1343,6 +1686,8 @@ export default function AtlasApp() {
           onCloseGap={closeCalibGap}
         />
       )}
+
+      {loading && <GeneratingOverlay phase={loading.phase} message={loading.message} />}
 
       {toast && <Toast toast={toast} />}
     </div>
