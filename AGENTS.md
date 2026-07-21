@@ -46,6 +46,22 @@ validated server-side with one corrective retry; ids, graph layout, and gap
 placement offsets are always computed server-side, never trusted from the
 model.
 
+## Auth & persistence (Supabase)
+
+- Accounts are Supabase email magic links via `@supabase/ssr`: `middleware.ts`
+  refreshes the session and redirects signed-out visitors to `/login`;
+  `app/auth/confirm/route.ts` lands the emailed link. Always gate server-side
+  with `supabase.auth.getClaims()` — never `getSession()`.
+- Clients live in `lib/supabase/` (`client.ts` browser, `server.ts` server,
+  `middleware.ts` session refresh). Env vars keep their unprefixed names in
+  `.env.local`; `next.config.ts` mirrors URL + publishable key to
+  `NEXT_PUBLIC_*` for the browser.
+- Run state persists coarsely (§17): one `run_states` row per (user, subject)
+  holding a versioned JSON snapshot — graph, StateMap, adherence, calibration,
+  generated-content caches. `lib/persistence.ts` defines the snapshot;
+  `AtlasApp` hydrates it on mount and write-through saves debounced. RLS keeps
+  rows per-user (`supabase/migrations/`). Normalize when FSRS lands.
+
 ## Conventions
 
 - Styling is inline `style={{...}}` objects matching the design file (`Learning Platform.dc.html` in the Claude Design project); animations are the shared keyframes in `app/globals.css` (`pulseGlow`, `assemble`, `fadeUp`, `softIn`).
