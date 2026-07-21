@@ -22,6 +22,9 @@ interface TopBarProps {
   queue: DailyQueue;
   /** Arm / disarm the right-moment reminder from the flame popover. */
   onToggleReminder: () => void;
+  /** Signed-in account — the avatar shows its initial and signs out on click. */
+  userEmail: string;
+  onSignOut: () => void;
 }
 
 export default function TopBar({
@@ -31,6 +34,8 @@ export default function TopBar({
   adherence,
   queue,
   onToggleReminder,
+  userEmail,
+  onSignOut,
 }: TopBarProps) {
   return (
     <div
@@ -164,22 +169,26 @@ export default function TopBar({
           ? "Review · clear ✓"
           : `Review · ~${queue.minutes} min`}
       </button>
-      <div
+      <button
+        onClick={onSignOut}
+        title={userEmail ? `Sign out (${userEmail})` : "Sign out"}
         style={{
           width: 32,
           height: 32,
           borderRadius: "50%",
           background: color.ink,
           color: color.accentInk,
+          border: "none",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: 13,
           fontWeight: 600,
+          cursor: "pointer",
         }}
       >
-        A
-      </div>
+        {(userEmail[0] ?? "A").toUpperCase()}
+      </button>
     </div>
   );
 }

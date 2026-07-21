@@ -71,6 +71,8 @@ import {
   fetchSocratic,
 } from "@/lib/api";
 import { color, font } from "@/lib/theme";
+import { createClient } from "@/lib/supabase/client";
+import { loadLatestRun, saveRun, type RunSnapshot } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
@@ -134,7 +136,11 @@ interface PanState {
   originY: number;
 }
 
-export default function AtlasApp() {
+export default function AtlasApp({ userEmail }: { userEmail: string }) {
+  const supabase = useMemo(() => createClient(), []);
+  // False until the saved run (if any) has been fetched — nothing renders
+  // before then, so a resumed run never flashes the welcome screen.
+  const [hydrated, setHydrated] = useState(false);
   const [screen, setScreen] = useState<Screen>("welcome");
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
   const [answered, setAnswered] = useState(0);
@@ -256,6 +262,109 @@ export default function AtlasApp() {
   const later = useCallback((fn: () => void, ms: number) => {
     timersRef.current.push(setTimeout(fn, ms));
   }, []);
+
+  // ---- persistence (§17) -----------------------------------------------
+  // One coarse snapshot per (user, subject) in Supabase `run_states`.
+  // Load once on mount; a saved run resumes straight onto the map.
+
+  useEffect(() => {
+    let cancelled = false;
+    loadLatestRun(supabase)
+      .then((row) => {
+        if (cancelled) return;
+        if (row) {
+          const s = row.snapshot;
+          setForm(s.form);
+          setGraph(s.graph);
+          setStates(s.states);
+          setPositions(s.positions);
+          setSpawnedIds(new Set(s.spawnedIds));
+          setAdherence(s.adherence);
+          setCalibSamples(s.calibSamples);
+          setLitToday(s.litToday);
+          setConsumeCache(s.caches.consume);
+          setSocraticCache(s.caches.socratic);
+          setFeynmanCache(s.caches.feynman);
+          setConnectCache(s.caches.connect);
+          setCrucibleCache(s.caches.crucible);
+          setRetainContent(s.caches.retain);
+          setScreen("map");
+        }
+        setHydrated(true);
+      })
+      .catch((err: Error) => {
+        // A failed load must not brick the app — start fresh and say so.
+        if (cancelled) return;
+        console.warn(err.message);
+        setHydrated(true);
+        showToast("Couldn't load your saved progress — starting fresh");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, showToast]);
+
+  // Write-through, debounced: any change to the run once the map exists
+  // (post-onboarding) upserts the whole snapshot. Coarse by design — see
+  // lib/persistence.ts.
+  useEffect(() => {
+    const runActive =
+      hydrated &&
+      graph.nodes.length > 0 &&
+      screen !== "welcome" &&
+      screen !== "building" &&
+      screen !== "diagnostic";
+    if (!runActive) return;
+    const snapshot: RunSnapshot = {
+      v: 1,
+      form,
+      graph,
+      spawnedIds: [...spawnedIds],
+      states,
+      positions,
+      adherence,
+      calibSamples,
+      litToday,
+      caches: {
+        consume: consumeCache,
+        socratic: socraticCache,
+        feynman: feynmanCache,
+        connect: connectCache,
+        crucible: crucibleCache,
+        retain: retainContent,
+      },
+    };
+    const timer = setTimeout(() => {
+      saveRun(supabase, form.topic.trim() || "Untitled", snapshot).catch(
+        (err: Error) => console.warn(err.message),
+      );
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [
+    hydrated,
+    screen,
+    supabase,
+    form,
+    graph,
+    spawnedIds,
+    states,
+    positions,
+    adherence,
+    calibSamples,
+    litToday,
+    consumeCache,
+    socraticCache,
+    feynmanCache,
+    connectCache,
+    crucibleCache,
+    retainContent,
+  ]);
+
+  const signOut = useCallback(() => {
+    supabase.auth.signOut().then(() => {
+      window.location.href = "/login";
+    });
+  }, [supabase]);
 
   const centerOn = useCallback((id: string) => {
     const pos = positionsRef.current[id];
@@ -1457,6 +1566,21 @@ export default function AtlasApp() {
   const connectContent = connect ? connectCache[connect.nodeId] : undefined;
   const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
 
+  // Hold the paper blank until the saved-run fetch settles — a resumed run
+  // must open on the map, never flash the welcome screen first.
+  if (!hydrated) {
+    return (
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100vh",
+          background: color.paper,
+        }}
+      />
+    );
+  }
+
   return (
     <div
       style={{
@@ -1511,6 +1635,8 @@ export default function AtlasApp() {
             adherence={adherence}
             queue={dailyQueue(retainContent, form.target)}
             onToggleReminder={onToggleReminder}
+            userEmail={userEmail}
+            onSignOut={signOut}
           />
           <LeftRail
             subject={form.topic.trim() || "Your topic"}
