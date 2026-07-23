@@ -22,9 +22,12 @@ interface TopBarProps {
   queue: DailyQueue;
   /** Arm / disarm the right-moment reminder from the flame popover. */
   onToggleReminder: () => void;
-  /** Signed-in account — the avatar shows its initial and signs out on click. */
+  /** Signed-in account — the avatar shows its initial and opens the profile. */
   userEmail: string;
-  onSignOut: () => void;
+  /** The "Atlas" wordmark returns to the dashboard (Home). */
+  onHome: () => void;
+  /** The avatar opens the profile, where sign-out now lives. */
+  onProfile: () => void;
 }
 
 export default function TopBar({
@@ -35,7 +38,8 @@ export default function TopBar({
   queue,
   onToggleReminder,
   userEmail,
-  onSignOut,
+  onHome,
+  onProfile,
 }: TopBarProps) {
   return (
     <div
@@ -56,11 +60,14 @@ export default function TopBar({
       }}
     >
       <div
+        onClick={onHome}
+        title="Home"
         style={{
           fontFamily: font.serif,
           fontSize: 19,
           fontWeight: 600,
           letterSpacing: "-0.01em",
+          cursor: "pointer",
         }}
       >
         Atlas
@@ -170,8 +177,8 @@ export default function TopBar({
           : `Review · ~${queue.minutes} min`}
       </button>
       <button
-        onClick={onSignOut}
-        title={userEmail ? `Sign out (${userEmail})` : "Sign out"}
+        onClick={onProfile}
+        title={userEmail ? `Profile (${userEmail})` : "Profile"}
         style={{
           width: 32,
           height: 32,

@@ -19,6 +19,7 @@ import {
   feynmanReducer,
   feynmanStart,
   freshAdherence,
+  GOALS,
   initialStates,
   markTodayMet,
   orderedFrontier,
@@ -76,6 +77,8 @@ import { loadLatestRun, saveRun, type RunSnapshot } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
+import DashboardScreen from "@/components/DashboardScreen";
+import ProfileScreen, { type ProfileStat } from "@/components/ProfileScreen";
 import ConsumeView, {
   type ConsumeSession,
 } from "@/components/session/ConsumeView";
@@ -96,6 +99,8 @@ type Screen =
   | "welcome"
   | "building"
   | "diagnostic"
+  | "dashboard"
+  | "profile"
   | "map"
   | "consume"
   | "socratic"
@@ -365,6 +370,22 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       window.location.href = "/login";
     });
   }, [supabase]);
+
+  // ---- Home (dashboard) + profile navigation ---------------------------
+
+  const enterDashboard = useCallback(() => setScreen("dashboard"), []);
+  const enterProfile = useCallback(() => setScreen("profile"), []);
+  const openMap = useCallback(() => setScreen("map"), []);
+  /** "+ New map" — the single-run app rebuilds from onboarding. */
+  const newMap = useCallback(() => setScreen("welcome"), []);
+  /** Preferences has no surface yet — the live controls live on the map. */
+  const enterSettings = useCallback(
+    () =>
+      showToast(
+        "Preferences live on the map for now — tune your reminder from the streak flame and pace from the left rail.",
+      ),
+    [showToast],
+  );
 
   const centerOn = useCallback((id: string) => {
     const pos = positionsRef.current[id];
@@ -1566,6 +1587,55 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const connectContent = connect ? connectCache[connect.nodeId] : undefined;
   const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
 
+  // ---- Home (dashboard) + profile derived ------------------------------
+
+  // The account, read into an avatar initial and a friendly display name —
+  // honest, derived from the email, never a fabricated identity.
+  const emailLocal = (userEmail.split("@")[0] ?? "").replace(/[._-]+/g, " ").trim();
+  const nameParts = emailLocal.split(/\s+/).filter(Boolean);
+  const displayName =
+    nameParts
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join(" ") || "there";
+  const initials =
+    (nameParts.length >= 2
+      ? nameParts[0][0] + nameParts[1][0]
+      : emailLocal.slice(0, 2)
+    ).toUpperCase() || "A";
+
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const dateLabel = new Date()
+    .toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    })
+    .toUpperCase();
+
+  const queue = dailyQueue(retainContent, form.target);
+  const frontierTotal = graph.nodes.filter(
+    (n) => display[n.id] === "frontier",
+  ).length;
+  const frontierConcept = nextUp[0]?.node.label ?? null;
+  const subject = form.topic.trim() || "Your map";
+  const goalLabel = GOALS.find(([g]) => g === form.goal)?.[1] ?? "General mastery";
+  const interests = form.interests
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const profileStats: ProfileStat[] = [
+    { value: `${adherence.streak}`, label: "Day streak", accent: true },
+    { value: `${masteredCount}`, label: "Concepts mastered" },
+    { value: `${frontierTotal}`, label: "On the frontier" },
+    { value: `${masteryPct}%`, label: "Map mastered" },
+  ];
+  const reviewSummary = adherence.metToday
+    ? "Today's queue is clear — new cards surface as memories fade"
+    : `${queue.cards} card${queue.cards === 1 ? "" : "s"} due today · ~${queue.minutes} min budget`;
+
   // Hold the paper blank until the saved-run fetch settles — a resumed run
   // must open on the map, never flash the welcome screen first.
   if (!hydrated) {
@@ -1636,7 +1706,8 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
             queue={dailyQueue(retainContent, form.target)}
             onToggleReminder={onToggleReminder}
             userEmail={userEmail}
-            onSignOut={signOut}
+            onHome={enterDashboard}
+            onProfile={enterProfile}
           />
           <LeftRail
             subject={form.topic.trim() || "Your topic"}
@@ -1690,6 +1761,43 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           form={form}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onBuild={build}
+        />
+      )}
+
+      {screen === "dashboard" && (
+        <DashboardScreen
+          greeting={greeting}
+          name={displayName}
+          dateLabel={dateLabel}
+          initials={initials}
+          streak={adherence.streak}
+          queue={queue}
+          metToday={adherence.metToday}
+          subject={subject}
+          goalLabel={goalLabel}
+          frontierConcept={frontierConcept}
+          frontierTotal={frontierTotal}
+          masteryPct={masteryPct}
+          onOpenMap={openMap}
+          onReview={enterReview}
+          onProfile={enterProfile}
+          onNewMap={newMap}
+        />
+      )}
+
+      {screen === "profile" && (
+        <ProfileScreen
+          name={displayName}
+          userEmail={userEmail}
+          initials={initials}
+          stats={profileStats}
+          goalLabel={goalLabel}
+          interests={interests}
+          reviewSummary={reviewSummary}
+          onHome={enterDashboard}
+          onReview={enterReview}
+          onSettings={enterSettings}
+          onSignOut={signOut}
         />
       )}
 

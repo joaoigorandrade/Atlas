@@ -5,43 +5,84 @@ import { createClient } from "@/lib/supabase/client";
 import { color, font, kicker } from "@/lib/theme";
 
 interface LoginScreenProps {
-  /** Set when /auth/confirm rejected the magic link (expired / reused). */
+  /** Set when /auth/confirm rejected a confirmation link (expired / reused). */
   linkError?: boolean;
 }
 
-type Status = "idle" | "sending" | "sent" | "error";
+type Mode = "signin" | "signup";
+type Status = "idle" | "working" | "sent" | "error";
 
 export default function LoginScreen({ linkError }: LoginScreenProps) {
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState(
-    linkError ? "That sign-in link expired or was already used — request a fresh one." : "",
+    linkError
+      ? "That confirmation link expired or was already used — sign in again below."
+      : "",
   );
 
-  const sendLink = () => {
+  const submit = () => {
     const address = email.trim();
     if (!address || !address.includes("@")) {
       setStatus("error");
-      setMessage("Enter the email you want the sign-in link sent to.");
+      setMessage("Enter the email for your account.");
       return;
     }
-    setStatus("sending");
+    if (password.length < 6) {
+      setStatus("error");
+      setMessage("Password must be at least 6 characters.");
+      return;
+    }
+
+    setStatus("working");
     setMessage("");
     const supabase = createClient();
-    supabase.auth
-      .signInWithOtp({
-        email: address,
-        options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
-      })
-      .then(({ error }) => {
-        if (error) {
-          setStatus("error");
-          setMessage(error.message);
-        } else {
-          setStatus("sent");
-        }
-      });
+
+    if (mode === "signin") {
+      supabase.auth
+        .signInWithPassword({ email: address, password })
+        .then(({ error }) => {
+          if (error) {
+            setStatus("error");
+            setMessage(error.message);
+          } else {
+            // Full navigation so middleware sees the fresh session cookies.
+            window.location.assign("/");
+          }
+        });
+    } else {
+      supabase.auth
+        .signUp({
+          email: address,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          },
+        })
+        .then(({ data, error }) => {
+          if (error) {
+            setStatus("error");
+            setMessage(error.message);
+          } else if (data.session) {
+            // Email confirmation disabled — signed in immediately.
+            window.location.assign("/");
+          } else {
+            // Email confirmation required — user must click the link.
+            setStatus("sent");
+          }
+        });
+    }
   };
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setStatus("idle");
+    setMessage("");
+  };
+
+  const working = status === "working";
 
   return (
     <div
@@ -75,11 +116,13 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
             margin: "0 0 14px",
           }}
         >
-          Sign in to your map
+          {mode === "signin" ? "Sign in to your map" : "Create your account"}
         </h1>
         <div style={{ fontSize: 14.5, color: color.inkMuted, marginBottom: 36 }}>
-          Your map, streak, and progress live in your account — we email you a
-          sign-in link, no password to remember.
+          Your map, streak, and progress live in your account
+          {mode === "signin"
+            ? " — sign in with your email and password."
+            : " — pick an email and password to get started."}
         </div>
 
         {status === "sent" ? (
@@ -95,13 +138,33 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              Check your inbox
+              Confirm your email
             </div>
-            We sent a sign-in link to {email.trim()}. Open it on this device and
-            you&apos;ll land back here, signed in.
+            We sent a confirmation link to {email.trim()}. Open it to activate
+            your account, then come back and sign in.
           </div>
         ) : (
           <>
+            <div
+              style={{
+                background: color.card,
+                border: `1px solid ${color.hairlineStrong}`,
+                borderRadius: 14,
+                padding: 6,
+                marginBottom: 12,
+                boxShadow: "0 4px 18px rgba(44,40,35,0.05)",
+              }}
+            >
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                style={inputStyle}
+              />
+            </div>
             <div
               style={{
                 background: color.card,
@@ -113,28 +176,22 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
               }}
             >
               <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") sendLink();
+                  if (e.key === "Enter") submit();
                 }}
-                placeholder="you@example.com"
-                type="email"
-                autoFocus
-                style={{
-                  width: "100%",
-                  border: "none",
-                  background: "transparent",
-                  fontFamily: font.serif,
-                  fontSize: 20,
-                  color: color.ink,
-                  padding: "14px 16px",
-                }}
+                placeholder="Password"
+                type="password"
+                autoComplete={
+                  mode === "signin" ? "current-password" : "new-password"
+                }
+                style={inputStyle}
               />
             </div>
             <button
-              onClick={sendLink}
-              disabled={status === "sending"}
+              onClick={submit}
+              disabled={working}
               style={{
                 width: "100%",
                 padding: 17,
@@ -144,13 +201,44 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
                 borderRadius: 13,
                 fontSize: 16,
                 fontWeight: 600,
-                cursor: status === "sending" ? "default" : "pointer",
-                opacity: status === "sending" ? 0.7 : 1,
+                cursor: working ? "default" : "pointer",
+                opacity: working ? 0.7 : 1,
                 boxShadow: "0 10px 28px rgba(47,107,79,0.28)",
               }}
             >
-              {status === "sending" ? "Sending…" : "Email me a sign-in link →"}
+              {working
+                ? mode === "signin"
+                  ? "Signing in…"
+                  : "Creating account…"
+                : mode === "signin"
+                  ? "Sign in →"
+                  : "Create account →"}
             </button>
+
+            <div
+              style={{
+                marginTop: 20,
+                fontSize: 14,
+                color: color.inkMuted,
+                textAlign: "center",
+              }}
+            >
+              {mode === "signin" ? (
+                <>
+                  New to Atlas?{" "}
+                  <button onClick={() => switchMode("signup")} style={linkStyle}>
+                    Create an account
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button onClick={() => switchMode("signin")} style={linkStyle}>
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
           </>
         )}
 
@@ -173,3 +261,26 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
     </div>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  border: "none",
+  background: "transparent",
+  fontFamily: font.serif,
+  fontSize: 20,
+  color: color.ink,
+  padding: "14px 16px",
+  outline: "none",
+} as const;
+
+const linkStyle = {
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  fontSize: 14,
+  fontWeight: 600,
+  color: color.accent,
+  cursor: "pointer",
+  textDecoration: "underline",
+  textUnderlineOffset: 2,
+} as const;
