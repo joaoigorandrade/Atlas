@@ -1,17 +1,26 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties, type DragEvent } from "react";
 import {
   DAILY_TARGETS,
   GOALS,
+  localDay,
   type OnboardingForm,
 } from "@/lib/curriculum";
+import type { ScopeOffer } from "@/lib/api";
 import { color, font, kicker } from "@/lib/theme";
 
 interface WelcomeScreenProps {
   form: OnboardingForm;
   onChange: (patch: Partial<OnboardingForm>) => void;
   onBuild: () => void;
+  /** Uploaded-outline grounding (#30): a chosen file goes up for extraction. */
+  onFile: (file: File) => void;
+  /** Status line under the drop zone — "Grounded in x.pdf", or honest failure copy. */
+  uploadNote: string | null;
+  /** Scoped sub-map offers when the topic was too broad, else null (#30). */
+  scopes: ScopeOffer[] | null;
+  onPickScope: (label: string) => void;
 }
 
 function optionStyle(active: boolean, grow: boolean): CSSProperties {
@@ -33,7 +42,21 @@ export default function WelcomeScreen({
   form,
   onChange,
   onBuild,
+  onFile,
+  uploadNote,
+  scopes,
+  onPickScope,
 }: WelcomeScreenProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) onFile(file);
+  };
+
   return (
     <div
       style={{
@@ -70,9 +93,17 @@ export default function WelcomeScreen({
         </h1>
 
         <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
           style={{
             background: color.card,
-            border: `1px solid ${color.hairlineStrong}`,
+            border: `1px ${dragging ? "dashed" : "solid"} ${
+              dragging ? color.accent : color.hairlineStrong
+            }`,
             borderRadius: 14,
             padding: 6,
             marginBottom: 8,
@@ -97,13 +128,84 @@ export default function WelcomeScreen({
         <div
           style={{
             fontSize: 13,
-            color: color.inkFaint,
+            color: uploadNote ? color.accent : color.inkFaint,
             marginBottom: 38,
             paddingLeft: 4,
           }}
         >
-          or drop a PDF / course outline · we ground the map in a real source
+          {uploadNote ?? (
+            <>
+              or drop a PDF / course outline here ·{" "}
+              <button
+                onClick={() => fileRef.current?.click()}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  fontSize: 13,
+                  color: color.inkMuted,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                }}
+              >
+                browse
+              </button>{" "}
+              · we ground the map in a real source
+            </>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.txt,.md,text/plain,application/pdf"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onFile(file);
+              e.target.value = "";
+            }}
+          />
         </div>
+
+        {scopes && (
+          <div
+            style={{
+              background: color.amberBg,
+              border: "1px solid rgba(160,106,48,0.25)",
+              borderRadius: 14,
+              padding: "18px 20px",
+              marginBottom: 32,
+              animation: "fadeUp 0.3s both",
+            }}
+          >
+            <div style={{ fontSize: 14.5, color: color.amberInk, marginBottom: 14 }}>
+              “{form.topic}” is a continent, not a map. Pick a scoped territory
+              to start with:
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {scopes.map((scope) => (
+                <button
+                  key={scope.label}
+                  onClick={() => onPickScope(scope.label)}
+                  style={{
+                    textAlign: "left",
+                    padding: "12px 15px",
+                    background: color.card,
+                    border: `1px solid ${color.hairlineStrong}`,
+                    borderRadius: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontFamily: font.serif, fontSize: 16.5, color: color.ink }}>
+                    {scope.label} →
+                  </div>
+                  <div style={{ fontSize: 13, color: color.inkSoft, marginTop: 3 }}>
+                    {scope.note}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
@@ -123,6 +225,39 @@ export default function WelcomeScreen({
               </button>
             ))}
           </div>
+          {form.goal === "exam" && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginTop: 12,
+                animation: "fadeUp 0.25s both",
+              }}
+            >
+              <span style={{ fontSize: 14, color: color.inkSoft }}>
+                Exam date{" "}
+                <span style={{ color: color.inkGhost }}>
+                  — powers the real countdown &amp; pace (skippable)
+                </span>
+              </span>
+              <input
+                type="date"
+                value={form.examDate}
+                min={localDay()}
+                onChange={(e) => onChange({ examDate: e.target.value })}
+                style={{
+                  background: color.card,
+                  border: `1px solid ${color.hairlineStrong}`,
+                  borderRadius: 9,
+                  padding: "9px 12px",
+                  fontSize: 14,
+                  color: color.ink,
+                  fontFamily: font.sans,
+                }}
+              />
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: 32 }}>

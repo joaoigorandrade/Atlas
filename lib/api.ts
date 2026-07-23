@@ -33,12 +33,21 @@ export interface CurriculumPayload {
   diagnostic: DiagnosticQuestion[];
 }
 
+/** Too-broad topics come back as scoped sub-map offers instead of a map (#30). */
+export interface ScopeOffer {
+  label: string;
+  note: string;
+}
+
+export type CurriculumResult = CurriculumPayload | { scopes: ScopeOffer[] };
+
 export function fetchCurriculum(params: {
   topic: string;
   goal: GoalKind;
   interests: string;
-}): Promise<CurriculumPayload> {
-  return post<CurriculumPayload>({ kind: "curriculum", ...params });
+  outline?: string;
+}): Promise<CurriculumResult> {
+  return post<CurriculumResult>({ kind: "curriculum", ...params });
 }
 
 export async function fetchConsume(params: {
@@ -103,4 +112,72 @@ export async function fetchRetain(params: {
   return (
     await post<{ content: RetainContent }>({ kind: "retain", ...params })
   ).content;
+}
+
+// ---- the judging loop (#25-#27) — the learner's own words, classified ------
+
+export interface SocraticJudgement {
+  quality: "correct" | "near" | "wrong" | "lost";
+  response: string;
+}
+
+export async function fetchJudgeSocratic(params: {
+  topic: string;
+  nodeLabel: string;
+  question: string;
+  reference: string;
+  answer: string;
+}): Promise<SocraticJudgement> {
+  return (
+    await post<{ judgement: SocraticJudgement }>({
+      kind: "judge",
+      mode: "socratic",
+      ...params,
+    })
+  ).judgement;
+}
+
+export interface FeynmanJudgement {
+  verdict: "good" | "skipped" | "confused";
+  response: string;
+}
+
+export async function fetchJudgeFeynman(params: {
+  topic: string;
+  nodeLabel: string;
+  subPoint: string;
+  reference: string;
+  answer: string;
+}): Promise<FeynmanJudgement> {
+  return (
+    await post<{ judgement: FeynmanJudgement }>({
+      kind: "judge",
+      mode: "feynman",
+      ...params,
+    })
+  ).judgement;
+}
+
+export interface CrucibleJudgement {
+  outcome: "pass" | "partial";
+  transfer: Array<{ verdict: "good" | "red"; text: string }>;
+  gapLabel?: string;
+  gapReason?: string;
+  reExplain?: string;
+}
+
+export async function fetchJudgeCrucible(params: {
+  topic: string;
+  nodeLabel: string;
+  problem: string;
+  hint: string;
+  answer: string;
+}): Promise<CrucibleJudgement> {
+  return (
+    await post<{ judgement: CrucibleJudgement }>({
+      kind: "judge",
+      mode: "crucible",
+      ...params,
+    })
+  ).judgement;
 }

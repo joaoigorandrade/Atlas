@@ -85,6 +85,29 @@ export const STATE_CONFIDENCE: Record<NodeState, string> = {
   gap: "Spawned from a detected failure. A targeted Socratic pass closes just this sub-point.",
 };
 
+/** How a node became Shaky — selects an honest confidence line (#14). */
+export type ShakyReason =
+  | "connect-complete"
+  | "diagnostic-hesitation"
+  | "crucible-fail"
+  | "review-miss";
+
+export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
+  "connect-complete":
+    "Understood and connected — now prove it transfers in the Crucible.",
+  "diagnostic-hesitation":
+    "You hesitated on this in the placement diagnostic — it's probably fragile. A Crucible attempt shows whether it holds.",
+  "crucible-fail":
+    "You feel solid here, but your last application failed. That's fluency, not mastery — re-attempt the Crucible.",
+  "review-miss":
+    "A review card on this slipped — retention is softening. Re-attempt the Crucible to firm it back up.",
+};
+
+/** The Shaky confidence line, honest about how the node got there. */
+export function shakyLine(reason: ShakyReason | undefined): string {
+  return SHAKY_REASON_COPY[reason ?? "crucible-fail"];
+}
+
 export const PHASES = [
   "Consume",
   "Socratic",
@@ -301,7 +324,9 @@ export type SocraticAction =
   | { type: "reply"; index: number }
   | { type: "scratch" }
   | { type: "stuck" }
-  | { type: "tell" };
+  | { type: "tell" }
+  /** A free-text answer, already judged server-side (#25). */
+  | { type: "judged"; answer: string; quality: ReplyQuality; response: string };
 
 /**
  * The contingent tutor, as a pure transition. Correct answers advance and let
@@ -389,6 +414,32 @@ export function socraticReducer(
             ? clampHelp(session.help + 1)
             : session.help,
         ruledOut: [...session.ruledOut, reply.label],
+      };
+    }
+    case "judged": {
+      // The contingent tutor on the learner's own words: the server judge
+      // classified the free-text answer; the same advance/help rules apply.
+      const logged: SocraticSession = {
+        ...session,
+        log: [
+          ...session.log,
+          { role: "learner", text: action.answer },
+          { role: "ai", text: action.response, tone: REPLY_TONE[action.quality] },
+        ],
+      };
+      if (action.quality === "correct" || action.quality === "lost") {
+        const help =
+          action.quality === "correct"
+            ? clampHelp(session.help - 1)
+            : clampHelp(session.help + 1);
+        return advance({ ...logged, help });
+      }
+      return {
+        ...logged,
+        help:
+          action.quality === "wrong"
+            ? clampHelp(session.help + 1)
+            : session.help,
       };
     }
     default:
@@ -518,6 +569,9 @@ export type FeynmanAction =
   | { type: "scaffold" }
   | { type: "speak" }
   | { type: "reply"; index: number }
+  /** The learner's own typed explanation of the current beat, already diffed
+   *  server-side into a verdict + naive-student reaction (#26). */
+  | { type: "taught"; text: string; verdict: TeachVerdict; response: string }
   | { type: "openFix"; beatId: string }
   | { type: "closeFix" }
   | { type: "fix"; index: number }
@@ -575,6 +629,27 @@ export function feynmanReducer(
           ...session.log,
           { role: "learner", text: reply.label },
           { role: "ai", text: reply.response, tone: VERDICT_TONE[reply.verdict] },
+        ],
+      };
+    }
+    case "taught": {
+      // Real teach-back: the learner's own words earned this verdict — the
+      // Gap Report diff is detected, not chosen from a menu.
+      if (session.reported || session.awaiting !== "speak") return session;
+      const beat = beats[session.beat];
+      if (!beat) return session;
+      const last = session.beat === beats.length - 1;
+      return {
+        ...session,
+        started: true,
+        awaiting: "speak",
+        beat: last ? session.beat : session.beat + 1,
+        reported: last,
+        verdicts: { ...session.verdicts, [beat.id]: action.verdict },
+        log: [
+          ...session.log,
+          { role: "learner", text: action.text },
+          { role: "ai", text: action.response, tone: VERDICT_TONE[action.verdict] },
         ],
       };
     }
@@ -947,6 +1022,9 @@ export interface CrucibleSession {
   attempt: string;
   submitted: boolean;
   outcome: CrucibleOutcome | null;
+  /** The judged transfer diagnostic for THIS attempt (#27) — grounded in what
+   *  the learner actually wrote; null until judged. */
+  transfer: TransferRow[] | null;
   /** Whether the 30-second Socratic re-explanation is expanded. */
   reExplain: boolean;
 }
@@ -960,6 +1038,7 @@ export function crucibleStart(nodeId: string): CrucibleSession {
     attempt: "",
     submitted: false,
     outcome: null,
+    transfer: null,
     reExplain: false,
   };
 }
@@ -968,7 +1047,8 @@ export type CrucibleAction =
   | { type: "confidence"; level: ConfidenceLevel }
   | { type: "attempt"; value: string }
   | { type: "sample" }
-  | { type: "submit" }
+  /** The server judge's grading of the actual attempt (#27). */
+  | { type: "result"; outcome: CrucibleOutcome; transfer: TransferRow[] }
   | { type: "toggleReExplain" }
   | { type: "retry" };
 
@@ -994,27 +1074,30 @@ export function crucibleReducer(
       const prob = crucibleProblem(session, content);
       return prob ? { ...session, attempt: prob.sample } : session;
     }
-    case "submit":
-      // An empty workspace isn't diagnostic; the caller nudges instead.
+    case "result":
+      // The judge graded the real attempt — pass/partial is earned, not
+      // scripted, and the diagnostic rows are grounded in what was written.
       if (session.submitted || !session.attempt.trim()) return session;
       return {
         ...session,
         submitted: true,
-        outcome: session.rung === 0 ? "partial" : "pass",
+        outcome: action.outcome,
+        transfer: action.transfer,
       };
     case "toggleReExplain":
       return { ...session, reExplain: !session.reExplain };
     case "retry":
-      // Recalibrate down one step and re-open the workspace — confidence is
-      // re-read against the easier rung, so it clears back to unstated.
+      // Recalibrate down one step and re-open at the confidence gate — the
+      // calibration hook fires on every attempt, retries included.
       return {
         ...session,
-        stage: "work",
+        stage: "confidence",
         conf: null,
         rung: 1,
         attempt: "",
         submitted: false,
         outcome: null,
+        transfer: null,
         reExplain: false,
       };
     default:
@@ -1356,12 +1439,25 @@ export interface AdherenceState {
   reminderOn: boolean;
   /** The last two weeks, oldest → newest, ending on today — the popover strip. */
   history: StreakDay[];
+  /** The local calendar day (YYYY-MM-DD) the trailing "today" square refers to —
+   *  what makes rollover real instead of resetting per page load (#22). */
+  lastDay: string;
 }
 
 /** Single-letter weekday label for a date (M T W T F S S). */
 function weekdayLetter(d: Date): string {
   return ["S", "M", "T", "W", "T", "F", "S"][d.getDay()];
 }
+
+/** The local calendar day as YYYY-MM-DD — all rollover math keys off this. */
+export function localDay(now: Date = new Date()): string {
+  return now.toLocaleDateString("en-CA");
+}
+
+/** A freeze is earned every this-many consecutive days (documented mechanic). */
+export const FREEZE_EVERY = 7;
+/** Freezes bank up to this many — forgiveness, not immunity. */
+export const MAX_FREEZES = 3;
 
 /**
  * A fresh learner's adherence state: no fabricated streak — the strip holds
@@ -1378,6 +1474,60 @@ export function freshAdherence(now: Date = new Date()): AdherenceState {
     usualTime: "7:30pm",
     reminderOn: true,
     history: [{ label: weekdayLetter(now), status: "today" }],
+    lastDay: localDay(now),
+  };
+}
+
+/**
+ * Day rollover (#22), pure: called on load and whenever the calendar day may
+ * have turned. For every day that passed since `lastDay`:
+ * met → the streak already counted it; unmet with a freeze banked → the freeze
+ * absorbs it (history shows "freeze", streak holds); unmet with none → the
+ * streak resets. Ends with a fresh pending "today" square. Idempotent within
+ * the same calendar day.
+ */
+export function rolloverAdherence(
+  state: AdherenceState,
+  now: Date = new Date(),
+): AdherenceState {
+  const today = localDay(now);
+  // Older saved runs predate lastDay — adopt today without judging the past.
+  const last = state.lastDay || today;
+  if (last === today) return state.lastDay ? state : { ...state, lastDay: today };
+  const elapsed = Math.max(
+    1,
+    Math.round((Date.parse(today) - Date.parse(last)) / 86_400_000),
+  );
+  let { streak, freezes } = state;
+  const history = [...state.history];
+  const [ly, lm, ld] = last.split("-").map(Number);
+  // Judge each passed day: `last` first (its square is the trailing one),
+  // then any fully skipped days in between.
+  for (let i = 0; i < elapsed; i++) {
+    const dayMet = i === 0 && state.metToday;
+    if (i > 0)
+      history.push({
+        label: weekdayLetter(new Date(ly, lm - 1, ld + i)),
+        status: "miss",
+      });
+    if (dayMet) continue; // already counted by markTodayMet
+    const idx = history.length - 1;
+    if (freezes > 0) {
+      freezes -= 1;
+      history[idx] = { ...history[idx], status: "freeze" };
+    } else {
+      streak = 0;
+      history[idx] = { ...history[idx], status: "miss" };
+    }
+  }
+  history.push({ label: weekdayLetter(now), status: "today" });
+  return {
+    ...state,
+    streak,
+    freezes,
+    metToday: false,
+    history: history.slice(-14),
+    lastDay: today,
   };
 }
 
@@ -1413,6 +1563,11 @@ export function markTodayMet(state: AdherenceState): AdherenceState {
     metToday: true,
     streak,
     best: Math.max(state.best, streak),
+    // Every FREEZE_EVERY consecutive days banks one freeze (capped).
+    freezes:
+      streak > 0 && streak % FREEZE_EVERY === 0
+        ? Math.min(MAX_FREEZES, state.freezes + 1)
+        : state.freezes,
     history: state.history.map((d) =>
       d.status === "today" ? { ...d, status: "hit" } : d,
     ),
@@ -1575,8 +1730,12 @@ export function calibUnderLine(items: CalibItem[]): string {
     : "";
 }
 
-/** Which phase a node is on, given its mastery state (-1 = locked). */
-export function phaseIndex(state: NodeState): number {
+/**
+ * Which phase a node is on, given its mastery state (-1 = locked).
+ * Mastered alone doesn't grant Retained ✓ — `reviewed` (real review history:
+ * a card for this node graded good or better) is what completes the spiral (#13).
+ */
+export function phaseIndex(state: NodeState, reviewed: boolean): number {
   switch (state) {
     case "frontier":
       return 0;
@@ -1585,7 +1744,7 @@ export function phaseIndex(state: NodeState): number {
     case "shaky":
       return 4;
     case "mastered":
-      return 6;
+      return reviewed ? 6 : 5;
     default:
       return -1;
   }
@@ -1633,6 +1792,9 @@ export interface OnboardingForm {
   goal: GoalKind;
   interests: string;
   target: number;
+  /** ISO date (YYYY-MM-DD) of the exam when goal is "exam"; "" = not set —
+   *  pace then shows no countdown instead of a fabricated one (#23). */
+  examDate: string;
 }
 
 export const DEFAULT_FORM: OnboardingForm = {
@@ -1640,6 +1802,7 @@ export const DEFAULT_FORM: OnboardingForm = {
   goal: "exam",
   interests: "chess, investing",
   target: 15,
+  examDate: "",
 };
 
 /** Every ancestor of `id` (including itself) along prerequisite edges. */
@@ -1790,10 +1953,19 @@ export function orderedFrontier(
   return entries;
 }
 
-/** Days until the demo exam deadline (the left-rail countdown chip). */
-export const EXAM_DAYS = 24;
-/** Rough minutes of focused work to take one concept through the spiral. */
+/** Rough minutes of focused work to take one concept through the spiral.
+ *  ponytail: constant until real session-length analytics exist (#23). */
 export const NODE_MINUTES = 35;
+
+/** Whole days from now until an ISO date (YYYY-MM-DD), floor 0; NaN-safe. */
+export function daysUntil(dateISO: string, now: Date = new Date()): number {
+  const target = Date.parse(dateISO);
+  if (Number.isNaN(target)) return 0;
+  return Math.max(
+    0,
+    Math.ceil((target - Date.parse(localDay(now))) / 86_400_000),
+  );
+}
 
 export interface PaceStatus {
   /** Non-gap concepts not yet mastered. */
@@ -1806,19 +1978,21 @@ export interface PaceStatus {
   onTrack: boolean;
 }
 
-/** Pace against the deadline — the map's warning when it won't make it. */
+/** Pace against the real deadline (#23) — daysLeft comes from the learner's
+ *  actual exam date; no date, no countdown. */
 export function paceStatus(
   states: StateMap,
   graph: ConceptGraph,
   targetPerDay: number,
+  daysLeft: number,
 ): PaceStatus {
   const remaining = graph.nodes.filter(
     (n) => !n.gap && states[n.id] !== "mastered",
   ).length;
-  const neededPerDay = Math.ceil((remaining * NODE_MINUTES) / EXAM_DAYS);
+  const neededPerDay = Math.ceil((remaining * NODE_MINUTES) / Math.max(1, daysLeft));
   return {
     remaining,
-    daysLeft: EXAM_DAYS,
+    daysLeft,
     neededPerDay,
     targetPerDay,
     onTrack: neededPerDay <= targetPerDay,

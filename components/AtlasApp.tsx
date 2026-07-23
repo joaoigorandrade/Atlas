@@ -12,7 +12,7 @@ import {
   connectStart,
   crucibleReducer,
   crucibleStart,
-  dailyQueue,
+  daysUntil,
   displayStates,
   emptyGraph,
   feynmanGaps,
@@ -21,6 +21,7 @@ import {
   freshAdherence,
   GOALS,
   initialStates,
+  localDay,
   markTodayMet,
   orderedFrontier,
   paceStatus,
@@ -29,6 +30,7 @@ import {
   retainReducer,
   retainStart,
   reviewCard,
+  rolloverAdherence,
   socraticReducer,
   socraticStart,
   spawnGap,
@@ -57,19 +59,31 @@ import {
   type RetainSession,
   type ReviewConfidence,
   type ReviewGrade,
+  type ShakyReason,
   type SocraticAction,
   type SocraticSession,
   type SocraticStep,
   type StateMap,
 } from "@/lib/curriculum";
 import {
+  dueCards,
+  gradeStoredCard,
+  newStoredCard,
+  retainContentFromStore,
+  type StoredCard,
+} from "@/lib/fsrs";
+import {
   fetchConnect,
   fetchConsume,
   fetchCrucible,
   fetchCurriculum,
   fetchFeynman,
+  fetchJudgeCrucible,
+  fetchJudgeFeynman,
+  fetchJudgeSocratic,
   fetchRetain,
   fetchSocratic,
+  type ScopeOffer,
 } from "@/lib/api";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
@@ -79,6 +93,7 @@ import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
 import ProfileScreen, { type ProfileStat } from "@/components/ProfileScreen";
+import SettingsScreen from "@/components/SettingsScreen";
 import ConsumeView, {
   type ConsumeSession,
 } from "@/components/session/ConsumeView";
@@ -101,6 +116,7 @@ type Screen =
   | "diagnostic"
   | "dashboard"
   | "profile"
+  | "settings"
   | "map"
   | "consume"
   | "socratic"
@@ -191,6 +207,22 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   // §12 Calibration — live confidence-vs-performance readings, captured from
   // the Crucible's confidence gate and Review's pre-flip taps. Starts empty.
   const [calibSamples, setCalibSamples] = useState<CalibSample[]>([]);
+  // How each Shaky node got that way — the honest confidence line (#14).
+  const [shakyReasons, setShakyReasons] = useState<Record<string, ShakyReason>>({});
+  // Nodes with at least one review graded good+ — gates "Retained ✓" (#13).
+  const [reviewedNodes, setReviewedNodes] = useState<string[]>([]);
+  // The persisted FSRS card store (#21) — the review queue's single source.
+  const [cards, setCards] = useState<StoredCard[]>([]);
+  // A server judge round-trip is in flight (#25-#27) — views disable inputs.
+  const [judging, setJudging] = useState(false);
+  // Uploaded-outline grounding + too-broad-topic scoping (#30).
+  const [outline, setOutline] = useState<string | null>(null);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const [scopes, setScopes] = useState<ScopeOffer[] | null>(null);
+  // Viewport width drives the minimum responsive pass (#8).
+  const [vw, setVw] = useState(1440);
+  const [railOpen, setRailOpen] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(true);
   const [toast, setToast] = useState<ToastData | null>(null);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
@@ -207,12 +239,18 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   formRef.current = form;
   const diagnosticRef = useRef(diagnostic);
   diagnosticRef.current = diagnostic;
+  const answeredRef = useRef(answered);
+  answeredRef.current = answered;
   const statesRef = useRef(states);
   statesRef.current = states;
   const crucibleRef = useRef(crucible);
   crucibleRef.current = crucible;
   const retainRef = useRef(retain);
   retainRef.current = retain;
+  const socraticRef = useRef(socratic);
+  socraticRef.current = socratic;
+  const feynmanRef = useRef(feynman);
+  feynmanRef.current = feynman;
   const consumeCacheRef = useRef(consumeCache);
   consumeCacheRef.current = consumeCache;
   const socraticCacheRef = useRef(socraticCache);
@@ -227,6 +265,10 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   retainContentRef.current = retainContent;
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+  const judgingRef = useRef(judging);
+  judgingRef.current = judging;
   // Gap specs queued by hesitant diagnostic answers, spawned once the map opens.
   const pendingGapsRef = useRef<Array<{ parentId: string; spec: GapSpec }>>([]);
   // Assigned in the derived section below; read by event handlers.
@@ -251,6 +293,46 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     setToast({ message, kicker });
     if (toastRef.current) clearTimeout(toastRef.current);
     toastRef.current = setTimeout(() => setToast(null), kicker ? 3400 : 2400);
+  }, []);
+
+  const setShakyReason = useCallback((id: string, reason: ShakyReason) => {
+    setShakyReasons((prev) => ({ ...prev, [id]: reason }));
+  }, []);
+
+  // ---- responsive minimum (#8): track the viewport, collapse rails below
+  // 1280, and gate the whole app below 768 (rendered later).
+  useEffect(() => {
+    const measure = () => {
+      const w = window.innerWidth;
+      if (w === 0) return; // hidden/backgrounded surface — keep the last real width
+      setVw(w);
+      if (w < 1280) {
+        setRailOpen(false);
+        setDetailOpen(false);
+      } else {
+        setRailOpen(true);
+        setDetailOpen(true);
+      }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  // ---- day rollover (#22): judge passed days whenever the calendar turns —
+  // on load (after hydration applies it too) and once a minute while open.
+  useEffect(() => {
+    const tick = () => {
+      setAdherence((prev) =>
+        prev.lastDay && prev.lastDay !== localDay() ? rolloverAdherence(prev) : prev,
+      );
+    };
+    const id = setInterval(tick, 60_000);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", tick);
+    };
   }, []);
 
   // Clearing the daily queue is the honest "done for today" — it marks the day
@@ -284,9 +366,15 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           setStates(s.states);
           setPositions(s.positions);
           setSpawnedIds(new Set(s.spawnedIds));
-          setAdherence(s.adherence);
+          // Judge every day that passed while the tab was closed (#22) —
+          // a new calendar day also clears yesterday's litToday list.
+          const rolled = rolloverAdherence(s.adherence);
+          setAdherence(rolled);
+          setLitToday(rolled.lastDay === s.adherence.lastDay ? s.litToday : []);
           setCalibSamples(s.calibSamples);
-          setLitToday(s.litToday);
+          setShakyReasons(s.shakyReasons);
+          setReviewedNodes(s.reviewedNodes);
+          setCards(s.cards);
           setConsumeCache(s.caches.consume);
           setSocraticCache(s.caches.socratic);
           setFeynmanCache(s.caches.feynman);
@@ -321,7 +409,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       screen !== "diagnostic";
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 1,
+      v: 2,
       form,
       graph,
       spawnedIds: [...spawnedIds],
@@ -330,6 +418,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       adherence,
       calibSamples,
       litToday,
+      shakyReasons,
+      reviewedNodes,
+      cards,
       caches: {
         consume: consumeCache,
         socratic: socraticCache,
@@ -357,6 +448,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     adherence,
     calibSamples,
     litToday,
+    shakyReasons,
+    reviewedNodes,
+    cards,
     consumeCache,
     socraticCache,
     feynmanCache,
@@ -371,6 +465,22 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     });
   }, [supabase]);
 
+  /** Delete account + all data (#33). Confirm, then the server wipes the rows. */
+  const deleteAccount = useCallback(() => {
+    if (
+      !window.confirm(
+        "Delete your account and all data — map, cards, streak? This cannot be undone.",
+      )
+    )
+      return;
+    fetch("/api/account/delete", { method: "POST" })
+      .then((r) => {
+        if (!r.ok) throw new Error("delete failed");
+        window.location.href = "/login";
+      })
+      .catch(() => showToast("Couldn't delete right now — try again in a moment."));
+  }, [showToast]);
+
   // ---- Home (dashboard) + profile navigation ---------------------------
 
   const enterDashboard = useCallback(() => setScreen("dashboard"), []);
@@ -378,14 +488,55 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const openMap = useCallback(() => setScreen("map"), []);
   /** "+ New map" — the single-run app rebuilds from onboarding. */
   const newMap = useCallback(() => setScreen("welcome"), []);
-  /** Preferences has no surface yet — the live controls live on the map. */
-  const enterSettings = useCallback(
-    () =>
-      showToast(
-        "Preferences live on the map for now — tune your reminder from the streak flame and pace from the left rail.",
+  const enterSettings = useCallback(() => setScreen("settings"), []);
+  const exitSettings = useCallback(() => setScreen("map"), []);
+
+  // ---- data export (#32) ------------------------------------------------
+
+  const download = useCallback((name: string, text: string, mime: string) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, []);
+
+  const slugTopic = () =>
+    (formRef.current.topic.trim() || "atlas").toLowerCase().replace(/\W+/g, "-");
+
+  const exportMap = useCallback(() => {
+    download(
+      `${slugTopic()}-map.json`,
+      JSON.stringify(
+        {
+          topic: formRef.current.topic,
+          nodes: graphRef.current.nodes,
+          edges: graphRef.current.edges,
+          states: statesRef.current,
+        },
+        null,
+        2,
       ),
-    [showToast],
-  );
+      "application/json",
+    );
+  }, [download]);
+
+  const exportCardsJson = useCallback(() => {
+    download(
+      `${slugTopic()}-cards.json`,
+      JSON.stringify(cardsRef.current, null, 2),
+      "application/json",
+    );
+  }, [download]);
+
+  const exportCardsCsv = useCallback(() => {
+    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const rows = cardsRef.current.map((c) => {
+      const front = c.front ?? (c.cloze ? `${c.cloze[0]}____${c.cloze[1]}` : "");
+      return `${esc(front)},${esc(c.back)}`;
+    });
+    download(`${slugTopic()}-cards.csv`, rows.join("\n"), "text/csv");
+  }, [download]);
 
   const centerOn = useCallback((id: string) => {
     const pos = positionsRef.current[id];
@@ -442,16 +593,28 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
    * diagnostic opens once both the content and the animation are done.
    */
   const build = useCallback(() => {
-    const topic = form.topic.trim();
+    const topic = formRef.current.topic.trim();
     if (!topic) {
       showToast("Name a topic first — the map is generated from it");
       return;
     }
     setScreen("building");
     setReveal(0);
+    setScopes(null);
     const started = Date.now();
-    fetchCurriculum({ topic, goal: form.goal, interests: form.interests })
+    fetchCurriculum({
+      topic,
+      goal: formRef.current.goal,
+      interests: formRef.current.interests,
+      outline: outline ?? undefined,
+    })
       .then((payload) => {
+        // Too broad for one map: offer scoped sub-maps instead (#30).
+        if ("scopes" in payload) {
+          setScreen("welcome");
+          setScopes(payload.scopes);
+          return;
+        }
         setGraph(payload.graph);
         setStates(initialStates(payload.graph));
         setPositions(
@@ -469,6 +632,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         setCrucibleCache({});
         setRetainContent(null);
         setCalibSamples([]);
+        setShakyReasons({});
+        setReviewedNodes([]);
+        setCards([]);
         const wait = Math.max(0, BUILD_MS - (Date.now() - started));
         later(() => {
           setScreen("diagnostic");
@@ -479,7 +645,43 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         setScreen("welcome");
         showToast(err.message, "Generation failed");
       });
-  }, [form, later, showToast]);
+  }, [later, outline, showToast]);
+
+  /** A picked scope becomes the topic and builds immediately (#30). */
+  const pickScope = useCallback(
+    (label: string) => {
+      setForm((prev) => ({ ...prev, topic: label }));
+      setScopes(null);
+      // formRef updates on render; build reads the ref, so defer one tick.
+      later(() => build(), 30);
+    },
+    [build, later],
+  );
+
+  /** Upload a syllabus/outline: extract server-side, ground the map (#30). */
+  const onOutlineFile = useCallback(
+    (file: File) => {
+      setUploadNote(`Reading ${file.name}…`);
+      const data = new FormData();
+      data.append("file", file);
+      fetch("/api/extract", { method: "POST", body: data })
+        .then(async (res) => {
+          const json = (await res.json().catch(() => null)) as
+            | { text?: string; error?: string }
+            | null;
+          if (!res.ok || !json?.text)
+            throw new Error(json?.error ?? "Couldn't read that file");
+          setOutline(json.text);
+          setUploadNote(`Grounded in ${file.name} ✓ — the map will follow its outline`);
+        })
+        .catch((err: Error) => {
+          setOutline(null);
+          setUploadNote(null);
+          showToast(err.message, "Upload");
+        });
+    },
+    [showToast],
+  );
 
   /**
    * A diagnostic answer writes real mastery back: a confident answer prunes
@@ -488,27 +690,29 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
    * live re-plan; "no idea" leaves the territory unknown.
    */
   const answerDiagnostic = useCallback((optionIndex: number) => {
-    setAnswered((prev) => {
-      const q = diagnosticRef.current[prev];
-      const effect = q?.opts[optionIndex]?.effect ?? "none";
-      if (q && effect !== "none") {
-        const chain = ancestorsOf(q.nodeId, graphRef.current.edges);
-        setStates((s) => {
-          const next = { ...s };
-          for (const id of chain) next[id] = "mastered";
-          if (effect === "shaky") next[q.nodeId] = "shaky";
-          return next;
-        });
-        if (effect === "shaky" && q.gap)
-          pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
-      }
-      const next = prev + 1;
-      const total = diagnosticRef.current.length || 1;
-      const maxG = Math.max(1, ...graphRef.current.nodes.map((n) => n.g));
-      setReveal(Math.ceil((Math.min(next, total) / total) * maxG));
-      return next;
-    });
-  }, []);
+    // All effects run here in the event handler, never inside a state
+    // updater — React may invoke updaters more than once (#16).
+    const idx = answeredRef.current;
+    const q = diagnosticRef.current[idx];
+    const effect = q?.opts[optionIndex]?.effect ?? "none";
+    if (q && effect !== "none") {
+      const chain = ancestorsOf(q.nodeId, graphRef.current.edges);
+      setStates((s) => {
+        const next = { ...s };
+        for (const id of chain) next[id] = "mastered";
+        if (effect === "shaky") next[q.nodeId] = "shaky";
+        return next;
+      });
+      if (effect === "shaky") setShakyReason(q.nodeId, "diagnostic-hesitation");
+      if (effect === "shaky" && q.gap)
+        pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
+    }
+    const next = idx + 1;
+    const total = diagnosticRef.current.length || 1;
+    const maxG = Math.max(1, ...graphRef.current.nodes.map((n) => n.g));
+    setReveal(Math.ceil((Math.min(next, total) / total) * maxG));
+    setAnswered(next);
+  }, [setShakyReason]);
 
   /**
    * The node the "Start here →" / "Jump to frontier" affordances target:
@@ -818,6 +1022,44 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     [showToast],
   );
 
+  /**
+   * The live judging loop (#25): the learner's own typed answer goes to the
+   * server judge; the classified verdict drives the same contingent rules the
+   * scripted replies used — correct advances, near hints, wrong gets caught.
+   */
+  const socraticAnswer = useCallback(
+    (text: string) => {
+      const session = socraticRef.current;
+      if (!session || judgingRef.current) return;
+      const steps = socraticCacheRef.current[session.nodeId];
+      const step = steps?.[session.step];
+      const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
+      if (!step || !node) return;
+      setJudging(true);
+      fetchJudgeSocratic({
+        topic: formRef.current.topic,
+        nodeLabel: node.label,
+        question: step.prompt,
+        reference: step.tell,
+        answer: text,
+      })
+        .then((j) => {
+          setSocratic((prev) =>
+            prev
+              ? socraticReducer(
+                  prev,
+                  { type: "judged", answer: text, quality: j.quality, response: j.response },
+                  steps,
+                )
+              : prev,
+          );
+        })
+        .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
+        .finally(() => setJudging(false));
+    },
+    [showToast],
+  );
+
   const clearSocraticPad = useCallback(() => {
     setSocratic((prev) => (prev ? { ...prev, padReaction: null } : prev));
   }, []);
@@ -882,6 +1124,44 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       return feynmanReducer(prev, action, beats);
     });
   }, []);
+
+  /**
+   * Real teach-back diffing (#26): the learner's own explanation of the
+   * current beat is diffed server-side against the sub-point — the verdict is
+   * detected from their words, never chosen from a menu.
+   */
+  const feynmanTeach = useCallback(
+    (text: string) => {
+      const session = feynmanRef.current;
+      if (!session || judgingRef.current) return;
+      const beats = feynmanCacheRef.current[session.nodeId];
+      const beat = beats?.[session.beat];
+      const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
+      if (!beat || !node) return;
+      setJudging(true);
+      fetchJudgeFeynman({
+        topic: formRef.current.topic,
+        nodeLabel: node.label,
+        subPoint: beat.subPoint,
+        reference: beat.transcript,
+        answer: text,
+      })
+        .then((j) => {
+          setFeynman((prev) =>
+            prev
+              ? feynmanReducer(
+                  prev,
+                  { type: "taught", text, verdict: j.verdict, response: j.response },
+                  beats,
+                )
+              : prev,
+          );
+        })
+        .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
+        .finally(() => setJudging(false));
+    },
+    [showToast],
+  );
 
   const exitFeynman = useCallback(() => {
     setScreen("map");
@@ -1006,23 +1286,47 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     if (!connect) return;
     const node = graphRef.current.nodes.find((n) => n.id === connect.nodeId);
     const content = connectCacheRef.current[connect.nodeId];
-    const cardCount = content ? connectCards(connect, content).length : 0;
-    if (node)
+    const drafted = content ? connectCards(connect, content) : [];
+    // Confirmed links + accepted mnemonic become REAL persisted cards (#21) —
+    // they surface in Review without a generation inventing them.
+    if (node && drafted.length) {
+      const now = new Date();
+      const stamp = Date.now();
+      setCards((prev) => [
+        ...prev,
+        ...drafted.map((c, i) =>
+          newStoredCard(
+            {
+              id: `${node.id}-connect-${stamp}-${i}`,
+              nodeId: node.id,
+              type: "why",
+              source: "Connect",
+              front: c.front,
+              back: c.back,
+            },
+            now,
+          ),
+        ),
+      ]);
+    }
+    if (node) {
       setStates((prev) =>
         prev[node.id] === "learning" || prev[node.id] === "unknown"
           ? { ...prev, [node.id]: "shaky" }
           : prev,
       );
+      setShakyReason(node.id, "connect-complete");
+    }
     setScreen("map");
     setConnect(null);
     if (node) {
       setSelectedId(node.id);
       later(() => centerOn(node.id), 30);
       showToast(
-        `${cardCount} card${cardCount === 1 ? "" : "s"} drafted for Review · now prove it transfers — the Crucible.`,
+        `${drafted.length} card${drafted.length === 1 ? "" : "s"} drafted for Review · now prove it transfers — the Crucible.`,
       );
     }
-  }, [centerOn, connect, later, showToast]);
+  }, [centerOn, connect, later, setShakyReason, showToast]);
 
   // ---- Crucible (Phase 5 · application / transfer) ---------------------
 
@@ -1079,7 +1383,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
    */
   const crucibleSubmit = useCallback(() => {
     const cur = crucibleRef.current;
-    if (!cur || cur.submitted) return;
+    if (!cur || cur.submitted || judgingRef.current) return;
     if (!cur.attempt.trim()) {
       showToast(
         "Put something in the workspace — even a wrong attempt is diagnostic",
@@ -1087,28 +1391,65 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       return;
     }
     const content = crucibleCacheRef.current[cur.nodeId];
-    if (!content) return;
-    const next = crucibleReducer(cur, { type: "submit" }, content);
-    setCrucible(next);
-    // The calibration hook made real: felt (the confidence tap) vs. what
-    // actually happened on this attempt.
-    if (cur.conf !== null)
-      recordCalib(
-        cur.nodeId,
-        CRUCIBLE_FELT[cur.conf],
-        next.outcome === "partial" ? 45 : 88,
-      );
-    if (next.outcome !== "partial") return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
-    if (!node) return;
-    if (attachGap(node.id, content.gap)) {
-      setStates((prev) => ({ ...prev, [node.id]: "shaky" }));
-      showToast(
-        `Transfer broke on “${content.gap.label}” — written back as a red gap under ${node.label}`,
-        "Map updated",
-      );
-    }
-  }, [attachGap, recordCalib, showToast]);
+    if (!content || !node) return;
+    const problem =
+      content.problems[Math.min(cur.rung, content.problems.length - 1)];
+    // The judge grades the REAL attempt (#27): pass/partial is earned, the
+    // diagnostic quotes their work, and a failure names the actual gap.
+    setJudging(true);
+    fetchJudgeCrucible({
+      topic: formRef.current.topic,
+      nodeLabel: node.label,
+      problem: problem.q,
+      hint: problem.hint,
+      answer: cur.attempt,
+    })
+      .then((j) => {
+        setCrucible((prev) =>
+          prev
+            ? crucibleReducer(
+                prev,
+                { type: "result", outcome: j.outcome, transfer: j.transfer },
+                content,
+              )
+            : prev,
+        );
+        // The calibration hook made real: felt (the confidence tap) vs. what
+        // actually happened on this attempt.
+        if (cur.conf !== null)
+          recordCalib(
+            cur.nodeId,
+            CRUCIBLE_FELT[cur.conf],
+            j.outcome === "partial" ? 45 : 88,
+          );
+        if (j.outcome !== "partial") return;
+        // The judged gap replaces the pre-generated one when the judge named
+        // a different missing sub-concept.
+        const gap: GapSpec =
+          j.gapLabel && j.gapReason
+            ? { ...content.gap, label: j.gapLabel, reason: j.gapReason }
+            : content.gap;
+        if (j.gapLabel)
+          setCrucibleCache((prev) => ({
+            ...prev,
+            [cur.nodeId]: {
+              ...content,
+              gap,
+              reExplain: j.reExplain ?? content.reExplain,
+            },
+          }));
+        setStates((prev) => ({ ...prev, [node.id]: "shaky" }));
+        setShakyReason(node.id, "crucible-fail");
+        if (attachGap(node.id, gap))
+          showToast(
+            `Transfer broke on “${gap.label}” — written back as a red gap under ${node.label}`,
+            "Map updated",
+          );
+      })
+      .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
+      .finally(() => setJudging(false));
+  }, [attachGap, recordCalib, setShakyReason, showToast]);
 
   /**
    * Transfer confirmed: the re-attempt carried the concept into a framing it
@@ -1175,40 +1516,73 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
    * nothing to review until at least one concept has been learned.
    */
   const enterReview = useCallback(() => {
-    const open = () => {
+    const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
+    // The queue reads from the real card store (#21): due cards, real
+    // intervals on the grade buttons, forecast from actual due dates.
+    const openFrom = (store: StoredCard[]) => {
+      if (dueCards(store).length === 0) {
+        showToast("Queue clear — nothing due right now. Cards resurface as memories fade.");
+        return;
+      }
+      setRetainContent(retainContentFromStore(store, budgetMin));
       setRetain(retainStart());
       setScreen("review");
     };
-    if (retainContentRef.current) {
-      open();
-      return;
-    }
     const g = graphRef.current;
-    const nodes = g.nodes
-      .filter(
-        (n) =>
-          !n.gap &&
-          ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
-      )
-      .map((n) => ({ id: n.id, label: n.label, state: statesRef.current[n.id]! }));
-    if (nodes.length === 0) {
+    const touched = g.nodes.filter(
+      (n) =>
+        !n.gap &&
+        ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
+    );
+    if (touched.length === 0) {
       showToast("Nothing to review yet — learn your first concept and cards draft themselves");
       return;
     }
-    const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
+    // First review of a node: generate its atomic cards once, then they live
+    // in the store forever (the generation is a card FACTORY, not the queue).
+    const uncovered = touched.filter(
+      (n) => !cardsRef.current.some((c) => c.nodeId === n.id),
+    );
+    if (uncovered.length === 0) {
+      openFrom(cardsRef.current);
+      return;
+    }
     generate(
       "Retain · Review",
-      "Drafting today's queue from what you've learned…",
+      "Drafting cards from what you've learned…",
       () =>
         fetchRetain({
           topic: formRef.current.topic,
           budgetMin,
-          nodes,
+          nodes: uncovered.map((n) => ({
+            id: n.id,
+            label: n.label,
+            state: statesRef.current[n.id]!,
+          })),
           interests: formRef.current.interests,
         }),
       (content) => {
-        setRetainContent(content);
-        open();
+        const now = new Date();
+        const stamp = Date.now();
+        const seeded = content.cards.map((c, i) =>
+          newStoredCard(
+            {
+              id: `${c.node}-retain-${stamp}-${i}`,
+              nodeId: c.node,
+              type: c.type,
+              source: c.source,
+              cloze: c.cloze,
+              answer: c.answer,
+              front: c.front,
+              back: c.back,
+              reExplain: c.reExplain,
+            },
+            now,
+          ),
+        );
+        const all = [...cardsRef.current, ...seeded];
+        setCards(all);
+        openFrom(all);
       },
     );
   }, [generate, showToast]);
@@ -1247,6 +1621,15 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       if (!cur || !content) return;
       const card = reviewCard(cur, content);
       setRetain(retainReducer(cur, { type: "grade", grade }, content));
+      // Real FSRS (#21): the scheduler computes the card's next due date.
+      setCards((prev) =>
+        prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
+      );
+      // Real review history — what finally earns "Retained ✓" (#13).
+      if (grade === "good" || grade === "easy")
+        setReviewedNodes((prev) =>
+          prev.includes(card.node) ? prev : [...prev, card.node],
+        );
       if (cur.conf !== null)
         recordCalib(card.node, REVIEW_FELT[cur.conf], GRADE_REAL[grade]);
       if (grade === "again" && card.fails) {
@@ -1255,13 +1638,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
             ? prev
             : { ...prev, [card.node]: "shaky" },
         );
+        setShakyReason(card.node, "review-miss");
         showToast(
           `“${graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? "This node"}” flagged Shaky — retention failure re-enters the loop`,
           "Map updated",
         );
       }
     },
-    [recordCalib, showToast],
+    [recordCalib, setShakyReason, showToast],
   );
 
   const retainReteach = useCallback(() => {
@@ -1312,16 +1696,47 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     [enterCrucible],
   );
 
+  /** Remove a resolved gap node and every trace of it from the run state. */
+  const removeGapNode = useCallback((gapId: string) => {
+    setGraph((g) => removeNode(g, gapId));
+    setPositions((prev) => {
+      if (!prev[gapId]) return prev;
+      const nextPos = { ...prev };
+      delete nextPos[gapId];
+      return nextPos;
+    });
+    setSpawnedIds((prev) => {
+      if (!prev.has(gapId)) return prev;
+      const nextIds = new Set(prev);
+      nextIds.delete(gapId);
+      return nextIds;
+    });
+    setStates((prev) => {
+      if (!(gapId in prev)) return prev;
+      const nextStates = { ...prev };
+      delete nextStates[gapId];
+      return nextStates;
+    });
+  }, []);
+
   /**
    * Understanding established: the learner answered the core probes unaided,
-   * so Socratic (Phase 3a) is complete. Hand straight off to Feynman.
+   * so Socratic (Phase 3a) is complete. A regular node hands off to Feynman;
+   * a gap node's targeted pass closes the gap — it leaves the map (#12).
    */
   const advanceFromSocratic = useCallback(() => {
     const node = graphRef.current.nodes.find((n) => n.id === socratic?.nodeId);
     setSocratic(null);
+    if (node?.gap) {
+      removeGapNode(node.id);
+      setScreen("map");
+      setSelectedId(null);
+      showToast(`Gap closed · ${node.label} resolved and off the map`, "Map updated");
+      return;
+    }
     if (node) enterFeynman(node);
     else setScreen("map");
-  }, [enterFeynman, socratic]);
+  }, [enterFeynman, removeGapNode, showToast, socratic]);
 
   // ---- Consume → Socratic hand-off -------------------------------------
 
@@ -1386,13 +1801,15 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           enterReview();
           break;
         case "gap":
-          showToast(`Targeted Socratic pass on ${node.label}`);
+          // The targeted Socratic micro-pass the spec promises (#12) —
+          // completing it removes the gap node from the map.
+          enterSocratic(node);
           break;
         default:
           showToast("Clear its prerequisites first");
       }
     },
-    [enterCrucible, enterFeynman, enterReview, enterSession, showToast],
+    [enterCrucible, enterFeynman, enterReview, enterSession, enterSocratic, showToast],
   );
 
   /**
@@ -1413,7 +1830,10 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
   const onPhaseAction = useCallback(
     (node: ConceptNode, displayState: NodeState, idx: number) => {
-      const current = phaseIndex(displayState);
+      const current = phaseIndex(
+        displayState,
+        reviewedNodes.includes(node.id),
+      );
       if (current < 0) return;
       const phase = PHASES[idx];
       if (phase === "Socratic") {
@@ -1455,6 +1875,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       enterReview,
       enterSocratic,
       onPrimaryAction,
+      reviewedNodes,
       showToast,
     ],
   );
@@ -1501,8 +1922,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     momentumRef.current = setInterval(() => {
       setMomentumWeek((prev) => {
         const next = Math.min(MOMENTUM_WEEKS, prev + 1);
-        if (next >= MOMENTUM_WEEKS && momentumRef.current)
+        if (next >= MOMENTUM_WEEKS && momentumRef.current) {
           clearInterval(momentumRef.current);
+          // Let the final frame read for a beat, then drop the week-mask so
+          // later-spawned nodes (week 4 gaps) render normally again (#9).
+          timersRef.current.push(
+            setTimeout(() => setMomentumPlaying(false), 1000),
+          );
+        }
         return next;
       });
     }, 1000);
@@ -1563,11 +1990,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     () => orderedFrontier(display, graph, form.goal).slice(0, 3),
     [display, graph, form.goal],
   );
-  // …and the pace check against the deadline, when the goal has one.
+  // …and the pace check against the real deadline (#23) — an exam goal
+  // without a date gets no fabricated countdown.
   const pace = useMemo(
     () =>
-      form.goal === "exam" ? paceStatus(states, graph, form.target) : null,
-    [form.goal, form.target, states, graph],
+      form.goal === "exam" && form.examDate
+        ? paceStatus(states, graph, form.target, daysUntil(form.examDate))
+        : null,
+    [form.goal, form.examDate, form.target, states, graph],
   );
 
   // The live calibration readings, resolved against the node labels — read by
@@ -1614,7 +2044,10 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     })
     .toUpperCase();
 
-  const queue = dailyQueue(retainContent, form.target);
+  // The honest queue chip, read from the real card store (#21): cards
+  // actually due now, in minutes.
+  const dueNow = useMemo(() => dueCards(cards).length, [cards]);
+  const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow };
   const frontierTotal = graph.nodes.filter(
     (n) => display[n.id] === "frontier",
   ).length;
@@ -1651,13 +2084,67 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     );
   }
 
+  // Below the hard minimum a polished gate beats a broken layout (#8).
+  if (vw < 768) {
+    return (
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100vh",
+          background: color.paper,
+          color: color.ink,
+          fontFamily: font.sans,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 32,
+          textAlign: "center",
+        }}
+      >
+        <div style={{ maxWidth: 380, animation: "fadeUp 0.4s both" }}>
+          <div
+            style={{
+              fontFamily: font.mono,
+              fontSize: 11,
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              color: color.inkFaint,
+              marginBottom: 16,
+            }}
+          >
+            Atlas · learn anything, deeply
+          </div>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 28,
+              lineHeight: 1.2,
+              marginBottom: 14,
+            }}
+          >
+            Atlas is best on a desktop screen
+          </div>
+          <div style={{ fontSize: 14.5, lineHeight: 1.6, color: color.inkSoft }}>
+            The living concept map needs room to breathe. Open Atlas on a
+            laptop or desktop — your progress is saved to your account and will
+            be right where you left it.
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const narrow = vw < 1280;
+
   return (
     <div
       style={{
         position: "relative",
         width: "100%",
         height: "100vh",
-        overflow: "hidden",
+        // clip (not hidden) forbids programmatic scrolling — scrollIntoView on
+        // off-screen canvas content can never drag the UI off-screen (#7).
+        overflow: "clip",
         background: color.paper,
         color: color.ink,
         fontFamily: font.sans,
@@ -1703,47 +2190,96 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
             onQuery={setQuery}
             onSurface={onSurface}
             adherence={adherence}
-            queue={dailyQueue(retainContent, form.target)}
+            queue={queue}
             onToggleReminder={onToggleReminder}
             userEmail={userEmail}
             onHome={enterDashboard}
             onProfile={enterProfile}
           />
-          <LeftRail
-            subject={form.topic.trim() || "Your topic"}
-            goal={form.goal}
-            pace={pace}
-            nextUp={nextUp}
-            masteryPct={masteryPct}
-            calibOver={calibOverCount(calib)}
-            momentumPlaying={momentumPlaying}
-            momentumWeek={momentumWeek}
-            onJumpFrontier={jumpFrontier}
-            onCalibration={enterCalib}
-            onToggleMomentum={toggleMomentum}
-            onPickNode={(id) => {
-              setSelectedId(id);
-              centerOn(id);
-            }}
-          />
-          {selectedNode && selectedDisplayState && (
+          {(!narrow || railOpen) && (
+            <LeftRail
+              subject={form.topic.trim() || "Your topic"}
+              goal={form.goal}
+              pace={pace}
+              nextUp={nextUp}
+              masteryPct={masteryPct}
+              calibOver={calibOverCount(calib)}
+              momentumPlaying={momentumPlaying}
+              momentumWeek={momentumWeek}
+              onJumpFrontier={jumpFrontier}
+              onCalibration={enterCalib}
+              onToggleMomentum={toggleMomentum}
+              onPickNode={(id) => {
+                setSelectedId(id);
+                centerOn(id);
+              }}
+            />
+          )}
+          {(!narrow || detailOpen) && selectedNode && selectedDisplayState && (
             <NodeDetail
               node={selectedNode}
               displayState={selectedDisplayState}
               nodes={graph.nodes}
               edges={graph.edges}
               display={display}
+              reviewed={reviewedNodes.includes(selectedNode.id)}
+              shakyReason={shakyReasons[selectedNode.id]}
               onSelect={setSelectedId}
               onPrimaryAction={onPrimaryAction}
               onPhaseAction={onPhaseAction}
               onSkipKnown={skipKnown}
             />
           )}
+          {narrow && (
+            // Collapsed-rail toggles for laptop-narrow widths (#8).
+            <>
+              <button
+                onClick={() => setRailOpen((v) => !v)}
+                style={{
+                  position: "absolute",
+                  top: 70,
+                  left: railOpen ? 274 : 12,
+                  zIndex: 16,
+                  padding: "8px 11px",
+                  background: color.card,
+                  border: `1px solid ${color.hairlineStrong}`,
+                  borderRadius: 9,
+                  fontSize: 12.5,
+                  color: color.inkMuted,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
+                }}
+              >
+                {railOpen ? "⟨ Hide plan" : "Plan ⟩"}
+              </button>
+              {selectedNode && (
+                <button
+                  onClick={() => setDetailOpen((v) => !v)}
+                  style={{
+                    position: "absolute",
+                    top: 70,
+                    right: detailOpen ? 368 : 12,
+                    zIndex: 16,
+                    padding: "8px 11px",
+                    background: color.card,
+                    border: `1px solid ${color.hairlineStrong}`,
+                    borderRadius: 9,
+                    fontSize: 12.5,
+                    color: color.inkMuted,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
+                  }}
+                >
+                  {detailOpen ? "Hide node ⟩" : "⟨ Node"}
+                </button>
+              )}
+            </>
+          )}
           <div
             style={{
               position: "absolute",
               bottom: 18,
-              left: 280,
+              left: !narrow || railOpen ? 280 : 18,
               fontFamily: font.mono,
               fontSize: 11,
               color: color.inkGhost,
@@ -1761,6 +2297,10 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           form={form}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onBuild={build}
+          onFile={onOutlineFile}
+          uploadNote={uploadNote}
+          scopes={scopes}
+          onPickScope={pickScope}
         />
       )}
 
@@ -1782,6 +2322,20 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           onReview={enterReview}
           onProfile={enterProfile}
           onNewMap={newMap}
+        />
+      )}
+
+      {screen === "settings" && (
+        <SettingsScreen
+          form={form}
+          adherence={adherence}
+          onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          onToggleReminder={onToggleReminder}
+          onExportMap={exportMap}
+          onExportCardsJson={exportCardsJson}
+          onExportCardsCsv={exportCardsCsv}
+          onDeleteAccount={deleteAccount}
+          onExit={exitSettings}
         />
       )}
 
@@ -1828,8 +2382,12 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           }
           steps={socraticSteps}
           session={socratic}
+          judging={judging}
+          gapMode={
+            graph.nodes.find((n) => n.id === socratic.nodeId)?.gap ?? false
+          }
           onExit={exitSocratic}
-          onReply={(index) => dispatchSocratic({ type: "reply", index })}
+          onAnswer={socraticAnswer}
           onSubmitScratch={() => dispatchSocratic({ type: "scratch" })}
           onStuck={() => dispatchSocratic({ type: "stuck" })}
           onTell={() => dispatchSocratic({ type: "tell" })}
@@ -1845,10 +2403,10 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           }
           beats={feynmanBeats}
           session={feynman}
+          judging={judging}
           onExit={exitFeynman}
           onBegin={() => dispatchFeynman({ type: "begin" })}
-          onSpeak={() => dispatchFeynman({ type: "speak" })}
-          onReply={(index) => dispatchFeynman({ type: "reply", index })}
+          onTeach={feynmanTeach}
           onScaffold={() => dispatchFeynman({ type: "scaffold" })}
           onOpenFix={(beatId) => dispatchFeynman({ type: "openFix", beatId })}
           onCloseFix={() => dispatchFeynman({ type: "closeFix" })}
@@ -1881,6 +2439,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         <CrucibleView
           content={crucibleContent}
           session={crucible}
+          judging={judging}
           onExit={exitCrucible}
           onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}
           onAttempt={(value) => dispatchCrucible({ type: "attempt", value })}

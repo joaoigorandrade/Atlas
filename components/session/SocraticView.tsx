@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   HELP_COLOR,
   HELP_LABELS,
@@ -25,8 +25,13 @@ interface SocraticViewProps {
   /** The generated questioning script for this node. */
   steps: SocraticStep[];
   session: SocraticSession;
+  /** True while the server judge is classifying the typed answer (#25). */
+  judging: boolean;
+  /** A targeted pass on a red gap node (#12) — completing it closes the gap. */
+  gapMode: boolean;
   onExit: () => void;
-  onReply: (index: number) => void;
+  /** Submit the learner's own typed answer for judging. */
+  onAnswer: (text: string) => void;
   onSubmitScratch: () => void;
   onStuck: () => void;
   onTell: () => void;
@@ -52,8 +57,10 @@ export default function SocraticView({
   title,
   steps,
   session,
+  judging,
+  gapMode,
   onExit,
-  onReply,
+  onAnswer,
   onSubmitScratch,
   onStuck,
   onTell,
@@ -62,6 +69,14 @@ export default function SocraticView({
 }: SocraticViewProps) {
   const step = steps[session.step];
   const scratchPending = !!step?.scratch && !session.scratchDone;
+
+  // The learner's own answer, typed — cleared whenever a new turn lands.
+  const [draft, setDraft] = useState("");
+  useEffect(() => setDraft(""), [session.log.length]);
+  const submitDraft = () => {
+    const text = draft.trim();
+    if (text && !judging) onAnswer(text);
+  };
 
   // ---- the transcript scrolls to the newest turn -----------------------
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -281,7 +296,9 @@ export default function SocraticView({
                         background: GREEN,
                       }}
                     />
-                    Understanding established — you reconstructed it unaided.
+                    {gapMode
+                      ? "Sub-point rebuilt — this gap can close."
+                      : "Understanding established — you reconstructed it unaided."}
                   </div>
                   <button
                     onClick={onAdvance}
@@ -298,7 +315,7 @@ export default function SocraticView({
                       boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
                     }}
                   >
-                    Teach it back · Feynman →
+                    {gapMode ? "Close the gap · back to the map →" : "Teach it back · Feynman →"}
                   </button>
                 </div>
               ) : scratchPending ? (
@@ -328,49 +345,63 @@ export default function SocraticView({
                       marginBottom: 9,
                     }}
                   >
-                    Reply
+                    Your answer — in your own words
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                    {step.replies.map((r, i) => {
-                      const spent = session.ruledOut.includes(r.label);
-                      return (
-                        <button
-                          key={r.label}
-                          disabled={spent}
-                          onClick={() => onReply(i)}
-                          style={{
-                            textAlign: "left",
-                            padding: "12px 15px",
-                            borderRadius: 10,
-                            fontSize: 14,
-                            lineHeight: 1.4,
-                            cursor: spent ? "default" : "pointer",
-                            fontFamily: "inherit",
-                            border: `1px solid ${color.hairlineStrong}`,
-                            background: color.card,
-                            color: color.ink,
-                            opacity: spent ? 0.42 : 1,
-                            textDecoration: spent ? "line-through" : "none",
-                            transition: "border-color .15s, background .15s",
-                          }}
-                          onMouseEnter={(e) => {
-                            if (spent) return;
-                            e.currentTarget.style.borderColor = color.accent;
-                            e.currentTarget.style.background = color.accentBg;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = color.hairlineStrong;
-                            e.currentTarget.style.background = color.card;
-                          }}
-                        >
-                          {r.label}
-                        </button>
-                      );
-                    })}
+                  <div style={{ display: "flex", gap: 9, alignItems: "flex-end" }}>
+                    <textarea
+                      value={draft}
+                      disabled={judging}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          submitDraft();
+                        }
+                      }}
+                      placeholder={
+                        judging
+                          ? "Reading your answer…"
+                          : "Type what you think — wrong turns get caught, not judged"
+                      }
+                      rows={2}
+                      style={{
+                        flex: 1,
+                        resize: "none",
+                        padding: "12px 15px",
+                        borderRadius: 10,
+                        fontSize: 14,
+                        lineHeight: 1.45,
+                        fontFamily: "inherit",
+                        border: `1px solid ${color.hairlineStrong}`,
+                        background: color.card,
+                        color: color.ink,
+                        opacity: judging ? 0.6 : 1,
+                      }}
+                    />
+                    <button
+                      onClick={submitDraft}
+                      disabled={judging || !draft.trim()}
+                      style={{
+                        flex: "0 0 auto",
+                        padding: "12px 17px",
+                        background:
+                          judging || !draft.trim() ? "rgba(44,40,35,0.07)" : color.accent,
+                        color:
+                          judging || !draft.trim() ? color.inkGhost : color.accentInk,
+                        border: "none",
+                        borderRadius: 10,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: judging || !draft.trim() ? "default" : "pointer",
+                      }}
+                    >
+                      {judging ? "…" : "Send"}
+                    </button>
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                     <button
                       onClick={onStuck}
+                      disabled={judging}
                       style={{
                         padding: "9px 14px",
                         background: color.card,
@@ -385,6 +416,7 @@ export default function SocraticView({
                     </button>
                     <button
                       onClick={onTell}
+                      disabled={judging}
                       style={{
                         padding: "9px 14px",
                         background: color.card,

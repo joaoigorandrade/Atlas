@@ -23,6 +23,8 @@ interface CrucibleViewProps {
   /** The transfer content for this node (problem ladder, interleaved draws, gap). */
   content: CrucibleContent;
   session: CrucibleSession;
+  /** True while the server judge grades the actual attempt (#27). */
+  judging: boolean;
   onExit: () => void;
   /** State confidence before the problem is revealed — the calibration hook. */
   onConfidence: (level: ConfidenceLevel) => void;
@@ -43,6 +45,7 @@ interface CrucibleViewProps {
 export default function CrucibleView({
   content,
   session,
+  judging,
   onExit,
   onConfidence,
   onAttempt,
@@ -211,19 +214,20 @@ export default function CrucibleView({
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <button
                       onClick={onSubmit}
+                      disabled={judging}
                       style={{
                         padding: "14px 26px",
-                        background: RUST,
-                        color: color.accentInk,
+                        background: judging ? "rgba(44,40,35,0.07)" : RUST,
+                        color: judging ? color.inkGhost : color.accentInk,
                         border: "none",
                         borderRadius: 12,
                         fontSize: 15,
                         fontWeight: 600,
-                        cursor: "pointer",
-                        boxShadow: `0 8px 22px ${CRUCIBLE_COLOR.glow}`,
+                        cursor: judging ? "default" : "pointer",
+                        boxShadow: judging ? "none" : `0 8px 22px ${CRUCIBLE_COLOR.glow}`,
                       }}
                     >
-                      Submit attempt
+                      {judging ? "Judging your attempt…" : "Submit attempt"}
                     </button>
                     <button
                       onClick={onSample}
@@ -410,7 +414,7 @@ function Diagnostic({
           marginBottom: 18,
         }}
       >
-        {content.transfer.map((row, i) => {
+        {(session.transfer ?? content.transfer).map((row, i) => {
           const col = TRANSFER_COLOR[row.verdict];
           return (
             <div

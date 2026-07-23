@@ -8,9 +8,11 @@ import {
   STATE_CONFIDENCE,
   STATE_LABEL,
   phaseIndex,
+  shakyLine,
   type ConceptEdge,
   type ConceptNode,
   type NodeState,
+  type ShakyReason,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 
@@ -22,6 +24,10 @@ interface NodeDetailProps {
   edges: ConceptEdge[];
   /** Display state of every node — colors the prerequisite/unlock chips. */
   display: Record<string, NodeState>;
+  /** Real review history exists for this node — gates "Retained ✓" (#13). */
+  reviewed: boolean;
+  /** How the node became Shaky, when it is — selects honest copy (#14). */
+  shakyReason?: ShakyReason;
   onSelect: (id: string) => void;
   onPrimaryAction: (node: ConceptNode, displayState: NodeState) => void;
   /** A phase-row action: re-do a done phase, start the current, or jump ahead. */
@@ -49,6 +55,8 @@ export default function NodeDetail({
   nodes,
   edges,
   display,
+  reviewed,
+  shakyReason,
   onSelect,
   onPrimaryAction,
   onPhaseAction,
@@ -57,8 +65,12 @@ export default function NodeDetail({
   const labelOf = (id: string) =>
     nodes.find((n) => n.id === id)?.label ?? id;
   const stateColor = STATE_COLOR[displayState];
-  const currentPhase = phaseIndex(displayState);
+  const currentPhase = phaseIndex(displayState, reviewed);
   const locked = displayState === "unknown";
+  const confidenceLine =
+    displayState === "shaky"
+      ? shakyLine(shakyReason)
+      : STATE_CONFIDENCE[displayState];
 
   // A tapped ahead-of-recommendation phase awaiting the gentle skip nudge.
   const [pendingSkip, setPendingSkip] = useState<number | null>(null);
@@ -174,7 +186,7 @@ export default function NodeDetail({
           marginBottom: 22,
         }}
       >
-        {STATE_CONFIDENCE[displayState]}
+        {confidenceLine}
       </div>
 
       <div style={{ ...kicker(10), marginBottom: 12 }}>Phase spiral</div>

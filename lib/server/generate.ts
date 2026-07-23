@@ -52,6 +52,53 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], name: string
   return s as T;
 }
 
+// Phrases from our own prompt templates that must never appear verbatim in
+// generated learner-facing labels — a match means the model echoed the
+// template instead of writing a concrete answer (#10).
+const TEMPLATE_ECHOES = [
+  "a complete, precise answer",
+  "a hand-wave",
+  "you'll feel it",
+  "just trust it",
+  "confidently wrong answer",
+  "a real misconception",
+  "what the learner says",
+  "a common misconception as",
+];
+
+function rejectEcho(label: string, name: string): string {
+  const lower = label.toLowerCase();
+  for (const phrase of TEMPLATE_ECHOES)
+    if (lower.includes(phrase))
+      fail(
+        `${name} echoes the prompt template ("${phrase}") — write the concrete answer itself, not a description of it`,
+      );
+  return label;
+}
+
+/** Reject "X instead of X" non-errors — a named error must actually differ (#10).
+ *  Observed live: "resulting in [4, 2] instead of [4, 2]". */
+function rejectSelfIdenticalError(text: string, name: string): string {
+  const lower = text.toLowerCase();
+  const marker = " instead of ";
+  const idx = lower.indexOf(marker);
+  if (idx === -1) return text;
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+  const before = norm(lower.slice(0, idx));
+  const tail = norm(
+    lower.slice(idx + marker.length).split(/[.;!?]|,\s(?:so|which|and)\b/)[0] ?? "",
+  );
+  if (tail && before.endsWith(tail)) {
+    // Token boundary: "…wrote 16 instead of 6" must not match on the "6".
+    const ch = before[before.length - tail.length - 1] ?? " ";
+    if (!/[a-z0-9]/.test(ch))
+      fail(
+        `${name} names an error where before and after are identical ("${tail}") — describe a real, different error`,
+      );
+  }
+  return text;
+}
+
 const SYSTEM: ChatMessage = {
   role: "system",
   content:
@@ -77,6 +124,13 @@ function interestNote(interests: string): string {
 export interface CurriculumPayload {
   graph: ConceptGraph;
   diagnostic: DiagnosticQuestion[];
+}
+
+/** A scoped sub-map offer returned instead of a map when the topic is too
+ *  broad to be one coherent 12-18 node map (#30). */
+export interface ScopeOffer {
+  label: string;
+  note: string;
 }
 
 const GOAL_HINT: Record<GoalKind, string> = {
@@ -133,7 +187,8 @@ function layoutGraph(
   return nodes;
 }
 
-function validateCurriculum(raw: unknown): {
+export function validateCurriculum(raw: unknown): {
+  scopes?: ScopeOffer[];
   nodes: Array<{ id: string; label: string }>;
   edges: ConceptEdge[];
   diagnostic: Array<{
@@ -146,6 +201,17 @@ function validateCurriculum(raw: unknown): {
   }>;
 } {
   const root = obj(raw, "payload");
+  // Too-broad topics come back as 2-3 scoped sub-map offers, not a mush map.
+  if (root.tooBroad === true) {
+    const scopes = arr(root.scopes, "scopes", 2, 3).map((v, i) => {
+      const s = obj(v, `scopes[${i}]`);
+      return {
+        label: str(s.label, `scopes[${i}].label`),
+        note: str(s.note, `scopes[${i}].note`),
+      };
+    });
+    return { scopes, nodes: [], edges: [], diagnostic: [] };
+  }
   const seen = new Set<string>();
   const nodes = arr(root.nodes, "nodes", 10, 24).map((v, i) => {
     const n = obj(v, `nodes[${i}]`);
@@ -165,6 +231,26 @@ function validateCurriculum(raw: unknown): {
     edges.push([from, to]);
   }
   if (edges.length < nodes.length - 4) fail("too few valid edges — every node needs prerequisites wired");
+  // A prerequisite cycle would permanently lock those nodes on the map —
+  // Kahn must consume every node or the payload is rejected (#16).
+  {
+    const indeg: Record<string, number> = {};
+    const fwd: Record<string, string[]> = {};
+    for (const n of nodes) indeg[n.id] = 0;
+    for (const [a, b] of edges) {
+      (fwd[a] = fwd[a] ?? []).push(b);
+      indeg[b] += 1;
+    }
+    const queue = nodes.map((n) => n.id).filter((id) => indeg[id] === 0);
+    let visited = 0;
+    while (queue.length) {
+      const cur = queue.shift()!;
+      visited += 1;
+      for (const next of fwd[cur] ?? []) if (--indeg[next] === 0) queue.push(next);
+    }
+    if (visited < nodes.length)
+      fail("edges contain a prerequisite cycle — the map must be a DAG");
+  }
   const diagnostic = arr(root.diagnostic, "diagnostic", 3, 3).map((v, i) => {
     const d = obj(v, `diagnostic[${i}]`);
     const nodeId = str(d.nodeId, `diagnostic[${i}].nodeId`)
@@ -197,13 +283,21 @@ export async function generateCurriculum(params: {
   topic: string;
   goal: GoalKind;
   interests: string;
-}): Promise<CurriculumPayload> {
-  const { topic, goal, interests } = params;
+  /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
+  outline?: string;
+}): Promise<CurriculumPayload | { scopes: ScopeOffer[] }> {
+  const { topic, goal, interests, outline } = params;
+  const grounding = outline?.trim()
+    ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
+    : "";
   const raw = await generateJson(
     user(
       `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}
+${grounding}
+If (and only if) the topic is far too broad for one coherent 12-18 concept map (e.g. "science", "math", "history"), instead return:
+{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers
 
-Return JSON:
+Otherwise return JSON:
 {
   "nodes": [{"id": "short-kebab-id", "label": "Concept Name"}, ...],   // 12 to 18 concepts, foundations through capstone
   "edges": [["prereq-id", "dependent-id"], ...],                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
@@ -226,7 +320,9 @@ Return JSON:
 Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own.`,
     ),
     validateCurriculum,
+    { label: "curriculum" },
   );
+  if (raw.scopes) return { scopes: raw.scopes };
   const nodes = layoutGraph(raw.nodes, raw.edges);
   const total = raw.diagnostic.length;
   const diagnostic: DiagnosticQuestion[] = raw.diagnostic.map((d, i) => ({
@@ -332,6 +428,7 @@ Return JSON with 4 chunks that build the concept from "what it is" to "ready to 
 }`,
     ),
     validateConsume,
+    { label: "consume" },
   );
 }
 
@@ -345,14 +442,17 @@ const MOVES = [
 ] as const;
 const QUALITIES = ["correct", "near", "wrong", "lost"] as const;
 
-function validateSocratic(raw: unknown): SocraticStep[] {
+export function validateSocratic(raw: unknown): SocraticStep[] {
   const root = obj(raw, "payload");
   return arr(root.steps, "steps", 3, 5).map((v, i) => {
     const s = obj(v, `steps[${i}]`);
     const replies = arr(s.replies, `steps[${i}].replies`, 3, 4).map((r, j) => {
       const rep = obj(r, `steps[${i}].replies[${j}]`);
       return {
-        label: str(rep.label, `steps[${i}].replies[${j}].label`),
+        label: rejectEcho(
+          str(rep.label, `steps[${i}].replies[${j}].label`),
+          `steps[${i}].replies[${j}].label`,
+        ),
         quality: oneOf(rep.quality, QUALITIES, `steps[${i}].replies[${j}].quality`),
         response: str(rep.response, `steps[${i}].replies[${j}].response`),
       };
@@ -409,6 +509,7 @@ Return JSON:
 }`,
     ),
     validateSocratic,
+    { label: "socratic" },
   );
 }
 
@@ -423,7 +524,7 @@ const FEYNMAN_GAP_OFFSETS: ReadonlyArray<[number, number]> = [
   [120, 150],
 ];
 
-function validateFeynman(nodeId: string) {
+export function validateFeynman(nodeId: string) {
   return (raw: unknown): FeynmanBeat[] => {
     const root = obj(raw, "payload");
     return arr(root.beats, "beats", 3, 4).map((v, i) => {
@@ -431,7 +532,10 @@ function validateFeynman(nodeId: string) {
       const replies = arr(b.replies, `beats[${i}].replies`, 3, 3).map((r, j) => {
         const rep = obj(r, `beats[${i}].replies[${j}]`);
         return {
-          label: str(rep.label, `beats[${i}].replies[${j}].label`),
+          label: rejectEcho(
+            str(rep.label, `beats[${i}].replies[${j}].label`),
+            `beats[${i}].replies[${j}].label`,
+          ),
           verdict: oneOf(rep.verdict, VERDICTS, `beats[${i}].replies[${j}].verdict`),
           response: str(rep.response, `beats[${i}].replies[${j}].response`),
         };
@@ -489,10 +593,10 @@ Return JSON:
       "subPoint": "the sub-point being taught (3-6 words)",
       "transcript": "what the learner plausibly says teaching this sub-point, first person, 2-3 sentences",
       "interjection": "the naive student's interrupting question — innocent, and aimed precisely at the likely gap",
-      "replies": [   // 3 ways the learner might answer; one earns each verdict
-        {"label": "a complete, precise answer", "verdict": "good", "response": "the student's satisfied reaction"},
-        {"label": "a hand-wave ('you'll feel it', 'just trust it')", "verdict": "skipped", "response": "the student saying they still don't get it, naming what was skipped"},
-        {"label": "a confidently WRONG answer (a real misconception)", "verdict": "confused", "response": "the student noticing the contradiction, wrong-footed"}
+      "replies": [   // 3 ways the learner might answer, each WRITTEN OUT VERBATIM in the learner's own words — never a description like "a precise answer"
+        {"label": "<the actual complete, precise answer, written out>", "verdict": "good", "response": "the student's satisfied reaction"},
+        {"label": "<an actual hand-wavy dodge, written out>", "verdict": "skipped", "response": "the student saying they still don't get it, naming what was skipped"},
+        {"label": "<an actual confidently wrong claim (a real misconception), written out>", "verdict": "confused", "response": "the student noticing the contradiction, wrong-footed"}
       ],
       "fix": {   // the targeted micro-pass that closes just this sub-point
         "probe": "one Socratic question aimed straight at the gap",
@@ -505,6 +609,7 @@ Return JSON:
 }`,
     ),
     validateFeynman(nodeId),
+    { label: "feynman" },
   );
 }
 
@@ -601,6 +706,7 @@ Return JSON:
 }`,
     ),
     validateConnect(nodeId, nodeLabel, pool),
+    { label: "connect" },
   );
 }
 
@@ -614,7 +720,11 @@ const RUNGS = [
   { label: "Boss · whole branch" },
 ];
 
-function validateCrucible(nodeId: string, nodeLabel: string) {
+export function validateCrucible(
+  nodeId: string,
+  nodeLabel: string,
+  masteredLabels: string[],
+) {
   return (raw: unknown): CrucibleContent => {
     const root = obj(raw, "payload");
     const problems = arr(root.problems, "problems", 2, 2).map((v, i) => {
@@ -631,15 +741,30 @@ function validateCrucible(nodeId: string, nodeLabel: string) {
       const t = obj(v, `transfer[${i}]`);
       return {
         verdict: oneOf(t.verdict, ["good", "red"] as const, `transfer[${i}].verdict`),
-        text: str(t.text, `transfer[${i}].text`),
+        text: rejectSelfIdenticalError(
+          str(t.text, `transfer[${i}].text`),
+          `transfer[${i}].text`,
+        ),
       };
     });
     if (!transfer.some((t) => t.verdict === "red") || !transfer.some((t) => t.verdict === "good"))
       fail("transfer needs at least one good and one red row");
+    // "Drawn from your map" must be true: keep only draws that name real
+    // mastered nodes; an interest or invented label is dropped (#15).
+    const rawDraws = arr(root.draws, "draws", 1, 4).map((s, i) => str(s, `draws[${i}]`));
+    const owned = new Map(masteredLabels.map((l) => [l.toLowerCase(), l]));
+    const draws =
+      masteredLabels.length === 0
+        ? rawDraws // nothing to validate against on a fresh map
+        : [...new Set(rawDraws.map((d) => owned.get(d.toLowerCase())).filter((d): d is string => !!d))];
+    if (draws.length < 1)
+      fail(
+        `draws must name concepts from the learner's map (${masteredLabels.join(", ")}) — never interests or invented labels`,
+      );
     return {
       centerId: nodeId,
       centerLabel: nodeLabel,
-      draws: arr(root.draws, "draws", 2, 4).map((s, i) => str(s, `draws[${i}]`)),
+      draws,
       rungs: RUNGS,
       gap: {
         id: `gap-cru-${nodeId}`,
@@ -695,7 +820,8 @@ Return JSON:
   "reExplain": "a 30-second Socratic re-explanation aimed straight at the gap, ending with one question"
 }`,
     ),
-    validateCrucible(nodeId, nodeLabel),
+    validateCrucible(nodeId, nodeLabel, masteredLabels),
+    { label: "crucible" },
   );
 }
 
@@ -792,5 +918,172 @@ Return JSON:
 }`,
     ),
     validateRetain(budgetMin, new Set(nodes.map((n) => n.id))),
+    { label: "retain" },
+  );
+}
+
+// ---- kind: judge -----------------------------------------------------------
+// The live judging loop (#25-#27): the learner's own words, classified by a
+// (configurably stronger) judge model. Anti-sycophancy is enforced in the
+// prompt: wrong reasoning is named plainly, never affirmed.
+
+const JUDGE_SYSTEM: ChatMessage = {
+  role: "system",
+  content:
+    "You judge a learner's answer in a mastery-learning app. You are rigorous and anti-sycophantic: " +
+    "a wrong answer is named plainly and specifically (quote the wrong part), never affirmed or smoothed over. " +
+    "A near-miss earns a hint, never the full answer. Empty, evasive, or off-topic input is never treated as correct. " +
+    "Reply with ONLY one valid JSON object.",
+};
+
+export interface SocraticJudgement {
+  quality: "correct" | "near" | "wrong" | "lost";
+  response: string;
+}
+
+export async function judgeSocratic(params: {
+  topic: string;
+  nodeLabel: string;
+  question: string;
+  reference: string;
+  answer: string;
+}): Promise<SocraticJudgement> {
+  const { topic, nodeLabel, question, reference, answer } = params;
+  return generateJson(
+    [
+      JUDGE_SYSTEM,
+      {
+        role: "user",
+        content: `Concept: "${nodeLabel}" (topic: ${topic}).
+The tutor asked: "${question}"
+A fully correct answer would convey: "${reference}"
+The learner answered: """${answer}"""
+
+Classify and respond contingently:
+- "correct": the substance is right (wording may differ) → affirm specifically, one sentence.
+- "near": right direction, one piece missing/imprecise → give a hint that reframes WITHOUT giving the answer, then re-ask.
+- "wrong": contains a real error or misconception → name the error plainly and specifically, quoting their words; do not reveal the full answer.
+- "lost": empty, "I don't know", or entirely off-track → drop the Socratic act and teach the answer directly and completely.
+
+Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner"}`,
+      },
+    ],
+    (raw) => {
+      const root = obj(raw, "payload");
+      return {
+        quality: oneOf(root.quality, QUALITIES, "quality"),
+        response: str(root.response, "response"),
+      };
+    },
+    { label: "judge-socratic", role: "judge" },
+  );
+}
+
+export interface FeynmanJudgement {
+  verdict: "good" | "skipped" | "confused";
+  response: string;
+}
+
+export async function judgeFeynman(params: {
+  topic: string;
+  nodeLabel: string;
+  subPoint: string;
+  reference: string;
+  explanation: string;
+}): Promise<FeynmanJudgement> {
+  const { topic, nodeLabel, subPoint, reference, explanation } = params;
+  return generateJson(
+    [
+      JUDGE_SYSTEM,
+      {
+        role: "user",
+        content: `The learner is teaching the concept "${nodeLabel}" (topic: ${topic}) to a naive student.
+Sub-point under test: "${subPoint}"
+A solid explanation would convey: "${reference}"
+The learner's own explanation: """${explanation}"""
+
+Diff their explanation against the sub-point:
+- "good": the sub-point is genuinely explained (their words, their structure — paraphrase is fine).
+- "skipped": hand-waved, asserted without explanation, or not addressed at all.
+- "confused": contains a real error or misconception about this sub-point.
+
+Respond AS the naive student, quoting or referencing the learner's actual words: pleased if good, still-puzzled and naming what was skipped if skipped, noticing the contradiction if confused.
+
+Return JSON: {"verdict": "good" | "skipped" | "confused", "response": "the naive student's reaction, referencing their words"}`,
+      },
+    ],
+    (raw) => {
+      const root = obj(raw, "payload");
+      return {
+        verdict: oneOf(root.verdict, VERDICTS, "verdict"),
+        response: str(root.response, "response"),
+      };
+    },
+    { label: "judge-feynman", role: "judge" },
+  );
+}
+
+export interface CrucibleJudgement {
+  outcome: "pass" | "partial";
+  transfer: Array<{ verdict: "good" | "red"; text: string }>;
+  /** Present when outcome is "partial": the actually-missing sub-concept. */
+  gapLabel?: string;
+  gapReason?: string;
+  reExplain?: string;
+}
+
+export async function judgeCrucible(params: {
+  topic: string;
+  nodeLabel: string;
+  problem: string;
+  hint: string;
+  attempt: string;
+}): Promise<CrucibleJudgement> {
+  const { topic, nodeLabel, problem, hint, attempt } = params;
+  return generateJson(
+    [
+      JUDGE_SYSTEM,
+      {
+        role: "user",
+        content: `Concept under test: "${nodeLabel}" (topic: ${topic}).
+Transfer problem posed: """${problem}"""
+(The intended reframe: ${hint})
+The learner's actual attempt: """${attempt}"""
+
+Grade the attempt. "pass" ONLY if the core concept genuinely transferred — the reasoning is right where it matters (arithmetic slips that don't touch the concept may pass with a note). Anything empty, vague, off-topic, or containing a conceptual error is "partial". Never grade generously.
+
+Return JSON:
+{
+  "outcome": "pass" | "partial",
+  "transfer": [   // exactly 3 rows diagnosing THIS attempt — quote or reference what they actually wrote
+    {"verdict": "good" | "red", "text": "which sub-concept transferred or broke, grounded in their words"}
+  ],
+  "gapLabel": "the missing sub-concept as a map label (3-7 words)",   // partial only
+  "gapReason": "why it split out, phrased to the learner, quoting their error",   // partial only
+  "reExplain": "a 30-second Socratic re-explanation aimed straight at that gap, ending with one question"   // partial only
+}`,
+      },
+    ],
+    (raw) => {
+      const root = obj(raw, "payload");
+      const outcome = oneOf(root.outcome, ["pass", "partial"] as const, "outcome");
+      const transfer = arr(root.transfer, "transfer", 3, 3).map((v, i) => {
+        const t = obj(v, `transfer[${i}]`);
+        return {
+          verdict: oneOf(t.verdict, ["good", "red"] as const, `transfer[${i}].verdict`),
+          text: str(t.text, `transfer[${i}].text`),
+        };
+      });
+      if (outcome === "partial" && !transfer.some((t) => t.verdict === "red"))
+        fail('a "partial" outcome needs at least one red transfer row');
+      const out: CrucibleJudgement = { outcome, transfer };
+      if (outcome === "partial") {
+        out.gapLabel = str(root.gapLabel, "gapLabel (required for partial)");
+        out.gapReason = str(root.gapReason, "gapReason (required for partial)");
+        out.reExplain = str(root.reExplain, "reExplain (required for partial)");
+      }
+      return out;
+    },
+    { label: "judge-crucible", role: "judge" },
   );
 }

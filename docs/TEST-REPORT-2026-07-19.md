@@ -3,6 +3,78 @@
 > Date: **2026-07-19** · Branch: `main` @ `05dda7f` · Stack: Next 15.5.20 · React 19 · TS strict
 > Model under test: `deepseek/deepseek-chat` via OpenRouter · Build ✓ · Typecheck ✓ · 137 kB first load
 > Published artifact: <https://claude.ai/code/artifact/83827911-bc7f-4eeb-8bd8-3d893c7ce111>
+>
+> **Update — 2026-07-23:** the backlog below is now implemented and shipped.
+> See §0 for the per-task status. Build ✓ · Typecheck ✓ · 38 unit tests ✓ ·
+> Supabase migrations applied (RLS on) · **live in production**:
+> <https://atlas-tan-two.vercel.app>
+
+---
+
+## 0. Implementation status — 2026-07-23
+
+The full backlog (§vii) was implemented after this report was written. Current
+state on `main` (working tree):
+
+- `npm run build` ✓ · `npm run typecheck` ✓ · `npm test` → **38 passed, 4 skipped**
+  (the 4 are the live-model eval, gated behind `RUN_EVAL=1`).
+- Supabase project `vdqyniquypytagxhbaen`: `run_states` + `generation_log`
+  tables live, **RLS enabled**, `generation_calls_this_month()` RPC present.
+- Deployed to Vercel (`estou-casando/atlas`) — production alias
+  **<https://atlas-tan-two.vercel.app>** serving: `/` gated → `/login`,
+  `/privacy` public (200), auth + Supabase env working at runtime.
+
+### Per-task status
+
+| Task | Title | Status |
+|---|---|---|
+| #7 | Root-container scroll drift | ✅ `overflow: clip` on the app root |
+| #8 | Responsive minimum pass | ✅ rails collapse < 1280 px, gate < 768 px |
+| #9 | Momentum replay never ends | ✅ `setMomentumPlaying(false)` at `MOMENTUM_WEEKS` |
+| #10 | Validators vs template echoes | ✅ semantic rejections + unit tests |
+| #11 | Retry/backoff + fallback + friendly errors | ✅ backoff, model chain, `BUSY_MESSAGE`, 401/402 kept distinct |
+| #12 | Gap nodes → targeted Socratic | ✅ gap CTA calls `enterSocratic` |
+| #13 | "Retained ✓" premature | ✅ `phaseIndex(state, reviewed)`; needs real review history |
+| #14 | Shaky copy accuracy | ✅ `ShakyReason` per node, reason-selected copy |
+| #15 | Crucible draws vs real nodes | ✅ validated against `masteredLabels` |
+| #16 | Updater side-effects + DAG cycle check | ✅ cycle rejection in `validateCurriculum`; pure updater |
+| #17 | Auth + persistence (Supabase) | ✅ email/password accounts + `run_states` snapshot, RLS |
+| #18 | Protect `/api/generate` | ✅ auth, input caps, daily quota, monthly cap, logging |
+| #19 | Error monitoring + structured logs | ✅ structured JSON logs per call; Vercel-native observability (Sentry deferred by choice) |
+| #20 | CI — typecheck/build/tests/smoke | ✅ `.github/workflows/ci.yml` + Vitest suites |
+| #21 | Real FSRS scheduling | ✅ `ts-fsrs`, persisted `StoredCard`s, real due dates + forecast |
+| #22 | Day-aware adherence | ✅ `rolloverAdherence`, `lastDay`, persisted |
+| #23 | Exam date + real pace | ✅ `examDate` captured; `paceStatus(daysLeft)` |
+| #24 | DB content cache | ✅ per-node caches in the run snapshot |
+| #25 | Free-text Socratic judging | ✅ `judgeSocratic` endpoint |
+| #26 | Real Feynman diffing | ✅ `judgeFeynman` endpoint |
+| #27 | Judged Crucible | ✅ `judgeCrucible` endpoint |
+| #28 | Model split + eval suite | ✅ `OPENROUTER_JUDGE_MODEL` + `npm run eval` fixtures |
+| #29 | Vercel deploy | ✅ live production (alias above); env set for prod+preview |
+| #30 | PDF/syllabus upload | ✅ `/api/extract` (unpdf), size/type-capped, grounds curriculum |
+| #31 | Right-moment reminders | ⚠️ cron route + `vercel.json` scaffold; **daily** (Hobby cap), email gated on `RESEND_API_KEY` |
+| #32 | Settings + data export | ✅ Settings screen: goal/date/target/interests/reminder + JSON/CSV export |
+| #33 | Launch hardening | ⚠️ **partial**: privacy page + account/data deletion (`/api/account/delete`) done; analytics, load test, security-review sign-off outstanding |
+
+### Follow-ups still open
+
+1. **#31 right-moment reminders** need Vercel **Pro** for an hourly cron; the
+   Hobby plan caps crons at once/day, so reminders currently fire daily to all
+   armed+unmet learners rather than at each learner's usual hour. Email delivery
+   is a no-op until `RESEND_API_KEY` (+ verified sender) is set. **Set
+   `CRON_SECRET` first** — the cron route is otherwise publicly triggerable; a
+   fail-safe forces sends to no-op on any unauthenticated hit, so real email
+   only flows once `CRON_SECRET` is set and matched.
+2. **Supabase auth advisor:** login is now email/password (not magic link), so
+   **enable leaked-password protection** (HaveIBeenPwned) in Auth settings.
+   <https://supabase.com/docs/guides/auth/password-security>
+3. **#33 remainder:** product analytics (D1/D7 return, phase-completion,
+   gap-close), a generation-path load test, and a security-review sign-off are
+   still process work, not yet code.
+4. **Docs drift:** `AGENTS.md` still describes magic-link auth; the app uses
+   email/password. Reconcile.
+
+---
 
 Every feature was exercised end-to-end against the production build (`npm run build` +
 `next start -p 3100`) with **live AI generation**, plus a static review of the full
