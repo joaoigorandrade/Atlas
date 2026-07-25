@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import {
   ALT_CONTROLS,
   PHASES,
@@ -33,6 +35,8 @@ export interface ConsumeSession {
 interface ConsumeViewProps {
   /** The node this session teaches — titles the view. */
   title: string;
+  /** The subject — context for judging open-ended predictions. */
+  topic: string;
   /** The generated reading pass for this node. */
   chunks: ConsumeChunk[];
   session: ConsumeSession;
@@ -167,6 +171,7 @@ function GridDiagram({ id }: { id: string }) {
 
 export default function ConsumeView({
   title,
+  topic,
   chunks,
   session,
   onExit,
@@ -179,6 +184,8 @@ export default function ConsumeView({
   onSkipCrucible,
   onRoutePrereq,
 }: ConsumeViewProps) {
+  // Predictions are open-ended by default; the switch reveals the closed form.
+  const [mode, setMode] = useState<AnswerMode>("open");
   // Only chunks up to the deepest revealed one are on screen — content
   // reveals in segments, never as a wall.
   const visible = chunks.slice(0, session.idx + 1);
@@ -467,6 +474,15 @@ export default function ConsumeView({
                     >
                       Predict first
                     </span>
+                    {!revealed && (
+                      <span style={{ marginLeft: "auto" }}>
+                        <AnswerModeToggle
+                          mode={mode}
+                          onMode={setMode}
+                          accent={BLUE}
+                        />
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{
@@ -478,6 +494,21 @@ export default function ConsumeView({
                   >
                     {c.pred.q}
                   </div>
+                  {mode === "open" && !revealed ? (
+                    <OpenAnswer
+                      topic={topic}
+                      nodeLabel={title}
+                      question={c.pred.q}
+                      options={c.pred.opts.map((o) => o.label)}
+                      onResolve={(oi) =>
+                        onAnswer(c.id, oi, c.pred.opts[oi].correct)
+                      }
+                      placeholder="Guess before you read — a wrong guess still primes the explanation."
+                      rows={2}
+                      accent={BLUE}
+                      submitLabel="Lock in my prediction →"
+                    />
+                  ) : (
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 9 }}
                   >
@@ -521,6 +552,7 @@ export default function ConsumeView({
                       );
                     })}
                   </div>
+                  )}
                   {verdict && (
                     <div
                       style={{

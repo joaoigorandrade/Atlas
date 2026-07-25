@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  validateChoice,
   validateCrucible,
   validateCurriculum,
   validateFeynman,
@@ -166,5 +167,24 @@ describe("validateCrucible", () => {
         cruciblePayload(["Vectors"], "resulting in [4, 2] instead of [4, 2]"),
       ),
     ).toThrow(/identical/);
+  });
+});
+
+// ---- choice: open-ended answers mapped onto the closed option list -----------
+
+describe("validateChoice", () => {
+  it("accepts an in-range index", () => {
+    expect(validateChoice(3)({ index: 2, response: "you named the mechanism" })).toEqual({
+      index: 2,
+      response: "you named the mechanism",
+    });
+  });
+
+  it("rejects an index past the option list", () => {
+    expect(() => validateChoice(3)({ index: 3, response: "x" })).toThrow(/index/);
+  });
+
+  it("rejects a non-integer index (a string index would silently score wrong)", () => {
+    expect(() => validateChoice(3)({ index: "1", response: "x" })).toThrow(/index/);
   });
 });

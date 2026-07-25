@@ -181,3 +181,26 @@ export async function fetchJudgeCrucible(params: {
     })
   ).judgement;
 }
+
+/** Maps a free-text answer onto a closed option list (the open-ended half of
+ *  placement, Consume predictions, and the Feynman fix pass). */
+export interface ChoiceJudgement {
+  index: number;
+  response: string;
+}
+
+export async function fetchJudgeChoice(params: {
+  topic: string;
+  nodeLabel?: string;
+  question: string;
+  options: string[];
+  answer: string;
+}): Promise<ChoiceJudgement> {
+  return (
+    await post<{ judgement: ChoiceJudgement }>({
+      kind: "judge",
+      mode: "choice",
+      ...params,
+    })
+  ).judgement;
+}

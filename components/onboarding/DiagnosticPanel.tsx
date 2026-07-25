@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import type { DiagnosticQuestion } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 
 interface DiagnosticPanelProps {
+  /** The subject being placed — context for judging open-ended answers. */
+  topic: string;
   /** The generated placement questions for this topic. */
   questions: DiagnosticQuestion[];
   /** Number of questions answered so far. */
@@ -14,11 +18,13 @@ interface DiagnosticPanelProps {
 }
 
 export default function DiagnosticPanel({
+  topic,
   questions,
   answered,
   onAnswer,
   onStart,
 }: DiagnosticPanelProps) {
+  const [mode, setMode] = useState<AnswerMode>("open");
   const done = answered >= questions.length;
   const question = questions[Math.min(answered, questions.length - 1)];
 
@@ -59,13 +65,23 @@ export default function DiagnosticPanel({
         <div key={answered} style={{ marginTop: 44, animation: "fadeUp 0.4s both" }}>
           <div
             style={{
-              fontFamily: font.mono,
-              fontSize: 12,
-              color: color.amberInk,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
               marginBottom: 16,
             }}
           >
-            {question.tag}
+            <div
+              style={{
+                fontFamily: font.mono,
+                fontSize: 12,
+                color: color.amberInk,
+              }}
+            >
+              {question.tag}
+            </div>
+            <AnswerModeToggle mode={mode} onMode={setMode} />
           </div>
           <div
             style={{
@@ -77,6 +93,17 @@ export default function DiagnosticPanel({
           >
             {question.q}
           </div>
+          {mode === "open" ? (
+            <OpenAnswer
+              key={answered}
+              topic={topic}
+              question={question.q}
+              options={question.opts.map((o) => o.label)}
+              onResolve={(index) => onAnswer(index)}
+              placeholder="Tell me what you already know here — honestly, in your own words."
+              submitLabel="Place me →"
+            />
+          ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
             {question.opts.map((opt, oi) => (
               <button
@@ -98,6 +125,7 @@ export default function DiagnosticPanel({
               </button>
             ))}
           </div>
+          )}
           <div
             style={{
               marginTop: 26,
