@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import {
   FEYNMAN_SCAFFOLD,
   PHASES,
@@ -30,6 +31,8 @@ interface FeynmanViewProps {
   beats: FeynmanBeat[];
   /** The node being taught back — titles the view. */
   title: string;
+  /** The subject — context for judging open-ended fix-pass answers. */
+  topic: string;
   session: FeynmanSession;
   /** True while the server judge is diffing the typed explanation (#26). */
   judging: boolean;
@@ -64,6 +67,7 @@ function toneColor(tone: TeachLine["tone"]): string {
 
 export default function FeynmanView({
   title,
+  topic,
   beats,
   session,
   judging,
@@ -163,6 +167,7 @@ export default function FeynmanView({
         {session.reported ? (
           <GapReport
             title={title}
+            topic={topic}
             beats={beats}
             session={session}
             onOpenFix={onOpenFix}
@@ -537,6 +542,7 @@ function Line({ line }: { line: TeachLine }) {
 /** The Gap Report — a visual diff of the explanation, each gap actionable. */
 function GapReport({
   title,
+  topic,
   beats,
   session,
   onOpenFix,
@@ -546,6 +552,7 @@ function GapReport({
   onAdvance,
 }: {
   title: string;
+  topic: string;
   beats: FeynmanBeat[];
   session: FeynmanSession;
   onOpenFix: (beatId: string) => void;
@@ -659,6 +666,8 @@ function GapReport({
                 {open && (
                   <FixPass
                     beat={b}
+                    topic={topic}
+                    nodeLabel={title}
                     ruledOut={session.fixRuledOut}
                     reaction={session.fixReaction}
                     onFix={onFix}
@@ -747,17 +756,22 @@ function LegendChip({ color: c, label }: { color: string; label: string }) {
 /** The targeted Socratic micro-pass for one gap — a single corrective probe. */
 function FixPass({
   beat,
+  topic,
+  nodeLabel,
   ruledOut,
   reaction,
   onFix,
   onClose,
 }: {
   beat: FeynmanBeat;
+  topic: string;
+  nodeLabel: string;
   ruledOut: string[];
   reaction: string | null;
   onFix: (index: number) => void;
   onClose: () => void;
 }) {
+  const [mode, setMode] = useState<AnswerMode>("open");
   return (
     <div
       style={{
@@ -767,8 +781,19 @@ function FixPass({
         animation: "fadeUp .25s both",
       }}
     >
-      <div style={{ ...kicker(9.5, "0.1em"), color: BLUE, marginBottom: 8 }}>
-        Targeted Socratic pass
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          marginBottom: 8,
+        }}
+      >
+        <div style={{ ...kicker(9.5, "0.1em"), color: BLUE }}>
+          Targeted Socratic pass
+        </div>
+        <AnswerModeToggle mode={mode} onMode={setMode} accent={BLUE} />
       </div>
       <div
         style={{
@@ -781,6 +806,18 @@ function FixPass({
       >
         {beat.fix.probe}
       </div>
+      {mode === "open" ? (
+        <OpenAnswer
+          topic={topic}
+          nodeLabel={nodeLabel}
+          question={beat.fix.probe}
+          options={beat.fix.replies.map((r) => r.label)}
+          onResolve={(i) => onFix(i)}
+          placeholder="Answer the probe in your own words…"
+          rows={2}
+          accent={BLUE}
+        />
+      ) : (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {beat.fix.replies.map((r, i) => {
           const spent = ruledOut.includes(r.label);
@@ -809,6 +846,7 @@ function FixPass({
           );
         })}
       </div>
+      )}
       {reaction && (
         <div
           style={{

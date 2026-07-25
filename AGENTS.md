@@ -67,6 +67,11 @@ model.
 - Styling is inline `style={{...}}` objects matching the design file (`Learning Platform.dc.html` in the Claude Design project); animations are the shared keyframes in `app/globals.css` (`pulseGlow`, `assemble`, `fadeUp`, `softIn`).
 - Node mastery states are the app's shared vocabulary: `unknown | frontier | learning | shaky | mastered | gap`. Use `STATE_COLOR` / `STATE_LABEL` from `lib/curriculum.ts` — never invent a state or a color for one.
 - Mastery state is live: `AtlasApp` holds one `StateMap` of stored progress (`ProgressState`, everything but `frontier`); `frontier` and locking are always derived from prerequisites via `displayStates` — never store `frontier` or a locked flag. New surfaces read and write that `StateMap`, nothing else.
+- Every question is asked open-ended first. A surface that also has a closed
+  (pick-an-option) form renders `AnswerModeToggle` + `OpenAnswer` from
+  `components/OpenAnswer.tsx`, defaulting to "Own words": the free-text answer
+  goes to the `judge` mode `"choice"`, which returns the option index the closed
+  path already keys on. Never ship a question that can only be answered by tapping.
 - Client components declare `"use client"`; keep server components the default elsewhere.
 - Mutable interaction state that shouldn't trigger renders (drag, pan, timers) lives in refs; renderable state in `useState`.
 - Path alias: `@/*` from the repo root (e.g. `@/lib/theme`).

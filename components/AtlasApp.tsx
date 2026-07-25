@@ -2196,6 +2196,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
       {screen === "diagnostic" && diagnostic.length > 0 && (
         <DiagnosticPanel
+          topic={form.topic}
           questions={diagnostic}
           answered={answered}
           onAnswer={answerDiagnostic}
@@ -2378,6 +2379,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
       {screen === "consume" && consume && consumeChunks && (
         <ConsumeView
+          topic={form.topic}
           title={
             graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
           }
@@ -2416,6 +2418,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
       {screen === "feynman" && feynman && feynmanBeats && (
         <FeynmanView
+          topic={form.topic}
           title={
             graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"
           }

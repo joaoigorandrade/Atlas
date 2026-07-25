@@ -15,6 +15,7 @@ import {
   generateFeynman,
   generateRetain,
   generateSocratic,
+  judgeChoice,
   judgeCrucible,
   judgeFeynman,
   judgeSocratic,
@@ -58,8 +59,9 @@ interface GenerateBody {
   nodes?: Array<{ id: string; label: string; state: string }>;
   budgetMin?: number;
   // judge fields
-  mode?: "socratic" | "feynman" | "crucible";
+  mode?: "socratic" | "feynman" | "crucible" | "choice";
   question?: string;
+  options?: string[];
   reference?: string;
   answer?: string;
   subPoint?: string;
@@ -79,7 +81,7 @@ const CAPS = {
 
 const s = (v: unknown, fallback = ""): string =>
   typeof v === "string" ? v : fallback;
-const labels = (v: unknown, max = CAPS.listItems): string[] =>
+const labels = (v: unknown, max: number = CAPS.listItems): string[] =>
   Array.isArray(v)
     ? v
         .filter((x): x is string => typeof x === "string")
@@ -243,9 +245,24 @@ export async function POST(request: Request) {
         });
       }
       case "judge": {
-        if (!nodeLabel) throw badRequest("nodeLabel is required");
         const answer = s(body.answer).slice(0, CAPS.freeText);
         if (!answer.trim()) throw badRequest("answer is required");
+        // "choice" maps a free-text answer onto a closed option list — it runs
+        // on surfaces with no node (placement), so nodeLabel stays optional.
+        if (body.mode === "choice") {
+          const options = labels(body.options, 8);
+          if (options.length < 2) throw badRequest("options must list 2+ candidates");
+          return NextResponse.json({
+            judgement: await judgeChoice({
+              topic,
+              nodeLabel: nodeLabel || undefined,
+              question: s(body.question).slice(0, CAPS.freeText),
+              options,
+              answer,
+            }),
+          });
+        }
+        if (!nodeLabel) throw badRequest("nodeLabel is required");
         if (body.mode === "socratic")
           return NextResponse.json({
             judgement: await judgeSocratic({
