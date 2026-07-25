@@ -232,17 +232,6 @@ export interface SocraticStep {
   hint: string;
   /** Direct instruction for "Just tell me" — drops the Socratic act entirely. */
   tell: string;
-  /**
-   * An optional scratchpad task. When present the reply panel stays locked
-   * until the learner works on the pad and submits it — the AI then reacts to
-   * what's written there, not just to chat text.
-   */
-  scratch?: {
-    /** Instruction overlaid on the pad. */
-    prompt: string;
-    /** The AI's reaction to the pad — catches the common error it finds. */
-    reaction: string;
-  };
 }
 
 /** One line of the Socratic transcript. */
@@ -261,12 +250,8 @@ export interface SocraticSession {
   step: number;
   help: HelpLevel;
   log: SocraticTurn[];
-  /** Whether the current step's scratch task is submitted (true when it has none). */
-  scratchDone: boolean;
   /** Reply labels already ruled out on this step (caught wrong / spent hints). */
   ruledOut: string[];
-  /** The AI's latest reaction to the pad, shown beside the canvas. */
-  padReaction: string | null;
   /** "Just tell me" uses — repeated use flags a prerequisite gap. */
   tells: number;
   done: boolean;
@@ -287,9 +272,7 @@ function openStep(
   return {
     ...session,
     step,
-    scratchDone: !s.scratch,
     ruledOut: [],
-    padReaction: null,
     log: [...session.log, { role: "ai", text: s.prompt, move: s.move }],
   };
 }
@@ -304,9 +287,7 @@ export function socraticStart(
     nodeId,
     step: 0,
     help: 1,
-    scratchDone: !first.scratch,
     ruledOut: [],
-    padReaction: null,
     tells: 0,
     done: false,
     log: [{ role: "ai", text: first.prompt, move: first.move }],
@@ -322,7 +303,6 @@ const REPLY_TONE: Record<ReplyQuality, SocraticTurn["tone"]> = {
 
 export type SocraticAction =
   | { type: "reply"; index: number }
-  | { type: "scratch" }
   | { type: "stuck" }
   | { type: "tell" }
   /** A free-text answer, already judged server-side (#25). */
@@ -347,19 +327,6 @@ export function socraticReducer(
     last ? { ...base, done: true } : openStep(base, session.step + 1, steps);
 
   switch (action.type) {
-    case "scratch": {
-      if (!step.scratch || session.scratchDone) return session;
-      return {
-        ...session,
-        scratchDone: true,
-        padReaction: step.scratch.reaction,
-        log: [
-          ...session.log,
-          { role: "learner", text: "✎ Worked it out on the scratchpad." },
-          { role: "ai", text: step.scratch.reaction, tone: "catch" },
-        ],
-      };
-    }
     case "stuck": {
       return {
         ...session,

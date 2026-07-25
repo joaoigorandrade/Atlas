@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   HELP_COLOR,
   HELP_LABELS,
@@ -8,7 +8,6 @@ import {
   STATE_COLOR,
   type HelpLevel,
   type SocraticSession,
-  type SocraticStep,
   type SocraticTurn,
 } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
@@ -22,8 +21,6 @@ const GREEN = STATE_COLOR.mastered;
 interface SocraticViewProps {
   /** The node this session teaches — titles the view. */
   title: string;
-  /** The generated questioning script for this node. */
-  steps: SocraticStep[];
   session: SocraticSession;
   /** True while the server judge is classifying the typed answer (#25). */
   judging: boolean;
@@ -32,10 +29,8 @@ interface SocraticViewProps {
   onExit: () => void;
   /** Submit the learner's own typed answer for judging. */
   onAnswer: (text: string) => void;
-  onSubmitScratch: () => void;
   onStuck: () => void;
   onTell: () => void;
-  onClearPad: () => void;
   onAdvance: () => void;
 }
 
@@ -55,21 +50,15 @@ function toneColor(tone: SocraticTurn["tone"]): string {
 
 export default function SocraticView({
   title,
-  steps,
   session,
   judging,
   gapMode,
   onExit,
   onAnswer,
-  onSubmitScratch,
   onStuck,
   onTell,
-  onClearPad,
   onAdvance,
 }: SocraticViewProps) {
-  const step = steps[session.step];
-  const scratchPending = !!step?.scratch && !session.scratchDone;
-
   // The learner's own answer, typed — cleared whenever a new turn lands.
   const [draft, setDraft] = useState("");
   useEffect(() => setDraft(""), [session.log.length]);
@@ -83,79 +72,7 @@ export default function SocraticView({
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [session.log.length, session.padReaction]);
-
-  // ---- the scratchpad: a real freehand canvas the AI "reads" -----------
-  // Drawing state lives in refs — strokes must not trigger React renders.
-  const padRef = useRef<HTMLCanvasElement | null>(null);
-  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const drawingRef = useRef(false);
-  const inkedRef = useRef(false);
-
-  const resizePad = useCallback(() => {
-    const canvas = padRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    // Re-sizing clears the bitmap; the pad is a working surface, not a
-    // document, so losing strokes on a window resize is acceptable.
-    canvas.width = Math.max(1, Math.round(rect.width * dpr));
-    canvas.height = Math.max(1, Math.round(rect.height * dpr));
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(dpr, dpr);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = color.ink;
-    ctxRef.current = ctx;
-  }, []);
-
-  useEffect(() => {
-    resizePad();
-    window.addEventListener("resize", resizePad);
-    return () => window.removeEventListener("resize", resizePad);
-  }, [resizePad]);
-
-  const padPoint = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = padRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-
-  const padDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    drawingRef.current = true;
-    inkedRef.current = true;
-    const { x, y } = padPoint(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const padMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!drawingRef.current) return;
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    const { x, y } = padPoint(e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const padUp = () => {
-    drawingRef.current = false;
-  };
-
-  const clearPad = () => {
-    const canvas = padRef.current;
-    const ctx = ctxRef.current;
-    if (canvas && ctx) {
-      const dpr = window.devicePixelRatio || 1;
-      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-    }
-    inkedRef.current = false;
-    onClearPad();
-  };
+  }, [session.log.length]);
 
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
 
@@ -228,21 +145,13 @@ export default function SocraticView({
         <HelpDial help={session.help} />
       </div>
 
-      {/* Body — dialogue (left) · scratchpad (right) */}
-      <div
-        style={{
-          flex: 1,
-          overflow: "hidden",
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-        }}
-      >
-        {/* Dialogue column */}
+      {/* Body — the dialogue */}
+      <div style={{ flex: 1, overflow: "hidden", display: "flex" }}>
         <div
           style={{
+            flex: 1,
             display: "flex",
             flexDirection: "column",
-            borderRight: `1px solid ${color.hairline}`,
             minHeight: 0,
           }}
         >
@@ -317,21 +226,6 @@ export default function SocraticView({
                   >
                     {gapMode ? "Close the gap · back to the map →" : "Teach it back · Feynman →"}
                   </button>
-                </div>
-              ) : scratchPending ? (
-                <div
-                  style={{
-                    fontSize: 13.5,
-                    lineHeight: 1.5,
-                    color: color.inkMuted,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>✎</span>
-                  Work it out on the scratchpad, then submit it — I&rsquo;ll read what
-                  you wrote before we go on.
                 </div>
               ) : (
                 <>
@@ -434,145 +328,6 @@ export default function SocraticView({
               )}
             </div>
           </div>
-        </div>
-
-        {/* Scratchpad column */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            background: color.card,
-            minHeight: 0,
-          }}
-        >
-          <div
-            style={{
-              flex: "0 0 auto",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "14px 22px",
-              borderBottom: `1px solid rgba(44,40,35,0.08)`,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: font.mono,
-                fontSize: 10.5,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: color.inkFaint,
-              }}
-            >
-              Scratchpad · I read what you write here
-            </span>
-            <button
-              onClick={clearPad}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: 12.5,
-                color: color.inkGhost,
-                cursor: "pointer",
-              }}
-            >
-              Clear
-            </button>
-          </div>
-
-          <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
-            <canvas
-              ref={padRef}
-              onMouseDown={padDown}
-              onMouseMove={padMove}
-              onMouseUp={padUp}
-              onMouseLeave={padUp}
-              style={{
-                width: "100%",
-                height: "100%",
-                display: "block",
-                cursor: "crosshair",
-                backgroundImage:
-                  "radial-gradient(rgba(44,40,35,0.06) 1px, transparent 1px)",
-                backgroundSize: "22px 22px",
-              }}
-            />
-
-            {/* The active step's task, overlaid until the pad is submitted */}
-            {scratchPending && step.scratch && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 18,
-                  right: 18,
-                  bottom: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  background: "rgba(251,249,244,0.94)",
-                  border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 12,
-                  padding: "13px 16px",
-                  backdropFilter: "blur(4px)",
-                  animation: "fadeUp .3s both",
-                }}
-              >
-                <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.45, color: color.inkSoft }}>
-                  <span
-                    style={{
-                      fontFamily: font.mono,
-                      fontSize: 9,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: BLUE,
-                      display: "block",
-                      marginBottom: 4,
-                    }}
-                  >
-                    Your task
-                  </span>
-                  {step.scratch.prompt}
-                </div>
-                <button
-                  onClick={onSubmitScratch}
-                  style={{
-                    flex: "0 0 auto",
-                    padding: "10px 15px",
-                    background: color.accent,
-                    color: color.accentInk,
-                    border: "none",
-                    borderRadius: 10,
-                    fontSize: 13.5,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Show my work →
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* The AI's reaction to the pad */}
-          {session.padReaction && (
-            <div
-              style={{
-                flex: "0 0 auto",
-                margin: "0 18px 18px",
-                borderLeft: `3px solid ${color.accent}`,
-                padding: "11px 15px",
-                background: color.accentBg,
-                borderRadius: "0 10px 10px 0",
-                fontFamily: font.serif,
-                fontSize: 15,
-                lineHeight: 1.45,
-                color: color.ink,
-                animation: "fadeUp .3s both",
-              }}
-            >
-              {session.padReaction}
-            </div>
-          )}
         </div>
       </div>
 
