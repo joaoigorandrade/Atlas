@@ -9,6 +9,7 @@ import {
   type ConceptGraph,
   type ConceptNode,
   type ConsumeChunk,
+  type ConsumeFigure,
   type CrucibleContent,
   type DiagnosticQuestion,
   type ElaborationContent,
@@ -349,6 +350,33 @@ Rules: labels are 1-3 words, title case. Node count 12-18. The map must read lef
 
 const ALT_KEYS: readonly AltKey[] = ["simpler", "example", "analogy", "deeper"];
 
+export function validateFigure(raw: unknown, name: string): ConsumeFigure {
+  const f = obj(raw, name);
+  const nodes = arr(f.nodes, `${name}.nodes`, 2, 8).map((v, i) => {
+    const n = obj(v, `${name}.nodes[${i}]`);
+    return {
+      id: str(n.id, `${name}.nodes[${i}].id`),
+      label: str(n.label, `${name}.nodes[${i}].label`),
+    };
+  });
+  const ids = new Set(nodes.map((n) => n.id));
+  if (ids.size !== nodes.length) fail(`${name}.nodes have duplicate ids`);
+  const edges = arr(f.edges, `${name}.edges`, 1, 12).map((v, i) => {
+    const e = obj(v, `${name}.edges[${i}]`);
+    const from = str(e.from, `${name}.edges[${i}].from`);
+    const to = str(e.to, `${name}.edges[${i}].to`);
+    if (!ids.has(from) || !ids.has(to))
+      fail(`${name}.edges[${i}] references a node id that is not in nodes`);
+    if (from === to) fail(`${name}.edges[${i}] points a node at itself`);
+    return {
+      from,
+      to,
+      label: typeof e.label === "string" && e.label.trim() ? e.label.trim() : undefined,
+    };
+  });
+  return { nodes, edges };
+}
+
 function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
   return arr(root.chunks, "chunks", 3, 5).map((v, i) => {
@@ -380,6 +408,7 @@ function validateConsume(raw: unknown): ConsumeChunk[] {
       body: str(c.body, `chunks[${i}].body`),
       cite: str(c.cite, `chunks[${i}].cite`),
       diagram: str(c.diagram, `chunks[${i}].diagram`),
+      figure: validateFigure(c.figure, `chunks[${i}].figure`),
       ask: str(c.ask, `chunks[${i}].ask`),
       alt: Object.fromEntries(
         ALT_KEYS.map((k) => [k, str(alt[k], `chunks[${i}].alt.${k}`)]),
@@ -415,7 +444,11 @@ Return JSON with 4 chunks that build the concept from "what it is" to "ready to 
       "wrong": "one-line honest correction after a wrong guess",
       "body": "the explanation itself, 2-4 sentences, precise and concrete",
       "cite": "a real canonical source (book §, lecture series chapter) — never invent one",
-      "diagram": "caption for a simple schematic diagram of this chunk",
+      "diagram": "one-line caption for the figure below",
+      "figure": {                                          // the figure itself, specific to THIS chunk — never a generic placeholder
+        "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
+        "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
+      },
       "ask": "a mini-Socratic prompt that answers a likely question with a question",
       "alt": {
         "simpler": "the body rewritten plainly",

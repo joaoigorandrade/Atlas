@@ -160,6 +160,30 @@ export interface ConsumePrediction {
   opts: ReadonlyArray<{ label: string; correct: boolean }>;
 }
 
+/** A schematic figure: labeled boxes wired by directed arrows. */
+export interface ConsumeFigure {
+  nodes: ReadonlyArray<{ id: string; label: string }>;
+  edges: ReadonlyArray<{ from: string; to: string; label?: string }>;
+}
+
+/** Longest-path layer per figure node; cycle-safe (relaxation capped at node
+ *  count) so a model-authored loop can't hang the renderer. */
+export function figureLayers(fig: ConsumeFigure): Map<string, number> {
+  const layer = new Map(fig.nodes.map((n) => [n.id, 0]));
+  for (let pass = 0; pass < fig.nodes.length; pass++) {
+    let moved = false;
+    for (const e of fig.edges) {
+      const want = (layer.get(e.from) ?? 0) + 1;
+      if (want > (layer.get(e.to) ?? 0)) {
+        layer.set(e.to, want);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return layer;
+}
+
 export interface ConsumeChunk {
   id: string;
   /** Segment label, e.g. "1 · What it is". */
@@ -174,8 +198,11 @@ export interface ConsumeChunk {
   body: string;
   /** Source citation — trust is visible; no memorizing hallucinations. */
   cite: string;
-  /** Caption for the auto-generated dual-coded diagram beside the prose. */
+  /** Caption for the diagram beside the prose. */
   diagram: string;
+  /** The diagram itself — a small box-and-arrow graph. Absent on chunks
+   *  generated before figures existed; the caption stands alone then. */
+  figure?: ConsumeFigure;
   /** The mini-Socratic aside opened from "ask about this passage". */
   ask: string;
   /** Adaptive-modality rewrites of this chunk, keyed by control. */
