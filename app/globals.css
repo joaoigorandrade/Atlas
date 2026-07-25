@@ -77,6 +77,39 @@ textarea:focus {
   }
 }
 
+/* Loading vocabulary: an ink dot keeping time, a stroke drawn across the page. */
+@keyframes inkDot {
+  0%,
+  75%,
+  100% {
+    opacity: 0.2;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2.5px);
+  }
+}
+
+@keyframes inkSweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(310%);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

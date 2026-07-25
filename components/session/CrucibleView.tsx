@@ -12,6 +12,7 @@ import {
   type CrucibleContent,
   type CrucibleSession,
 } from "@/lib/curriculum";
+import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
 
 // The Crucible owns the deep-rust accent; the transfer diagnostic borrows the
@@ -225,9 +226,19 @@ export default function CrucibleView({
                         fontWeight: 600,
                         cursor: judging ? "default" : "pointer",
                         boxShadow: judging ? "none" : `0 8px 22px ${CRUCIBLE_COLOR.glow}`,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 10,
                       }}
                     >
-                      {judging ? "Judging your attempt…" : "Submit attempt"}
+                      {judging ? (
+                        <>
+                          Judging your attempt
+                          <InkDots size={4} />
+                        </>
+                      ) : (
+                        "Submit attempt"
+                      )}
                     </button>
                     <button
                       onClick={onSample}

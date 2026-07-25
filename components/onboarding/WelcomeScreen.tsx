@@ -8,6 +8,7 @@ import {
   type OnboardingForm,
 } from "@/lib/curriculum";
 import type { ScopeOffer } from "@/lib/api";
+import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
 
 interface WelcomeScreenProps {
@@ -18,6 +19,8 @@ interface WelcomeScreenProps {
   onFile: (file: File) => void;
   /** Status line under the drop zone — "Grounded in x.pdf", or honest failure copy. */
   uploadNote: string | null;
+  /** True while the dropped file is still being read server-side. */
+  uploadBusy: boolean;
   /** Scoped sub-map offers when the topic was too broad, else null (#30). */
   scopes: ScopeOffer[] | null;
   onPickScope: (label: string) => void;
@@ -44,6 +47,7 @@ export default function WelcomeScreen({
   onBuild,
   onFile,
   uploadNote,
+  uploadBusy,
   scopes,
   onPickScope,
 }: WelcomeScreenProps) {
@@ -131,10 +135,26 @@ export default function WelcomeScreen({
             color: uploadNote ? color.accent : color.inkFaint,
             marginBottom: 38,
             paddingLeft: 4,
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
           }}
         >
-          {uploadNote ?? (
+          {uploadNote ? (
             <>
+              <span
+                style={
+                  uploadBusy
+                    ? { animation: "breathe 2s ease-in-out infinite" }
+                    : { animation: "fadeUp .3s both" }
+                }
+              >
+                {uploadNote}
+              </span>
+              {uploadBusy && <InkDots size={3.5} tone={color.accent} />}
+            </>
+          ) : (
+            <span>
               or drop a PDF / course outline here ·{" "}
               <button
                 onClick={() => fileRef.current?.click()}
@@ -151,7 +171,7 @@ export default function WelcomeScreen({
                 browse
               </button>{" "}
               · we ground the map in a real source
-            </>
+            </span>
           )}
           <input
             ref={fileRef}

@@ -1,5 +1,6 @@
 "use client";
 
+import { InkDots, InkRule } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
 
 /**
@@ -29,18 +30,33 @@ export default function GeneratingOverlay({
     >
       <div style={{ textAlign: "center", animation: "fadeUp 0.5s both" }}>
         <div style={{ ...kicker(11, "0.18em"), marginBottom: 10 }}>{phase}</div>
-        <div style={{ fontFamily: font.serif, fontSize: 24, color: color.ink }}>
+        <div
+          style={{
+            fontFamily: font.serif,
+            fontSize: 24,
+            color: color.ink,
+            marginBottom: 20,
+          }}
+        >
           {message}
         </div>
+        <InkRule />
         <div
           style={{
             marginTop: 14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
             fontFamily: font.mono,
             fontSize: 11,
+            letterSpacing: "0.08em",
             color: color.inkGhost,
+            animation: "breathe 2.4s ease-in-out infinite",
           }}
         >
-          generating…
+          generating
+          <InkDots size={3} />
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
 
 interface LoginScreenProps {
@@ -204,15 +205,22 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
                 cursor: working ? "default" : "pointer",
                 opacity: working ? 0.7 : 1,
                 boxShadow: "0 10px 28px rgba(47,107,79,0.28)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
               }}
             >
-              {working
-                ? mode === "signin"
-                  ? "Signing in…"
-                  : "Creating account…"
-                : mode === "signin"
-                  ? "Sign in →"
-                  : "Create account →"}
+              {working ? (
+                <>
+                  {mode === "signin" ? "Signing in" : "Creating account"}
+                  <InkDots size={4} tone={color.accentInk} />
+                </>
+              ) : mode === "signin" ? (
+                "Sign in →"
+              ) : (
+                "Create account →"
+              )}
             </button>
 
             <div

@@ -85,6 +85,7 @@ import {
   fetchSocratic,
   type ScopeOffer,
 } from "@/lib/api";
+import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
 import { loadLatestRun, saveRun, type RunSnapshot } from "@/lib/persistence";
@@ -661,6 +662,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   /** Upload a syllabus/outline: extract server-side, ground the map (#30). */
   const onOutlineFile = useCallback(
     (file: File) => {
+      // Drop the previous outline up front: a re-upload must not ground the
+      // map in the old source while the new one is still being read.
+      setOutline(null);
       setUploadNote(`Reading ${file.name}…`);
       const data = new FormData();
       data.append("file", file);
@@ -2070,7 +2074,8 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     : `${queue.cards} card${queue.cards === 1 ? "" : "s"} due today · ~${queue.minutes} min budget`;
 
   // Hold the paper blank until the saved-run fetch settles — a resumed run
-  // must open on the map, never flash the welcome screen first.
+  // must open on the map, never flash the welcome screen first. The mark is
+  // delayed past a fast hydration so a quick resume never flashes a spinner.
   if (!hydrated) {
     return (
       <div
@@ -2079,8 +2084,27 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           width: "100%",
           height: "100vh",
           background: color.paper,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
-      />
+      >
+        <div style={{ textAlign: "center", animation: "softIn 0.5s 0.4s both" }}>
+          <div
+            style={{
+              fontFamily: font.mono,
+              fontSize: 11,
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              color: color.inkFaint,
+              marginBottom: 16,
+            }}
+          >
+            Atlas · learn anything, deeply
+          </div>
+          <InkRule width={180} />
+        </div>
+      </div>
     );
   }
 
@@ -2299,6 +2323,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           onBuild={build}
           onFile={onOutlineFile}
           uploadNote={uploadNote}
+          uploadBusy={uploadNote !== null && outline === null}
           scopes={scopes}
           onPickScope={pickScope}
         />

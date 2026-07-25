@@ -14,6 +14,7 @@ import {
   type TeachLine,
   type TeachVerdict,
 } from "@/lib/curriculum";
+import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
 
 // Feynman borrows the shared state colors: learning blue for the naive
@@ -451,9 +452,19 @@ function TeachDock({
           fontSize: 14,
           fontWeight: 600,
           cursor: judging || !typed.trim() ? "default" : "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 9,
         }}
       >
-        {judging ? "Listening…" : "Send to my student →"}
+        {judging ? (
+          <>
+            Listening
+            <InkDots size={3.5} />
+          </>
+        ) : (
+          "Send to my student →"
+        )}
       </button>
     </div>
   );
