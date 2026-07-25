@@ -10,6 +10,7 @@ import {
   type SocraticSession,
   type SocraticTurn,
 } from "@/lib/curriculum";
+import { InkDots } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 
 // Socratic borrows the shared state colors: learning blue for the phase label,
@@ -289,7 +290,7 @@ export default function SocraticView({
                         cursor: judging || !draft.trim() ? "default" : "pointer",
                       }}
                     >
-                      {judging ? "…" : "Send"}
+                      {judging ? <InkDots size={3.5} /> : "Send"}
                     </button>
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>

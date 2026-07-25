@@ -1,5 +1,6 @@
 "use client";
 
+import { InkRule } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
 
 export default function BuildingOverlay() {
@@ -20,9 +21,17 @@ export default function BuildingOverlay() {
         <div style={{ ...kicker(11, "0.18em"), marginBottom: 10 }}>
           Generating your map
         </div>
-        <div style={{ fontFamily: font.serif, fontSize: 26, color: color.ink }}>
+        <div
+          style={{
+            fontFamily: font.serif,
+            fontSize: 26,
+            color: color.ink,
+            marginBottom: 22,
+          }}
+        >
           Assembling the territory, foundations first…
         </div>
+        <InkRule width={260} />
       </div>
     </div>
   );
