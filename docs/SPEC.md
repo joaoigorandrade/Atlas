@@ -140,8 +140,7 @@ Already covered by onboarding + the Map. Ongoing, it's not a separate screen —
 **Goal:** the learner *constructs* the idea through guided questioning, with **contingent scaffolding** — never pure interrogation, never pure lecture.
 
 **Layout**
-- **Dialogue column** (left): the AI's probing questions and the learner's replies.
-- **Shared scratchpad / whiteboard** (right): a canvas the learner works on — writes, sketches, derives — and the **AI reacts to what's written there**, not just to chat text. This is central, not decorative.
+- **Dialogue column**: the AI's probing questions and the learner's replies, full width.
 - **Help-level indicator** (top): a visible dial — *Silent · Hint · Guide · Show me* — reflecting current scaffolding. It rises when the learner is lost, falls toward silence as they master it.
 
 **AI behavior (the hard part — get this right or the app fails):**
@@ -151,7 +150,7 @@ Already covered by onboarding + the Map. Ongoing, it's not a separate screen —
 - Scaffolding **fades** as mastery rises within the session.
 
 **Interactions**
-- Type or write on the scratchpad; the AI responds to both.
+- Type an answer in your own words; the AI judges and responds to it.
 - "I'm stuck" → raises help level one step (explicit control over scaffolding).
 - "Just tell me" → drops to direct instruction, logged (repeated use flags a prerequisite gap).
 

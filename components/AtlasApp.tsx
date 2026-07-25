@@ -1060,10 +1060,6 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     [showToast],
   );
 
-  const clearSocraticPad = useCallback(() => {
-    setSocratic((prev) => (prev ? { ...prev, padReaction: null } : prev));
-  }, []);
-
   const exitSocratic = useCallback(() => {
     setScreen("map");
     const nodeId = socratic?.nodeId;
@@ -2380,7 +2376,6 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
             graph.nodes.find((n) => n.id === socratic.nodeId)?.label ??
             "Concept"
           }
-          steps={socraticSteps}
           session={socratic}
           judging={judging}
           gapMode={
@@ -2388,10 +2383,8 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           }
           onExit={exitSocratic}
           onAnswer={socraticAnswer}
-          onSubmitScratch={() => dispatchSocratic({ type: "scratch" })}
           onStuck={() => dispatchSocratic({ type: "stuck" })}
           onTell={() => dispatchSocratic({ type: "tell" })}
-          onClearPad={clearSocraticPad}
           onAdvance={advanceFromSocratic}
         />
       )}

@@ -492,15 +492,6 @@ export function validateSocratic(raw: unknown): SocraticStep[] {
     });
     if (!replies.some((r) => r.quality === "correct"))
       fail(`steps[${i}].replies needs a correct option`);
-    const scratch = s.scratch
-      ? {
-          prompt: str(obj(s.scratch, `steps[${i}].scratch`).prompt, `steps[${i}].scratch.prompt`),
-          reaction: str(
-            obj(s.scratch, `steps[${i}].scratch`).reaction,
-            `steps[${i}].scratch.reaction`,
-          ),
-        }
-      : undefined;
     return {
       id: `s${i + 1}`,
       move: oneOf(s.move, MOVES, `steps[${i}].move`),
@@ -508,7 +499,6 @@ export function validateSocratic(raw: unknown): SocraticStep[] {
       replies,
       hint: str(s.hint, `steps[${i}].hint`),
       tell: str(s.tell, `steps[${i}].tell`),
-      ...(scratch ? { scratch } : {}),
     };
   });
 }
@@ -535,8 +525,7 @@ Return JSON:
         {"label": "what the learner says", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
       ],
       "hint": "an 'I'm stuck' nudge that reframes without giving it away",
-      "tell": "the direct instruction for 'Just tell me' — complete and precise",
-      "scratch": {"prompt": "a work-it-out-on-the-pad task", "reaction": "the tutor's reaction that catches the most common error in that work"}   // include on exactly ONE middle step, omit elsewhere
+      "tell": "the direct instruction for 'Just tell me' — complete and precise"
     }, ...
   ]
 }`,
