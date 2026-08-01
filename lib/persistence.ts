@@ -72,7 +72,7 @@ export interface RunSnapshot {
  *  content caches inline, which v3 moved to their own column. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
-  "v" | "form" | "adherence" | "shakyReasons" | "reviewedNodes" | "cards"
+  "v" | "form" | "adherence" | "shakyReasons" | "reviewedNodes" | "cards" | "caches"
 > & {
   v: number;
   form: Omit<OnboardingForm, "examDate"> & { examDate?: string };
@@ -97,8 +97,70 @@ function migrate(raw: LoadedSnapshot): RunSnapshot {
   };
 }
 
+/** A cached chunk from before the reading-first Consume rewrite: one short
+ *  body string, a prediction on every chunk, verdict copy hanging off the
+ *  chunk, and no example or takeaway. */
+export type LegacyConsumeChunk = Omit<
+  ConsumeChunk,
+  "body" | "example" | "takeaway"
+> & {
+  body: string | string[];
+  example?: ConsumeChunk["example"];
+  takeaway?: string;
+  right?: string;
+  wrong?: string;
+};
+
+/** Reshape a quiz-shaped reading pass into the current one. Detected by shape,
+ *  not by snapshot version: these chunks live in their own column now, and a
+ *  row written by the previous deploy carries no version of its own. The old
+ *  material is all we have — it stays short — but it renders, and it stops
+ *  gating: only the first chunk keeps its prediction, and its verdict copy
+ *  moves onto it. */
+export function migrateConsume(
+  cached: Record<string, LegacyConsumeChunk[]> | undefined,
+): Record<string, ConsumeChunk[]> {
+  return Object.fromEntries(
+    Object.entries(cached ?? {}).map(([nodeId, chunks]) => [
+      nodeId,
+      chunks.map((c, i) => {
+        const { right, wrong, pred, ...rest } = c;
+        return {
+          ...rest,
+          body: Array.isArray(c.body) ? c.body : [c.body],
+          example: c.example ?? {
+            title: "Worked through",
+            steps: [c.alt.example],
+          },
+          takeaway: c.takeaway ?? c.alt.simpler,
+          ...(i === 0 && pred
+            ? {
+                pred: {
+                  ...pred,
+                  right: pred.right ?? right ?? "That matches what follows.",
+                  wrong:
+                    pred.wrong ??
+                    wrong ??
+                    "Not quite — the section below sets it straight.",
+                },
+              }
+            : null),
+        };
+      }),
+    ]),
+  );
+}
+
+/** The one funnel every stored cache passes through — the separate column and
+ *  a pre-v3 snapshot's inline copy alike. */
 function normalizeCaches(raw: Partial<RunCaches> | null | undefined): RunCaches {
-  return { ...emptyCaches(), ...(raw ?? {}) };
+  const merged = { ...emptyCaches(), ...(raw ?? {}) };
+  return {
+    ...merged,
+    consume: migrateConsume(
+      merged.consume as unknown as Record<string, LegacyConsumeChunk[]>,
+    ),
+  };
 }
 
 export interface LoadedRun {

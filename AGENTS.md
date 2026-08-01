@@ -56,7 +56,10 @@ it that way, and a new surface must use all three:
   shared across users, so the second learner to open a concept pays neither the
   latency nor the spend. `/api/generate` reads it before spending a call and
   writes through after; only `judge` is uncacheable (it grades one learner's own
-  words). Service-role only — RLS is on with no policies.
+  words). Service-role only — RLS is on with no policies. **A hit is returned to
+  the client without re-validation**, so changing a payload's shape means
+  bumping `VERSION` in that file — otherwise stored rows in the old shape flow
+  straight into the new renderer.
 - **`lib/server/job.ts`** — normalization, cache key, and generation resolved in
   one place, so `/api/generate` and the `/api/content` batch read address the
   same row. A new kind goes here, not in a route.

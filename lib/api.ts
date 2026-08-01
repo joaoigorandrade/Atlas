@@ -258,7 +258,7 @@ export async function fetchJudgeCrucible(params: {
 }
 
 /** Maps a free-text answer onto a closed option list (the open-ended half of
- *  placement, Consume predictions, and the Feynman fix pass). */
+ *  placement, the Consume hook, and the Feynman fix pass). */
 export interface ChoiceJudgement {
   index: number;
   response: string;

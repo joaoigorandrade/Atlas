@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   validateChoice,
+  validateConsume,
   validateCrucible,
   validateCurriculum,
   validateFeynman,
   validateSocratic,
 } from "@/lib/server/generate";
+import { migrateConsume, type LegacyConsumeChunk } from "@/lib/persistence";
 
 // ---- curriculum: DAG + scoping ------------------------------------------------
 
@@ -186,5 +188,116 @@ describe("validateChoice", () => {
 
   it("rejects a non-integer index (a string index would silently score wrong)", () => {
     expect(() => validateChoice(3)({ index: "1", response: "x" })).toThrow(/index/);
+  });
+});
+
+// ---- consume: reading-first material, one hook per session --------------------
+
+function consumeChunk(i: number, over: Record<string, unknown> = {}) {
+  return {
+    kicker: `${i + 1} · A section`,
+    terms: [{ t: "term", d: "its definition" }],
+    body: ["paragraph one", "paragraph two", "paragraph three"],
+    example: { title: "worked", steps: ["step one", "step two"] },
+    takeaway: "the line to carry",
+    cite: "Strang, Linear Algebra §2.1",
+    diagram: "the caption",
+    figure: {
+      nodes: [
+        { id: "a", label: "in" },
+        { id: "b", label: "out" },
+      ],
+      edges: [{ from: "a", to: "b" }],
+    },
+    ask: "what would break if it were false?",
+    alt: {
+      simpler: "plainly",
+      example: "a second example",
+      analogy: "like a lever",
+      deeper: "the rigorous version",
+    },
+    pred: {
+      q: "what happens if…?",
+      opts: [
+        { label: "a", correct: false },
+        { label: "b", correct: true },
+        { label: "c", correct: false },
+      ],
+      right: "yes — and here is why",
+      wrong: "no — the usual mistake is…",
+    },
+    ...over,
+  };
+}
+
+const consumePayload = (over: Record<string, unknown>[] = []) => ({
+  chunks: Array.from({ length: 5 }, (_, i) => consumeChunk(i, over[i] ?? {})),
+});
+
+describe("validateConsume", () => {
+  it("keeps the hook on the opening section and drops it everywhere else", () => {
+    const out = validateConsume(consumePayload());
+    expect(out[0].pred?.q).toBe("what happens if…?");
+    expect(out.slice(1).every((c) => c.pred === undefined)).toBe(true);
+  });
+
+  it("requires a hook on the opening section", () => {
+    expect(() =>
+      validateConsume(consumePayload([{ pred: undefined }])),
+    ).toThrow(/chunks\[0\].pred/);
+  });
+
+  it("rejects a thin body — Consume is where the material lives", () => {
+    expect(() =>
+      validateConsume(consumePayload([{ body: ["one paragraph"] }])),
+    ).toThrow(/body must have 3-5 items/);
+  });
+
+  it("requires the worked example to be worked", () => {
+    expect(() =>
+      validateConsume(
+        consumePayload([{ example: { title: "worked", steps: [] } }]),
+      ),
+    ).toThrow(/example\.steps/);
+  });
+});
+
+// ---- persistence: quiz-shaped cached passes still render ---------------------
+
+describe("migrateConsume", () => {
+  const legacy = [0, 1].map((i) => ({
+    id: `c${i + 1}`,
+    kicker: `${i + 1} · Old`,
+    terms: [],
+    body: "one short paragraph",
+    cite: "Strang §2.1",
+    diagram: "caption",
+    ask: "why?",
+    alt: {
+      simpler: "plainly",
+      example: "worked out",
+      analogy: "like a lever",
+      deeper: "rigorously",
+    },
+    right: "correct",
+    wrong: "not quite",
+    pred: {
+      q: "what happens?",
+      opts: [
+        { label: "a", correct: true },
+        { label: "b", correct: false },
+        { label: "c", correct: false },
+      ],
+    },
+  })) as unknown as LegacyConsumeChunk[];
+
+  it("reshapes a v2 pass and un-gates every section past the first", () => {
+    const out = migrateConsume({ n1: legacy }).n1;
+    expect(out[0].body).toEqual(["one short paragraph"]);
+    expect(out[0].example.steps).toEqual(["worked out"]);
+    expect(out[0].takeaway).toBe("plainly");
+    // The chunk-level verdict copy moves onto the surviving prediction.
+    expect(out[0].pred?.right).toBe("correct");
+    expect(out[1].pred).toBeUndefined();
   });
 });
