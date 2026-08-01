@@ -80,6 +80,7 @@ import {
   fetchCachedContent,
   fetchConnect,
   fetchConsume,
+  fetchConsumeStream,
   fetchCrucible,
   fetchCurriculum,
   fetchFeynman,
@@ -226,6 +227,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const [diagnostic, setDiagnostic] = useState<DiagnosticQuestion[]>([]);
   // The active Consume (Learn) session, or null when not in one.
   const [consume, setConsume] = useState<ConsumeSession | null>(null);
+  // Sections of the *current* node's reading pass as they stream in, before
+  // the full pass is validated and committed to `consumeCache` below. Kept
+  // separate so a partial pass never looks like a cached, instantly-reopenable
+  // one to the warm/dedup logic.
+  const [liveConsume, setLiveConsume] = useState<{
+    nodeId: string;
+    chunks: ConsumeChunk[];
+  } | null>(null);
   // The active Socratic (Phase 3a) session, or null.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
   // The active Feynman (Phase 3b) teach-back session, or null.
@@ -717,6 +726,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         setDiagnostic(payload.diagnostic);
         setSpawnedIds(new Set());
         pendingGapsRef.current = [];
+        setLiveConsume(null);
         setConsumeCache({});
         setSocraticCache({});
         setFeynmanCache({});
@@ -1238,15 +1248,56 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         open();
         return;
       }
-      generate(
-        warmKey("consume", node.id),
-        "Session · Consume",
-        `Writing your reading pass on ${node.label}…`,
-        () => loadConsume(node),
-        open,
-      );
+      const key = warmKey("consume", node.id);
+      // A background warm is already writing this — join it the old way
+      // rather than starting a second, duplicate request.
+      if (warm.has(key)) {
+        generate(
+          key,
+          "Session · Consume",
+          `Writing your reading pass on ${node.label}…`,
+          () => loadConsume(node),
+          open,
+        );
+        return;
+      }
+      if (loadingRef.current) return;
+      setLoading({
+        phase: "Session · Consume",
+        message: `Writing your reading pass on ${node.label}…`,
+      });
+      setLiveConsume({ nodeId: node.id, chunks: [] });
+      let opened = false;
+      fetchConsumeStream(consumeParams(node), (chunk) => {
+        setLiveConsume((prev) =>
+          prev && prev.nodeId === node.id
+            ? { nodeId: node.id, chunks: [...prev.chunks, chunk] }
+            : prev,
+        );
+        if (!opened) {
+          opened = true;
+          setLoading(null);
+          open();
+        }
+      })
+        .then((chunks) => {
+          setConsumeCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: chunks }));
+          setLiveConsume((prev) => (prev?.nodeId === node.id ? null : prev));
+        })
+        .catch((err: Error) => {
+          setLoading(null);
+          // Nothing rendered yet — the same failure the non-streaming path
+          // would have shown. Once the screen is open, sections already read
+          // stay put; reopening the node retries since it never got cached.
+          showToast(
+            opened
+              ? "Couldn't finish the rest of this reading pass — reopen the node to retry."
+              : err.message,
+            opened ? "Generation incomplete" : "Generation failed",
+          );
+        });
     },
-    [generate, loadConsume, warmOne],
+    [consumeParams, generate, loadConsume, showToast, warm, warmOne],
   );
 
   // ---- Consume (Learn view) --------------------------------------------
@@ -2425,7 +2476,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     [calibSamples, graph],
   );
 
-  const consumeChunks = consume ? consumeCache[consume.nodeId] : undefined;
+  const consumeChunks = consume
+    ? (consumeCache[consume.nodeId] ??
+      (liveConsume?.nodeId === consume.nodeId ? liveConsume.chunks : undefined))
+    : undefined;
+  // True while the open session's pass is still being written — gates the
+  // "Continue"/"Finish" affordance on the deepest streamed-in section so it
+  // never reaches for a section that hasn't arrived yet.
+  const consumeStreaming = !!consume && !consumeCache[consume.nodeId];
   const socraticSteps = socratic ? socraticCache[socratic.nodeId] : undefined;
   const feynmanBeats = feynman ? feynmanCache[feynman.nodeId] : undefined;
   const connectContent = connect ? connectCache[connect.nodeId] : undefined;
@@ -2798,6 +2856,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
             graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
           }
           chunks={consumeChunks}
+          streaming={consumeStreaming}
           session={consume}
           onExit={exitConsume}
           onAnswer={consumeAnswer}

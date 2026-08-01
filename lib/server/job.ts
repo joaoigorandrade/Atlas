@@ -10,6 +10,7 @@
 import {
   generateConnect,
   generateConsume,
+  generateConsumeStream,
   generateCrucible,
   generateCurriculum,
   generateFeynman,
@@ -21,7 +22,7 @@ import {
   judgeSocratic,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
-import type { GoalKind } from "@/lib/curriculum";
+import type { ConsumeChunk, GoalKind } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge";
 
@@ -84,6 +85,9 @@ export interface Job {
   key: string | null;
   /** Produce the response body. Only called on a cache miss. */
   run: () => Promise<Record<string, unknown>>;
+  /** Set only for "consume": lets the route stream sections to the client as
+   *  they're written instead of waiting on the whole reading pass. */
+  streamConsume?: () => AsyncGenerator<ConsumeChunk>;
 }
 
 /**
@@ -123,16 +127,18 @@ export function resolveJob(body: GenerateBody): Job {
 
     case "consume": {
       if (!nodeLabel) throw badRequest("nodeLabel is required");
-      return cacheable(
-        "consume",
-        {
-          topic,
-          nodeLabel,
-          prereqLabels: labels(body.prereqLabels),
-          interests,
-        },
-        async (p) => ({ chunks: await generateConsume(p) }),
-      );
+      const params = {
+        topic,
+        nodeLabel,
+        prereqLabels: labels(body.prereqLabels),
+        interests,
+      };
+      return {
+        kind: "consume",
+        key: contentKey("consume", params),
+        run: async () => ({ chunks: await generateConsume(params) }),
+        streamConsume: () => generateConsumeStream(params),
+      };
     }
 
     case "socratic": {

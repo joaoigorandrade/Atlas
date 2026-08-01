@@ -21,7 +21,11 @@ import {
   type ReviewCard,
   type SocraticStep,
 } from "@/lib/curriculum";
-import { generateJson, type ChatMessage } from "@/lib/server/openrouter";
+import {
+  generateJson,
+  streamJsonObjects,
+  type ChatMessage,
+} from "@/lib/server/openrouter";
 
 // ---- tiny validation helpers (throw readable errors for the retry loop) ----
 
@@ -399,59 +403,59 @@ function validatePrediction(raw: unknown, name: string): ConsumePrediction {
   };
 }
 
-export function validateConsume(raw: unknown): ConsumeChunk[] {
-  const root = obj(raw, "payload");
-  return arr(root.chunks, "chunks", 4, 6).map((v, i) => {
-    const c = obj(v, `chunks[${i}]`);
-    const alt = obj(c.alt, `chunks[${i}].alt`);
-    const ex = obj(c.example, `chunks[${i}].example`);
-    return {
-      id: `c${i + 1}`,
-      kicker: str(c.kicker, `chunks[${i}].kicker`),
-      terms: arr(c.terms ?? [], `chunks[${i}].terms`, 0, 3).map((t, j) => {
-        const term = obj(t, `chunks[${i}].terms[${j}]`);
-        return {
-          t: str(term.t, `chunks[${i}].terms[${j}].t`),
-          d: str(term.d, `chunks[${i}].terms[${j}].d`),
-        };
-      }),
-      body: arr(c.body, `chunks[${i}].body`, 3, 5).map((p, j) =>
-        str(p, `chunks[${i}].body[${j}]`),
+function validateConsumeChunk(raw: unknown, i: number): ConsumeChunk {
+  const c = obj(raw, `chunks[${i}]`);
+  const alt = obj(c.alt, `chunks[${i}].alt`);
+  const ex = obj(c.example, `chunks[${i}].example`);
+  return {
+    id: `c${i + 1}`,
+    kicker: str(c.kicker, `chunks[${i}].kicker`),
+    terms: arr(c.terms ?? [], `chunks[${i}].terms`, 0, 3).map((t, j) => {
+      const term = obj(t, `chunks[${i}].terms[${j}]`);
+      return {
+        t: str(term.t, `chunks[${i}].terms[${j}].t`),
+        d: str(term.d, `chunks[${i}].terms[${j}].d`),
+      };
+    }),
+    body: arr(c.body, `chunks[${i}].body`, 3, 5).map((p, j) =>
+      str(p, `chunks[${i}].body[${j}]`),
+    ),
+    example: {
+      title: str(ex.title, `chunks[${i}].example.title`),
+      steps: arr(ex.steps, `chunks[${i}].example.steps`, 2, 6).map((s, j) =>
+        str(s, `chunks[${i}].example.steps[${j}]`),
       ),
-      example: {
-        title: str(ex.title, `chunks[${i}].example.title`),
-        steps: arr(ex.steps, `chunks[${i}].example.steps`, 2, 6).map((s, j) =>
-          str(s, `chunks[${i}].example.steps[${j}]`),
-        ),
-      },
-      takeaway: str(c.takeaway, `chunks[${i}].takeaway`),
-      cite: str(c.cite, `chunks[${i}].cite`),
-      diagram: str(c.diagram, `chunks[${i}].diagram`),
-      figure: validateFigure(c.figure, `chunks[${i}].figure`),
-      ask: str(c.ask, `chunks[${i}].ask`),
-      alt: Object.fromEntries(
-        ALT_KEYS.map((k) => [k, str(alt[k], `chunks[${i}].alt.${k}`)]),
-      ) as Record<AltKey, string>,
-      // One hook for the whole session, on the opening section. A prediction
-      // the model volunteers anywhere else is dropped: Consume reads, it
-      // doesn't quiz.
-      ...(i === 0
-        ? { pred: validatePrediction(c.pred, "chunks[0].pred") }
-        : null),
-    };
-  });
+    },
+    takeaway: str(c.takeaway, `chunks[${i}].takeaway`),
+    cite: str(c.cite, `chunks[${i}].cite`),
+    diagram: str(c.diagram, `chunks[${i}].diagram`),
+    figure: validateFigure(c.figure, `chunks[${i}].figure`),
+    ask: str(c.ask, `chunks[${i}].ask`),
+    alt: Object.fromEntries(
+      ALT_KEYS.map((k) => [k, str(alt[k], `chunks[${i}].alt.${k}`)]),
+    ) as Record<AltKey, string>,
+    // One hook for the whole session, on the opening section. A prediction
+    // the model volunteers anywhere else is dropped: Consume reads, it
+    // doesn't quiz.
+    ...(i === 0
+      ? { pred: validatePrediction(c.pred, "chunks[0].pred") }
+      : null),
+  };
 }
 
-export async function generateConsume(params: {
+export function validateConsume(raw: unknown): ConsumeChunk[] {
+  const root = obj(raw, "payload");
+  return arr(root.chunks, "chunks", 4, 6).map(validateConsumeChunk);
+}
+
+function consumeContext(params: {
   topic: string;
   nodeLabel: string;
   prereqLabels: string[];
   interests: string;
-}): Promise<ConsumeChunk[]> {
+}): string {
   const { topic, nodeLabel, prereqLabels, interests } = params;
-  return generateJson(
-    user(
-      `Write the Consume (first reading) pass for the concept "${nodeLabel}" within the topic "${topic}".
+  return `Write the Consume (first reading) pass for the concept "${nodeLabel}" within the topic "${topic}".
 The learner already knows: ${prereqLabels.join(", ") || "nothing yet — this is a foundation"}.
 ${interestNote(interests)}
 
@@ -467,12 +471,12 @@ Rules for the prose:
   shown that", no bullet-point skeletons, no restating the section title.
 - Build in order: what it is → why it works / where it comes from → how it
   behaves → where it breaks or is misused → how it connects onward.
-- Name the common misconception explicitly and say why it is wrong.
+- Name the common misconception explicitly and say why it is wrong.`;
+}
 
-Return JSON with 5 sections:
-{
-  "chunks": [
-    {
+/** The shape of one Consume section — shared by the single-shot prompt (as
+ *  array elements) and the streaming prompt (as standalone objects). */
+const CONSUME_SECTION_SHAPE = `{
       "kicker": "1 · What it is",                         // segment label: number · 2-4 words
       "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
       "pred": {                                            // FIRST SECTION ONLY — omit on all others
@@ -500,13 +504,78 @@ Return JSON with 5 sections:
         "analogy": "an analogy that maps the structure",
         "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
       }
-    }, ...
-  ]
+    }`;
+
+export async function generateConsume(params: {
+  topic: string;
+  nodeLabel: string;
+  prereqLabels: string[];
+  interests: string;
+}): Promise<ConsumeChunk[]> {
+  return generateJson(
+    user(
+      `${consumeContext(params)}
+
+Return JSON with 5 sections:
+{
+  "chunks": [${CONSUME_SECTION_SHAPE}, ...]
 }`,
     ),
     validateConsume,
     { label: "consume" },
   );
+}
+
+/**
+ * Streamed variant: sections render as they're written instead of the
+ * learner waiting on all 5. Asks for 5 standalone JSON objects (not one
+ * wrapping array, so each is a complete, parseable unit as soon as its
+ * closing brace lands) and yields each the moment it validates.
+ *
+ * No corrective retry mid-stream — if the very first section fails to parse
+ * or validate (the model ignored the format, a network hiccup), that's
+ * indistinguishable from "nothing usable happened yet", so this falls back
+ * to the proven, retried `generateConsume` instead of leaving the learner on
+ * a stalled stream. A failure *after* at least one section has already
+ * streamed out has no clean way to restart in place, so it just surfaces —
+ * rare in practice since `generateConsume`'s single-shot path covers the
+ * common failure mode (format non-compliance) upstream of this point.
+ */
+export async function* generateConsumeStream(params: {
+  topic: string;
+  nodeLabel: string;
+  prereqLabels: string[];
+  interests: string;
+}): AsyncGenerator<ConsumeChunk> {
+  let yielded = 0;
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${consumeContext(params)}
+
+Write the 5 sections as 5 SEPARATE top-level JSON objects, one after another
+— NOT wrapped in an array or a {"chunks": [...]} object, no markdown fences,
+no numbering, no commentary before/after/between them. Each object has this
+shape:
+${CONSUME_SECTION_SHAPE}`,
+      ),
+      validateConsumeChunk,
+    );
+    for await (const chunk of stream) {
+      yielded++;
+      yield chunk;
+    }
+    return;
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "consume_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+  }
+  for (const chunk of await generateConsume(params)) yield chunk;
 }
 
 // ---- kind: socratic --------------------------------------------------------

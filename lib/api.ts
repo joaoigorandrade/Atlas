@@ -111,6 +111,52 @@ export async function fetchConsume(
     .chunks;
 }
 
+/**
+ * The foreground Consume fetch: the server streams one JSON object per line
+ * as each section is written, so `onChunk` fires section-by-section instead
+ * of the caller waiting on the whole reading pass. Never used for a
+ * background warm — nobody's watching a prefetch, so that stays on the
+ * plain `fetchConsume`/`post` path above.
+ */
+export async function fetchConsumeStream(
+  params: Parameters<typeof consumeRequest>[0],
+  onChunk: (chunk: ConsumeChunk) => void,
+): Promise<ConsumeChunk[]> {
+  const res = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(consumeRequest(params)),
+  });
+  if (!res.ok || !res.body) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `generation failed (${res.status})`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: ConsumeChunk[] = [];
+  let buf = "";
+  const takeLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const chunk = JSON.parse(trimmed) as ConsumeChunk;
+    chunks.push(chunk);
+    onChunk(chunk);
+  };
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) !== -1) {
+      takeLine(buf.slice(0, nl));
+      buf = buf.slice(nl + 1);
+    }
+  }
+  takeLine(buf);
+  if (chunks.length === 0) throw new Error("generation failed (empty response)");
+  return chunks;
+}
+
 export const socraticRequest = (params: {
   topic: string;
   nodeLabel: string;

@@ -44,8 +44,12 @@ interface ConsumeViewProps {
   title: string;
   /** The subject — context for judging the open-ended prediction. */
   topic: string;
-  /** The generated reading pass for this node. */
+  /** The generated reading pass for this node — sections already streamed
+   *  in, more may still be on the way while `streaming` is true. */
   chunks: ConsumeChunk[];
+  /** More sections are still being written — the deepest one currently in
+   *  `chunks` isn't necessarily the pass's last section yet. */
+  streaming?: boolean;
   session: ConsumeSession;
   onExit: () => void;
   onAnswer: (chunkId: string, oi: number, correct: boolean) => void;
@@ -295,6 +299,7 @@ export default function ConsumeView({
   title,
   topic,
   chunks,
+  streaming = false,
   session,
   onExit,
   onAnswer,
@@ -320,7 +325,7 @@ export default function ConsumeView({
   // learner has read to the end → suggest skipping ahead. The header's
   // "already know this?" is the same escape hatch, available from the start.
   const hookAnswer = session.answered[chunks[0]?.id ?? ""];
-  const atEnd = session.idx >= chunks.length - 1;
+  const atEnd = session.idx >= chunks.length - 1 && !streaming;
   const overshoot = !!hookAnswer?.correct && atEnd;
   // Missing-prerequisite flag: leaning on "simpler" repeatedly.
   const simpleFlag = simpleCount >= 3;
@@ -472,7 +477,11 @@ export default function ConsumeView({
             const vkey = session.variant[c.id] ?? null;
             const altText = vkey ? c.alt[vkey] : null;
             const isDeepest = i === visible.length - 1;
-            const isLast = i === chunks.length - 1;
+            // While streaming, the deepest chunk in hand isn't provably the
+            // pass's last section yet — never claim "last" until the stream
+            // has actually finished.
+            const isLast = i === chunks.length - 1 && !streaming;
+            const nextArrived = i + 1 < chunks.length;
             const ans = session.answered[c.id];
             // The session's one hook, on the opening section. It sits above
             // the prose and clears once answered or waved off — the material
@@ -933,43 +942,57 @@ export default function ConsumeView({
                 </div>
 
                 {/* Continue / finish — only on the deepest revealed section */}
-                {isDeepest && (
-                  <div style={{ marginTop: 30 }}>
-                    <button
-                      onClick={() => (isLast ? onFinish() : onContinue(i))}
-                      style={
-                        isLast
-                          ? {
-                              padding: "14px 24px",
-                              background: color.accent,
-                              color: color.accentInk,
-                              border: "none",
-                              borderRadius: 12,
-                              fontSize: 15,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
-                            }
-                          : {
-                              padding: "12px 20px",
-                              background: color.card,
-                              color: color.ink,
-                              border: `1px solid ${color.hairlineStrong}`,
-                              borderRadius: 11,
-                              fontSize: 14,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                            }
-                      }
+                {isDeepest &&
+                  (nextArrived || isLast ? (
+                    <div style={{ marginTop: 30 }}>
+                      <button
+                        onClick={() => (isLast ? onFinish() : onContinue(i))}
+                        style={
+                          isLast
+                            ? {
+                                padding: "14px 24px",
+                                background: color.accent,
+                                color: color.accentInk,
+                                border: "none",
+                                borderRadius: 12,
+                                fontSize: 15,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                                boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+                              }
+                            : {
+                                padding: "12px 20px",
+                                background: color.card,
+                                color: color.ink,
+                                border: `1px solid ${color.hairlineStrong}`,
+                                borderRadius: 11,
+                                fontSize: 14,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }
+                        }
+                      >
+                        {isLast
+                          ? "Finish · begin Socratic →"
+                          : `Continue · ${sectionName(chunks[i + 1].kicker)} ↓`}
+                      </button>
+                    </div>
+                  ) : (
+                    // Caught up to the writer — the next section is still
+                    // being generated.
+                    <div
+                      style={{
+                        marginTop: 30,
+                        fontSize: 13,
+                        color: color.inkFaint,
+                        fontStyle: "italic",
+                      }}
                     >
-                      {isLast
-                        ? "Finish · begin Socratic →"
-                        : `Continue · ${sectionName(chunks[i + 1].kicker)} ↓`}
-                    </button>
-                  </div>
-                )}
+                      Writing the next section…
+                    </div>
+                  ))}
               </div>
             );
           })}

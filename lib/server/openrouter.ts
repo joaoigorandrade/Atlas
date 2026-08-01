@@ -208,6 +208,116 @@ export async function generateJson<T>(
   );
 }
 
+/** One POST to one model, streamed. Yields raw text deltas as they arrive —
+ *  no retry, no fallback chain (a caller that wants those falls back to
+ *  `generateJson` wholesale on failure, since a half-streamed response can't
+ *  be cleanly retried in place). */
+async function* chatStreamOnce(
+  model: string,
+  messages: ChatMessage[],
+  key: string,
+): AsyncGenerator<string> {
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://atlas.local",
+      "X-Title": "Atlas Learning Platform",
+    },
+    body: JSON.stringify({ model, messages, temperature: 0.6, stream: true }),
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.text().catch(() => "");
+    throw new OpenRouterError(`OpenRouter ${res.status}: ${body.slice(0, 600)}`, res.status);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buf += decoder.decode(value, { stream: true });
+    const frames = buf.split("\n");
+    buf = frames.pop() ?? "";
+    for (const frame of frames) {
+      const line = frame.trim();
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") return;
+      try {
+        const evt = JSON.parse(data) as {
+          choices?: Array<{ delta?: { content?: string } }>;
+        };
+        const delta = evt.choices?.[0]?.delta?.content;
+        if (delta) yield delta;
+      } catch {
+        // A malformed SSE frame (rare keep-alive/comment) — skip it.
+      }
+    }
+  }
+}
+
+/** Pull complete top-level `{...}` objects out of a growing buffer, tolerant
+ *  of whitespace/newlines/commas between them and of braces inside string
+ *  literals. Returns what's left over (an in-progress object, or nothing). */
+export function extractCompleteObjects(buf: string): { objects: string[]; rest: string } {
+  const objects: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inStr = false;
+  let esc = false;
+  let lastEnd = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const ch = buf[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+    } else if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        objects.push(buf.slice(start, i + 1));
+        lastEnd = i + 1;
+        start = -1;
+      }
+    }
+  }
+  return { objects, rest: buf.slice(lastEnd) };
+}
+
+/**
+ * Stream a completion expected to contain a sequence of top-level JSON
+ * objects (not one wrapping object/array) and yield each as it completes,
+ * validated. No corrective retry here — unlike `generateJson`, a caller that
+ * hits a validation error mid-stream can't cleanly redo just the bad part;
+ * the caller's job is to fall back to the single-shot, retried path.
+ */
+export async function* streamJsonObjects<T>(
+  messages: ChatMessage[],
+  validate: (raw: unknown, index: number) => T,
+): AsyncGenerator<T> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key)
+    throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
+  const model = modelChain("content")[0];
+  let buf = "";
+  let index = 0;
+  for await (const delta of chatStreamOnce(model, messages, key)) {
+    buf += delta;
+    const { objects, rest } = extractCompleteObjects(buf);
+    buf = rest;
+    for (const raw of objects) yield validate(JSON.parse(raw), index++);
+  }
+}
+
 function logGeneration(
   label: string,
   result: ChatResult | null,
