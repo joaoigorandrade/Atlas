@@ -134,8 +134,13 @@ export const PHASE_SKIP_NUDGE: Record<Phase, string> = {
 
 // ---- Phase 2 · Consume (the Learn view) ------------------------------------
 // The segmented, dual-coded reading content for a Consume session. Each
-// node's chunks are generated on entry (kind "consume") so the
-// predict → reveal → continue mechanic runs on real, topic-specific material.
+// node's sections are generated on entry (kind "consume").
+//
+// Consume is the *reading* phase: the material is the point. Sections carry
+// several paragraphs of real explanation plus a worked example, all shown on
+// arrival — nothing is held hostage behind a question. The one prediction in
+// the session sits on the opening section as a hook the learner may skip;
+// retrieval practice proper belongs to Socratic, Feynman and Crucible.
 
 /** The on-demand rewrite modalities offered under each revealed chunk. */
 export type AltKey = "simpler" | "example" | "analogy" | "deeper";
@@ -155,9 +160,24 @@ export interface ConsumeTerm {
   d: string;
 }
 
+/** The one predict-before-you-read hook of a session. It primes the opening
+ *  section; it never gates it — skipping straight to the material is a
+ *  first-class path. */
 export interface ConsumePrediction {
   q: string;
   opts: ReadonlyArray<{ label: string; correct: boolean }>;
+  /** Verdict copy after a right / wrong guess. */
+  right: string;
+  wrong: string;
+}
+
+/** A worked example, rendered inline under the prose — part of the material,
+ *  not an on-demand rewrite the learner has to go looking for. */
+export interface ConsumeExample {
+  /** What this example demonstrates. */
+  title: string;
+  /** The worked steps, in order. */
+  steps: string[];
 }
 
 /** A schematic figure: labeled boxes wired by directed arrows. */
@@ -189,13 +209,13 @@ export interface ConsumeChunk {
   /** Segment label, e.g. "1 · What it is". */
   kicker: string;
   terms: ConsumeTerm[];
-  /** The desirable-difficulty guess posed before the explanation reveals. */
-  pred: ConsumePrediction;
-  /** Verdict copy after a right / wrong guess. */
-  right: string;
-  wrong: string;
-  /** The explanation itself, revealed only after the learner guesses. */
-  body: string;
+  /** The explanation itself — several paragraphs of real material, on screen
+   *  the moment the section is. */
+  body: string[];
+  /** The worked example that follows the prose. */
+  example: ConsumeExample;
+  /** The one line to carry out of this section. */
+  takeaway: string;
   /** Source citation — trust is visible; no memorizing hallucinations. */
   cite: string;
   /** Caption for the diagram beside the prose. */
@@ -207,6 +227,9 @@ export interface ConsumeChunk {
   ask: string;
   /** Adaptive-modality rewrites of this chunk, keyed by control. */
   alt: Record<AltKey, string>;
+  /** The session's single prediction hook — present on the opening section
+   *  only, and optional even there. */
+  pred?: ConsumePrediction;
 }
 
 // ---- Phase 3a · Socratic (during learning) --------------------------------
@@ -1595,7 +1618,7 @@ export function reminderCopy(state: AdherenceState): string {
 
 // ---- Calibration / Metacognition (§12) — the "learn to learn" edge ---------
 // The learner doesn't just learn the material — they learn *what they actually
-// know*. Confidence is captured cheaply everywhere (predictions in Consume, the
+// know*. Confidence is captured cheaply everywhere (the Consume hook, the
 // tap before every Crucible problem and every review-card flip), then held
 // against first-try performance. Overconfidence — felt solid, failed — is the
 // thing this surface exists to catch, because that gap is fluency masquerading

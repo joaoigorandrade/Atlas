@@ -410,7 +410,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       screen !== "diagnostic";
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 2,
+      v: 3,
       form,
       graph,
       spawnedIds: [...spawnedIds],
@@ -887,6 +887,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           nodeId: node.id,
           idx: 0,
           answered: {},
+          hookSkipped: false,
           variant: {},
           term: null,
           aside: null,
@@ -932,6 +933,12 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     },
     [],
   );
+
+  /** "Just teach me" — the hook is optional, so waving it off clears it and
+   *  leaves the material exactly where it already was. */
+  const consumeSkipHook = useCallback(() => {
+    setConsume((prev) => (prev ? { ...prev, hookSkipped: true } : prev));
+  }, []);
 
   const consumeContinue = useCallback((chunkIndex: number) => {
     setConsume((prev) =>
@@ -2387,6 +2394,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           session={consume}
           onExit={exitConsume}
           onAnswer={consumeAnswer}
+          onSkipHook={consumeSkipHook}
           onContinue={consumeContinue}
           onFinish={finishConsume}
           onSetVariant={consumeSetVariant}

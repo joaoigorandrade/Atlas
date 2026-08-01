@@ -10,6 +10,7 @@ import {
   type ConceptNode,
   type ConsumeChunk,
   type ConsumeFigure,
+  type ConsumePrediction,
   type CrucibleContent,
   type DiagnosticQuestion,
   type ElaborationContent,
@@ -377,21 +378,33 @@ export function validateFigure(raw: unknown, name: string): ConsumeFigure {
   return { nodes, edges };
 }
 
-function validateConsume(raw: unknown): ConsumeChunk[] {
+/** The session's single prediction hook, validated only for the opening
+ *  section — every later section is pure material. */
+function validatePrediction(raw: unknown, name: string): ConsumePrediction {
+  const pred = obj(raw, name);
+  const opts = arr(pred.opts, `${name}.opts`, 3, 3).map((o, j) => {
+    const opt = obj(o, `${name}.opts[${j}]`);
+    return {
+      label: str(opt.label, `${name}.opts[${j}].label`),
+      correct: opt.correct === true,
+    };
+  });
+  if (opts.filter((o) => o.correct).length !== 1)
+    fail(`${name}.opts must have exactly one correct option`);
+  return {
+    q: str(pred.q, `${name}.q`),
+    opts,
+    right: str(pred.right, `${name}.right`),
+    wrong: str(pred.wrong, `${name}.wrong`),
+  };
+}
+
+export function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
-  return arr(root.chunks, "chunks", 3, 5).map((v, i) => {
+  return arr(root.chunks, "chunks", 4, 6).map((v, i) => {
     const c = obj(v, `chunks[${i}]`);
-    const pred = obj(c.pred, `chunks[${i}].pred`);
-    const opts = arr(pred.opts, `chunks[${i}].pred.opts`, 3, 3).map((o, j) => {
-      const opt = obj(o, `chunks[${i}].pred.opts[${j}]`);
-      return {
-        label: str(opt.label, `chunks[${i}].pred.opts[${j}].label`),
-        correct: opt.correct === true,
-      };
-    });
-    if (opts.filter((o) => o.correct).length !== 1)
-      fail(`chunks[${i}].pred.opts must have exactly one correct option`);
     const alt = obj(c.alt, `chunks[${i}].alt`);
+    const ex = obj(c.example, `chunks[${i}].example`);
     return {
       id: `c${i + 1}`,
       kicker: str(c.kicker, `chunks[${i}].kicker`),
@@ -402,10 +415,16 @@ function validateConsume(raw: unknown): ConsumeChunk[] {
           d: str(term.d, `chunks[${i}].terms[${j}].d`),
         };
       }),
-      pred: { q: str(pred.q, `chunks[${i}].pred.q`), opts },
-      right: str(c.right, `chunks[${i}].right`),
-      wrong: str(c.wrong, `chunks[${i}].wrong`),
-      body: str(c.body, `chunks[${i}].body`),
+      body: arr(c.body, `chunks[${i}].body`, 3, 5).map((p, j) =>
+        str(p, `chunks[${i}].body[${j}]`),
+      ),
+      example: {
+        title: str(ex.title, `chunks[${i}].example.title`),
+        steps: arr(ex.steps, `chunks[${i}].example.steps`, 2, 6).map((s, j) =>
+          str(s, `chunks[${i}].example.steps[${j}]`),
+        ),
+      },
+      takeaway: str(c.takeaway, `chunks[${i}].takeaway`),
       cite: str(c.cite, `chunks[${i}].cite`),
       diagram: str(c.diagram, `chunks[${i}].diagram`),
       figure: validateFigure(c.figure, `chunks[${i}].figure`),
@@ -413,6 +432,12 @@ function validateConsume(raw: unknown): ConsumeChunk[] {
       alt: Object.fromEntries(
         ALT_KEYS.map((k) => [k, str(alt[k], `chunks[${i}].alt.${k}`)]),
       ) as Record<AltKey, string>,
+      // One hook for the whole session, on the opening section. A prediction
+      // the model volunteers anywhere else is dropped: Consume reads, it
+      // doesn't quiz.
+      ...(i === 0
+        ? { pred: validatePrediction(c.pred, "chunks[0].pred") }
+        : null),
     };
   });
 }
@@ -430,31 +455,50 @@ export async function generateConsume(params: {
 The learner already knows: ${prereqLabels.join(", ") || "nothing yet — this is a foundation"}.
 ${interestNote(interests)}
 
-Return JSON with 4 chunks that build the concept from "what it is" to "ready to apply":
+This is the READING phase — the learner is here to be taught, not tested. Write
+real teaching material: explain the idea, show where it comes from, work an
+example, name what usually goes wrong. Questioning happens in later phases, so
+the pass carries exactly ONE prediction hook, on the first section only.
+
+Rules for the prose:
+- Teach, don't summarize. Each section's body is 3-5 full paragraphs of 3-6
+  sentences — enough that a learner who reads only this understands the idea.
+- Be concrete: real numbers, real cases, the actual mechanism. No "it can be
+  shown that", no bullet-point skeletons, no restating the section title.
+- Build in order: what it is → why it works / where it comes from → how it
+  behaves → where it breaks or is misused → how it connects onward.
+- Name the common misconception explicitly and say why it is wrong.
+
+Return JSON with 5 sections:
 {
   "chunks": [
     {
       "kicker": "1 · What it is",                         // segment label: number · 2-4 words
-      "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms the paragraph uses
-      "pred": {                                            // a predict-before-reveal question about THIS chunk
-        "q": "the guess the learner makes before reading",
-        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}]
+      "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
+      "pred": {                                            // FIRST SECTION ONLY — omit on all others
+        "q": "a guess that primes the reading — what do you think happens if…?",
+        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
+        "right": "one line confirming the guess and pointing at what follows",
+        "wrong": "one honest line naming the misconception, then pointing at what follows"
       },
-      "right": "one-line verdict after a correct guess",
-      "wrong": "one-line honest correction after a wrong guess",
-      "body": "the explanation itself, 2-4 sentences, precise and concrete",
+      "body": ["paragraph 1", "paragraph 2", "paragraph 3"],   // 3-5 paragraphs, 3-6 sentences each
+      "example": {                                         // worked inline, part of the material
+        "title": "what this example demonstrates",
+        "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps
+      },
+      "takeaway": "the one sentence to carry out of this section",
       "cite": "a real canonical source (book §, lecture series chapter) — never invent one",
       "diagram": "one-line caption for the figure below",
-      "figure": {                                          // the figure itself, specific to THIS chunk — never a generic placeholder
+      "figure": {                                          // the figure itself, specific to THIS section — never a generic placeholder
         "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
         "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
       },
       "ask": "a mini-Socratic prompt that answers a likely question with a question",
       "alt": {
-        "simpler": "the body rewritten plainly",
-        "example": "a fully worked concrete example",
+        "simpler": "the whole section rewritten plainly, still 2-3 paragraphs",
+        "example": "a second, different worked example",
         "analogy": "an analogy that maps the structure",
-        "deeper": "the sharper, more rigorous version"
+        "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
       }
     }, ...
   ]
@@ -1112,7 +1156,7 @@ Return JSON:
 
 // ---- judge mode: choice ----------------------------------------------------
 // The open-ended half of every surface that also has a closed form (placement,
-// Consume predictions, the Feynman fix pass). The learner writes in their own
+// the Consume hook, the Feynman fix pass). The learner writes in their own
 // words; the judge maps that onto the option index the existing closed-path
 // logic already keys on, so nothing downstream changes.
 

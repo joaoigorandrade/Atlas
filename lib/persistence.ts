@@ -22,7 +22,7 @@ import type {
 import type { StoredCard } from "@/lib/fsrs";
 
 export interface RunSnapshot {
-  v: 2;
+  v: 3;
   form: OnboardingForm;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
@@ -49,11 +49,12 @@ export interface RunSnapshot {
   };
 }
 
-/** What may come back from the table: a v1 or v2 snapshot (v1 predates
- *  cards/shakyReasons/reviewedNodes/examDate/lastDay). */
+/** What may come back from the table: a v1, v2 or v3 snapshot. v1 predates
+ *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v2 predates the
+ *  reading-first Consume rewrite, so its cached chunks are quiz-shaped. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
-  "v" | "form" | "adherence" | "shakyReasons" | "reviewedNodes" | "cards"
+  "v" | "form" | "adherence" | "shakyReasons" | "reviewedNodes" | "cards" | "caches"
 > & {
   v: number;
   form: Omit<OnboardingForm, "examDate"> & { examDate?: string };
@@ -61,18 +62,72 @@ type LoadedSnapshot = Omit<
   shakyReasons?: Record<string, ShakyReason>;
   reviewedNodes?: string[];
   cards?: StoredCard[];
+  caches: Omit<RunSnapshot["caches"], "consume"> & {
+    consume: Record<string, LegacyConsumeChunk[]>;
+  };
 };
 
-/** Fill a v1 snapshot's gaps; a v2 passes through unchanged. */
+/** A pre-v3 cached chunk: one short body string, a prediction on every chunk,
+ *  verdict copy hanging off the chunk, and no example or takeaway. */
+export type LegacyConsumeChunk = Omit<
+  ConsumeChunk,
+  "body" | "example" | "takeaway"
+> & {
+  body: string | string[];
+  example?: ConsumeChunk["example"];
+  takeaway?: string;
+  right?: string;
+  wrong?: string;
+};
+
+/** Reshape a cached v2 reading pass into the current one. The old material is
+ *  all we have — it stays short — but it renders, and it stops gating: only
+ *  the first chunk keeps its prediction, and it keeps its verdict copy. */
+export function migrateConsume(
+  cached: Record<string, LegacyConsumeChunk[]>,
+): Record<string, ConsumeChunk[]> {
+  return Object.fromEntries(
+    Object.entries(cached ?? {}).map(([nodeId, chunks]) => [
+      nodeId,
+      chunks.map((c, i) => {
+        const { right, wrong, pred, ...rest } = c;
+        return {
+          ...rest,
+          body: Array.isArray(c.body) ? c.body : [c.body],
+          example: c.example ?? {
+            title: "Worked through",
+            steps: [c.alt.example],
+          },
+          takeaway: c.takeaway ?? c.alt.simpler,
+          ...(i === 0 && pred
+            ? {
+                pred: {
+                  ...pred,
+                  right: pred.right ?? right ?? "That matches what follows.",
+                  wrong:
+                    pred.wrong ??
+                    wrong ??
+                    "Not quite — the section below sets it straight.",
+                },
+              }
+            : null),
+        };
+      }),
+    ]),
+  );
+}
+
+/** Fill an older snapshot's gaps; a v3 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
   return {
     ...raw,
-    v: 2,
+    v: 3,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
     reviewedNodes: raw.reviewedNodes ?? [],
     cards: raw.cards ?? [],
+    caches: { ...raw.caches, consume: migrateConsume(raw.caches?.consume) },
   };
 }
 
@@ -88,7 +143,7 @@ export async function loadLatestRun(
     .maybeSingle();
   if (error) throw new Error(`Loading saved run failed: ${error.message}`);
   const snapshot = data?.snapshot as LoadedSnapshot | undefined;
-  if (!snapshot || (snapshot.v !== 1 && snapshot.v !== 2)) return null;
+  if (!snapshot || ![1, 2, 3].includes(snapshot.v)) return null;
   return { subject: data!.subject, snapshot: migrate(snapshot) };
 }
 

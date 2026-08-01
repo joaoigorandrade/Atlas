@@ -1,7 +1,7 @@
 "use client";
 
 // Every question in Atlas is asked open-ended first. The surfaces that also
-// have a closed form (placement, Consume predictions, the Feynman fix pass)
+// have a closed form (placement, the Consume hook, the Feynman fix pass)
 // render <AnswerModeToggle> beside the question and start in "open": the
 // learner writes in their own words, the judge maps that answer onto the
 // option index the closed path already keys on, so nothing downstream changes.

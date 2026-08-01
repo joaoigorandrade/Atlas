@@ -111,27 +111,32 @@ Already covered by onboarding + the Map. Ongoing, it's not a separate screen —
 
 ## 6. Phase 2 — Consume (the Learn view)
 
-**Goal:** minimum, grounded, dual-coded input — then straight into retrieval. This is the phase most apps ruin by dumping text; here it's short and active.
+**Goal:** grounded, dual-coded *teaching*. This is the phase most apps ruin — some by dumping an undifferentiated wall of text, others by turning reading into a quiz where every paragraph is held hostage behind a question. Consume does neither: it teaches properly, in segments, and saves the interrogation for the phases built for it.
+
+**The rule that governs this phase:** the material is never gated. Everything a section teaches is on screen the moment the section is. Retrieval practice is what Socratic, Feynman and Crucible are *for*; a reading phase that quizzes every paragraph spends the learner's attention on answering instead of understanding.
 
 **Layout**
-- Distraction-free reading column, **segmented**: content reveals in chunks, not a wall.
-- **Dual-coded:** an auto-generated diagram sits beside the prose for each chunk.
+- Distraction-free reading column, **segmented**: 5 sections revealed one at a time, not a wall — but the gate between them is a *Continue* button, not a question.
+- Each section is real material: **3–5 paragraphs** of explanation (what it is → where it comes from → how it behaves → where it breaks → what it connects to), a **worked example** shown inline, and a one-line **takeaway**.
+- **Dual-coded:** an auto-generated diagram sits beside the prose for each section.
 - **Pre-taught terms:** key vocabulary is introduced *before* the paragraph that uses it.
 - **Source citations** on every claim — trust is visible; the learner isn't memorizing hallucinations.
-- Inline controls per chunk: **Simpler · Example · Analogy (from my interests) · Go deeper.** Rewrites on demand.
+- Inline controls per section: **Simpler · Example · Analogy (from my interests) · Go deeper.** Rewrites on demand.
 
-**The desirable-difficulty mechanic (the *deeper* lever):**
-- Before revealing each chunk's explanation, the app poses a **prediction/guess** ("What do you think happens if…?"). The learner answers, *then* the explanation reveals. A wrong guess followed by the correction encodes far better than passive reading. This turns the most passive phase into an active one.
+**The desirable-difficulty mechanic (the *deeper* lever), kept but rationed:**
+- The session opens with **one** prediction ("What do you think happens if…?"). A guess followed by a correction encodes better than reading cold, so the hook is worth having — once. It is **optional**: *"Skip — just teach me"* drops straight into the material, which was never waiting on it. Answered or skipped, the reading below is identical.
 
 **Interactions**
-- Answer the prediction → reveal → continue.
+- Read → continue → read. No answer is required to advance.
+- Optionally take the opening guess; the verdict stays pinned above the section that settles it.
 - Tap any term for its pre-taught definition inline.
 - "Rewrite as: worked example / diagram / analogy" — **adaptive modality**; the app learns which representation lands for this learner and leads with it next time.
 - Highlight text → "ask about this" opens a mini-Socratic aside without leaving the view.
+- **"I know this →"** in the header, available from the first second: nobody should have to read past what they already know to prove they know it.
 
-**Exit:** finishing the last chunk auto-advances to Socratic. Node moves Unknown/Frontier → **Learning**.
+**Exit:** finishing the last section auto-advances to Socratic. Node moves Unknown/Frontier → **Learning**.
 
-**Edge cases:** learner already guesses everything right → app fast-forwards and suggests skipping to Crucible (diagnostic overshoot correction). Learner rewrites everything to "simpler" repeatedly → app flags a missing prerequisite and offers to route there.
+**Edge cases:** learner calls the opening prediction correctly and reaches the end → app suggests skipping to Crucible (diagnostic overshoot correction). Learner rewrites everything to "simpler" repeatedly → app flags a missing prerequisite and offers to route there.
 
 ---
 
@@ -260,7 +265,7 @@ Already covered by onboarding + the Map. Ongoing, it's not a separate screen —
 
 **Where it's captured (cheap hooks, everywhere):**
 - Confidence tap before Crucible problems and before flipping review cards.
-- Predictions in the Consume phase.
+- The opening prediction of a Consume session, when the learner takes it.
 
 **Where it's shown — the Calibration screen (under Analytics):**
 - A **calibration curve:** predicted confidence vs. actual performance. Overconfident zones (feels solid, fails) in one color; underconfident in another.
