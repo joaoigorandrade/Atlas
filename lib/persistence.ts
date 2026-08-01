@@ -1,8 +1,15 @@
-// Coarse run-state persistence (§17): one `run_states` row per (user, subject)
-// holding the whole run as a JSON snapshot — graph, mastery StateMap,
-// adherence, calibration, the persisted FSRS card store, and the
-// generated-content caches. RLS on the table keeps rows per-user; the browser
-// client writes directly with the publishable key.
+// Coarse per-(user, subject) run persistence (§17), split in two so the map
+// never waits on content it isn't rendering:
+//
+//   run_states.snapshot — the run core: graph, mastery StateMap, positions,
+//     adherence, calibration, the FSRS card store. Small, changes constantly,
+//     saved on a short debounce. This is all the map needs to draw.
+//   run_states.caches   — the per-node generated content. Large, changes only
+//     after a generation, loaded in the background and saved on a long
+//     debounce so a node drag no longer re-uploads megabytes of chunks.
+//
+// RLS on the table keeps rows per-user; the browser client writes directly
+// with the publishable key.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -21,8 +28,28 @@ import type {
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
 
+/** Per-node generated content. Also lives in the shared `content_cache` table
+ *  keyed by prompt hash — this copy is the learner's own instant-resume set. */
+export interface RunCaches {
+  consume: Record<string, ConsumeChunk[]>;
+  socratic: Record<string, SocraticStep[]>;
+  feynman: Record<string, FeynmanBeat[]>;
+  connect: Record<string, ElaborationContent>;
+  crucible: Record<string, CrucibleContent>;
+  retain: RetainContent | null;
+}
+
+export const emptyCaches = (): RunCaches => ({
+  consume: {},
+  socratic: {},
+  feynman: {},
+  connect: {},
+  crucible: {},
+  retain: null,
+});
+
 export interface RunSnapshot {
-  v: 2;
+  v: 3;
   form: OnboardingForm;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
@@ -38,19 +65,11 @@ export interface RunSnapshot {
   reviewedNodes: string[];
   /** The persisted FSRS card store (#21) — real due dates survive refreshes. */
   cards: StoredCard[];
-  /** Per-node generated content — persisting it is what stops re-billing. */
-  caches: {
-    consume: Record<string, ConsumeChunk[]>;
-    socratic: Record<string, SocraticStep[]>;
-    feynman: Record<string, FeynmanBeat[]>;
-    connect: Record<string, ElaborationContent>;
-    crucible: Record<string, CrucibleContent>;
-    retain: RetainContent | null;
-  };
 }
 
-/** What may come back from the table: a v1 or v2 snapshot (v1 predates
- *  cards/shakyReasons/reviewedNodes/examDate/lastDay). */
+/** What may come back from the table: a v1, v2, or v3 snapshot. v1 predates
+ *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
+ *  content caches inline, which v3 moved to their own column. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
   "v" | "form" | "adherence" | "shakyReasons" | "reviewedNodes" | "cards"
@@ -61,13 +80,15 @@ type LoadedSnapshot = Omit<
   shakyReasons?: Record<string, ShakyReason>;
   reviewedNodes?: string[];
   cards?: StoredCard[];
+  caches?: Partial<RunCaches>;
 };
 
-/** Fill a v1 snapshot's gaps; a v2 passes through unchanged. */
+/** Fill an older snapshot's gaps; a v3 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
+  const { caches: _inline, ...rest } = raw;
   return {
-    ...raw,
-    v: 2,
+    ...rest,
+    v: 3,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
@@ -76,10 +97,25 @@ function migrate(raw: LoadedSnapshot): RunSnapshot {
   };
 }
 
-/** Most recently touched run for the signed-in user, or null on a fresh account. */
-export async function loadLatestRun(
+function normalizeCaches(raw: Partial<RunCaches> | null | undefined): RunCaches {
+  return { ...emptyCaches(), ...(raw ?? {}) };
+}
+
+export interface LoadedRun {
+  subject: string;
+  snapshot: RunSnapshot;
+  /** Present only for pre-v3 rows, whose caches still travel inside the
+   *  snapshot — nothing is lost on the first load after the migration. */
+  inlineCaches: RunCaches | null;
+}
+
+/**
+ * The run core for the most recently touched run, without the content caches.
+ * This is the query the first paint waits on, so it stays small on purpose.
+ */
+export async function loadRunCore(
   supabase: SupabaseClient,
-): Promise<{ subject: string; snapshot: RunSnapshot } | null> {
+): Promise<LoadedRun | null> {
   const { data, error } = await supabase
     .from("run_states")
     .select("subject, snapshot")
@@ -88,11 +124,29 @@ export async function loadLatestRun(
     .maybeSingle();
   if (error) throw new Error(`Loading saved run failed: ${error.message}`);
   const snapshot = data?.snapshot as LoadedSnapshot | undefined;
-  if (!snapshot || (snapshot.v !== 1 && snapshot.v !== 2)) return null;
-  return { subject: data!.subject, snapshot: migrate(snapshot) };
+  if (!snapshot || ![1, 2, 3].includes(snapshot.v)) return null;
+  return {
+    subject: data!.subject,
+    snapshot: migrate(snapshot),
+    inlineCaches: snapshot.caches ? normalizeCaches(snapshot.caches) : null,
+  };
 }
 
-/** Write-through upsert; `user_id` defaults to `auth.uid()` server-side. */
+/** The generated content for a run — fetched after the map is already drawn. */
+export async function loadRunCaches(
+  supabase: SupabaseClient,
+  subject: string,
+): Promise<RunCaches> {
+  const { data, error } = await supabase
+    .from("run_states")
+    .select("caches")
+    .eq("subject", subject)
+    .maybeSingle();
+  if (error) throw new Error(`Loading saved content failed: ${error.message}`);
+  return normalizeCaches(data?.caches as Partial<RunCaches> | undefined);
+}
+
+/** Write-through upsert of the run core; `user_id` defaults to `auth.uid()`. */
 export async function saveRun(
   supabase: SupabaseClient,
   subject: string,
@@ -102,4 +156,16 @@ export async function saveRun(
     .from("run_states")
     .upsert({ subject, snapshot }, { onConflict: "user_id,subject" });
   if (error) throw new Error(`Saving run failed: ${error.message}`);
+}
+
+/** Write-through upsert of the content caches alone — the big, rare write. */
+export async function saveRunCaches(
+  supabase: SupabaseClient,
+  subject: string,
+  caches: RunCaches,
+): Promise<void> {
+  const { error } = await supabase
+    .from("run_states")
+    .upsert({ subject, caches }, { onConflict: "user_id,subject" });
+  if (error) throw new Error(`Saving content failed: ${error.message}`);
 }
