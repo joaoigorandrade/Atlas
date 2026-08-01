@@ -14,18 +14,60 @@ import type {
   SocraticStep,
 } from "@/lib/curriculum";
 
-async function post<T>(body: Record<string, unknown>): Promise<T> {
+/** Options every content fetcher accepts. `prefetch` marks a background warm:
+ *  the server may decline it (204) to keep quota for what the learner asks for
+ *  by hand, and the caller treats that as a silent no-op. */
+export interface FetchOpts {
+  prefetch?: boolean;
+}
+
+/** A background warm the server declined — swallowed by the warm queue. */
+export class WarmDeclined extends Error {
+  constructor() {
+    super("prefetch declined");
+  }
+}
+
+async function post<T>(
+  body: Record<string, unknown>,
+  opts?: FetchOpts,
+): Promise<T> {
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(opts?.prefetch ? { ...body, prefetch: true } : body),
   });
+  if (res.status === 204) throw new WarmDeclined();
   const data = (await res.json().catch(() => null)) as
     | (T & { error?: string })
     | null;
   if (!res.ok || !data)
     throw new Error(data?.error ?? `generation failed (${res.status})`);
   return data;
+}
+
+/**
+ * The batch warm: ask which of these requests are already in the shared
+ * content cache and take them without a model call. Answers positionally —
+ * `hits[i]` is the payload for `items[i]`, absent on a miss. Best-effort: a
+ * failure here just means nothing was pre-filled.
+ */
+export async function fetchCachedContent(
+  items: Array<Record<string, unknown>>,
+): Promise<Record<number, unknown>> {
+  if (items.length === 0) return {};
+  try {
+    const res = await fetch("/api/content", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    if (!res.ok) return {};
+    const data = (await res.json()) as { hits?: Record<number, unknown> };
+    return data.hits ?? {};
+  } catch {
+    return {};
+  }
 }
 
 export interface CurriculumPayload {
@@ -50,68 +92,101 @@ export function fetchCurriculum(params: {
   return post<CurriculumResult>({ kind: "curriculum", ...params });
 }
 
-export async function fetchConsume(params: {
+// Each fetcher pairs with a `<kind>Request` builder returning the exact body
+// it posts. The builders are what `fetchCachedContent` batches, which is how a
+// warm addresses the same cache row the real call would.
+
+export const consumeRequest = (params: {
   topic: string;
   nodeLabel: string;
   prereqLabels: string[];
   interests: string;
-}): Promise<ConsumeChunk[]> {
-  return (await post<{ chunks: ConsumeChunk[] }>({ kind: "consume", ...params }))
+}) => ({ kind: "consume", ...params });
+
+export async function fetchConsume(
+  params: Parameters<typeof consumeRequest>[0],
+  opts?: FetchOpts,
+): Promise<ConsumeChunk[]> {
+  return (await post<{ chunks: ConsumeChunk[] }>(consumeRequest(params), opts))
     .chunks;
 }
 
-export async function fetchSocratic(params: {
+export const socraticRequest = (params: {
   topic: string;
   nodeLabel: string;
   interests: string;
-}): Promise<SocraticStep[]> {
-  return (await post<{ steps: SocraticStep[] }>({ kind: "socratic", ...params }))
+}) => ({ kind: "socratic", ...params });
+
+export async function fetchSocratic(
+  params: Parameters<typeof socraticRequest>[0],
+  opts?: FetchOpts,
+): Promise<SocraticStep[]> {
+  return (await post<{ steps: SocraticStep[] }>(socraticRequest(params), opts))
     .steps;
 }
 
-export async function fetchFeynman(params: {
+export const feynmanRequest = (params: {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   interests: string;
-}): Promise<FeynmanBeat[]> {
-  return (await post<{ beats: FeynmanBeat[] }>({ kind: "feynman", ...params }))
+}) => ({ kind: "feynman", ...params });
+
+export async function fetchFeynman(
+  params: Parameters<typeof feynmanRequest>[0],
+  opts?: FetchOpts,
+): Promise<FeynmanBeat[]> {
+  return (await post<{ beats: FeynmanBeat[] }>(feynmanRequest(params), opts))
     .beats;
 }
 
-export async function fetchConnect(params: {
+export const connectRequest = (params: {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   pool: Array<{ id: string; label: string }>;
   interests: string;
-}): Promise<ElaborationContent> {
+}) => ({ kind: "connect", ...params });
+
+export async function fetchConnect(
+  params: Parameters<typeof connectRequest>[0],
+  opts?: FetchOpts,
+): Promise<ElaborationContent> {
   return (
-    await post<{ content: ElaborationContent }>({ kind: "connect", ...params })
+    await post<{ content: ElaborationContent }>(connectRequest(params), opts)
   ).content;
 }
 
-export async function fetchCrucible(params: {
+export const crucibleRequest = (params: {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   masteredLabels: string[];
   interests: string;
-}): Promise<CrucibleContent> {
+}) => ({ kind: "crucible", ...params });
+
+export async function fetchCrucible(
+  params: Parameters<typeof crucibleRequest>[0],
+  opts?: FetchOpts,
+): Promise<CrucibleContent> {
   return (
-    await post<{ content: CrucibleContent }>({ kind: "crucible", ...params })
+    await post<{ content: CrucibleContent }>(crucibleRequest(params), opts)
   ).content;
 }
 
-export async function fetchRetain(params: {
+export const retainRequest = (params: {
   topic: string;
   budgetMin: number;
   nodes: Array<{ id: string; label: string; state: string }>;
   interests: string;
-}): Promise<RetainContent> {
-  return (
-    await post<{ content: RetainContent }>({ kind: "retain", ...params })
-  ).content;
+}) => ({ kind: "retain", ...params });
+
+export async function fetchRetain(
+  params: Parameters<typeof retainRequest>[0],
+  opts?: FetchOpts,
+): Promise<RetainContent> {
+  return (await post<{ content: RetainContent }>(retainRequest(params), opts))
+    .content;
 }
 
 // ---- the judging loop (#25-#27) — the learner's own words, classified ------

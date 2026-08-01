@@ -73,6 +73,11 @@ import {
   type StoredCard,
 } from "@/lib/fsrs";
 import {
+  connectRequest,
+  consumeRequest,
+  crucibleRequest,
+  feynmanRequest,
+  fetchCachedContent,
   fetchConnect,
   fetchConsume,
   fetchCrucible,
@@ -83,12 +88,23 @@ import {
   fetchJudgeSocratic,
   fetchRetain,
   fetchSocratic,
+  retainRequest,
+  socraticRequest,
+  WarmDeclined,
   type ScopeOffer,
 } from "@/lib/api";
+import { createWarmQueue } from "@/lib/warm";
 import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
-import { loadLatestRun, saveRun, type RunSnapshot } from "@/lib/persistence";
+import {
+  loadRunCaches,
+  loadRunCore,
+  saveRun,
+  saveRunCaches,
+  type RunCaches,
+  type RunSnapshot,
+} from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
@@ -129,6 +145,33 @@ type Screen =
 
 /** Minimum time the map-assembly moment plays, even when generation is fast. */
 const BUILD_MS = 2600;
+
+/** The generated surfaces the warm queue can fetch ahead of a click. */
+type WarmKind = "consume" | "socratic" | "feynman" | "connect" | "crucible";
+
+/**
+ * What to have ready for a node in a given state, in the order the learner
+ * will reach it. Two kinds deep is the useful window: far enough ahead that
+ * the next two clicks are instant, near enough that a warm is rarely wasted.
+ */
+function warmKindsFor(state: NodeState | undefined): WarmKind[] {
+  switch (state) {
+    case "frontier":
+      return ["consume", "socratic"];
+    case "learning":
+      return ["feynman", "connect"];
+    case "shaky":
+      return ["crucible"];
+    case "gap":
+      return ["socratic"];
+    default:
+      return [];
+  }
+}
+
+/** Nodes warmed at once. Bounded so a large map can't fan out into a wall of
+ *  background generations. */
+const WARM_NODES = 5;
 /** The momentum replay spans onboarding (week 0) plus three weeks of work. */
 const MOMENTUM_WEEKS = 3;
 
@@ -160,8 +203,14 @@ interface PanState {
 
 export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const supabase = useMemo(() => createClient(), []);
-  // False until the saved run (if any) has been fetched — nothing renders
-  // before then, so a resumed run never flashes the welcome screen.
+  // The background warm queue: content for the phases just ahead is fetched
+  // while the learner works, so entering them is a state change, not a wait.
+  // A foreground click on something already warming joins that request rather
+  // than starting a second one.
+  const warm = useMemo(() => createWarmQueue(), []);
+  // False until the saved run's CORE (graph, states, positions) has been
+  // fetched — nothing renders before then, so a resumed run never flashes the
+  // welcome screen. The generated content arrives separately, behind the map.
   const [hydrated, setHydrated] = useState(false);
   const [screen, setScreen] = useState<Screen>("welcome");
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
@@ -355,9 +404,25 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   // One coarse snapshot per (user, subject) in Supabase `run_states`.
   // Load once on mount; a saved run resumes straight onto the map.
 
+  /** Apply loaded content without clobbering anything generated since: a
+   *  cache entry already in memory is the fresher one. */
+  const applyCaches = useCallback((c: RunCaches) => {
+    const merge = <T,>(loaded: Record<string, T>) =>
+      (prev: Record<string, T>): Record<string, T> => ({ ...loaded, ...prev });
+    setConsumeCache(merge(c.consume));
+    setSocraticCache(merge(c.socratic));
+    setFeynmanCache(merge(c.feynman));
+    setConnectCache(merge(c.connect));
+    setCrucibleCache(merge(c.crucible));
+    setRetainContent((prev) => prev ?? c.retain);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    loadLatestRun(supabase)
+    // Two loads, deliberately: the core is what the map draws, so it is the
+    // only thing the first paint waits on. The generated content — by far the
+    // larger half — streams in behind an already-interactive map.
+    loadRunCore(supabase)
       .then((row) => {
         if (cancelled) return;
         if (row) {
@@ -376,13 +441,16 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           setShakyReasons(s.shakyReasons);
           setReviewedNodes(s.reviewedNodes);
           setCards(s.cards);
-          setConsumeCache(s.caches.consume);
-          setSocraticCache(s.caches.socratic);
-          setFeynmanCache(s.caches.feynman);
-          setConnectCache(s.caches.connect);
-          setCrucibleCache(s.caches.crucible);
-          setRetainContent(s.caches.retain);
           setScreen("map");
+          // A pre-v3 row still carries its caches inline; take them and skip
+          // the second query.
+          if (row.inlineCaches) applyCaches(row.inlineCaches);
+          else
+            loadRunCaches(supabase, row.subject)
+              .then((c) => {
+                if (!cancelled) applyCaches(c);
+              })
+              .catch((err: Error) => console.warn(err.message));
         }
         setHydrated(true);
       })
@@ -396,18 +464,21 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     return () => {
       cancelled = true;
     };
-  }, [supabase, showToast]);
+  }, [supabase, showToast, applyCaches]);
 
-  // Write-through, debounced: any change to the run once the map exists
-  // (post-onboarding) upserts the whole snapshot. Coarse by design — see
-  // lib/persistence.ts.
+  const runActive =
+    hydrated &&
+    graph.nodes.length > 0 &&
+    screen !== "welcome" &&
+    screen !== "building" &&
+    screen !== "diagnostic";
+  const runSubject = form.topic.trim() || "Untitled";
+
+  // Write-through, debounced, in two halves (see lib/persistence.ts).
+  //
+  // The core: small and touched constantly — a node drag alone rewrites
+  // `positions` — so it saves on a short debounce.
   useEffect(() => {
-    const runActive =
-      hydrated &&
-      graph.nodes.length > 0 &&
-      screen !== "welcome" &&
-      screen !== "building" &&
-      screen !== "diagnostic";
     if (!runActive) return;
     const snapshot: RunSnapshot = {
       v: 3,
@@ -422,24 +493,16 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       shakyReasons,
       reviewedNodes,
       cards,
-      caches: {
-        consume: consumeCache,
-        socratic: socraticCache,
-        feynman: feynmanCache,
-        connect: connectCache,
-        crucible: crucibleCache,
-        retain: retainContent,
-      },
     };
     const timer = setTimeout(() => {
-      saveRun(supabase, form.topic.trim() || "Untitled", snapshot).catch(
-        (err: Error) => console.warn(err.message),
+      saveRun(supabase, runSubject, snapshot).catch((err: Error) =>
+        console.warn(err.message),
       );
     }, 1200);
     return () => clearTimeout(timer);
   }, [
-    hydrated,
-    screen,
+    runActive,
+    runSubject,
     supabase,
     form,
     graph,
@@ -452,6 +515,31 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     shakyReasons,
     reviewedNodes,
     cards,
+  ]);
+
+  // The content: large, but only ever changes when a generation lands. Its own
+  // effect on a long debounce, so dragging a node no longer re-uploads every
+  // chunk the run has ever generated.
+  useEffect(() => {
+    if (!runActive) return;
+    const caches: RunCaches = {
+      consume: consumeCache,
+      socratic: socraticCache,
+      feynman: feynmanCache,
+      connect: connectCache,
+      crucible: crucibleCache,
+      retain: retainContent,
+    };
+    const timer = setTimeout(() => {
+      saveRunCaches(supabase, runSubject, caches).catch((err: Error) =>
+        console.warn(err.message),
+      );
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [
+    runActive,
+    runSubject,
+    supabase,
     consumeCache,
     socraticCache,
     feynmanCache,
@@ -602,6 +690,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     setScreen("building");
     setReveal(0);
     setScopes(null);
+    // A new map invalidates every warmed key — the node ids are about to
+    // mean something else.
+    warm.clear();
     const started = Date.now();
     fetchCurriculum({
       topic,
@@ -646,7 +737,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         setScreen("welcome");
         showToast(err.message, "Generation failed");
       });
-  }, [later, outline, showToast]);
+  }, [later, outline, showToast, warm]);
 
   /** A picked scope becomes the topic and builds immediately (#30). */
   const pickScope = useCallback(
@@ -837,6 +928,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
    */
   const generate = useCallback(
     <T,>(
+      key: string,
       phase: string,
       message: string,
       fetcher: () => Promise<T>,
@@ -844,7 +936,18 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     ) => {
       if (loadingRef.current) return;
       setLoading({ phase, message });
-      fetcher()
+      // Through the warm queue: if this content is already being fetched in
+      // the background, the click joins that request instead of paying for a
+      // second one — the overlay only covers what's left of it.
+      warm
+        .run(key, fetcher, true)
+        .catch((err: unknown) => {
+          // The background attempt was declined to protect the daily quota;
+          // a real click outranks that, so ask again in the foreground.
+          if (!(err instanceof WarmDeclined)) throw err;
+          warm.drop(key);
+          return warm.run(key, fetcher, true);
+        })
         .then((content) => {
           onReady(content);
         })
@@ -853,7 +956,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         })
         .finally(() => setLoading(null));
     },
-    [showToast],
+    [showToast, warm],
   );
 
   /** Direct (solid-edge) prerequisite labels of a node — grounds the prompts. */
@@ -872,6 +975,239 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       .filter((n) => !n.gap && statesRef.current[n.id] === "mastered")
       .map((n) => n.label);
   }, []);
+
+  // ---- one source of truth per generation -------------------------------
+  // Each surface's inputs are built in exactly one place, so a background warm
+  // and the click that follows it hash to the same `content_cache` row. Every
+  // loader writes the in-memory cache itself; callers only decide whether to
+  // wait for it.
+
+  const consumeParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeLabel: node.label,
+      prereqLabels: prereqLabelsOf(node.id),
+      interests: formRef.current.interests,
+    }),
+    [prereqLabelsOf],
+  );
+
+  const socraticParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+    }),
+    [],
+  );
+
+  const feynmanParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+    }),
+    [],
+  );
+
+  /**
+   * Connect's prior-node pool: touched (learning/shaky/mastered) non-gap nodes
+   * first; a fresh map falls back to the node's neighbourhood so the web is
+   * never empty. It is part of the cache key, which is why it must be derived
+   * the same way for a warm and for the real entry.
+   */
+  const connectParams = useCallback((node: ConceptNode) => {
+    const g = graphRef.current;
+    const touched = g.nodes.filter(
+      (n) =>
+        !n.gap &&
+        n.id !== node.id &&
+        ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
+    );
+    const pool = (
+      touched.length >= 2
+        ? touched
+        : g.nodes.filter((n) => !n.gap && n.id !== node.id)
+    )
+      .slice(0, 8)
+      .map((n) => ({ id: n.id, label: n.label }));
+    return {
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      pool,
+      interests: formRef.current.interests,
+    };
+  }, []);
+
+  const crucibleParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      masteredLabels: learnedLabels(),
+      interests: formRef.current.interests,
+    }),
+    [learnedLabels],
+  );
+
+  /** Warm-queue / in-memory cache address for one node's surface. */
+  const warmKey = (kind: WarmKind, nodeId: string) => `${kind}:${nodeId}`;
+
+  const opts = (prefetch: boolean) => (prefetch ? { prefetch: true } : undefined);
+
+  const loadConsume = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const chunks = await fetchConsume(consumeParams(node), opts(prefetch));
+      setConsumeCache((prev) =>
+        prev[node.id] ? prev : { ...prev, [node.id]: chunks },
+      );
+      return chunks;
+    },
+    [consumeParams],
+  );
+
+  const loadSocratic = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const steps = await fetchSocratic(socraticParams(node), opts(prefetch));
+      setSocraticCache((prev) =>
+        prev[node.id] ? prev : { ...prev, [node.id]: steps },
+      );
+      return steps;
+    },
+    [socraticParams],
+  );
+
+  const loadFeynman = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const beats = await fetchFeynman(feynmanParams(node), opts(prefetch));
+      setFeynmanCache((prev) =>
+        prev[node.id] ? prev : { ...prev, [node.id]: beats },
+      );
+      return beats;
+    },
+    [feynmanParams],
+  );
+
+  const loadConnect = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchConnect(connectParams(node), opts(prefetch));
+      setConnectCache((prev) =>
+        prev[node.id] ? prev : { ...prev, [node.id]: content },
+      );
+      return content;
+    },
+    [connectParams],
+  );
+
+  const loadCrucible = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchCrucible(crucibleParams(node), opts(prefetch));
+      setCrucibleCache((prev) =>
+        prev[node.id] ? prev : { ...prev, [node.id]: content },
+      );
+      return content;
+    },
+    [crucibleParams],
+  );
+
+  /** Already in memory? Then the screen opens with no request at all. */
+  const isCached = useCallback((kind: WarmKind, nodeId: string): boolean => {
+    switch (kind) {
+      case "consume":
+        return !!consumeCacheRef.current[nodeId];
+      case "socratic":
+        return !!socraticCacheRef.current[nodeId];
+      case "feynman":
+        return !!feynmanCacheRef.current[nodeId];
+      case "connect":
+        return !!connectCacheRef.current[nodeId];
+      case "crucible":
+        return !!crucibleCacheRef.current[nodeId];
+    }
+  }, []);
+
+  /** The request body `/api/content` batches to answer "is this already
+   *  generated?" — the same body the real call posts. */
+  const requestFor = useCallback(
+    (kind: WarmKind, node: ConceptNode): Record<string, unknown> | null => {
+      switch (kind) {
+        case "consume":
+          return consumeRequest(consumeParams(node));
+        case "socratic":
+          return socraticRequest(socraticParams(node));
+        case "feynman":
+          return feynmanRequest(feynmanParams(node));
+        case "connect": {
+          const params = connectParams(node);
+          // A one-node map has nobody to wire into yet.
+          return params.pool.length ? connectRequest(params) : null;
+        }
+        case "crucible":
+          return crucibleRequest(crucibleParams(node));
+      }
+    },
+    [consumeParams, socraticParams, feynmanParams, connectParams, crucibleParams],
+  );
+
+  /** Take a batch-cache hit straight into memory — no model, no waiting. */
+  const applyWarmHit = useCallback(
+    (kind: WarmKind, nodeId: string, payload: unknown) => {
+      const p = payload as Record<string, unknown>;
+      const put = <T,>(
+        set: React.Dispatch<React.SetStateAction<Record<string, T>>>,
+        value: T | undefined,
+      ) => {
+        if (value === undefined) return;
+        set((prev) => (prev[nodeId] ? prev : { ...prev, [nodeId]: value }));
+      };
+      switch (kind) {
+        case "consume":
+          return put(setConsumeCache, p.chunks as ConsumeChunk[] | undefined);
+        case "socratic":
+          return put(setSocraticCache, p.steps as SocraticStep[] | undefined);
+        case "feynman":
+          return put(setFeynmanCache, p.beats as FeynmanBeat[] | undefined);
+        case "connect":
+          return put(setConnectCache, p.content as ElaborationContent | undefined);
+        case "crucible":
+          return put(setCrucibleCache, p.content as CrucibleContent | undefined);
+      }
+    },
+    [],
+  );
+
+  /** Queue one surface for background generation. Silent either way. */
+  const warmOne = useCallback(
+    (kind: WarmKind, node: ConceptNode) => {
+      if (isCached(kind, node.id)) return;
+      if (!requestFor(kind, node)) return;
+      const key = warmKey(kind, node.id);
+      switch (kind) {
+        case "consume":
+          return warm.warm(key, () => loadConsume(node, true));
+        case "socratic":
+          return warm.warm(key, () => loadSocratic(node, true));
+        case "feynman":
+          return warm.warm(key, () => loadFeynman(node, true));
+        case "connect":
+          return warm.warm(key, () => loadConnect(node, true));
+        case "crucible":
+          return warm.warm(key, () => loadCrucible(node, true));
+      }
+    },
+    [
+      isCached,
+      requestFor,
+      warm,
+      loadConsume,
+      loadSocratic,
+      loadFeynman,
+      loadConnect,
+      loadCrucible,
+    ],
+  );
 
   // ---- map actions ------------------------------------------------------
 
@@ -894,28 +1230,23 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         });
         setSelectedId(node.id);
         setScreen("consume");
+        // Reading takes minutes; the questioning pass that follows can be
+        // written in that time.
+        warmOne("socratic", node);
       };
       if (consumeCacheRef.current[node.id]) {
         open();
         return;
       }
       generate(
+        warmKey("consume", node.id),
         "Session · Consume",
         `Writing your reading pass on ${node.label}…`,
-        () =>
-          fetchConsume({
-            topic: formRef.current.topic,
-            nodeLabel: node.label,
-            prereqLabels: prereqLabelsOf(node.id),
-            interests: formRef.current.interests,
-          }),
-        (chunks) => {
-          setConsumeCache((prev) => ({ ...prev, [node.id]: chunks }));
-          open();
-        },
+        () => loadConsume(node),
+        open,
       );
     },
-    [generate, prereqLabelsOf],
+    [generate, loadConsume, warmOne],
   );
 
   // ---- Consume (Learn view) --------------------------------------------
@@ -996,21 +1327,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         return;
       }
       generate(
+        warmKey("socratic", node.id),
         "Session · Socratic",
         `Preparing the questions that build ${node.label}…`,
-        () =>
-          fetchSocratic({
-            topic: formRef.current.topic,
-            nodeLabel: node.label,
-            interests: formRef.current.interests,
-          }),
-        (steps) => {
-          setSocraticCache((prev) => ({ ...prev, [node.id]: steps }));
-          open(steps);
-        },
+        () => loadSocratic(node),
+        open,
       );
     },
-    [generate],
+    [generate, loadSocratic],
   );
 
   const dispatchSocratic = useCallback(
@@ -1099,28 +1423,23 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         setFeynman(feynmanStart(node.id));
         setSelectedId(node.id);
         setScreen("feynman");
+        // Feynman hands straight off to Connect — and the pool Connect keys on
+        // doesn't move during a teach-back, so warming it here always lands.
+        warmOne("connect", node);
       };
       if (feynmanCacheRef.current[node.id]) {
         open();
         return;
       }
       generate(
+        warmKey("feynman", node.id),
         "Session · Feynman",
         `Waking the naive student for ${node.label}…`,
-        () =>
-          fetchFeynman({
-            topic: formRef.current.topic,
-            nodeId: node.id,
-            nodeLabel: node.label,
-            interests: formRef.current.interests,
-          }),
-        (beats) => {
-          setFeynmanCache((prev) => ({ ...prev, [node.id]: beats }));
-          open();
-        },
+        () => loadFeynman(node),
+        open,
       );
     },
-    [generate],
+    [generate, loadFeynman, warmOne],
   );
 
   const dispatchFeynman = useCallback((action: FeynmanAction) => {
@@ -1198,46 +1517,23 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         setConnect(connectStart(node.id));
         setSelectedId(node.id);
         setScreen("connect");
+        // Connect ends by handing the node to the Crucible, and the mastered
+        // set its problem keys on doesn't change in between.
+        warmOne("crucible", node);
       };
       if (connectCacheRef.current[node.id]) {
         open();
         return;
       }
-      // Prior-node pool: touched (learned/shaky/mastered) non-gap nodes first;
-      // a fresh map falls back to the node's neighborhood so the web is never
-      // empty.
-      const g = graphRef.current;
-      const touched = g.nodes.filter(
-        (n) =>
-          !n.gap &&
-          n.id !== node.id &&
-          ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
-      );
-      const pool = (
-        touched.length >= 2
-          ? touched
-          : g.nodes.filter((n) => !n.gap && n.id !== node.id)
-      )
-        .slice(0, 8)
-        .map((n) => ({ id: n.id, label: n.label }));
       generate(
+        warmKey("connect", node.id),
         "Session · Connect",
         `Finding what ${node.label} wires into…`,
-        () =>
-          fetchConnect({
-            topic: formRef.current.topic,
-            nodeId: node.id,
-            nodeLabel: node.label,
-            pool,
-            interests: formRef.current.interests,
-          }),
-        (content) => {
-          setConnectCache((prev) => ({ ...prev, [node.id]: content }));
-          open();
-        },
+        () => loadConnect(node),
+        open,
       );
     },
-    [generate],
+    [generate, loadConnect, warmOne],
   );
 
   const dispatchConnect = useCallback((action: ConnectAction) => {
@@ -1354,23 +1650,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         return;
       }
       generate(
+        warmKey("crucible", node.id),
         "Session · Crucible",
         `Forging a problem ${node.label} was never taught in…`,
-        () =>
-          fetchCrucible({
-            topic: formRef.current.topic,
-            nodeId: node.id,
-            nodeLabel: node.label,
-            masteredLabels: learnedLabels(),
-            interests: formRef.current.interests,
-          }),
-        (content) => {
-          setCrucibleCache((prev) => ({ ...prev, [node.id]: content }));
-          open();
-        },
+        () => loadCrucible(node),
+        open,
       );
     },
-    [generate, learnedLabels],
+    [generate, loadCrucible],
   );
 
   const dispatchCrucible = useCallback((action: CrucibleAction) => {
@@ -1518,12 +1805,56 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   // ---- Retain (Phase 6 · Review queue / FSRS) --------------------------
 
   /**
+   * What the Review queue would generate right now: the card factory only runs
+   * for touched nodes that have no cards yet. Derived in one place so a warm
+   * and the real entry address the same cache row.
+   */
+  const retainPlan = useCallback(() => {
+    const budgetMin = Math.min(
+      15,
+      Math.max(5, Math.round(formRef.current.target / 2)),
+    );
+    const touched = graphRef.current.nodes.filter(
+      (n) =>
+        !n.gap &&
+        ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
+    );
+    const uncovered = touched.filter(
+      (n) => !cardsRef.current.some((c) => c.nodeId === n.id),
+    );
+    return {
+      budgetMin,
+      touched,
+      uncovered,
+      key: `retain:${uncovered.map((n) => n.id).join(",")}`,
+      params: {
+        topic: formRef.current.topic,
+        budgetMin,
+        nodes: uncovered.map((n) => ({
+          id: n.id,
+          label: n.label,
+          state: statesRef.current[n.id]!,
+        })),
+        interests: formRef.current.interests,
+      },
+    };
+  }, []);
+
+  /** Draft the day's new cards ahead of the click. The result is discarded —
+   *  its point is filling the shared cache so opening Review is a lookup. */
+  const warmRetain = useCallback(() => {
+    const plan = retainPlan();
+    if (plan.uncovered.length === 0) return;
+    warm.warm(plan.key, () => fetchRetain(plan.params, { prefetch: true }));
+  }, [retainPlan, warm]);
+
+  /**
    * Open the daily Review queue — a global surface. The day's cards are
    * generated once from the nodes the learner has actually touched; there is
    * nothing to review until at least one concept has been learned.
    */
   const enterReview = useCallback(() => {
-    const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
+    const { budgetMin, touched, uncovered, key, params } = retainPlan();
     // The queue reads from the real card store (#21): due cards, real
     // intervals on the grade buttons, forecast from actual due dates.
     const openFrom = (store: StoredCard[]) => {
@@ -1535,39 +1866,21 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       setRetain(retainStart());
       setScreen("review");
     };
-    const g = graphRef.current;
-    const touched = g.nodes.filter(
-      (n) =>
-        !n.gap &&
-        ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
-    );
     if (touched.length === 0) {
       showToast("Nothing to review yet — learn your first concept and cards draft themselves");
       return;
     }
     // First review of a node: generate its atomic cards once, then they live
     // in the store forever (the generation is a card FACTORY, not the queue).
-    const uncovered = touched.filter(
-      (n) => !cardsRef.current.some((c) => c.nodeId === n.id),
-    );
     if (uncovered.length === 0) {
       openFrom(cardsRef.current);
       return;
     }
     generate(
+      key,
       "Retain · Review",
       "Drafting cards from what you've learned…",
-      () =>
-        fetchRetain({
-          topic: formRef.current.topic,
-          budgetMin,
-          nodes: uncovered.map((n) => ({
-            id: n.id,
-            label: n.label,
-            state: statesRef.current[n.id]!,
-          })),
-          interests: formRef.current.interests,
-        }),
+      () => fetchRetain(params),
       (content) => {
         const now = new Date();
         const stamp = Date.now();
@@ -1592,7 +1905,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         openFrom(all);
       },
     );
-  }, [generate, showToast]);
+  }, [generate, retainPlan, showToast]);
 
   const retainConfidence = useCallback((level: ReviewConfidence) => {
     setRetain((prev) => {
@@ -1997,6 +2310,100 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     () => orderedFrontier(display, graph, form.goal).slice(0, 3),
     [display, graph, form.goal],
   );
+  // ---- the warm pass ----------------------------------------------------
+  // Which nodes are worth having content ready for: whatever is selected, the
+  // top of the goal-ordered plan, and anything already mid-spiral. Computed
+  // without consulting the caches so filling them doesn't re-trigger the pass.
+  const warmTargets = useMemo(() => {
+    if (!isMap || !hydrated || graph.nodes.length === 0) return [];
+    const ids: string[] = [];
+    if (selectedId) ids.push(selectedId);
+    for (const { node } of nextUp) ids.push(node.id);
+    for (const n of graph.nodes) {
+      const state = display[n.id];
+      if (state === "learning" || state === "shaky" || state === "gap")
+        ids.push(n.id);
+    }
+    const seen = new Set<string>();
+    const targets: Array<{ node: ConceptNode; kinds: WarmKind[] }> = [];
+    for (const id of ids) {
+      if (seen.has(id) || targets.length >= WARM_NODES) continue;
+      seen.add(id);
+      const node = graph.nodes.find((n) => n.id === id);
+      const kinds = warmKindsFor(display[id]);
+      if (node && kinds.length) targets.push({ node, kinds });
+    }
+    return targets;
+  }, [isMap, hydrated, graph, display, selectedId, nextUp]);
+
+  // A signature over the plan, so the pass runs when the plan really changes
+  // rather than on every render that touches the graph.
+  const warmSignature = warmTargets
+    .map((t) => `${t.node.id}:${t.kinds.join("+")}`)
+    .join("|");
+
+  useEffect(() => {
+    if (!warmSignature) return;
+    let cancelled = false;
+    // Settle first: clicking along a chain of nodes shouldn't fire a pass per
+    // click, and the learner is reading, not waiting.
+    const timer = setTimeout(() => {
+      // One round-trip asks which of these are already generated — by this
+      // learner or anyone before them — and takes them straight into memory.
+      // Only what's genuinely missing reaches the model, in the background.
+      const wanted = warmTargets.flatMap(({ node, kinds }) =>
+        kinds
+          .filter((kind) => !isCached(kind, node.id))
+          .map((kind) => ({ kind, node, body: requestFor(kind, node) })),
+      );
+      const items = wanted.filter(
+        (w): w is typeof w & { body: Record<string, unknown> } => w.body !== null,
+      );
+      if (items.length === 0) return;
+      void fetchCachedContent(items.map((i) => i.body)).then((hits) => {
+        if (cancelled) return;
+        items.forEach((item, index) => {
+          const hit = hits[index];
+          if (hit !== undefined) applyWarmHit(item.kind, item.node.id, hit);
+          else warmOne(item.kind, item.node);
+        });
+      });
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // warmTargets is captured through its signature on purpose — the effect
+    // must not re-run just because the array identity changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warmSignature]);
+
+  // The Review queue's card factory, drafted ahead of the click the same way.
+  const uncoveredSignature = useMemo(
+    () =>
+      isMap && hydrated
+        ? graph.nodes
+            .filter(
+              (n) =>
+                !n.gap &&
+                ["learning", "shaky", "mastered"].includes(states[n.id] ?? "") &&
+                !cards.some((c) => c.nodeId === n.id),
+            )
+            .map((n) => n.id)
+            .join(",")
+        : "",
+    [isMap, hydrated, graph, states, cards],
+  );
+
+  useEffect(() => {
+    if (!uncoveredSignature) return;
+    // A long settle: the uncovered set moves on every phase completion, and
+    // each distinct set is its own generation. Only a stable one is worth
+    // drafting ahead.
+    const timer = setTimeout(warmRetain, 8000);
+    return () => clearTimeout(timer);
+  }, [uncoveredSignature, warmRetain]);
+
   // …and the pace check against the real deadline (#23) — an exam goal
   // without a date gets no fabricated countdown.
   const pace = useMemo(

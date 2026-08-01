@@ -46,6 +46,34 @@ validated server-side with one corrective retry; ids, graph layout, and gap
 placement offsets are always computed server-side, never trusted from the
 model.
 
+## Never make a screen wait on a model
+
+Generation is seconds; a screen entry should be milliseconds. Three layers keep
+it that way, and a new surface must use all three:
+
+- **`content_cache`** (`lib/server/contentCache.ts`) — every cacheable
+  generation is addressed by a SHA-256 of its exact prompt inputs and stored
+  shared across users, so the second learner to open a concept pays neither the
+  latency nor the spend. `/api/generate` reads it before spending a call and
+  writes through after; only `judge` is uncacheable (it grades one learner's own
+  words). Service-role only — RLS is on with no policies. **A hit is returned to
+  the client without re-validation**, so changing a payload's shape means
+  bumping `VERSION` in that file — otherwise stored rows in the old shape flow
+  straight into the new renderer.
+- **`lib/server/job.ts`** — normalization, cache key, and generation resolved in
+  one place, so `/api/generate` and the `/api/content` batch read address the
+  same row. A new kind goes here, not in a route.
+- **`lib/warm.ts`** — the client's deduped, concurrency-capped background queue.
+  `AtlasApp` batch-reads the cache for the nodes ahead on map open, warms the
+  misses, and hands off phase-to-phase (Consume warms Socratic, Feynman warms
+  Connect, Connect warms Crucible). A click on something already warming joins
+  that request rather than starting a second one.
+
+The rule that makes it safe: a warm and the click that follows must derive
+their inputs from the *same* function (the `*Params` callbacks in `AtlasApp`).
+Compute a pool or a label list twice and the keys diverge — you get a cache
+miss and pay for the generation twice.
+
 ## Auth & persistence (Supabase)
 
 - Accounts are Supabase email magic links via `@supabase/ssr`: `middleware.ts`
@@ -56,11 +84,14 @@ model.
   `middleware.ts` session refresh). Env vars keep their unprefixed names in
   `.env.local`; `next.config.ts` mirrors URL + publishable key to
   `NEXT_PUBLIC_*` for the browser.
-- Run state persists coarsely (§17): one `run_states` row per (user, subject)
-  holding a versioned JSON snapshot — graph, StateMap, adherence, calibration,
-  generated-content caches. `lib/persistence.ts` defines the snapshot;
-  `AtlasApp` hydrates it on mount and write-through saves debounced. RLS keeps
-  rows per-user (`supabase/migrations/`). Normalize when FSRS lands.
+- Run state persists coarsely (§17): one `run_states` row per (user, subject),
+  split across two columns. `snapshot` is the run core — graph, StateMap,
+  positions, adherence, calibration, cards — small, versioned (v3), saved on a
+  1.2s debounce; it is the only thing the first paint waits on. `caches` holds
+  the per-node generated content — large, saved on a 4s debounce, loaded in the
+  background behind an already-interactive map. `lib/persistence.ts` defines
+  both and migrates v1/v2 rows whose caches still travel inline. RLS keeps rows
+  per-user (`supabase/migrations/`). Normalize when FSRS lands.
 
 ## Conventions
 
