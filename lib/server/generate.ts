@@ -26,6 +26,8 @@ import {
   streamJsonObjects,
   type ChatMessage,
 } from "@/lib/server/openrouter";
+import { ALT_SHAPE, consumeSectionShape } from "@/lib/server/generate/shapes";
+import type { StreamFrame } from "@/lib/server/stream";
 
 // ---- tiny validation helpers (throw readable errors for the retry loop) ----
 
@@ -503,52 +505,11 @@ Rules for the prose:
 - Name the common misconception explicitly and say why it is wrong.${languageNote(language)}`;
 }
 
-/** The shape of one Consume section — shared by the single-shot prompt (as
- *  array elements) and the streaming prompt (as standalone objects). */
-const CONSUME_SECTION_SHAPE = `{
-      "kicker": "1 · What it is",                         // segment label: number · 2-4 words
-      "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
-      "pred": {                                            // FIRST SECTION ONLY — omit on all others
-        "q": "a guess that primes the reading — what do you think happens if…?",
-        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
-        "right": "one line confirming the guess and pointing at what follows",
-        "wrong": "one honest line naming the misconception, then pointing at what follows"
-      },
-      "body": ["paragraph 1", "paragraph 2", "paragraph 3"],   // 3-5 paragraphs, 3-6 sentences each
-      "example": {                                         // worked inline, part of the material
-        "title": "what this example demonstrates",
-        "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps
-      },
-      "takeaway": "the one sentence to carry out of this section",
-      "cite": "a real canonical source (book §, lecture series chapter) — never invent one",
-      "diagram": "one-line caption for the figure below",
-      "figure": {                                          // the figure itself, specific to THIS section — never a generic placeholder
-        "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
-        "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
-      },
-      "ask": "a mini-Socratic prompt that answers a likely question with a question",
-      "alt": {
-        "simpler": "the whole section rewritten plainly, still 2-3 paragraphs",
-        "example": "a second, different worked example",
-        "analogy": "an analogy that maps the structure",
-        "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
-      }
-    }`;
-
-/** `CONSUME_SECTION_SHAPE` without `alt` — what the streaming pass asks for,
- *  so a section's object closes (and can render) without the model having to
- *  finish writing four rewrites of it nobody may ever tap into. */
-const CONSUME_SECTION_SHAPE_FAST = CONSUME_SECTION_SHAPE.replace(
-  /,\s*"alt": \{[\s\S]*?\}\n\s*\}$/,
-  "\n    }",
-);
-
-const ALT_SHAPE = `{
-      "simpler": "the whole section rewritten plainly, still 2-3 paragraphs",
-      "example": "a second, different worked example",
-      "analogy": "an analogy that maps the structure",
-      "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
-    }`;
+/** The shape of one Consume section, with and without the adaptive rewrites.
+ *  Composed in `./generate/shapes` rather than derived by regex — see the note
+ *  in that file for what the old derivation broke. */
+const CONSUME_SECTION_SHAPE = consumeSectionShape(true);
+const CONSUME_SECTION_SHAPE_FAST = consumeSectionShape(false);
 
 /**
  * The adaptive-modality rewrites, generated as a follow-up call once the
@@ -616,10 +577,10 @@ Return JSON with 5 sections:
  * wrapping array, so each is a complete, parseable unit as soon as its
  * closing brace lands) and yields each the moment it validates — without
  * `alt`, so a section never waits on its own rewrites (see
- * `CONSUME_SECTION_SHAPE_FAST`). Once all 5 are out, the rewrites are
- * generated in one follow-up call and each section is re-yielded with `alt`
- * filled in; the client patches its already-rendered copy by `id` instead of
- * appending a 6th–10th section.
+ * `consumeSectionShape`). Once all 5 are out, the rewrites are generated and
+ * each section is re-yielded with `alt` filled in — at the same frame index,
+ * so the client (and the assembler) patch the already-rendered copy in place
+ * instead of appending a 6th–10th section.
  *
  * No corrective retry mid-stream — if the very first section fails to parse
  * or validate (the model ignored the format, a network hiccup), that's
@@ -636,7 +597,7 @@ export async function* generateConsumeStream(params: {
   prereqLabels: string[];
   interests: string;
   language?: Language;
-}): AsyncGenerator<ConsumeChunk> {
+}): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   const sections: ConsumeChunk[] = [];
   try {
@@ -651,11 +612,11 @@ shape:
 ${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
       ),
       validateConsumeSection,
+      { label: "consume-stream" },
     );
     for await (const chunk of stream) {
-      yielded++;
       sections.push(chunk);
-      yield chunk;
+      yield { p: "chunks", i: yielded++, v: chunk };
     }
   } catch (err) {
     if (yielded > 0) throw err;
@@ -665,13 +626,15 @@ ${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
         error: String(err instanceof Error ? err.message : err).slice(0, 300),
       }),
     );
-    for (const chunk of await generateConsume(params)) yield chunk;
+    const chunks = await generateConsume(params);
+    for (const [i, chunk] of chunks.entries()) yield { p: "chunks", i, v: chunk };
     return;
   }
 
   try {
     const alts = await generateConsumeAlts(sections, params);
-    for (let i = 0; i < sections.length; i++) yield { ...sections[i], alt: alts[i] };
+    for (let i = 0; i < sections.length; i++)
+      yield { p: "chunks", i, v: { ...sections[i], alt: alts[i] } };
   } catch (err) {
     // The reading is already fully on screen and cached-so-far without alt;
     // the rewrite toggles just stay inert this session rather than blocking

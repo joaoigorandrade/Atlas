@@ -1281,17 +1281,15 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       setLiveConsume({ nodeId: node.id, chunks: [] });
       open();
       let receivedAny = false;
-      fetchConsumeStream(consumeParams(node), (chunk) => {
+      fetchConsumeStream(consumeParams(node), (chunk, index) => {
         receivedAny = true;
         setLiveConsume((prev) => {
           if (!prev || prev.nodeId !== node.id) return prev;
           // A section arrives once fast (no `alt`) and again once its
-          // rewrites are ready — patch it in place, don't duplicate it.
-          const i = prev.chunks.findIndex((c) => c.id === chunk.id);
-          const chunks =
-            i === -1
-              ? [...prev.chunks, chunk]
-              : prev.chunks.map((c, idx) => (idx === i ? chunk : c));
+          // rewrites are ready — both carry the same index, so this patches
+          // in place rather than duplicating the section.
+          const chunks = [...prev.chunks];
+          chunks[index] = chunk;
           return { nodeId: node.id, chunks };
         });
       })

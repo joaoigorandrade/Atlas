@@ -23,7 +23,8 @@ import {
   type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
-import type { ConsumeChunk, GoalKind } from "@/lib/curriculum";
+import type { StreamFrame, StreamShape } from "@/lib/server/stream";
+import type { GoalKind } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge";
 
@@ -89,11 +90,19 @@ export interface Job {
   /** Where this job's output lives in `content_cache`, or null when the kind
    *  is uncacheable (a judge call grades one learner's own words). */
   key: string | null;
-  /** Produce the response body. Only called on a cache miss. */
+  /** Produce the response body in one piece. Called on a cache miss, and as
+   *  the fallback whenever a streamed attempt fails before its first frame. */
   run: () => Promise<Record<string, unknown>>;
-  /** Set only for "consume": lets the route stream sections to the client as
-   *  they're written instead of waiting on the whole reading pass. */
-  streamConsume?: () => AsyncGenerator<ConsumeChunk>;
+  /** Set for kinds that can deliver progressively: the route streams frames to
+   *  the client as they're written rather than waiting on the whole payload.
+   *  `shape` says what a complete set of frames looks like, so the assembled
+   *  payload written back to `content_cache` is exactly what `run` would have
+   *  returned — no half-payload can ever be cached. */
+  stream?: () => AsyncGenerator<StreamFrame>;
+  shape?: StreamShape;
+  /** Model calls this job may make. Drives the monthly spend ceiling; the
+   *  per-learner daily quota counts jobs, not calls. Defaults to 1. */
+  cost?: number;
 }
 
 /**
@@ -151,7 +160,11 @@ export function resolveJob(body: GenerateBody): Job {
         kind: "consume",
         key: contentKey("consume", params),
         run: async () => ({ chunks: await generateConsume(params) }),
-        streamConsume: () => generateConsumeStream(params),
+        stream: () => generateConsumeStream(params),
+        // Mirrors `validateConsume`'s 4-6 bound, not the 5 the prompt asks for.
+        shape: { chunks: { min: 4, max: 6 } },
+        // The reading pass, plus the follow-up that writes its rewrites.
+        cost: 2,
       };
     }
 

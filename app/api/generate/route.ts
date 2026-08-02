@@ -13,10 +13,15 @@
 // every call that actually generates.
 
 import { NextResponse } from "next/server";
-import type { ConsumeChunk } from "@/lib/curriculum";
 import { readContent, writeContent } from "@/lib/server/contentCache";
-import { BadRequest, resolveJob, type GenerateBody } from "@/lib/server/job";
+import { BadRequest, resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import { OpenRouterError } from "@/lib/server/openrouter";
+import {
+  framesToPayload,
+  ndjsonResponse,
+  ndjsonStream,
+  payloadToFrames,
+} from "@/lib/server/stream";
 import { createClient } from "@/lib/supabase/server";
 
 // Content generation is a real LLM round-trip — allow it time.
@@ -35,24 +40,8 @@ const PREFETCH_RESERVE = Number(process.env.GENERATION_PREFETCH_RESERVE || 10);
 const QUOTA_MESSAGE =
   "You've hit today's generation limit — it resets at midnight UTC. Your map and cards still work offline of the writer.";
 
-/** NDJSON response: one compact JSON line per chunk, written to the client
- *  the moment each is available — the wire format `fetchConsumeStream` reads
- *  on the browser side, whether the chunks came from cache or a live stream. */
-function ndjsonResponse(chunks: ConsumeChunk[], cache: "hit" | "miss"): Response {
-  const enc = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const c of chunks) controller.enqueue(enc.encode(JSON.stringify(c) + "\n"));
-      controller.close();
-    },
-  });
-  return new Response(stream, {
-    headers: { "Content-Type": "application/x-ndjson", "x-atlas-cache": cache },
-  });
-}
-
 /** Same error → response mapping used by the plain path and the "peek the
- *  first streamed chunk before committing to a streaming response" path. */
+ *  first streamed frame before committing to a streaming response" path. */
 function errorResponse(err: unknown, prefetch: boolean): NextResponse {
   if (err instanceof BadRequest)
     return NextResponse.json({ error: err.message }, { status: 400 });
@@ -90,9 +79,9 @@ export async function POST(request: Request) {
   // A background warm that misses is not worth making the learner wait for on
   // some later request — but it is worth generating, quota permitting.
   const prefetch = body.prefetch === true;
-  // Only a real (non-prefetch) consume request streams — nobody's watching a
-  // background warm, so it stays on the simple await-the-whole-thing path.
-  const streaming = !prefetch && !!job.streamConsume;
+  // Only a real (non-prefetch) request streams — nobody's watching a background
+  // warm, so it stays on the simple await-the-whole-thing path.
+  const streaming = !prefetch && !!job.stream && !!job.shape;
 
   // ---- the fast path: someone has already generated exactly this ----------
   if (job.key) {
@@ -101,7 +90,9 @@ export async function POST(request: Request) {
       console.log(
         JSON.stringify({ evt: "generate_cache_hit", user: userId, kind: job.kind }),
       );
-      if (streaming) return ndjsonResponse((hit as { chunks?: ConsumeChunk[] }).chunks ?? [], "hit");
+      // A hit is replayed in whichever format the caller asked for, so the
+      // client reads one wire shape whether the content is seconds or weeks old.
+      if (streaming) return ndjsonResponse(payloadToFrames(hit, job.shape!), "hit");
       return NextResponse.json(hit, { headers: { "x-atlas-cache": "hit" } });
     }
   }
@@ -155,8 +146,7 @@ export async function POST(request: Request) {
     }),
   );
 
-  if (!prefetch && job.streamConsume)
-    return streamGeneration(job.streamConsume, job.key, job.kind, userId, prefetch);
+  if (streaming) return streamGeneration(job, userId, prefetch);
 
   try {
     const payload = await job.run();
@@ -178,74 +168,48 @@ export async function POST(request: Request) {
 }
 
 /**
- * Peek the first section before committing to a streaming Response, so a
+ * Stream a job's frames, and cache the assembled payload when — and only when
+ * — a complete set of them arrives.
+ *
+ * `ndjsonStream` peeks the first frame before committing to a 200, so a
  * genuine failure (bad key, quota race, upstream down) still surfaces as a
- * normal error instead of an empty stream — `generateConsumeStream` already
- * falls back to the single-shot path internally, so this only throws when
- * that fallback itself fails too. Once the first section is in hand, the
- * rest streams to the client as it's written.
+ * normal error instead of an empty stream. Each streaming generator already
+ * falls back to its single-shot, retried path internally, so reaching the
+ * error branch here means that fallback failed too.
  */
-async function streamGeneration(
-  streamConsume: () => AsyncGenerator<ConsumeChunk>,
-  key: string | null,
-  kind: string,
-  userId: string,
-  prefetch: boolean,
-): Promise<Response> {
-  const gen = streamConsume();
-  let first: IteratorResult<ConsumeChunk>;
-  try {
-    first = await gen.next();
-  } catch (err) {
-    console.error(
-      JSON.stringify({
-        evt: "generate_failed",
-        user: userId,
-        kind,
-        error: String(err instanceof Error ? err.message : err).slice(0, 600),
-      }),
-    );
-    return errorResponse(err, prefetch);
-  }
-  if (first.done) return errorResponse(new Error("content generation failed"), prefetch);
-
-  const enc = new TextEncoder();
-  const collected: ConsumeChunk[] = [first.value];
-  // A section can arrive twice — once without `alt`, again once its adaptive
-  // rewrites are ready — so this upserts by `id` rather than appending, or
-  // the cached row would end up with 10 sections instead of 5.
-  const collect = (chunk: ConsumeChunk) => {
-    const i = collected.findIndex((c) => c.id === chunk.id);
-    if (i === -1) collected.push(chunk);
-    else collected[i] = chunk;
-  };
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      controller.enqueue(enc.encode(JSON.stringify(first.value) + "\n"));
-      try {
-        for await (const chunk of gen) {
-          collect(chunk);
-          controller.enqueue(enc.encode(JSON.stringify(chunk) + "\n"));
-        }
-        if (key) writeContent(key, kind, { chunks: collected });
-      } catch (err) {
-        // Bytes are already flowing as a 200 — there's no clean way to turn
-        // this into an error status now. The client keeps whatever sections
-        // landed; since nothing gets cached, reopening the node retries.
+function streamGeneration(job: Job, userId: string, prefetch: boolean): Promise<Response> {
+  return ndjsonStream(job.stream!(), {
+    onComplete: (frames) => {
+      // `framesToPayload` returns null on a short or gappy set. Caching that
+      // would be the worst kind of bug: hits skip validation, so a truncated
+      // payload would flow straight into the renderer for everyone after.
+      const payload = framesToPayload(frames, job.shape!);
+      if (!payload) {
         console.error(
           JSON.stringify({
-            evt: "generate_stream_failed",
+            evt: "generate_stream_incomplete",
             user: userId,
-            kind,
-            error: String(err instanceof Error ? err.message : err).slice(0, 600),
+            kind: job.kind,
+            frames: frames.length,
           }),
         );
-      } finally {
-        controller.close();
+        return;
       }
+      if (job.key) writeContent(job.key, job.kind, payload);
     },
-  });
-  return new Response(stream, {
-    headers: { "Content-Type": "application/x-ndjson", "x-atlas-cache": "miss" },
+    onError: (err, phase) => {
+      // Mid-stream, bytes are already flowing as a 200 — there's no clean way
+      // to turn this into an error status now. The client keeps whatever
+      // landed; since nothing gets cached, reopening retries.
+      console.error(
+        JSON.stringify({
+          evt: phase === "first" ? "generate_failed" : "generate_stream_failed",
+          user: userId,
+          kind: job.kind,
+          error: String(err instanceof Error ? err.message : err).slice(0, 600),
+        }),
+      );
+    },
+    errorResponse: (err) => errorResponse(err, prefetch),
   });
 }
