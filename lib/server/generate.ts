@@ -403,9 +403,11 @@ function validatePrediction(raw: unknown, name: string): ConsumePrediction {
   };
 }
 
-function validateConsumeChunk(raw: unknown, i: number): ConsumeChunk {
+/** Everything but the adaptive-modality rewrites — shared by the fast
+ *  streaming pass (no `alt`, so the first section closes as soon as the
+ *  material itself is written) and the full single-shot shape below. */
+function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
   const c = obj(raw, `chunks[${i}]`);
-  const alt = obj(c.alt, `chunks[${i}].alt`);
   const ex = obj(c.example, `chunks[${i}].example`);
   return {
     id: `c${i + 1}`,
@@ -431,15 +433,27 @@ function validateConsumeChunk(raw: unknown, i: number): ConsumeChunk {
     diagram: str(c.diagram, `chunks[${i}].diagram`),
     figure: validateFigure(c.figure, `chunks[${i}].figure`),
     ask: str(c.ask, `chunks[${i}].ask`),
-    alt: Object.fromEntries(
-      ALT_KEYS.map((k) => [k, str(alt[k], `chunks[${i}].alt.${k}`)]),
-    ) as Record<AltKey, string>,
     // One hook for the whole session, on the opening section. A prediction
     // the model volunteers anywhere else is dropped: Consume reads, it
     // doesn't quiz.
     ...(i === 0
       ? { pred: validatePrediction(c.pred, "chunks[0].pred") }
       : null),
+  };
+}
+
+function validateConsumeAlt(raw: unknown, i: number): Record<AltKey, string> {
+  const a = obj(raw, `alts[${i}]`);
+  return Object.fromEntries(
+    ALT_KEYS.map((k) => [k, str(a[k], `alts[${i}].${k}`)]),
+  ) as Record<AltKey, string>;
+}
+
+function validateConsumeChunk(raw: unknown, i: number): ConsumeChunk {
+  const c = obj(raw, `chunks[${i}]`);
+  return {
+    ...validateConsumeSection(raw, i),
+    alt: validateConsumeAlt(c.alt, i),
   };
 }
 
@@ -506,6 +520,60 @@ const CONSUME_SECTION_SHAPE = `{
       }
     }`;
 
+/** `CONSUME_SECTION_SHAPE` without `alt` — what the streaming pass asks for,
+ *  so a section's object closes (and can render) without the model having to
+ *  finish writing four rewrites of it nobody may ever tap into. */
+const CONSUME_SECTION_SHAPE_FAST = CONSUME_SECTION_SHAPE.replace(
+  /,\s*"alt": \{[\s\S]*?\}\n\s*\}$/,
+  "\n    }",
+);
+
+const ALT_SHAPE = `{
+      "simpler": "the whole section rewritten plainly, still 2-3 paragraphs",
+      "example": "a second, different worked example",
+      "analogy": "an analogy that maps the structure",
+      "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
+    }`;
+
+/**
+ * The adaptive-modality rewrites, generated as a follow-up call once the
+ * reading itself has already streamed to the learner. Off the critical path
+ * on purpose (#improve-consume-latency): a learner reads before reaching for
+ * "simpler" or "go deeper", so there's no reason those four rewrites per
+ * section should delay the section they belong to.
+ */
+async function generateConsumeAlts(
+  sections: ConsumeChunk[],
+  params: { topic: string; nodeLabel: string },
+): Promise<Array<Record<AltKey, string>>> {
+  return generateJson(
+    user(
+      `The reading pass on "${params.nodeLabel}" within "${params.topic}" already has these ${sections.length} sections, in order:
+
+${sections
+  .map(
+    (c, i) =>
+      `Section ${i + 1} — ${c.kicker}
+${c.body.join("\n")}
+Worked example (${c.example.title}): ${c.example.steps.join(" ")}`,
+  )
+  .join("\n\n")}
+
+For EACH section above, in the same order, write the four adaptive-modality rewrites a learner can switch to instead of the main prose. Return JSON:
+{
+  "alts": [${ALT_SHAPE}, ...]
+}`,
+    ),
+    validateConsumeAlts,
+    { label: "consume-alt" },
+  );
+}
+
+function validateConsumeAlts(raw: unknown): Array<Record<AltKey, string>> {
+  const root = obj(raw, "payload");
+  return arr(root.alts, "alts", 4, 6).map(validateConsumeAlt);
+}
+
 export async function generateConsume(params: {
   topic: string;
   nodeLabel: string;
@@ -530,7 +598,12 @@ Return JSON with 5 sections:
  * Streamed variant: sections render as they're written instead of the
  * learner waiting on all 5. Asks for 5 standalone JSON objects (not one
  * wrapping array, so each is a complete, parseable unit as soon as its
- * closing brace lands) and yields each the moment it validates.
+ * closing brace lands) and yields each the moment it validates — without
+ * `alt`, so a section never waits on its own rewrites (see
+ * `CONSUME_SECTION_SHAPE_FAST`). Once all 5 are out, the rewrites are
+ * generated in one follow-up call and each section is re-yielded with `alt`
+ * filled in; the client patches its already-rendered copy by `id` instead of
+ * appending a 6th–10th section.
  *
  * No corrective retry mid-stream — if the very first section fails to parse
  * or validate (the model ignored the format, a network hiccup), that's
@@ -548,6 +621,7 @@ export async function* generateConsumeStream(params: {
   interests: string;
 }): AsyncGenerator<ConsumeChunk> {
   let yielded = 0;
+  const sections: ConsumeChunk[] = [];
   try {
     const stream = streamJsonObjects(
       user(
@@ -557,15 +631,15 @@ Write the 5 sections as 5 SEPARATE top-level JSON objects, one after another
 — NOT wrapped in an array or a {"chunks": [...]} object, no markdown fences,
 no numbering, no commentary before/after/between them. Each object has this
 shape:
-${CONSUME_SECTION_SHAPE}`,
+${CONSUME_SECTION_SHAPE_FAST}`,
       ),
-      validateConsumeChunk,
+      validateConsumeSection,
     );
     for await (const chunk of stream) {
       yielded++;
+      sections.push(chunk);
       yield chunk;
     }
-    return;
   } catch (err) {
     if (yielded > 0) throw err;
     console.error(
@@ -574,8 +648,24 @@ ${CONSUME_SECTION_SHAPE}`,
         error: String(err instanceof Error ? err.message : err).slice(0, 300),
       }),
     );
+    for (const chunk of await generateConsume(params)) yield chunk;
+    return;
   }
-  for (const chunk of await generateConsume(params)) yield chunk;
+
+  try {
+    const alts = await generateConsumeAlts(sections, params);
+    for (let i = 0; i < sections.length; i++) yield { ...sections[i], alt: alts[i] };
+  } catch (err) {
+    // The reading is already fully on screen and cached-so-far without alt;
+    // the rewrite toggles just stay inert this session rather than blocking
+    // or retrying — worth logging, not worth failing the whole pass over.
+    console.error(
+      JSON.stringify({
+        evt: "consume_alt_failed",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+  }
 }
 
 // ---- kind: socratic --------------------------------------------------------

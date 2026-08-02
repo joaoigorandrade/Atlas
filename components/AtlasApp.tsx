@@ -1262,38 +1262,40 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         return;
       }
       if (loadingRef.current) return;
-      setLoading({
-        phase: "Session · Consume",
-        message: `Writing your reading pass on ${node.label}…`,
-      });
+      // Open the screen immediately rather than behind an overlay spinner —
+      // ConsumeView shows its own inline skeleton for a still-empty section
+      // 1, which reads as "in progress" while the wait is identical either
+      // way. This is the one path with nothing cached and nothing already
+      // warming, so it's the only time this skeleton is ever seen.
       setLiveConsume({ nodeId: node.id, chunks: [] });
-      let opened = false;
+      open();
+      let receivedAny = false;
       fetchConsumeStream(consumeParams(node), (chunk) => {
-        setLiveConsume((prev) =>
-          prev && prev.nodeId === node.id
-            ? { nodeId: node.id, chunks: [...prev.chunks, chunk] }
-            : prev,
-        );
-        if (!opened) {
-          opened = true;
-          setLoading(null);
-          open();
-        }
+        receivedAny = true;
+        setLiveConsume((prev) => {
+          if (!prev || prev.nodeId !== node.id) return prev;
+          // A section arrives once fast (no `alt`) and again once its
+          // rewrites are ready — patch it in place, don't duplicate it.
+          const i = prev.chunks.findIndex((c) => c.id === chunk.id);
+          const chunks =
+            i === -1
+              ? [...prev.chunks, chunk]
+              : prev.chunks.map((c, idx) => (idx === i ? chunk : c));
+          return { nodeId: node.id, chunks };
+        });
       })
         .then((chunks) => {
           setConsumeCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: chunks }));
           setLiveConsume((prev) => (prev?.nodeId === node.id ? null : prev));
         })
         .catch((err: Error) => {
-          setLoading(null);
-          // Nothing rendered yet — the same failure the non-streaming path
-          // would have shown. Once the screen is open, sections already read
-          // stay put; reopening the node retries since it never got cached.
+          // Once a section has rendered, sections already read stay put;
+          // reopening the node retries since it never got cached.
           showToast(
-            opened
+            receivedAny
               ? "Couldn't finish the rest of this reading pass — reopen the node to retry."
               : err.message,
-            opened ? "Generation incomplete" : "Generation failed",
+            receivedAny ? "Generation incomplete" : "Generation failed",
           );
         });
     },

@@ -117,6 +117,11 @@ export async function fetchConsume(
  * of the caller waiting on the whole reading pass. Never used for a
  * background warm — nobody's watching a prefetch, so that stays on the
  * plain `fetchConsume`/`post` path above.
+ *
+ * A section can arrive twice: once without `alt` (the fast pass) and again
+ * once its adaptive rewrites are ready — `onChunk`/the returned array upsert
+ * by `id` rather than append, so the second arrival patches the first
+ * in place instead of duplicating a section.
  */
 export async function fetchConsumeStream(
   params: Parameters<typeof consumeRequest>[0],
@@ -139,7 +144,9 @@ export async function fetchConsumeStream(
     const trimmed = line.trim();
     if (!trimmed) return;
     const chunk = JSON.parse(trimmed) as ConsumeChunk;
-    chunks.push(chunk);
+    const existing = chunks.findIndex((c) => c.id === chunk.id);
+    if (existing === -1) chunks.push(chunk);
+    else chunks[existing] = chunk;
     onChunk(chunk);
   };
   while (true) {

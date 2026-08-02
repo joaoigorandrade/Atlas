@@ -466,16 +466,51 @@ export default function ConsumeView({
               lineHeight: 1.55,
             }}
           >
-            This is the reading. {chunks.length} sections, each with a worked
-            example and a diagram — read them straight through. Rewrite any
-            section to fit how you think, tap a term for its meaning before
-            it&rsquo;s used, and ask about any passage that doesn&rsquo;t land.
-            The questioning starts in Socratic, after this.
+            {chunks.length > 0
+              ? `This is the reading. ${chunks.length} sections, each with a worked example and a diagram — read them straight through.`
+              : "This is the reading —"}{" "}
+            Rewrite any section to fit how you think, tap a term for its
+            meaning before it&rsquo;s used, and ask about any passage that
+            doesn&rsquo;t land. The questioning starts in Socratic, after
+            this.
           </p>
+
+          {/* The very first open of a fresh node: the screen is already up,
+              the first section is still being written. A blank page reads as
+              broken; a shape of what's coming reads as "in progress". */}
+          {chunks.length === 0 && (
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fadeUp .3s both" }}
+            >
+              <div
+                style={{
+                  fontFamily: font.mono,
+                  fontSize: 11.5,
+                  color: color.inkGhost,
+                  marginBottom: 4,
+                }}
+              >
+                Writing your first section…
+              </div>
+              {[220, 100, "94%", "88%", "70%"].map((w, i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: i === 0 ? 22 : 14,
+                    width: typeof w === "number" ? w : w,
+                    borderRadius: 5,
+                    background: "rgba(44,40,35,0.08)",
+                    animation: "pulseGlow 1.6s ease-in-out infinite",
+                    animationDelay: `${i * 0.12}s`,
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           {visible.map((c, i) => {
             const vkey = session.variant[c.id] ?? null;
-            const altText = vkey ? c.alt[vkey] : null;
+            const altText = vkey && c.alt ? c.alt[vkey] : null;
             const isDeepest = i === visible.length - 1;
             // While streaming, the deepest chunk in hand isn't provably the
             // pass's last section yet — never claim "last" until the stream
@@ -832,32 +867,46 @@ export default function ConsumeView({
                       {c.cite}
                     </div>
 
-                    {/* Adaptive-modality rewrites */}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {ALT_CONTROLS.map(([key, label]) => {
-                        const active = vkey === key;
-                        return (
-                          <button
-                            key={key}
-                            onClick={() => onSetVariant(c.id, key)}
-                            style={{
-                              padding: "6px 12px",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              cursor: "pointer",
-                              fontFamily: font.mono,
-                              border: `1px solid ${
-                                active ? color.accent : color.hairlineStrong
-                              }`,
-                              background: active ? color.accentBg : color.card,
-                              color: active ? color.accent : color.inkMuted,
-                            }}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {/* Adaptive-modality rewrites — generated after the
+                        reading itself, so on a fresh (uncached) open they
+                        may still be on the way for a few seconds. */}
+                    {c.alt ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {ALT_CONTROLS.map(([key, label]) => {
+                          const active = vkey === key;
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => onSetVariant(c.id, key)}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 8,
+                                fontSize: 12,
+                                cursor: "pointer",
+                                fontFamily: font.mono,
+                                border: `1px solid ${
+                                  active ? color.accent : color.hairlineStrong
+                                }`,
+                                background: active ? color.accentBg : color.card,
+                                color: active ? color.accent : color.inkMuted,
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          fontFamily: font.mono,
+                          fontSize: 11,
+                          color: color.inkGhost,
+                        }}
+                      >
+                        Rewrites still writing…
+                      </div>
+                    )}
                     {altText && (
                       <div
                         style={{

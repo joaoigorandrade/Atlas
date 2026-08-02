@@ -130,9 +130,9 @@ export function migrateConsume(
           body: Array.isArray(c.body) ? c.body : [c.body],
           example: c.example ?? {
             title: "Worked through",
-            steps: [c.alt.example],
+            steps: [c.alt?.example ?? "See the passage above."],
           },
-          takeaway: c.takeaway ?? c.alt.simpler,
+          takeaway: c.takeaway ?? c.alt?.simpler ?? "",
           ...(i === 0 && pred
             ? {
                 pred: {

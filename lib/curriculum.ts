@@ -225,8 +225,10 @@ export interface ConsumeChunk {
   figure?: ConsumeFigure;
   /** The mini-Socratic aside opened from "ask about this passage". */
   ask: string;
-  /** Adaptive-modality rewrites of this chunk, keyed by control. */
-  alt: Record<AltKey, string>;
+  /** Adaptive-modality rewrites of this chunk, keyed by control. Generated
+   *  after the reading itself on a fresh (uncached) open — a learner reads
+   *  before reaching for a rewrite, so it isn't worth gating the screen on. */
+  alt?: Record<AltKey, string>;
   /** The session's single prediction hook — present on the opening section
    *  only, and optional even there. */
   pred?: ConsumePrediction;

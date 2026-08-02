@@ -211,12 +211,20 @@ async function streamGeneration(
 
   const enc = new TextEncoder();
   const collected: ConsumeChunk[] = [first.value];
+  // A section can arrive twice — once without `alt`, again once its adaptive
+  // rewrites are ready — so this upserts by `id` rather than appending, or
+  // the cached row would end up with 10 sections instead of 5.
+  const collect = (chunk: ConsumeChunk) => {
+    const i = collected.findIndex((c) => c.id === chunk.id);
+    if (i === -1) collected.push(chunk);
+    else collected[i] = chunk;
+  };
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       controller.enqueue(enc.encode(JSON.stringify(first.value) + "\n"));
       try {
         for await (const chunk of gen) {
-          collected.push(chunk);
+          collect(chunk);
           controller.enqueue(enc.encode(JSON.stringify(chunk) + "\n"));
         }
         if (key) writeContent(key, kind, { chunks: collected });
