@@ -1338,31 +1338,33 @@ Return JSON:
 // ---- kind: retain ----------------------------------------------------------
 
 const CARD_TYPES = ["recall", "why", "apply"] as const;
-const TONES: readonly ForecastTone[] = ["due", "soft", "solid"];
 
-function validateRetain(budgetMin: number, nodeIds: Set<string>) {
+/**
+ * The Retain generation is a card FACTORY, not the queue.
+ *
+ * What it produces is converted once into `StoredCard`s and then lives in the
+ * FSRS store forever; the queue the learner actually sees is rebuilt from that
+ * store by `retainContentFromStore`. So three things this prompt used to ask
+ * for were generated, validated, cached — and thrown away on arrival:
+ *
+ *   - `forecast`: rebuilt from real due dates by `forecastRows`.
+ *   - each card's `fsrs` intervals: rebuilt from the real scheduler by
+ *     `intervalLabels`. `newStoredCard` is typed `Omit<StoredCard, "fsrs">`
+ *     precisely because it supplies its own.
+ *   - each card's `id`: reassigned as `${node}-retain-${stamp}-${i}`.
+ *
+ * Together that was roughly a quarter of a blocking generation spent on
+ * output nothing reads. Asking for plausible-looking spaced-repetition
+ * intervals from a language model was always the wrong shape anyway — the
+ * scheduler knows them exactly.
+ */
+export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
   return (raw: unknown): RetainContent => {
     const root = obj(raw, "payload");
-    const forecast = arr(root.forecast, "forecast", 3, 3).map((v, i) => {
-      const f = obj(v, `forecast[${i}]`);
-      return {
-        label: str(f.label, `forecast[${i}].label`),
-        count: str(f.count, `forecast[${i}].count`),
-        sub: str(f.sub, `forecast[${i}].sub`),
-        tone: oneOf(f.tone, TONES, `forecast[${i}].tone`),
-      };
-    });
     const cards: ReviewCard[] = arr(root.cards, "cards", 4, 8).map((v, i) => {
       const c = obj(v, `cards[${i}]`);
       const node = str(c.node, `cards[${i}].node`).toLowerCase().replace(/[^a-z0-9-]/g, "-");
       if (!nodeIds.has(node)) fail(`cards[${i}].node "${node}" is not a learned node id`);
-      const fsrsRaw = obj(c.fsrs, `cards[${i}].fsrs`);
-      const fsrs = {
-        again: str(fsrsRaw.again, `cards[${i}].fsrs.again`),
-        hard: str(fsrsRaw.hard, `cards[${i}].fsrs.hard`),
-        good: str(fsrsRaw.good, `cards[${i}].fsrs.good`),
-        easy: str(fsrsRaw.easy, `cards[${i}].fsrs.easy`),
-      };
       const type = oneOf(c.type, CARD_TYPES, `cards[${i}].type`);
       const hasCloze = Array.isArray(c.cloze) && typeof c.answer === "string";
       const card: ReviewCard = {
@@ -1371,7 +1373,6 @@ function validateRetain(budgetMin: number, nodeIds: Set<string>) {
         source: str(c.source, `cards[${i}].source`),
         node,
         back: str(c.back, `cards[${i}].back`),
-        fsrs,
         fails: true,
         reExplain: str(c.reExplain, `cards[${i}].reExplain`),
       };
@@ -1386,7 +1387,7 @@ function validateRetain(budgetMin: number, nodeIds: Set<string>) {
       }
       return card;
     });
-    return { budgetMin, forecast, cards };
+    return { budgetMin, cards };
   };
 }
 
@@ -1400,19 +1401,17 @@ export async function generateRetain(params: {
   const { topic, budgetMin, nodes, interests, language = "en" } = params;
   return generateJson(
     user(
-      `Write today's Retain (spaced-review) queue for the topic "${topic}".
-Cards are auto-generated from earlier sessions — atomic, one fact each, varied by type. Daily budget: ~${budgetMin} minutes.
+      `Draft the review cards for the topic "${topic}".
+Cards are atomic — one fact each — and varied by type. Daily budget: ~${budgetMin} minutes.
 The learner's nodes in rotation (id: label — state):
 ${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}`).join("\n")}
 ${interestNote(interests)}
 
+Write the cards only. Scheduling — when each card is next due, and what each
+grade button is worth — is the scheduler's job, not yours.
+
 Return JSON:
 {
-  "forecast": [
-    {"label": "Due now", "count": "N cards", "sub": "~${budgetMin} min", "tone": "due"},
-    {"label": "Decaying this week", "count": "N cards", "sub": "recall dropping below 90%", "tone": "soft"},
-    {"label": "Rock-solid", "count": "N cards", "sub": "next lift 30 d+ out", "tone": "solid"}
-  ],
   "cards": [   // 5-6 cards; mix of types; "recall" cards use cloze, "why"/"apply" use front
     {
       "type": "recall" | "why" | "apply",
@@ -1422,7 +1421,6 @@ Return JSON:
       "answer": "what fills the blank",                                 // recall only
       "front": "the question",                                          // why/apply only
       "back": "the full answer revealed on flip, 1-2 sentences",
-      "fsrs": {"again": "<10 min", "hard": "1 d", "good": "4 d", "easy": "9 d"},   // plausible intervals per grade
       "reExplain": "the 30-second Socratic re-explanation shown if this card is missed"
     }, ...
   ]

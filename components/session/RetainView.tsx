@@ -701,7 +701,7 @@ function ActiveCard({
                     color: color.inkFaint,
                   }}
                 >
-                  {card.fsrs[g.key]}
+                  {card.fsrs?.[g.key] ?? ""}
                 </span>
               </button>
             ))}
@@ -909,7 +909,7 @@ function Sidebar({
           {t.retentionHealth}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-          {content.forecast.map((f) => (
+          {(content.forecast ?? []).map((f) => (
             <div key={f.label} style={{ display: "flex", gap: 12 }}>
               <div
                 style={{

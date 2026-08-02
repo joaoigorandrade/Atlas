@@ -1485,8 +1485,10 @@ export interface ReviewCard {
   front?: string;
   /** The full answer revealed on flip. */
   back: string;
-  /** FSRS next-interval per grade — shown on the grade buttons. */
-  fsrs: Record<ReviewGrade, string>;
+  /** FSRS next-interval per grade — shown on the grade buttons. Supplied by
+   *  the scheduler (`intervalLabels`), never by the generator: the generated
+   *  card is a draft that `newStoredCard` turns into a real scheduled card. */
+  fsrs?: Record<ReviewGrade, string>;
   /** A card whose miss re-enters Phase 1 (writes its node Shaky). */
   fails?: boolean;
   /** The 30-second Socratic re-explanation shown when it's missed. */
@@ -1497,7 +1499,9 @@ export interface ReviewCard {
 export interface RetainContent {
   /** The daily target from onboarding — the queue budget, in minutes. */
   budgetMin: number;
-  forecast: ForecastRow[];
+  /** Built from real due dates by `forecastRows`. Absent on the generator's
+   *  output, which is a card factory rather than a queue. */
+  forecast?: ForecastRow[];
   cards: ReviewCard[];
 }
 
@@ -1824,7 +1828,7 @@ export function dailyQueue(
   fallbackMinutes: number,
 ): DailyQueue {
   if (!content) return { minutes: fallbackMinutes, cards: 0 };
-  const due = content.forecast.find((f) => f.tone === "due");
+  const due = content.forecast?.find((f) => f.tone === "due");
   const cards = due
     ? parseInt(due.count, 10) || content.cards.length
     : content.cards.length;

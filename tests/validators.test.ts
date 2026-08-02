@@ -7,6 +7,7 @@ import {
   validateDiagnosticItem,
   validateFeynman,
   validateGraphPart,
+  validateRetain,
   validateScopeOffer,
   validateSocratic,
 } from "@/lib/server/generate";
@@ -350,5 +351,46 @@ describe("migrateConsume", () => {
     // The chunk-level verdict copy moves onto the surviving prediction.
     expect(out[0].pred?.right).toBe("correct");
     expect(out[1].pred).toBeUndefined();
+  });
+});
+
+// ---- retain: the generator is a card factory, not the queue ------------------
+
+describe("validateRetain", () => {
+  const card = {
+    type: "why",
+    source: "Consume",
+    node: "n1",
+    front: "why does it hold?",
+    back: "because of the invariant",
+    reExplain: "re-explain",
+  };
+  const payload = { cards: [card, card, card, card] };
+
+  it("accepts cards with no scheduling fields at all", () => {
+    const out = validateRetain(8, new Set(["n1"]))(payload);
+    expect(out.cards).toHaveLength(4);
+    expect(out.cards[0].fsrs).toBeUndefined();
+    expect(out.forecast).toBeUndefined();
+  });
+
+  it("still rejects a card pinned to a node the learner hasn't learned", () => {
+    expect(() => validateRetain(8, new Set(["n2"]))(payload)).toThrow(
+      /is not a learned node id/,
+    );
+  });
+
+  it("ignores scheduling fields a stale prompt might still send", () => {
+    // The scheduler owns intervals; anything the model volunteers is dropped
+    // rather than trusted, since `newStoredCard` supplies its own.
+    const out = validateRetain(8, new Set(["n1"]))({
+      forecast: [{ label: "Due now", count: "9 cards", sub: "~8 min", tone: "due" }],
+      cards: Array.from({ length: 4 }, () => ({
+        ...card,
+        fsrs: { again: "<10 min", hard: "1 d", good: "4 d", easy: "9 d" },
+      })),
+    });
+    expect(out.cards[0].fsrs).toBeUndefined();
+    expect(out.forecast).toBeUndefined();
   });
 });
