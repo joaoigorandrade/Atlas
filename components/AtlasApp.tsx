@@ -105,6 +105,7 @@ import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
 import {
+  deleteRun,
   loadRunCaches,
   loadRunCore,
   saveRun,
@@ -294,6 +295,11 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const [cards, setCards] = useState<StoredCard[]>([]);
   // A server judge round-trip is in flight (#25-#27) — views disable inputs.
   const [judging, setJudging] = useState(false);
+  // A dashboard topic exclusion is in flight. State rather than a ref on
+  // purpose: it also flips `runActive` off the moment the learner confirms, so
+  // the pending save debounces are cleared and no write can re-create the row
+  // between the delete landing and the local run being cleared.
+  const [excluding, setExcluding] = useState(false);
   // Uploaded-outline grounding + too-broad-topic scoping (#30).
   const [outline, setOutline] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
@@ -499,6 +505,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
   const runActive =
     hydrated &&
+    !excluding &&
     graph.nodes.length > 0 &&
     screen !== "welcome" &&
     screen !== "building" &&
@@ -608,6 +615,64 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const openMap = useCallback(() => setScreen("map"), []);
   /** "+ New map" — the single-run app rebuilds from onboarding. */
   const newMap = useCallback(() => setScreen("welcome"), []);
+
+  /**
+   * "Exclude this topic" on the dashboard (confirmed there first): the saved
+   * run is deleted, then everything the topic put in memory goes with it —
+   * graph, mastery states, cards, calibration, every generated cache — and the
+   * app lands back on onboarding with the learner's goal and interests kept.
+   *
+   * `excluding` gates `runActive`, so the debounced writers are already off by
+   * the time the delete lands; nothing can re-upsert the row behind it.
+   * Adherence is deliberately untouched: the streak is the learner's habit,
+   * not the topic's, and fabricating a reset would be the dishonest read.
+   */
+  const excludeTopic = useCallback(() => {
+    const subject = formRef.current.topic.trim() || "Untitled";
+    setExcluding(true);
+    deleteRun(supabase, subject)
+      .then(() => {
+        // Every warmed key belongs to node ids that no longer exist.
+        warm.clear();
+        setGraph(emptyGraph());
+        setStates({});
+        setPositions({});
+        setSpawnedIds(new Set());
+        pendingGapsRef.current = [];
+        setSelectedId(null);
+        setDiagnostic([]);
+        setAnswered(0);
+        setConsume(null);
+        setLiveConsume(null);
+        setSocratic(null);
+        setLiveSocratic(null);
+        setFeynman(null);
+        setLiveFeynman(null);
+        setConnect(null);
+        setCrucible(null);
+        setRetain(null);
+        setConsumeCache({});
+        setSocraticCache({});
+        setFeynmanCache({});
+        setConnectCache({});
+        setCrucibleCache({});
+        setRetainContent(null);
+        setCards([]);
+        setCalibSamples([]);
+        setShakyReasons({});
+        setReviewedNodes([]);
+        setLitToday([]);
+        setMomentumPlaying(false);
+        setOutline(null);
+        setUploadNote(null);
+        setScopes(null);
+        setForm((prev) => ({ ...prev, topic: "" }));
+        setScreen("welcome");
+        showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
+      })
+      .catch((err: Error) => showToast(err.message, "Couldn't exclude"))
+      .finally(() => setExcluding(false));
+  }, [supabase, warm, showToast]);
   const enterSettings = useCallback(() => setScreen("settings"), []);
   const exitSettings = useCallback(() => setScreen("map"), []);
 
@@ -3032,6 +3097,8 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           onReview={enterReview}
           onProfile={enterProfile}
           onNewMap={newMap}
+          onExcludeTopic={excludeTopic}
+          excluding={excluding}
         />
       )}
 

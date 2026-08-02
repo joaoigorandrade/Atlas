@@ -220,6 +220,20 @@ export async function saveRun(
   if (error) throw new Error(`Saving run failed: ${error.message}`);
 }
 
+/**
+ * Drop a run entirely — the learner excluding a topic from the dashboard.
+ * Both halves live in the one row, so a single delete takes the map, the
+ * mastery states, the cards and the generated content with it. RLS scopes the
+ * match to the caller, so `subject` alone identifies the row.
+ */
+export async function deleteRun(
+  supabase: SupabaseClient,
+  subject: string,
+): Promise<void> {
+  const { error } = await supabase.from("run_states").delete().eq("subject", subject);
+  if (error) throw new Error(`Removing the topic failed: ${error.message}`);
+}
+
 /** Write-through upsert of the content caches alone — the big, rare write. */
 export async function saveRunCaches(
   supabase: SupabaseClient,
