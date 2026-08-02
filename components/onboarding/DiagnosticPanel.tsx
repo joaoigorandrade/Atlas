@@ -12,6 +12,7 @@ const STRINGS = {
     openPlaceholder:
       "Tell me what you already know here — honestly, in your own words.",
     submitLabel: "Place me →",
+    writing: "Writing the next question…",
     readyTitle: "Your map is ready.",
     readyBody:
       "We pruned what you already own and lit your frontier — the concepts you’re ready to learn next.",
@@ -22,6 +23,7 @@ const STRINGS = {
     openPlaceholder:
       "Conte o que você já sabe sobre isso — com honestidade, com suas palavras.",
     submitLabel: "Me posicionar →",
+    writing: "Escrevendo a próxima pergunta…",
     readyTitle: "Seu mapa está pronto.",
     readyBody:
       "Podamos o que você já domina e acendemos sua fronteira — os conceitos que você está pronto para aprender agora.",
@@ -32,8 +34,14 @@ const STRINGS = {
 interface DiagnosticPanelProps {
   /** The subject being placed — context for judging open-ended answers. */
   topic: string;
-  /** The generated placement questions for this topic. */
+  /** The generated placement questions for this topic, which may still be
+   *  arriving: the build streams them in one at a time. */
   questions: DiagnosticQuestion[];
+  /** How many questions this placement will ask in total. Distinct from
+   *  `questions.length`, which grows as the stream lands — deriving "done"
+   *  from the array would declare the map ready after question 1 and then
+   *  take it back when question 2 arrived. */
+  expected?: number;
   /** Number of questions answered so far. */
   answered: number;
   /** Called with the index of the chosen option — its effect writes back. */
@@ -44,14 +52,18 @@ interface DiagnosticPanelProps {
 export default function DiagnosticPanel({
   topic,
   questions,
+  expected,
   answered,
   onAnswer,
   onStart,
 }: DiagnosticPanelProps) {
   const t = useT(STRINGS);
   const [mode, setMode] = useState<AnswerMode>("open");
-  const done = answered >= questions.length;
-  const question = questions[Math.min(answered, questions.length - 1)];
+  const total = Math.max(expected ?? questions.length, questions.length);
+  const done = answered >= total;
+  // Answered faster than the writer could write: the next question is real and
+  // on its way, it just isn't here yet.
+  const question: DiagnosticQuestion | undefined = questions[answered];
 
   return (
     <div
@@ -72,7 +84,7 @@ export default function DiagnosticPanel({
     >
       <div style={kicker(11)}>{t.kicker}</div>
       <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
-        {questions.map((_, i) => (
+        {Array.from({ length: total }, (_, i) => (
           <div
             key={i}
             style={{
@@ -86,7 +98,21 @@ export default function DiagnosticPanel({
         ))}
       </div>
 
-      {!done && (
+      {!done && !question && (
+        <div
+          style={{
+            marginTop: 44,
+            fontFamily: font.mono,
+            fontSize: 12,
+            color: color.inkSoft,
+            animation: "softIn 0.4s both",
+          }}
+        >
+          {t.writing}
+        </div>
+      )}
+
+      {!done && question && (
         <div key={answered} style={{ marginTop: 44, animation: "fadeUp 0.4s both" }}>
           <div
             style={{

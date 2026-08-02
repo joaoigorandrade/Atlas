@@ -4,6 +4,7 @@
 // gap offsets are computed here, never trusted from the model.
 
 import {
+  DIAGNOSTIC_COUNT,
   type AltKey,
   type ConceptEdge,
   type ConceptGraph,
@@ -208,31 +209,38 @@ function layoutGraph(
   return nodes;
 }
 
-export function validateCurriculum(raw: unknown): {
-  scopes?: ScopeOffer[];
+/** One placement question, before `tag` and the gap offsets are attached. */
+export interface RawDiagnostic {
+  nodeId: string;
+  q: string;
+  note: string;
+  opts: Array<{ label: string; effect: "mastered" | "shaky" | "none" }>;
+  gapLabel?: string;
+  gapReason?: string;
+}
+
+/** The 2-3 scoped sub-map offers a too-broad topic comes back with instead of
+ *  a mush map, or null when this payload isn't one. */
+export function validateScopeOffer(raw: unknown): ScopeOffer[] | null {
+  const root = obj(raw, "payload");
+  if (root.tooBroad !== true) return null;
+  return arr(root.scopes, "scopes", 2, 3).map((v, i) => {
+    const s = obj(v, `scopes[${i}]`);
+    return {
+      label: str(s.label, `scopes[${i}].label`),
+      note: str(s.note, `scopes[${i}].note`),
+    };
+  });
+}
+
+/** Nodes and edges together: the map itself. Split out from the diagnostic so
+ *  the streamed pass can lay the graph out and ship it while the placement
+ *  questions are still being written. */
+export function validateGraphPart(raw: unknown): {
   nodes: Array<{ id: string; label: string }>;
   edges: ConceptEdge[];
-  diagnostic: Array<{
-    nodeId: string;
-    q: string;
-    note: string;
-    opts: Array<{ label: string; effect: "mastered" | "shaky" | "none" }>;
-    gapLabel?: string;
-    gapReason?: string;
-  }>;
 } {
   const root = obj(raw, "payload");
-  // Too-broad topics come back as 2-3 scoped sub-map offers, not a mush map.
-  if (root.tooBroad === true) {
-    const scopes = arr(root.scopes, "scopes", 2, 3).map((v, i) => {
-      const s = obj(v, `scopes[${i}]`);
-      return {
-        label: str(s.label, `scopes[${i}].label`),
-        note: str(s.note, `scopes[${i}].note`),
-      };
-    });
-    return { scopes, nodes: [], edges: [], diagnostic: [] };
-  }
   const seen = new Set<string>();
   const nodes = arr(root.nodes, "nodes", 10, 24).map((v, i) => {
     const n = obj(v, `nodes[${i}]`);
@@ -251,7 +259,8 @@ export function validateCurriculum(raw: unknown): {
     if (!seen.has(from) || !seen.has(to) || from === to) continue; // drop, don't fail
     edges.push([from, to]);
   }
-  if (edges.length < nodes.length - 4) fail("too few valid edges — every node needs prerequisites wired");
+  if (edges.length < nodes.length - 4)
+    fail("too few valid edges — every node needs prerequisites wired");
   // A prerequisite cycle would permanently lock those nodes on the map —
   // Kahn must consume every node or the payload is rejected (#16).
   {
@@ -272,60 +281,91 @@ export function validateCurriculum(raw: unknown): {
     if (visited < nodes.length)
       fail("edges contain a prerequisite cycle — the map must be a DAG");
   }
-  const diagnostic = arr(root.diagnostic, "diagnostic", 3, 3).map((v, i) => {
-    const d = obj(v, `diagnostic[${i}]`);
-    const nodeId = str(d.nodeId, `diagnostic[${i}].nodeId`)
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-");
-    if (!seen.has(nodeId)) fail(`diagnostic[${i}].nodeId "${nodeId}" is not a node id`);
-    return {
-      nodeId,
-      q: str(d.q, `diagnostic[${i}].q`),
-      note: str(d.note, `diagnostic[${i}].note`),
-      opts: arr(d.opts, `diagnostic[${i}].opts`, 3, 3).map((o, j) => {
-        const opt = obj(o, `diagnostic[${i}].opts[${j}]`);
-        return {
-          label: str(opt.label, `diagnostic[${i}].opts[${j}].label`),
-          effect: oneOf(
-            opt.effect,
-            ["mastered", "shaky", "none"] as const,
-            `diagnostic[${i}].opts[${j}].effect`,
-          ),
-        };
-      }),
-      gapLabel: d.gapLabel ? str(d.gapLabel, `diagnostic[${i}].gapLabel`) : undefined,
-      gapReason: d.gapReason ? str(d.gapReason, `diagnostic[${i}].gapReason`) : undefined,
-    };
-  });
+  return { nodes, edges };
+}
+
+/** One placement question, checked against the node ids the graph established. */
+export function validateDiagnosticItem(
+  raw: unknown,
+  i: number,
+  nodeIds: Set<string>,
+): RawDiagnostic {
+  const d = obj(raw, `diagnostic[${i}]`);
+  const nodeId = str(d.nodeId, `diagnostic[${i}].nodeId`)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-");
+  if (!nodeIds.has(nodeId)) fail(`diagnostic[${i}].nodeId "${nodeId}" is not a node id`);
+  return {
+    nodeId,
+    q: str(d.q, `diagnostic[${i}].q`),
+    note: str(d.note, `diagnostic[${i}].note`),
+    opts: arr(d.opts, `diagnostic[${i}].opts`, 3, 3).map((o, j) => {
+      const opt = obj(o, `diagnostic[${i}].opts[${j}]`);
+      return {
+        label: str(opt.label, `diagnostic[${i}].opts[${j}].label`),
+        effect: oneOf(
+          opt.effect,
+          ["mastered", "shaky", "none"] as const,
+          `diagnostic[${i}].opts[${j}].effect`,
+        ),
+      };
+    }),
+    gapLabel: d.gapLabel ? str(d.gapLabel, `diagnostic[${i}].gapLabel`) : undefined,
+    gapReason: d.gapReason ? str(d.gapReason, `diagnostic[${i}].gapReason`) : undefined,
+  };
+}
+
+export function validateCurriculum(raw: unknown): {
+  scopes?: ScopeOffer[];
+  nodes: Array<{ id: string; label: string }>;
+  edges: ConceptEdge[];
+  diagnostic: RawDiagnostic[];
+} {
+  const scopes = validateScopeOffer(raw);
+  if (scopes) return { scopes, nodes: [], edges: [], diagnostic: [] };
+  const { nodes, edges } = validateGraphPart(raw);
+  const ids = new Set(nodes.map((n) => n.id));
+  const root = obj(raw, "payload");
+  const diagnostic = arr(
+    root.diagnostic,
+    "diagnostic",
+    DIAGNOSTIC_COUNT,
+    DIAGNOSTIC_COUNT,
+  ).map((v, i) => validateDiagnosticItem(v, i, ids));
   return { nodes, edges, diagnostic };
 }
 
-export async function generateCurriculum(params: {
+export interface CurriculumParams {
   topic: string;
   goal: GoalKind;
   interests: string;
   /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
   outline?: string;
   language?: Language;
-}): Promise<CurriculumPayload | { scopes: ScopeOffer[] }> {
-  const { topic, goal, interests, outline, language = "en" } = params;
+}
+
+/** The shared opening of both curriculum prompts: what to build, what grounds
+ *  it, and the too-broad escape hatch. Only the output format differs below. */
+function curriculumContext(params: CurriculumParams): string {
+  const { topic, goal, outline } = params;
   const grounding = outline?.trim()
     ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
     : "";
-  const raw = await generateJson(
-    user(
-      `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}
+  return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}
 ${grounding}
-If (and only if) the topic is far too broad for one coherent 12-18 concept map (e.g. "science", "math", "history"), instead return:
-{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers
+If (and only if) the topic is far too broad for one coherent 12-18 concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
+{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
+}
 
-Otherwise return JSON:
-{
+/** The shape of the map itself, shared by both prompts. */
+const GRAPH_SHAPE = `{
   "nodes": [{"id": "short-kebab-id", "label": "Concept Name"}, ...],   // 12 to 18 concepts, foundations through capstone
-  "edges": [["prereq-id", "dependent-id"], ...],                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
-  "diagnostic": [                                                        // exactly 3 placement questions, ordered easy -> hard
-    {
-      "nodeId": "id of the concept the question probes (pick 3 different early/mid concepts)",
+  "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
+}`;
+
+/** The shape of one placement question, shared by both prompts. */
+const DIAGNOSTIC_SHAPE = `{
+      "nodeId": "id of the concept the question probes (a different early/mid concept each time)",
       "q": "the question, phrased as a quick self-assessment the learner answers honestly",
       "note": "one sentence on what the answer changes about the map",
       "opts": [
@@ -335,19 +375,20 @@ Otherwise return JSON:
       ],
       "gapLabel": "the precise sub-concept a hesitant answer splits out (2-4 words)",
       "gapReason": "why it split, phrased to the learner ('you hesitated on ...')"
-    }
-  ]
-}
+    }`;
 
-Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own.${languageNote(language)}`,
-    ),
-    validateCurriculum,
-    { label: "curriculum" },
-  );
-  if (raw.scopes) return { scopes: raw.scopes };
-  const nodes = layoutGraph(raw.nodes, raw.edges);
-  const total = raw.diagnostic.length;
-  const diagnostic: DiagnosticQuestion[] = raw.diagnostic.map((d, i) => ({
+const CURRICULUM_RULES =
+  "Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own, ordered easy -> hard.";
+
+/** Attach the display tag and the gap-node offsets. `total` is passed in rather
+ *  than read off the array: the streamed pass labels question 1 before it knows
+ *  how many will arrive, and the prompt mandates `DIAGNOSTIC_COUNT`. */
+function toDiagnosticQuestion(
+  d: RawDiagnostic,
+  i: number,
+  total: number,
+): DiagnosticQuestion {
+  return {
     tag: `Question ${i + 1} of ${total}`,
     q: d.q,
     note: d.note,
@@ -363,8 +404,122 @@ Rules: labels are 1-3 words, title case. Node count 12-18. The map must read lef
             dy: 148,
           }
         : undefined,
-  }));
-  return { graph: { nodes, edges: raw.edges }, diagnostic };
+  };
+}
+
+export async function generateCurriculum(
+  params: CurriculumParams,
+): Promise<CurriculumPayload | { scopes: ScopeOffer[] }> {
+  const { language = "en" } = params;
+  const raw = await generateJson(
+    user(
+      `${curriculumContext(params)}
+
+Otherwise return JSON:
+{
+  "nodes": [...], "edges": [...],   // as in ${GRAPH_SHAPE}
+  "diagnostic": [${DIAGNOSTIC_SHAPE}]   // exactly ${DIAGNOSTIC_COUNT} placement questions
+}
+
+${CURRICULUM_RULES}${languageNote(language)}`,
+    ),
+    validateCurriculum,
+    { label: "curriculum" },
+  );
+  if (raw.scopes) return { scopes: raw.scopes };
+  const nodes = layoutGraph(raw.nodes, raw.edges);
+  const total = raw.diagnostic.length;
+  return {
+    graph: { nodes, edges: raw.edges },
+    diagnostic: raw.diagnostic.map((d, i) => toDiagnosticQuestion(d, i, total)),
+  };
+}
+
+/**
+ * Streamed variant: the map ships the moment it is written, and the three
+ * placement questions follow one at a time.
+ *
+ * This is the only wait in the app that can never be warmed — the node ids do
+ * not exist until this call returns — and every learner pays it once per map.
+ * Asking for the graph as its own top-level object means the assembly
+ * animation starts on roughly the first 40% of the output instead of the last,
+ * and the questions land inside the animation's own dwell.
+ *
+ * The frames are `{p:"scopes"}` (a too-broad topic, which short-circuits
+ * everything), or `{p:"graph"}` followed by `{p:"diagnostic", i}` ×3.
+ *
+ * As with Consume, a failure before the first object falls back to the proven,
+ * retried single-shot path rather than leaving the learner on a stalled
+ * stream. A failure after the graph has shipped surfaces to the caller, which
+ * can still open the map with however many questions arrived — see the
+ * `build()` handler.
+ */
+export async function* generateCurriculumStream(
+  params: CurriculumParams,
+): AsyncGenerator<StreamFrame> {
+  const { language = "en" } = params;
+  let yielded = 0;
+  let nodeIds: Set<string> | null = null;
+
+  /** The first object is either the scope offer or the graph; every later one
+   *  is a placement question checked against the ids the graph established. */
+  const validateFrame = (raw: unknown, index: number): StreamFrame => {
+    if (index === 0) {
+      const scopes = validateScopeOffer(raw);
+      if (scopes) return { p: "scopes", v: scopes };
+      const { nodes, edges } = validateGraphPart(raw);
+      nodeIds = new Set(nodes.map((n) => n.id));
+      return { p: "graph", v: { nodes: layoutGraph(nodes, edges), edges } };
+    }
+    const i = index - 1;
+    const d = validateDiagnosticItem(raw, i, nodeIds ?? new Set());
+    return { p: "diagnostic", i, v: toDiagnosticQuestion(d, i, DIAGNOSTIC_COUNT) };
+  };
+
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${curriculumContext(params)}
+
+Otherwise write ${1 + DIAGNOSTIC_COUNT} SEPARATE top-level JSON objects, one after
+another — NOT wrapped in an array or a single object, no markdown fences, no
+numbering, no commentary before/after/between them.
+
+First object — the map:
+${GRAPH_SHAPE}
+
+Then ${DIAGNOSTIC_COUNT} more objects, one placement question each, each using a
+"nodeId" from the map you just wrote:
+${DIAGNOSTIC_SHAPE}
+
+${CURRICULUM_RULES}${languageNote(language)}`,
+      ),
+      validateFrame,
+      { label: "curriculum-stream" },
+    );
+    for await (const frame of stream) {
+      yielded++;
+      yield frame;
+      // A too-broad topic has nothing else to say; anything after it is noise.
+      if (frame.p === "scopes") return;
+    }
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "curriculum_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const payload = await generateCurriculum(params);
+    if ("scopes" in payload) {
+      yield { p: "scopes", v: payload.scopes };
+      return;
+    }
+    yield { p: "graph", v: payload.graph };
+    for (const [i, q] of payload.diagnostic.entries())
+      yield { p: "diagnostic", i, v: q };
+  }
 }
 
 // ---- kind: consume ---------------------------------------------------------

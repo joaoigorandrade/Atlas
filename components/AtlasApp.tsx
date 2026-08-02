@@ -19,6 +19,7 @@ import {
   feynmanReducer,
   feynmanStart,
   freshAdherence,
+  DIAGNOSTIC_COUNT,
   GOALS,
   initialStates,
   localDay,
@@ -82,7 +83,7 @@ import {
   fetchConsume,
   fetchConsumeStream,
   fetchCrucible,
-  fetchCurriculum,
+  fetchCurriculumStream,
   fetchFeynman,
   fetchJudgeCrucible,
   fetchJudgeFeynman,
@@ -692,8 +693,19 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
   /**
    * "Build my map": the AI generates the concept graph + placement diagnostic
-   * for the typed topic. The assembling moment plays while it thinks; the
-   * diagnostic opens once both the content and the animation are done.
+   * for the typed topic, streamed — the map arrives as its own frame and the
+   * three placement questions follow one at a time.
+   *
+   * This is the only generation in the app that can never be warmed (the node
+   * ids don't exist until it returns), so it is the one wait every learner
+   * pays. Streaming lets the assembly animation start on the graph rather than
+   * on the whole payload; the questions then land inside the animation's own
+   * dwell and cost nothing.
+   *
+   * `BUILD_MS` stays a floor, not a target: SPEC §2 calls the assembling
+   * moment a deliberate "this is mine" beat, not a spinner to be minimized.
+   * The diagnostic opens once that floor has passed *and* the first question
+   * has arrived.
    */
   const build = useCallback(() => {
     const topic = formRef.current.topic.trim();
@@ -708,48 +720,96 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     // mean something else.
     warm.clear();
     const started = Date.now();
-    fetchCurriculum({
-      topic,
-      goal: formRef.current.goal,
-      interests: formRef.current.interests,
-      outline: outline ?? undefined,
-      language: languageRef.current,
-    })
-      .then((payload) => {
-        // Too broad for one map: offer scoped sub-maps instead (#30).
-        if ("scopes" in payload) {
+    const questions: DiagnosticQuestion[] = [];
+    let opened = false;
+    let scoped = false;
+
+    /** Move to the diagnostic once the assembly beat has played out and there
+     *  is at least one question to ask. Idempotent — every frame tries. */
+    const openWhenReady = () => {
+      if (opened || scoped || questions.length === 0) return;
+      opened = true;
+      later(() => {
+        setScreen("diagnostic");
+        setAnswered(0);
+      }, Math.max(0, BUILD_MS - (Date.now() - started)));
+    };
+
+    fetchCurriculumStream(
+      {
+        topic,
+        goal: formRef.current.goal,
+        interests: formRef.current.interests,
+        outline: outline ?? undefined,
+        language: languageRef.current,
+      },
+      {
+        // Too broad for one map: offer scoped sub-maps instead (#30). Arrives
+        // first and alone, so nothing else is coming.
+        onScopes: (offers) => {
+          scoped = true;
           setScreen("welcome");
-          setScopes(payload.scopes);
+          setScopes(offers);
+        },
+        onGraph: (graph) => {
+          setGraph(graph);
+          setStates(initialStates(graph));
+          setPositions(
+            Object.fromEntries(graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
+          );
+          setSpawnedIds(new Set());
+          pendingGapsRef.current = [];
+          setLiveConsume(null);
+          setConsumeCache({});
+          setSocraticCache({});
+          setFeynmanCache({});
+          setConnectCache({});
+          setCrucibleCache({});
+          setRetainContent(null);
+          setCalibSamples([]);
+          setShakyReasons({});
+          setReviewedNodes([]);
+          setCards([]);
+          setDiagnostic([]);
+        },
+        onQuestion: (question, index) => {
+          questions[index] = question;
+          // Publish the dense prefix only: DiagnosticPanel indexes by answer
+          // count, so a hole would show question 3 in slot 2.
+          const dense: DiagnosticQuestion[] = [];
+          for (const q of questions) {
+            if (!q) break;
+            dense.push(q);
+          }
+          setDiagnostic(dense);
+          openWhenReady();
+        },
+      },
+    )
+      .then(() => {
+        if (scoped || opened) return;
+        // The graph landed but no question survived. Placement is a
+        // nice-to-have; the map is the product, so open it rather than
+        // failing a build the learner already watched assemble.
+        if (graphRef.current.nodes.length > 0) {
+          later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
           return;
         }
-        setGraph(payload.graph);
-        setStates(initialStates(payload.graph));
-        setPositions(
-          Object.fromEntries(
-            payload.graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }]),
-          ),
-        );
-        setDiagnostic(payload.diagnostic);
-        setSpawnedIds(new Set());
-        pendingGapsRef.current = [];
-        setLiveConsume(null);
-        setConsumeCache({});
-        setSocraticCache({});
-        setFeynmanCache({});
-        setConnectCache({});
-        setCrucibleCache({});
-        setRetainContent(null);
-        setCalibSamples([]);
-        setShakyReasons({});
-        setReviewedNodes([]);
-        setCards([]);
-        const wait = Math.max(0, BUILD_MS - (Date.now() - started));
-        later(() => {
-          setScreen("diagnostic");
-          setAnswered(0);
-        }, wait);
+        setScreen("welcome");
+        showToast("The writer returned an empty map — try again.", "Generation failed");
       })
       .catch((err: Error) => {
+        // Sections of the map may already be on screen; only a failure with
+        // nothing to show sends the learner back.
+        if (scoped) return;
+        if (questions.length > 0) {
+          openWhenReady();
+          return;
+        }
+        if (graphRef.current.nodes.length > 0) {
+          later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
+          return;
+        }
         setScreen("welcome");
         showToast(err.message, "Generation failed");
       });
@@ -2699,6 +2759,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         <DiagnosticPanel
           topic={form.topic}
           questions={diagnostic}
+          // The placement always asks this many, even when the panel opens on
+          // the first one and the rest are still being written.
+          expected={DIAGNOSTIC_COUNT}
           answered={answered}
           onAnswer={answerDiagnostic}
           onStart={startMap}

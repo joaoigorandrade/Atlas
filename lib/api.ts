@@ -84,14 +84,42 @@ export interface ScopeOffer {
 
 export type CurriculumResult = CurriculumPayload | { scopes: ScopeOffer[] };
 
-export function fetchCurriculum(params: {
+export interface CurriculumParams {
   topic: string;
   goal: GoalKind;
   interests: string;
   outline?: string;
   language?: Language;
-}): Promise<CurriculumResult> {
+}
+
+export function fetchCurriculum(params: CurriculumParams): Promise<CurriculumResult> {
   return post<CurriculumResult>({ kind: "curriculum", ...params });
+}
+
+/**
+ * The onboarding build, streamed. The map arrives as its own frame and the
+ * three placement questions follow one at a time, so the assembly animation
+ * can start on the graph instead of on the whole payload — this is the one
+ * generation in the app that can never be warmed, since the node ids don't
+ * exist until it returns.
+ *
+ * `onGraph` may never fire: a topic too broad for one coherent map answers
+ * with scope offers instead, and `onScopes` fires alone.
+ */
+export async function fetchCurriculumStream(
+  params: CurriculumParams,
+  handlers: {
+    onGraph: (graph: ConceptGraph) => void;
+    onQuestion: (question: DiagnosticQuestion, index: number) => void;
+    onScopes: (scopes: ScopeOffer[]) => void;
+  },
+): Promise<void> {
+  await fetchStream({ kind: "curriculum", ...params }, (frame) => {
+    if (frame.p === "graph") handlers.onGraph(frame.v as ConceptGraph);
+    else if (frame.p === "scopes") handlers.onScopes(frame.v as ScopeOffer[]);
+    else if (frame.p === "diagnostic" && "i" in frame)
+      handlers.onQuestion(frame.v as DiagnosticQuestion, frame.i);
+  });
 }
 
 // Each fetcher pairs with a `<kind>Request` builder returning the exact body

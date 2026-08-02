@@ -13,6 +13,7 @@ import {
   generateConsumeStream,
   generateCrucible,
   generateCurriculum,
+  generateCurriculumStream,
   generateFeynman,
   generateRetain,
   generateSocratic,
@@ -23,8 +24,8 @@ import {
   type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
-import type { StreamFrame, StreamShape } from "@/lib/server/stream";
-import type { GoalKind } from "@/lib/curriculum";
+import type { StreamFrame, StreamShapes } from "@/lib/server/stream";
+import { DIAGNOSTIC_COUNT, type GoalKind } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge";
 
@@ -99,7 +100,7 @@ export interface Job {
    *  payload written back to `content_cache` is exactly what `run` would have
    *  returned — no half-payload can ever be cached. */
   stream?: () => AsyncGenerator<StreamFrame>;
-  shape?: StreamShape;
+  shape?: StreamShapes;
   /** Model calls this job may make. Drives the monthly spend ceiling; the
    *  per-learner daily quota counts jobs, not calls. Defaults to 1. */
   cost?: number;
@@ -134,17 +135,25 @@ export function resolveJob(body: GenerateBody): Job {
       const goal: GoalKind = ["exam", "project", "mastery"].includes(s(body.goal))
         ? (body.goal as GoalKind)
         : "mastery";
-      return cacheable(
-        "curriculum",
-        {
-          topic,
-          goal,
-          interests,
-          outline: s(body.outline).slice(0, CAPS.outline),
-          language,
-        },
-        async (p) => ({ ...(await generateCurriculum(p)) }),
-      );
+      const params = {
+        topic,
+        goal,
+        interests,
+        outline: s(body.outline).slice(0, CAPS.outline),
+        language,
+      };
+      return {
+        kind: "curriculum",
+        key: contentKey("curriculum", params),
+        run: async () => ({ ...(await generateCurriculum(params)) }),
+        stream: () => generateCurriculumStream(params),
+        // Two legal payloads: a map with its placement questions, or — for a
+        // topic too broad to be one coherent map — scope offers instead.
+        shape: [
+          { graph: "one", diagnostic: { min: DIAGNOSTIC_COUNT, max: DIAGNOSTIC_COUNT } },
+          { scopes: "one" },
+        ],
+      };
     }
 
     case "consume": {

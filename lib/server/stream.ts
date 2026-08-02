@@ -31,6 +31,18 @@ export type StreamFrame =
  */
 export type StreamShape = Record<string, "one" | { min: number; max: number }>;
 
+/**
+ * Some kinds have more than one legal payload. Curriculum is the case that
+ * forced this: a normal topic yields a map plus placement questions, while a
+ * too-broad one yields scope offers instead and nothing else — both are
+ * complete, cacheable answers. Shapes are tried in order and the first that
+ * fits wins, so list the more specific one first.
+ */
+export type StreamShapes = StreamShape | StreamShape[];
+
+const asList = (shapes: StreamShapes): StreamShape[] =>
+  Array.isArray(shapes) ? shapes : [shapes];
+
 function isItem(f: StreamFrame): f is { p: string; i: number; v: unknown } {
   return typeof (f as { i?: number }).i === "number";
 }
@@ -45,6 +57,17 @@ function isItem(f: StreamFrame): f is { p: string; i: number; v: unknown } {
  * not to cache.
  */
 export function framesToPayload(
+  frames: StreamFrame[],
+  shapes: StreamShapes,
+): Record<string, unknown> | null {
+  for (const shape of asList(shapes)) {
+    const payload = assemble(frames, shape);
+    if (payload) return payload;
+  }
+  return null;
+}
+
+function assemble(
   frames: StreamFrame[],
   shape: StreamShape,
 ): Record<string, unknown> | null {
@@ -86,8 +109,14 @@ export function framesToPayload(
  *  came out of Postgres. */
 export function payloadToFrames(
   payload: Record<string, unknown>,
-  shape: StreamShape,
+  shapes: StreamShapes,
 ): StreamFrame[] {
+  // Pick the variant this payload actually is, or a hit on a too-broad topic
+  // would replay as zero frames and the client would see an empty stream.
+  const shape =
+    asList(shapes).find((s) =>
+      Object.keys(s).every((part) => payload[part] !== undefined),
+    ) ?? asList(shapes)[0];
   const frames: StreamFrame[] = [];
   for (const [part, expected] of Object.entries(shape)) {
     const value = payload[part];

@@ -2022,6 +2022,13 @@ export interface DiagnosticOption {
 }
 
 /**
+ * How many placement questions a build asks. Fixed rather than derived: the
+ * build streams its questions in one at a time, so both the panel and the
+ * "Question i of N" label need the total before the last one has arrived.
+ */
+export const DIAGNOSTIC_COUNT = 3;
+
+/**
  * One generated placement probe. `nodeId` names the concept the answer writes
  * back to; `gap` (optional) is the sub-concept a hesitant answer splits out
  * under it \u2014 the first live re-plan.
