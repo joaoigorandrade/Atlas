@@ -11,6 +11,7 @@ import {
   type SocraticTurn,
 } from "@/lib/curriculum";
 import { InkDots } from "@/components/Pending";
+import { MicButton } from "@/components/VoiceInput";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -339,6 +340,7 @@ export default function SocraticView({
                       {busy ? <InkDots size={3.5} /> : t.send}
                     </button>
                   </div>
+                  <MicButton value={draft} onChange={setDraft} disabled={busy} />
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                     <button
                       onClick={onStuck}

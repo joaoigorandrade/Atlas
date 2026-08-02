@@ -12,8 +12,9 @@ import {
   type ConsumeExample,
   type ConsumeFigure,
 } from "@/lib/curriculum";
+import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker } from "@/lib/theme";
-import { useT } from "@/lib/i18n";
+import { useLanguage, useT } from "@/lib/i18n";
 
 // Consume is a Learning-phase surface: its accents borrow the shared state
 // colors (learning blue, plus mastered/shaky for right/wrong verdicts).
@@ -59,6 +60,9 @@ const STRINGS = {
       "Repeatedly reaching for the simpler version usually means an earlier concept is shaky.",
     reviewPrereq: "Review prerequisite →",
     term: "term",
+    readAloud: "Read this section aloud",
+    pauseReading: "Pause the reading",
+    resumeReading: "Resume the reading",
   },
   "pt-BR": {
     back: "← Mapa",
@@ -97,6 +101,9 @@ const STRINGS = {
       "Recorrer repetidamente à versão mais simples geralmente indica que um conceito anterior está instável.",
     reviewPrereq: "Revisar pré-requisito →",
     term: "termo",
+    readAloud: "Ouvir esta seção",
+    pauseReading: "Pausar a leitura",
+    resumeReading: "Continuar a leitura",
   },
 } as const;
 
@@ -314,6 +321,64 @@ function sectionName(kicker: string): string {
   return kicker.replace(/^\s*\d+\s*·\s*/, "");
 }
 
+/** Play/pause for one section's reading. Hidden entirely where the browser
+ *  can't speak or the learner has read-aloud off. */
+function SpeakerButton({
+  active,
+  paused,
+  onClick,
+}: {
+  active: boolean;
+  paused: boolean;
+  onClick: () => void;
+}) {
+  const t = useT(STRINGS);
+  const label = !active ? t.readAloud : paused ? t.resumeReading : t.pauseReading;
+  const showPause = active && !paused;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      style={{
+        flex: "0 0 auto",
+        width: 26,
+        height: 26,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 0,
+        borderRadius: "50%",
+        border: `1px solid ${active ? BLUE : color.hairlineStrong}`,
+        background: active ? BLUE : color.card,
+        cursor: "pointer",
+        transition: "background .15s, border-color .15s",
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path
+          d="M1.4 5.2h2.4L7.2 2.3v9.4L3.8 8.8H1.4z"
+          fill={active ? color.accentInk : BLUE}
+        />
+        {showPause ? (
+          <>
+            <rect x="9.3" y="4.4" width="1.4" height="5.2" rx="0.6" fill={color.accentInk} />
+            <rect x="11.6" y="4.4" width="1.4" height="5.2" rx="0.6" fill={color.accentInk} />
+          </>
+        ) : (
+          <path
+            d="M9.6 4.9a3 3 0 0 1 0 4.2M11.6 3.2a5.6 5.6 0 0 1 0 7.6"
+            stroke={active ? color.accentInk : BLUE}
+            strokeWidth="1.1"
+            strokeLinecap="round"
+          />
+        )}
+      </svg>
+    </button>
+  );
+}
+
 /** The worked example that closes each section's prose — material, not an
  *  on-demand rewrite the learner has to go hunting for. */
 function WorkedExample({ example }: { example: ConsumeExample }) {
@@ -394,8 +459,28 @@ export default function ConsumeView({
   onRoutePrereq,
 }: ConsumeViewProps) {
   const t = useT(STRINGS);
+  const { language } = useLanguage();
   // The prediction is open-ended by default; the switch reveals the closed form.
   const [mode, setMode] = useState<AnswerMode>("open");
+
+  // Read-aloud: the reading pass is the one place in Atlas long enough to be
+  // worth listening to. One section speaks at a time — starting another
+  // cancels the first — and the hook cancels on unmount, since
+  // `speechSynthesis` would otherwise keep talking after the learner leaves.
+  const { readAloud: readAloudPref } = useVoicePrefs();
+  const reading = useReadAloud({ language });
+  const [spoken, setSpoken] = useState<string | null>(null);
+  const voiceOn = reading.supported && readAloudPref;
+  const speakingChunk = reading.speaking ? spoken : null;
+  const toggleReading = (c: ConsumeChunk) => {
+    if (speakingChunk === c.id) {
+      if (reading.paused) reading.resume();
+      else reading.pause();
+      return;
+    }
+    setSpoken(c.id);
+    reading.speak(segmentsForChunk(c));
+  };
   // Only sections up to the deepest revealed one are on screen — the pass
   // unfolds in segments, never as a wall.
   const visible = chunks.slice(0, session.idx + 1);
@@ -444,7 +529,10 @@ export default function ConsumeView({
         }}
       >
         <button
-          onClick={onExit}
+          onClick={() => {
+            reading.cancel();
+            onExit();
+          }}
           style={{
             background: "none",
             border: "none",
@@ -618,15 +706,30 @@ export default function ConsumeView({
               >
                 <div
                   style={{
-                    fontFamily: font.mono,
-                    fontSize: 11,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: BLUE,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 11,
                     marginBottom: 14,
                   }}
                 >
-                  {c.kicker}
+                  <span
+                    style={{
+                      fontFamily: font.mono,
+                      fontSize: 11,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: BLUE,
+                    }}
+                  >
+                    {c.kicker}
+                  </span>
+                  {voiceOn && (
+                    <SpeakerButton
+                      active={speakingChunk === c.id}
+                      paused={reading.paused}
+                      onClick={() => toggleReading(c)}
+                    />
+                  )}
                 </div>
 
                 {/* Pre-taught terms */}
@@ -864,20 +967,29 @@ export default function ConsumeView({
                   }}
                 >
                   <div>
-                    {c.body.map((para, pi) => (
-                      <p
-                        key={pi}
-                        style={{
-                          fontFamily: font.serif,
-                          fontSize: 19,
-                          lineHeight: 1.68,
-                          margin: pi === 0 ? "0 0 18px" : "0 0 18px",
-                          color: color.ink,
-                        }}
-                      >
-                        {para}
-                      </p>
-                    ))}
+                    {c.body.map((para, pi) => {
+                      // Body paragraphs lead the spoken segments, so the
+                      // reading index maps straight onto them.
+                      const spokenNow = speakingChunk === c.id && reading.index === pi;
+                      return (
+                        <p
+                          key={pi}
+                          style={{
+                            fontFamily: font.serif,
+                            fontSize: 19,
+                            lineHeight: 1.68,
+                            margin: "0 -8px 18px",
+                            padding: "2px 8px",
+                            borderRadius: 7,
+                            background: spokenNow ? color.accentBg : "transparent",
+                            transition: "background .25s",
+                            color: color.ink,
+                          }}
+                        >
+                          {para}
+                        </p>
+                      );
+                    })}
 
                     <WorkedExample example={c.example} />
 

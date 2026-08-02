@@ -10,6 +10,7 @@ import {
   type AdherenceState,
   type OnboardingForm,
 } from "@/lib/curriculum";
+import { useVoicePrefs, useVoiceSupport } from "@/lib/speech";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -33,6 +34,13 @@ const STRINGS = {
     languageHint: "interface & AI-generated content",
     english: "English",
     portuguese: "Português",
+    voice: "Voice",
+    voiceHint: "speak instead of typing, listen instead of reading",
+    dictationOn: "Dictation on — a mic on every answer box",
+    dictationOff: "Dictation off — typing only",
+    readAloudOn: "Read aloud on — Consume sections can be spoken",
+    readAloudOff: "Read aloud off — the reading stays silent",
+    voiceUnsupported: "This browser can’t do it — Chrome, Edge and Safari can.",
     yourData: "Your data",
     yourDataHint: "it's yours — take it anywhere",
     exportMap: "Export map · nodes, edges & mastery states (JSON)",
@@ -62,6 +70,13 @@ const STRINGS = {
     languageHint: "interface e conteúdo gerado por IA",
     english: "English",
     portuguese: "Português",
+    voice: "Voz",
+    voiceHint: "fale em vez de digitar, ouça em vez de ler",
+    dictationOn: "Ditado ligado — microfone em toda caixa de resposta",
+    dictationOff: "Ditado desligado — só digitação",
+    readAloudOn: "Leitura em voz alta ligada — as seções do Consumir podem ser ouvidas",
+    readAloudOff: "Leitura em voz alta desligada — a leitura fica em silêncio",
+    voiceUnsupported: "Este navegador não suporta — Chrome, Edge e Safari suportam.",
     yourData: "Seus dados",
     yourDataHint: "são seus — leve para onde quiser",
     exportMap: "Exportar mapa · nós, conexões e domínio (JSON)",
@@ -115,6 +130,62 @@ const exportStyle: CSSProperties = {
   textAlign: "left",
 };
 
+/** An on/off row: the option chrome every other setting uses, with the same
+ *  switch the reminder row carries. */
+function ToggleRow({
+  on,
+  label,
+  disabled = false,
+  onToggle,
+}: {
+  on: boolean;
+  label: string;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      style={{
+        ...optionStyle(on && !disabled, true),
+        display: "flex",
+        alignItems: "center",
+        gap: 11,
+        textAlign: "left",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+      }}
+    >
+      <span
+        style={{
+          width: 34,
+          height: 20,
+          borderRadius: 11,
+          background: on && !disabled ? color.accent : "rgba(44,40,35,0.14)",
+          position: "relative",
+          flex: "0 0 auto",
+          transition: "background .2s",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 2,
+            left: on && !disabled ? 16 : 2,
+            width: 16,
+            height: 16,
+            borderRadius: "50%",
+            background: "#fff",
+            transition: "left .2s",
+          }}
+        />
+      </span>
+      {label}
+    </button>
+  );
+}
+
 function Section({
   label,
   hint,
@@ -148,6 +219,11 @@ export default function SettingsScreen({
 }: SettingsScreenProps) {
   const t = useT(STRINGS);
   const { language, setLanguage } = useLanguage();
+  // Voice is a device-level preference, not part of the run — it's read
+  // straight from `lib/speech` here, exactly as the language is.
+  const voice = useVoicePrefs();
+  const voiceSupport = useVoiceSupport();
+  const voiceMissing = !voiceSupport.dictation && !voiceSupport.readAloud;
   return (
     <div
       style={{
@@ -254,6 +330,28 @@ export default function SettingsScreen({
               {t.portuguese}
             </button>
           </div>
+        </Section>
+
+        <Section label={t.voice} hint={t.voiceHint}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <ToggleRow
+              on={voice.dictation}
+              disabled={!voiceSupport.dictation}
+              label={voice.dictation ? t.dictationOn : t.dictationOff}
+              onToggle={() => voice.setDictation(!voice.dictation)}
+            />
+            <ToggleRow
+              on={voice.readAloud}
+              disabled={!voiceSupport.readAloud}
+              label={voice.readAloud ? t.readAloudOn : t.readAloudOff}
+              onToggle={() => voice.setReadAloud(!voice.readAloud)}
+            />
+          </div>
+          {voiceMissing && (
+            <div style={{ marginTop: 10, fontSize: 12.5, color: color.inkGhost }}>
+              {t.voiceUnsupported}
+            </div>
+          )}
         </Section>
 
         <Section label={t.dailyTarget} hint={t.dailyTargetHint}>
