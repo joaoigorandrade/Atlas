@@ -170,9 +170,6 @@ function warmKindsFor(state: NodeState | undefined): WarmKind[] {
   }
 }
 
-/** Nodes warmed at once. Bounded so a large map can't fan out into a wall of
- *  background generations. */
-const WARM_NODES = 5;
 /** The momentum replay spans onboarding (week 0) plus three weeks of work. */
 const MOMENTUM_WEEKS = 3;
 
@@ -1373,6 +1370,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         setSocratic(socraticStart(node.id, steps));
         setSelectedId(node.id);
         setScreen("socratic");
+        // Socratic hands straight off to Feynman — warm it now rather than
+        // waiting on the general pass's settle delay to notice the state flip.
+        warmOne("feynman", node);
       };
       const cached = socraticCacheRef.current[node.id];
       if (cached) {
@@ -1387,7 +1387,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         open,
       );
     },
-    [generate, loadSocratic],
+    [generate, loadSocratic, warmOne],
   );
 
   const dispatchSocratic = useCallback(
@@ -2359,19 +2359,30 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   );
 
   // The plan, continuously re-derived: the frontier ordered to the goal…
-  const nextUp = useMemo(
-    () => orderedFrontier(display, graph, form.goal).slice(0, 3),
+  const allFrontier = useMemo(
+    () => orderedFrontier(display, graph, form.goal),
     [display, graph, form.goal],
   );
+  // Only the top 3 are worth naming in the UI ("next up")…
+  const nextUp = useMemo(() => allFrontier.slice(0, 3), [allFrontier]);
   // ---- the warm pass ----------------------------------------------------
-  // Which nodes are worth having content ready for: whatever is selected, the
-  // top of the goal-ordered plan, and anything already mid-spiral. Computed
+  // …but every frontier node's reading pass is worth having ready: a learner
+  // picks whichever unlocked topic they like, not necessarily the goal-ordered
+  // one, so anything less than "all of them" still shows a loading screen on
+  // the "wrong" click. A 12-18 node map keeps this small regardless, and the
+  // warm queue's own concurrency cap (`MAX_CONCURRENT` in lib/warm.ts) throttles
+  // how many actually run at once — this list is just what's worth wanting.
+  //
+  // Runs regardless of which screen is open (map or mid-spiral) — a learner
+  // reading one node's Consume is exactly when the next node's should be
+  // warming, and when this node's own state flips to "learning" mid-spiral,
+  // this same pass is what picks up Feynman/Connect for it next. Computed
   // without consulting the caches so filling them doesn't re-trigger the pass.
   const warmTargets = useMemo(() => {
-    if (!isMap || !hydrated || graph.nodes.length === 0) return [];
+    if (!hydrated || graph.nodes.length === 0) return [];
     const ids: string[] = [];
     if (selectedId) ids.push(selectedId);
-    for (const { node } of nextUp) ids.push(node.id);
+    for (const { node } of allFrontier) ids.push(node.id);
     for (const n of graph.nodes) {
       const state = display[n.id];
       if (state === "learning" || state === "shaky" || state === "gap")
@@ -2380,14 +2391,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     const seen = new Set<string>();
     const targets: Array<{ node: ConceptNode; kinds: WarmKind[] }> = [];
     for (const id of ids) {
-      if (seen.has(id) || targets.length >= WARM_NODES) continue;
+      if (seen.has(id)) continue;
       seen.add(id);
       const node = graph.nodes.find((n) => n.id === id);
       const kinds = warmKindsFor(display[id]);
       if (node && kinds.length) targets.push({ node, kinds });
     }
     return targets;
-  }, [isMap, hydrated, graph, display, selectedId, nextUp]);
+  }, [hydrated, graph, display, selectedId, allFrontier]);
 
   // A signature over the plan, so the pass runs when the plan really changes
   // rather than on every render that touches the graph.
