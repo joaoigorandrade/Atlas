@@ -13,9 +13,12 @@ import {
   generateConsumeStream,
   generateCrucible,
   generateCurriculum,
+  generateCurriculumStream,
   generateFeynman,
+  generateFeynmanStream,
   generateRetain,
   generateSocratic,
+  generateSocraticStream,
   judgeChoice,
   judgeCrucible,
   judgeFeynman,
@@ -23,7 +26,8 @@ import {
   type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
-import type { ConsumeChunk, GoalKind } from "@/lib/curriculum";
+import type { StreamFrame, StreamShapes } from "@/lib/server/stream";
+import { DIAGNOSTIC_COUNT, FEYNMAN_BEATS, type GoalKind } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge";
 
@@ -89,11 +93,19 @@ export interface Job {
   /** Where this job's output lives in `content_cache`, or null when the kind
    *  is uncacheable (a judge call grades one learner's own words). */
   key: string | null;
-  /** Produce the response body. Only called on a cache miss. */
+  /** Produce the response body in one piece. Called on a cache miss, and as
+   *  the fallback whenever a streamed attempt fails before its first frame. */
   run: () => Promise<Record<string, unknown>>;
-  /** Set only for "consume": lets the route stream sections to the client as
-   *  they're written instead of waiting on the whole reading pass. */
-  streamConsume?: () => AsyncGenerator<ConsumeChunk>;
+  /** Set for kinds that can deliver progressively: the route streams frames to
+   *  the client as they're written rather than waiting on the whole payload.
+   *  `shape` says what a complete set of frames looks like, so the assembled
+   *  payload written back to `content_cache` is exactly what `run` would have
+   *  returned — no half-payload can ever be cached. */
+  stream?: () => AsyncGenerator<StreamFrame>;
+  shape?: StreamShapes;
+  /** Model calls this job may make. Drives the monthly spend ceiling; the
+   *  per-learner daily quota counts jobs, not calls. Defaults to 1. */
+  cost?: number;
 }
 
 /**
@@ -125,17 +137,25 @@ export function resolveJob(body: GenerateBody): Job {
       const goal: GoalKind = ["exam", "project", "mastery"].includes(s(body.goal))
         ? (body.goal as GoalKind)
         : "mastery";
-      return cacheable(
-        "curriculum",
-        {
-          topic,
-          goal,
-          interests,
-          outline: s(body.outline).slice(0, CAPS.outline),
-          language,
-        },
-        async (p) => ({ ...(await generateCurriculum(p)) }),
-      );
+      const params = {
+        topic,
+        goal,
+        interests,
+        outline: s(body.outline).slice(0, CAPS.outline),
+        language,
+      };
+      return {
+        kind: "curriculum",
+        key: contentKey("curriculum", params),
+        run: async () => ({ ...(await generateCurriculum(params)) }),
+        stream: () => generateCurriculumStream(params),
+        // Two legal payloads: a map with its placement questions, or — for a
+        // topic too broad to be one coherent map — scope offers instead.
+        shape: [
+          { graph: "one", diagnostic: { min: DIAGNOSTIC_COUNT, max: DIAGNOSTIC_COUNT } },
+          { scopes: "one" },
+        ],
+      };
     }
 
     case "consume": {
@@ -151,27 +171,39 @@ export function resolveJob(body: GenerateBody): Job {
         kind: "consume",
         key: contentKey("consume", params),
         run: async () => ({ chunks: await generateConsume(params) }),
-        streamConsume: () => generateConsumeStream(params),
+        stream: () => generateConsumeStream(params),
+        // Mirrors `validateConsume`'s 4-6 bound, not the 5 the prompt asks for.
+        shape: { chunks: { min: 4, max: 6 } },
+        // The reading pass, plus one rewrite call per section it produces.
+        cost: 6,
       };
     }
 
     case "socratic": {
       if (!nodeLabel) throw badRequest("nodeLabel is required");
-      return cacheable(
-        "socratic",
-        { topic, nodeLabel, interests, language },
-        async (p) => ({ steps: await generateSocratic(p) }),
-      );
+      const params = { topic, nodeLabel, interests, language };
+      return {
+        kind: "socratic",
+        key: contentKey("socratic", params),
+        run: async () => ({ steps: await generateSocratic(params) }),
+        stream: () => generateSocraticStream(params),
+        // Mirrors `validateSocratic`'s 3-5 bound, not the 4 the prompt asks for.
+        shape: { steps: { min: 3, max: 5 } },
+      };
     }
 
     case "feynman": {
       if (!nodeId || !nodeLabel)
         throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "feynman",
-        { topic, nodeId, nodeLabel, interests, language },
-        async (p) => ({ beats: await generateFeynman(p) }),
-      );
+      const params = { topic, nodeId, nodeLabel, interests, language };
+      return {
+        kind: "feynman",
+        key: contentKey("feynman", params),
+        run: async () => ({ beats: await generateFeynman(params) }),
+        stream: () => generateFeynmanStream(params),
+        // Mirrors `validateFeynman`'s 3-4 bound, not the 4 the prompt asks for.
+        shape: { beats: { min: 3, max: FEYNMAN_BEATS } },
+      };
     }
 
     case "connect": {

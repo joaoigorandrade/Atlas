@@ -27,6 +27,7 @@ const STRINGS = {
     advanceTeach: "Teach it back · Feynman →",
     yourAnswer: "Your answer — in your own words",
     placeholderJudging: "Reading your answer…",
+    placeholderWriting: "Writing the next probe…",
     placeholderAnswer: "Type what you think — wrong turns get caught, not judged",
     send: "Send",
     stuck: "I’m stuck · more help",
@@ -44,6 +45,7 @@ const STRINGS = {
     advanceTeach: "Ensinar de volta · Feynman →",
     yourAnswer: "Sua resposta — com suas próprias palavras",
     placeholderJudging: "Lendo sua resposta…",
+    placeholderWriting: "Escrevendo a próxima pergunta…",
     placeholderAnswer: "Digite o que você pensa — raciocínios errados são flagrados, não julgados",
     send: "Enviar",
     stuck: "Estou travado · mais ajuda",
@@ -99,12 +101,17 @@ export default function SocraticView({
   onAdvance,
 }: SocraticViewProps) {
   const t = useT(STRINGS);
+  // The pass streams its probes in one at a time. While the next one is still
+  // being written there is nothing to answer, so the surface locks exactly the
+  // way it does while an answer is being judged.
+  const writing = session.awaitingNext;
+  const busy = judging || writing;
   // The learner's own answer, typed — cleared whenever a new turn lands.
   const [draft, setDraft] = useState("");
   useEffect(() => setDraft(""), [session.log.length]);
   const submitDraft = () => {
     const text = draft.trim();
-    if (text && !judging) onAnswer(text);
+    if (text && !busy) onAnswer(text);
   };
 
   // ---- the transcript scrolls to the newest turn -----------------------
@@ -282,7 +289,7 @@ export default function SocraticView({
                   <div style={{ display: "flex", gap: 9, alignItems: "flex-end" }}>
                     <textarea
                       value={draft}
-                      disabled={judging}
+                      disabled={busy}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
@@ -291,7 +298,11 @@ export default function SocraticView({
                         }
                       }}
                       placeholder={
-                        judging ? t.placeholderJudging : t.placeholderAnswer
+                        writing
+                          ? t.placeholderWriting
+                          : judging
+                            ? t.placeholderJudging
+                            : t.placeholderAnswer
                       }
                       rows={2}
                       style={{
@@ -305,33 +316,33 @@ export default function SocraticView({
                         border: `1px solid ${color.hairlineStrong}`,
                         background: color.card,
                         color: color.ink,
-                        opacity: judging ? 0.6 : 1,
+                        opacity: busy ? 0.6 : 1,
                       }}
                     />
                     <button
                       onClick={submitDraft}
-                      disabled={judging || !draft.trim()}
+                      disabled={busy || !draft.trim()}
                       style={{
                         flex: "0 0 auto",
                         padding: "12px 17px",
                         background:
-                          judging || !draft.trim() ? "rgba(44,40,35,0.07)" : color.accent,
+                          busy || !draft.trim() ? "rgba(44,40,35,0.07)" : color.accent,
                         color:
-                          judging || !draft.trim() ? color.inkGhost : color.accentInk,
+                          busy || !draft.trim() ? color.inkGhost : color.accentInk,
                         border: "none",
                         borderRadius: 10,
                         fontSize: 14,
                         fontWeight: 600,
-                        cursor: judging || !draft.trim() ? "default" : "pointer",
+                        cursor: busy || !draft.trim() ? "default" : "pointer",
                       }}
                     >
-                      {judging ? <InkDots size={3.5} /> : t.send}
+                      {busy ? <InkDots size={3.5} /> : t.send}
                     </button>
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                     <button
                       onClick={onStuck}
-                      disabled={judging}
+                      disabled={busy}
                       style={{
                         padding: "9px 14px",
                         background: color.card,
@@ -346,7 +357,7 @@ export default function SocraticView({
                     </button>
                     <button
                       onClick={onTell}
-                      disabled={judging}
+                      disabled={busy}
                       style={{
                         padding: "9px 14px",
                         background: color.card,

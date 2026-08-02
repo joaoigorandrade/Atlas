@@ -211,11 +211,16 @@ export async function generateJson<T>(
 /** One POST to one model, streamed. Yields raw text deltas as they arrive —
  *  no retry, no fallback chain (a caller that wants those falls back to
  *  `generateJson` wholesale on failure, since a half-streamed response can't
- *  be cleanly retried in place). */
+ *  be cleanly retried in place).
+ *
+ *  `onFirstToken` fires once, when the first delta lands: for a streamed call
+ *  that is the number that matters (when the learner sees something), and it
+ *  is invisible in the total latency `logGeneration` records. */
 async function* chatStreamOnce(
   model: string,
   messages: ChatMessage[],
   key: string,
+  onFirstToken?: () => void,
 ): AsyncGenerator<string> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -250,7 +255,11 @@ async function* chatStreamOnce(
           choices?: Array<{ delta?: { content?: string } }>;
         };
         const delta = evt.choices?.[0]?.delta?.content;
-        if (delta) yield delta;
+        if (delta) {
+          onFirstToken?.();
+          onFirstToken = undefined;
+          yield delta;
+        }
       } catch {
         // A malformed SSE frame (rare keep-alive/comment) — skip it.
       }
@@ -303,18 +312,38 @@ export function extractCompleteObjects(buf: string): { objects: string[]; rest: 
 export async function* streamJsonObjects<T>(
   messages: ChatMessage[],
   validate: (raw: unknown, index: number) => T,
+  opts: { label?: string } = {},
 ): AsyncGenerator<T> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key)
     throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
+  const { label = "unlabeled" } = opts;
   const model = modelChain("content")[0];
+  const started = Date.now();
+  let firstTokenMs: number | null = null;
   let buf = "";
   let index = 0;
-  for await (const delta of chatStreamOnce(model, messages, key)) {
-    buf += delta;
-    const { objects, rest } = extractCompleteObjects(buf);
-    buf = rest;
-    for (const raw of objects) yield validate(JSON.parse(raw), index++);
+  // `finally` rather than `catch`, so exactly one line is emitted however the
+  // stream ends — cleanly, on a throw, or because the consumer walked away
+  // mid-iteration (which calls the generator's `return`).
+  let outcome: StreamOutcome = "abandoned";
+  try {
+    for await (const delta of chatStreamOnce(model, messages, key, () => {
+      firstTokenMs = Date.now() - started;
+    })) {
+      buf += delta;
+      const { objects, rest } = extractCompleteObjects(buf);
+      buf = rest;
+      for (const raw of objects) yield validate(JSON.parse(raw), index++);
+    }
+    outcome = "ok";
+  } catch (err) {
+    // The object count in the log line says whether anything usable landed
+    // before this; the caller logs the error itself.
+    outcome = "stream-fail";
+    throw err;
+  } finally {
+    logStream(label, model, started, firstTokenMs, index, outcome);
   }
 }
 
@@ -334,6 +363,39 @@ function logGeneration(
       ms: Date.now() - started,
       prompt_tokens: result?.usage?.prompt_tokens ?? null,
       completion_tokens: result?.usage?.completion_tokens ?? null,
+      outcome,
+    }),
+  );
+}
+
+type StreamOutcome = "ok" | "stream-fail" | "abandoned";
+
+/**
+ * The streamed twin of `logGeneration`. Same `evt: "generate"` shape so both
+ * paths aggregate together, plus the two numbers only a stream has: how long
+ * until the first token (what the learner actually waits for) and how many
+ * objects made it out. A streamed response carries no usage block, so the
+ * token counts are null rather than fabricated.
+ */
+function logStream(
+  label: string,
+  model: string,
+  started: number,
+  firstTokenMs: number | null,
+  objects: number,
+  outcome: StreamOutcome,
+): void {
+  console.log(
+    JSON.stringify({
+      evt: "generate",
+      kind: label,
+      model,
+      streamed: true,
+      ms: Date.now() - started,
+      first_token_ms: firstTokenMs,
+      objects,
+      prompt_tokens: null,
+      completion_tokens: null,
       outcome,
     }),
   );

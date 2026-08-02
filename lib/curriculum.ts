@@ -390,6 +390,16 @@ export interface SocraticSession {
   ruledOut: string[];
   /** "Just tell me" uses — repeated use flags a prerequisite gap. */
   tells: number;
+  /**
+   * How many steps this session will run. Held explicitly rather than read off
+   * `steps.length`, because the steps stream in one at a time: deriving the
+   * last step from the array would end the session as soon as the learner
+   * answered step 1, while steps 2-4 were still being written.
+   */
+  total: number;
+  /** True when the next step exists in the plan but hasn't been written yet.
+   *  The view shows that it's coming; `hydrate` clears it when it lands. */
+  awaitingNext: boolean;
   done: boolean;
 }
 
@@ -398,25 +408,31 @@ function clampHelp(n: number): HelpLevel {
   return Math.max(0, Math.min(3, n)) as HelpLevel;
 }
 
-/** Push a step's opening probe onto the log and reset the per-step gates. */
+/** Push a step's opening probe onto the log and reset the per-step gates.
+ *  A step that hasn't streamed in yet parks the session instead of throwing. */
 function openStep(
   session: SocraticSession,
   step: number,
   steps: SocraticStep[],
 ): SocraticSession {
   const s = steps[step];
+  if (!s) return { ...session, step, ruledOut: [], awaitingNext: true };
   return {
     ...session,
     step,
     ruledOut: [],
+    awaitingNext: false,
     log: [...session.log, { role: "ai", text: s.prompt, move: s.move }],
   };
 }
 
-/** A fresh session, opened on its first probe. Starts mid-dial, at Hint. */
+/** A fresh session, opened on its first probe. Starts mid-dial, at Hint.
+ *  `total` is the number of steps the pass will have, which may exceed what
+ *  has arrived when the session opens on a stream. */
 export function socraticStart(
   nodeId: string,
   steps: SocraticStep[],
+  total = steps.length,
 ): SocraticSession {
   const first = steps[0];
   return {
@@ -425,8 +441,10 @@ export function socraticStart(
     help: 1,
     ruledOut: [],
     tells: 0,
+    total: Math.max(total, steps.length),
+    awaitingNext: !first,
     done: false,
-    log: [{ role: "ai", text: first.prompt, move: first.move }],
+    log: first ? [{ role: "ai", text: first.prompt, move: first.move }] : [],
   };
 }
 
@@ -442,7 +460,10 @@ export type SocraticAction =
   | { type: "stuck" }
   | { type: "tell" }
   /** A free-text answer, already judged server-side (#25). */
-  | { type: "judged"; answer: string; quality: ReplyQuality; response: string };
+  | { type: "judged"; answer: string; quality: ReplyQuality; response: string }
+  /** More steps have streamed in — open the one the session is parked on.
+   *  `total` re-caps the pass when a stream ended short of the plan. */
+  | { type: "hydrate"; total?: number };
 
 /**
  * The contingent tutor, as a pure transition. Correct answers advance and let
@@ -456,8 +477,25 @@ export function socraticReducer(
   steps: SocraticStep[],
 ): SocraticSession {
   if (session.done) return session;
+
+  // More steps arrived. Re-cap the pass if the stream ended short of the plan,
+  // then open the step the session is parked on — or finish, if that step was
+  // the one that never came.
+  if (action.type === "hydrate") {
+    const total = Math.max(
+      1,
+      Math.min(action.total ?? session.total, Math.max(steps.length, session.step + 1)),
+    );
+    const capped = { ...session, total };
+    if (!capped.awaitingNext) return capped;
+    if (capped.step >= total) return { ...capped, awaitingNext: false, done: true };
+    return openStep(capped, capped.step, steps);
+  }
+
   const step = steps[session.step];
-  const last = session.step === steps.length - 1;
+  // Nothing to act on until the parked step lands.
+  if (!step) return session;
+  const last = session.step >= session.total - 1;
 
   const advance = (base: SocraticSession): SocraticSession =>
     last ? { ...base, done: true } : openStep(base, session.step + 1, steps);
@@ -661,9 +699,28 @@ export interface FeynmanSession {
   fixReaction: string | null;
   /** Whether the stuck-scaffold has been offered. */
   scaffolded: boolean;
+  /**
+   * How many beats this teach-back will run. Held explicitly rather than read
+   * off `beats.length`, because the beats stream in one at a time: deriving
+   * the last beat from the array would fire the Gap Report as soon as the
+   * learner answered beat 1, while beats 2-4 were still being written.
+   */
+  total: number;
 }
 
-export function feynmanStart(nodeId: string): FeynmanSession {
+/** How many probes a Socratic pass runs — one per move. Fixed rather than
+ *  derived for the same reason as the beats below: the steps stream in one at
+ *  a time, so the session needs its length before the last one arrives. */
+export const SOCRATIC_STEPS = 4;
+
+/** How many beats a teach-back runs. Fixed rather than derived: the beats
+ *  stream in one at a time, so the session needs its length before the last
+ *  one has arrived. */
+export const FEYNMAN_BEATS = 4;
+
+/** A fresh teach-back. `total` is how many beats the pass will have, which may
+ *  exceed what has arrived when the session opens on a stream. */
+export function feynmanStart(nodeId: string, total: number): FeynmanSession {
   return {
     nodeId,
     beat: 0,
@@ -676,6 +733,7 @@ export function feynmanStart(nodeId: string): FeynmanSession {
     fixRuledOut: [],
     fixReaction: null,
     scaffolded: false,
+    total,
   };
 }
 
@@ -697,7 +755,11 @@ export type FeynmanAction =
   | { type: "openFix"; beatId: string }
   | { type: "closeFix" }
   | { type: "fix"; index: number }
-  | { type: "teachAgain" };
+  | { type: "teachAgain" }
+  /** Re-cap the pass when the beats finished streaming short of the plan, so
+   *  the Gap Report still opens instead of waiting for a beat that never came.
+   *  The `speak`/`reply`/`taught` cases already park on a missing beat. */
+  | { type: "hydrate"; total: number };
 
 /**
  * The naive-student engine, as a pure transition. The learner speaks a beat →
@@ -712,6 +774,10 @@ export function feynmanReducer(
   beats: FeynmanBeat[],
 ): FeynmanSession {
   switch (action.type) {
+    case "hydrate":
+      // Never shrink below the beat being taught, or the session would already
+      // be past its own end and could never close.
+      return { ...session, total: Math.max(action.total, session.beat + 1) };
     case "begin":
       // Leave the opening prompt and enter the teach-back surface, ready to
       // speak the first beat.
@@ -740,7 +806,7 @@ export function feynmanReducer(
       const beat = beats[session.beat];
       const reply = beat?.replies[action.index];
       if (!reply) return session;
-      const last = session.beat === beats.length - 1;
+      const last = session.beat >= session.total - 1;
       return {
         ...session,
         awaiting: "speak",
@@ -760,7 +826,7 @@ export function feynmanReducer(
       if (session.reported || session.awaiting !== "speak") return session;
       const beat = beats[session.beat];
       if (!beat) return session;
-      const last = session.beat === beats.length - 1;
+      const last = session.beat >= session.total - 1;
       return {
         ...session,
         started: true,
@@ -1419,8 +1485,10 @@ export interface ReviewCard {
   front?: string;
   /** The full answer revealed on flip. */
   back: string;
-  /** FSRS next-interval per grade — shown on the grade buttons. */
-  fsrs: Record<ReviewGrade, string>;
+  /** FSRS next-interval per grade — shown on the grade buttons. Supplied by
+   *  the scheduler (`intervalLabels`), never by the generator: the generated
+   *  card is a draft that `newStoredCard` turns into a real scheduled card. */
+  fsrs?: Record<ReviewGrade, string>;
   /** A card whose miss re-enters Phase 1 (writes its node Shaky). */
   fails?: boolean;
   /** The 30-second Socratic re-explanation shown when it's missed. */
@@ -1431,7 +1499,9 @@ export interface ReviewCard {
 export interface RetainContent {
   /** The daily target from onboarding — the queue budget, in minutes. */
   budgetMin: number;
-  forecast: ForecastRow[];
+  /** Built from real due dates by `forecastRows`. Absent on the generator's
+   *  output, which is a card factory rather than a queue. */
+  forecast?: ForecastRow[];
   cards: ReviewCard[];
 }
 
@@ -1758,7 +1828,7 @@ export function dailyQueue(
   fallbackMinutes: number,
 ): DailyQueue {
   if (!content) return { minutes: fallbackMinutes, cards: 0 };
-  const due = content.forecast.find((f) => f.tone === "due");
+  const due = content.forecast?.find((f) => f.tone === "due");
   const cards = due
     ? parseInt(due.count, 10) || content.cards.length
     : content.cards.length;
@@ -2020,6 +2090,13 @@ export interface DiagnosticOption {
    */
   effect: DiagnosticEffect;
 }
+
+/**
+ * How many placement questions a build asks. Fixed rather than derived: the
+ * build streams its questions in one at a time, so both the panel and the
+ * "Question i of N" label need the total before the last one has arrived.
+ */
+export const DIAGNOSTIC_COUNT = 3;
 
 /**
  * One generated placement probe. `nodeId` names the concept the answer writes

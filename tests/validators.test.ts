@@ -4,7 +4,11 @@ import {
   validateConsume,
   validateCrucible,
   validateCurriculum,
+  validateDiagnosticItem,
   validateFeynman,
+  validateGraphPart,
+  validateRetain,
+  validateScopeOffer,
   validateSocratic,
 } from "@/lib/server/generate";
 import { migrateConsume, type LegacyConsumeChunk } from "@/lib/persistence";
@@ -52,6 +56,54 @@ describe("validateCurriculum", () => {
       ],
     });
     expect(out.scopes?.length).toBe(2);
+  });
+});
+
+// The streamed build validates the map and each placement question separately.
+// Feeding those per-part validators the pieces of a single-shot payload must
+// reproduce the single-shot result exactly — that equality is what lets the
+// streamed and non-streamed paths share a `content_cache` row without bumping
+// CONTENT_CACHE_VERSION, and a cache hit is returned to the client with no
+// re-validation at all.
+describe("curriculum part validators", () => {
+  const payload = curriculumPayload(chainEdges);
+
+  it("reproduce the single-shot result part by part", () => {
+    const whole = validateCurriculum(payload);
+    const graph = validateGraphPart(payload);
+    const ids = new Set(graph.nodes.map((n) => n.id));
+    const diagnostic = payload.diagnostic.map((d, i) =>
+      validateDiagnosticItem(d, i, ids),
+    );
+    expect(graph.nodes).toEqual(whole.nodes);
+    expect(graph.edges).toEqual(whole.edges);
+    expect(diagnostic).toEqual(whole.diagnostic);
+  });
+
+  it("keeps the cycle check on the graph part, where the map is decided", () => {
+    expect(() =>
+      validateGraphPart(curriculumPayload([...chainEdges, ["n9", "n0"]])),
+    ).toThrow(/cycle/);
+  });
+
+  it("rejects a question probing a concept the map never established", () => {
+    const ids = new Set(["n0", "n1"]);
+    expect(() =>
+      validateDiagnosticItem(payload.diagnostic[2], 2, ids),
+    ).toThrow(/is not a node id/);
+  });
+
+  it("reads a too-broad payload as scopes, and a normal one as not", () => {
+    expect(
+      validateScopeOffer({
+        tooBroad: true,
+        scopes: [
+          { label: "Classical Mechanics", note: "forces and motion" },
+          { label: "Thermodynamics", note: "heat and entropy" },
+        ],
+      }),
+    ).toHaveLength(2);
+    expect(validateScopeOffer(payload)).toBeNull();
   });
 });
 
@@ -299,5 +351,46 @@ describe("migrateConsume", () => {
     // The chunk-level verdict copy moves onto the surviving prediction.
     expect(out[0].pred?.right).toBe("correct");
     expect(out[1].pred).toBeUndefined();
+  });
+});
+
+// ---- retain: the generator is a card factory, not the queue ------------------
+
+describe("validateRetain", () => {
+  const card = {
+    type: "why",
+    source: "Consume",
+    node: "n1",
+    front: "why does it hold?",
+    back: "because of the invariant",
+    reExplain: "re-explain",
+  };
+  const payload = { cards: [card, card, card, card] };
+
+  it("accepts cards with no scheduling fields at all", () => {
+    const out = validateRetain(8, new Set(["n1"]))(payload);
+    expect(out.cards).toHaveLength(4);
+    expect(out.cards[0].fsrs).toBeUndefined();
+    expect(out.forecast).toBeUndefined();
+  });
+
+  it("still rejects a card pinned to a node the learner hasn't learned", () => {
+    expect(() => validateRetain(8, new Set(["n2"]))(payload)).toThrow(
+      /is not a learned node id/,
+    );
+  });
+
+  it("ignores scheduling fields a stale prompt might still send", () => {
+    // The scheduler owns intervals; anything the model volunteers is dropped
+    // rather than trusted, since `newStoredCard` supplies its own.
+    const out = validateRetain(8, new Set(["n1"]))({
+      forecast: [{ label: "Due now", count: "9 cards", sub: "~8 min", tone: "due" }],
+      cards: Array.from({ length: 4 }, () => ({
+        ...card,
+        fsrs: { again: "<10 min", hard: "1 d", good: "4 d", easy: "9 d" },
+      })),
+    });
+    expect(out.cards[0].fsrs).toBeUndefined();
+    expect(out.forecast).toBeUndefined();
   });
 });

@@ -177,6 +177,10 @@ export default function FeynmanView({
 }: FeynmanViewProps) {
   const t = useT(STRINGS);
   const beat = beats[session.beat];
+  // The beats stream in one at a time. Until the current one exists there is
+  // nothing to teach, so the opening prompt stays up with its button parked —
+  // in practice the first beat lands while the learner is still reading it.
+  const writing = !beat && !session.reported;
 
   // ---- the transcript scrolls to the newest line -----------------------
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -271,8 +275,13 @@ export default function FeynmanView({
             onTeachAgain={onTeachAgain}
             onAdvance={onAdvance}
           />
-        ) : !session.started ? (
-          <Prompt scaffolded={session.scaffolded} onBegin={onBegin} onScaffold={onScaffold} />
+        ) : !session.started || writing ? (
+          <Prompt
+            scaffolded={session.scaffolded}
+            writing={writing}
+            onBegin={onBegin}
+            onScaffold={onScaffold}
+          />
         ) : (
           <>
             <div ref={logRef} style={{ flex: 1, overflowY: "auto", padding: "30px 32px" }}>
@@ -362,8 +371,11 @@ function Prompt({
   scaffolded,
   onBegin,
   onScaffold,
+  writing,
 }: {
   scaffolded: boolean;
+  /** The first beat has not been written yet — nothing to begin on. */
+  writing: boolean;
   onBegin: () => void;
   onScaffold: () => void;
 }) {
@@ -407,18 +419,19 @@ function Prompt({
         </div>
         <button
           onClick={onBegin}
+          disabled={writing}
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: 10,
             padding: "15px 26px",
-            background: color.accent,
-            color: color.accentInk,
+            background: writing ? "rgba(44,40,35,0.07)" : color.accent,
+            color: writing ? color.inkGhost : color.accentInk,
             border: "none",
             borderRadius: 12,
             fontSize: 15,
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: writing ? "default" : "pointer",
             boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
           }}
         >

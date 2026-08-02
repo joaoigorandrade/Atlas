@@ -84,14 +84,42 @@ export interface ScopeOffer {
 
 export type CurriculumResult = CurriculumPayload | { scopes: ScopeOffer[] };
 
-export function fetchCurriculum(params: {
+export interface CurriculumParams {
   topic: string;
   goal: GoalKind;
   interests: string;
   outline?: string;
   language?: Language;
-}): Promise<CurriculumResult> {
+}
+
+export function fetchCurriculum(params: CurriculumParams): Promise<CurriculumResult> {
   return post<CurriculumResult>({ kind: "curriculum", ...params });
+}
+
+/**
+ * The onboarding build, streamed. The map arrives as its own frame and the
+ * three placement questions follow one at a time, so the assembly animation
+ * can start on the graph instead of on the whole payload — this is the one
+ * generation in the app that can never be warmed, since the node ids don't
+ * exist until it returns.
+ *
+ * `onGraph` may never fire: a topic too broad for one coherent map answers
+ * with scope offers instead, and `onScopes` fires alone.
+ */
+export async function fetchCurriculumStream(
+  params: CurriculumParams,
+  handlers: {
+    onGraph: (graph: ConceptGraph) => void;
+    onQuestion: (question: DiagnosticQuestion, index: number) => void;
+    onScopes: (scopes: ScopeOffer[]) => void;
+  },
+): Promise<void> {
+  await fetchStream({ kind: "curriculum", ...params }, (frame) => {
+    if (frame.p === "graph") handlers.onGraph(frame.v as ConceptGraph);
+    else if (frame.p === "scopes") handlers.onScopes(frame.v as ScopeOffer[]);
+    else if (frame.p === "diagnostic" && "i" in frame)
+      handlers.onQuestion(frame.v as DiagnosticQuestion, frame.i);
+  });
 }
 
 // Each fetcher pairs with a `<kind>Request` builder returning the exact body
@@ -114,26 +142,31 @@ export async function fetchConsume(
     .chunks;
 }
 
+/** One slot of a payload, as it comes off the NDJSON wire. Mirrors
+ *  `lib/server/stream.ts`'s `StreamFrame` — declared here too so client code
+ *  never imports from `lib/server`. */
+export type StreamFrame =
+  | { p: string; v: unknown }
+  | { p: string; i: number; v: unknown };
+
 /**
- * The foreground Consume fetch: the server streams one JSON object per line
- * as each section is written, so `onChunk` fires section-by-section instead
- * of the caller waiting on the whole reading pass. Never used for a
- * background warm — nobody's watching a prefetch, so that stays on the
- * plain `fetchConsume`/`post` path above.
+ * Post a streaming request and read its NDJSON frames as they land. Shared by
+ * every progressively-delivered kind; `onFrame` fires the moment a frame
+ * arrives, and the resolved array is every frame in arrival order.
  *
- * A section can arrive twice: once without `alt` (the fast pass) and again
- * once its adaptive rewrites are ready — `onChunk`/the returned array upsert
- * by `id` rather than append, so the second arrival patches the first
- * in place instead of duplicating a section.
+ * A slot can arrive more than once — a Consume section shows up as pure
+ * reading material and again once its adaptive rewrites are ready — so callers
+ * that build state from frames must replace by `(p, i)`, never append. That is
+ * what `collectFrames` below does.
  */
-export async function fetchConsumeStream(
-  params: Parameters<typeof consumeRequest>[0],
-  onChunk: (chunk: ConsumeChunk) => void,
-): Promise<ConsumeChunk[]> {
+export async function fetchStream(
+  body: Record<string, unknown>,
+  onFrame: (frame: StreamFrame) => void,
+): Promise<StreamFrame[]> {
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(consumeRequest(params)),
+    body: JSON.stringify(body),
   });
   if (!res.ok || !res.body) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -141,16 +174,14 @@ export async function fetchConsumeStream(
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  const chunks: ConsumeChunk[] = [];
+  const frames: StreamFrame[] = [];
   let buf = "";
   const takeLine = (line: string) => {
     const trimmed = line.trim();
     if (!trimmed) return;
-    const chunk = JSON.parse(trimmed) as ConsumeChunk;
-    const existing = chunks.findIndex((c) => c.id === chunk.id);
-    if (existing === -1) chunks.push(chunk);
-    else chunks[existing] = chunk;
-    onChunk(chunk);
+    const frame = JSON.parse(trimmed) as StreamFrame;
+    frames.push(frame);
+    onFrame(frame);
   };
   while (true) {
     const { done, value } = await reader.read();
@@ -163,8 +194,37 @@ export async function fetchConsumeStream(
     }
   }
   takeLine(buf);
-  if (chunks.length === 0) throw new Error("generation failed (empty response)");
-  return chunks;
+  if (frames.length === 0) throw new Error("generation failed (empty response)");
+  return frames;
+}
+
+/** Fold the indexed frames of one list part into an array, replacing by index
+ *  so a re-sent slot patches rather than duplicates. */
+export function collectFrames<T>(frames: StreamFrame[], part: string): T[] {
+  const out: T[] = [];
+  for (const f of frames) {
+    if (f.p !== part || !("i" in f)) continue;
+    out[f.i] = f.v as T;
+  }
+  return out.filter((v) => v !== undefined);
+}
+
+/**
+ * The foreground Consume fetch: the server streams one frame per section as it
+ * is written, so `onChunk` fires section-by-section instead of the caller
+ * waiting on the whole reading pass. Never used for a background warm —
+ * nobody's watching a prefetch, so that stays on the plain
+ * `fetchConsume`/`post` path above.
+ */
+export async function fetchConsumeStream(
+  params: Parameters<typeof consumeRequest>[0],
+  onChunk: (chunk: ConsumeChunk, index: number) => void,
+): Promise<ConsumeChunk[]> {
+  const frames = await fetchStream(consumeRequest(params), (frame) => {
+    if (frame.p === "chunks" && "i" in frame)
+      onChunk(frame.v as ConsumeChunk, frame.i);
+  });
+  return collectFrames<ConsumeChunk>(frames, "chunks");
 }
 
 export const socraticRequest = (params: {
@@ -182,6 +242,19 @@ export async function fetchSocratic(
     .steps;
 }
 
+/** Foreground Socratic: the tutor's first probe renders as soon as it's
+ *  written, the rest follow. Background warms stay on `fetchSocratic`. */
+export async function fetchSocraticStream(
+  params: Parameters<typeof socraticRequest>[0],
+  onStep: (step: SocraticStep, index: number) => void,
+): Promise<SocraticStep[]> {
+  const frames = await fetchStream(socraticRequest(params), (frame) => {
+    if (frame.p === "steps" && "i" in frame)
+      onStep(frame.v as SocraticStep, frame.i);
+  });
+  return collectFrames<SocraticStep>(frames, "steps");
+}
+
 export const feynmanRequest = (params: {
   topic: string;
   nodeId: string;
@@ -196,6 +269,19 @@ export async function fetchFeynman(
 ): Promise<FeynmanBeat[]> {
   return (await post<{ beats: FeynmanBeat[] }>(feynmanRequest(params), opts))
     .beats;
+}
+
+/** Foreground Feynman: the first beat opens the teach-back, the rest follow.
+ *  This is the largest payload of any phase, so it gains the most. */
+export async function fetchFeynmanStream(
+  params: Parameters<typeof feynmanRequest>[0],
+  onBeat: (beat: FeynmanBeat, index: number) => void,
+): Promise<FeynmanBeat[]> {
+  const frames = await fetchStream(feynmanRequest(params), (frame) => {
+    if (frame.p === "beats" && "i" in frame)
+      onBeat(frame.v as FeynmanBeat, frame.i);
+  });
+  return collectFrames<FeynmanBeat>(frames, "beats");
 }
 
 export const connectRequest = (params: {

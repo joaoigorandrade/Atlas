@@ -74,6 +74,39 @@ their inputs from the *same* function (the `*Params` callbacks in `AtlasApp`).
 Compute a pool or a label list twice and the keys diverge — you get a cache
 miss and pay for the generation twice.
 
+A fourth layer covers the wait no cache can hide — the *first* generation of a
+kind, where latency is dominated by sequential output decoding:
+
+- **`lib/server/stream.ts`** — progressive delivery. A generator yields
+  `StreamFrame`s (one named slot of the eventual payload) and the route writes
+  them out as NDJSON, so a screen paints on its first item instead of its last.
+  `Job.shape` declares what a complete set looks like; `framesToPayload`
+  assembles it back into exactly what `Job.run()` would have returned and
+  returns **null** on a short or gappy set. Nothing incomplete is ever written
+  to `content_cache` (hits skip validation) or to a `*Cache` in `AtlasApp` —
+  partial content lives in a `live*` state so `isCached` and the warm dedupe
+  can't mistake it for a finished pass.
+- The first frame is pulled *before* committing to a 200, so a real failure
+  still surfaces as an error status. Each streaming generator falls back to its
+  single-shot, retried `run()` if it fails before yielding anything; after that
+  it surfaces, and the client keeps whatever landed.
+- Streaming has **no corrective retry and no model-fallback chain**, and
+  `streamJsonObjects` uses the *content* model role. Don't stream a call that
+  needs either — notably the judge.
+- A surface that renders a streamed list must not derive "am I on the last
+  one?" from the array's length. `SocraticSession`/`FeynmanSession` carry an
+  explicit `total` for exactly this reason; deriving it from `.length` ends the
+  session as soon as the learner answers the first item.
+- **`after()`** (`app/api/generate/route.ts`) warms the new map's frontier
+  server-side once the build response has flushed, so the first node click is a
+  cache hit. It charges through the same `chargeGeneration` helper as everything
+  else.
+
+Quota accounting follows the split: `generation_log` rows are *model calls*
+(the monthly ceiling, which tracks spend), while `job_id` groups them into
+*jobs* (the per-learner daily quota — a learner's fair share of surfaces). A
+job that fans out declares `Job.cost`.
+
 ## Auth & persistence (Supabase)
 
 - Accounts are Supabase email magic links via `@supabase/ssr`: `middleware.ts`

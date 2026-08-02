@@ -4,6 +4,9 @@
 // gap offsets are computed here, never trusted from the model.
 
 import {
+  DIAGNOSTIC_COUNT,
+  FEYNMAN_BEATS,
+  SOCRATIC_STEPS,
   type AltKey,
   type ConceptEdge,
   type ConceptGraph,
@@ -26,6 +29,8 @@ import {
   streamJsonObjects,
   type ChatMessage,
 } from "@/lib/server/openrouter";
+import { ALT_SHAPE, consumeSectionShape } from "@/lib/server/generate/shapes";
+import type { StreamFrame } from "@/lib/server/stream";
 
 // ---- tiny validation helpers (throw readable errors for the retry loop) ----
 
@@ -206,31 +211,38 @@ function layoutGraph(
   return nodes;
 }
 
-export function validateCurriculum(raw: unknown): {
-  scopes?: ScopeOffer[];
+/** One placement question, before `tag` and the gap offsets are attached. */
+export interface RawDiagnostic {
+  nodeId: string;
+  q: string;
+  note: string;
+  opts: Array<{ label: string; effect: "mastered" | "shaky" | "none" }>;
+  gapLabel?: string;
+  gapReason?: string;
+}
+
+/** The 2-3 scoped sub-map offers a too-broad topic comes back with instead of
+ *  a mush map, or null when this payload isn't one. */
+export function validateScopeOffer(raw: unknown): ScopeOffer[] | null {
+  const root = obj(raw, "payload");
+  if (root.tooBroad !== true) return null;
+  return arr(root.scopes, "scopes", 2, 3).map((v, i) => {
+    const s = obj(v, `scopes[${i}]`);
+    return {
+      label: str(s.label, `scopes[${i}].label`),
+      note: str(s.note, `scopes[${i}].note`),
+    };
+  });
+}
+
+/** Nodes and edges together: the map itself. Split out from the diagnostic so
+ *  the streamed pass can lay the graph out and ship it while the placement
+ *  questions are still being written. */
+export function validateGraphPart(raw: unknown): {
   nodes: Array<{ id: string; label: string }>;
   edges: ConceptEdge[];
-  diagnostic: Array<{
-    nodeId: string;
-    q: string;
-    note: string;
-    opts: Array<{ label: string; effect: "mastered" | "shaky" | "none" }>;
-    gapLabel?: string;
-    gapReason?: string;
-  }>;
 } {
   const root = obj(raw, "payload");
-  // Too-broad topics come back as 2-3 scoped sub-map offers, not a mush map.
-  if (root.tooBroad === true) {
-    const scopes = arr(root.scopes, "scopes", 2, 3).map((v, i) => {
-      const s = obj(v, `scopes[${i}]`);
-      return {
-        label: str(s.label, `scopes[${i}].label`),
-        note: str(s.note, `scopes[${i}].note`),
-      };
-    });
-    return { scopes, nodes: [], edges: [], diagnostic: [] };
-  }
   const seen = new Set<string>();
   const nodes = arr(root.nodes, "nodes", 10, 24).map((v, i) => {
     const n = obj(v, `nodes[${i}]`);
@@ -249,7 +261,8 @@ export function validateCurriculum(raw: unknown): {
     if (!seen.has(from) || !seen.has(to) || from === to) continue; // drop, don't fail
     edges.push([from, to]);
   }
-  if (edges.length < nodes.length - 4) fail("too few valid edges — every node needs prerequisites wired");
+  if (edges.length < nodes.length - 4)
+    fail("too few valid edges — every node needs prerequisites wired");
   // A prerequisite cycle would permanently lock those nodes on the map —
   // Kahn must consume every node or the payload is rejected (#16).
   {
@@ -270,60 +283,91 @@ export function validateCurriculum(raw: unknown): {
     if (visited < nodes.length)
       fail("edges contain a prerequisite cycle — the map must be a DAG");
   }
-  const diagnostic = arr(root.diagnostic, "diagnostic", 3, 3).map((v, i) => {
-    const d = obj(v, `diagnostic[${i}]`);
-    const nodeId = str(d.nodeId, `diagnostic[${i}].nodeId`)
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-");
-    if (!seen.has(nodeId)) fail(`diagnostic[${i}].nodeId "${nodeId}" is not a node id`);
-    return {
-      nodeId,
-      q: str(d.q, `diagnostic[${i}].q`),
-      note: str(d.note, `diagnostic[${i}].note`),
-      opts: arr(d.opts, `diagnostic[${i}].opts`, 3, 3).map((o, j) => {
-        const opt = obj(o, `diagnostic[${i}].opts[${j}]`);
-        return {
-          label: str(opt.label, `diagnostic[${i}].opts[${j}].label`),
-          effect: oneOf(
-            opt.effect,
-            ["mastered", "shaky", "none"] as const,
-            `diagnostic[${i}].opts[${j}].effect`,
-          ),
-        };
-      }),
-      gapLabel: d.gapLabel ? str(d.gapLabel, `diagnostic[${i}].gapLabel`) : undefined,
-      gapReason: d.gapReason ? str(d.gapReason, `diagnostic[${i}].gapReason`) : undefined,
-    };
-  });
+  return { nodes, edges };
+}
+
+/** One placement question, checked against the node ids the graph established. */
+export function validateDiagnosticItem(
+  raw: unknown,
+  i: number,
+  nodeIds: Set<string>,
+): RawDiagnostic {
+  const d = obj(raw, `diagnostic[${i}]`);
+  const nodeId = str(d.nodeId, `diagnostic[${i}].nodeId`)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-");
+  if (!nodeIds.has(nodeId)) fail(`diagnostic[${i}].nodeId "${nodeId}" is not a node id`);
+  return {
+    nodeId,
+    q: str(d.q, `diagnostic[${i}].q`),
+    note: str(d.note, `diagnostic[${i}].note`),
+    opts: arr(d.opts, `diagnostic[${i}].opts`, 3, 3).map((o, j) => {
+      const opt = obj(o, `diagnostic[${i}].opts[${j}]`);
+      return {
+        label: str(opt.label, `diagnostic[${i}].opts[${j}].label`),
+        effect: oneOf(
+          opt.effect,
+          ["mastered", "shaky", "none"] as const,
+          `diagnostic[${i}].opts[${j}].effect`,
+        ),
+      };
+    }),
+    gapLabel: d.gapLabel ? str(d.gapLabel, `diagnostic[${i}].gapLabel`) : undefined,
+    gapReason: d.gapReason ? str(d.gapReason, `diagnostic[${i}].gapReason`) : undefined,
+  };
+}
+
+export function validateCurriculum(raw: unknown): {
+  scopes?: ScopeOffer[];
+  nodes: Array<{ id: string; label: string }>;
+  edges: ConceptEdge[];
+  diagnostic: RawDiagnostic[];
+} {
+  const scopes = validateScopeOffer(raw);
+  if (scopes) return { scopes, nodes: [], edges: [], diagnostic: [] };
+  const { nodes, edges } = validateGraphPart(raw);
+  const ids = new Set(nodes.map((n) => n.id));
+  const root = obj(raw, "payload");
+  const diagnostic = arr(
+    root.diagnostic,
+    "diagnostic",
+    DIAGNOSTIC_COUNT,
+    DIAGNOSTIC_COUNT,
+  ).map((v, i) => validateDiagnosticItem(v, i, ids));
   return { nodes, edges, diagnostic };
 }
 
-export async function generateCurriculum(params: {
+export interface CurriculumParams {
   topic: string;
   goal: GoalKind;
   interests: string;
   /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
   outline?: string;
   language?: Language;
-}): Promise<CurriculumPayload | { scopes: ScopeOffer[] }> {
-  const { topic, goal, interests, outline, language = "en" } = params;
+}
+
+/** The shared opening of both curriculum prompts: what to build, what grounds
+ *  it, and the too-broad escape hatch. Only the output format differs below. */
+function curriculumContext(params: CurriculumParams): string {
+  const { topic, goal, outline } = params;
   const grounding = outline?.trim()
     ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
     : "";
-  const raw = await generateJson(
-    user(
-      `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}
+  return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}
 ${grounding}
-If (and only if) the topic is far too broad for one coherent 12-18 concept map (e.g. "science", "math", "history"), instead return:
-{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers
+If (and only if) the topic is far too broad for one coherent 12-18 concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
+{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
+}
 
-Otherwise return JSON:
-{
+/** The shape of the map itself, shared by both prompts. */
+const GRAPH_SHAPE = `{
   "nodes": [{"id": "short-kebab-id", "label": "Concept Name"}, ...],   // 12 to 18 concepts, foundations through capstone
-  "edges": [["prereq-id", "dependent-id"], ...],                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
-  "diagnostic": [                                                        // exactly 3 placement questions, ordered easy -> hard
-    {
-      "nodeId": "id of the concept the question probes (pick 3 different early/mid concepts)",
+  "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
+}`;
+
+/** The shape of one placement question, shared by both prompts. */
+const DIAGNOSTIC_SHAPE = `{
+      "nodeId": "id of the concept the question probes (a different early/mid concept each time)",
       "q": "the question, phrased as a quick self-assessment the learner answers honestly",
       "note": "one sentence on what the answer changes about the map",
       "opts": [
@@ -333,19 +377,20 @@ Otherwise return JSON:
       ],
       "gapLabel": "the precise sub-concept a hesitant answer splits out (2-4 words)",
       "gapReason": "why it split, phrased to the learner ('you hesitated on ...')"
-    }
-  ]
-}
+    }`;
 
-Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own.${languageNote(language)}`,
-    ),
-    validateCurriculum,
-    { label: "curriculum" },
-  );
-  if (raw.scopes) return { scopes: raw.scopes };
-  const nodes = layoutGraph(raw.nodes, raw.edges);
-  const total = raw.diagnostic.length;
-  const diagnostic: DiagnosticQuestion[] = raw.diagnostic.map((d, i) => ({
+const CURRICULUM_RULES =
+  "Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own, ordered easy -> hard.";
+
+/** Attach the display tag and the gap-node offsets. `total` is passed in rather
+ *  than read off the array: the streamed pass labels question 1 before it knows
+ *  how many will arrive, and the prompt mandates `DIAGNOSTIC_COUNT`. */
+function toDiagnosticQuestion(
+  d: RawDiagnostic,
+  i: number,
+  total: number,
+): DiagnosticQuestion {
+  return {
     tag: `Question ${i + 1} of ${total}`,
     q: d.q,
     note: d.note,
@@ -361,8 +406,122 @@ Rules: labels are 1-3 words, title case. Node count 12-18. The map must read lef
             dy: 148,
           }
         : undefined,
-  }));
-  return { graph: { nodes, edges: raw.edges }, diagnostic };
+  };
+}
+
+export async function generateCurriculum(
+  params: CurriculumParams,
+): Promise<CurriculumPayload | { scopes: ScopeOffer[] }> {
+  const { language = "en" } = params;
+  const raw = await generateJson(
+    user(
+      `${curriculumContext(params)}
+
+Otherwise return JSON:
+{
+  "nodes": [...], "edges": [...],   // as in ${GRAPH_SHAPE}
+  "diagnostic": [${DIAGNOSTIC_SHAPE}]   // exactly ${DIAGNOSTIC_COUNT} placement questions
+}
+
+${CURRICULUM_RULES}${languageNote(language)}`,
+    ),
+    validateCurriculum,
+    { label: "curriculum" },
+  );
+  if (raw.scopes) return { scopes: raw.scopes };
+  const nodes = layoutGraph(raw.nodes, raw.edges);
+  const total = raw.diagnostic.length;
+  return {
+    graph: { nodes, edges: raw.edges },
+    diagnostic: raw.diagnostic.map((d, i) => toDiagnosticQuestion(d, i, total)),
+  };
+}
+
+/**
+ * Streamed variant: the map ships the moment it is written, and the three
+ * placement questions follow one at a time.
+ *
+ * This is the only wait in the app that can never be warmed — the node ids do
+ * not exist until this call returns — and every learner pays it once per map.
+ * Asking for the graph as its own top-level object means the assembly
+ * animation starts on roughly the first 40% of the output instead of the last,
+ * and the questions land inside the animation's own dwell.
+ *
+ * The frames are `{p:"scopes"}` (a too-broad topic, which short-circuits
+ * everything), or `{p:"graph"}` followed by `{p:"diagnostic", i}` ×3.
+ *
+ * As with Consume, a failure before the first object falls back to the proven,
+ * retried single-shot path rather than leaving the learner on a stalled
+ * stream. A failure after the graph has shipped surfaces to the caller, which
+ * can still open the map with however many questions arrived — see the
+ * `build()` handler.
+ */
+export async function* generateCurriculumStream(
+  params: CurriculumParams,
+): AsyncGenerator<StreamFrame> {
+  const { language = "en" } = params;
+  let yielded = 0;
+  let nodeIds: Set<string> | null = null;
+
+  /** The first object is either the scope offer or the graph; every later one
+   *  is a placement question checked against the ids the graph established. */
+  const validateFrame = (raw: unknown, index: number): StreamFrame => {
+    if (index === 0) {
+      const scopes = validateScopeOffer(raw);
+      if (scopes) return { p: "scopes", v: scopes };
+      const { nodes, edges } = validateGraphPart(raw);
+      nodeIds = new Set(nodes.map((n) => n.id));
+      return { p: "graph", v: { nodes: layoutGraph(nodes, edges), edges } };
+    }
+    const i = index - 1;
+    const d = validateDiagnosticItem(raw, i, nodeIds ?? new Set());
+    return { p: "diagnostic", i, v: toDiagnosticQuestion(d, i, DIAGNOSTIC_COUNT) };
+  };
+
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${curriculumContext(params)}
+
+Otherwise write ${1 + DIAGNOSTIC_COUNT} SEPARATE top-level JSON objects, one after
+another — NOT wrapped in an array or a single object, no markdown fences, no
+numbering, no commentary before/after/between them.
+
+First object — the map:
+${GRAPH_SHAPE}
+
+Then ${DIAGNOSTIC_COUNT} more objects, one placement question each, each using a
+"nodeId" from the map you just wrote:
+${DIAGNOSTIC_SHAPE}
+
+${CURRICULUM_RULES}${languageNote(language)}`,
+      ),
+      validateFrame,
+      { label: "curriculum-stream" },
+    );
+    for await (const frame of stream) {
+      yielded++;
+      yield frame;
+      // A too-broad topic has nothing else to say; anything after it is noise.
+      if (frame.p === "scopes") return;
+    }
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "curriculum_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const payload = await generateCurriculum(params);
+    if ("scopes" in payload) {
+      yield { p: "scopes", v: payload.scopes };
+      return;
+    }
+    yield { p: "graph", v: payload.graph };
+    for (const [i, q] of payload.diagnostic.entries())
+      yield { p: "diagnostic", i, v: q };
+  }
 }
 
 // ---- kind: consume ---------------------------------------------------------
@@ -503,90 +662,83 @@ Rules for the prose:
 - Name the common misconception explicitly and say why it is wrong.${languageNote(language)}`;
 }
 
-/** The shape of one Consume section — shared by the single-shot prompt (as
- *  array elements) and the streaming prompt (as standalone objects). */
-const CONSUME_SECTION_SHAPE = `{
-      "kicker": "1 · What it is",                         // segment label: number · 2-4 words
-      "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
-      "pred": {                                            // FIRST SECTION ONLY — omit on all others
-        "q": "a guess that primes the reading — what do you think happens if…?",
-        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
-        "right": "one line confirming the guess and pointing at what follows",
-        "wrong": "one honest line naming the misconception, then pointing at what follows"
-      },
-      "body": ["paragraph 1", "paragraph 2", "paragraph 3"],   // 3-5 paragraphs, 3-6 sentences each
-      "example": {                                         // worked inline, part of the material
-        "title": "what this example demonstrates",
-        "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps
-      },
-      "takeaway": "the one sentence to carry out of this section",
-      "cite": "a real canonical source (book §, lecture series chapter) — never invent one",
-      "diagram": "one-line caption for the figure below",
-      "figure": {                                          // the figure itself, specific to THIS section — never a generic placeholder
-        "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
-        "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
-      },
-      "ask": "a mini-Socratic prompt that answers a likely question with a question",
-      "alt": {
-        "simpler": "the whole section rewritten plainly, still 2-3 paragraphs",
-        "example": "a second, different worked example",
-        "analogy": "an analogy that maps the structure",
-        "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
-      }
-    }`;
-
-/** `CONSUME_SECTION_SHAPE` without `alt` — what the streaming pass asks for,
- *  so a section's object closes (and can render) without the model having to
- *  finish writing four rewrites of it nobody may ever tap into. */
-const CONSUME_SECTION_SHAPE_FAST = CONSUME_SECTION_SHAPE.replace(
-  /,\s*"alt": \{[\s\S]*?\}\n\s*\}$/,
-  "\n    }",
-);
-
-const ALT_SHAPE = `{
-      "simpler": "the whole section rewritten plainly, still 2-3 paragraphs",
-      "example": "a second, different worked example",
-      "analogy": "an analogy that maps the structure",
-      "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
-    }`;
+/** The shape of one Consume section, with and without the adaptive rewrites.
+ *  Composed in `./generate/shapes` rather than derived by regex — see the note
+ *  in that file for what the old derivation broke. */
+const CONSUME_SECTION_SHAPE = consumeSectionShape(true);
+const CONSUME_SECTION_SHAPE_FAST = consumeSectionShape(false);
 
 /**
- * The adaptive-modality rewrites, generated as a follow-up call once the
- * reading itself has already streamed to the learner. Off the critical path
- * on purpose (#improve-consume-latency): a learner reads before reaching for
- * "simpler" or "go deeper", so there's no reason those four rewrites per
- * section should delay the section they belong to.
+ * The adaptive-modality rewrites for ONE section, generated once the reading
+ * itself has already streamed to the learner. Off the critical path on
+ * purpose: a learner reads before reaching for "simpler" or "go deeper", so
+ * there's no reason those four rewrites should delay the section they belong
+ * to.
+ *
+ * One call per section rather than one call for all five. The old shape
+ * re-sent every section's body and worked example verbatim — around 4000
+ * input tokens — to produce 4000 more, which made it both the largest prompt
+ * in the app and an all-or-nothing bet: one bad section cost all five sets of
+ * toggles. Each call now sees only its own section, they run concurrently, and
+ * a failure is isolated to the section that caused it.
  */
-async function generateConsumeAlts(
-  sections: ConsumeChunk[],
+async function generateSectionAlt(
+  section: ConsumeChunk,
+  index: number,
   params: { topic: string; nodeLabel: string; language?: Language },
-): Promise<Array<Record<AltKey, string>>> {
+): Promise<Record<AltKey, string>> {
   return generateJson(
     user(
-      `The reading pass on "${params.nodeLabel}" within "${params.topic}" already has these ${sections.length} sections, in order:
+      `This section of the reading pass on "${params.nodeLabel}" within "${params.topic}" is already written:
 
-${sections
-  .map(
-    (c, i) =>
-      `Section ${i + 1} — ${c.kicker}
-${c.body.join("\n")}
-Worked example (${c.example.title}): ${c.example.steps.join(" ")}`,
-  )
-  .join("\n\n")}
+${section.kicker}
+${section.body.join("\n")}
+Worked example (${section.example.title}): ${section.example.steps.join(" ")}
 
-For EACH section above, in the same order, write the four adaptive-modality rewrites a learner can switch to instead of the main prose. Return JSON:
-{
-  "alts": [${ALT_SHAPE}, ...]
-}${languageNote(params.language)}`,
+Write the four adaptive-modality rewrites a learner can switch to instead of the prose above. Each must cover the SAME material as this section — a different route through it, never a different topic. Return JSON:
+${ALT_SHAPE}${languageNote(params.language)}`,
     ),
-    validateConsumeAlts,
+    (raw) => validateConsumeAlt(raw, index),
     { label: "consume-alt" },
   );
 }
 
-function validateConsumeAlts(raw: unknown): Array<Record<AltKey, string>> {
-  const root = obj(raw, "payload");
-  return arr(root.alts, "alts", 4, 6).map(validateConsumeAlt);
+/** Concurrent alt calls in flight. Bounded so a background rewrite pass never
+ *  competes with a foreground generation for the model's attention. */
+const ALT_CONCURRENCY = 3;
+
+/**
+ * Every section's rewrites, fanned out. Resolves to one entry per section,
+ * `null` where that section's call failed — the caller yields the ones that
+ * landed and leaves the rest inert.
+ */
+async function generateConsumeAlts(
+  sections: ConsumeChunk[],
+  params: { topic: string; nodeLabel: string; language?: Language },
+): Promise<Array<Record<AltKey, string> | null>> {
+  const out: Array<Record<AltKey, string> | null> = new Array(sections.length).fill(null);
+  let next = 0;
+  const worker = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= sections.length) return;
+      try {
+        out[i] = await generateSectionAlt(sections[i], i, params);
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            evt: "consume_alt_section_failed",
+            section: i,
+            error: String(err instanceof Error ? err.message : err).slice(0, 300),
+          }),
+        );
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(ALT_CONCURRENCY, sections.length) }, worker),
+  );
+  return out;
 }
 
 export async function generateConsume(params: {
@@ -616,10 +768,10 @@ Return JSON with 5 sections:
  * wrapping array, so each is a complete, parseable unit as soon as its
  * closing brace lands) and yields each the moment it validates — without
  * `alt`, so a section never waits on its own rewrites (see
- * `CONSUME_SECTION_SHAPE_FAST`). Once all 5 are out, the rewrites are
- * generated in one follow-up call and each section is re-yielded with `alt`
- * filled in; the client patches its already-rendered copy by `id` instead of
- * appending a 6th–10th section.
+ * `consumeSectionShape`). Once all 5 are out, the rewrites are generated and
+ * each section is re-yielded with `alt` filled in — at the same frame index,
+ * so the client (and the assembler) patch the already-rendered copy in place
+ * instead of appending a 6th–10th section.
  *
  * No corrective retry mid-stream — if the very first section fails to parse
  * or validate (the model ignored the format, a network hiccup), that's
@@ -636,7 +788,7 @@ export async function* generateConsumeStream(params: {
   prereqLabels: string[];
   interests: string;
   language?: Language;
-}): AsyncGenerator<ConsumeChunk> {
+}): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   const sections: ConsumeChunk[] = [];
   try {
@@ -651,11 +803,11 @@ shape:
 ${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
       ),
       validateConsumeSection,
+      { label: "consume-stream" },
     );
     for await (const chunk of stream) {
-      yielded++;
       sections.push(chunk);
-      yield chunk;
+      yield { p: "chunks", i: yielded++, v: chunk };
     }
   } catch (err) {
     if (yielded > 0) throw err;
@@ -665,23 +817,19 @@ ${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
         error: String(err instanceof Error ? err.message : err).slice(0, 300),
       }),
     );
-    for (const chunk of await generateConsume(params)) yield chunk;
+    const chunks = await generateConsume(params);
+    for (const [i, chunk] of chunks.entries()) yield { p: "chunks", i, v: chunk };
     return;
   }
 
-  try {
-    const alts = await generateConsumeAlts(sections, params);
-    for (let i = 0; i < sections.length; i++) yield { ...sections[i], alt: alts[i] };
-  } catch (err) {
-    // The reading is already fully on screen and cached-so-far without alt;
-    // the rewrite toggles just stay inert this session rather than blocking
-    // or retrying — worth logging, not worth failing the whole pass over.
-    console.error(
-      JSON.stringify({
-        evt: "consume_alt_failed",
-        error: String(err instanceof Error ? err.message : err).slice(0, 300),
-      }),
-    );
+  // The reading is already fully on screen by now. A section whose rewrites
+  // fail simply keeps its toggles inert — worth logging (each failure is
+  // logged inside the fan-out), never worth failing the whole pass over, and
+  // no longer all-or-nothing: the sections that succeeded still light up.
+  const alts = await generateConsumeAlts(sections, params);
+  for (let i = 0; i < sections.length; i++) {
+    const alt = alts[i];
+    if (alt) yield { p: "chunks", i, v: { ...sections[i], alt } };
   }
 }
 
@@ -695,32 +843,56 @@ const MOVES = [
 ] as const;
 const QUALITIES = ["correct", "near", "wrong", "lost"] as const;
 
-export function validateSocratic(raw: unknown): SocraticStep[] {
-  const root = obj(raw, "payload");
-  return arr(root.steps, "steps", 3, 5).map((v, i) => {
-    const s = obj(v, `steps[${i}]`);
-    const replies = arr(s.replies, `steps[${i}].replies`, 3, 4).map((r, j) => {
-      const rep = obj(r, `steps[${i}].replies[${j}]`);
-      return {
-        label: rejectEcho(
-          str(rep.label, `steps[${i}].replies[${j}].label`),
-          `steps[${i}].replies[${j}].label`,
-        ),
-        quality: oneOf(rep.quality, QUALITIES, `steps[${i}].replies[${j}].quality`),
-        response: str(rep.response, `steps[${i}].replies[${j}].response`),
-      };
-    });
-    if (!replies.some((r) => r.quality === "correct"))
-      fail(`steps[${i}].replies needs a correct option`);
+/** The shared framing of both Socratic prompts. */
+function socraticContext(params: {
+  topic: string;
+  nodeLabel: string;
+  interests: string;
+}): string {
+  return `Write a Socratic questioning session (${SOCRATIC_STEPS} steps) for the concept "${params.nodeLabel}" within "${params.topic}".
+The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
+${interestNote(params.interests)}
+The four steps build on each other in order, each picking up where the last left off.`;
+}
+
+const SOCRATIC_STEP_SHAPE = `{
+      "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // use each move once, in this order
+      "prompt": "the probing question the tutor opens with",
+      "replies": [    // 3 plausible learner replies; exactly one "correct"; include a common misconception as "wrong"
+        {"label": "what the learner says", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
+      ],
+      "hint": "an 'I'm stuck' nudge that reframes without giving it away",
+      "tell": "the direct instruction for 'Just tell me' — complete and precise"
+    }`;
+
+export function validateSocraticStep(raw: unknown, i: number): SocraticStep {
+  const s = obj(raw, `steps[${i}]`);
+  const replies = arr(s.replies, `steps[${i}].replies`, 3, 4).map((r, j) => {
+    const rep = obj(r, `steps[${i}].replies[${j}]`);
     return {
-      id: `s${i + 1}`,
-      move: oneOf(s.move, MOVES, `steps[${i}].move`),
-      prompt: str(s.prompt, `steps[${i}].prompt`),
-      replies,
-      hint: str(s.hint, `steps[${i}].hint`),
-      tell: str(s.tell, `steps[${i}].tell`),
+      label: rejectEcho(
+        str(rep.label, `steps[${i}].replies[${j}].label`),
+        `steps[${i}].replies[${j}].label`,
+      ),
+      quality: oneOf(rep.quality, QUALITIES, `steps[${i}].replies[${j}].quality`),
+      response: str(rep.response, `steps[${i}].replies[${j}].response`),
     };
   });
+  if (!replies.some((r) => r.quality === "correct"))
+    fail(`steps[${i}].replies needs a correct option`);
+  return {
+    id: `s${i + 1}`,
+    move: oneOf(s.move, MOVES, `steps[${i}].move`),
+    prompt: str(s.prompt, `steps[${i}].prompt`),
+    replies,
+    hint: str(s.hint, `steps[${i}].hint`),
+    tell: str(s.tell, `steps[${i}].tell`),
+  };
+}
+
+export function validateSocratic(raw: unknown): SocraticStep[] {
+  const root = obj(raw, "payload");
+  return arr(root.steps, "steps", 3, 5).map(validateSocraticStep);
 }
 
 export async function generateSocratic(params: {
@@ -729,31 +901,66 @@ export async function generateSocratic(params: {
   interests: string;
   language?: Language;
 }): Promise<SocraticStep[]> {
-  const { topic, nodeLabel, interests, language = "en" } = params;
   return generateJson(
     user(
-      `Write a Socratic questioning session (4 steps) for the concept "${nodeLabel}" within "${topic}".
-The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
-${interestNote(interests)}
+      `${socraticContext(params)}
 
 Return JSON:
 {
-  "steps": [
-    {
-      "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // use each move once, in this order
-      "prompt": "the probing question the tutor opens with",
-      "replies": [    // 3 plausible learner replies; exactly one "correct"; include a common misconception as "wrong"
-        {"label": "what the learner says", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
-      ],
-      "hint": "an 'I'm stuck' nudge that reframes without giving it away",
-      "tell": "the direct instruction for 'Just tell me' — complete and precise"
-    }, ...
-  ]
-}${languageNote(language)}`,
+  "steps": [${SOCRATIC_STEP_SHAPE}, ...]   // exactly ${SOCRATIC_STEPS}
+}${languageNote(params.language ?? "en")}`,
     ),
     validateSocratic,
     { label: "socratic" },
   );
+}
+
+/**
+ * Streamed variant: the tutor's first probe lands as soon as it is written
+ * instead of the learner waiting on all four.
+ *
+ * The steps stay in ONE call rather than fanning out. The prompt requires a
+ * progression — each move used once, in order, building on the last — and four
+ * independent calls would each be written blind to the others. That coherence
+ * is the pedagogy; no latency number buys it back.
+ *
+ * `hint` and `tell` stay inside their step. Beyond being small, `tell` is what
+ * `AtlasApp` hands the judge as the reference answer, so a step without it
+ * cannot be judged.
+ */
+export async function* generateSocraticStream(params: {
+  topic: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+}): AsyncGenerator<StreamFrame> {
+  let yielded = 0;
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${socraticContext(params)}
+
+Write the ${SOCRATIC_STEPS} steps as ${SOCRATIC_STEPS} SEPARATE top-level JSON objects, one after
+another — NOT wrapped in an array or a {"steps": [...]} object, no markdown
+fences, no numbering, no commentary before/after/between them. Each object has
+this shape:
+${SOCRATIC_STEP_SHAPE}${languageNote(params.language ?? "en")}`,
+      ),
+      validateSocraticStep,
+      { label: "socratic-stream" },
+    );
+    for await (const step of stream) yield { p: "steps", i: yielded++, v: step };
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "socratic_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const steps = await generateSocratic(params);
+    for (const [i, step] of steps.entries()) yield { p: "steps", i, v: step };
+  }
 }
 
 // ---- kind: feynman ---------------------------------------------------------
@@ -767,73 +974,79 @@ const FEYNMAN_GAP_OFFSETS: ReadonlyArray<[number, number]> = [
   [120, 150],
 ];
 
-export function validateFeynman(nodeId: string) {
-  return (raw: unknown): FeynmanBeat[] => {
-    const root = obj(raw, "payload");
-    return arr(root.beats, "beats", 3, 4).map((v, i) => {
-      const b = obj(v, `beats[${i}]`);
-      const replies = arr(b.replies, `beats[${i}].replies`, 3, 3).map((r, j) => {
-        const rep = obj(r, `beats[${i}].replies[${j}]`);
-        return {
-          label: rejectEcho(
-            str(rep.label, `beats[${i}].replies[${j}].label`),
-            `beats[${i}].replies[${j}].label`,
-          ),
-          verdict: oneOf(rep.verdict, VERDICTS, `beats[${i}].replies[${j}].verdict`),
-          response: str(rep.response, `beats[${i}].replies[${j}].response`),
-        };
-      });
-      if (!replies.some((r) => r.verdict === "good"))
-        fail(`beats[${i}].replies needs a "good" option`);
-      const fix = obj(b.fix, `beats[${i}].fix`);
-      const fixReplies = arr(fix.replies, `beats[${i}].fix.replies`, 2, 3).map((r, j) => {
-        const rep = obj(r, `beats[${i}].fix.replies[${j}]`);
-        return {
-          label: str(rep.label, `beats[${i}].fix.replies[${j}].label`),
-          correct: rep.correct === true,
-          response: str(rep.response, `beats[${i}].fix.replies[${j}].response`),
-        };
-      });
-      if (!fixReplies.some((r) => r.correct) || !fixReplies.some((r) => !r.correct))
-        fail(`beats[${i}].fix.replies needs one correct and one incorrect option`);
-      const [dx, dy] = FEYNMAN_GAP_OFFSETS[i % FEYNMAN_GAP_OFFSETS.length];
+/** One teach-back beat. The gap offset is indexed modulo the offset table, so
+ *  a beat validates identically whether it arrived in an array or alone. */
+export function validateFeynmanBeat(nodeId: string) {
+  return (raw: unknown, i: number): FeynmanBeat => {
+    const b = obj(raw, `beats[${i}]`);
+    const replies = arr(b.replies, `beats[${i}].replies`, 3, 3).map((r, j) => {
+      const rep = obj(r, `beats[${i}].replies[${j}]`);
       return {
-        id: `ft-${nodeId}-${i + 1}`,
-        subPoint: str(b.subPoint, `beats[${i}].subPoint`),
-        transcript: str(b.transcript, `beats[${i}].transcript`),
-        interjection: str(b.interjection, `beats[${i}].interjection`),
-        replies,
-        fix: { probe: str(fix.probe, `beats[${i}].fix.probe`), replies: fixReplies },
-        gap: {
-          id: `gap-ft-${nodeId}-${i + 1}`,
-          label: str(b.gapLabel, `beats[${i}].gapLabel`),
-          reason: str(b.gapReason, `beats[${i}].gapReason`),
-          dx,
-          dy,
-        },
+        label: rejectEcho(
+          str(rep.label, `beats[${i}].replies[${j}].label`),
+          `beats[${i}].replies[${j}].label`,
+        ),
+        verdict: oneOf(rep.verdict, VERDICTS, `beats[${i}].replies[${j}].verdict`),
+        response: str(rep.response, `beats[${i}].replies[${j}].response`),
       };
     });
+    if (!replies.some((r) => r.verdict === "good"))
+      fail(`beats[${i}].replies needs a "good" option`);
+    const fix = obj(b.fix, `beats[${i}].fix`);
+    const fixReplies = arr(fix.replies, `beats[${i}].fix.replies`, 2, 3).map((r, j) => {
+      const rep = obj(r, `beats[${i}].fix.replies[${j}]`);
+      return {
+        label: str(rep.label, `beats[${i}].fix.replies[${j}].label`),
+        correct: rep.correct === true,
+        response: str(rep.response, `beats[${i}].fix.replies[${j}].response`),
+      };
+    });
+    if (!fixReplies.some((r) => r.correct) || !fixReplies.some((r) => !r.correct))
+      fail(`beats[${i}].fix.replies needs one correct and one incorrect option`);
+    const [dx, dy] = FEYNMAN_GAP_OFFSETS[i % FEYNMAN_GAP_OFFSETS.length];
+    return {
+      id: `ft-${nodeId}-${i + 1}`,
+      subPoint: str(b.subPoint, `beats[${i}].subPoint`),
+      transcript: str(b.transcript, `beats[${i}].transcript`),
+      interjection: str(b.interjection, `beats[${i}].interjection`),
+      replies,
+      fix: { probe: str(fix.probe, `beats[${i}].fix.probe`), replies: fixReplies },
+      gap: {
+        id: `gap-ft-${nodeId}-${i + 1}`,
+        label: str(b.gapLabel, `beats[${i}].gapLabel`),
+        reason: str(b.gapReason, `beats[${i}].gapReason`),
+        dx,
+        dy,
+      },
+    };
   };
 }
 
-export async function generateFeynman(params: {
+export function validateFeynman(nodeId: string) {
+  const beat = validateFeynmanBeat(nodeId);
+  return (raw: unknown): FeynmanBeat[] => {
+    const root = obj(raw, "payload");
+    return arr(root.beats, "beats", 3, 4).map(beat);
+  };
+}
+
+interface FeynmanParams {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   interests: string;
   language?: Language;
-}): Promise<FeynmanBeat[]> {
-  const { topic, nodeId, nodeLabel, interests, language = "en" } = params;
-  return generateJson(
-    user(
-      `Write a Feynman teach-back session (4 beats) for the concept "${nodeLabel}" within "${topic}".
-The learner teaches; the AI plays a NAIVE STUDENT who interrupts with exactly the questions that expose hand-waving.
-${interestNote(interests)}
+}
 
-Return JSON:
-{
-  "beats": [
-    {
+/** The shared framing of both Feynman prompts. */
+function feynmanContext(params: FeynmanParams): string {
+  return `Write a Feynman teach-back session (${FEYNMAN_BEATS} beats) for the concept "${params.nodeLabel}" within "${params.topic}".
+The learner teaches; the AI plays a NAIVE STUDENT who interrupts with exactly the questions that expose hand-waving.
+${interestNote(params.interests)}
+The beats walk through the concept in order, each taking up where the last left off.`;
+}
+
+const FEYNMAN_BEAT_SHAPE = `{
       "subPoint": "the sub-point being taught (3-6 words)",
       "transcript": "what the learner plausibly says teaching this sub-point, first person, 2-3 sentences",
       "interjection": "the naive student's interrupting question — innocent, and aimed precisely at the likely gap",
@@ -848,13 +1061,64 @@ Return JSON:
       },
       "gapLabel": "the gap's map label (2-5 words)",
       "gapReason": "why it split out, phrased to the learner ('you taught X as Y — the Z trap')"
-    }, ...
-  ]
-}${languageNote(language)}`,
+    }`;
+
+export async function generateFeynman(params: FeynmanParams): Promise<FeynmanBeat[]> {
+  return generateJson(
+    user(
+      `${feynmanContext(params)}
+
+Return JSON:
+{
+  "beats": [${FEYNMAN_BEAT_SHAPE}, ...]   // exactly ${FEYNMAN_BEATS}
+}${languageNote(params.language ?? "en")}`,
     ),
-    validateFeynman(nodeId),
+    validateFeynman(params.nodeId),
     { label: "feynman" },
   );
+}
+
+/**
+ * Streamed variant: the first beat opens the teach-back instead of the learner
+ * waiting on all four. This is the largest payload of any phase and the least
+ * reliably warmed — Socratic only starts warming it at Socratic entry — so it
+ * is the one most often paid for in full.
+ *
+ * One call, not four: the beats are explicitly a progression, and each `fix`
+ * micro-pass belongs to its own beat, so a beat is self-contained the moment
+ * it closes. `FeynmanView` dereferences `beat.fix.probe` directly, which is
+ * why `fix` is never deferred out of the beat.
+ */
+export async function* generateFeynmanStream(
+  params: FeynmanParams,
+): AsyncGenerator<StreamFrame> {
+  let yielded = 0;
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${feynmanContext(params)}
+
+Write the ${FEYNMAN_BEATS} beats as ${FEYNMAN_BEATS} SEPARATE top-level JSON objects, one
+after another — NOT wrapped in an array or a {"beats": [...]} object, no
+markdown fences, no numbering, no commentary before/after/between them. Each
+object has this shape:
+${FEYNMAN_BEAT_SHAPE}${languageNote(params.language ?? "en")}`,
+      ),
+      validateFeynmanBeat(params.nodeId),
+      { label: "feynman-stream" },
+    );
+    for await (const beat of stream) yield { p: "beats", i: yielded++, v: beat };
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "feynman_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const beats = await generateFeynman(params);
+    for (const [i, beat] of beats.entries()) yield { p: "beats", i, v: beat };
+  }
 }
 
 // ---- kind: connect ---------------------------------------------------------
@@ -1074,31 +1338,33 @@ Return JSON:
 // ---- kind: retain ----------------------------------------------------------
 
 const CARD_TYPES = ["recall", "why", "apply"] as const;
-const TONES: readonly ForecastTone[] = ["due", "soft", "solid"];
 
-function validateRetain(budgetMin: number, nodeIds: Set<string>) {
+/**
+ * The Retain generation is a card FACTORY, not the queue.
+ *
+ * What it produces is converted once into `StoredCard`s and then lives in the
+ * FSRS store forever; the queue the learner actually sees is rebuilt from that
+ * store by `retainContentFromStore`. So three things this prompt used to ask
+ * for were generated, validated, cached — and thrown away on arrival:
+ *
+ *   - `forecast`: rebuilt from real due dates by `forecastRows`.
+ *   - each card's `fsrs` intervals: rebuilt from the real scheduler by
+ *     `intervalLabels`. `newStoredCard` is typed `Omit<StoredCard, "fsrs">`
+ *     precisely because it supplies its own.
+ *   - each card's `id`: reassigned as `${node}-retain-${stamp}-${i}`.
+ *
+ * Together that was roughly a quarter of a blocking generation spent on
+ * output nothing reads. Asking for plausible-looking spaced-repetition
+ * intervals from a language model was always the wrong shape anyway — the
+ * scheduler knows them exactly.
+ */
+export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
   return (raw: unknown): RetainContent => {
     const root = obj(raw, "payload");
-    const forecast = arr(root.forecast, "forecast", 3, 3).map((v, i) => {
-      const f = obj(v, `forecast[${i}]`);
-      return {
-        label: str(f.label, `forecast[${i}].label`),
-        count: str(f.count, `forecast[${i}].count`),
-        sub: str(f.sub, `forecast[${i}].sub`),
-        tone: oneOf(f.tone, TONES, `forecast[${i}].tone`),
-      };
-    });
     const cards: ReviewCard[] = arr(root.cards, "cards", 4, 8).map((v, i) => {
       const c = obj(v, `cards[${i}]`);
       const node = str(c.node, `cards[${i}].node`).toLowerCase().replace(/[^a-z0-9-]/g, "-");
       if (!nodeIds.has(node)) fail(`cards[${i}].node "${node}" is not a learned node id`);
-      const fsrsRaw = obj(c.fsrs, `cards[${i}].fsrs`);
-      const fsrs = {
-        again: str(fsrsRaw.again, `cards[${i}].fsrs.again`),
-        hard: str(fsrsRaw.hard, `cards[${i}].fsrs.hard`),
-        good: str(fsrsRaw.good, `cards[${i}].fsrs.good`),
-        easy: str(fsrsRaw.easy, `cards[${i}].fsrs.easy`),
-      };
       const type = oneOf(c.type, CARD_TYPES, `cards[${i}].type`);
       const hasCloze = Array.isArray(c.cloze) && typeof c.answer === "string";
       const card: ReviewCard = {
@@ -1107,7 +1373,6 @@ function validateRetain(budgetMin: number, nodeIds: Set<string>) {
         source: str(c.source, `cards[${i}].source`),
         node,
         back: str(c.back, `cards[${i}].back`),
-        fsrs,
         fails: true,
         reExplain: str(c.reExplain, `cards[${i}].reExplain`),
       };
@@ -1122,7 +1387,7 @@ function validateRetain(budgetMin: number, nodeIds: Set<string>) {
       }
       return card;
     });
-    return { budgetMin, forecast, cards };
+    return { budgetMin, cards };
   };
 }
 
@@ -1136,19 +1401,17 @@ export async function generateRetain(params: {
   const { topic, budgetMin, nodes, interests, language = "en" } = params;
   return generateJson(
     user(
-      `Write today's Retain (spaced-review) queue for the topic "${topic}".
-Cards are auto-generated from earlier sessions — atomic, one fact each, varied by type. Daily budget: ~${budgetMin} minutes.
+      `Draft the review cards for the topic "${topic}".
+Cards are atomic — one fact each — and varied by type. Daily budget: ~${budgetMin} minutes.
 The learner's nodes in rotation (id: label — state):
 ${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}`).join("\n")}
 ${interestNote(interests)}
 
+Write the cards only. Scheduling — when each card is next due, and what each
+grade button is worth — is the scheduler's job, not yours.
+
 Return JSON:
 {
-  "forecast": [
-    {"label": "Due now", "count": "N cards", "sub": "~${budgetMin} min", "tone": "due"},
-    {"label": "Decaying this week", "count": "N cards", "sub": "recall dropping below 90%", "tone": "soft"},
-    {"label": "Rock-solid", "count": "N cards", "sub": "next lift 30 d+ out", "tone": "solid"}
-  ],
   "cards": [   // 5-6 cards; mix of types; "recall" cards use cloze, "why"/"apply" use front
     {
       "type": "recall" | "why" | "apply",
@@ -1158,7 +1421,6 @@ Return JSON:
       "answer": "what fills the blank",                                 // recall only
       "front": "the question",                                          // why/apply only
       "back": "the full answer revealed on flip, 1-2 sentences",
-      "fsrs": {"again": "<10 min", "hard": "1 d", "good": "4 d", "easy": "9 d"},   // plausible intervals per grade
       "reExplain": "the 30-second Socratic re-explanation shown if this card is missed"
     }, ...
   ]

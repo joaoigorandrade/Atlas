@@ -17,8 +17,10 @@ import {
   emptyGraph,
   feynmanGaps,
   feynmanReducer,
+  FEYNMAN_BEATS,
   feynmanStart,
   freshAdherence,
+  DIAGNOSTIC_COUNT,
   GOALS,
   initialStates,
   localDay,
@@ -33,6 +35,7 @@ import {
   rolloverAdherence,
   socraticReducer,
   socraticStart,
+  SOCRATIC_STEPS,
   spawnGap,
   toggleReminder,
   unmetPathOf,
@@ -82,13 +85,15 @@ import {
   fetchConsume,
   fetchConsumeStream,
   fetchCrucible,
-  fetchCurriculum,
+  fetchCurriculumStream,
   fetchFeynman,
+  fetchFeynmanStream,
   fetchJudgeCrucible,
   fetchJudgeFeynman,
   fetchJudgeSocratic,
   fetchRetain,
   fetchSocratic,
+  fetchSocraticStream,
   retainRequest,
   socraticRequest,
   WarmDeclined,
@@ -240,8 +245,20 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   } | null>(null);
   // The active Socratic (Phase 3a) session, or null.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
+  // Steps of the *current* node's questioning pass as they stream in — same
+  // arrangement as `liveConsume`: held apart from `socraticCache` so a
+  // half-arrived pass is never mistaken for a cached, reopenable one.
+  const [liveSocratic, setLiveSocratic] = useState<{
+    nodeId: string;
+    steps: SocraticStep[];
+  } | null>(null);
   // The active Feynman (Phase 3b) teach-back session, or null.
   const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
+  // …and the same for the teach-back's beats.
+  const [liveFeynman, setLiveFeynman] = useState<{
+    nodeId: string;
+    beats: FeynmanBeat[];
+  } | null>(null);
   // The active Connect (Phase 4 · Elaboration) session, or null.
   const [connect, setConnect] = useState<ConnectSession | null>(null);
   // The active Crucible (Phase 5 · application/transfer) session, or null.
@@ -692,8 +709,19 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
   /**
    * "Build my map": the AI generates the concept graph + placement diagnostic
-   * for the typed topic. The assembling moment plays while it thinks; the
-   * diagnostic opens once both the content and the animation are done.
+   * for the typed topic, streamed — the map arrives as its own frame and the
+   * three placement questions follow one at a time.
+   *
+   * This is the only generation in the app that can never be warmed (the node
+   * ids don't exist until it returns), so it is the one wait every learner
+   * pays. Streaming lets the assembly animation start on the graph rather than
+   * on the whole payload; the questions then land inside the animation's own
+   * dwell and cost nothing.
+   *
+   * `BUILD_MS` stays a floor, not a target: SPEC §2 calls the assembling
+   * moment a deliberate "this is mine" beat, not a spinner to be minimized.
+   * The diagnostic opens once that floor has passed *and* the first question
+   * has arrived.
    */
   const build = useCallback(() => {
     const topic = formRef.current.topic.trim();
@@ -708,48 +736,96 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     // mean something else.
     warm.clear();
     const started = Date.now();
-    fetchCurriculum({
-      topic,
-      goal: formRef.current.goal,
-      interests: formRef.current.interests,
-      outline: outline ?? undefined,
-      language: languageRef.current,
-    })
-      .then((payload) => {
-        // Too broad for one map: offer scoped sub-maps instead (#30).
-        if ("scopes" in payload) {
+    const questions: DiagnosticQuestion[] = [];
+    let opened = false;
+    let scoped = false;
+
+    /** Move to the diagnostic once the assembly beat has played out and there
+     *  is at least one question to ask. Idempotent — every frame tries. */
+    const openWhenReady = () => {
+      if (opened || scoped || questions.length === 0) return;
+      opened = true;
+      later(() => {
+        setScreen("diagnostic");
+        setAnswered(0);
+      }, Math.max(0, BUILD_MS - (Date.now() - started)));
+    };
+
+    fetchCurriculumStream(
+      {
+        topic,
+        goal: formRef.current.goal,
+        interests: formRef.current.interests,
+        outline: outline ?? undefined,
+        language: languageRef.current,
+      },
+      {
+        // Too broad for one map: offer scoped sub-maps instead (#30). Arrives
+        // first and alone, so nothing else is coming.
+        onScopes: (offers) => {
+          scoped = true;
           setScreen("welcome");
-          setScopes(payload.scopes);
+          setScopes(offers);
+        },
+        onGraph: (graph) => {
+          setGraph(graph);
+          setStates(initialStates(graph));
+          setPositions(
+            Object.fromEntries(graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
+          );
+          setSpawnedIds(new Set());
+          pendingGapsRef.current = [];
+          setLiveConsume(null);
+          setConsumeCache({});
+          setSocraticCache({});
+          setFeynmanCache({});
+          setConnectCache({});
+          setCrucibleCache({});
+          setRetainContent(null);
+          setCalibSamples([]);
+          setShakyReasons({});
+          setReviewedNodes([]);
+          setCards([]);
+          setDiagnostic([]);
+        },
+        onQuestion: (question, index) => {
+          questions[index] = question;
+          // Publish the dense prefix only: DiagnosticPanel indexes by answer
+          // count, so a hole would show question 3 in slot 2.
+          const dense: DiagnosticQuestion[] = [];
+          for (const q of questions) {
+            if (!q) break;
+            dense.push(q);
+          }
+          setDiagnostic(dense);
+          openWhenReady();
+        },
+      },
+    )
+      .then(() => {
+        if (scoped || opened) return;
+        // The graph landed but no question survived. Placement is a
+        // nice-to-have; the map is the product, so open it rather than
+        // failing a build the learner already watched assemble.
+        if (graphRef.current.nodes.length > 0) {
+          later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
           return;
         }
-        setGraph(payload.graph);
-        setStates(initialStates(payload.graph));
-        setPositions(
-          Object.fromEntries(
-            payload.graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }]),
-          ),
-        );
-        setDiagnostic(payload.diagnostic);
-        setSpawnedIds(new Set());
-        pendingGapsRef.current = [];
-        setLiveConsume(null);
-        setConsumeCache({});
-        setSocraticCache({});
-        setFeynmanCache({});
-        setConnectCache({});
-        setCrucibleCache({});
-        setRetainContent(null);
-        setCalibSamples([]);
-        setShakyReasons({});
-        setReviewedNodes([]);
-        setCards([]);
-        const wait = Math.max(0, BUILD_MS - (Date.now() - started));
-        later(() => {
-          setScreen("diagnostic");
-          setAnswered(0);
-        }, wait);
+        setScreen("welcome");
+        showToast("The writer returned an empty map — try again.", "Generation failed");
       })
       .catch((err: Error) => {
+        // Sections of the map may already be on screen; only a failure with
+        // nothing to show sends the learner back.
+        if (scoped) return;
+        if (questions.length > 0) {
+          openWhenReady();
+          return;
+        }
+        if (graphRef.current.nodes.length > 0) {
+          later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
+          return;
+        }
         setScreen("welcome");
         showToast(err.message, "Generation failed");
       });
@@ -1281,17 +1357,15 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       setLiveConsume({ nodeId: node.id, chunks: [] });
       open();
       let receivedAny = false;
-      fetchConsumeStream(consumeParams(node), (chunk) => {
+      fetchConsumeStream(consumeParams(node), (chunk, index) => {
         receivedAny = true;
         setLiveConsume((prev) => {
           if (!prev || prev.nodeId !== node.id) return prev;
           // A section arrives once fast (no `alt`) and again once its
-          // rewrites are ready — patch it in place, don't duplicate it.
-          const i = prev.chunks.findIndex((c) => c.id === chunk.id);
-          const chunks =
-            i === -1
-              ? [...prev.chunks, chunk]
-              : prev.chunks.map((c, idx) => (idx === i ? chunk : c));
+          // rewrites are ready — both carry the same index, so this patches
+          // in place rather than duplicating the section.
+          const chunks = [...prev.chunks];
+          chunks[index] = chunk;
           return { nodeId: node.id, chunks };
         });
       })
@@ -1375,13 +1449,13 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
    */
   const enterSocratic = useCallback(
     (node: ConceptNode) => {
-      const open = (steps: SocraticStep[]) => {
+      const open = (steps: SocraticStep[], total = steps.length) => {
         setStates((prev) =>
           prev[node.id] === "unknown" || prev[node.id] === undefined
             ? { ...prev, [node.id]: "learning" }
             : prev,
         );
-        setSocratic(socraticStart(node.id, steps));
+        setSocratic(socraticStart(node.id, steps, total));
         setSelectedId(node.id);
         setScreen("socratic");
         // Socratic hands straight off to Feynman — warm it now rather than
@@ -1393,15 +1467,68 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         open(cached);
         return;
       }
-      generate(
-        warmKey("socratic", node.id),
-        "Session · Socratic",
-        `Preparing the questions that build ${node.label}…`,
-        () => loadSocratic(node),
-        open,
-      );
+      const key = warmKey("socratic", node.id);
+      // A background warm is already writing this — join it rather than
+      // starting a second, duplicate request.
+      if (warm.has(key)) {
+        generate(
+          key,
+          "Session · Socratic",
+          `Preparing the questions that build ${node.label}…`,
+          () => loadSocratic(node),
+          (steps) => open(steps),
+        );
+        return;
+      }
+      if (loadingRef.current) return;
+      // Nothing cached and nothing warming: open on the first probe and let
+      // the rest arrive behind it, the way Consume already does.
+      setLiveSocratic({ nodeId: node.id, steps: [] });
+      open([], SOCRATIC_STEPS);
+      let receivedAny = false;
+      // The authoritative arrival order, kept in the closure so the hydrate
+      // dispatch below sees the same array the reducer will read.
+      const arrived: SocraticStep[] = [];
+      fetchSocraticStream(socraticParams(node), (step, index) => {
+        receivedAny = true;
+        arrived[index] = step;
+        setLiveSocratic((prev) =>
+          prev?.nodeId === node.id ? { nodeId: node.id, steps: [...arrived] } : prev,
+        );
+        // The session may be parked waiting for exactly this step.
+        setSocratic((prev) =>
+          prev?.nodeId === node.id
+            ? socraticReducer(prev, { type: "hydrate" }, arrived)
+            : prev,
+        );
+      })
+        .then((steps) => {
+          setSocraticCache((prev) =>
+            prev[node.id] ? prev : { ...prev, [node.id]: steps },
+          );
+          setLiveSocratic((prev) => (prev?.nodeId === node.id ? null : prev));
+          // A short pass still has to be finishable.
+          setSocratic((prev) =>
+            prev?.nodeId === node.id
+              ? socraticReducer(prev, { type: "hydrate", total: steps.length }, steps)
+              : prev,
+          );
+        })
+        .catch((err: Error) => {
+          if (receivedAny) {
+            showToast(
+              "Couldn't finish the rest of this questioning pass — the steps already written still work.",
+              "Generation incomplete",
+            );
+            return;
+          }
+          setScreen("map");
+          setSocratic(null);
+          setLiveSocratic(null);
+          showToast(err.message, "Generation failed");
+        });
     },
-    [generate, loadSocratic, warmOne],
+    [generate, loadSocratic, socraticParams, showToast, warm, warmOne],
   );
 
   const dispatchSocratic = useCallback(
@@ -1488,7 +1615,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
             ? { ...prev, [node.id]: "learning" }
             : prev,
         );
-        setFeynman(feynmanStart(node.id));
+        setFeynman(
+          feynmanStart(node.id, feynmanCacheRef.current[node.id]?.length ?? FEYNMAN_BEATS),
+        );
         setSelectedId(node.id);
         setScreen("feynman");
         // Feynman hands straight off to Connect — and the pool Connect keys on
@@ -1499,15 +1628,60 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         open();
         return;
       }
-      generate(
-        warmKey("feynman", node.id),
-        "Session · Feynman",
-        `Waking the naive student for ${node.label}…`,
-        () => loadFeynman(node),
-        open,
-      );
+      const key = warmKey("feynman", node.id);
+      // A background warm is already writing this — join it rather than
+      // starting a second, duplicate request.
+      if (warm.has(key)) {
+        generate(
+          key,
+          "Session · Feynman",
+          `Waking the naive student for ${node.label}…`,
+          () => loadFeynman(node),
+          open,
+        );
+        return;
+      }
+      if (loadingRef.current) return;
+      // Nothing cached and nothing warming: open on the first beat and let the
+      // rest arrive while the learner is still teaching it.
+      setLiveFeynman({ nodeId: node.id, beats: [] });
+      open();
+      let receivedAny = false;
+      const arrived: FeynmanBeat[] = [];
+      fetchFeynmanStream(feynmanParams(node), (beat, index) => {
+        receivedAny = true;
+        arrived[index] = beat;
+        setLiveFeynman((prev) =>
+          prev?.nodeId === node.id ? { nodeId: node.id, beats: [...arrived] } : prev,
+        );
+      })
+        .then((beats) => {
+          setFeynmanCache((prev) =>
+            prev[node.id] ? prev : { ...prev, [node.id]: beats },
+          );
+          setLiveFeynman((prev) => (prev?.nodeId === node.id ? null : prev));
+          // A pass that came up short still has to reach its Gap Report.
+          setFeynman((prev) =>
+            prev?.nodeId === node.id
+              ? feynmanReducer(prev, { type: "hydrate", total: beats.length }, beats)
+              : prev,
+          );
+        })
+        .catch((err: Error) => {
+          if (receivedAny) {
+            showToast(
+              "Couldn't finish the rest of this teach-back — the beats already written still work.",
+              "Generation incomplete",
+            );
+            return;
+          }
+          setScreen("map");
+          setFeynman(null);
+          setLiveFeynman(null);
+          showToast(err.message, "Generation failed");
+        });
     },
-    [generate, loadFeynman, warmOne],
+    [feynmanParams, generate, loadFeynman, showToast, warm, warmOne],
   );
 
   const dispatchFeynman = useCallback((action: FeynmanAction) => {
@@ -2515,8 +2689,16 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   // "Continue"/"Finish" affordance on the deepest streamed-in section so it
   // never reaches for a section that hasn't arrived yet.
   const consumeStreaming = !!consume && !consumeCache[consume.nodeId];
-  const socraticSteps = socratic ? socraticCache[socratic.nodeId] : undefined;
-  const feynmanBeats = feynman ? feynmanCache[feynman.nodeId] : undefined;
+  // Same fallback as Consume: the committed pass if it exists, otherwise
+  // whatever has streamed in for this node so far.
+  const socraticSteps = socratic
+    ? (socraticCache[socratic.nodeId] ??
+      (liveSocratic?.nodeId === socratic.nodeId ? liveSocratic.steps : undefined))
+    : undefined;
+  const feynmanBeats = feynman
+    ? (feynmanCache[feynman.nodeId] ??
+      (liveFeynman?.nodeId === feynman.nodeId ? liveFeynman.beats : undefined))
+    : undefined;
   const connectContent = connect ? connectCache[connect.nodeId] : undefined;
   const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
 
@@ -2701,6 +2883,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         <DiagnosticPanel
           topic={form.topic}
           questions={diagnostic}
+          // The placement always asks this many, even when the panel opens on
+          // the first one and the rest are still being written.
+          expected={DIAGNOSTIC_COUNT}
           answered={answered}
           onAnswer={answerDiagnostic}
           onStart={startMap}
