@@ -11,6 +11,7 @@ import {
   type ElaborationContent,
   type ElaborationLink,
 } from "@/lib/curriculum";
+import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
@@ -636,6 +637,11 @@ function LinkingPrompt({
           }}
         />
       </div>
+      <MicButton
+        value={draft}
+        onChange={(next) => onDraft(cand.id, next)}
+        accent={VIOLET}
+      />
       <button
         onClick={() => onConfirm(cand.id)}
         style={{
@@ -934,6 +940,11 @@ function MnemonicTool({
               }}
             />
           </div>
+          <MicButton
+            value={session.mnemonicDraft}
+            onChange={onDraftMnemonic}
+            accent={VIOLET}
+          />
           <button
             onClick={onAcceptMnemonic}
             style={{

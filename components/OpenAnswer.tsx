@@ -7,6 +7,7 @@
 // option index the closed path already keys on, so nothing downstream changes.
 
 import { useState } from "react";
+import { MicButton } from "@/components/VoiceInput";
 import { fetchJudgeChoice } from "@/lib/api";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -157,6 +158,12 @@ export function OpenAnswer({
           color: color.ink,
           opacity: judging ? 0.6 : 1,
         }}
+      />
+      <MicButton
+        value={text}
+        onChange={setText}
+        disabled={judging}
+        accent={accent}
       />
       <button
         onClick={submit}

@@ -16,6 +16,7 @@ import {
   type TeachVerdict,
 } from "@/lib/curriculum";
 import { InkDots } from "@/components/Pending";
+import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -189,8 +190,8 @@ export default function FeynmanView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [session.log.length]);
 
-  // The learner's own explanation of the current beat (#26) — typed for now,
-  // voice via STT is a follow-up. Resets when the beat advances.
+  // The learner's own explanation of the current beat (#26) — spoken or
+  // typed, whichever is faster. Resets when the beat advances.
   const [typed, setTyped] = useState("");
   useEffect(() => {
     setTyped("");
@@ -476,7 +477,8 @@ function Prompt({
 }
 
 /** The teach-the-next-beat dock: the learner's own words, judged for real (#26).
- *  Voice capture (STT) is a follow-up; typing is the honest v1. */
+ *  Voice-first per §SPEC — speaking is closer to real teaching — with typing
+ *  always there beside it. */
 function TeachDock({
   beat,
   scaffolded,
@@ -553,6 +555,9 @@ function TeachDock({
           opacity: judging ? 0.6 : 1,
         }}
       />
+      <div style={{ marginBottom: 12 }}>
+        <MicButton value={typed} onChange={onChangeTyped} disabled={judging} />
+      </div>
       <button
         onClick={onSend}
         disabled={judging || !typed.trim()}

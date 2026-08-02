@@ -13,6 +13,7 @@ import {
   type CrucibleSession,
 } from "@/lib/curriculum";
 import { InkDots } from "@/components/Pending";
+import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -287,6 +288,14 @@ export default function CrucibleView({
                       color: color.ink,
                       padding: "13px 14px",
                     }}
+                  />
+                </div>
+                <div style={{ marginBottom: 12, marginTop: -4 }}>
+                  <MicButton
+                    value={session.attempt}
+                    onChange={onAttempt}
+                    disabled={session.submitted}
+                    accent={RUST}
                   />
                 </div>
 

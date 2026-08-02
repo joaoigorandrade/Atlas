@@ -30,6 +30,7 @@ npm run typecheck  # tsc --noEmit
 - `components/onboarding/`, `components/map/` — presentational screens; they receive state + callbacks as props and hold no app state.
 - `lib/curriculum.ts` — the mastery-state vocabulary, session engines (pure reducers), and the re-planning model (gap spawning, goal ordering, pace math). Types and logic only — no domain data lives here.
 - `lib/theme.ts` — design tokens. Never hard-code a color/font that has a token.
+- `lib/speech.ts` — the voice seam (browser-native Web Speech): dictation, read-aloud, the device-level `atlas.voice` preference, and every `SpeechRecognition`/`speechSynthesis` detail. No component touches those APIs directly.
 - `lib/server/` — the OpenRouter client (`openrouter.ts`) and the per-kind content generators (`generate.ts`: prompts, validators, layout/ids/offsets post-processing). Server-only; the API key never reaches the browser.
 - `app/api/generate/route.ts` — the single generation endpoint the client posts to; `lib/api.ts` is its typed client wrapper.
 
@@ -136,6 +137,10 @@ job that fans out declares `Job.cost`.
   `components/OpenAnswer.tsx`, defaulting to "Own words": the free-text answer
   goes to the `judge` mode `"choice"`, which returns the option index the closed
   path already keys on. Never ship a question that can only be answered by tapping.
+- A free-text box gets `<MicButton>` from `components/VoiceInput.tsx` beside it —
+  speaking is an alternative to typing on every answer surface. It renders
+  nothing where the browser can't dictate or the learner has voice off, so the
+  fallback is free; voice follows the language setting, never a second choice.
 - Client components declare `"use client"`; keep server components the default elsewhere.
 - Mutable interaction state that shouldn't trigger renders (drag, pan, timers) lives in refs; renderable state in `useState`.
 - Path alias: `@/*` from the repo root (e.g. `@/lib/theme`).
