@@ -3,15 +3,53 @@
 import { useEffect, useRef, useState } from "react";
 import {
   HELP_COLOR,
-  HELP_LABELS,
   PHASES,
   STATE_COLOR,
+  helpLabels,
   type HelpLevel,
   type SocraticSession,
   type SocraticTurn,
 } from "@/lib/curriculum";
 import { InkDots } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    back: "← Map",
+    sessionLabel: "Session · Socratic",
+    scaffolding: "Scaffolding",
+    breadcrumbLead:
+      "Construct the idea · I catch wrong turns, I don’t smooth them over",
+    doneGap: "Sub-point rebuilt — this gap can close.",
+    doneUnderstood: "Understanding established — you reconstructed it unaided.",
+    advanceGap: "Close the gap · back to the map →",
+    advanceTeach: "Teach it back · Feynman →",
+    yourAnswer: "Your answer — in your own words",
+    placeholderJudging: "Reading your answer…",
+    placeholderAnswer: "Type what you think — wrong turns get caught, not judged",
+    send: "Send",
+    stuck: "I’m stuck · more help",
+    tellMe: "Just tell me",
+  },
+  "pt-BR": {
+    back: "← Mapa",
+    sessionLabel: "Sessão · Socrático",
+    scaffolding: "Apoio",
+    breadcrumbLead:
+      "Construa a ideia · eu flagro raciocínios errados, não deixo passar",
+    doneGap: "Subponto reconstruído — essa lacuna pode se fechar.",
+    doneUnderstood: "Compreensão estabelecida — você reconstruiu isso sozinho.",
+    advanceGap: "Fechar a lacuna · voltar ao mapa →",
+    advanceTeach: "Ensinar de volta · Feynman →",
+    yourAnswer: "Sua resposta — com suas próprias palavras",
+    placeholderJudging: "Lendo sua resposta…",
+    placeholderAnswer: "Digite o que você pensa — raciocínios errados são flagrados, não julgados",
+    send: "Enviar",
+    stuck: "Estou travado · mais ajuda",
+    tellMe: "Só me conte",
+  },
+} as const;
 
 // Socratic borrows the shared state colors: learning blue for the phase label,
 // mastered green for "understanding established", the scaffolding warmth from
@@ -60,6 +98,7 @@ export default function SocraticView({
   onTell,
   onAdvance,
 }: SocraticViewProps) {
+  const t = useT(STRINGS);
   // The learner's own answer, typed — cleared whenever a new turn lands.
   const [draft, setDraft] = useState("");
   useEffect(() => setDraft(""), [session.log.length]);
@@ -116,7 +155,7 @@ export default function SocraticView({
             color: color.inkMuted,
           }}
         >
-          ← Map
+          {t.back}
         </button>
         <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
         <span
@@ -128,7 +167,7 @@ export default function SocraticView({
             color: BLUE,
           }}
         >
-          Session · Socratic
+          {t.sessionLabel}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>{title}</div>
         <div style={{ flex: 1 }} />
@@ -141,7 +180,7 @@ export default function SocraticView({
             color: color.inkFaint,
           }}
         >
-          Scaffolding
+          {t.scaffolding}
         </span>
         <HelpDial help={session.help} />
       </div>
@@ -168,7 +207,7 @@ export default function SocraticView({
                   marginBottom: 22,
                 }}
               >
-                Construct the idea · I catch wrong turns, I don&rsquo;t smooth them over
+                {t.breadcrumbLead}
               </div>
               {session.log.map((m, i) => (
                 <Turn key={i} turn={m} />
@@ -206,9 +245,7 @@ export default function SocraticView({
                         background: GREEN,
                       }}
                     />
-                    {gapMode
-                      ? "Sub-point rebuilt — this gap can close."
-                      : "Understanding established — you reconstructed it unaided."}
+                    {gapMode ? t.doneGap : t.doneUnderstood}
                   </div>
                   <button
                     onClick={onAdvance}
@@ -225,7 +262,7 @@ export default function SocraticView({
                       boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
                     }}
                   >
-                    {gapMode ? "Close the gap · back to the map →" : "Teach it back · Feynman →"}
+                    {gapMode ? t.advanceGap : t.advanceTeach}
                   </button>
                 </div>
               ) : (
@@ -240,7 +277,7 @@ export default function SocraticView({
                       marginBottom: 9,
                     }}
                   >
-                    Your answer — in your own words
+                    {t.yourAnswer}
                   </div>
                   <div style={{ display: "flex", gap: 9, alignItems: "flex-end" }}>
                     <textarea
@@ -254,9 +291,7 @@ export default function SocraticView({
                         }
                       }}
                       placeholder={
-                        judging
-                          ? "Reading your answer…"
-                          : "Type what you think — wrong turns get caught, not judged"
+                        judging ? t.placeholderJudging : t.placeholderAnswer
                       }
                       rows={2}
                       style={{
@@ -290,7 +325,7 @@ export default function SocraticView({
                         cursor: judging || !draft.trim() ? "default" : "pointer",
                       }}
                     >
-                      {judging ? <InkDots size={3.5} /> : "Send"}
+                      {judging ? <InkDots size={3.5} /> : t.send}
                     </button>
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
@@ -307,7 +342,7 @@ export default function SocraticView({
                         cursor: "pointer",
                       }}
                     >
-                      I&rsquo;m stuck · more help
+                      {t.stuck}
                     </button>
                     <button
                       onClick={onTell}
@@ -322,7 +357,7 @@ export default function SocraticView({
                         cursor: "pointer",
                       }}
                     >
-                      Just tell me
+                      {t.tellMe}
                     </button>
                   </div>
                 </>
@@ -350,6 +385,7 @@ export default function SocraticView({
 
 /** The Silent · Hint · Guide · Show me dial; the active cell warms with help. */
 function HelpDial({ help }: { help: HelpLevel }) {
+  const { language } = useLanguage();
   return (
     <div
       style={{
@@ -361,7 +397,7 @@ function HelpDial({ help }: { help: HelpLevel }) {
         padding: 3,
       }}
     >
-      {HELP_LABELS.map((label, i) => {
+      {helpLabels(language).map((label, i) => {
         const active = i === help;
         const c = HELP_COLOR[i as HelpLevel];
         return (

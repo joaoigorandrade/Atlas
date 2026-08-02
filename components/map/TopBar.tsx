@@ -3,14 +3,38 @@
 import type { AdherenceState, DailyQueue } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
 import StreakFlame from "@/components/map/StreakFlame";
+import { useT } from "@/lib/i18n";
 
 export type Surface = "map" | "session" | "review";
 
-const SURFACES: ReadonlyArray<[Surface, string]> = [
-  ["map", "Map"],
-  ["session", "Session"],
-  ["review", "Review"],
-];
+const STRINGS = {
+  en: {
+    home: "Home",
+    surfaces: { map: "Map", session: "Session", review: "Review" },
+    searchPlaceholder: "Search concepts…",
+    queueClear: "Today's queue is clear",
+    queueDue: (cards: number) =>
+      `${cards} cards due now — framed in minutes, not a card wall`,
+    reviewClear: "Review · clear ✓",
+    reviewMinutes: (min: number) => `Review · ~${min} min`,
+    profileWith: (email: string) => `Profile (${email})`,
+    profile: "Profile",
+  },
+  "pt-BR": {
+    home: "Início",
+    surfaces: { map: "Mapa", session: "Sessão", review: "Revisão" },
+    searchPlaceholder: "Buscar conceitos…",
+    queueClear: "A fila de hoje está limpa",
+    queueDue: (cards: number) =>
+      `${cards} cartões vencidos agora — em minutos, não um mural de cartões`,
+    reviewClear: "Revisão · limpa ✓",
+    reviewMinutes: (min: number) => `Revisão · ~${min} min`,
+    profileWith: (email: string) => `Perfil (${email})`,
+    profile: "Perfil",
+  },
+} as const;
+
+const SURFACE_KEYS: Surface[] = ["map", "session", "review"];
 
 interface TopBarProps {
   query: string;
@@ -41,6 +65,7 @@ export default function TopBar({
   onHome,
   onProfile,
 }: TopBarProps) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -61,7 +86,7 @@ export default function TopBar({
     >
       <div
         onClick={onHome}
-        title="Home"
+        title={t.home}
         style={{
           fontFamily: font.serif,
           fontSize: 19,
@@ -84,7 +109,7 @@ export default function TopBar({
           marginLeft: 6,
         }}
       >
-        {SURFACES.map(([key, label]) => {
+        {SURFACE_KEYS.map((key) => {
           const active = key === "map";
           return (
             <button
@@ -102,7 +127,7 @@ export default function TopBar({
                 boxShadow: active ? "0 1px 3px rgba(44,40,35,0.1)" : "none",
               }}
             >
-              {label}
+              {t.surfaces[key]}
             </button>
           );
         })}
@@ -132,7 +157,7 @@ export default function TopBar({
         <input
           value={query}
           onChange={(e) => onQuery(e.target.value)}
-          placeholder="Search concepts…"
+          placeholder={t.searchPlaceholder}
           style={{
             flex: 1,
             border: "none",
@@ -147,9 +172,7 @@ export default function TopBar({
       <button
         onClick={() => onSurface("review")}
         title={
-          adherence.metToday
-            ? "Today's queue is clear"
-            : `${queue.cards} cards due now — framed in minutes, not a card wall`
+          adherence.metToday ? t.queueClear : t.queueDue(queue.cards)
         }
         style={{
           display: "flex",
@@ -172,13 +195,11 @@ export default function TopBar({
             background: color.accent,
           }}
         />
-        {adherence.metToday
-          ? "Review · clear ✓"
-          : `Review · ~${queue.minutes} min`}
+        {adherence.metToday ? t.reviewClear : t.reviewMinutes(queue.minutes)}
       </button>
       <button
         onClick={onProfile}
-        title={userEmail ? `Profile (${userEmail})` : "Profile"}
+        title={userEmail ? t.profileWith(userEmail) : t.profile}
         style={{
           width: 32,
           height: 32,

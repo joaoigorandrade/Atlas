@@ -118,6 +118,19 @@ function user(content: string): ChatMessage[] {
   return [SYSTEM, { role: "user", content }];
 }
 
+// Server-safe copy of lib/i18n.tsx's type — that file is "use client" and
+// must never be imported from server code, so this is redeclared here (the
+// base engine file) and re-exported for lib/server/job.ts to use.
+export type Language = "en" | "pt-BR";
+
+/** Appended to every prompt. Field NAMES stay English (the app parses fixed
+ *  keys) — only the natural-language VALUES the model writes should switch. */
+function languageNote(language: Language | undefined): string {
+  return language === "pt-BR"
+    ? "\n\nRespond entirely in Brazilian Portuguese (pt-BR): every natural-language string value. Keep all JSON field names and enum values (e.g. \"correct\", \"mastered\") exactly as specified in English."
+    : "";
+}
+
 /** Personal-interest flavoring shared by several prompts. */
 function interestNote(interests: string): string {
   return interests.trim()
@@ -291,8 +304,9 @@ export async function generateCurriculum(params: {
   interests: string;
   /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
   outline?: string;
+  language?: Language;
 }): Promise<CurriculumPayload | { scopes: ScopeOffer[] }> {
-  const { topic, goal, interests, outline } = params;
+  const { topic, goal, interests, outline, language = "en" } = params;
   const grounding = outline?.trim()
     ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
     : "";
@@ -323,7 +337,7 @@ Otherwise return JSON:
   ]
 }
 
-Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own.`,
+Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own.${languageNote(language)}`,
     ),
     validateCurriculum,
     { label: "curriculum" },
@@ -467,8 +481,9 @@ function consumeContext(params: {
   nodeLabel: string;
   prereqLabels: string[];
   interests: string;
+  language?: Language;
 }): string {
-  const { topic, nodeLabel, prereqLabels, interests } = params;
+  const { topic, nodeLabel, prereqLabels, interests, language = "en" } = params;
   return `Write the Consume (first reading) pass for the concept "${nodeLabel}" within the topic "${topic}".
 The learner already knows: ${prereqLabels.join(", ") || "nothing yet — this is a foundation"}.
 ${interestNote(interests)}
@@ -485,7 +500,7 @@ Rules for the prose:
   shown that", no bullet-point skeletons, no restating the section title.
 - Build in order: what it is → why it works / where it comes from → how it
   behaves → where it breaks or is misused → how it connects onward.
-- Name the common misconception explicitly and say why it is wrong.`;
+- Name the common misconception explicitly and say why it is wrong.${languageNote(language)}`;
 }
 
 /** The shape of one Consume section — shared by the single-shot prompt (as
@@ -544,7 +559,7 @@ const ALT_SHAPE = `{
  */
 async function generateConsumeAlts(
   sections: ConsumeChunk[],
-  params: { topic: string; nodeLabel: string },
+  params: { topic: string; nodeLabel: string; language?: Language },
 ): Promise<Array<Record<AltKey, string>>> {
   return generateJson(
     user(
@@ -562,7 +577,7 @@ Worked example (${c.example.title}): ${c.example.steps.join(" ")}`,
 For EACH section above, in the same order, write the four adaptive-modality rewrites a learner can switch to instead of the main prose. Return JSON:
 {
   "alts": [${ALT_SHAPE}, ...]
-}`,
+}${languageNote(params.language)}`,
     ),
     validateConsumeAlts,
     { label: "consume-alt" },
@@ -579,6 +594,7 @@ export async function generateConsume(params: {
   nodeLabel: string;
   prereqLabels: string[];
   interests: string;
+  language?: Language;
 }): Promise<ConsumeChunk[]> {
   return generateJson(
     user(
@@ -619,6 +635,7 @@ export async function* generateConsumeStream(params: {
   nodeLabel: string;
   prereqLabels: string[];
   interests: string;
+  language?: Language;
 }): AsyncGenerator<ConsumeChunk> {
   let yielded = 0;
   const sections: ConsumeChunk[] = [];
@@ -631,7 +648,7 @@ Write the 5 sections as 5 SEPARATE top-level JSON objects, one after another
 — NOT wrapped in an array or a {"chunks": [...]} object, no markdown fences,
 no numbering, no commentary before/after/between them. Each object has this
 shape:
-${CONSUME_SECTION_SHAPE_FAST}`,
+${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
       ),
       validateConsumeSection,
     );
@@ -710,8 +727,9 @@ export async function generateSocratic(params: {
   topic: string;
   nodeLabel: string;
   interests: string;
+  language?: Language;
 }): Promise<SocraticStep[]> {
-  const { topic, nodeLabel, interests } = params;
+  const { topic, nodeLabel, interests, language = "en" } = params;
   return generateJson(
     user(
       `Write a Socratic questioning session (4 steps) for the concept "${nodeLabel}" within "${topic}".
@@ -731,7 +749,7 @@ Return JSON:
       "tell": "the direct instruction for 'Just tell me' — complete and precise"
     }, ...
   ]
-}`,
+}${languageNote(language)}`,
     ),
     validateSocratic,
     { label: "socratic" },
@@ -803,8 +821,9 @@ export async function generateFeynman(params: {
   nodeId: string;
   nodeLabel: string;
   interests: string;
+  language?: Language;
 }): Promise<FeynmanBeat[]> {
-  const { topic, nodeId, nodeLabel, interests } = params;
+  const { topic, nodeId, nodeLabel, interests, language = "en" } = params;
   return generateJson(
     user(
       `Write a Feynman teach-back session (4 beats) for the concept "${nodeLabel}" within "${topic}".
@@ -831,7 +850,7 @@ Return JSON:
       "gapReason": "why it split out, phrased to the learner ('you taught X as Y — the Z trap')"
     }, ...
   ]
-}`,
+}${languageNote(language)}`,
     ),
     validateFeynman(nodeId),
     { label: "feynman" },
@@ -906,8 +925,9 @@ export async function generateConnect(params: {
   nodeLabel: string;
   pool: Array<{ id: string; label: string }>;
   interests: string;
+  language?: Language;
 }): Promise<ElaborationContent> {
-  const { topic, nodeId, nodeLabel, pool, interests } = params;
+  const { topic, nodeId, nodeLabel, pool, interests, language = "en" } = params;
   return generateJson(
     user(
       `Write the Connect (elaboration) pass for the concept "${nodeLabel}" within "${topic}".
@@ -928,7 +948,7 @@ Return JSON:
   "mnemonics": [                       // list-like only: 3 offered aids
     {"kind": "Acronym" | "Method of loci" | "Vivid image", "title": "short title", "body": "the aid itself, editable"}
   ]
-}`,
+}${languageNote(language)}`,
     ),
     validateConnect(nodeId, nodeLabel, pool),
     { label: "connect" },
@@ -1011,8 +1031,9 @@ export async function generateCrucible(params: {
   nodeLabel: string;
   masteredLabels: string[];
   interests: string;
+  language?: Language;
 }): Promise<CrucibleContent> {
-  const { topic, nodeId, nodeLabel, masteredLabels, interests } = params;
+  const { topic, nodeId, nodeLabel, masteredLabels, interests, language = "en" } = params;
   return generateJson(
     user(
       `Write the Crucible (application/transfer) pass for the concept "${nodeLabel}" within "${topic}".
@@ -1043,7 +1064,7 @@ Return JSON:
   "gapLabel": "that failed sub-concept as a map label (3-7 words)",
   "gapReason": "why it split out, phrased to the learner",
   "reExplain": "a 30-second Socratic re-explanation aimed straight at the gap, ending with one question"
-}`,
+}${languageNote(language)}`,
     ),
     validateCrucible(nodeId, nodeLabel, masteredLabels),
     { label: "crucible" },
@@ -1110,8 +1131,9 @@ export async function generateRetain(params: {
   budgetMin: number;
   nodes: Array<{ id: string; label: string; state: string }>;
   interests: string;
+  language?: Language;
 }): Promise<RetainContent> {
-  const { topic, budgetMin, nodes, interests } = params;
+  const { topic, budgetMin, nodes, interests, language = "en" } = params;
   return generateJson(
     user(
       `Write today's Retain (spaced-review) queue for the topic "${topic}".
@@ -1140,7 +1162,7 @@ Return JSON:
       "reExplain": "the 30-second Socratic re-explanation shown if this card is missed"
     }, ...
   ]
-}`,
+}${languageNote(language)}`,
     ),
     validateRetain(budgetMin, new Set(nodes.map((n) => n.id))),
     { label: "retain" },
@@ -1172,8 +1194,9 @@ export async function judgeSocratic(params: {
   question: string;
   reference: string;
   answer: string;
+  language?: Language;
 }): Promise<SocraticJudgement> {
-  const { topic, nodeLabel, question, reference, answer } = params;
+  const { topic, nodeLabel, question, reference, answer, language = "en" } = params;
   return generateJson(
     [
       JUDGE_SYSTEM,
@@ -1190,7 +1213,7 @@ Classify and respond contingently:
 - "wrong": contains a real error or misconception → name the error plainly and specifically, quoting their words; do not reveal the full answer.
 - "lost": empty, "I don't know", or entirely off-track → drop the Socratic act and teach the answer directly and completely.
 
-Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner"}`,
+Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner"}${languageNote(language)}`,
       },
     ],
     (raw) => {
@@ -1215,8 +1238,9 @@ export async function judgeFeynman(params: {
   subPoint: string;
   reference: string;
   explanation: string;
+  language?: Language;
 }): Promise<FeynmanJudgement> {
-  const { topic, nodeLabel, subPoint, reference, explanation } = params;
+  const { topic, nodeLabel, subPoint, reference, explanation, language = "en" } = params;
   return generateJson(
     [
       JUDGE_SYSTEM,
@@ -1234,7 +1258,7 @@ Diff their explanation against the sub-point:
 
 Respond AS the naive student, quoting or referencing the learner's actual words: pleased if good, still-puzzled and naming what was skipped if skipped, noticing the contradiction if confused.
 
-Return JSON: {"verdict": "good" | "skipped" | "confused", "response": "the naive student's reaction, referencing their words"}`,
+Return JSON: {"verdict": "good" | "skipped" | "confused", "response": "the naive student's reaction, referencing their words"}${languageNote(language)}`,
       },
     ],
     (raw) => {
@@ -1263,8 +1287,9 @@ export async function judgeCrucible(params: {
   problem: string;
   hint: string;
   attempt: string;
+  language?: Language;
 }): Promise<CrucibleJudgement> {
-  const { topic, nodeLabel, problem, hint, attempt } = params;
+  const { topic, nodeLabel, problem, hint, attempt, language = "en" } = params;
   return generateJson(
     [
       JUDGE_SYSTEM,
@@ -1286,7 +1311,7 @@ Return JSON:
   "gapLabel": "the missing sub-concept as a map label (3-7 words)",   // partial only
   "gapReason": "why it split out, phrased to the learner, quoting their error",   // partial only
   "reExplain": "a 30-second Socratic re-explanation aimed straight at that gap, ending with one question"   // partial only
-}`,
+}${languageNote(language)}`,
       },
     ],
     (raw) => {
@@ -1341,8 +1366,9 @@ export async function judgeChoice(params: {
   question: string;
   options: string[];
   answer: string;
+  language?: Language;
 }): Promise<ChoiceJudgement> {
-  const { topic, nodeLabel, question, options, answer } = params;
+  const { topic, nodeLabel, question, options, answer, language = "en" } = params;
   return generateJson(
     [
       JUDGE_SYSTEM,
@@ -1357,7 +1383,7 @@ ${options.map((o, i) => `${i}. ${o}`).join("\n")}
 
 Pick the candidate that matches what they ACTUALLY said, not what they should have said. Empty, vague, evasive or off-topic answers map to the weakest / least-correct candidate — never a generous one.
 
-Return JSON: {"index": <number>, "response": "one sentence to the learner naming what their answer showed, quoting their words"}`,
+Return JSON: {"index": <number>, "response": "one sentence to the learner naming what their answer showed, quoting their words"}${languageNote(language)}`,
       },
     ],
     validateChoice(options.length),

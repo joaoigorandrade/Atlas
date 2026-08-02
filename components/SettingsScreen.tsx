@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react";
 import {
   DAILY_TARGETS,
-  GOALS,
+  goals,
   localDay,
   reminderCopy,
   STATE_COLOR,
@@ -11,6 +11,68 @@ import {
   type OnboardingForm,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    back: "← Back",
+    settings: "Settings",
+    tuneTheRun: "Tune the run",
+    goal: "Goal",
+    goalHint: "steers what we prune and prioritize",
+    examDate: "Exam date",
+    examDateHint: "the countdown and pace math read this",
+    dailyTarget: "Daily target",
+    dailyTargetHint: "streak unit & honest queue budget",
+    minutes: (min: number) => `${min} min`,
+    interests: "Interests",
+    interestsHint: "analogies & examples draw from these",
+    interestsPlaceholder: "e.g. chess, investing, cooking",
+    reminder: "Reminder",
+    language: "Language",
+    languageHint: "interface & AI-generated content",
+    english: "English",
+    portuguese: "Português",
+    yourData: "Your data",
+    yourDataHint: "it's yours — take it anywhere",
+    exportMap: "Export map · nodes, edges & mastery states (JSON)",
+    exportCardsJson: "Export cards · full deck with scheduling (JSON)",
+    exportCardsCsv: "Export cards · Anki-importable (CSV)",
+    account: "Account",
+    accountHint: "delete everything — no take-backs",
+    deleteAccount: "Delete account & all data",
+    privacyData: "Privacy & data",
+  },
+  "pt-BR": {
+    back: "← Voltar",
+    settings: "Configurações",
+    tuneTheRun: "Ajuste a jornada",
+    goal: "Objetivo",
+    goalHint: "orienta o que priorizamos e deixamos de lado",
+    examDate: "Data da prova",
+    examDateHint: "alimenta a contagem regressiva e o cálculo de ritmo",
+    dailyTarget: "Meta diária",
+    dailyTargetHint: "unidade de sequência e orçamento honesto de fila",
+    minutes: (min: number) => `${min} min`,
+    interests: "Interesses",
+    interestsHint: "de onde vêm as analogias e exemplos",
+    interestsPlaceholder: "ex.: xadrez, investimentos, culinária",
+    reminder: "Lembrete",
+    language: "Idioma",
+    languageHint: "interface e conteúdo gerado por IA",
+    english: "English",
+    portuguese: "Português",
+    yourData: "Seus dados",
+    yourDataHint: "são seus — leve para onde quiser",
+    exportMap: "Exportar mapa · nós, conexões e domínio (JSON)",
+    exportCardsJson: "Exportar cartões · baralho completo com cronograma (JSON)",
+    exportCardsCsv: "Exportar cartões · importável no Anki (CSV)",
+    account: "Conta",
+    accountHint: "excluir tudo — sem volta",
+    deleteAccount: "Excluir conta e todos os dados",
+    privacyData: "Privacidade e dados",
+  },
+} as const;
 
 // Settings (§16, #32): the onboarding choices stay editable for the life of a
 // run — goal & exam date, daily target, interests, reminders — plus data
@@ -84,6 +146,8 @@ export default function SettingsScreen({
   onDeleteAccount,
   onExit,
 }: SettingsScreenProps) {
+  const t = useT(STRINGS);
+  const { language, setLanguage } = useLanguage();
   return (
     <div
       style={{
@@ -116,9 +180,9 @@ export default function SettingsScreen({
             marginBottom: 26,
           }}
         >
-          ← Back
+          {t.back}
         </button>
-        <div style={{ ...kicker(11, "0.2em"), marginBottom: 14 }}>Settings</div>
+        <div style={{ ...kicker(11, "0.2em"), marginBottom: 14 }}>{t.settings}</div>
         <h1
           style={{
             fontFamily: font.serif,
@@ -128,12 +192,12 @@ export default function SettingsScreen({
             margin: "0 0 36px",
           }}
         >
-          Tune the run
+          {t.tuneTheRun}
         </h1>
 
-        <Section label="Goal" hint="steers what we prune and prioritize">
+        <Section label={t.goal} hint={t.goalHint}>
           <div style={{ display: "flex", gap: 10 }}>
-            {GOALS.map(([key, label]) => (
+            {goals(language).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => onChange({ goal: key })}
@@ -153,10 +217,8 @@ export default function SettingsScreen({
               }}
             >
               <span style={{ fontSize: 14, color: color.inkSoft }}>
-                Exam date{" "}
-                <span style={{ color: color.inkGhost }}>
-                  — the countdown and pace math read this
-                </span>
+                {t.examDate}{" "}
+                <span style={{ color: color.inkGhost }}>— {t.examDateHint}</span>
               </span>
               <input
                 type="date"
@@ -177,7 +239,24 @@ export default function SettingsScreen({
           )}
         </Section>
 
-        <Section label="Daily target" hint="streak unit & honest queue budget">
+        <Section label={t.language} hint={t.languageHint}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => setLanguage("en")}
+              style={optionStyle(language === "en", true)}
+            >
+              {t.english}
+            </button>
+            <button
+              onClick={() => setLanguage("pt-BR")}
+              style={optionStyle(language === "pt-BR", true)}
+            >
+              {t.portuguese}
+            </button>
+          </div>
+        </Section>
+
+        <Section label={t.dailyTarget} hint={t.dailyTargetHint}>
           <div style={{ display: "flex", gap: 10 }}>
             {DAILY_TARGETS.map((minutes) => (
               <button
@@ -185,17 +264,17 @@ export default function SettingsScreen({
                 onClick={() => onChange({ target: minutes })}
                 style={optionStyle(form.target === minutes, false)}
               >
-                {minutes} min
+                {t.minutes(minutes)}
               </button>
             ))}
           </div>
         </Section>
 
-        <Section label="Interests" hint="analogies & examples draw from these">
+        <Section label={t.interests} hint={t.interestsHint}>
           <input
             value={form.interests}
             onChange={(e) => onChange({ interests: e.target.value })}
-            placeholder="e.g. chess, investing, cooking"
+            placeholder={t.interestsPlaceholder}
             style={{
               width: "100%",
               background: color.card,
@@ -208,7 +287,7 @@ export default function SettingsScreen({
           />
         </Section>
 
-        <Section label="Reminder">
+        <Section label={t.reminder}>
           <button
             onClick={onToggleReminder}
             style={{
@@ -245,25 +324,25 @@ export default function SettingsScreen({
                 }}
               />
             </span>
-            {reminderCopy(adherence)}
+            {reminderCopy(adherence, language)}
           </button>
         </Section>
 
-        <Section label="Your data" hint="it's yours — take it anywhere">
+        <Section label={t.yourData} hint={t.yourDataHint}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button onClick={onExportMap} style={exportStyle}>
-              Export map · nodes, edges &amp; mastery states (JSON)
+              {t.exportMap}
             </button>
             <button onClick={onExportCardsJson} style={exportStyle}>
-              Export cards · full deck with scheduling (JSON)
+              {t.exportCardsJson}
             </button>
             <button onClick={onExportCardsCsv} style={exportStyle}>
-              Export cards · Anki-importable (CSV)
+              {t.exportCardsCsv}
             </button>
           </div>
         </Section>
 
-        <Section label="Account" hint="delete everything — no take-backs">
+        <Section label={t.account} hint={t.accountHint}>
           <button
             onClick={onDeleteAccount}
             style={{
@@ -273,11 +352,11 @@ export default function SettingsScreen({
               border: `1px solid ${STATE_COLOR.gap}`,
             }}
           >
-            Delete account &amp; all data
+            {t.deleteAccount}
           </button>
           <div style={{ marginTop: 16, fontSize: 12.5, color: color.inkGhost }}>
             <a href="/privacy" style={{ color: color.inkMuted }}>
-              Privacy &amp; data
+              {t.privacyData}
             </a>
           </div>
         </Section>

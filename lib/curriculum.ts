@@ -5,6 +5,8 @@
 // module holds only types, tokens, and logic. Nothing domain-specific lives
 // here anymore.
 
+import type { Language } from "@/lib/i18n";
+
 export type NodeState =
   | "unknown"
   | "frontier"
@@ -70,6 +72,20 @@ export const STATE_LABEL: Record<NodeState, string> = {
   gap: "Gap",
 };
 
+const STATE_LABEL_PT: Record<NodeState, string> = {
+  unknown: "Desconhecido",
+  frontier: "Fronteira · pronto",
+  learning: "Aprendendo",
+  shaky: "Instável",
+  mastered: "Dominado",
+  gap: "Lacuna",
+};
+
+/** Language-aware state label. */
+export function stateLabel(state: NodeState, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? STATE_LABEL_PT : STATE_LABEL)[state];
+}
+
 /** Calibration/metacognition copy shown in the node detail rail per state. */
 export const STATE_CONFIDENCE: Record<NodeState, string> = {
   mastered:
@@ -84,6 +100,25 @@ export const STATE_CONFIDENCE: Record<NodeState, string> = {
     "Locked. Clear the prerequisites below and this lights up on your frontier.",
   gap: "Spawned from a detected failure. A targeted Socratic pass closes just this sub-point.",
 };
+
+const STATE_CONFIDENCE_PT: Record<NodeState, string> = {
+  mastered:
+    "Compreendido, retido e aplicado em um contexto novo. Isso é domínio de verdade — mantenha-o vivo na Revisão.",
+  frontier:
+    "Pré-requisitos cumpridos. Esta é sua fronteira — o lugar certo para começar. Comece com uma leitura curta no Consumir.",
+  learning:
+    "A compreensão está se formando. Ensine de volta em seguida para revelar as partes que você ainda está enrolando.",
+  shaky:
+    "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente o Crisol de novo.",
+  unknown:
+    "Bloqueado. Resolva os pré-requisitos abaixo e isso se acende na sua fronteira.",
+  gap: "Originado de uma falha detectada. Uma passagem Socrática direcionada fecha só esse subponto.",
+};
+
+/** Language-aware state-confidence copy. */
+export function stateConfidence(state: NodeState, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? STATE_CONFIDENCE_PT : STATE_CONFIDENCE)[state];
+}
 
 /** How a node became Shaky — selects an honest confidence line (#14). */
 export type ShakyReason =
@@ -103,9 +138,25 @@ export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
     "A review card on this slipped — retention is softening. Re-attempt the Crucible to firm it back up.",
 };
 
+const SHAKY_REASON_COPY_PT: Record<ShakyReason, string> = {
+  "connect-complete":
+    "Compreendido e conectado — agora prove que isso se transfere no Crisol.",
+  "diagnostic-hesitation":
+    "Você hesitou nisso no diagnóstico de posicionamento — provavelmente é frágil. Uma tentativa no Crisol mostra se resiste.",
+  "crucible-fail":
+    "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente o Crisol de novo.",
+  "review-miss":
+    "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente o Crisol de novo para firmar de novo.",
+};
+
 /** The Shaky confidence line, honest about how the node got there. */
-export function shakyLine(reason: ShakyReason | undefined): string {
-  return SHAKY_REASON_COPY[reason ?? "crucible-fail"];
+export function shakyLine(
+  reason: ShakyReason | undefined,
+  lang: Language = "en",
+): string {
+  return (lang === "pt-BR" ? SHAKY_REASON_COPY_PT : SHAKY_REASON_COPY)[
+    reason ?? "crucible-fail"
+  ];
 }
 
 export const PHASES = [
@@ -132,6 +183,20 @@ export const PHASE_SKIP_NUDGE: Record<Phase, string> = {
   Retained: "This isn't in your review rotation yet — want to?",
 };
 
+const PHASE_SKIP_NUDGE_PT: Record<Phase, string> = {
+  Consume: "Você ainda não leu isso — quer ler?",
+  Socratic: "Você ainda não raciocinou sobre isso — quer tentar?",
+  Feynman: "Você ainda não ensinou isso de volta — quer tentar?",
+  Connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",
+  Crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?",
+  Retained: "Isso ainda não está na sua rotação de revisão — quer adicionar?",
+};
+
+/** Language-aware phase-skip nudge. */
+export function phaseSkipNudge(phase: Phase, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? PHASE_SKIP_NUDGE_PT : PHASE_SKIP_NUDGE)[phase];
+}
+
 // ---- Phase 2 · Consume (the Learn view) ------------------------------------
 // The segmented, dual-coded reading content for a Consume session. Each
 // node's sections are generated on entry (kind "consume").
@@ -151,6 +216,18 @@ export const ALT_CONTROLS: ReadonlyArray<[AltKey, string]> = [
   ["analogy", "Analogy"],
   ["deeper", "Go deeper"],
 ];
+
+const ALT_CONTROLS_PT: ReadonlyArray<[AltKey, string]> = [
+  ["simpler", "Mais simples"],
+  ["example", "Exemplo"],
+  ["analogy", "Analogia"],
+  ["deeper", "Aprofundar"],
+];
+
+/** Language-aware alt-rewrite controls. */
+export function altControls(lang: Language = "en"): ReadonlyArray<[AltKey, string]> {
+  return lang === "pt-BR" ? ALT_CONTROLS_PT : ALT_CONTROLS;
+}
 
 /** A key term pre-taught before the paragraph that first uses it. */
 export interface ConsumeTerm {
@@ -245,6 +322,13 @@ export interface ConsumeChunk {
 /** The scaffolding dial, least help → most. Falls toward Silent with mastery. */
 export const HELP_LABELS = ["Silent", "Hint", "Guide", "Show me"] as const;
 export type HelpLevel = 0 | 1 | 2 | 3;
+
+const HELP_LABELS_PT = ["Silencioso", "Dica", "Guiar", "Mostre-me"] as const;
+
+/** Language-aware scaffolding-dial labels. */
+export function helpLabels(lang: Language = "en"): readonly string[] {
+  return lang === "pt-BR" ? HELP_LABELS_PT : HELP_LABELS;
+}
 
 /** Warmer = more help. The dial and its active cell read this. */
 export const HELP_COLOR: Record<HelpLevel, string> = {
@@ -491,6 +575,17 @@ export const VERDICT_LABEL: Record<TeachVerdict, string> = {
   confused: "Wrong · confused",
 };
 
+const VERDICT_LABEL_PT: Record<TeachVerdict, string> = {
+  good: "Bem explicado",
+  skipped: "Pulado · enrolado",
+  confused: "Errado · confuso",
+};
+
+/** Language-aware Gap Report verdict label. */
+export function verdictLabel(verdict: TeachVerdict, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? VERDICT_LABEL_PT : VERDICT_LABEL)[verdict];
+}
+
 /** One line of the teach-back transcript — the learner speaking, or the student. */
 export interface TeachLine {
   role: "learner" | "ai";
@@ -534,6 +629,14 @@ export interface FeynmanBeat {
 /** The scaffold offered when the learner freezes — never a blank wall. */
 export const FEYNMAN_SCAFFOLD =
   "No blank-wall panic. Start with the simplest thing: what problem does this concept actually solve? Teach me that first — the rest pulls itself out.";
+
+const FEYNMAN_SCAFFOLD_PT =
+  "Sem pânico de tela em branco. Comece pelo mais simples: que problema esse conceito realmente resolve? Ensine-me isso primeiro — o resto sai sozinho.";
+
+/** Language-aware freeze scaffold. */
+export function feynmanScaffold(lang: Language = "en"): string {
+  return lang === "pt-BR" ? FEYNMAN_SCAFFOLD_PT : FEYNMAN_SCAFFOLD;
+}
 
 /** The live state of one Feynman session — held by AtlasApp, read by the view. */
 export interface FeynmanSession {
@@ -808,6 +911,13 @@ export interface ElaborationContent {
 /** The three memory aids shown struck-through when the content is conceptual. */
 export const MNEMONIC_TOOLS_OFF = ["Memory palace", "Acronym", "Vivid image"] as const;
 
+const MNEMONIC_TOOLS_OFF_PT = ["Palácio da memória", "Acrônimo", "Imagem vívida"] as const;
+
+/** Language-aware struck-through mnemonic tool names. */
+export function mnemonicToolsOff(lang: Language = "en"): readonly string[] {
+  return lang === "pt-BR" ? MNEMONIC_TOOLS_OFF_PT : MNEMONIC_TOOLS_OFF;
+}
+
 /** The live state of one Connect session — held by AtlasApp, read by the view. */
 export interface ConnectSession {
   nodeId: string;
@@ -974,6 +1084,17 @@ export const CONFIDENCE_LEVELS = [
   "Very confident",
 ] as const;
 export type ConfidenceLevel = 0 | 1 | 2;
+
+const CONFIDENCE_LEVELS_PT = [
+  "Não tenho certeza",
+  "Bastante confiante",
+  "Muito confiante",
+] as const;
+
+/** Language-aware pre-problem confidence levels. */
+export function confidenceLevels(lang: Language = "en"): readonly string[] {
+  return lang === "pt-BR" ? CONFIDENCE_LEVELS_PT : CONFIDENCE_LEVELS;
+}
 
 /** One rung of the escalating difficulty ladder (deliberate practice). */
 export interface CrucibleRung {
@@ -1146,7 +1267,22 @@ export function crucibleCurrentRung(session: CrucibleSession): number {
  * happened. Overconfidence (felt sure, transfer broke) is the thing this phase
  * exists to catch; low confidence that proved real is well-calibrated.
  */
-export function crucibleCalib(session: CrucibleSession): string {
+export function crucibleCalib(
+  session: CrucibleSession,
+  lang: Language = "en",
+): string {
+  if (lang === "pt-BR") {
+    if (session.outcome === "partial") {
+      if (session.conf === 2)
+        return "Você disse “Muito confiante” — e a transferência na primeira tentativa ainda quebrou. Essa distância entre a sensação e o resultado é exatamente o excesso de confiança que esta fase existe para pegar.";
+      if (session.conf === 0)
+        return "Você sinalizou baixa confiança, e o ponto instável era real — isso é bem calibrado. Agora feche essa lacuna.";
+      return "Você se sentiu razoavelmente confiante, mas um subconceito não se transferiu. Registre a diferença entre se sentir pronto e estar pronto.";
+    }
+    if (session.outcome === "pass")
+      return "Confiança e resultado agora se alinham — isso é domínio calibrado, não fluência.";
+    return "";
+  }
   if (session.outcome === "partial") {
     if (session.conf === 2)
       return "You said “Very confident” — and the first-try transfer still broke. That distance between the feeling and the result is exactly the overconfidence this phase exists to catch.";
@@ -1186,6 +1322,22 @@ export const REVIEW_TYPE_META: Record<
   apply: { label: "Application", color: CRUCIBLE_COLOR.accent },
 };
 
+const REVIEW_TYPE_LABEL_PT: Record<ReviewCardType, string> = {
+  recall: "Recordar",
+  why: "Explicar por quê",
+  apply: "Aplicação",
+};
+
+/** Language-aware review-card type label + color. */
+export function reviewTypeMeta(
+  type: ReviewCardType,
+  lang: Language = "en",
+): { label: string; color: string } {
+  return lang === "pt-BR"
+    ? { label: REVIEW_TYPE_LABEL_PT[type], color: REVIEW_TYPE_META[type].color }
+    : REVIEW_TYPE_META[type];
+}
+
 /** The FSRS grade after reveal — sets the next interval. */
 export type ReviewGrade = "again" | "hard" | "good" | "easy";
 
@@ -1201,9 +1353,32 @@ export const REVIEW_GRADES: ReadonlyArray<{
   { key: "easy", label: "Easy", color: STATE_COLOR.mastered },
 ];
 
+const REVIEW_GRADE_LABEL_PT: Record<ReviewGrade, string> = {
+  again: "De novo",
+  hard: "Difícil",
+  good: "Bom",
+  easy: "Fácil",
+};
+
+/** Language-aware grade buttons. */
+export function reviewGrades(
+  lang: Language = "en",
+): ReadonlyArray<{ key: ReviewGrade; label: string; color: string }> {
+  return lang === "pt-BR"
+    ? REVIEW_GRADES.map((g) => ({ ...g, label: REVIEW_GRADE_LABEL_PT[g.key] }))
+    : REVIEW_GRADES;
+}
+
 /** The pre-flip confidence tap — the calibration hook, least → most solid. */
 export const REVIEW_CONFIDENCE = ["Blank", "Shaky", "Solid"] as const;
 export type ReviewConfidence = 0 | 1 | 2;
+
+const REVIEW_CONFIDENCE_PT = ["Em branco", "Instável", "Sólido"] as const;
+
+/** Language-aware pre-flip confidence tap labels. */
+export function reviewConfidenceLabels(lang: Language = "en"): readonly string[] {
+  return lang === "pt-BR" ? REVIEW_CONFIDENCE_PT : REVIEW_CONFIDENCE;
+}
 
 /** Retention-health forecast tone: due now, softening, or rock-solid. */
 export type ForecastTone = "due" | "soft" | "solid";
@@ -1263,6 +1438,14 @@ export interface RetainContent {
 /** The micro-Socratic aside "Explain" opens on any revealed card. */
 export const REVIEW_ASIDE =
   "A 30-second Socratic aside: don’t restate the answer — ask what forces it. Which earlier concept makes this true? Trace one concrete example through and watch where the rule takes it.";
+
+const REVIEW_ASIDE_PT =
+  "Uma pausa Socrática de 30 segundos: não repita a resposta — pergunte o que a obriga a ser verdadeira. Que conceito anterior torna isso verdadeiro? Percorra um exemplo concreto e veja até onde a regra leva.";
+
+/** Language-aware micro-Socratic aside. */
+export function reviewAside(lang: Language = "en"): string {
+  return lang === "pt-BR" ? REVIEW_ASIDE_PT : REVIEW_ASIDE;
+}
 
 /** The stages of one card: confidence tap → flip → grade, or the fail aside. */
 export type RetainStage = "confidence" | "reveal" | "aside" | "failed";
@@ -1390,7 +1573,13 @@ export function retainBudget(
 export function retainQueueLabel(
   session: RetainSession,
   content: RetainContent,
+  lang: Language = "en",
 ): string {
+  if (lang === "pt-BR") {
+    if (session.finished) return "Fila limpa";
+    const { left, total, doneCount } = retainBudget(session, content);
+    return `~${left} min restantes · ${total - doneCount} cartões`;
+  }
   if (session.finished) return "Queue clear";
   const { left, total, doneCount } = retainBudget(session, content);
   return `~${left} min left · ${total - doneCount} cards`;
@@ -1400,8 +1589,15 @@ export function retainQueueLabel(
  * The failure calibration read-back: the confidence tap held against the miss.
  * A "Solid" tap that then missed is the overconfidence Review exists to catch.
  */
-export function retainCalib(session: RetainSession): string {
+export function retainCalib(session: RetainSession, lang: Language = "en"): string {
   if (session.stage !== "failed") return "";
+  if (lang === "pt-BR") {
+    if (session.conf === 2)
+      return "Você tocou “Sólido” antes de virar — e errou. Esse excesso de confiança é exatamente o sinal que a Revisão existe para pegar.";
+    if (session.conf === 0)
+      return "Você sinalizou em branco, e estava certo. Bem calibrado — agora vamos fechar isso de verdade.";
+    return "Você se sentiu instável, e estava. O cartão volta para o início da fila e o nó reentra no ciclo.";
+  }
   if (session.conf === 2)
     return "You tapped “Solid” before flipping — and missed it. That over-confidence is the exact signal Review is built to catch.";
   if (session.conf === 0)
@@ -1603,7 +1799,14 @@ export function toggleReminder(state: AdherenceState): AdherenceState {
  * freeze protects the streak if today goes unopened — the reassurance that keeps
  * a missed day from feeling like ruin.
  */
-export function streakStatus(state: AdherenceState): string {
+export function streakStatus(state: AdherenceState, lang: Language = "en"): string {
+  if (lang === "pt-BR") {
+    if (state.metToday)
+      return `Hoje já contou — a sequência de ${state.streak} dias se mantém. Até logo, por volta das ${state.usualTime}.`;
+    if (state.freezes > 0)
+      return `Perca hoje e um congelamento absorve — a sequência de ${state.streak} dias sobrevive, sem reiniciar.`;
+    return `Nenhum congelamento disponível — limpe a fila de hoje para manter viva a sequência de ${state.streak} dias.`;
+  }
   if (state.metToday)
     return `Today's in — the ${state.streak}-day streak holds. See you around ${state.usualTime}.`;
   if (state.freezes > 0)
@@ -1612,7 +1815,12 @@ export function streakStatus(state: AdherenceState): string {
 }
 
 /** The reminder nudge copy — tuned to when the learner actually shows up, not dumped at midnight. */
-export function reminderCopy(state: AdherenceState): string {
+export function reminderCopy(state: AdherenceState, lang: Language = "en"): string {
+  if (lang === "pt-BR") {
+    return state.reminderOn
+      ? `Lembrete marcado para ~${state.usualTime} — quando você costuma aparecer, não à meia-noite.`
+      : `Lembretes desativados — avisaríamos por volta das ${state.usualTime}, seu horário de costume.`;
+  }
   return state.reminderOn
     ? `Nudge set for ~${state.usualTime} — when you usually show up, not midnight.`
     : `Reminders off — we'd nudge around ${state.usualTime}, your usual time.`;
@@ -1655,6 +1863,17 @@ export const CALIB_VERDICT_LABEL: Record<CalibVerdict, string> = {
   under: "Underconfident",
   ok: "Well-calibrated",
 };
+
+const CALIB_VERDICT_LABEL_PT: Record<CalibVerdict, string> = {
+  over: "Excesso de confiança",
+  under: "Falta de confiança",
+  ok: "Bem calibrado",
+};
+
+/** Language-aware calibration verdict label. */
+export function calibVerdictLabel(verdict: CalibVerdict, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? CALIB_VERDICT_LABEL_PT : CALIB_VERDICT_LABEL)[verdict];
+}
 
 /** The violet "your tendency" trend line, shared with the Connect accent. */
 export const CALIB_TREND_COLOR = CONNECT_COLOR.accent;
@@ -1721,16 +1940,31 @@ export function calibWorstUnder(items: CalibItem[]): CalibItem | undefined {
  * the surface. It names the worst overconfident node and spells out that the
  * sense of knowing outran the doing: fluency, not mastery.
  */
-export function calibCoach(items: CalibItem[]): string {
+export function calibCoach(items: CalibItem[], lang: Language = "en"): string {
   const w = calibWorstOver(items);
+  if (lang === "pt-BR") {
+    return w
+      ? `Reler pareceu aprendizado em ${w.label} — você tinha ${w.felt}% de certeza, mas transferiu apenas ${w.real}% na primeira tentativa. Isso é fluência, não domínio.`
+      : "Confiança e resultados estão alinhados de perto — bem calibrado em geral.";
+  }
   return w
     ? `Re-reading felt like learning on ${w.label} — you were ${w.felt}% sure, then transferred at just ${w.real}% on the first attempt. That’s fluency, not mastery.`
     : "Confidence and results are tracking closely — well-calibrated across the board.";
 }
 
 /** The per-topic read: the systematic tilt the live readings show, if any. */
-export function calibTopicLine(items: CalibItem[]): string {
+export function calibTopicLine(items: CalibItem[], lang: Language = "en"): string {
   const over = items.filter((d) => d.verdict === "over");
+  if (lang === "pt-BR") {
+    if (over.length >= 2)
+      return `Você está sistematicamente confiante demais em ${over
+        .slice(0, 3)
+        .map((d) => d.label)
+        .join(", ")} — esses pareciam mais claros do que se mostraram sob um problema novo.`;
+    if (items.length === 0)
+      return "Ainda sem leituras — os toques de confiança no Crisol e na Revisão constroem essa curva à medida que você trabalha.";
+    return "Ainda sem tendência sistemática — continue trabalhando; cada toque de confiança refina essa leitura.";
+  }
   if (over.length >= 2)
     return `You're systematically overconfident across ${over
       .slice(0, 3)
@@ -1742,8 +1976,13 @@ export function calibTopicLine(items: CalibItem[]): string {
 }
 
 /** The other-direction note: where the learner sells themselves short. */
-export function calibUnderLine(items: CalibItem[]): string {
+export function calibUnderLine(items: CalibItem[], lang: Language = "en"): string {
   const w = calibWorstUnder(items);
+  if (lang === "pt-BR") {
+    return w
+      ? `Você se subestima em ${w.label}: avaliou ${w.felt}%, entregou ${w.real}%. Confie mais — gaste tempo onde está a lacuna real.`
+      : "";
+  }
   return w
     ? `You sell yourself short on ${w.label}: rated ${w.felt}%, delivered ${w.real}%. Trust it more — spend the time where the real gap is.`
     : "";
@@ -1803,6 +2042,17 @@ export const GOALS: ReadonlyArray<[GoalKind, string]> = [
   ["project", "Build a project"],
   ["mastery", "General mastery"],
 ];
+
+const GOALS_PT: ReadonlyArray<[GoalKind, string]> = [
+  ["exam", "Passar em uma prova"],
+  ["project", "Construir um projeto"],
+  ["mastery", "Domínio geral"],
+];
+
+/** Language-aware onboarding goal options. */
+export function goals(lang: Language = "en"): ReadonlyArray<[GoalKind, string]> {
+  return lang === "pt-BR" ? GOALS_PT : GOALS;
+}
 
 export const DAILY_TARGETS = [10, 15, 20, 30] as const;
 
@@ -1944,6 +2194,17 @@ export const GOAL_ORDER_CAPTION: Record<GoalKind, string> = {
   project: "ordered to your build — unlocks the tools first",
   mastery: "foundations first — depth over speed",
 };
+
+const GOAL_ORDER_CAPTION_PT: Record<GoalKind, string> = {
+  exam: "ordenado para sua prova — maior alavancagem primeiro",
+  project: "ordenado para sua construção — desbloqueia as ferramentas primeiro",
+  mastery: "fundamentos primeiro — profundidade antes de velocidade",
+};
+
+/** Language-aware plan-ordering caption. */
+export function goalOrderCaption(goal: GoalKind, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? GOAL_ORDER_CAPTION_PT : GOAL_ORDER_CAPTION)[goal];
+}
 
 /**
  * The plan itself: frontier nodes ordered to the goal. A deadline-driven

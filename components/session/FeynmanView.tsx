@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import {
-  FEYNMAN_SCAFFOLD,
   PHASES,
   STATE_COLOR,
   VERDICT_COLOR,
-  VERDICT_LABEL,
   feynmanClean,
   feynmanGaps,
+  feynmanScaffold,
+  verdictLabel,
   type FeynmanBeat,
   type FeynmanSession,
   type TeachLine,
@@ -17,6 +17,7 @@ import {
 } from "@/lib/curriculum";
 import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
 
 // Feynman borrows the shared state colors: learning blue for the naive
 // student's curiosity, mastered green for a clean explanation, gap red for a
@@ -25,6 +26,99 @@ const BLUE = STATE_COLOR.learning;
 const GREEN = STATE_COLOR.mastered;
 const RED = STATE_COLOR.gap;
 const GREY = STATE_COLOR.unknown;
+
+const STRINGS = {
+  en: {
+    back: "← Map",
+    sessionLabel: "Session · Feynman",
+    confusedStudent: "Confused student",
+    teachBackLead: "Teach it back · I’m the student who’s never heard of it",
+    phaseTag: "Phase 3b · Feynman",
+    promptTitle: "Teach me this like I’ve never heard of it.",
+    promptBody:
+      "Explain it in your own words — I’ll play the student and push back whenever something doesn’t add up. The parts you rush become your gaps.",
+    startTeaching: "Start teaching →",
+    dontKnowStart: "I don’t know where to start",
+    upNext: "Up next",
+    teach: "teach —",
+    placeholderJudging: "Your student is thinking about what you said…",
+    placeholderTeach:
+      "Explain it in your own words — as if they've truly never heard of it",
+    listening: "Listening",
+    sendToStudent: "Send to my student →",
+    naiveQuestion: "Naive question",
+    student: "Student",
+    gapReportLead: "Gap report · your explanation, diffed",
+    cleanTitle: "Clean teach-back — you explained every piece.",
+    handWavedTitle: "Here’s where you hand-waved.",
+    explained: (n: number) => `${n} explained`,
+    skipped: (n: number) => `${n} skipped`,
+    confused: (n: number) => `${n} confused`,
+    fixThis: "Fix this →",
+    writeBackNote: (gapCount: number, title: string) => (
+      <>
+        <span style={{ color: RED, fontWeight: 600 }}>
+          {gapCount} gap{gapCount === 1 ? "" : "s"}
+        </span>{" "}
+        will attach under <span style={{ fontStyle: "italic" }}>{title}</span> as
+        red sub-nodes — each opens a targeted Socratic pass. Fix them here, or
+        carry them to the map and close them in the loop.
+      </>
+    ),
+    cleanAdvance: "Clean diff · Connect →",
+    attachGaps: (n: number) => `Attach ${n} gap${n === 1 ? "" : "s"} & continue →`,
+    teachAgain: "↺ Teach it again from the top",
+    targetedPass: "Targeted Socratic pass",
+    answerInWords: "Answer the probe in your own words…",
+    close: "Close",
+  },
+  "pt-BR": {
+    back: "← Mapa",
+    sessionLabel: "Sessão · Feynman",
+    confusedStudent: "Aluno confuso",
+    teachBackLead: "Ensine de volta · sou o aluno que nunca ouviu falar disso",
+    phaseTag: "Fase 3b · Feynman",
+    promptTitle: "Me ensine isso como se eu nunca tivesse ouvido falar.",
+    promptBody:
+      "Explique com suas próprias palavras — eu vou bancar o aluno e questionar sempre que algo não fizer sentido. As partes que você apressa viram suas lacunas.",
+    startTeaching: "Começar a ensinar →",
+    dontKnowStart: "Não sei por onde começar",
+    upNext: "A seguir",
+    teach: "ensinar —",
+    placeholderJudging: "Seu aluno está pensando sobre o que você disse…",
+    placeholderTeach:
+      "Explique com suas próprias palavras — como se ele realmente nunca tivesse ouvido falar disso",
+    listening: "Ouvindo",
+    sendToStudent: "Enviar para meu aluno →",
+    naiveQuestion: "Pergunta ingênua",
+    student: "Aluno",
+    gapReportLead: "Relatório de lacunas · sua explicação, comparada",
+    cleanTitle: "Explicação limpa — você explicou cada parte.",
+    handWavedTitle: "Aqui é onde você passou por cima.",
+    explained: (n: number) => `${n} explicado${n === 1 ? "" : "s"}`,
+    skipped: (n: number) => `${n} pulado${n === 1 ? "" : "s"}`,
+    confused: (n: number) => `${n} confuso${n === 1 ? "" : "s"}`,
+    fixThis: "Corrigir →",
+    writeBackNote: (gapCount: number, title: string) => (
+      <>
+        <span style={{ color: RED, fontWeight: 600 }}>
+          {gapCount} lacuna{gapCount === 1 ? "" : "s"}
+        </span>{" "}
+        {gapCount === 1 ? "vai" : "vão"} se anexar sob{" "}
+        <span style={{ fontStyle: "italic" }}>{title}</span> como sub-nós
+        vermelhos — cada uma abre uma passagem socrática focada. Corrija-as
+        aqui, ou leve-as ao mapa e feche-as no ciclo.
+      </>
+    ),
+    cleanAdvance: "Diff limpo · Conectar →",
+    attachGaps: (n: number) =>
+      `Anexar ${n} lacuna${n === 1 ? "" : "s"} e continuar →`,
+    teachAgain: "↺ Ensinar de novo desde o início",
+    targetedPass: "Passagem socrática focada",
+    answerInWords: "Responda à pergunta com suas próprias palavras…",
+    close: "Fechar",
+  },
+} as const;
 
 interface FeynmanViewProps {
   /** The generated teach-back beats for this node. */
@@ -81,6 +175,7 @@ export default function FeynmanView({
   onTeachAgain,
   onAdvance,
 }: FeynmanViewProps) {
+  const t = useT(STRINGS);
   const beat = beats[session.beat];
 
   // ---- the transcript scrolls to the newest line -----------------------
@@ -143,7 +238,7 @@ export default function FeynmanView({
             color: color.inkMuted,
           }}
         >
-          ← Map
+          {t.back}
         </button>
         <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
         <span
@@ -155,7 +250,7 @@ export default function FeynmanView({
             color: BLUE,
           }}
         >
-          Session · Feynman
+          {t.sessionLabel}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>{title}</div>
         <div style={{ flex: 1 }} />
@@ -183,7 +278,7 @@ export default function FeynmanView({
             <div ref={logRef} style={{ flex: 1, overflowY: "auto", padding: "30px 32px" }}>
               <div style={{ maxWidth: 620, margin: "0 auto" }}>
                 <div style={{ ...kicker(10.5), marginBottom: 22 }}>
-                  Teach it back · I&rsquo;m the student who&rsquo;s never heard of it
+                  {t.teachBackLead}
                 </div>
                 {session.log.map((m, i) => (
                   <Line key={i} line={m} />
@@ -233,6 +328,7 @@ export default function FeynmanView({
 
 /** The confused-student persona badge in the header. */
 function StudentChip() {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -255,7 +351,7 @@ function StudentChip() {
           color: color.inkFaint,
         }}
       >
-        Confused student
+        {t.confusedStudent}
       </span>
     </div>
   );
@@ -271,6 +367,8 @@ function Prompt({
   onBegin: () => void;
   onScaffold: () => void;
 }) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   return (
     <div
       style={{
@@ -285,7 +383,7 @@ function Prompt({
     >
       <div style={{ maxWidth: 500, animation: "fadeUp .4s both" }}>
         <div style={{ ...kicker(11), marginBottom: 18, textAlign: "center" }}>
-          Phase 3b · Feynman
+          {t.phaseTag}
         </div>
         <div
           style={{
@@ -295,7 +393,7 @@ function Prompt({
             marginBottom: 16,
           }}
         >
-          Teach me this like I&rsquo;ve never heard of it.
+          {t.promptTitle}
         </div>
         <div
           style={{
@@ -305,9 +403,7 @@ function Prompt({
             marginBottom: 30,
           }}
         >
-          Explain it in your own words — I&rsquo;ll play the student and push
-          back whenever something doesn&rsquo;t add up. The parts you rush
-          become your gaps.
+          {t.promptBody}
         </div>
         <button
           onClick={onBegin}
@@ -326,7 +422,7 @@ function Prompt({
             boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
           }}
         >
-          Start teaching →
+          {t.startTeaching}
         </button>
         <div style={{ marginTop: 18 }}>
           <button
@@ -340,7 +436,7 @@ function Prompt({
               textDecoration: "underline",
             }}
           >
-            I don&rsquo;t know where to start
+            {t.dontKnowStart}
           </button>
         </div>
         {scaffolded && (
@@ -358,7 +454,7 @@ function Prompt({
               animation: "fadeUp .25s both",
             }}
           >
-            {FEYNMAN_SCAFFOLD}
+            {feynmanScaffold(language)}
           </div>
         )}
       </div>
@@ -383,6 +479,8 @@ function TeachDock({
   onChangeTyped: (v: string) => void;
   onSend: () => void;
 }) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   if (!beat) return null;
 
   return (
@@ -395,9 +493,9 @@ function TeachDock({
           marginBottom: 11,
         }}
       >
-        <span style={{ ...kicker(9.5, "0.1em"), color: color.inkGhost }}>Up next</span>
+        <span style={{ ...kicker(9.5, "0.1em"), color: color.inkGhost }}>{t.upNext}</span>
         <span style={{ fontSize: 13, color: color.inkMuted }}>
-          teach — <span style={{ color: color.inkSoft }}>{beat.subPoint}</span>
+          {t.teach} <span style={{ color: color.inkSoft }}>{beat.subPoint}</span>
         </span>
       </div>
 
@@ -414,7 +512,7 @@ function TeachDock({
             color: color.amberInk,
           }}
         >
-          {FEYNMAN_SCAFFOLD}
+          {feynmanScaffold(language)}
         </div>
       )}
 
@@ -425,9 +523,7 @@ function TeachDock({
         rows={3}
         autoFocus
         placeholder={
-          judging
-            ? "Your student is thinking about what you said…"
-            : "Explain it in your own words — as if they've truly never heard of it"
+          judging ? t.placeholderJudging : t.placeholderTeach
         }
         style={{
           width: "100%",
@@ -464,11 +560,11 @@ function TeachDock({
       >
         {judging ? (
           <>
-            Listening
+            {t.listening}
             <InkDots size={3.5} />
           </>
         ) : (
-          "Send to my student →"
+          t.sendToStudent
         )}
       </button>
     </div>
@@ -477,6 +573,7 @@ function TeachDock({
 
 /** One transcript line — the learner's explanation, or the student's reaction. */
 function Line({ line }: { line: TeachLine }) {
+  const t = useT(STRINGS);
   if (line.role === "learner") {
     return (
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
@@ -517,7 +614,7 @@ function Line({ line }: { line: TeachLine }) {
         }}
       >
         <span style={{ fontSize: 12 }}>🙋</span>
-        {naive ? "Naive question" : "Student"}
+        {naive ? t.naiveQuestion : t.student}
       </div>
       <div
         style={{
@@ -561,6 +658,8 @@ function GapReport({
   onTeachAgain: () => void;
   onAdvance: () => void;
 }) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   const counts = beats.reduce(
     (acc, b) => {
       const v = session.verdicts[b.id];
@@ -576,7 +675,7 @@ function GapReport({
     <div style={{ flex: 1, overflowY: "auto", padding: "30px 32px 60px" }}>
       <div style={{ maxWidth: 620, margin: "0 auto", animation: "fadeUp .35s both" }}>
         <div style={{ ...kicker(10.5), marginBottom: 10 }}>
-          Gap report · your explanation, diffed
+          {t.gapReportLead}
         </div>
         <div
           style={{
@@ -586,16 +685,14 @@ function GapReport({
             marginBottom: 18,
           }}
         >
-          {clean
-            ? "Clean teach-back — you explained every piece."
-            : "Here’s where you hand-waved."}
+          {clean ? t.cleanTitle : t.handWavedTitle}
         </div>
 
         {/* Legend + counts */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
-          <LegendChip color={GREEN} label={`${counts.good} explained`} />
-          <LegendChip color={GREY} label={`${counts.skipped} skipped`} />
-          <LegendChip color={RED} label={`${counts.confused} confused`} />
+          <LegendChip color={GREEN} label={t.explained(counts.good)} />
+          <LegendChip color={GREY} label={t.skipped(counts.skipped)} />
+          <LegendChip color={RED} label={t.confused(counts.confused)} />
         </div>
 
         {/* The diff rows */}
@@ -639,7 +736,7 @@ function GapReport({
                       color: c,
                     }}
                   >
-                    {VERDICT_LABEL[verdict]}
+                    {verdictLabel(verdict, language)}
                   </span>
                   {fixable && !open && (
                     <button
@@ -655,7 +752,7 @@ function GapReport({
                         cursor: "pointer",
                       }}
                     >
-                      Fix this →
+                      {t.fixThis}
                     </button>
                   )}
                   {verdict === "good" && (
@@ -693,10 +790,7 @@ function GapReport({
               marginBottom: 20,
             }}
           >
-            <span style={{ color: RED, fontWeight: 600 }}>{gapCount} gap{gapCount === 1 ? "" : "s"}</span>{" "}
-            will attach under <span style={{ fontStyle: "italic" }}>{title}</span> as red sub-nodes —
-            each opens a targeted Socratic pass. Fix them here, or carry them to
-            the map and close them in the loop.
+            {t.writeBackNote(gapCount, title)}
           </div>
         )}
 
@@ -717,9 +811,7 @@ function GapReport({
               boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
             }}
           >
-            {clean
-              ? "Clean diff · Connect →"
-              : `Attach ${gapCount} gap${gapCount === 1 ? "" : "s"} & continue →`}
+            {clean ? t.cleanAdvance : t.attachGaps(gapCount)}
           </button>
           <button
             onClick={onTeachAgain}
@@ -734,7 +826,7 @@ function GapReport({
               cursor: "pointer",
             }}
           >
-            ↺ Teach it again from the top
+            {t.teachAgain}
           </button>
         </div>
       </div>
@@ -771,6 +863,7 @@ function FixPass({
   onFix: (index: number) => void;
   onClose: () => void;
 }) {
+  const t = useT(STRINGS);
   const [mode, setMode] = useState<AnswerMode>("open");
   return (
     <div
@@ -791,7 +884,7 @@ function FixPass({
         }}
       >
         <div style={{ ...kicker(9.5, "0.1em"), color: BLUE }}>
-          Targeted Socratic pass
+          {t.targetedPass}
         </div>
         <AnswerModeToggle mode={mode} onMode={setMode} accent={BLUE} />
       </div>
@@ -813,7 +906,7 @@ function FixPass({
           question={beat.fix.probe}
           options={beat.fix.replies.map((r) => r.label)}
           onResolve={(i) => onFix(i)}
-          placeholder="Answer the probe in your own words…"
+          placeholder={t.answerInWords}
           rows={2}
           accent={BLUE}
         />
@@ -875,7 +968,7 @@ function FixPass({
           cursor: "pointer",
         }}
       >
-        Close
+        {t.close}
       </button>
     </div>
   );

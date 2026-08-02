@@ -9,8 +9,31 @@
 import { useState } from "react";
 import { fetchJudgeChoice } from "@/lib/api";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
 
 export type AnswerMode = "open" | "choices";
+
+const TOGGLE_STRINGS = {
+  en: { open: "Own words", choices: "Choices" },
+  "pt-BR": { open: "Suas palavras", choices: "Alternativas" },
+} as const;
+
+const ANSWER_STRINGS = {
+  en: {
+    placeholder: "Answer in your own words…",
+    reading: "Reading your answer…",
+    submitLabel: "Submit answer →",
+    errorSuffix: " — try again, or switch to Choices.",
+    hint: "⌘↵ to submit",
+  },
+  "pt-BR": {
+    placeholder: "Responda com suas próprias palavras…",
+    reading: "Lendo sua resposta…",
+    submitLabel: "Enviar resposta →",
+    errorSuffix: " — tente de novo, ou mude para Alternativas.",
+    hint: "⌘↵ para enviar",
+  },
+} as const;
 
 export function AnswerModeToggle({
   mode,
@@ -21,6 +44,7 @@ export function AnswerModeToggle({
   onMode: (m: AnswerMode) => void;
   accent?: string;
 }) {
+  const t = useT(TOGGLE_STRINGS);
   return (
     <div
       style={{
@@ -34,8 +58,8 @@ export function AnswerModeToggle({
     >
       {(
         [
-          ["open", "Own words"],
-          ["choices", "Choices"],
+          ["open", t.open],
+          ["choices", t.choices],
         ] as const
       ).map(([key, label]) => {
         const active = mode === key;
@@ -70,10 +94,10 @@ export function OpenAnswer({
   question,
   options,
   onResolve,
-  placeholder = "Answer in your own words…",
+  placeholder,
   rows = 3,
   accent = color.accent,
-  submitLabel = "Submit answer →",
+  submitLabel,
 }: {
   topic: string;
   nodeLabel?: string;
@@ -87,16 +111,20 @@ export function OpenAnswer({
   accent?: string;
   submitLabel?: string;
 }) {
+  const t = useT(ANSWER_STRINGS);
+  const { language } = useLanguage();
   const [text, setText] = useState("");
   const [judging, setJudging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const resolvedPlaceholder = placeholder ?? t.placeholder;
+  const resolvedSubmitLabel = submitLabel ?? t.submitLabel;
 
   const submit = () => {
     const answer = text.trim();
     if (!answer || judging) return;
     setJudging(true);
     setError(null);
-    fetchJudgeChoice({ topic, nodeLabel, question, options, answer })
+    fetchJudgeChoice({ topic, nodeLabel, question, options, answer, language })
       .then((j) => onResolve(j.index, j.response))
       .catch((e: Error) => setError(e.message))
       .finally(() => setJudging(false));
@@ -115,7 +143,7 @@ export function OpenAnswer({
             submit();
           }
         }}
-        placeholder={judging ? "Reading your answer…" : placeholder}
+        placeholder={judging ? t.reading : resolvedPlaceholder}
         style={{
           width: "100%",
           resize: "none",
@@ -146,7 +174,7 @@ export function OpenAnswer({
           color: judging || !text.trim() ? color.inkGhost : color.accentInk,
         }}
       >
-        {judging ? "Reading your answer…" : submitLabel}
+        {judging ? t.reading : resolvedSubmitLabel}
       </button>
       {error && (
         <div
@@ -157,10 +185,10 @@ export function OpenAnswer({
             color: color.amberInk,
           }}
         >
-          {error} — try again, or switch to Choices.
+          {error}{t.errorSuffix}
         </div>
       )}
-      <div style={{ ...kicker(9.5, "0.1em"), marginTop: 10 }}>⌘↵ to submit</div>
+      <div style={{ ...kicker(9.5, "0.1em"), marginTop: 10 }}>{t.hint}</div>
     </div>
   );
 }

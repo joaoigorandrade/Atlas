@@ -1,6 +1,34 @@
 "use client";
 
 import { color, font } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    home: "← Home",
+    profile: "Profile",
+    editProfile: "Edit profile",
+    learningProfile: "Learning profile",
+    currentlyLearningFor: "Currently learning for",
+    interestsLabel: "Interests — used for analogies & examples",
+    preferences: "Preferences & notifications",
+    preferencesHint: "Daily target, reminders, voice, scaffolding",
+    reviewSchedule: "Review schedule",
+    signOut: "Sign out",
+  },
+  "pt-BR": {
+    home: "← Início",
+    profile: "Perfil",
+    editProfile: "Editar perfil",
+    learningProfile: "Perfil de aprendizado",
+    currentlyLearningFor: "Aprendendo atualmente para",
+    interestsLabel: "Interesses — usados para analogias e exemplos",
+    preferences: "Preferências e notificações",
+    preferencesHint: "Meta diária, lembretes, voz, andaimes de apoio",
+    reviewSchedule: "Cronograma de revisão",
+    signOut: "Sair",
+  },
+} as const;
 
 /** One headline stat in the profile grid — value + caption, always live. */
 export interface ProfileStat {
@@ -52,6 +80,7 @@ export default function ProfileScreen({
   onSettings,
   onSignOut,
 }: ProfileScreenProps) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -87,7 +116,7 @@ export default function ProfileScreen({
             color: color.inkMuted,
           }}
         >
-          &larr; Home
+          {t.home}
         </button>
         <div
           style={{
@@ -105,7 +134,7 @@ export default function ProfileScreen({
             color: color.accent,
           }}
         >
-          Profile
+          {t.profile}
         </span>
       </div>
 
@@ -173,7 +202,7 @@ export default function ProfileScreen({
                 cursor: "pointer",
               }}
             >
-              Edit profile
+              {t.editProfile}
             </button>
           </div>
 
@@ -237,7 +266,7 @@ export default function ProfileScreen({
                 marginBottom: 16,
               }}
             >
-              Learning profile
+              {t.learningProfile}
             </div>
             <div
               style={{
@@ -246,7 +275,7 @@ export default function ProfileScreen({
                 marginBottom: 6,
               }}
             >
-              Currently learning for
+              {t.currentlyLearningFor}
             </div>
             <div
               style={{
@@ -266,7 +295,7 @@ export default function ProfileScreen({
                     marginBottom: 11,
                   }}
                 >
-                  Interests &mdash; used for analogies &amp; examples
+                  {t.interestsLabel}
                 </div>
                 <div
                   style={{ display: "flex", flexWrap: "wrap", gap: 9 }}
@@ -307,7 +336,7 @@ export default function ProfileScreen({
               }}
             >
               <div>
-                <div style={{ fontSize: 15 }}>Preferences &amp; notifications</div>
+                <div style={{ fontSize: 15 }}>{t.preferences}</div>
                 <div
                   style={{
                     fontSize: 13,
@@ -315,7 +344,7 @@ export default function ProfileScreen({
                     marginTop: 2,
                   }}
                 >
-                  Daily target, reminders, voice, scaffolding
+                  {t.preferencesHint}
                 </div>
               </div>
               <span style={{ color: color.inkGhost }}>&rarr;</span>
@@ -328,7 +357,7 @@ export default function ProfileScreen({
               }}
             >
               <div>
-                <div style={{ fontSize: 15 }}>Review schedule</div>
+                <div style={{ fontSize: 15 }}>{t.reviewSchedule}</div>
                 <div
                   style={{
                     fontSize: 13,
@@ -342,7 +371,7 @@ export default function ProfileScreen({
               <span style={{ color: color.inkGhost }}>&rarr;</span>
             </div>
             <div onClick={onSignOut} style={rowStyle}>
-              <div style={{ fontSize: 15, color: "#c1574a" }}>Sign out</div>
+              <div style={{ fontSize: 15, color: "#c1574a" }}>{t.signOut}</div>
               <span style={{ color: "#c1574a" }}>&rarr;</span>
             </div>
           </div>

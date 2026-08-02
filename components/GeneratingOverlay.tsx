@@ -2,6 +2,12 @@
 
 import { InkDots, InkRule } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: { generating: "generating" },
+  "pt-BR": { generating: "gerando" },
+} as const;
 
 /**
  * The full-screen "the AI is writing this" moment shown while a session's
@@ -14,6 +20,7 @@ export default function GeneratingOverlay({
   phase: string;
   message: string;
 }) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -55,7 +62,7 @@ export default function GeneratingOverlay({
             animation: "breathe 2.4s ease-in-out infinite",
           }}
         >
-          generating
+          {t.generating}
           <InkDots size={3} />
         </div>
       </div>

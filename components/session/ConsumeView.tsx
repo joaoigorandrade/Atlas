@@ -13,12 +13,92 @@ import {
   type ConsumeFigure,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 // Consume is a Learning-phase surface: its accents borrow the shared state
 // colors (learning blue, plus mastered/shaky for right/wrong verdicts).
 const BLUE = STATE_COLOR.learning;
 const RIGHT = STATE_COLOR.mastered;
 const WRONG = STATE_COLOR.shaky;
+
+const STRINGS = {
+  en: {
+    back: "← Map",
+    sessionLabel: "Session · Consume",
+    iKnowThis: "I know this →",
+    kicker: "Grounded, dual-coded reading",
+    intro: (n: number) =>
+      n > 0
+        ? `This is the reading. ${n} sections, each with a worked example and a diagram — read them straight through.`
+        : "This is the reading —",
+    introTail:
+      "Rewrite any section to fit how you think, tap a term for its meaning before it’s used, and ask about any passage that doesn’t land. The questioning starts in Socratic, after this.",
+    writingFirst: "Writing your first section…",
+    workedExample: "Worked example",
+    optionalGuessFirst: "Optional · guess first",
+    predictPlaceholder:
+      "A guess costs nothing and makes the reading below stick harder.",
+    lockInGuess: "Lock in my guess →",
+    skipTeachMe: "Skip — just teach me ↓",
+    yourGuess: "your guess",
+    takeaway: "Takeaway",
+    source: "source",
+    rewritesWriting: "Rewrites still writing…",
+    askAboutPassage: "Ask about this passage",
+    socraticAside: "A quick Socratic aside, without leaving Consume:",
+    diagramLabel: "diagram ·",
+    finishBeginSocratic: "Finish · begin Socratic →",
+    continueSection: (next: string) => `Continue · ${next} ↓`,
+    writingNext: "Writing the next section…",
+    overshootTitle: "You called this one before reading it.",
+    overshootBody:
+      "The diagnostic under-shot your level here — no need to grind the basics.",
+    skipToCrucible: "Skip to Crucible →",
+    simplifyingTitle: "Simplifying a lot?",
+    simplifyingBody:
+      "Repeatedly reaching for the simpler version usually means an earlier concept is shaky.",
+    reviewPrereq: "Review prerequisite →",
+    term: "term",
+  },
+  "pt-BR": {
+    back: "← Mapa",
+    sessionLabel: "Sessão · Consumir",
+    iKnowThis: "Já sei isso →",
+    kicker: "Leitura fundamentada, com dupla codificação",
+    intro: (n: number) =>
+      n > 0
+        ? `Esta é a leitura. ${n} seções, cada uma com um exemplo resolvido e um diagrama — leia-as em sequência.`
+        : "Esta é a leitura —",
+    introTail:
+      "Reescreva qualquer seção do jeito que funciona melhor para você, toque em um termo para ver o significado antes de ele ser usado, e pergunte sobre qualquer trecho que não fez sentido. As perguntas começam no Socrático, depois disso.",
+    writingFirst: "Escrevendo sua primeira seção…",
+    workedExample: "Exemplo resolvido",
+    optionalGuessFirst: "Opcional · arrisque um palpite antes",
+    predictPlaceholder:
+      "Um palpite não custa nada e faz a leitura a seguir grudar mais.",
+    lockInGuess: "Confirmar meu palpite →",
+    skipTeachMe: "Pular — só me ensine ↓",
+    yourGuess: "seu palpite",
+    takeaway: "Ideia central",
+    source: "fonte",
+    rewritesWriting: "Reescritas ainda sendo geradas…",
+    askAboutPassage: "Perguntar sobre este trecho",
+    socraticAside: "Um aparte socrático rápido, sem sair do Consumir:",
+    diagramLabel: "diagrama ·",
+    finishBeginSocratic: "Concluir · começar o Socrático →",
+    continueSection: (next: string) => `Continuar · ${next} ↓`,
+    writingNext: "Escrevendo a próxima seção…",
+    overshootTitle: "Você acertou isso antes mesmo de ler.",
+    overshootBody:
+      "O diagnóstico subestimou seu nível aqui — sem necessidade de treinar o básico.",
+    skipToCrucible: "Pular para o Crucible →",
+    simplifyingTitle: "Simplificando bastante?",
+    simplifyingBody:
+      "Recorrer repetidamente à versão mais simples geralmente indica que um conceito anterior está instável.",
+    reviewPrereq: "Revisar pré-requisito →",
+    term: "termo",
+  },
+} as const;
 
 /** The live state of one Consume session — held by AtlasApp, read here. */
 export interface ConsumeSession {
@@ -237,6 +317,7 @@ function sectionName(kicker: string): string {
 /** The worked example that closes each section's prose — material, not an
  *  on-demand rewrite the learner has to go hunting for. */
 function WorkedExample({ example }: { example: ConsumeExample }) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -258,7 +339,7 @@ function WorkedExample({ example }: { example: ConsumeExample }) {
           marginBottom: 8,
         }}
       >
-        Worked example
+        {t.workedExample}
       </div>
       <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
         {example.title}
@@ -312,6 +393,7 @@ export default function ConsumeView({
   onSkipCrucible,
   onRoutePrereq,
 }: ConsumeViewProps) {
+  const t = useT(STRINGS);
   // The prediction is open-ended by default; the switch reveals the closed form.
   const [mode, setMode] = useState<AnswerMode>("open");
   // Only sections up to the deepest revealed one are on screen — the pass
@@ -371,7 +453,7 @@ export default function ConsumeView({
             color: color.inkMuted,
           }}
         >
-          ← Map
+          {t.back}
         </button>
         <div
           style={{ width: 1, height: 20, background: color.hairlineStrong }}
@@ -385,7 +467,7 @@ export default function ConsumeView({
             color: BLUE,
           }}
         >
-          Session · Consume
+          {t.sessionLabel}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>{title}</div>
         <div style={{ flex: 1 }} />
@@ -413,7 +495,7 @@ export default function ConsumeView({
             color: color.inkMuted,
           }}
         >
-          I know this →
+          {t.iKnowThis}
         </button>
       </div>
 
@@ -444,7 +526,7 @@ export default function ConsumeView({
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 940, margin: "0 auto", padding: "40px 32px 120px" }}>
           <div style={{ ...kicker(11), marginBottom: 10 }}>
-            Grounded, dual-coded reading
+            {t.kicker}
           </div>
           <h1
             style={{
@@ -466,13 +548,8 @@ export default function ConsumeView({
               lineHeight: 1.55,
             }}
           >
-            {chunks.length > 0
-              ? `This is the reading. ${chunks.length} sections, each with a worked example and a diagram — read them straight through.`
-              : "This is the reading —"}{" "}
-            Rewrite any section to fit how you think, tap a term for its
-            meaning before it&rsquo;s used, and ask about any passage that
-            doesn&rsquo;t land. The questioning starts in Socratic, after
-            this.
+            {t.intro(chunks.length)}{" "}
+            {t.introTail}
           </p>
 
           {/* The very first open of a fresh node: the screen is already up,
@@ -490,7 +567,7 @@ export default function ConsumeView({
                   marginBottom: 4,
                 }}
               >
-                Writing your first section…
+                {t.writingFirst}
               </div>
               {[220, 100, "94%", "88%", "70%"].map((w, i) => (
                 <div
@@ -562,8 +639,8 @@ export default function ConsumeView({
                       marginBottom: 18,
                     }}
                   >
-                    {c.terms.map((t) => {
-                      const key = `${c.id}:${t.t}`;
+                    {c.terms.map((term) => {
+                      const key = `${c.id}:${term.t}`;
                       const open = session.term === key;
                       return (
                         <div
@@ -594,9 +671,9 @@ export default function ConsumeView({
                                 color: color.amberInk,
                               }}
                             >
-                              term
+                              {t.term}
                             </span>
-                            {t.t}
+                            {term.t}
                           </button>
                           {open && (
                             <div
@@ -613,7 +690,7 @@ export default function ConsumeView({
                                 animation: "fadeUp .25s both",
                               }}
                             >
-                              {t.d}
+                              {term.d}
                             </div>
                           )}
                         </div>
@@ -658,7 +735,7 @@ export default function ConsumeView({
                           color: BLUE,
                         }}
                       >
-                        Optional · guess first
+                        {t.optionalGuessFirst}
                       </span>
                       <span style={{ marginLeft: "auto" }}>
                         <AnswerModeToggle
@@ -687,10 +764,10 @@ export default function ConsumeView({
                         onResolve={(oi) =>
                           onAnswer(c.id, oi, c.pred!.opts[oi].correct)
                         }
-                        placeholder="A guess costs nothing and makes the reading below stick harder."
+                        placeholder={t.predictPlaceholder}
                         rows={2}
                         accent={BLUE}
-                        submitLabel="Lock in my guess →"
+                        submitLabel={t.lockInGuess}
                       />
                     ) : (
                       <div
@@ -735,7 +812,7 @@ export default function ConsumeView({
                         cursor: "pointer",
                       }}
                     >
-                      Skip — just teach me ↓
+                      {t.skipTeachMe}
                     </button>
                   </div>
                 )}
@@ -763,7 +840,7 @@ export default function ConsumeView({
                         color: verdict.color,
                       }}
                     >
-                      your guess
+                      {t.yourGuess}
                     </span>
                     <span
                       style={{
@@ -826,7 +903,7 @@ export default function ConsumeView({
                           color: color.accent,
                         }}
                       >
-                        Takeaway
+                        {t.takeaway}
                       </span>
                       <span
                         style={{
@@ -862,7 +939,7 @@ export default function ConsumeView({
                           padding: "1px 6px",
                         }}
                       >
-                        source
+                        {t.source}
                       </span>
                       {c.cite}
                     </div>
@@ -904,7 +981,7 @@ export default function ConsumeView({
                           color: color.inkGhost,
                         }}
                       >
-                        Rewrites still writing…
+                        {t.rewritesWriting}
                       </div>
                     )}
                     {altText && (
@@ -940,7 +1017,7 @@ export default function ConsumeView({
                           textUnderlineOffset: 3,
                         }}
                       >
-                        Ask about this passage
+                        {t.askAboutPassage}
                       </button>
                       {session.aside === c.id && (
                         <div
@@ -958,7 +1035,7 @@ export default function ConsumeView({
                               marginBottom: 6,
                             }}
                           >
-                            A quick Socratic aside, without leaving Consume:
+                            {t.socraticAside}
                           </div>
                           <div
                             style={{
@@ -985,7 +1062,7 @@ export default function ConsumeView({
                         color: color.inkFaint,
                       }}
                     >
-                      diagram · {c.diagram}
+                      {t.diagramLabel} {c.diagram}
                     </div>
                   </div>
                 </div>
@@ -1024,8 +1101,8 @@ export default function ConsumeView({
                         }
                       >
                         {isLast
-                          ? "Finish · begin Socratic →"
-                          : `Continue · ${sectionName(chunks[i + 1].kicker)} ↓`}
+                          ? t.finishBeginSocratic
+                          : t.continueSection(sectionName(chunks[i + 1].kicker))}
                       </button>
                     </div>
                   ) : (
@@ -1039,7 +1116,7 @@ export default function ConsumeView({
                         fontStyle: "italic",
                       }}
                     >
-                      Writing the next section…
+                      {t.writingNext}
                     </div>
                   ))}
               </div>
@@ -1069,11 +1146,10 @@ export default function ConsumeView({
                     marginBottom: 3,
                   }}
                 >
-                  You called this one before reading it.
+                  {t.overshootTitle}
                 </div>
                 <div style={{ fontSize: 13.5, color: color.inkMuted }}>
-                  The diagnostic under-shot your level here — no need to grind
-                  the basics.
+                  {t.overshootBody}
                 </div>
               </div>
               <button
@@ -1090,7 +1166,7 @@ export default function ConsumeView({
                   cursor: "pointer",
                 }}
               >
-                Skip to Crucible →
+                {t.skipToCrucible}
               </button>
             </div>
           )}
@@ -1117,11 +1193,10 @@ export default function ConsumeView({
                     marginBottom: 3,
                   }}
                 >
-                  Simplifying a lot?
+                  {t.simplifyingTitle}
                 </div>
                 <div style={{ fontSize: 13.5, color: color.inkMuted }}>
-                  Repeatedly reaching for the simpler version usually means an
-                  earlier concept is shaky.
+                  {t.simplifyingBody}
                 </div>
               </div>
               <button
@@ -1138,7 +1213,7 @@ export default function ConsumeView({
                   cursor: "pointer",
                 }}
               >
-                Review prerequisite →
+                {t.reviewPrereq}
               </button>
             </div>
           )}

@@ -3,13 +3,61 @@
 import { useRef, useState, type CSSProperties, type DragEvent } from "react";
 import {
   DAILY_TARGETS,
-  GOALS,
+  goals,
   localDay,
   type OnboardingForm,
 } from "@/lib/curriculum";
 import type { ScopeOffer } from "@/lib/api";
 import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    kicker: "Atlas · learn anything, deeply",
+    title: "What do you want to learn?",
+    topicPlaceholder: "A topic, a pasted syllabus…",
+    dropPrefix: "or drop a PDF / course outline here · ",
+    browse: "browse",
+    dropSuffix: " · we ground the map in a real source",
+    scopeIntro: (topic: string) =>
+      `"${topic}" is a continent, not a map. Pick a scoped territory to start with:`,
+    goalQuestion: "Why are you learning this?",
+    goalHint: "— steers what we prune and prioritize",
+    examDate: "Exam date",
+    examDateHint: "— powers the real countdown & pace (skippable)",
+    interests: "Your interests",
+    interestsHint: "— for analogies & examples (optional)",
+    interestsPlaceholder: "e.g. chess, investing, cooking",
+    dailyTarget: "Daily target",
+    dailyTargetHint: "— your streak unit & honest queue budget",
+    minutes: (min: number) => `${min} min`,
+    build: "Build my map →",
+    footer: "~5 minutes to a lit-up map with a clear frontier",
+  },
+  "pt-BR": {
+    kicker: "Atlas · aprenda qualquer coisa, a fundo",
+    title: "O que você quer aprender?",
+    topicPlaceholder: "Um tema, uma ementa colada…",
+    dropPrefix: "ou solte um PDF / ementa aqui · ",
+    browse: "procurar",
+    dropSuffix: " · fundamentamos o mapa numa fonte real",
+    scopeIntro: (topic: string) =>
+      `"${topic}" é um continente, não um mapa. Escolha um território mais específico para começar:`,
+    goalQuestion: "Por que você está aprendendo isso?",
+    goalHint: "— orienta o que priorizamos e deixamos de lado",
+    examDate: "Data da prova",
+    examDateHint: "— alimenta a contagem regressiva e o ritmo (opcional)",
+    interests: "Seus interesses",
+    interestsHint: "— para analogias e exemplos (opcional)",
+    interestsPlaceholder: "ex.: xadrez, investimentos, culinária",
+    dailyTarget: "Meta diária",
+    dailyTargetHint: "— sua unidade de sequência e orçamento honesto de fila",
+    minutes: (min: number) => `${min} min`,
+    build: "Montar meu mapa →",
+    footer: "~5 minutos para um mapa aceso com uma fronteira clara",
+  },
+} as const;
 
 interface WelcomeScreenProps {
   form: OnboardingForm;
@@ -51,6 +99,8 @@ export default function WelcomeScreen({
   scopes,
   onPickScope,
 }: WelcomeScreenProps) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -81,7 +131,7 @@ export default function WelcomeScreen({
         }}
       >
         <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>
-          Atlas · learn anything, deeply
+          {t.kicker}
         </div>
         <h1
           style={{
@@ -93,7 +143,7 @@ export default function WelcomeScreen({
             margin: "0 0 40px",
           }}
         >
-          What do you want to learn?
+          {t.title}
         </h1>
 
         <div
@@ -117,7 +167,7 @@ export default function WelcomeScreen({
           <input
             value={form.topic}
             onChange={(e) => onChange({ topic: e.target.value })}
-            placeholder="A topic, a pasted syllabus…"
+            placeholder={t.topicPlaceholder}
             style={{
               width: "100%",
               border: "none",
@@ -155,7 +205,7 @@ export default function WelcomeScreen({
             </>
           ) : (
             <span>
-              or drop a PDF / course outline here ·{" "}
+              {t.dropPrefix}
               <button
                 onClick={() => fileRef.current?.click()}
                 style={{
@@ -168,9 +218,9 @@ export default function WelcomeScreen({
                   cursor: "pointer",
                 }}
               >
-                browse
-              </button>{" "}
-              · we ground the map in a real source
+                {t.browse}
+              </button>
+              {t.dropSuffix}
             </span>
           )}
           <input
@@ -198,8 +248,7 @@ export default function WelcomeScreen({
             }}
           >
             <div style={{ fontSize: 14.5, color: color.amberInk, marginBottom: 14 }}>
-              “{form.topic}” is a continent, not a map. Pick a scoped territory
-              to start with:
+              {t.scopeIntro(form.topic)}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {scopes.map((scope) => (
@@ -229,13 +278,11 @@ export default function WelcomeScreen({
 
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            Why are you learning this?{" "}
-            <span style={{ color: color.inkGhost }}>
-              — steers what we prune and prioritize
-            </span>
+            {t.goalQuestion}{" "}
+            <span style={{ color: color.inkGhost }}>{t.goalHint}</span>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            {GOALS.map(([key, label]) => (
+            {goals(language).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => onChange({ goal: key })}
@@ -256,10 +303,8 @@ export default function WelcomeScreen({
               }}
             >
               <span style={{ fontSize: 14, color: color.inkSoft }}>
-                Exam date{" "}
-                <span style={{ color: color.inkGhost }}>
-                  — powers the real countdown &amp; pace (skippable)
-                </span>
+                {t.examDate}{" "}
+                <span style={{ color: color.inkGhost }}>{t.examDateHint}</span>
               </span>
               <input
                 type="date"
@@ -282,15 +327,13 @@ export default function WelcomeScreen({
 
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            Your interests{" "}
-            <span style={{ color: color.inkGhost }}>
-              — for analogies &amp; examples (optional)
-            </span>
+            {t.interests}{" "}
+            <span style={{ color: color.inkGhost }}>{t.interestsHint}</span>
           </div>
           <input
             value={form.interests}
             onChange={(e) => onChange({ interests: e.target.value })}
-            placeholder="e.g. chess, investing, cooking"
+            placeholder={t.interestsPlaceholder}
             style={{
               width: "100%",
               background: color.card,
@@ -305,10 +348,8 @@ export default function WelcomeScreen({
 
         <div style={{ marginBottom: 44 }}>
           <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            Daily target{" "}
-            <span style={{ color: color.inkGhost }}>
-              — your streak unit &amp; honest queue budget
-            </span>
+            {t.dailyTarget}{" "}
+            <span style={{ color: color.inkGhost }}>{t.dailyTargetHint}</span>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             {DAILY_TARGETS.map((minutes) => (
@@ -317,7 +358,7 @@ export default function WelcomeScreen({
                 onClick={() => onChange({ target: minutes })}
                 style={optionStyle(form.target === minutes, false)}
               >
-                {minutes} min
+                {t.minutes(minutes)}
               </button>
             ))}
           </div>
@@ -338,7 +379,7 @@ export default function WelcomeScreen({
             boxShadow: "0 10px 28px rgba(47,107,79,0.28)",
           }}
         >
-          Build my map →
+          {t.build}
         </button>
         <div
           style={{
@@ -348,7 +389,7 @@ export default function WelcomeScreen({
             color: color.inkGhost,
           }}
         >
-          ~5 minutes to a lit-up map with a clear frontier
+          {t.footer}
         </div>
       </div>
     </div>

@@ -12,11 +12,85 @@ import {
   type ElaborationLink,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 // Connect owns the violet accent; candidate dots borrow mastered green (they're
 // the learner's already-owned nodes), and the confirmed-link check reads green.
 const VIOLET = CONNECT_COLOR.accent;
 const GREEN = STATE_COLOR.mastered;
+
+const STRINGS = {
+  en: {
+    map: "← Map",
+    sessionConnect: "Session · Connect",
+    kickerElaboration: "Elaboration · durable encoding through real connections",
+    heading: "Wire this into what you already know.",
+    intro1: "Understanding isn’t storage — you lock a concept in by tying it to things you already own. These are real nodes from ",
+    introEm: "your",
+    intro2: " map, not generic trivia. Confirm the links that are true, in your own words.",
+    conceptWeb: "Concept web · drawn from your mastered nodes",
+    rawMaterial: "Raw material for Retain",
+    noCardsYet: "no cards yet",
+    cardsDrafted: (n: number) =>
+      `${n} ${n === 1 ? "card" : "cards"} drafted, atomically`,
+    mnemonicCard: "mnemonic card",
+    connectionCard: "connection card",
+    emptyCards: "Confirm a link above and its card drafts itself here.",
+    ctaFinish: "Connected · continue to Crucible →",
+    readyNote: "Understood and connected — but not Mastered until the Crucible proves transfer.",
+    notReadyNote: (linked: number, total: number) =>
+      `${linked} of ${total} links made · two real connections is plenty to move on.`,
+    linkingPrompt: "Linking prompt",
+    howDoes: (center: string, cand: string) => `How does ${center} relate to ${cand}?`,
+    describeRelationship: "Describe the real relationship in your own words — a draft is pulled from your map to accept or rewrite.",
+    connectionPlaceholder: "Your connection…",
+    linkConfirmedUpdate: "Link confirmed · update",
+    confirmThisLink: "Confirm this link →",
+    pickConcept: "Pick a concept to link",
+    idleBody: "Tap any node in the web on the left. Each real link you confirm becomes a card in the Retain phase — the tedious step, done for you.",
+    listLike: "list-like",
+    conceptual: "conceptual",
+    encodingAuto: "encoding method · auto-detected",
+    mnemonicHidden: "Memory-palace & acronym tools stay hidden unless a node is genuinely list-like — sequences, taxonomies, raw vocab.",
+    accepted: "Accepted · saved as a card",
+    acceptThisAid: "Accept this aid →",
+  },
+  "pt-BR": {
+    map: "← Mapa",
+    sessionConnect: "Sessão · Connect",
+    kickerElaboration: "Elaboração · codificação duradoura por conexões reais",
+    heading: "Conecte isso ao que você já sabe.",
+    intro1: "Compreender não é armazenar — você fixa um conceito ao amarrá-lo a coisas que você já domina. Estes são nós reais do ",
+    introEm: "seu",
+    intro2: " mapa, não trivialidades genéricas. Confirme os vínculos que forem verdadeiros, com suas próprias palavras.",
+    conceptWeb: "Rede de conceitos · construída a partir dos seus nós dominados",
+    rawMaterial: "Matéria-prima para o Retain",
+    noCardsYet: "nenhum card ainda",
+    cardsDrafted: (n: number) =>
+      `${n} ${n === 1 ? "card rascunhado" : "cards rascunhados"}, atomicamente`,
+    mnemonicCard: "card mnemônico",
+    connectionCard: "card de conexão",
+    emptyCards: "Confirme um vínculo acima e o card se rascunha sozinho aqui.",
+    ctaFinish: "Conectado · continuar para o Crucible →",
+    readyNote: "Compreendido e conectado — mas não Dominado até o Crucible provar a transferência.",
+    notReadyNote: (linked: number, total: number) =>
+      `${linked} de ${total} vínculos feitos · duas conexões reais já bastam para seguir em frente.`,
+    linkingPrompt: "Prompt de vínculo",
+    howDoes: (center: string, cand: string) => `Como ${center} se relaciona com ${cand}?`,
+    describeRelationship: "Descreva a relação real com suas próprias palavras — um rascunho é puxado do seu mapa para aceitar ou reescrever.",
+    connectionPlaceholder: "Sua conexão…",
+    linkConfirmedUpdate: "Vínculo confirmado · atualizar",
+    confirmThisLink: "Confirmar este vínculo →",
+    pickConcept: "Escolha um conceito para vincular",
+    idleBody: "Toque em qualquer nó da rede à esquerda. Cada vínculo real que você confirmar vira um card na fase Retain — a parte chata, já feita para você.",
+    listLike: "tipo lista",
+    conceptual: "conceitual",
+    encodingAuto: "método de codificação · detectado automaticamente",
+    mnemonicHidden: "As ferramentas de palácio da memória e acrônimos ficam escondidas a menos que um nó seja genuinamente do tipo lista — sequências, taxonomias, vocabulário puro.",
+    accepted: "Aceito · salvo como card",
+    acceptThisAid: "Aceitar este recurso →",
+  },
+} as const;
 
 interface ConnectViewProps {
   /** The elaboration content for this node (concept web, links, mnemonics). */
@@ -51,6 +125,7 @@ export default function ConnectView({
   onAcceptMnemonic,
   onFinish,
 }: ConnectViewProps) {
+  const t = useT(STRINGS);
   const activeCand = session.active
     ? content.cands.find((c) => c.id === session.active) ?? null
     : null;
@@ -99,7 +174,7 @@ export default function ConnectView({
             color: color.inkMuted,
           }}
         >
-          ← Map
+          {t.map}
         </button>
         <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
         <span
@@ -111,7 +186,7 @@ export default function ConnectView({
             color: VIOLET,
           }}
         >
-          Session · Connect
+          {t.sessionConnect}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>
           {content.centerLabel}
@@ -129,7 +204,7 @@ export default function ConnectView({
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 1040, margin: "0 auto", padding: "40px 32px 110px" }}>
           <div style={{ ...kicker(11), marginBottom: 10 }}>
-            Elaboration · durable encoding through real connections
+            {t.kickerElaboration}
           </div>
           <h1
             style={{
@@ -140,7 +215,7 @@ export default function ConnectView({
               margin: "0 0 10px",
             }}
           >
-            Wire this into what you already know.
+            {t.heading}
           </h1>
           <p
             style={{
@@ -151,10 +226,9 @@ export default function ConnectView({
               lineHeight: 1.55,
             }}
           >
-            Understanding isn&rsquo;t storage — you lock a concept in by tying it
-            to things you already own. These are real nodes from <em>your</em>{" "}
-            map, not generic trivia. Confirm the links that are true, in your own
-            words.
+            {t.intro1}
+            <em>{t.introEm}</em>
+            {t.intro2}
           </p>
 
           <div
@@ -169,7 +243,7 @@ export default function ConnectView({
             {/* Concept web */}
             <div>
               <div style={{ ...kicker(10), marginBottom: 12 }}>
-                Concept web · drawn from your mastered nodes
+                {t.conceptWeb}
               </div>
               <ConceptWeb
                 content={content}
@@ -221,11 +295,9 @@ export default function ConnectView({
                 marginBottom: 16,
               }}
             >
-              <span style={kicker(10)}>Raw material for Retain</span>
+              <span style={kicker(10)}>{t.rawMaterial}</span>
               <span style={{ fontSize: 13.5, color: color.inkMuted }}>
-                {cards.length === 0
-                  ? "no cards yet"
-                  : `${cards.length} ${cards.length === 1 ? "card" : "cards"} drafted, atomically`}
+                {cards.length === 0 ? t.noCardsYet : t.cardsDrafted(cards.length)}
               </span>
             </div>
             {cards.length > 0 ? (
@@ -257,7 +329,7 @@ export default function ConnectView({
                         marginBottom: 8,
                       }}
                     >
-                      {c.kind === "mnemonic" ? "mnemonic card" : "connection card"}
+                      {c.kind === "mnemonic" ? t.mnemonicCard : t.connectionCard}
                     </div>
                     <div
                       style={{
@@ -288,7 +360,7 @@ export default function ConnectView({
               <div
                 style={{ fontSize: 14, color: color.inkGhost, fontStyle: "italic" }}
               >
-                Confirm a link above and its card drafts itself here.
+                {t.emptyCards}
               </div>
             )}
           </div>
@@ -310,12 +382,10 @@ export default function ConnectView({
                 boxShadow: ready ? "0 8px 22px rgba(47,107,79,0.26)" : "none",
               }}
             >
-              Connected · continue to Crucible →
+              {t.ctaFinish}
             </button>
             <span style={{ fontSize: 13.5, color: color.inkFaint, lineHeight: 1.45 }}>
-              {ready
-                ? "Understood and connected — but not Mastered until the Crucible proves transfer."
-                : `${linkedCount} of ${content.cands.length} links made · two real connections is plenty to move on.`}
+              {ready ? t.readyNote : t.notReadyNote(linkedCount, content.cands.length)}
             </span>
           </div>
         </div>
@@ -497,6 +567,7 @@ function LinkingPrompt({
   onDraft: (id: string, value: string) => void;
   onConfirm: (id: string) => void;
 }) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -517,7 +588,7 @@ function LinkingPrompt({
           marginBottom: 12,
         }}
       >
-        Linking prompt
+        {t.linkingPrompt}
       </div>
       <div
         style={{
@@ -527,7 +598,7 @@ function LinkingPrompt({
           marginBottom: 8,
         }}
       >
-        How does {center} relate to {cand.label}?
+        {t.howDoes(center, cand.label)}
       </div>
       <div
         style={{
@@ -537,8 +608,7 @@ function LinkingPrompt({
           marginBottom: 16,
         }}
       >
-        Describe the real relationship in your own words — a draft is pulled from
-        your map to accept or rewrite.
+        {t.describeRelationship}
       </div>
       <div
         style={{
@@ -551,7 +621,7 @@ function LinkingPrompt({
         <textarea
           value={draft}
           onChange={(e) => onDraft(cand.id, e.target.value)}
-          placeholder="Your connection…"
+          placeholder={t.connectionPlaceholder}
           style={{
             width: "100%",
             minHeight: 120,
@@ -582,7 +652,7 @@ function LinkingPrompt({
           boxShadow: linked ? "none" : `0 8px 20px ${CONNECT_COLOR.glow}`,
         }}
       >
-        {linked ? "Link confirmed · update" : "Confirm this link →"}
+        {linked ? t.linkConfirmedUpdate : t.confirmThisLink}
       </button>
     </div>
   );
@@ -590,6 +660,7 @@ function LinkingPrompt({
 
 /** The idle state — before any candidate is picked. */
 function IdlePrompt() {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -608,11 +679,10 @@ function IdlePrompt() {
           marginBottom: 8,
         }}
       >
-        Pick a concept to link
+        {t.pickConcept}
       </div>
       <div style={{ fontSize: 14, lineHeight: 1.55 }}>
-        Tap any node in the web on the left. Each real link you confirm becomes a
-        card in the Retain phase — the tedious step, done for you.
+        {t.idleBody}
       </div>
     </div>
   );
@@ -636,6 +706,7 @@ function EncodingMethod({
   onDraftMnemonic: (value: string) => void;
   onAcceptMnemonic: () => void;
 }) {
+  const t = useT(STRINGS);
   const listLike = content.encoding === "list-like";
   return (
     <div
@@ -667,7 +738,7 @@ function EncodingMethod({
             padding: "2px 7px",
           }}
         >
-          {listLike ? "list-like" : "conceptual"}
+          {listLike ? t.listLike : t.conceptual}
         </span>
         <span
           style={{
@@ -678,7 +749,7 @@ function EncodingMethod({
             color: color.inkFaint,
           }}
         >
-          encoding method · auto-detected
+          {t.encodingAuto}
         </span>
       </div>
       <div
@@ -731,8 +802,7 @@ function EncodingMethod({
               lineHeight: 1.5,
             }}
           >
-            Memory-palace &amp; acronym tools stay hidden unless a node is
-            genuinely list-like — sequences, taxonomies, raw vocab.
+            {t.mnemonicHidden}
           </div>
         </>
       )}
@@ -754,6 +824,7 @@ function MnemonicTool({
   onDraftMnemonic: (value: string) => void;
   onAcceptMnemonic: () => void;
 }) {
+  const t = useT(STRINGS);
   const options = content.mnemonics ?? [];
   const picked = session.mnemonicPick;
 
@@ -879,9 +950,7 @@ function MnemonicTool({
                 : "none",
             }}
           >
-            {session.mnemonicAccepted
-              ? "Accepted · saved as a card"
-              : "Accept this aid →"}
+            {session.mnemonicAccepted ? t.accepted : t.acceptThisAid}
           </button>
         </div>
       )}

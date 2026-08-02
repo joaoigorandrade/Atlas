@@ -4,6 +4,60 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    kicker: "Atlas · learn anything, deeply",
+    linkError:
+      "That confirmation link expired or was already used — sign in again below.",
+    enterEmail: "Enter the email for your account.",
+    passwordMin: "Password must be at least 6 characters.",
+    signInTitle: "Sign in to your map",
+    signUpTitle: "Create your account",
+    subtitleBase: "Your map, streak, and progress live in your account",
+    subtitleSignin: " — sign in with your email and password.",
+    subtitleSignup: " — pick an email and password to get started.",
+    confirmEmailTitle: "Confirm your email",
+    confirmEmailBody: (email: string) =>
+      `We sent a confirmation link to ${email}. Open it to activate your account, then come back and sign in.`,
+    emailPlaceholder: "you@example.com",
+    passwordPlaceholder: "Password",
+    signingIn: "Signing in",
+    creatingAccount: "Creating account",
+    signIn: "Sign in →",
+    createAccount: "Create account →",
+    newToAtlas: "New to Atlas?",
+    createAnAccount: "Create an account",
+    alreadyHaveAccount: "Already have an account?",
+    signInLink: "Sign in",
+  },
+  "pt-BR": {
+    kicker: "Atlas · aprenda qualquer coisa, a fundo",
+    linkError:
+      "Esse link de confirmação expirou ou já foi usado — entre novamente abaixo.",
+    enterEmail: "Digite o e-mail da sua conta.",
+    passwordMin: "A senha precisa ter pelo menos 6 caracteres.",
+    signInTitle: "Entre no seu mapa",
+    signUpTitle: "Crie sua conta",
+    subtitleBase: "Seu mapa, sequência e progresso ficam na sua conta",
+    subtitleSignin: " — entre com seu e-mail e senha.",
+    subtitleSignup: " — escolha um e-mail e senha para começar.",
+    confirmEmailTitle: "Confirme seu e-mail",
+    confirmEmailBody: (email: string) =>
+      `Enviamos um link de confirmação para ${email}. Abra-o para ativar sua conta e depois volte para entrar.`,
+    emailPlaceholder: "voce@exemplo.com",
+    passwordPlaceholder: "Senha",
+    signingIn: "Entrando",
+    creatingAccount: "Criando conta",
+    signIn: "Entrar →",
+    createAccount: "Criar conta →",
+    newToAtlas: "Novo no Atlas?",
+    createAnAccount: "Criar uma conta",
+    alreadyHaveAccount: "Já tem uma conta?",
+    signInLink: "Entrar",
+  },
+} as const;
 
 interface LoginScreenProps {
   /** Set when /auth/confirm rejected a confirmation link (expired / reused). */
@@ -14,26 +68,23 @@ type Mode = "signin" | "signup";
 type Status = "idle" | "working" | "sent" | "error";
 
 export default function LoginScreen({ linkError }: LoginScreenProps) {
+  const t = useT(STRINGS);
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState(
-    linkError
-      ? "That confirmation link expired or was already used — sign in again below."
-      : "",
-  );
+  const [message, setMessage] = useState(linkError ? t.linkError : "");
 
   const submit = () => {
     const address = email.trim();
     if (!address || !address.includes("@")) {
       setStatus("error");
-      setMessage("Enter the email for your account.");
+      setMessage(t.enterEmail);
       return;
     }
     if (password.length < 6) {
       setStatus("error");
-      setMessage("Password must be at least 6 characters.");
+      setMessage(t.passwordMin);
       return;
     }
 
@@ -105,7 +156,7 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
         }}
       >
         <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>
-          Atlas · learn anything, deeply
+          {t.kicker}
         </div>
         <h1
           style={{
@@ -117,13 +168,11 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
             margin: "0 0 14px",
           }}
         >
-          {mode === "signin" ? "Sign in to your map" : "Create your account"}
+          {mode === "signin" ? t.signInTitle : t.signUpTitle}
         </h1>
         <div style={{ fontSize: 14.5, color: color.inkMuted, marginBottom: 36 }}>
-          Your map, streak, and progress live in your account
-          {mode === "signin"
-            ? " — sign in with your email and password."
-            : " — pick an email and password to get started."}
+          {t.subtitleBase}
+          {mode === "signin" ? t.subtitleSignin : t.subtitleSignup}
         </div>
 
         {status === "sent" ? (
@@ -139,10 +188,9 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              Confirm your email
+              {t.confirmEmailTitle}
             </div>
-            We sent a confirmation link to {email.trim()}. Open it to activate
-            your account, then come back and sign in.
+            {t.confirmEmailBody(email.trim())}
           </div>
         ) : (
           <>
@@ -159,7 +207,7 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={t.emailPlaceholder}
                 type="email"
                 autoComplete="email"
                 autoFocus
@@ -182,7 +230,7 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") submit();
                 }}
-                placeholder="Password"
+                placeholder={t.passwordPlaceholder}
                 type="password"
                 autoComplete={
                   mode === "signin" ? "current-password" : "new-password"
@@ -213,13 +261,13 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
             >
               {working ? (
                 <>
-                  {mode === "signin" ? "Signing in" : "Creating account"}
+                  {mode === "signin" ? t.signingIn : t.creatingAccount}
                   <InkDots size={4} tone={color.accentInk} />
                 </>
               ) : mode === "signin" ? (
-                "Sign in →"
+                t.signIn
               ) : (
-                "Create account →"
+                t.createAccount
               )}
             </button>
 
@@ -233,16 +281,16 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
             >
               {mode === "signin" ? (
                 <>
-                  New to Atlas?{" "}
+                  {t.newToAtlas}{" "}
                   <button onClick={() => switchMode("signup")} style={linkStyle}>
-                    Create an account
+                    {t.createAnAccount}
                   </button>
                 </>
               ) : (
                 <>
-                  Already have an account?{" "}
+                  {t.alreadyHaveAccount}{" "}
                   <button onClick={() => switchMode("signin")} style={linkStyle}>
-                    Sign in
+                    {t.signInLink}
                   </button>
                 </>
               )}

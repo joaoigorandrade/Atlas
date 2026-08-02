@@ -5,16 +5,60 @@ import {
   PHASES,
   PHASE_SKIP_NUDGE,
   STATE_COLOR,
-  STATE_CONFIDENCE,
-  STATE_LABEL,
   phaseIndex,
   shakyLine,
+  stateConfidence,
+  stateLabel,
   type ConceptEdge,
   type ConceptNode,
   type NodeState,
   type ShakyReason,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    cta: {
+      frontier: "Begin · Consume",
+      learning: "Continue · Feynman",
+      shaky: "Re-attempt · Crucible",
+      mastered: "Review now",
+      gap: "Fix this gap",
+      unknown: "Locked",
+    } as Record<NodeState, string>,
+    phaseSpiral: "Phase spiral",
+    next: "next",
+    redo: "redo",
+    doFirst: (phase: string) => `Do ${phase} first`,
+    skipTo: (phase: string) => `Skip to ${phase} →`,
+    skipKnown: "I already know this — skip it",
+    openGaps: "Open gaps · spawned from failures",
+    learnFirst: "Learn these first",
+    prerequisites: "Prerequisites",
+    unlocks: "Unlocks",
+  },
+  "pt-BR": {
+    cta: {
+      frontier: "Começar · Consume",
+      learning: "Continuar · Feynman",
+      shaky: "Tentar de novo · Crucible",
+      mastered: "Revisar agora",
+      gap: "Corrigir esta lacuna",
+      unknown: "Bloqueado",
+    } as Record<NodeState, string>,
+    phaseSpiral: "Espiral de fases",
+    next: "próximo",
+    redo: "refazer",
+    doFirst: (phase: string) => `Fazer ${phase} primeiro`,
+    skipTo: (phase: string) => `Pular para ${phase} →`,
+    skipKnown: "Eu já sei isso — pular",
+    openGaps: "Lacunas abertas · geradas por falhas",
+    learnFirst: "Aprenda isso primeiro",
+    prerequisites: "Pré-requisitos",
+    unlocks: "Desbloqueia",
+  },
+} as const;
 
 interface NodeDetailProps {
   node: ConceptNode;
@@ -40,15 +84,6 @@ interface NodeDetailProps {
   onSkipKnown: (node: ConceptNode) => void;
 }
 
-const CTA_LABEL: Record<NodeState, string> = {
-  frontier: "Begin · Consume",
-  learning: "Continue · Feynman",
-  shaky: "Re-attempt · Crucible",
-  mastered: "Review now",
-  gap: "Fix this gap",
-  unknown: "Locked",
-};
-
 export default function NodeDetail({
   node,
   displayState,
@@ -62,6 +97,8 @@ export default function NodeDetail({
   onPhaseAction,
   onSkipKnown,
 }: NodeDetailProps) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   const labelOf = (id: string) =>
     nodes.find((n) => n.id === id)?.label ?? id;
   const stateColor = STATE_COLOR[displayState];
@@ -69,8 +106,8 @@ export default function NodeDetail({
   const locked = displayState === "unknown";
   const confidenceLine =
     displayState === "shaky"
-      ? shakyLine(shakyReason)
-      : STATE_CONFIDENCE[displayState];
+      ? shakyLine(shakyReason, language)
+      : stateConfidence(displayState, language);
 
   // A tapped ahead-of-recommendation phase awaiting the gentle skip nudge.
   const [pendingSkip, setPendingSkip] = useState<number | null>(null);
@@ -159,7 +196,7 @@ export default function NodeDetail({
             color: stateColor,
           }}
         >
-          {STATE_LABEL[displayState]}
+          {stateLabel(displayState, language)}
         </span>
       </div>
       <div
@@ -189,7 +226,7 @@ export default function NodeDetail({
         {confidenceLine}
       </div>
 
-      <div style={{ ...kicker(10), marginBottom: 12 }}>Phase spiral</div>
+      <div style={{ ...kicker(10), marginBottom: 12 }}>{t.phaseSpiral}</div>
       <div
         style={{
           display: "flex",
@@ -283,7 +320,7 @@ export default function NodeDetail({
                     color: stateColor,
                   }}
                 >
-                  next
+                  {t.next}
                 </span>
               )}
               {status === "done" && (
@@ -297,7 +334,7 @@ export default function NodeDetail({
                     color: color.inkGhost,
                   }}
                 >
-                  redo
+                  {t.redo}
                 </span>
               )}
             </button>
@@ -344,7 +381,7 @@ export default function NodeDetail({
                 cursor: "pointer",
               }}
             >
-              Do {PHASES[currentPhase]} first
+              {t.doFirst(PHASES[currentPhase])}
             </button>
             <button
               onClick={() => {
@@ -362,7 +399,7 @@ export default function NodeDetail({
                 textDecoration: "underline",
               }}
             >
-              Skip to {PHASES[pendingSkip]} →
+              {t.skipTo(PHASES[pendingSkip])}
             </button>
           </div>
         </div>
@@ -383,7 +420,7 @@ export default function NodeDetail({
           boxShadow: locked ? "none" : "0 8px 22px rgba(47,107,79,0.26)",
         }}
       >
-        {CTA_LABEL[displayState]}
+        {t.cta[displayState]}
       </button>
 
       {displayState === "frontier" && (
@@ -401,14 +438,14 @@ export default function NodeDetail({
             cursor: "pointer",
           }}
         >
-          I already know this — skip it
+          {t.skipKnown}
         </button>
       )}
 
       {gapIds.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <div style={{ ...kicker(10), marginBottom: 10 }}>
-            Open gaps · spawned from failures
+            {t.openGaps}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
             {gapIds.map(chip)}
@@ -419,7 +456,7 @@ export default function NodeDetail({
       {prereqIds.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <div style={{ ...kicker(10), marginBottom: 10 }}>
-            {locked ? "Learn these first" : "Prerequisites"}
+            {locked ? t.learnFirst : t.prerequisites}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
             {prereqIds.map(chip)}
@@ -429,7 +466,7 @@ export default function NodeDetail({
 
       {dependentIds.length > 0 && (
         <div style={{ marginTop: 20 }}>
-          <div style={{ ...kicker(10), marginBottom: 10 }}>Unlocks</div>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>{t.unlocks}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
             {dependentIds.map(chip)}
           </div>

@@ -8,6 +8,38 @@ import {
   type AdherenceState,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    dayStreak: "day streak",
+    freezesBanked: (n: number) =>
+      `${n} freeze${n === 1 ? "" : "s"} banked — each absorbs a missed day`,
+    dayFreeze: "Missed — a freeze absorbed it, streak held",
+    todayDone: "Today — done",
+    todayOpen: "Today — still open",
+    missed: "Missed",
+    targetMet: "Target met",
+    today: "today",
+    best: "Best",
+    freezes: "Freezes",
+    reminder: "Reminder",
+  },
+  "pt-BR": {
+    dayStreak: "dias de sequência",
+    freezesBanked: (n: number) =>
+      `${n} proteç${n === 1 ? "ão" : "ões"} guardada${n === 1 ? "" : "s"} — cada uma absorve um dia perdido`,
+    dayFreeze: "Faltou — uma proteção absorveu, sequência mantida",
+    todayDone: "Hoje — concluído",
+    todayOpen: "Hoje — ainda em aberto",
+    missed: "Faltou",
+    targetMet: "Meta cumprida",
+    today: "hoje",
+    best: "Melhor",
+    freezes: "Proteções",
+    reminder: "Lembrete",
+  },
+} as const;
 
 interface StreakFlameProps {
   adherence: AdherenceState;
@@ -33,6 +65,7 @@ export default function StreakFlame({
   adherence,
   onToggleReminder,
 }: StreakFlameProps) {
+  const t = useT(STRINGS);
   const [open, setOpen] = useState(false);
   const lit = adherence.metToday;
 
@@ -67,11 +100,11 @@ export default function StreakFlame({
           <span style={{ fontWeight: 600, color: color.ink }}>
             {adherence.streak}
           </span>{" "}
-          day streak
+          {t.dayStreak}
         </span>
         {adherence.freezes > 0 && (
           <span
-            title={`${adherence.freezes} freeze${adherence.freezes === 1 ? "" : "s"} banked — each absorbs a missed day`}
+            title={t.freezesBanked(adherence.freezes)}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -115,6 +148,8 @@ function Popover({
   adherence: AdherenceState;
   onToggleReminder: () => void;
 }) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   return (
     <div
       style={{
@@ -150,7 +185,7 @@ function Popover({
           {adherence.streak}
         </span>
         <span style={{ ...kicker(10, "0.1em"), color: color.inkMuted }}>
-          day streak
+          {t.dayStreak}
         </span>
       </div>
 
@@ -162,7 +197,7 @@ function Popover({
           marginBottom: 14,
         }}
       >
-        {streakStatus(adherence)}
+        {streakStatus(adherence, language)}
       </div>
 
       {/* The day strip — the freeze-absorbed day is the forgiving mechanic, visible. */}
@@ -172,14 +207,14 @@ function Popover({
             key={i}
             title={
               day.status === "freeze"
-                ? "Missed — a freeze absorbed it, streak held"
+                ? t.dayFreeze
                 : day.status === "today"
                   ? adherence.metToday
-                    ? "Today — done"
-                    : "Today — still open"
+                    ? t.todayDone
+                    : t.todayOpen
                   : day.status === "miss"
-                    ? "Missed"
-                    : "Target met"
+                    ? t.missed
+                    : t.targetMet
             }
             style={{
               flex: 1,
@@ -242,14 +277,14 @@ function Popover({
         }}
       >
         <span>{adherence.history[0]?.label ?? ""}</span>
-        <span>today</span>
+        <span>{t.today}</span>
       </div>
 
       {/* Best + banked freezes */}
       <div style={{ display: "flex", gap: 10, marginBottom: 15 }}>
-        <Stat label="Best" value={`${adherence.best} d`} tone={color.ink} />
+        <Stat label={t.best} value={`${adherence.best} d`} tone={color.ink} />
         <Stat
-          label="Freezes"
+          label={t.freezes}
           value={`${adherence.freezes}`}
           tone={STREAK_COLOR.freeze}
           icon
@@ -271,7 +306,7 @@ function Popover({
             gap: 10,
           }}
         >
-          <span style={{ ...kicker(9.5, "0.1em") }}>Reminder</span>
+          <span style={{ ...kicker(9.5, "0.1em") }}>{t.reminder}</span>
           <button
             onClick={onToggleReminder}
             role="switch"
@@ -313,7 +348,7 @@ function Popover({
             marginTop: 8,
           }}
         >
-          {reminderCopy(adherence)}
+          {reminderCopy(adherence, language)}
         </div>
       </div>
     </div>

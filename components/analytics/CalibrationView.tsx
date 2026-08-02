@@ -3,16 +3,80 @@
 import {
   CALIB_COLOR,
   CALIB_TREND_COLOR,
-  CALIB_VERDICT_LABEL,
   CRUCIBLE_COLOR,
   STATE_COLOR,
   calibCoach,
   calibRows,
   calibTopicLine,
   calibUnderLine,
+  calibVerdictLabel,
   type CalibItem,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    backToMap: "← Map",
+    analyticsCalibration: "Analytics · Calibration",
+    headerTagline: "Learning to learn — do you know what you actually know?",
+    calibrationCurve: "Calibration curve",
+    curveSubtitle: "Predicted confidence vs. what actually happened",
+    underconfident: "UNDERCONFIDENT",
+    overconfident: "OVERCONFIDENT",
+    predictedConfidence: "Predicted confidence →",
+    actualPerformance: "Actual performance →",
+    legendOverconfident: "Overconfident",
+    legendCalibrated: "Calibrated",
+    legendUnderconfident: "Underconfident",
+    yourTendency: "Your tendency",
+    feelingToLearn: "The feeling to learn",
+    perNodeBreakdown:
+      "Per-node breakdown · tap an overconfident node to close the real gap",
+    otherDirection: "The other direction",
+    noUnderconfident:
+      "Nothing underconfident right now — no readings where you deliver more than you expect.",
+    captured: "Captured · cheap hooks everywhere",
+    hookCrucible: "Confidence tap before every Crucible problem",
+    hookReview: "Confidence tap before flipping each review card",
+    hookConsume: "Predictions made during the Consume phase",
+    closeTheGap: "Close the gap → Crucible",
+    betterThanFeels: "Better than it feels",
+    feelingMatches: "Feeling matches result",
+    felt: "Felt",
+    real: "Real",
+  },
+  "pt-BR": {
+    backToMap: "← Mapa",
+    analyticsCalibration: "Análises · Calibração",
+    headerTagline: "Aprender a aprender — você sabe o que realmente sabe?",
+    calibrationCurve: "Curva de calibração",
+    curveSubtitle: "Confiança prevista vs. o que realmente aconteceu",
+    underconfident: "SUBESTIMADO",
+    overconfident: "SUPERESTIMADO",
+    predictedConfidence: "Confiança prevista →",
+    actualPerformance: "Desempenho real →",
+    legendOverconfident: "Superestimado",
+    legendCalibrated: "Calibrado",
+    legendUnderconfident: "Subestimado",
+    yourTendency: "Sua tendência",
+    feelingToLearn: "A sensação a aprender",
+    perNodeBreakdown:
+      "Detalhamento por nó · toque em um nó superestimado para fechar a lacuna real",
+    otherDirection: "A outra direção",
+    noUnderconfident:
+      "Nada subestimado no momento — nenhuma leitura em que você entrega mais do que espera.",
+    captured: "Capturado · ganchos baratos em todo lugar",
+    hookCrucible: "Toque de confiança antes de cada problema do Crucible",
+    hookReview: "Toque de confiança antes de virar cada cartão de revisão",
+    hookConsume: "Previsões feitas durante a fase Consume",
+    closeTheGap: "Fechar a lacuna → Crucible",
+    betterThanFeels: "Melhor do que parece",
+    feelingMatches: "A sensação bate com o resultado",
+    felt: "Sentiu",
+    real: "Real",
+  },
+} as const;
 
 // Calibration owns the Shaky amber as its surface accent — overconfidence is
 // the thing it exists to catch, and Shaky is that state on the map.
@@ -41,6 +105,7 @@ export default function CalibrationView({
   onExit,
   onCloseGap,
 }: CalibrationViewProps) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -80,7 +145,7 @@ export default function CalibrationView({
             color: color.inkMuted,
           }}
         >
-          ← Map
+          {t.backToMap}
         </button>
         <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
         <span
@@ -92,11 +157,11 @@ export default function CalibrationView({
             color: OVER,
           }}
         >
-          Analytics · Calibration
+          {t.analyticsCalibration}
         </span>
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 13, color: color.inkFaint }}>
-          Learning to learn — do you know what you actually know?
+          {t.headerTagline}
         </div>
       </div>
 
@@ -124,6 +189,7 @@ export default function CalibrationView({
 /** The calibration curve: predicted confidence (x) vs. actual performance (y).
  *  Points above the diagonal are underconfident, below are overconfident. */
 function CurveCard({ items }: { items: CalibItem[] }) {
+  const t = useT(STRINGS);
   const grid = [25, 50, 75].flatMap((v) => [
     { x1: px(v), y1: YT, x2: px(v), y2: YB },
     { x1: X0, y1: py(v), x2: X1, y2: py(v) },
@@ -155,7 +221,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
       }}
     >
       <div style={{ ...kicker(10, "0.14em"), marginBottom: 4 }}>
-        Calibration curve
+        {t.calibrationCurve}
       </div>
       <div
         style={{
@@ -165,7 +231,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           marginBottom: 16,
         }}
       >
-        Predicted confidence vs. what actually happened
+        {t.curveSubtitle}
       </div>
 
       <svg viewBox="0 0 470 440" style={{ width: "100%", height: "auto", display: "block" }}>
@@ -194,10 +260,10 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           strokeDasharray="5 5"
         />
         <text x={126} y={70} fontFamily={font.mono} fontSize={9.5} fill={STATE_COLOR.learning} letterSpacing="0.06em">
-          UNDERCONFIDENT
+          {t.underconfident}
         </text>
         <text x={300} y={386} fontFamily={font.mono} fontSize={9.5} fill={OVER} letterSpacing="0.06em">
-          OVERCONFIDENT
+          {t.overconfident}
         </text>
         {/* Your tendency */}
         {trend && (
@@ -240,7 +306,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           100
         </text>
         <text x={249} y={432} fontFamily={font.mono} fontSize={10.5} fill={color.inkMuted} textAnchor="middle">
-          Predicted confidence →
+          {t.predictedConfidence}
         </text>
         <text x={48} y={400} fontFamily={font.mono} fontSize={10} fill={color.inkGhost} textAnchor="end">
           0
@@ -255,7 +321,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           fill={color.inkMuted}
           textAnchor="middle"
         >
-          Actual performance →
+          {t.actualPerformance}
         </text>
       </svg>
 
@@ -272,12 +338,12 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           color: color.inkMuted,
         }}
       >
-        <LegendDot color={OVER} label="Overconfident" />
-        <LegendDot color={STATE_COLOR.mastered} label="Calibrated" />
-        <LegendDot color={STATE_COLOR.learning} label="Underconfident" />
+        <LegendDot color={OVER} label={t.legendOverconfident} />
+        <LegendDot color={STATE_COLOR.mastered} label={t.legendCalibrated} />
+        <LegendDot color={STATE_COLOR.learning} label={t.legendUnderconfident} />
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ width: 16, height: 0, borderTop: `2.5px solid ${CALIB_TREND_COLOR}` }} />
-          Your tendency
+          {t.yourTendency}
         </span>
       </div>
     </div>
@@ -302,8 +368,10 @@ function Readout({
   items: CalibItem[];
   onCloseGap: (nodeId: string) => void;
 }) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   const rows = calibRows(items);
-  const under = calibUnderLine(items);
+  const under = calibUnderLine(items, language);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -318,7 +386,7 @@ function Readout({
         }}
       >
         <div style={{ ...kicker(10, "0.12em"), color: OVER, marginBottom: 10 }}>
-          The feeling to learn
+          {t.feelingToLearn}
         </div>
         <div
           style={{
@@ -329,17 +397,17 @@ function Readout({
             marginBottom: 14,
           }}
         >
-          {calibCoach(items)}
+          {calibCoach(items, language)}
         </div>
         <div style={{ fontSize: 13.5, color: color.inkMuted, lineHeight: 1.58 }}>
-          {calibTopicLine(items)}
+          {calibTopicLine(items, language)}
         </div>
       </div>
 
       {/* Per-node breakdown */}
       <div>
         <div style={{ ...kicker(10, "0.14em"), marginBottom: 12 }}>
-          Per-node breakdown · tap an overconfident node to close the real gap
+          {t.perNodeBreakdown}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {rows.map((r) => (
@@ -359,11 +427,11 @@ function Readout({
           }}
         >
           <div style={{ ...kicker(9.5, "0.1em"), color: STATE_COLOR.learning, marginBottom: 8 }}>
-            The other direction
+            {t.otherDirection}
           </div>
           <div style={{ fontSize: 13.5, color: color.inkSoft, lineHeight: 1.55 }}>
-            {under ||
-              "Nothing underconfident right now — no readings where you deliver more than you expect."}
+            {/* TODO(i18n): swap in curriculum.ts's language-aware calibUnderLine(items, language) once merged */}
+            {under || t.noUnderconfident}
           </div>
         </div>
         <div
@@ -375,7 +443,7 @@ function Readout({
           }}
         >
           <div style={{ ...kicker(9.5, "0.1em"), marginBottom: 10 }}>
-            Captured · cheap hooks everywhere
+            {t.captured}
           </div>
           <div
             style={{
@@ -387,9 +455,9 @@ function Readout({
               lineHeight: 1.4,
             }}
           >
-            <CaptureHook color={CRUCIBLE_COLOR.accent} text="Confidence tap before every Crucible problem" />
-            <CaptureHook color={color.accent} text="Confidence tap before flipping each review card" />
-            <CaptureHook color={STATE_COLOR.frontier} text="Predictions made during the Consume phase" />
+            <CaptureHook color={CRUCIBLE_COLOR.accent} text={t.hookCrucible} />
+            <CaptureHook color={color.accent} text={t.hookReview} />
+            <CaptureHook color={STATE_COLOR.frontier} text={t.hookConsume} />
           </div>
         </div>
       </div>
@@ -415,12 +483,14 @@ function CalibRow({
   item: CalibItem;
   onCloseGap: (nodeId: string) => void;
 }) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   const over = item.verdict === "over";
   const cta = over
-    ? "Close the gap → Crucible"
+    ? t.closeTheGap
     : item.verdict === "under"
-      ? "Better than it feels"
-      : "Feeling matches result";
+      ? t.betterThanFeels
+      : t.feelingMatches;
   return (
     <div
       onClick={over ? () => onCloseGap(item.id) : undefined}
@@ -453,12 +523,12 @@ function CalibRow({
             whiteSpace: "nowrap",
           }}
         >
-          {CALIB_VERDICT_LABEL[item.verdict]}
+          {calibVerdictLabel(item.verdict, language)}
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <Bar label="Felt" pct={item.felt} fill="rgba(44,40,35,0.34)" />
-        <Bar label="Real" pct={item.real} fill={CALIB_COLOR[item.verdict]} />
+        <Bar label={t.felt} pct={item.felt} fill="rgba(44,40,35,0.34)" />
+        <Bar label={t.real} pct={item.real} fill={CALIB_COLOR[item.verdict]} />
       </div>
       <div
         style={{

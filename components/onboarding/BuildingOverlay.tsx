@@ -2,8 +2,21 @@
 
 import { InkRule } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    kicker: "Generating your map",
+    body: "Assembling the territory, foundations first…",
+  },
+  "pt-BR": {
+    kicker: "Gerando seu mapa",
+    body: "Montando o território, começando pelas fundações…",
+  },
+} as const;
 
 export default function BuildingOverlay() {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -19,7 +32,7 @@ export default function BuildingOverlay() {
     >
       <div style={{ textAlign: "center", animation: "fadeUp 0.6s both" }}>
         <div style={{ ...kicker(11, "0.18em"), marginBottom: 10 }}>
-          Generating your map
+          {t.kicker}
         </div>
         <div
           style={{
@@ -29,7 +42,7 @@ export default function BuildingOverlay() {
             marginBottom: 22,
           }}
         >
-          Assembling the territory, foundations first…
+          {t.body}
         </div>
         <InkRule width={260} />
       </div>

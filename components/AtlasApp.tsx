@@ -95,6 +95,7 @@ import {
   type ScopeOffer,
 } from "@/lib/api";
 import { createWarmQueue } from "@/lib/warm";
+import { useLanguage } from "@/lib/i18n";
 import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
@@ -201,6 +202,11 @@ interface PanState {
 
 export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const supabase = useMemo(() => createClient(), []);
+  // The learner's chosen UI language — threaded into every generation/judge
+  // call so AI content comes back in it too (a ref, like `formRef` etc.
+  // below, so it can be read from stable callbacks without widening their
+  // dependency arrays).
+  const { language } = useLanguage();
   // The background warm queue: content for the phases just ahead is fetched
   // while the learner works, so entering them is a state change, not a wait.
   // A foreground click on something already warming joins that request rather
@@ -293,6 +299,8 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   graphRef.current = graph;
   const formRef = useRef(form);
   formRef.current = form;
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const diagnosticRef = useRef(diagnostic);
   diagnosticRef.current = diagnostic;
   const answeredRef = useRef(answered);
@@ -705,6 +713,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       goal: formRef.current.goal,
       interests: formRef.current.interests,
       outline: outline ?? undefined,
+      language: languageRef.current,
     })
       .then((payload) => {
         // Too broad for one map: offer scoped sub-maps instead (#30).
@@ -995,6 +1004,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       nodeLabel: node.label,
       prereqLabels: prereqLabelsOf(node.id),
       interests: formRef.current.interests,
+      language: languageRef.current,
     }),
     [prereqLabelsOf],
   );
@@ -1004,6 +1014,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       topic: formRef.current.topic,
       nodeLabel: node.label,
       interests: formRef.current.interests,
+      language: languageRef.current,
     }),
     [],
   );
@@ -1014,6 +1025,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       nodeId: node.id,
       nodeLabel: node.label,
       interests: formRef.current.interests,
+      language: languageRef.current,
     }),
     [],
   );
@@ -1045,6 +1057,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       nodeLabel: node.label,
       pool,
       interests: formRef.current.interests,
+      language: languageRef.current,
     };
   }, []);
 
@@ -1055,6 +1068,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       nodeLabel: node.label,
       masteredLabels: learnedLabels(),
       interests: formRef.current.interests,
+      language: languageRef.current,
     }),
     [learnedLabels],
   );
@@ -1430,6 +1444,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         question: step.prompt,
         reference: step.tell,
         answer: text,
+        language: languageRef.current,
       })
         .then((j) => {
           setSocratic((prev) =>
@@ -1524,6 +1539,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         subPoint: beat.subPoint,
         reference: beat.transcript,
         answer: text,
+        language: languageRef.current,
       })
         .then((j) => {
           setFeynman((prev) =>
@@ -1751,6 +1767,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       problem: problem.q,
       hint: problem.hint,
       answer: cur.attempt,
+      language: languageRef.current,
     })
       .then((j) => {
         setCrucible((prev) =>
@@ -1889,6 +1906,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           state: statesRef.current[n.id]!,
         })),
         interests: formRef.current.interests,
+        language: languageRef.current,
       },
     };
   }, []);

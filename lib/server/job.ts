@@ -20,6 +20,7 @@ import {
   judgeCrucible,
   judgeFeynman,
   judgeSocratic,
+  type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import type { ConsumeChunk, GoalKind } from "@/lib/curriculum";
@@ -28,6 +29,11 @@ export type GenerateKind = CacheableKind | "judge";
 
 export interface GenerateBody {
   kind: GenerateKind;
+  /** The learner's chosen UI language — content comes back in it too.
+   *  Defaults to "en" when absent (older clients, or judge calls that predate
+   *  this field). Part of the cache key, so en/pt-BR generations never
+   *  collide (see contentCache.ts VERSION). */
+  language?: Language;
   topic?: string;
   goal?: GoalKind;
   interests?: string;
@@ -99,6 +105,7 @@ export function resolveJob(body: GenerateBody): Job {
   const interests = s(body.interests).slice(0, CAPS.interests);
   const nodeId = s(body.nodeId).slice(0, CAPS.nodeLabel);
   const nodeLabel = s(body.nodeLabel);
+  const language: Language = body.language === "pt-BR" ? "pt-BR" : "en";
 
   if (!topic) throw badRequest("topic is required");
   if (topic.length > CAPS.topic)
@@ -120,7 +127,13 @@ export function resolveJob(body: GenerateBody): Job {
         : "mastery";
       return cacheable(
         "curriculum",
-        { topic, goal, interests, outline: s(body.outline).slice(0, CAPS.outline) },
+        {
+          topic,
+          goal,
+          interests,
+          outline: s(body.outline).slice(0, CAPS.outline),
+          language,
+        },
         async (p) => ({ ...(await generateCurriculum(p)) }),
       );
     }
@@ -132,6 +145,7 @@ export function resolveJob(body: GenerateBody): Job {
         nodeLabel,
         prereqLabels: labels(body.prereqLabels),
         interests,
+        language,
       };
       return {
         kind: "consume",
@@ -145,7 +159,7 @@ export function resolveJob(body: GenerateBody): Job {
       if (!nodeLabel) throw badRequest("nodeLabel is required");
       return cacheable(
         "socratic",
-        { topic, nodeLabel, interests },
+        { topic, nodeLabel, interests, language },
         async (p) => ({ steps: await generateSocratic(p) }),
       );
     }
@@ -155,7 +169,7 @@ export function resolveJob(body: GenerateBody): Job {
         throw badRequest("nodeId and nodeLabel are required");
       return cacheable(
         "feynman",
-        { topic, nodeId, nodeLabel, interests },
+        { topic, nodeId, nodeLabel, interests, language },
         async (p) => ({ beats: await generateFeynman(p) }),
       );
     }
@@ -177,7 +191,7 @@ export function resolveJob(body: GenerateBody): Job {
       if (pool.length === 0) throw badRequest("pool must list prior nodes");
       return cacheable(
         "connect",
-        { topic, nodeId, nodeLabel, pool, interests },
+        { topic, nodeId, nodeLabel, pool, interests, language },
         async (p) => ({ content: await generateConnect(p) }),
       );
     }
@@ -193,6 +207,7 @@ export function resolveJob(body: GenerateBody): Job {
           nodeLabel,
           masteredLabels: labels(body.masteredLabels),
           interests,
+          language,
         },
         async (p) => ({ content: await generateCrucible(p) }),
       );
@@ -218,7 +233,7 @@ export function resolveJob(body: GenerateBody): Job {
           : 8;
       return cacheable(
         "retain",
-        { topic, budgetMin, nodes, interests },
+        { topic, budgetMin, nodes, interests, language },
         async (p) => ({ content: await generateRetain(p) }),
       );
     }
@@ -244,6 +259,7 @@ export function resolveJob(body: GenerateBody): Job {
             question: s(body.question).slice(0, CAPS.freeText),
             options,
             answer,
+            language,
           }),
         }));
       }
@@ -256,6 +272,7 @@ export function resolveJob(body: GenerateBody): Job {
             question: s(body.question).slice(0, CAPS.freeText),
             reference: s(body.reference).slice(0, CAPS.freeText),
             answer,
+            language,
           }),
         }));
       if (body.mode === "feynman")
@@ -266,6 +283,7 @@ export function resolveJob(body: GenerateBody): Job {
             subPoint: s(body.subPoint).slice(0, CAPS.nodeLabel * 2),
             reference: s(body.reference).slice(0, CAPS.freeText),
             explanation: answer,
+            language,
           }),
         }));
       if (body.mode === "crucible")
@@ -276,6 +294,7 @@ export function resolveJob(body: GenerateBody): Job {
             problem: s(body.problem).slice(0, CAPS.freeText),
             hint: s(body.hint).slice(0, CAPS.freeText),
             attempt: answer,
+            language,
           }),
         }));
       throw badRequest(`unknown judge mode "${String(body.mode)}"`);

@@ -2,6 +2,68 @@
 
 import type { DailyQueue, GoalKind } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    dayStreak: "day streak",
+    profile: "Profile",
+    frontierIntro: (n: number) =>
+      `You're on the frontier of ${n} concept${n === 1 ? "" : "s"}. Pick up where you left off.`,
+    fullyMastered: "Your map is fully mastered. Keep the memories fresh with review.",
+    todaysReview: "Today’s review",
+    queueClear: "Queue clear ✓",
+    cardsDue: (n: number) => `${n} card${n === 1 ? "" : "s"} due`,
+    nothingDueYet: "Nothing due yet",
+    metTodayBody: "You've met today's target. New cards surface as memories start to fade.",
+    cardsDueBody: (min: number) =>
+      `~${min} min · timed to the moment these memories are about to fade.`,
+    nothingDueBody: "Learn a concept to the end and it starts feeding the review queue.",
+    startReview: "Start review →",
+    yourFrontier: "Your frontier",
+    allCaughtUp: "All caught up",
+    frontierBody: (subject: string) =>
+      `The next concept you're ready to learn in ${subject}.`,
+    frontierDoneBody: (subject: string) => `Every concept in ${subject} is under way.`,
+    openMap: "Open the map →",
+    yourMaps: "Your maps",
+    newMap: "+ New map",
+    complete: "Complete",
+    inProgress: "In progress",
+    justStarted: "Just started",
+    masteredPct: (pct: number) => `${pct}% mastered`,
+    onFrontier: (n: number) => `${n} on frontier`,
+  },
+  "pt-BR": {
+    dayStreak: "dias de sequência",
+    profile: "Perfil",
+    frontierIntro: (n: number) =>
+      `Você está na fronteira de ${n} conceito${n === 1 ? "" : "s"}. Continue de onde parou.`,
+    fullyMastered: "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão.",
+    todaysReview: "Revisão de hoje",
+    queueClear: "Fila limpa ✓",
+    cardsDue: (n: number) => `${n} cartã${n === 1 ? "o" : "os"} pendente${n === 1 ? "" : "s"}`,
+    nothingDueYet: "Nada pendente ainda",
+    metTodayBody: "Você cumpriu a meta de hoje. Novos cartões surgem à medida que as memórias começam a desvanecer.",
+    cardsDueBody: (min: number) =>
+      `~${min} min · no momento exato em que essas memórias estão prestes a desvanecer.`,
+    nothingDueBody: "Aprenda um conceito até o fim e ele passa a alimentar a fila de revisão.",
+    startReview: "Iniciar revisão →",
+    yourFrontier: "Sua fronteira",
+    allCaughtUp: "Tudo em dia",
+    frontierBody: (subject: string) =>
+      `O próximo conceito que você está pronto para aprender em ${subject}.`,
+    frontierDoneBody: (subject: string) => `Todo conceito em ${subject} está em andamento.`,
+    openMap: "Abrir o mapa →",
+    yourMaps: "Seus mapas",
+    newMap: "+ Novo mapa",
+    complete: "Completo",
+    inProgress: "Em andamento",
+    justStarted: "Recém-iniciado",
+    masteredPct: (pct: number) => `${pct}% dominado`,
+    onFrontier: (n: number) => `${n} na fronteira`,
+  },
+} as const;
 
 interface DashboardScreenProps {
   /** Time-of-day greeting ("Good morning") and the friendly display name. */
@@ -71,12 +133,13 @@ export default function DashboardScreen({
   onProfile,
   onNewMap,
 }: DashboardScreenProps) {
+  const t = useT(STRINGS);
   const mapStatus =
     masteryPct >= 100
-      ? "Complete"
+      ? t.complete
       : masteryPct > 0
-        ? "In progress"
-        : "Just started";
+        ? t.inProgress
+        : t.justStarted;
 
   return (
     <div
@@ -112,12 +175,12 @@ export default function DashboardScreen({
               boxShadow: "0 0 8px rgba(201,154,46,0.6)",
             }}
           />
-          <span style={{ fontWeight: 600, color: color.ink }}>{streak}</span> day
-          streak
+          <span style={{ fontWeight: 600, color: color.ink }}>{streak}</span>{" "}
+          {t.dayStreak}
         </div>
         <button
           onClick={onProfile}
-          title="Profile"
+          title={t.profile}
           style={{
             width: 34,
             height: 34,
@@ -168,10 +231,8 @@ export default function DashboardScreen({
             }}
           >
             {frontierTotal > 0
-              ? `You're on the frontier of ${frontierTotal} concept${
-                  frontierTotal === 1 ? "" : "s"
-                }. Pick up where you left off.`
-              : "Your map is fully mastered. Keep the memories fresh with review."}
+              ? t.frontierIntro(frontierTotal)
+              : t.fullyMastered}
           </div>
 
           <div
@@ -208,7 +269,7 @@ export default function DashboardScreen({
                     background: color.accent,
                   }}
                 />
-                Today&rsquo;s review
+                {t.todaysReview}
               </div>
               <div
                 style={{
@@ -219,10 +280,10 @@ export default function DashboardScreen({
                 }}
               >
                 {metToday
-                  ? "Queue clear ✓"
+                  ? t.queueClear
                   : queue.cards > 0
-                    ? `${queue.cards} card${queue.cards === 1 ? "" : "s"} due`
-                    : "Nothing due yet"}
+                    ? t.cardsDue(queue.cards)
+                    : t.nothingDueYet}
               </div>
               <div
                 style={{
@@ -233,15 +294,15 @@ export default function DashboardScreen({
                 }}
               >
                 {metToday
-                  ? "You've met today's target. New cards surface as memories start to fade."
+                  ? t.metTodayBody
                   : queue.cards > 0
-                    ? `~${queue.minutes} min · timed to the moment these memories are about to fade.`
-                    : "Learn a concept to the end and it starts feeding the review queue."}
+                    ? t.cardsDueBody(queue.minutes)
+                    : t.nothingDueBody}
               </div>
               <div
                 style={{ fontSize: 13.5, color: color.accent, fontWeight: 600 }}
               >
-                Start review &rarr;
+                {t.startReview}
               </div>
             </div>
 
@@ -272,7 +333,7 @@ export default function DashboardScreen({
                     boxShadow: "0 0 8px rgba(201,154,46,0.6)",
                   }}
                 />
-                Your frontier
+                {t.yourFrontier}
               </div>
               <div
                 style={{
@@ -282,7 +343,7 @@ export default function DashboardScreen({
                   marginBottom: 6,
                 }}
               >
-                {frontierConcept ?? "All caught up"}
+                {frontierConcept ?? t.allCaughtUp}
               </div>
               <div
                 style={{
@@ -293,8 +354,8 @@ export default function DashboardScreen({
                 }}
               >
                 {frontierConcept
-                  ? `The next concept you're ready to learn in ${subject}.`
-                  : `Every concept in ${subject} is under way.`}
+                  ? t.frontierBody(subject)
+                  : t.frontierDoneBody(subject)}
               </div>
               <div
                 style={{
@@ -303,7 +364,7 @@ export default function DashboardScreen({
                   fontWeight: 600,
                 }}
               >
-                Open the map &rarr;
+                {t.openMap}
               </div>
             </div>
           </div>
@@ -316,7 +377,7 @@ export default function DashboardScreen({
               marginBottom: 16,
             }}
           >
-            <div style={{ fontFamily: font.serif, fontSize: 22 }}>Your maps</div>
+            <div style={{ fontFamily: font.serif, fontSize: 22 }}>{t.yourMaps}</div>
             <button
               onClick={onNewMap}
               style={{
@@ -329,7 +390,7 @@ export default function DashboardScreen({
                 cursor: "pointer",
               }}
             >
-              + New map
+              {t.newMap}
             </button>
           </div>
           <div
@@ -412,8 +473,8 @@ export default function DashboardScreen({
                   color: color.inkFaint,
                 }}
               >
-                <span>{masteryPct}% mastered</span>
-                <span>{frontierTotal} on frontier</span>
+                <span>{t.masteredPct(masteryPct)}</span>
+                <span>{t.onFrontier(frontierTotal)}</span>
               </div>
             </div>
           </div>

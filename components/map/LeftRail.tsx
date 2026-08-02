@@ -1,15 +1,57 @@
 "use client";
 
 import {
-  GOAL_ORDER_CAPTION,
   STATE_COLOR,
-  STATE_LABEL,
+  goalOrderCaption,
+  stateLabel,
   type GoalKind,
   type NodeState,
   type PaceStatus,
   type PlanEntry,
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    subject: "Subject",
+    finalExam: (days: number) => `Final exam · ${days} days`,
+    onPace: (neededPerDay: number, remaining: number) =>
+      `On pace — ~${neededPerDay} min/day covers the ${remaining} concepts left.`,
+    behindPace: (neededPerDay: number, targetPerDay: number) =>
+      `Behind pace — the map needs ~${neededPerDay} min/day; your target is ${targetPerDay}. Skip what you already know.`,
+    nextUp: "Next up",
+    territoryMastered: "Territory mastered",
+    jumpToFrontier: "Jump to frontier",
+    calibration: "Calibration",
+    over: (n: number) => `${n} over`,
+    states: "States",
+    stopReplay: "Stop replay",
+    momentumReplay: "Momentum replay",
+    placementDiagnostic: "Placement diagnostic",
+    week: (n: number) => `Week ${n} of 3`,
+    watchLightUp: " — watch it light up",
+  },
+  "pt-BR": {
+    subject: "Assunto",
+    finalExam: (days: number) => `Prova final · ${days} dias`,
+    onPace: (neededPerDay: number, remaining: number) =>
+      `No ritmo — ~${neededPerDay} min/dia cobre os ${remaining} conceitos restantes.`,
+    behindPace: (neededPerDay: number, targetPerDay: number) =>
+      `Atrás do ritmo — o mapa precisa de ~${neededPerDay} min/dia; sua meta é ${targetPerDay}. Pule o que você já sabe.`,
+    nextUp: "A seguir",
+    territoryMastered: "Território dominado",
+    jumpToFrontier: "Ir para a fronteira",
+    calibration: "Calibração",
+    over: (n: number) => `${n} acima`,
+    states: "Estados",
+    stopReplay: "Parar replay",
+    momentumReplay: "Replay do progresso",
+    placementDiagnostic: "Diagnóstico de nivelamento",
+    week: (n: number) => `Semana ${n} de 3`,
+    watchLightUp: " — veja o mapa se acender",
+  },
+} as const;
 
 const LEGEND_ORDER: NodeState[] = [
   "frontier",
@@ -52,6 +94,8 @@ export default function LeftRail({
   onToggleMomentum,
   onPickNode,
 }: LeftRailProps) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   return (
     <div
       style={{
@@ -71,7 +115,7 @@ export default function LeftRail({
       }}
     >
       <div>
-        <div style={{ ...kicker(10), marginBottom: 8 }}>Subject</div>
+        <div style={{ ...kicker(10), marginBottom: 8 }}>{t.subject}</div>
         <div style={{ fontFamily: font.serif, fontSize: 24, lineHeight: 1.1 }}>
           {subject}
         </div>
@@ -98,7 +142,7 @@ export default function LeftRail({
                 background: "#c99a2e",
               }}
             />
-            Final exam · {pace.daysLeft} days
+            {t.finalExam(pace.daysLeft)}
           </div>
         )}
         {pace && (
@@ -111,15 +155,15 @@ export default function LeftRail({
             }}
           >
             {pace.onTrack
-              ? `On pace — ~${pace.neededPerDay} min/day covers the ${pace.remaining} concepts left.`
-              : `Behind pace — the map needs ~${pace.neededPerDay} min/day; your target is ${pace.targetPerDay}. Skip what you already know.`}
+              ? t.onPace(pace.neededPerDay, pace.remaining)
+              : t.behindPace(pace.neededPerDay, pace.targetPerDay)}
           </div>
         )}
       </div>
 
       {nextUp.length > 0 && (
         <div>
-          <div style={{ ...kicker(10), marginBottom: 5 }}>Next up</div>
+          <div style={{ ...kicker(10), marginBottom: 5 }}>{t.nextUp}</div>
           <div
             style={{
               fontSize: 11.5,
@@ -127,7 +171,7 @@ export default function LeftRail({
               marginBottom: 10,
             }}
           >
-            {GOAL_ORDER_CAPTION[goal]}
+            {goalOrderCaption(goal, language)}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {nextUp.map(({ node, unlocks }) => (
@@ -195,7 +239,7 @@ export default function LeftRail({
           }}
         >
           <span style={{ fontSize: 13, color: color.inkMuted }}>
-            Territory mastered
+            {t.territoryMastered}
           </span>
           <span
             style={{ fontFamily: font.serif, fontSize: 22, color: color.accent }}
@@ -238,7 +282,7 @@ export default function LeftRail({
           cursor: "pointer",
         }}
       >
-        <span>Jump to frontier</span>
+        <span>{t.jumpToFrontier}</span>
         <span style={{ color: "#c99a2e" }}>→</span>
       </button>
 
@@ -266,7 +310,7 @@ export default function LeftRail({
               background: STATE_COLOR.shaky,
             }}
           />
-          Calibration
+          {t.calibration}
         </span>
         {calibOver > 0 ? (
           <span
@@ -279,7 +323,7 @@ export default function LeftRail({
               padding: "2px 7px",
             }}
           >
-            {calibOver} over
+            {t.over(calibOver)}
           </span>
         ) : (
           <span style={{ color: color.inkGhost }}>→</span>
@@ -287,7 +331,7 @@ export default function LeftRail({
       </button>
 
       <div>
-        <div style={{ ...kicker(10), marginBottom: 12 }}>States</div>
+        <div style={{ ...kicker(10), marginBottom: 12 }}>{t.states}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {LEGEND_ORDER.map((state) => (
             <div
@@ -313,7 +357,7 @@ export default function LeftRail({
                       : "none",
                 }}
               />
-              {STATE_LABEL[state].replace(" · ready", "")}
+              {stateLabel(state, language).replace(" · ready", "").replace(" · pronto", "")}
             </div>
           ))}
         </div>
@@ -335,7 +379,7 @@ export default function LeftRail({
             }`,
           }}
         >
-          {momentumPlaying ? "Stop replay" : "Momentum replay"}
+          {momentumPlaying ? t.stopReplay : t.momentumReplay}
         </button>
         {momentumPlaying && (
           <div
@@ -348,9 +392,9 @@ export default function LeftRail({
             }}
           >
             {momentumWeek === 0
-              ? "Placement diagnostic"
-              : `Week ${momentumWeek} of 3`}{" "}
-            — watch it light up
+              ? t.placementDiagnostic
+              : t.week(momentumWeek)}
+            {t.watchLightUp}
           </div>
         )}
       </div>

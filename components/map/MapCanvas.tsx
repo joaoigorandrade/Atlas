@@ -9,6 +9,12 @@ import {
   type NodeState,
 } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: { gap: "gap" },
+  "pt-BR": { gap: "lacuna" },
+} as const;
 
 export interface ViewTransform {
   x: number;
@@ -60,6 +66,7 @@ export default function MapCanvas({
   onNodeDoubleClick,
   onNodeHover,
 }: MapCanvasProps) {
+  const t = useT(STRINGS);
   const elRef = useRef<HTMLDivElement | null>(null);
   const wheelRef = useRef(onWheel);
   wheelRef.current = onWheel;
@@ -249,7 +256,7 @@ export default function MapCanvas({
                     marginLeft: 2,
                   }}
                 >
-                  gap
+                  {t.gap}
                 </span>
               )}
             </div>

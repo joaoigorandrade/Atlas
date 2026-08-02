@@ -14,11 +14,99 @@ import {
 } from "@/lib/curriculum";
 import { InkDots } from "@/components/Pending";
 import { color, font, kicker } from "@/lib/theme";
+import { useLanguage, useT } from "@/lib/i18n";
 
 // The Crucible owns the deep-rust accent; the transfer diagnostic borrows the
 // shared mastered-green / gap-red so a carried-over sub-concept reads the same
 // here as it does on the map.
 const RUST = CRUCIBLE_COLOR.accent;
+
+const STRINGS = {
+  en: {
+    map: "← Map",
+    sessionCrucible: "Session · Crucible",
+    kickerApplication: "Application · transfer under desirable difficulty",
+    heading: "Prove it transfers.",
+    intro: "Recognizing an idea when it’s handed to you is fluency, not mastery. The Crucible hands you the concept in a framing you’ve never seen — if it survives that, it’s yours.",
+    kickerWorkspace: "Workspace · a wrong attempt is diagnostic",
+    judgingAttempt: "Judging your attempt",
+    submitAttempt: "Submit attempt",
+    fillSample: "fill a sample attempt",
+    kickerCalibration: "Calibration · before you see it",
+    confidenceQuestion: "How sure are you that you can apply this in a situation you’ve never seen?",
+    confidenceBody: "We record this now, then compare it to what actually happens. The gap between the two is the most useful thing here.",
+    nudge: (hint: string) => `Nudge · ${hint}`,
+    kickerTransferDiagnostic: "Transfer diagnostic · what carried over",
+    kickerConfidenceVsResult: "Confidence vs. result",
+    gapWrittenTitle: "A gap was written back to your map.",
+    gapWrittenBody: (gapLabel: string) => (
+      <>
+        “{gapLabel}” is now a red gap under this node, and the node itself
+        dropped to <b>Shaky</b>. Close it here and it lifts to Mastered.
+      </>
+    ),
+    hideReExplain: "Hide re-explanation",
+    reExplainSocratic: "Re-explain · 30-sec Socratic",
+    retryRung: "Re-attempt · one rung down →",
+    reExplainLead: "A 30-second Socratic re-explanation, aimed straight at the gap:",
+    transferConfirmedTitle: "Transfer confirmed.",
+    transferConfirmedBody: (
+      <>
+        You applied it in a framing you were never handed. The gap is closed
+        and this node lifts to <b>Mastered</b> — it now feeds Review on a
+        spaced schedule.
+      </>
+    ),
+    markMastered: "Mark Mastered · back to map →",
+    difficultyLadder: "Difficulty ladder",
+    drawnFromMap: "Drawn from your map",
+    interleaveNote: "The problem interleaves mastered nodes so retrieval isn’t blocked on one idea.",
+    youSaid: "You said",
+    heldAgainst: "held against the result below",
+  },
+  "pt-BR": {
+    map: "← Mapa",
+    sessionCrucible: "Sessão · Crucible",
+    kickerApplication: "Aplicação · transferência sob dificuldade desejável",
+    heading: "Prove que isso transfere.",
+    intro: "Reconhecer uma ideia quando ela é entregue de bandeja é fluência, não domínio. O Crucible entrega o conceito numa moldura que você nunca viu — se sobreviver a isso, é seu.",
+    kickerWorkspace: "Espaço de trabalho · uma tentativa errada é diagnóstica",
+    judgingAttempt: "Julgando sua tentativa",
+    submitAttempt: "Enviar tentativa",
+    fillSample: "preencher uma tentativa de exemplo",
+    kickerCalibration: "Calibração · antes de ver",
+    confidenceQuestion: "Quão seguro você está de que consegue aplicar isso numa situação que nunca viu?",
+    confidenceBody: "Registramos isso agora e depois comparamos com o que realmente acontece. A distância entre os dois é a coisa mais útil aqui.",
+    nudge: (hint: string) => `Dica · ${hint}`,
+    kickerTransferDiagnostic: "Diagnóstico de transferência · o que se transferiu",
+    kickerConfidenceVsResult: "Confiança vs. resultado",
+    gapWrittenTitle: "Uma lacuna foi registrada no seu mapa.",
+    gapWrittenBody: (gapLabel: string) => (
+      <>
+        “{gapLabel}” agora é uma lacuna vermelha sob este nó, e o próprio nó
+        caiu para <b>Instável</b>. Feche-a aqui e ele sobe para Dominado.
+      </>
+    ),
+    hideReExplain: "Ocultar reexplicação",
+    reExplainSocratic: "Reexplicar · Socrático de 30s",
+    retryRung: "Tentar de novo · um degrau abaixo →",
+    reExplainLead: "Uma reexplicação Socrática de 30 segundos, direto na lacuna:",
+    transferConfirmedTitle: "Transferência confirmada.",
+    transferConfirmedBody: (
+      <>
+        Você aplicou isso numa moldura que nunca tinha recebido. A lacuna está
+        fechada e este nó sobe para <b>Dominado</b> — agora ele entra na
+        Revisão em um cronograma espaçado.
+      </>
+    ),
+    markMastered: "Marcar como Dominado · voltar ao mapa →",
+    difficultyLadder: "Escada de dificuldade",
+    drawnFromMap: "Puxado do seu mapa",
+    interleaveNote: "O problema intercala nós dominados para que a recuperação não fique presa a uma única ideia.",
+    youSaid: "Você disse",
+    heldAgainst: "comparado ao resultado abaixo",
+  },
+} as const;
 
 interface CrucibleViewProps {
   /** The transfer content for this node (problem ladder, interleaved draws, gap). */
@@ -56,6 +144,7 @@ export default function CrucibleView({
   onRetry,
   onFinish,
 }: CrucibleViewProps) {
+  const t = useT(STRINGS);
   const problem = crucibleProblem(session, content);
   const isConfidence = session.stage === "confidence";
   const isWork = session.stage === "work";
@@ -99,7 +188,7 @@ export default function CrucibleView({
             color: color.inkMuted,
           }}
         >
-          ← Map
+          {t.map}
         </button>
         <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
         <span
@@ -111,7 +200,7 @@ export default function CrucibleView({
             color: RUST,
           }}
         >
-          Session · Crucible
+          {t.sessionCrucible}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>
           {content.centerLabel}
@@ -129,7 +218,7 @@ export default function CrucibleView({
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 1040, margin: "0 auto", padding: "40px 32px 120px" }}>
           <div style={{ ...kicker(11), marginBottom: 10 }}>
-            Application · transfer under desirable difficulty
+            {t.kickerApplication}
           </div>
           <h1
             style={{
@@ -140,7 +229,7 @@ export default function CrucibleView({
               margin: "0 0 10px",
             }}
           >
-            Prove it transfers.
+            {t.heading}
           </h1>
           <p
             style={{
@@ -151,9 +240,7 @@ export default function CrucibleView({
               lineHeight: 1.55,
             }}
           >
-            Recognizing an idea when it&rsquo;s handed to you is fluency, not
-            mastery. The Crucible hands you the concept in a framing you&rsquo;ve
-            never seen &mdash; if it survives that, it&rsquo;s yours.
+            {t.intro}
           </p>
 
           {isConfidence && <ConfidenceGate session={session} onConfidence={onConfidence} />}
@@ -172,7 +259,7 @@ export default function CrucibleView({
                 <Problem problem={problem} />
 
                 <div style={{ ...kicker(10, "0.12em"), marginBottom: 9 }}>
-                  Workspace · a wrong attempt is diagnostic
+                  {t.kickerWorkspace}
                 </div>
                 <div
                   style={{
@@ -233,11 +320,11 @@ export default function CrucibleView({
                     >
                       {judging ? (
                         <>
-                          Judging your attempt
+                          {t.judgingAttempt}
                           <InkDots size={4} />
                         </>
                       ) : (
-                        "Submit attempt"
+                        t.submitAttempt
                       )}
                     </button>
                     <button
@@ -251,7 +338,7 @@ export default function CrucibleView({
                         textDecoration: "underline",
                       }}
                     >
-                      fill a sample attempt
+                      {t.fillSample}
                     </button>
                   </div>
                 )}
@@ -275,6 +362,7 @@ function ConfidenceGate({
   session: CrucibleSession;
   onConfidence: (level: ConfidenceLevel) => void;
 }) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -287,7 +375,7 @@ function ConfidenceGate({
       }}
     >
       <div style={{ ...kicker(10, "0.12em"), color: RUST, marginBottom: 12 }}>
-        Calibration · before you see it
+        {t.kickerCalibration}
       </div>
       <div
         style={{
@@ -297,8 +385,7 @@ function ConfidenceGate({
           marginBottom: 6,
         }}
       >
-        How sure are you that you can apply this in a situation you&rsquo;ve
-        never seen?
+        {t.confidenceQuestion}
       </div>
       <div
         style={{
@@ -308,8 +395,7 @@ function ConfidenceGate({
           marginBottom: 20,
         }}
       >
-        We record this now, then compare it to what actually happens. The gap
-        between the two is the most useful thing here.
+        {t.confidenceBody}
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         {CONFIDENCE_LEVELS.map((label, i) => {
@@ -343,6 +429,7 @@ function ConfidenceGate({
 
 /** The problem card — the framing pill, the question, and the reframing nudge. */
 function Problem({ problem }: { problem: NonNullable<ReturnType<typeof crucibleProblem>> }) {
+  const t = useT(STRINGS);
   return (
     <div
       style={{
@@ -390,7 +477,7 @@ function Problem({ problem }: { problem: NonNullable<ReturnType<typeof crucibleP
           lineHeight: 1.5,
         }}
       >
-        Nudge · {problem.hint}
+        {t.nudge(problem.hint)}
       </div>
     </div>
   );
@@ -411,11 +498,13 @@ function Diagnostic({
   onRetry: () => void;
   onFinish: () => void;
 }) {
-  const calib = crucibleCalib(session);
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
+  const calib = crucibleCalib(session, language);
   return (
     <div style={{ animation: "fadeUp .3s both" }}>
       <div style={{ ...kicker(10, "0.12em"), margin: "6px 0 12px" }}>
-        Transfer diagnostic · what carried over
+        {t.kickerTransferDiagnostic}
       </div>
       <div
         style={{
@@ -470,7 +559,7 @@ function Diagnostic({
         }}
       >
         <div style={{ ...kicker(9.5, "0.1em"), color: RUST, marginBottom: 8 }}>
-          Confidence vs. result
+          {t.kickerConfidenceVsResult}
         </div>
         <div style={{ fontSize: 14, lineHeight: 1.6, color: color.inkSoft }}>
           {calib}
@@ -505,7 +594,7 @@ function Diagnostic({
               <div
                 style={{ fontFamily: font.serif, fontSize: 17, marginBottom: 3 }}
               >
-                A gap was written back to your map.
+                {t.gapWrittenTitle}
               </div>
               <div
                 style={{
@@ -514,9 +603,7 @@ function Diagnostic({
                   lineHeight: 1.55,
                 }}
               >
-                &ldquo;{content.gap.label}&rdquo; is now a red gap under this
-                node, and the node itself dropped to <b>Shaky</b>. Close it here
-                and it lifts to Mastered.
+                {t.gapWrittenBody(content.gap.label)}
               </div>
             </div>
           </div>
@@ -542,9 +629,7 @@ function Diagnostic({
                 cursor: "pointer",
               }}
             >
-              {session.reExplain
-                ? "Hide re-explanation"
-                : "Re-explain · 30-sec Socratic"}
+              {session.reExplain ? t.hideReExplain : t.reExplainSocratic}
             </button>
             <button
               onClick={onRetry}
@@ -560,7 +645,7 @@ function Diagnostic({
                 boxShadow: `0 8px 20px ${CRUCIBLE_COLOR.glow}`,
               }}
             >
-              Re-attempt · one rung down →
+              {t.retryRung}
             </button>
           </div>
 
@@ -576,7 +661,7 @@ function Diagnostic({
               <div
                 style={{ fontSize: 12.5, color: color.inkFaint, marginBottom: 6 }}
               >
-                A 30-second Socratic re-explanation, aimed straight at the gap:
+                {t.reExplainLead}
               </div>
               <div
                 style={{
@@ -619,7 +704,7 @@ function Diagnostic({
               <div
                 style={{ fontFamily: font.serif, fontSize: 17, marginBottom: 3 }}
               >
-                Transfer confirmed.
+                {t.transferConfirmedTitle}
               </div>
               <div
                 style={{
@@ -628,9 +713,7 @@ function Diagnostic({
                   lineHeight: 1.55,
                 }}
               >
-                You applied it in a framing you were never handed. The gap is
-                closed and this node lifts to <b>Mastered</b> &mdash; it now
-                feeds Review on a spaced schedule.
+                {t.transferConfirmedBody}
               </div>
             </div>
           </div>
@@ -648,7 +731,7 @@ function Diagnostic({
               boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
             }}
           >
-            Mark Mastered · back to map →
+            {t.markMastered}
           </button>
         </>
       )}
@@ -665,6 +748,7 @@ function Sidebar({
   content: CrucibleContent;
   session: CrucibleSession;
 }) {
+  const t = useT(STRINGS);
   const current = crucibleCurrentRung(session);
   const confLabel =
     session.conf != null ? CONFIDENCE_LEVELS[session.conf] : "—";
@@ -681,7 +765,7 @@ function Sidebar({
         }}
       >
         <div style={{ ...kicker(9.5, "0.12em"), marginBottom: 14 }}>
-          Difficulty ladder
+          {t.difficultyLadder}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
           {content.rungs.map((rung, i) => {
@@ -749,7 +833,7 @@ function Sidebar({
         }}
       >
         <div style={{ ...kicker(9.5, "0.12em"), marginBottom: 11 }}>
-          Drawn from your map
+          {t.drawnFromMap}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {content.draws.map((label) => (
@@ -784,8 +868,7 @@ function Sidebar({
             lineHeight: 1.5,
           }}
         >
-          The problem interleaves mastered nodes so retrieval isn&rsquo;t blocked
-          on one idea.
+          {t.interleaveNote}
         </div>
       </div>
 
@@ -799,7 +882,7 @@ function Sidebar({
         }}
       >
         <div style={{ ...kicker(9.5, "0.12em"), color: RUST, marginBottom: 7 }}>
-          You said
+          {t.youSaid}
         </div>
         <div style={{ fontFamily: font.serif, fontSize: 18, color: color.ink }}>
           {confLabel}
@@ -812,7 +895,7 @@ function Sidebar({
             lineHeight: 1.45,
           }}
         >
-          held against the result below
+          {t.heldAgainst}
         </div>
       </div>
     </div>

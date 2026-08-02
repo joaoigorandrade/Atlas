@@ -4,6 +4,30 @@ import { useState } from "react";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import type { DiagnosticQuestion } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
+
+const STRINGS = {
+  en: {
+    kicker: "Placement · adaptive",
+    openPlaceholder:
+      "Tell me what you already know here — honestly, in your own words.",
+    submitLabel: "Place me →",
+    readyTitle: "Your map is ready.",
+    readyBody:
+      "We pruned what you already own and lit your frontier — the concepts you’re ready to learn next.",
+    start: "Start here →",
+  },
+  "pt-BR": {
+    kicker: "Nivelamento · adaptativo",
+    openPlaceholder:
+      "Conte o que você já sabe sobre isso — com honestidade, com suas palavras.",
+    submitLabel: "Me posicionar →",
+    readyTitle: "Seu mapa está pronto.",
+    readyBody:
+      "Podamos o que você já domina e acendemos sua fronteira — os conceitos que você está pronto para aprender agora.",
+    start: "Começar →",
+  },
+} as const;
 
 interface DiagnosticPanelProps {
   /** The subject being placed — context for judging open-ended answers. */
@@ -24,6 +48,7 @@ export default function DiagnosticPanel({
   onAnswer,
   onStart,
 }: DiagnosticPanelProps) {
+  const t = useT(STRINGS);
   const [mode, setMode] = useState<AnswerMode>("open");
   const done = answered >= questions.length;
   const question = questions[Math.min(answered, questions.length - 1)];
@@ -45,7 +70,7 @@ export default function DiagnosticPanel({
         animation: "softIn 0.4s both",
       }}
     >
-      <div style={kicker(11)}>Placement · adaptive</div>
+      <div style={kicker(11)}>{t.kicker}</div>
       <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
         {questions.map((_, i) => (
           <div
@@ -100,8 +125,8 @@ export default function DiagnosticPanel({
               question={question.q}
               options={question.opts.map((o) => o.label)}
               onResolve={(index) => onAnswer(index)}
-              placeholder="Tell me what you already know here — honestly, in your own words."
-              submitLabel="Place me →"
+              placeholder={t.openPlaceholder}
+              submitLabel={t.submitLabel}
             />
           ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
@@ -149,7 +174,7 @@ export default function DiagnosticPanel({
               marginBottom: 8,
             }}
           >
-            Your map is ready.
+            {t.readyTitle}
           </div>
           <div
             style={{
@@ -159,8 +184,7 @@ export default function DiagnosticPanel({
               marginBottom: 24,
             }}
           >
-            We pruned what you already own and lit your frontier — the concepts
-            you&rsquo;re ready to learn next.
+            {t.readyBody}
           </div>
           <button
             onClick={onStart}
@@ -177,7 +201,7 @@ export default function DiagnosticPanel({
               boxShadow: "0 8px 24px rgba(47,107,79,0.28)",
             }}
           >
-            Start here →
+            {t.start}
           </button>
         </div>
       )}

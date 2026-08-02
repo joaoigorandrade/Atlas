@@ -13,6 +13,7 @@ import type {
   RetainContent,
   SocraticStep,
 } from "@/lib/curriculum";
+import type { Language } from "@/lib/i18n";
 
 /** Options every content fetcher accepts. `prefetch` marks a background warm:
  *  the server may decline it (204) to keep quota for what the learner asks for
@@ -88,6 +89,7 @@ export function fetchCurriculum(params: {
   goal: GoalKind;
   interests: string;
   outline?: string;
+  language?: Language;
 }): Promise<CurriculumResult> {
   return post<CurriculumResult>({ kind: "curriculum", ...params });
 }
@@ -101,6 +103,7 @@ export const consumeRequest = (params: {
   nodeLabel: string;
   prereqLabels: string[];
   interests: string;
+  language?: Language;
 }) => ({ kind: "consume", ...params });
 
 export async function fetchConsume(
@@ -168,6 +171,7 @@ export const socraticRequest = (params: {
   topic: string;
   nodeLabel: string;
   interests: string;
+  language?: Language;
 }) => ({ kind: "socratic", ...params });
 
 export async function fetchSocratic(
@@ -183,6 +187,7 @@ export const feynmanRequest = (params: {
   nodeId: string;
   nodeLabel: string;
   interests: string;
+  language?: Language;
 }) => ({ kind: "feynman", ...params });
 
 export async function fetchFeynman(
@@ -199,6 +204,7 @@ export const connectRequest = (params: {
   nodeLabel: string;
   pool: Array<{ id: string; label: string }>;
   interests: string;
+  language?: Language;
 }) => ({ kind: "connect", ...params });
 
 export async function fetchConnect(
@@ -216,6 +222,7 @@ export const crucibleRequest = (params: {
   nodeLabel: string;
   masteredLabels: string[];
   interests: string;
+  language?: Language;
 }) => ({ kind: "crucible", ...params });
 
 export async function fetchCrucible(
@@ -232,6 +239,7 @@ export const retainRequest = (params: {
   budgetMin: number;
   nodes: Array<{ id: string; label: string; state: string }>;
   interests: string;
+  language?: Language;
 }) => ({ kind: "retain", ...params });
 
 export async function fetchRetain(
@@ -255,6 +263,7 @@ export async function fetchJudgeSocratic(params: {
   question: string;
   reference: string;
   answer: string;
+  language?: Language;
 }): Promise<SocraticJudgement> {
   return (
     await post<{ judgement: SocraticJudgement }>({
@@ -276,6 +285,7 @@ export async function fetchJudgeFeynman(params: {
   subPoint: string;
   reference: string;
   answer: string;
+  language?: Language;
 }): Promise<FeynmanJudgement> {
   return (
     await post<{ judgement: FeynmanJudgement }>({
@@ -300,6 +310,7 @@ export async function fetchJudgeCrucible(params: {
   problem: string;
   hint: string;
   answer: string;
+  language?: Language;
 }): Promise<CrucibleJudgement> {
   return (
     await post<{ judgement: CrucibleJudgement }>({
@@ -323,6 +334,7 @@ export async function fetchJudgeChoice(params: {
   question: string;
   options: string[];
   answer: string;
+  language?: Language;
 }): Promise<ChoiceJudgement> {
   return (
     await post<{ judgement: ChoiceJudgement }>({
