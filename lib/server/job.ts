@@ -15,8 +15,10 @@ import {
   generateCurriculum,
   generateCurriculumStream,
   generateFeynman,
+  generateFeynmanStream,
   generateRetain,
   generateSocratic,
+  generateSocraticStream,
   judgeChoice,
   judgeCrucible,
   judgeFeynman,
@@ -25,7 +27,7 @@ import {
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import type { StreamFrame, StreamShapes } from "@/lib/server/stream";
-import { DIAGNOSTIC_COUNT, type GoalKind } from "@/lib/curriculum";
+import { DIAGNOSTIC_COUNT, FEYNMAN_BEATS, type GoalKind } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge";
 
@@ -179,21 +181,29 @@ export function resolveJob(body: GenerateBody): Job {
 
     case "socratic": {
       if (!nodeLabel) throw badRequest("nodeLabel is required");
-      return cacheable(
-        "socratic",
-        { topic, nodeLabel, interests, language },
-        async (p) => ({ steps: await generateSocratic(p) }),
-      );
+      const params = { topic, nodeLabel, interests, language };
+      return {
+        kind: "socratic",
+        key: contentKey("socratic", params),
+        run: async () => ({ steps: await generateSocratic(params) }),
+        stream: () => generateSocraticStream(params),
+        // Mirrors `validateSocratic`'s 3-5 bound, not the 4 the prompt asks for.
+        shape: { steps: { min: 3, max: 5 } },
+      };
     }
 
     case "feynman": {
       if (!nodeId || !nodeLabel)
         throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "feynman",
-        { topic, nodeId, nodeLabel, interests, language },
-        async (p) => ({ beats: await generateFeynman(p) }),
-      );
+      const params = { topic, nodeId, nodeLabel, interests, language };
+      return {
+        kind: "feynman",
+        key: contentKey("feynman", params),
+        run: async () => ({ beats: await generateFeynman(params) }),
+        stream: () => generateFeynmanStream(params),
+        // Mirrors `validateFeynman`'s 3-4 bound, not the 4 the prompt asks for.
+        shape: { beats: { min: 3, max: FEYNMAN_BEATS } },
+      };
     }
 
     case "connect": {

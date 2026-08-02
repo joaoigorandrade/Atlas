@@ -5,6 +5,8 @@
 
 import {
   DIAGNOSTIC_COUNT,
+  FEYNMAN_BEATS,
+  SOCRATIC_STEPS,
   type AltKey,
   type ConceptEdge,
   type ConceptGraph,
@@ -841,32 +843,56 @@ const MOVES = [
 ] as const;
 const QUALITIES = ["correct", "near", "wrong", "lost"] as const;
 
-export function validateSocratic(raw: unknown): SocraticStep[] {
-  const root = obj(raw, "payload");
-  return arr(root.steps, "steps", 3, 5).map((v, i) => {
-    const s = obj(v, `steps[${i}]`);
-    const replies = arr(s.replies, `steps[${i}].replies`, 3, 4).map((r, j) => {
-      const rep = obj(r, `steps[${i}].replies[${j}]`);
-      return {
-        label: rejectEcho(
-          str(rep.label, `steps[${i}].replies[${j}].label`),
-          `steps[${i}].replies[${j}].label`,
-        ),
-        quality: oneOf(rep.quality, QUALITIES, `steps[${i}].replies[${j}].quality`),
-        response: str(rep.response, `steps[${i}].replies[${j}].response`),
-      };
-    });
-    if (!replies.some((r) => r.quality === "correct"))
-      fail(`steps[${i}].replies needs a correct option`);
+/** The shared framing of both Socratic prompts. */
+function socraticContext(params: {
+  topic: string;
+  nodeLabel: string;
+  interests: string;
+}): string {
+  return `Write a Socratic questioning session (${SOCRATIC_STEPS} steps) for the concept "${params.nodeLabel}" within "${params.topic}".
+The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
+${interestNote(params.interests)}
+The four steps build on each other in order, each picking up where the last left off.`;
+}
+
+const SOCRATIC_STEP_SHAPE = `{
+      "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // use each move once, in this order
+      "prompt": "the probing question the tutor opens with",
+      "replies": [    // 3 plausible learner replies; exactly one "correct"; include a common misconception as "wrong"
+        {"label": "what the learner says", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
+      ],
+      "hint": "an 'I'm stuck' nudge that reframes without giving it away",
+      "tell": "the direct instruction for 'Just tell me' — complete and precise"
+    }`;
+
+export function validateSocraticStep(raw: unknown, i: number): SocraticStep {
+  const s = obj(raw, `steps[${i}]`);
+  const replies = arr(s.replies, `steps[${i}].replies`, 3, 4).map((r, j) => {
+    const rep = obj(r, `steps[${i}].replies[${j}]`);
     return {
-      id: `s${i + 1}`,
-      move: oneOf(s.move, MOVES, `steps[${i}].move`),
-      prompt: str(s.prompt, `steps[${i}].prompt`),
-      replies,
-      hint: str(s.hint, `steps[${i}].hint`),
-      tell: str(s.tell, `steps[${i}].tell`),
+      label: rejectEcho(
+        str(rep.label, `steps[${i}].replies[${j}].label`),
+        `steps[${i}].replies[${j}].label`,
+      ),
+      quality: oneOf(rep.quality, QUALITIES, `steps[${i}].replies[${j}].quality`),
+      response: str(rep.response, `steps[${i}].replies[${j}].response`),
     };
   });
+  if (!replies.some((r) => r.quality === "correct"))
+    fail(`steps[${i}].replies needs a correct option`);
+  return {
+    id: `s${i + 1}`,
+    move: oneOf(s.move, MOVES, `steps[${i}].move`),
+    prompt: str(s.prompt, `steps[${i}].prompt`),
+    replies,
+    hint: str(s.hint, `steps[${i}].hint`),
+    tell: str(s.tell, `steps[${i}].tell`),
+  };
+}
+
+export function validateSocratic(raw: unknown): SocraticStep[] {
+  const root = obj(raw, "payload");
+  return arr(root.steps, "steps", 3, 5).map(validateSocraticStep);
 }
 
 export async function generateSocratic(params: {
@@ -875,31 +901,66 @@ export async function generateSocratic(params: {
   interests: string;
   language?: Language;
 }): Promise<SocraticStep[]> {
-  const { topic, nodeLabel, interests, language = "en" } = params;
   return generateJson(
     user(
-      `Write a Socratic questioning session (4 steps) for the concept "${nodeLabel}" within "${topic}".
-The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
-${interestNote(interests)}
+      `${socraticContext(params)}
 
 Return JSON:
 {
-  "steps": [
-    {
-      "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // use each move once, in this order
-      "prompt": "the probing question the tutor opens with",
-      "replies": [    // 3 plausible learner replies; exactly one "correct"; include a common misconception as "wrong"
-        {"label": "what the learner says", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
-      ],
-      "hint": "an 'I'm stuck' nudge that reframes without giving it away",
-      "tell": "the direct instruction for 'Just tell me' — complete and precise"
-    }, ...
-  ]
-}${languageNote(language)}`,
+  "steps": [${SOCRATIC_STEP_SHAPE}, ...]   // exactly ${SOCRATIC_STEPS}
+}${languageNote(params.language ?? "en")}`,
     ),
     validateSocratic,
     { label: "socratic" },
   );
+}
+
+/**
+ * Streamed variant: the tutor's first probe lands as soon as it is written
+ * instead of the learner waiting on all four.
+ *
+ * The steps stay in ONE call rather than fanning out. The prompt requires a
+ * progression — each move used once, in order, building on the last — and four
+ * independent calls would each be written blind to the others. That coherence
+ * is the pedagogy; no latency number buys it back.
+ *
+ * `hint` and `tell` stay inside their step. Beyond being small, `tell` is what
+ * `AtlasApp` hands the judge as the reference answer, so a step without it
+ * cannot be judged.
+ */
+export async function* generateSocraticStream(params: {
+  topic: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+}): AsyncGenerator<StreamFrame> {
+  let yielded = 0;
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${socraticContext(params)}
+
+Write the ${SOCRATIC_STEPS} steps as ${SOCRATIC_STEPS} SEPARATE top-level JSON objects, one after
+another — NOT wrapped in an array or a {"steps": [...]} object, no markdown
+fences, no numbering, no commentary before/after/between them. Each object has
+this shape:
+${SOCRATIC_STEP_SHAPE}${languageNote(params.language ?? "en")}`,
+      ),
+      validateSocraticStep,
+      { label: "socratic-stream" },
+    );
+    for await (const step of stream) yield { p: "steps", i: yielded++, v: step };
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "socratic_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const steps = await generateSocratic(params);
+    for (const [i, step] of steps.entries()) yield { p: "steps", i, v: step };
+  }
 }
 
 // ---- kind: feynman ---------------------------------------------------------
@@ -913,73 +974,79 @@ const FEYNMAN_GAP_OFFSETS: ReadonlyArray<[number, number]> = [
   [120, 150],
 ];
 
-export function validateFeynman(nodeId: string) {
-  return (raw: unknown): FeynmanBeat[] => {
-    const root = obj(raw, "payload");
-    return arr(root.beats, "beats", 3, 4).map((v, i) => {
-      const b = obj(v, `beats[${i}]`);
-      const replies = arr(b.replies, `beats[${i}].replies`, 3, 3).map((r, j) => {
-        const rep = obj(r, `beats[${i}].replies[${j}]`);
-        return {
-          label: rejectEcho(
-            str(rep.label, `beats[${i}].replies[${j}].label`),
-            `beats[${i}].replies[${j}].label`,
-          ),
-          verdict: oneOf(rep.verdict, VERDICTS, `beats[${i}].replies[${j}].verdict`),
-          response: str(rep.response, `beats[${i}].replies[${j}].response`),
-        };
-      });
-      if (!replies.some((r) => r.verdict === "good"))
-        fail(`beats[${i}].replies needs a "good" option`);
-      const fix = obj(b.fix, `beats[${i}].fix`);
-      const fixReplies = arr(fix.replies, `beats[${i}].fix.replies`, 2, 3).map((r, j) => {
-        const rep = obj(r, `beats[${i}].fix.replies[${j}]`);
-        return {
-          label: str(rep.label, `beats[${i}].fix.replies[${j}].label`),
-          correct: rep.correct === true,
-          response: str(rep.response, `beats[${i}].fix.replies[${j}].response`),
-        };
-      });
-      if (!fixReplies.some((r) => r.correct) || !fixReplies.some((r) => !r.correct))
-        fail(`beats[${i}].fix.replies needs one correct and one incorrect option`);
-      const [dx, dy] = FEYNMAN_GAP_OFFSETS[i % FEYNMAN_GAP_OFFSETS.length];
+/** One teach-back beat. The gap offset is indexed modulo the offset table, so
+ *  a beat validates identically whether it arrived in an array or alone. */
+export function validateFeynmanBeat(nodeId: string) {
+  return (raw: unknown, i: number): FeynmanBeat => {
+    const b = obj(raw, `beats[${i}]`);
+    const replies = arr(b.replies, `beats[${i}].replies`, 3, 3).map((r, j) => {
+      const rep = obj(r, `beats[${i}].replies[${j}]`);
       return {
-        id: `ft-${nodeId}-${i + 1}`,
-        subPoint: str(b.subPoint, `beats[${i}].subPoint`),
-        transcript: str(b.transcript, `beats[${i}].transcript`),
-        interjection: str(b.interjection, `beats[${i}].interjection`),
-        replies,
-        fix: { probe: str(fix.probe, `beats[${i}].fix.probe`), replies: fixReplies },
-        gap: {
-          id: `gap-ft-${nodeId}-${i + 1}`,
-          label: str(b.gapLabel, `beats[${i}].gapLabel`),
-          reason: str(b.gapReason, `beats[${i}].gapReason`),
-          dx,
-          dy,
-        },
+        label: rejectEcho(
+          str(rep.label, `beats[${i}].replies[${j}].label`),
+          `beats[${i}].replies[${j}].label`,
+        ),
+        verdict: oneOf(rep.verdict, VERDICTS, `beats[${i}].replies[${j}].verdict`),
+        response: str(rep.response, `beats[${i}].replies[${j}].response`),
       };
     });
+    if (!replies.some((r) => r.verdict === "good"))
+      fail(`beats[${i}].replies needs a "good" option`);
+    const fix = obj(b.fix, `beats[${i}].fix`);
+    const fixReplies = arr(fix.replies, `beats[${i}].fix.replies`, 2, 3).map((r, j) => {
+      const rep = obj(r, `beats[${i}].fix.replies[${j}]`);
+      return {
+        label: str(rep.label, `beats[${i}].fix.replies[${j}].label`),
+        correct: rep.correct === true,
+        response: str(rep.response, `beats[${i}].fix.replies[${j}].response`),
+      };
+    });
+    if (!fixReplies.some((r) => r.correct) || !fixReplies.some((r) => !r.correct))
+      fail(`beats[${i}].fix.replies needs one correct and one incorrect option`);
+    const [dx, dy] = FEYNMAN_GAP_OFFSETS[i % FEYNMAN_GAP_OFFSETS.length];
+    return {
+      id: `ft-${nodeId}-${i + 1}`,
+      subPoint: str(b.subPoint, `beats[${i}].subPoint`),
+      transcript: str(b.transcript, `beats[${i}].transcript`),
+      interjection: str(b.interjection, `beats[${i}].interjection`),
+      replies,
+      fix: { probe: str(fix.probe, `beats[${i}].fix.probe`), replies: fixReplies },
+      gap: {
+        id: `gap-ft-${nodeId}-${i + 1}`,
+        label: str(b.gapLabel, `beats[${i}].gapLabel`),
+        reason: str(b.gapReason, `beats[${i}].gapReason`),
+        dx,
+        dy,
+      },
+    };
   };
 }
 
-export async function generateFeynman(params: {
+export function validateFeynman(nodeId: string) {
+  const beat = validateFeynmanBeat(nodeId);
+  return (raw: unknown): FeynmanBeat[] => {
+    const root = obj(raw, "payload");
+    return arr(root.beats, "beats", 3, 4).map(beat);
+  };
+}
+
+interface FeynmanParams {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   interests: string;
   language?: Language;
-}): Promise<FeynmanBeat[]> {
-  const { topic, nodeId, nodeLabel, interests, language = "en" } = params;
-  return generateJson(
-    user(
-      `Write a Feynman teach-back session (4 beats) for the concept "${nodeLabel}" within "${topic}".
-The learner teaches; the AI plays a NAIVE STUDENT who interrupts with exactly the questions that expose hand-waving.
-${interestNote(interests)}
+}
 
-Return JSON:
-{
-  "beats": [
-    {
+/** The shared framing of both Feynman prompts. */
+function feynmanContext(params: FeynmanParams): string {
+  return `Write a Feynman teach-back session (${FEYNMAN_BEATS} beats) for the concept "${params.nodeLabel}" within "${params.topic}".
+The learner teaches; the AI plays a NAIVE STUDENT who interrupts with exactly the questions that expose hand-waving.
+${interestNote(params.interests)}
+The beats walk through the concept in order, each taking up where the last left off.`;
+}
+
+const FEYNMAN_BEAT_SHAPE = `{
       "subPoint": "the sub-point being taught (3-6 words)",
       "transcript": "what the learner plausibly says teaching this sub-point, first person, 2-3 sentences",
       "interjection": "the naive student's interrupting question — innocent, and aimed precisely at the likely gap",
@@ -994,13 +1061,64 @@ Return JSON:
       },
       "gapLabel": "the gap's map label (2-5 words)",
       "gapReason": "why it split out, phrased to the learner ('you taught X as Y — the Z trap')"
-    }, ...
-  ]
-}${languageNote(language)}`,
+    }`;
+
+export async function generateFeynman(params: FeynmanParams): Promise<FeynmanBeat[]> {
+  return generateJson(
+    user(
+      `${feynmanContext(params)}
+
+Return JSON:
+{
+  "beats": [${FEYNMAN_BEAT_SHAPE}, ...]   // exactly ${FEYNMAN_BEATS}
+}${languageNote(params.language ?? "en")}`,
     ),
-    validateFeynman(nodeId),
+    validateFeynman(params.nodeId),
     { label: "feynman" },
   );
+}
+
+/**
+ * Streamed variant: the first beat opens the teach-back instead of the learner
+ * waiting on all four. This is the largest payload of any phase and the least
+ * reliably warmed — Socratic only starts warming it at Socratic entry — so it
+ * is the one most often paid for in full.
+ *
+ * One call, not four: the beats are explicitly a progression, and each `fix`
+ * micro-pass belongs to its own beat, so a beat is self-contained the moment
+ * it closes. `FeynmanView` dereferences `beat.fix.probe` directly, which is
+ * why `fix` is never deferred out of the beat.
+ */
+export async function* generateFeynmanStream(
+  params: FeynmanParams,
+): AsyncGenerator<StreamFrame> {
+  let yielded = 0;
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${feynmanContext(params)}
+
+Write the ${FEYNMAN_BEATS} beats as ${FEYNMAN_BEATS} SEPARATE top-level JSON objects, one
+after another — NOT wrapped in an array or a {"beats": [...]} object, no
+markdown fences, no numbering, no commentary before/after/between them. Each
+object has this shape:
+${FEYNMAN_BEAT_SHAPE}${languageNote(params.language ?? "en")}`,
+      ),
+      validateFeynmanBeat(params.nodeId),
+      { label: "feynman-stream" },
+    );
+    for await (const beat of stream) yield { p: "beats", i: yielded++, v: beat };
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "feynman_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const beats = await generateFeynman(params);
+    for (const [i, beat] of beats.entries()) yield { p: "beats", i, v: beat };
+  }
 }
 
 // ---- kind: connect ---------------------------------------------------------

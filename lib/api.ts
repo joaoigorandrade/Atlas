@@ -242,6 +242,19 @@ export async function fetchSocratic(
     .steps;
 }
 
+/** Foreground Socratic: the tutor's first probe renders as soon as it's
+ *  written, the rest follow. Background warms stay on `fetchSocratic`. */
+export async function fetchSocraticStream(
+  params: Parameters<typeof socraticRequest>[0],
+  onStep: (step: SocraticStep, index: number) => void,
+): Promise<SocraticStep[]> {
+  const frames = await fetchStream(socraticRequest(params), (frame) => {
+    if (frame.p === "steps" && "i" in frame)
+      onStep(frame.v as SocraticStep, frame.i);
+  });
+  return collectFrames<SocraticStep>(frames, "steps");
+}
+
 export const feynmanRequest = (params: {
   topic: string;
   nodeId: string;
@@ -256,6 +269,19 @@ export async function fetchFeynman(
 ): Promise<FeynmanBeat[]> {
   return (await post<{ beats: FeynmanBeat[] }>(feynmanRequest(params), opts))
     .beats;
+}
+
+/** Foreground Feynman: the first beat opens the teach-back, the rest follow.
+ *  This is the largest payload of any phase, so it gains the most. */
+export async function fetchFeynmanStream(
+  params: Parameters<typeof feynmanRequest>[0],
+  onBeat: (beat: FeynmanBeat, index: number) => void,
+): Promise<FeynmanBeat[]> {
+  const frames = await fetchStream(feynmanRequest(params), (frame) => {
+    if (frame.p === "beats" && "i" in frame)
+      onBeat(frame.v as FeynmanBeat, frame.i);
+  });
+  return collectFrames<FeynmanBeat>(frames, "beats");
 }
 
 export const connectRequest = (params: {

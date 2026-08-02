@@ -17,6 +17,7 @@ import {
   emptyGraph,
   feynmanGaps,
   feynmanReducer,
+  FEYNMAN_BEATS,
   feynmanStart,
   freshAdherence,
   DIAGNOSTIC_COUNT,
@@ -34,6 +35,7 @@ import {
   rolloverAdherence,
   socraticReducer,
   socraticStart,
+  SOCRATIC_STEPS,
   spawnGap,
   toggleReminder,
   unmetPathOf,
@@ -85,11 +87,13 @@ import {
   fetchCrucible,
   fetchCurriculumStream,
   fetchFeynman,
+  fetchFeynmanStream,
   fetchJudgeCrucible,
   fetchJudgeFeynman,
   fetchJudgeSocratic,
   fetchRetain,
   fetchSocratic,
+  fetchSocraticStream,
   retainRequest,
   socraticRequest,
   WarmDeclined,
@@ -241,8 +245,20 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   } | null>(null);
   // The active Socratic (Phase 3a) session, or null.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
+  // Steps of the *current* node's questioning pass as they stream in — same
+  // arrangement as `liveConsume`: held apart from `socraticCache` so a
+  // half-arrived pass is never mistaken for a cached, reopenable one.
+  const [liveSocratic, setLiveSocratic] = useState<{
+    nodeId: string;
+    steps: SocraticStep[];
+  } | null>(null);
   // The active Feynman (Phase 3b) teach-back session, or null.
   const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
+  // …and the same for the teach-back's beats.
+  const [liveFeynman, setLiveFeynman] = useState<{
+    nodeId: string;
+    beats: FeynmanBeat[];
+  } | null>(null);
   // The active Connect (Phase 4 · Elaboration) session, or null.
   const [connect, setConnect] = useState<ConnectSession | null>(null);
   // The active Crucible (Phase 5 · application/transfer) session, or null.
@@ -1433,13 +1449,13 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
    */
   const enterSocratic = useCallback(
     (node: ConceptNode) => {
-      const open = (steps: SocraticStep[]) => {
+      const open = (steps: SocraticStep[], total = steps.length) => {
         setStates((prev) =>
           prev[node.id] === "unknown" || prev[node.id] === undefined
             ? { ...prev, [node.id]: "learning" }
             : prev,
         );
-        setSocratic(socraticStart(node.id, steps));
+        setSocratic(socraticStart(node.id, steps, total));
         setSelectedId(node.id);
         setScreen("socratic");
         // Socratic hands straight off to Feynman — warm it now rather than
@@ -1451,15 +1467,68 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         open(cached);
         return;
       }
-      generate(
-        warmKey("socratic", node.id),
-        "Session · Socratic",
-        `Preparing the questions that build ${node.label}…`,
-        () => loadSocratic(node),
-        open,
-      );
+      const key = warmKey("socratic", node.id);
+      // A background warm is already writing this — join it rather than
+      // starting a second, duplicate request.
+      if (warm.has(key)) {
+        generate(
+          key,
+          "Session · Socratic",
+          `Preparing the questions that build ${node.label}…`,
+          () => loadSocratic(node),
+          (steps) => open(steps),
+        );
+        return;
+      }
+      if (loadingRef.current) return;
+      // Nothing cached and nothing warming: open on the first probe and let
+      // the rest arrive behind it, the way Consume already does.
+      setLiveSocratic({ nodeId: node.id, steps: [] });
+      open([], SOCRATIC_STEPS);
+      let receivedAny = false;
+      // The authoritative arrival order, kept in the closure so the hydrate
+      // dispatch below sees the same array the reducer will read.
+      const arrived: SocraticStep[] = [];
+      fetchSocraticStream(socraticParams(node), (step, index) => {
+        receivedAny = true;
+        arrived[index] = step;
+        setLiveSocratic((prev) =>
+          prev?.nodeId === node.id ? { nodeId: node.id, steps: [...arrived] } : prev,
+        );
+        // The session may be parked waiting for exactly this step.
+        setSocratic((prev) =>
+          prev?.nodeId === node.id
+            ? socraticReducer(prev, { type: "hydrate" }, arrived)
+            : prev,
+        );
+      })
+        .then((steps) => {
+          setSocraticCache((prev) =>
+            prev[node.id] ? prev : { ...prev, [node.id]: steps },
+          );
+          setLiveSocratic((prev) => (prev?.nodeId === node.id ? null : prev));
+          // A short pass still has to be finishable.
+          setSocratic((prev) =>
+            prev?.nodeId === node.id
+              ? socraticReducer(prev, { type: "hydrate", total: steps.length }, steps)
+              : prev,
+          );
+        })
+        .catch((err: Error) => {
+          if (receivedAny) {
+            showToast(
+              "Couldn't finish the rest of this questioning pass — the steps already written still work.",
+              "Generation incomplete",
+            );
+            return;
+          }
+          setScreen("map");
+          setSocratic(null);
+          setLiveSocratic(null);
+          showToast(err.message, "Generation failed");
+        });
     },
-    [generate, loadSocratic, warmOne],
+    [generate, loadSocratic, socraticParams, showToast, warm, warmOne],
   );
 
   const dispatchSocratic = useCallback(
@@ -1546,7 +1615,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
             ? { ...prev, [node.id]: "learning" }
             : prev,
         );
-        setFeynman(feynmanStart(node.id));
+        setFeynman(
+          feynmanStart(node.id, feynmanCacheRef.current[node.id]?.length ?? FEYNMAN_BEATS),
+        );
         setSelectedId(node.id);
         setScreen("feynman");
         // Feynman hands straight off to Connect — and the pool Connect keys on
@@ -1557,15 +1628,60 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         open();
         return;
       }
-      generate(
-        warmKey("feynman", node.id),
-        "Session · Feynman",
-        `Waking the naive student for ${node.label}…`,
-        () => loadFeynman(node),
-        open,
-      );
+      const key = warmKey("feynman", node.id);
+      // A background warm is already writing this — join it rather than
+      // starting a second, duplicate request.
+      if (warm.has(key)) {
+        generate(
+          key,
+          "Session · Feynman",
+          `Waking the naive student for ${node.label}…`,
+          () => loadFeynman(node),
+          open,
+        );
+        return;
+      }
+      if (loadingRef.current) return;
+      // Nothing cached and nothing warming: open on the first beat and let the
+      // rest arrive while the learner is still teaching it.
+      setLiveFeynman({ nodeId: node.id, beats: [] });
+      open();
+      let receivedAny = false;
+      const arrived: FeynmanBeat[] = [];
+      fetchFeynmanStream(feynmanParams(node), (beat, index) => {
+        receivedAny = true;
+        arrived[index] = beat;
+        setLiveFeynman((prev) =>
+          prev?.nodeId === node.id ? { nodeId: node.id, beats: [...arrived] } : prev,
+        );
+      })
+        .then((beats) => {
+          setFeynmanCache((prev) =>
+            prev[node.id] ? prev : { ...prev, [node.id]: beats },
+          );
+          setLiveFeynman((prev) => (prev?.nodeId === node.id ? null : prev));
+          // A pass that came up short still has to reach its Gap Report.
+          setFeynman((prev) =>
+            prev?.nodeId === node.id
+              ? feynmanReducer(prev, { type: "hydrate", total: beats.length }, beats)
+              : prev,
+          );
+        })
+        .catch((err: Error) => {
+          if (receivedAny) {
+            showToast(
+              "Couldn't finish the rest of this teach-back — the beats already written still work.",
+              "Generation incomplete",
+            );
+            return;
+          }
+          setScreen("map");
+          setFeynman(null);
+          setLiveFeynman(null);
+          showToast(err.message, "Generation failed");
+        });
     },
-    [generate, loadFeynman, warmOne],
+    [feynmanParams, generate, loadFeynman, showToast, warm, warmOne],
   );
 
   const dispatchFeynman = useCallback((action: FeynmanAction) => {
@@ -2573,8 +2689,16 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   // "Continue"/"Finish" affordance on the deepest streamed-in section so it
   // never reaches for a section that hasn't arrived yet.
   const consumeStreaming = !!consume && !consumeCache[consume.nodeId];
-  const socraticSteps = socratic ? socraticCache[socratic.nodeId] : undefined;
-  const feynmanBeats = feynman ? feynmanCache[feynman.nodeId] : undefined;
+  // Same fallback as Consume: the committed pass if it exists, otherwise
+  // whatever has streamed in for this node so far.
+  const socraticSteps = socratic
+    ? (socraticCache[socratic.nodeId] ??
+      (liveSocratic?.nodeId === socratic.nodeId ? liveSocratic.steps : undefined))
+    : undefined;
+  const feynmanBeats = feynman
+    ? (feynmanCache[feynman.nodeId] ??
+      (liveFeynman?.nodeId === feynman.nodeId ? liveFeynman.beats : undefined))
+    : undefined;
   const connectContent = connect ? connectCache[connect.nodeId] : undefined;
   const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
 

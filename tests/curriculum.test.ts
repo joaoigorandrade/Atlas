@@ -121,11 +121,94 @@ describe("socraticReducer", () => {
   });
 });
 
+// Both passes stream their items in one at a time. Before this, the reducers
+// derived "am I on the last one?" from the array's length, so answering the
+// first question while the rest were still being written ended the session —
+// silently, and only under a slow writer. `total` is what fixes that, and
+// these are the cases that would have caught it.
+
+describe("socraticReducer against a growing step list", () => {
+  it("does not end the session when only the first step has arrived", () => {
+    const arrived = steps.slice(0, 1);
+    const s = socraticStart("n", arrived, steps.length);
+    const next = socraticReducer(s, { type: "reply", index: 0 }, arrived);
+    expect(next.done).toBe(false);
+    expect(next.step).toBe(1);
+    // Parked on a step that exists in the plan but hasn't been written yet.
+    expect(next.awaitingNext).toBe(true);
+  });
+
+  it("ignores input while parked, rather than throwing on a missing step", () => {
+    const arrived = steps.slice(0, 1);
+    let s = socraticStart("n", arrived, steps.length);
+    s = socraticReducer(s, { type: "reply", index: 0 }, arrived);
+    expect(() =>
+      socraticReducer(s, { type: "reply", index: 0 }, arrived),
+    ).not.toThrow();
+    expect(socraticReducer(s, { type: "tell" }, arrived)).toEqual(s);
+  });
+
+  it("opens the parked step once it lands", () => {
+    let s = socraticStart("n", steps.slice(0, 1), steps.length);
+    s = socraticReducer(s, { type: "reply", index: 0 }, steps.slice(0, 1));
+    s = socraticReducer(s, { type: "hydrate" }, steps);
+    expect(s.awaitingNext).toBe(false);
+    expect(s.step).toBe(1);
+    expect(s.log.at(-1)?.text).toBe(steps[1].prompt);
+  });
+
+  it("still ends on the real last step", () => {
+    let s = socraticStart("n", steps);
+    for (let i = 0; i < steps.length; i++)
+      s = socraticReducer(s, { type: "reply", index: 0 }, steps);
+    expect(s.done).toBe(true);
+  });
+
+  it("closes the session when the stream ended short of the plan", () => {
+    const arrived = steps.slice(0, 1);
+    let s = socraticStart("n", arrived, steps.length);
+    s = socraticReducer(s, { type: "reply", index: 0 }, arrived);
+    // The stream finished with only one step: re-cap and the pass is over.
+    s = socraticReducer(s, { type: "hydrate", total: 1 }, arrived);
+    expect(s.done).toBe(true);
+  });
+});
+
+describe("feynmanReducer against a growing beat list", () => {
+  it("does not open the Gap Report while beats are still arriving", () => {
+    const arrived = beats.slice(0, 1);
+    const s = feynmanStart("n", beats.length);
+    const next = feynmanReducer(
+      s,
+      { type: "taught", text: "t", verdict: "good", response: "r" },
+      arrived,
+    );
+    expect(next.reported).toBe(false);
+    expect(next.beat).toBe(1);
+  });
+
+  it("parks on a beat that has not arrived instead of throwing", () => {
+    const arrived = beats.slice(0, 1);
+    let s = feynmanStart("n", beats.length);
+    s = feynmanReducer(s, { type: "taught", text: "t", verdict: "good", response: "r" }, arrived);
+    expect(feynmanReducer(s, { type: "speak" }, arrived)).toEqual(s);
+  });
+
+  it("reports when the stream ended short of the plan", () => {
+    const arrived = beats.slice(0, 1);
+    let s = feynmanStart("n", beats.length);
+    s = feynmanReducer(s, { type: "taught", text: "t", verdict: "good", response: "r" }, arrived);
+    s = feynmanReducer(s, { type: "hydrate", total: 1 }, arrived);
+    // Re-capped to the beat in hand, so the next answer closes the pass.
+    expect(s.total).toBe(2);
+  });
+});
+
 // ---- feynman ----------------------------------------------------------------
 
 describe("feynmanReducer", () => {
   it("'taught' sets the judged verdict and advances the beat (#26)", () => {
-    const s = feynmanStart("n");
+    const s = feynmanStart("n", beats.length);
     const next = feynmanReducer(
       s,
       { type: "taught", text: "my words", verdict: "confused", response: "huh?" },
@@ -137,7 +220,7 @@ describe("feynmanReducer", () => {
   });
 
   it("last beat opens the Gap Report", () => {
-    let s = feynmanStart("n");
+    let s = feynmanStart("n", beats.length);
     s = feynmanReducer(s, { type: "taught", text: "t", verdict: "good", response: "r" }, beats);
     s = feynmanReducer(s, { type: "taught", text: "t", verdict: "skipped", response: "r" }, beats);
     expect(s.reported).toBe(true);
@@ -145,7 +228,7 @@ describe("feynmanReducer", () => {
   });
 
   it("a correct fix flips the verdict to good", () => {
-    let s = feynmanStart("n");
+    let s = feynmanStart("n", beats.length);
     s = feynmanReducer(s, { type: "taught", text: "t", verdict: "confused", response: "r" }, beats);
     s = feynmanReducer(s, { type: "openFix", beatId: "b1" }, beats);
     s = feynmanReducer(s, { type: "fix", index: 0 }, beats);
