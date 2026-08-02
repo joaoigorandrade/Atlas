@@ -172,8 +172,8 @@ export function resolveJob(body: GenerateBody): Job {
         stream: () => generateConsumeStream(params),
         // Mirrors `validateConsume`'s 4-6 bound, not the 5 the prompt asks for.
         shape: { chunks: { min: 4, max: 6 } },
-        // The reading pass, plus the follow-up that writes its rewrites.
-        cost: 2,
+        // The reading pass, plus one rewrite call per section it produces.
+        cost: 6,
       };
     }
 

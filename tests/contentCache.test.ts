@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { contentKey } from "@/lib/server/contentCache";
 import { resolveJob } from "@/lib/server/job";
@@ -6,6 +7,36 @@ import { resolveJob } from "@/lib/server/job";
 // must hash to the same row, and two genuinely different requests must not.
 
 describe("contentKey", () => {
+  // Every row in `content_cache` is addressed by this hash, so a change to the
+  // hashed string that isn't a deliberate CONTENT_CACHE_VERSION bump silently
+  // orphans the entire shared cache — no error, just every learner paying
+  // again for content that already exists. The `part` argument was added under
+  // this guard.
+  //
+  // The format is reconstructed rather than pinned to a fixed digest on
+  // purpose: a pinned digest would also break on a legitimate VERSION bump,
+  // and updating it then would reduce this to a rubber stamp. What must not
+  // drift is the *shape* — NUL separators (not spaces), kind before params.
+  const NUL = String.fromCharCode(0);
+  const version = process.env.CONTENT_CACHE_VERSION || "3";
+  const digest = (s: string) => createHash("sha256").update(s).digest("hex");
+
+  it("hashes exactly v{VERSION}\\0{kind}\\0{stable(params)}", () => {
+    const params = { topic: "Rust", nodeLabel: "Ownership", interests: "game dev" };
+    const stable = '{"interests":"game dev","nodeLabel":"Ownership","topic":"Rust"}';
+    expect(contentKey("consume", params)).toBe(
+      digest(`v${version}${NUL}consume${NUL}${stable}`),
+    );
+  });
+
+  it("separates on the NUL boundary, so no two inputs can run together", () => {
+    // Without a separator "consume" + '{"a":1}' and "consume{" + '"a":1}'
+    // would hash alike. The boundary is what makes that impossible.
+    expect(contentKey("consume", { topic: "a b" })).not.toBe(
+      contentKey("consume", { topic: "a", b: "" }),
+    );
+  });
+
   it("ignores property order", () => {
     const a = contentKey("consume", {
       topic: "Fourier analysis",

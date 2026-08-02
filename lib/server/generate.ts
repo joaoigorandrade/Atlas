@@ -667,42 +667,76 @@ const CONSUME_SECTION_SHAPE = consumeSectionShape(true);
 const CONSUME_SECTION_SHAPE_FAST = consumeSectionShape(false);
 
 /**
- * The adaptive-modality rewrites, generated as a follow-up call once the
- * reading itself has already streamed to the learner. Off the critical path
- * on purpose (#improve-consume-latency): a learner reads before reaching for
- * "simpler" or "go deeper", so there's no reason those four rewrites per
- * section should delay the section they belong to.
+ * The adaptive-modality rewrites for ONE section, generated once the reading
+ * itself has already streamed to the learner. Off the critical path on
+ * purpose: a learner reads before reaching for "simpler" or "go deeper", so
+ * there's no reason those four rewrites should delay the section they belong
+ * to.
+ *
+ * One call per section rather than one call for all five. The old shape
+ * re-sent every section's body and worked example verbatim — around 4000
+ * input tokens — to produce 4000 more, which made it both the largest prompt
+ * in the app and an all-or-nothing bet: one bad section cost all five sets of
+ * toggles. Each call now sees only its own section, they run concurrently, and
+ * a failure is isolated to the section that caused it.
  */
-async function generateConsumeAlts(
-  sections: ConsumeChunk[],
+async function generateSectionAlt(
+  section: ConsumeChunk,
+  index: number,
   params: { topic: string; nodeLabel: string; language?: Language },
-): Promise<Array<Record<AltKey, string>>> {
+): Promise<Record<AltKey, string>> {
   return generateJson(
     user(
-      `The reading pass on "${params.nodeLabel}" within "${params.topic}" already has these ${sections.length} sections, in order:
+      `This section of the reading pass on "${params.nodeLabel}" within "${params.topic}" is already written:
 
-${sections
-  .map(
-    (c, i) =>
-      `Section ${i + 1} — ${c.kicker}
-${c.body.join("\n")}
-Worked example (${c.example.title}): ${c.example.steps.join(" ")}`,
-  )
-  .join("\n\n")}
+${section.kicker}
+${section.body.join("\n")}
+Worked example (${section.example.title}): ${section.example.steps.join(" ")}
 
-For EACH section above, in the same order, write the four adaptive-modality rewrites a learner can switch to instead of the main prose. Return JSON:
-{
-  "alts": [${ALT_SHAPE}, ...]
-}${languageNote(params.language)}`,
+Write the four adaptive-modality rewrites a learner can switch to instead of the prose above. Each must cover the SAME material as this section — a different route through it, never a different topic. Return JSON:
+${ALT_SHAPE}${languageNote(params.language)}`,
     ),
-    validateConsumeAlts,
+    (raw) => validateConsumeAlt(raw, index),
     { label: "consume-alt" },
   );
 }
 
-function validateConsumeAlts(raw: unknown): Array<Record<AltKey, string>> {
-  const root = obj(raw, "payload");
-  return arr(root.alts, "alts", 4, 6).map(validateConsumeAlt);
+/** Concurrent alt calls in flight. Bounded so a background rewrite pass never
+ *  competes with a foreground generation for the model's attention. */
+const ALT_CONCURRENCY = 3;
+
+/**
+ * Every section's rewrites, fanned out. Resolves to one entry per section,
+ * `null` where that section's call failed — the caller yields the ones that
+ * landed and leaves the rest inert.
+ */
+async function generateConsumeAlts(
+  sections: ConsumeChunk[],
+  params: { topic: string; nodeLabel: string; language?: Language },
+): Promise<Array<Record<AltKey, string> | null>> {
+  const out: Array<Record<AltKey, string> | null> = new Array(sections.length).fill(null);
+  let next = 0;
+  const worker = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= sections.length) return;
+      try {
+        out[i] = await generateSectionAlt(sections[i], i, params);
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            evt: "consume_alt_section_failed",
+            section: i,
+            error: String(err instanceof Error ? err.message : err).slice(0, 300),
+          }),
+        );
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(ALT_CONCURRENCY, sections.length) }, worker),
+  );
+  return out;
 }
 
 export async function generateConsume(params: {
@@ -786,20 +820,14 @@ ${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
     return;
   }
 
-  try {
-    const alts = await generateConsumeAlts(sections, params);
-    for (let i = 0; i < sections.length; i++)
-      yield { p: "chunks", i, v: { ...sections[i], alt: alts[i] } };
-  } catch (err) {
-    // The reading is already fully on screen and cached-so-far without alt;
-    // the rewrite toggles just stay inert this session rather than blocking
-    // or retrying — worth logging, not worth failing the whole pass over.
-    console.error(
-      JSON.stringify({
-        evt: "consume_alt_failed",
-        error: String(err instanceof Error ? err.message : err).slice(0, 300),
-      }),
-    );
+  // The reading is already fully on screen by now. A section whose rewrites
+  // fail simply keeps its toggles inert — worth logging (each failure is
+  // logged inside the fan-out), never worth failing the whole pass over, and
+  // no longer all-or-nothing: the sections that succeeded still light up.
+  const alts = await generateConsumeAlts(sections, params);
+  for (let i = 0; i < sections.length; i++) {
+    const alt = alts[i];
+    if (alt) yield { p: "chunks", i, v: { ...sections[i], alt } };
   }
 }
 
