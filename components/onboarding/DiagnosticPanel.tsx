@@ -1,41 +1,39 @@
 "use client";
 
-import { useState } from "react";
-import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
-import type { DiagnosticQuestion } from "@/lib/curriculum";
+import type { DiagnosticDifficulty, DiagnosticQuestion } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
 const STRINGS = {
   en: {
     kicker: "Placement · adaptive",
-    openPlaceholder:
-      "Tell me what you already know here — honestly, in your own words.",
-    submitLabel: "Place me →",
     writing: "Writing the next question…",
     readyTitle: "Your map is ready.",
     readyBody:
       "We pruned what you already own and lit your frontier — the concepts you’re ready to learn next.",
     start: "Start here →",
+    difficulty: { easy: "Easy", medium: "Medium", hard: "Hard" } as Record<
+      DiagnosticDifficulty,
+      string
+    >,
   },
   "pt-BR": {
     kicker: "Nivelamento · adaptativo",
-    openPlaceholder:
-      "Conte o que você já sabe sobre isso — com honestidade, com suas palavras.",
-    submitLabel: "Me posicionar →",
     writing: "Escrevendo a próxima pergunta…",
     readyTitle: "Seu mapa está pronto.",
     readyBody:
       "Podamos o que você já domina e acendemos sua fronteira — os conceitos que você está pronto para aprender agora.",
     start: "Começar →",
+    difficulty: { easy: "Fácil", medium: "Médio", hard: "Difícil" } as Record<
+      DiagnosticDifficulty,
+      string
+    >,
   },
 } as const;
 
 interface DiagnosticPanelProps {
-  /** The subject being placed — context for judging open-ended answers. */
-  topic: string;
-  /** The generated placement questions for this topic, which may still be
-   *  arriving: the build streams them in one at a time. */
+  /** The generated placement questions for this topic, fetched one at a time
+   *  as each is answered — the next difficulty depends on the last answer. */
   questions: DiagnosticQuestion[];
   /** How many questions this placement will ask in total. Distinct from
    *  `questions.length`, which grows as the stream lands — deriving "done"
@@ -50,7 +48,6 @@ interface DiagnosticPanelProps {
 }
 
 export default function DiagnosticPanel({
-  topic,
   questions,
   expected,
   answered,
@@ -58,7 +55,6 @@ export default function DiagnosticPanel({
   onStart,
 }: DiagnosticPanelProps) {
   const t = useT(STRINGS);
-  const [mode, setMode] = useState<AnswerMode>("open");
   const total = Math.max(expected ?? questions.length, questions.length);
   const done = answered >= total;
   // Answered faster than the writer could write: the next question is real and
@@ -132,7 +128,20 @@ export default function DiagnosticPanel({
             >
               {question.tag}
             </div>
-            <AnswerModeToggle mode={mode} onMode={setMode} />
+            <div
+              style={{
+                fontFamily: font.mono,
+                fontSize: 10.5,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: color.inkGhost,
+                padding: "3px 8px",
+                borderRadius: 6,
+                border: `1px solid ${color.hairline}`,
+              }}
+            >
+              {t.difficulty[question.difficulty]}
+            </div>
           </div>
           <div
             style={{
@@ -144,23 +153,17 @@ export default function DiagnosticPanel({
           >
             {question.q}
           </div>
-          {mode === "open" ? (
-            <OpenAnswer
-              key={answered}
-              topic={topic}
-              question={question.q}
-              options={question.opts.map((o) => o.label)}
-              onResolve={(index) => onAnswer(index)}
-              placeholder={t.openPlaceholder}
-              submitLabel={t.submitLabel}
-            />
-          ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+          <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 11 }}>
             {question.opts.map((opt, oi) => (
               <button
                 key={opt.label}
+                role="radio"
+                aria-checked={false}
                 onClick={() => onAnswer(oi)}
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
                   textAlign: "left",
                   padding: "15px 18px",
                   background: color.card,
@@ -172,11 +175,19 @@ export default function DiagnosticPanel({
                   transition: "border-color .15s, background .15s",
                 }}
               >
+                <span
+                  style={{
+                    flexShrink: 0,
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    border: `1.5px solid ${color.hairlineStrong}`,
+                  }}
+                />
                 {opt.label}
               </button>
             ))}
           </div>
-          )}
           <div
             style={{
               marginTop: 26,

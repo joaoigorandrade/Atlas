@@ -21,6 +21,8 @@ import {
   feynmanStart,
   freshAdherence,
   DIAGNOSTIC_COUNT,
+  diagnosticEffect,
+  stepDifficulty,
   GOALS,
   initialStates,
   localDay,
@@ -50,6 +52,7 @@ import {
   type CrucibleAction,
   type CrucibleContent,
   type CrucibleSession,
+  type DiagnosticDifficulty,
   type DiagnosticQuestion,
   type ElaborationContent,
   type FeynmanAction,
@@ -85,7 +88,8 @@ import {
   fetchConsume,
   fetchConsumeStream,
   fetchCrucible,
-  fetchCurriculumStream,
+  fetchCurriculumMap,
+  fetchDiagnosticQuestion,
   fetchFeynman,
   fetchFeynmanStream,
   fetchJudgeCrucible,
@@ -116,6 +120,11 @@ import {
 } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
+import {
+  FAKE_MAP_EDGES,
+  FAKE_MAP_NODES,
+  FAKE_MAP_POSITIONS,
+} from "@/components/onboarding/fakeMap";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
 import ProfileScreen, { type ProfileStat } from "@/components/ProfileScreen";
@@ -342,6 +351,13 @@ export default function AtlasApp({
   diagnosticRef.current = diagnostic;
   const answeredRef = useRef(answered);
   answeredRef.current = answered;
+  // Adaptive placement state: which concepts have already been asked (never
+  // repeat one), the difficulty the next question should be pitched at, and
+  // the hardest level answered correctly so far — the evidence the "luck"
+  // read in `diagnosticEffect` leans on.
+  const askedNodeIdsRef = useRef<string[]>([]);
+  const nextDifficultyRef = useRef<DiagnosticDifficulty>("medium");
+  const maxCorrectDifficultyRef = useRef<DiagnosticDifficulty | null>(null);
   const statesRef = useRef(states);
   statesRef.current = states;
   const crucibleRef = useRef(crucible);
@@ -799,15 +815,14 @@ export default function AtlasApp({
   // ---- onboarding flow -------------------------------------------------
 
   /**
-   * "Build my map": the AI generates the concept graph + placement diagnostic
-   * for the typed topic, streamed — the map arrives as its own frame and the
-   * three placement questions follow one at a time.
+   * "Build my map": the map is generated on its own, fast, so it can open the
+   * moment it's ready; the 5 placement questions are then fetched one at a
+   * time, since each one's difficulty depends on how the last was answered
+   * (see `answerDiagnostic`) — there is nothing to pre-fetch as a batch.
    *
    * This is the only generation in the app that can never be warmed (the node
    * ids don't exist until it returns), so it is the one wait every learner
-   * pays. Streaming lets the assembly animation start on the graph rather than
-   * on the whole payload; the questions then land inside the animation's own
-   * dwell and cost nothing.
+   * pays.
    *
    * `BUILD_MS` stays a floor, not a target: SPEC §2 calls the assembling
    * moment a deliberate "this is mine" beat, not a spinner to be minimized.
@@ -834,105 +849,73 @@ export default function AtlasApp({
     // A new map invalidates every warmed key — the node ids are about to
     // mean something else.
     warm.clear();
+    askedNodeIdsRef.current = [];
+    nextDifficultyRef.current = "medium";
+    maxCorrectDifficultyRef.current = null;
     const started = Date.now();
-    const questions: DiagnosticQuestion[] = [];
-    let opened = false;
-    let scoped = false;
-    /** Did *this* build produce a graph? Never `graphRef.current.nodes.length`
-     *  — that was true of the map the learner built an hour ago. */
-    let built = false;
+    const openAt = () => Math.max(0, BUILD_MS - (Date.now() - started));
 
-    /** Move to the diagnostic once the assembly beat has played out and there
-     *  is at least one question to ask. Idempotent — every frame tries. */
-    const openWhenReady = () => {
-      if (opened || scoped || questions.length === 0) return;
-      opened = true;
-      later(() => {
-        setScreen("diagnostic");
-        setAnswered(0);
-      }, Math.max(0, BUILD_MS - (Date.now() - started)));
-    };
-
-    fetchCurriculumStream(
-      {
-        topic,
-        goal: formRef.current.goal,
-        interests: formRef.current.interests,
-        outline: outline ?? undefined,
-        language: languageRef.current,
-      },
-      {
-        // Too broad for one map: offer scoped sub-maps instead (#30). Arrives
-        // first and alone, so nothing else is coming.
-        onScopes: (offers) => {
-          scoped = true;
+    fetchCurriculumMap({
+      topic,
+      goal: formRef.current.goal,
+      interests: formRef.current.interests,
+      outline: outline ?? undefined,
+      language: languageRef.current,
+    })
+      .then((result) => {
+        // Too broad for one map: offer scoped sub-maps instead (#30).
+        if ("scopes" in result) {
           setScreen("welcome");
-          setScopes(offers);
-        },
-        onGraph: (graph) => {
-          built = true;
-          setBuildNote(`${graph.nodes.length} concepts placed`);
-          setGraph(graph);
-          setStates(initialStates(graph));
-          setPositions(
-            Object.fromEntries(graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
-          );
-          setSpawnedIds(new Set());
-          pendingGapsRef.current = [];
-          setLiveConsume(null);
-          setConsumeCache({});
-          setSocraticCache({});
-          setFeynmanCache({});
-          setConnectCache({});
-          setCrucibleCache({});
-          setRetainContent(null);
-          setCalibSamples([]);
-          setShakyReasons({});
-          setReviewedNodes([]);
-          setCards([]);
-          setDiagnostic([]);
-        },
-        onQuestion: (question, index) => {
-          questions[index] = question;
-          setBuildNote(
-            `placement question ${questions.filter(Boolean).length} of ${DIAGNOSTIC_COUNT}`,
-          );
-          // Publish the dense prefix only: DiagnosticPanel indexes by answer
-          // count, so a hole would show question 3 in slot 2.
-          const dense: DiagnosticQuestion[] = [];
-          for (const q of questions) {
-            if (!q) break;
-            dense.push(q);
-          }
-          setDiagnostic(dense);
-          openWhenReady();
-        },
-      },
-    )
-      .then(() => {
-        if (scoped || opened) return;
-        // The graph landed but no question survived. Placement is a
-        // nice-to-have; the map is the product, so open it rather than
-        // failing a build the learner already watched assemble.
-        if (built) {
-          later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
+          setScopes(result.scopes);
           return;
         }
-        setScreen("welcome");
-        showToast("The writer returned an empty map — try again.", "Generation failed");
+        const { graph } = result;
+        setBuildNote(`${graph.nodes.length} concepts placed`);
+        setGraph(graph);
+        setStates(initialStates(graph));
+        setPositions(
+          Object.fromEntries(graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
+        );
+        setSpawnedIds(new Set());
+        pendingGapsRef.current = [];
+        setLiveConsume(null);
+        setConsumeCache({});
+        setSocraticCache({});
+        setFeynmanCache({});
+        setConnectCache({});
+        setCrucibleCache({});
+        setRetainContent(null);
+        setCalibSamples([]);
+        setShakyReasons({});
+        setReviewedNodes([]);
+        setCards([]);
+        setDiagnostic([]);
+        setBuildNote(`placement question 1 of ${DIAGNOSTIC_COUNT}`);
+
+        return fetchDiagnosticQuestion({
+          topic,
+          goal: formRef.current.goal,
+          interests: formRef.current.interests,
+          language: languageRef.current,
+          pool: graph.nodes.map((n) => ({ id: n.id, label: n.label })),
+          difficulty: nextDifficultyRef.current,
+          index: 0,
+        })
+          .then((question) => {
+            setDiagnostic([question]);
+            later(() => {
+              setScreen("diagnostic");
+              setAnswered(0);
+            }, openAt());
+          })
+          .catch(() => {
+            // Placement is a nice-to-have; the map is the product, so open it
+            // rather than failing a build the learner already watched
+            // assemble.
+            later(() => setScreen("map"), openAt());
+          });
       })
       .catch((err: Error) => {
-        // Sections of the map may already be on screen; only a failure with
-        // nothing to show sends the learner back.
-        if (scoped) return;
-        if (questions.length > 0) {
-          openWhenReady();
-          return;
-        }
-        if (built) {
-          later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
-          return;
-        }
         setScreen("welcome");
         showToast(err.message, "Generation failed");
       });
@@ -978,18 +961,34 @@ export default function AtlasApp({
   );
 
   /**
-   * A diagnostic answer writes real mastery back: a confident answer prunes
-   * the concept and its whole prerequisite chain (diagnosed known); a hesitant
-   * one marks it learned-but-shaky and queues its gap sub-node for the first
-   * live re-plan; "no idea" leaves the territory unknown.
+   * A diagnostic answer writes real mastery back: a correct answer prunes the
+   * concept and its whole prerequisite chain (diagnosed known); a genuine miss
+   * marks it learned-but-shaky and queues its gap sub-node for the first live
+   * re-plan. A miss that reads as a "luck" slip (see `diagnosticEffect`) is
+   * discounted to the same effect a correct answer gives — no gap spawned.
+   *
+   * It also steps the difficulty ladder (harder on correct, easier on a miss)
+   * and fetches the next question at that level, since there is no batch to
+   * pull from — the ENEM-style placement can't know question N+1 until N is
+   * graded.
    */
   const answerDiagnostic = useCallback((optionIndex: number) => {
     // All effects run here in the event handler, never inside a state
     // updater — React may invoke updaters more than once (#16).
     const idx = answeredRef.current;
     const q = diagnosticRef.current[idx];
-    const effect = q?.opts[optionIndex]?.effect ?? "none";
-    if (q && effect !== "none") {
+    if (!q) return;
+    const correct = optionIndex === q.correctIndex;
+    const effect = diagnosticEffect(q.difficulty, correct, maxCorrectDifficultyRef.current);
+    if (correct) {
+      const rank = (d: DiagnosticDifficulty) => ["easy", "medium", "hard"].indexOf(d);
+      if (
+        maxCorrectDifficultyRef.current === null ||
+        rank(q.difficulty) > rank(maxCorrectDifficultyRef.current)
+      )
+        maxCorrectDifficultyRef.current = q.difficulty;
+    }
+    if (effect !== "none") {
       const chain = ancestorsOf(q.nodeId, graphRef.current.edges);
       setStates((s) => {
         const next = { ...s };
@@ -1001,11 +1000,37 @@ export default function AtlasApp({
       if (effect === "shaky" && q.gap)
         pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
     }
+    askedNodeIdsRef.current.push(q.nodeId);
+    const nextDifficulty = stepDifficulty(q.difficulty, correct);
+    nextDifficultyRef.current = nextDifficulty;
+
     const next = idx + 1;
-    const total = diagnosticRef.current.length || 1;
     const maxG = Math.max(1, ...graphRef.current.nodes.map((n) => n.g));
-    setReveal(Math.ceil((Math.min(next, total) / total) * maxG));
+    setReveal(Math.ceil((Math.min(next, DIAGNOSTIC_COUNT) / DIAGNOSTIC_COUNT) * maxG));
     setAnswered(next);
+    if (next >= DIAGNOSTIC_COUNT) return;
+
+    const pool = graphRef.current.nodes
+      .filter((n) => !askedNodeIdsRef.current.includes(n.id))
+      .map((n) => ({ id: n.id, label: n.label }));
+
+    fetchDiagnosticQuestion({
+      topic: formRef.current.topic,
+      goal: formRef.current.goal,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      pool,
+      difficulty: nextDifficulty,
+      index: next,
+    })
+      .then((question) => {
+        setDiagnostic((prev) => [...prev, question]);
+      })
+      .catch(() => {
+        // The writer stumbled mid-placement: stop asking and let what's
+        // already known stand rather than leaving the panel waiting forever.
+        setAnswered(DIAGNOSTIC_COUNT);
+      });
   }, [setShakyReason]);
 
   /**
@@ -2671,6 +2696,9 @@ export default function AtlasApp({
   // The canvas backs onboarding + the map, but Consume is a full surface.
   const showCanvas =
     screen === "building" || screen === "diagnostic" || screen === "map";
+  // Before the real map exists, assemble a placeholder territory instead of
+  // an empty canvas — swapped for the real graph the instant it streams in.
+  const usingFakeMap = screen === "building" && graph.nodes.length === 0;
 
   // What the canvas shows: the live state map, masked during onboarding
   // (generations beyond the diagnostic reveal stay hidden) and during the
@@ -3024,12 +3052,12 @@ export default function AtlasApp({
       {showCanvas && (
         <MapCanvas
           screen={screen as "map" | "building" | "diagnostic"}
-          nodes={graph.nodes}
-          edges={graph.edges}
+          nodes={usingFakeMap ? FAKE_MAP_NODES : graph.nodes}
+          edges={usingFakeMap ? FAKE_MAP_EDGES : graph.edges}
           spawnedIds={spawnedIds}
           display={display}
           lockedPath={lockedPath}
-          positions={positions}
+          positions={usingFakeMap ? FAKE_MAP_POSITIONS : positions}
           view={view}
           selectedId={selectedId}
           hoverId={hoverId}
@@ -3046,7 +3074,6 @@ export default function AtlasApp({
 
       {screen === "diagnostic" && diagnostic.length > 0 && (
         <DiagnosticPanel
-          topic={form.topic}
           questions={diagnostic}
           // The placement always asks this many, even when the panel opens on
           // the first one and the rest are still being written.

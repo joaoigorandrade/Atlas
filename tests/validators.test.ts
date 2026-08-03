@@ -3,8 +3,7 @@ import {
   validateChoice,
   validateConsume,
   validateCrucible,
-  validateCurriculum,
-  validateDiagnosticItem,
+  validateDiagnosticQuestion,
   validateFeynman,
   validateGraphPart,
   validateRetain,
@@ -13,84 +12,27 @@ import {
 } from "@/lib/server/generate";
 import { migrateConsume, type LegacyConsumeChunk } from "@/lib/persistence";
 
-// ---- curriculum: DAG + scoping ------------------------------------------------
+// ---- curriculum map: DAG + scoping --------------------------------------------
 
-function curriculumPayload(edges: string[][]) {
+function graphPayload(edges: string[][]) {
   const nodes = Array.from({ length: 10 }, (_, i) => ({
     id: `n${i}`,
     label: `Node ${i}`,
   }));
-  const diagnostic = [0, 1, 2].map((i) => ({
-    nodeId: `n${i}`,
-    q: `q${i}`,
-    note: "note",
-    opts: [
-      { label: "sure", effect: "mastered" },
-      { label: "kinda", effect: "shaky" },
-      { label: "nope", effect: "none" },
-    ],
-  }));
-  return { nodes, edges, diagnostic };
+  return { nodes, edges };
 }
 
 const chainEdges = Array.from({ length: 9 }, (_, i) => [`n${i}`, `n${i + 1}`]);
 
-describe("validateCurriculum", () => {
+describe("validateGraphPart", () => {
   it("accepts a valid DAG", () => {
-    const out = validateCurriculum(curriculumPayload(chainEdges));
+    const out = validateGraphPart(graphPayload(chainEdges));
     expect(out.nodes.length).toBe(10);
-    expect(out.scopes).toBeUndefined();
   });
 
   it("rejects a prerequisite cycle (#16)", () => {
     const edges = [...chainEdges, ["n9", "n0"]];
-    expect(() => validateCurriculum(curriculumPayload(edges))).toThrow(/cycle/);
-  });
-
-  it("returns scoped sub-map offers for too-broad topics (#30)", () => {
-    const out = validateCurriculum({
-      tooBroad: true,
-      scopes: [
-        { label: "Classical Mechanics", note: "forces and motion" },
-        { label: "Thermodynamics", note: "heat and entropy" },
-      ],
-    });
-    expect(out.scopes?.length).toBe(2);
-  });
-});
-
-// The streamed build validates the map and each placement question separately.
-// Feeding those per-part validators the pieces of a single-shot payload must
-// reproduce the single-shot result exactly — that equality is what lets the
-// streamed and non-streamed paths share a `content_cache` row without bumping
-// CONTENT_CACHE_VERSION, and a cache hit is returned to the client with no
-// re-validation at all.
-describe("curriculum part validators", () => {
-  const payload = curriculumPayload(chainEdges);
-
-  it("reproduce the single-shot result part by part", () => {
-    const whole = validateCurriculum(payload);
-    const graph = validateGraphPart(payload);
-    const ids = new Set(graph.nodes.map((n) => n.id));
-    const diagnostic = payload.diagnostic.map((d, i) =>
-      validateDiagnosticItem(d, i, ids),
-    );
-    expect(graph.nodes).toEqual(whole.nodes);
-    expect(graph.edges).toEqual(whole.edges);
-    expect(diagnostic).toEqual(whole.diagnostic);
-  });
-
-  it("keeps the cycle check on the graph part, where the map is decided", () => {
-    expect(() =>
-      validateGraphPart(curriculumPayload([...chainEdges, ["n9", "n0"]])),
-    ).toThrow(/cycle/);
-  });
-
-  it("rejects a question probing a concept the map never established", () => {
-    const ids = new Set(["n0", "n1"]);
-    expect(() =>
-      validateDiagnosticItem(payload.diagnostic[2], 2, ids),
-    ).toThrow(/is not a node id/);
+    expect(() => validateGraphPart(graphPayload(edges))).toThrow(/cycle/);
   });
 
   it("reads a too-broad payload as scopes, and a normal one as not", () => {
@@ -103,7 +45,49 @@ describe("curriculum part validators", () => {
         ],
       }),
     ).toHaveLength(2);
-    expect(validateScopeOffer(payload)).toBeNull();
+    expect(validateScopeOffer(graphPayload(chainEdges))).toBeNull();
+  });
+});
+
+// ---- diagnostic question: one objective 4-option probe, graded server-side ----
+
+function diagnosticPayload(over: Record<string, unknown> = {}) {
+  return {
+    nodeId: "n3",
+    q: "What binds to what?",
+    note: "note",
+    opts: ["A", "B", "C", "D"],
+    correctIndex: 1,
+    ...over,
+  };
+}
+
+describe("validateDiagnosticQuestion", () => {
+  const ids = new Set(["n0", "n1", "n2", "n3"]);
+
+  it("accepts a well-formed question", () => {
+    const out = validateDiagnosticQuestion(diagnosticPayload(), ids);
+    expect(out.nodeId).toBe("n3");
+    expect(out.opts).toHaveLength(4);
+    expect(out.correctIndex).toBe(1);
+  });
+
+  it("rejects a question probing a concept the map never established", () => {
+    expect(() =>
+      validateDiagnosticQuestion(diagnosticPayload({ nodeId: "n9" }), ids),
+    ).toThrow(/is not one of the offered candidates/);
+  });
+
+  it("rejects anything but exactly 4 options", () => {
+    expect(() =>
+      validateDiagnosticQuestion(diagnosticPayload({ opts: ["A", "B", "C"] }), ids),
+    ).toThrow(/opts/);
+  });
+
+  it("rejects a correctIndex outside 0-3", () => {
+    expect(() =>
+      validateDiagnosticQuestion(diagnosticPayload({ correctIndex: 4 }), ids),
+    ).toThrow(/correctIndex/);
   });
 });
 

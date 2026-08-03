@@ -12,10 +12,10 @@ import {
   generateConsume,
   generateConsumeStream,
   generateCrucible,
-  generateCurriculum,
-  generateCurriculumStream,
+  generateDiagnosticQuestion,
   generateFeynman,
   generateFeynmanStream,
+  generateMap,
   generateRetain,
   generateSocratic,
   generateSocraticStream,
@@ -31,9 +31,14 @@ import {
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import type { StreamFrame, StreamShapes } from "@/lib/server/stream";
-import { DIAGNOSTIC_COUNT, FEYNMAN_BEATS, type GoalKind } from "@/lib/curriculum";
+import {
+  DIAGNOSTIC_DIFFICULTIES,
+  FEYNMAN_BEATS,
+  type DiagnosticDifficulty,
+  type GoalKind,
+} from "@/lib/curriculum";
 
-export type GenerateKind = CacheableKind | "judge";
+export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion";
 
 export interface GenerateBody {
   kind: GenerateKind;
@@ -53,6 +58,9 @@ export interface GenerateBody {
   pool?: Array<{ id: string; label: string }>;
   nodes?: Array<{ id: string; label: string; state: string }>;
   budgetMin?: number;
+  // diagnosticQuestion fields
+  difficulty?: string;
+  index?: number;
   /** Background warm: the client is filling its cache, nobody is waiting. */
   prefetch?: boolean;
   // judge fields
@@ -151,14 +159,49 @@ export function resolveJob(body: GenerateBody): Job {
       return {
         kind: "curriculum",
         key: contentKey("curriculum", params),
-        run: async () => ({ ...(await generateCurriculum(params)) }),
-        stream: () => generateCurriculumStream(params),
-        // Two legal payloads: a map with its placement questions, or — for a
-        // topic too broad to be one coherent map — scope offers instead.
-        shape: [
-          { graph: "one", diagnostic: { min: DIAGNOSTIC_COUNT, max: DIAGNOSTIC_COUNT } },
-          { scopes: "one" },
-        ],
+        run: async () => ({ ...(await generateMap(params)) }),
+      };
+    }
+
+    case "diagnosticQuestion": {
+      const pool = Array.isArray(body.pool)
+        ? body.pool
+            .filter(
+              (p): p is { id: string; label: string } =>
+                typeof p === "object" &&
+                p !== null &&
+                typeof p.id === "string" &&
+                typeof p.label === "string",
+            )
+            .slice(0, CAPS.listItems)
+        : [];
+      if (pool.length === 0) throw badRequest("pool must list candidate nodes");
+      const difficulty: DiagnosticDifficulty = DIAGNOSTIC_DIFFICULTIES.includes(
+        body.difficulty as DiagnosticDifficulty,
+      )
+        ? (body.difficulty as DiagnosticDifficulty)
+        : "medium";
+      const index =
+        typeof body.index === "number" && Number.isInteger(body.index)
+          ? body.index
+          : 0;
+      const params = {
+        topic,
+        goal: ["exam", "project", "mastery"].includes(s(body.goal))
+          ? (body.goal as GoalKind)
+          : "mastery",
+        interests,
+        language,
+        nodeCandidates: pool,
+        difficulty,
+        index,
+      };
+      // Never cached: which question comes next depends on how the learner
+      // answered the last one, so no two placements share this call's inputs.
+      return {
+        kind: "diagnosticQuestion",
+        key: null,
+        run: async () => ({ ...(await generateDiagnosticQuestion(params)) }),
       };
     }
 

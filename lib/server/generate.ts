@@ -15,6 +15,7 @@ import {
   type ConsumeFigure,
   type ConsumePrediction,
   type CrucibleContent,
+  type DiagnosticDifficulty,
   type DiagnosticQuestion,
   type ElaborationContent,
   type FeynmanBeat,
@@ -143,11 +144,10 @@ function interestNote(interests: string): string {
     : "Use concrete, everyday analogies when they genuinely fit.";
 }
 
-// ---- kind: curriculum ------------------------------------------------------
+// ---- kind: curriculum map --------------------------------------------------
 
-export interface CurriculumPayload {
+export interface CurriculumMapPayload {
   graph: ConceptGraph;
-  diagnostic: DiagnosticQuestion[];
 }
 
 /** A scoped sub-map offer returned instead of a map when the topic is too
@@ -211,12 +211,13 @@ function layoutGraph(
   return nodes;
 }
 
-/** One placement question, before `tag` and the gap offsets are attached. */
+/** One placement question, before `tag` and `difficulty` are attached. */
 export interface RawDiagnostic {
   nodeId: string;
   q: string;
   note: string;
-  opts: Array<{ label: string; effect: "mastered" | "shaky" | "none" }>;
+  opts: Array<{ label: string }>;
+  correctIndex: number;
   gapLabel?: string;
   gapReason?: string;
 }
@@ -235,9 +236,8 @@ export function validateScopeOffer(raw: unknown): ScopeOffer[] | null {
   });
 }
 
-/** Nodes and edges together: the map itself. Split out from the diagnostic so
- *  the streamed pass can lay the graph out and ship it while the placement
- *  questions are still being written. */
+/** Nodes and edges together: the map itself — its own prompt now, so it can
+ *  ship the moment it's written instead of waiting on the diagnostic. */
 export function validateGraphPart(raw: unknown): {
   nodes: Array<{ id: string; label: string }>;
   edges: ConceptEdge[];
@@ -286,58 +286,37 @@ export function validateGraphPart(raw: unknown): {
   return { nodes, edges };
 }
 
-/** One placement question, checked against the node ids the graph established. */
-export function validateDiagnosticItem(
+/** One objective placement question, checked against the offered node
+ *  candidates and the model's own option count. */
+export function validateDiagnosticQuestion(
   raw: unknown,
-  i: number,
   nodeIds: Set<string>,
 ): RawDiagnostic {
-  const d = obj(raw, `diagnostic[${i}]`);
-  const nodeId = str(d.nodeId, `diagnostic[${i}].nodeId`)
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-");
-  if (!nodeIds.has(nodeId)) fail(`diagnostic[${i}].nodeId "${nodeId}" is not a node id`);
+  const d = obj(raw, "payload");
+  const nodeId = str(d.nodeId, "nodeId").toLowerCase().replace(/[^a-z0-9-]/g, "-");
+  if (!nodeIds.has(nodeId)) fail(`nodeId "${nodeId}" is not one of the offered candidates`);
+  const opts = arr(d.opts, "opts", 4, 4).map((o, j) => ({
+    label: str(o, `opts[${j}]`),
+  }));
+  if (
+    typeof d.correctIndex !== "number" ||
+    !Number.isInteger(d.correctIndex) ||
+    d.correctIndex < 0 ||
+    d.correctIndex > 3
+  )
+    fail("correctIndex must be an integer 0-3");
   return {
     nodeId,
-    q: str(d.q, `diagnostic[${i}].q`),
-    note: str(d.note, `diagnostic[${i}].note`),
-    opts: arr(d.opts, `diagnostic[${i}].opts`, 3, 3).map((o, j) => {
-      const opt = obj(o, `diagnostic[${i}].opts[${j}]`);
-      return {
-        label: str(opt.label, `diagnostic[${i}].opts[${j}].label`),
-        effect: oneOf(
-          opt.effect,
-          ["mastered", "shaky", "none"] as const,
-          `diagnostic[${i}].opts[${j}].effect`,
-        ),
-      };
-    }),
-    gapLabel: d.gapLabel ? str(d.gapLabel, `diagnostic[${i}].gapLabel`) : undefined,
-    gapReason: d.gapReason ? str(d.gapReason, `diagnostic[${i}].gapReason`) : undefined,
+    q: str(d.q, "q"),
+    note: str(d.note, "note"),
+    opts,
+    correctIndex: d.correctIndex,
+    gapLabel: d.gapLabel ? str(d.gapLabel, "gapLabel") : undefined,
+    gapReason: d.gapReason ? str(d.gapReason, "gapReason") : undefined,
   };
 }
 
-export function validateCurriculum(raw: unknown): {
-  scopes?: ScopeOffer[];
-  nodes: Array<{ id: string; label: string }>;
-  edges: ConceptEdge[];
-  diagnostic: RawDiagnostic[];
-} {
-  const scopes = validateScopeOffer(raw);
-  if (scopes) return { scopes, nodes: [], edges: [], diagnostic: [] };
-  const { nodes, edges } = validateGraphPart(raw);
-  const ids = new Set(nodes.map((n) => n.id));
-  const root = obj(raw, "payload");
-  const diagnostic = arr(
-    root.diagnostic,
-    "diagnostic",
-    DIAGNOSTIC_COUNT,
-    DIAGNOSTIC_COUNT,
-  ).map((v, i) => validateDiagnosticItem(v, i, ids));
-  return { nodes, edges, diagnostic };
-}
-
-export interface CurriculumParams {
+export interface MapParams {
   topic: string;
   goal: GoalKind;
   interests: string;
@@ -346,9 +325,9 @@ export interface CurriculumParams {
   language?: Language;
 }
 
-/** The shared opening of both curriculum prompts: what to build, what grounds
- *  it, and the too-broad escape hatch. Only the output format differs below. */
-function curriculumContext(params: CurriculumParams): string {
+/** The opening every curriculum-adjacent prompt shares: what to build, what
+ *  grounds it, and the too-broad escape hatch. */
+function mapContext(params: MapParams): string {
   const { topic, goal, outline } = params;
   const grounding = outline?.trim()
     ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
@@ -359,169 +338,117 @@ If (and only if) the topic is far too broad for one coherent 12-18 concept map (
 {"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
 }
 
-/** The shape of the map itself, shared by both prompts. */
 const GRAPH_SHAPE = `{
   "nodes": [{"id": "short-kebab-id", "label": "Concept Name"}, ...],   // 12 to 18 concepts, foundations through capstone
   "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
 }`;
 
-/** The shape of one placement question, shared by both prompts. */
-const DIAGNOSTIC_SHAPE = `{
-      "nodeId": "id of the concept the question probes (a different early/mid concept each time)",
-      "q": "the question, phrased as a quick self-assessment the learner answers honestly",
-      "note": "one sentence on what the answer changes about the map",
-      "opts": [
-        {"label": "confident answer", "effect": "mastered"},
-        {"label": "partial/hesitant answer", "effect": "shaky"},
-        {"label": "no idea answer", "effect": "none"}
-      ],
-      "gapLabel": "the precise sub-concept a hesitant answer splits out (2-4 words)",
-      "gapReason": "why it split, phrased to the learner ('you hesitated on ...')"
-    }`;
+const MAP_RULES =
+  "Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas.";
 
-const CURRICULUM_RULES =
-  "Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas. Diagnostic questions probe concepts a learner with prior exposure might already own, ordered easy -> hard.";
+/**
+ * The map's own prompt — nothing else. Split from the placement questions so
+ * this call is small and fast: the learner sees the map assemble long before
+ * any question is ready, instead of waiting on one combined generation.
+ */
+export async function generateMap(
+  params: MapParams,
+): Promise<CurriculumMapPayload | { scopes: ScopeOffer[] }> {
+  const { language = "en" } = params;
+  const raw = await generateJson<
+    | { scopes: ScopeOffer[] }
+    | { nodes: Array<{ id: string; label: string }>; edges: ConceptEdge[] }
+  >(
+    user(
+      `${mapContext(params)}
 
-/** Attach the display tag and the gap-node offsets. `total` is passed in rather
- *  than read off the array: the streamed pass labels question 1 before it knows
- *  how many will arrive, and the prompt mandates `DIAGNOSTIC_COUNT`. */
-function toDiagnosticQuestion(
-  d: RawDiagnostic,
-  i: number,
-  total: number,
-): DiagnosticQuestion {
+Otherwise return JSON:
+${GRAPH_SHAPE}
+
+${MAP_RULES}${languageNote(language)}`,
+    ),
+    (r) => {
+      const scopes = validateScopeOffer(r);
+      return scopes ? { scopes } : validateGraphPart(r);
+    },
+    { label: "curriculum-map" },
+  );
+  if ("scopes" in raw) return { scopes: raw.scopes };
+  const nodes = layoutGraph(raw.nodes, raw.edges);
+  return { graph: { nodes, edges: raw.edges } };
+}
+
+const DIFFICULTY_HINT: Record<DiagnosticDifficulty, string> = {
+  easy: "a question anyone with cursory exposure to the topic would answer correctly",
+  medium: "a question testing solid working knowledge, not just recognition",
+  hard: "a question that separates genuine mastery from surface familiarity",
+};
+
+export interface DiagnosticQuestionParams {
+  topic: string;
+  goal: GoalKind;
+  interests: string;
+  language?: Language;
+  /** Concept nodes this question may probe — already-asked nodes excluded, so
+   *  the 5 questions never repeat a concept. */
+  nodeCandidates: Array<{ id: string; label: string }>;
+  difficulty: DiagnosticDifficulty;
+  /** 0-based position in the placement — only used for the display tag. */
+  index: number;
+}
+
+/**
+ * One objective, ENEM-style placement question at the requested difficulty —
+ * its own call, made only once the learner has answered the previous one,
+ * since the next difficulty depends on that answer (see `stepDifficulty`).
+ */
+export async function generateDiagnosticQuestion(
+  params: DiagnosticQuestionParams,
+): Promise<DiagnosticQuestion> {
+  const { language = "en", nodeCandidates, difficulty, index } = params;
+  const nodeIds = new Set(nodeCandidates.map((n) => n.id));
+  const candidateList = nodeCandidates.map((n) => `${n.id} (${n.label})`).join(", ");
+  const raw = await generateJson(
+    user(
+      `Write ONE placement question for a learner of "${params.topic}", probing one of these concepts: ${candidateList}.
+
+The question must be ${DIFFICULTY_HINT[difficulty]}.
+
+Return JSON:
+{
+  "nodeId": "the concept id from the list above this question probes",
+  "q": "the question",
+  "note": "one sentence on what the answer changes about the map",
+  "opts": ["option A", "option B", "option C", "option D"],
+  "correctIndex": 0,
+  "gapLabel": "the precise sub-concept a miss exposes (2-4 words)",
+  "gapReason": "why it exposes that, phrased to the learner ('you missed ...')"
+}
+
+Rules: exactly one of the 4 options is correct; the other three are plausible distractors a partially-informed learner might pick, not throwaway wrong answers. Keep the question and options concise.${languageNote(language)}`,
+    ),
+    (r) => validateDiagnosticQuestion(r, nodeIds),
+    { label: "diagnostic-question" },
+  );
   return {
-    tag: `Question ${i + 1} of ${total}`,
-    q: d.q,
-    note: d.note,
-    nodeId: d.nodeId,
-    opts: d.opts,
+    tag: `Question ${index + 1} of ${DIAGNOSTIC_COUNT}`,
+    q: raw.q,
+    note: raw.note,
+    nodeId: raw.nodeId,
+    difficulty,
+    opts: raw.opts,
+    correctIndex: raw.correctIndex,
     gap:
-      d.gapLabel && d.gapReason
+      raw.gapLabel && raw.gapReason
         ? {
-            id: `gap-diag-${d.nodeId}`,
-            label: d.gapLabel,
-            reason: d.gapReason,
+            id: `gap-diag-${raw.nodeId}`,
+            label: raw.gapLabel,
+            reason: raw.gapReason,
             dx: -85,
             dy: 148,
           }
         : undefined,
   };
-}
-
-export async function generateCurriculum(
-  params: CurriculumParams,
-): Promise<CurriculumPayload | { scopes: ScopeOffer[] }> {
-  const { language = "en" } = params;
-  const raw = await generateJson(
-    user(
-      `${curriculumContext(params)}
-
-Otherwise return JSON:
-{
-  "nodes": [...], "edges": [...],   // as in ${GRAPH_SHAPE}
-  "diagnostic": [${DIAGNOSTIC_SHAPE}]   // exactly ${DIAGNOSTIC_COUNT} placement questions
-}
-
-${CURRICULUM_RULES}${languageNote(language)}`,
-    ),
-    validateCurriculum,
-    { label: "curriculum" },
-  );
-  if (raw.scopes) return { scopes: raw.scopes };
-  const nodes = layoutGraph(raw.nodes, raw.edges);
-  const total = raw.diagnostic.length;
-  return {
-    graph: { nodes, edges: raw.edges },
-    diagnostic: raw.diagnostic.map((d, i) => toDiagnosticQuestion(d, i, total)),
-  };
-}
-
-/**
- * Streamed variant: the map ships the moment it is written, and the three
- * placement questions follow one at a time.
- *
- * This is the only wait in the app that can never be warmed — the node ids do
- * not exist until this call returns — and every learner pays it once per map.
- * Asking for the graph as its own top-level object means the assembly
- * animation starts on roughly the first 40% of the output instead of the last,
- * and the questions land inside the animation's own dwell.
- *
- * The frames are `{p:"scopes"}` (a too-broad topic, which short-circuits
- * everything), or `{p:"graph"}` followed by `{p:"diagnostic", i}` ×3.
- *
- * As with Consume, a failure before the first object falls back to the proven,
- * retried single-shot path rather than leaving the learner on a stalled
- * stream. A failure after the graph has shipped surfaces to the caller, which
- * can still open the map with however many questions arrived — see the
- * `build()` handler.
- */
-export async function* generateCurriculumStream(
-  params: CurriculumParams,
-): AsyncGenerator<StreamFrame> {
-  const { language = "en" } = params;
-  let yielded = 0;
-  let nodeIds: Set<string> | null = null;
-
-  /** The first object is either the scope offer or the graph; every later one
-   *  is a placement question checked against the ids the graph established. */
-  const validateFrame = (raw: unknown, index: number): StreamFrame => {
-    if (index === 0) {
-      const scopes = validateScopeOffer(raw);
-      if (scopes) return { p: "scopes", v: scopes };
-      const { nodes, edges } = validateGraphPart(raw);
-      nodeIds = new Set(nodes.map((n) => n.id));
-      return { p: "graph", v: { nodes: layoutGraph(nodes, edges), edges } };
-    }
-    const i = index - 1;
-    const d = validateDiagnosticItem(raw, i, nodeIds ?? new Set());
-    return { p: "diagnostic", i, v: toDiagnosticQuestion(d, i, DIAGNOSTIC_COUNT) };
-  };
-
-  try {
-    const stream = streamJsonObjects(
-      user(
-        `${curriculumContext(params)}
-
-Otherwise write ${1 + DIAGNOSTIC_COUNT} SEPARATE top-level JSON objects, one after
-another — NOT wrapped in an array or a single object, no markdown fences, no
-numbering, no commentary before/after/between them.
-
-First object — the map:
-${GRAPH_SHAPE}
-
-Then ${DIAGNOSTIC_COUNT} more objects, one placement question each, each using a
-"nodeId" from the map you just wrote:
-${DIAGNOSTIC_SHAPE}
-
-${CURRICULUM_RULES}${languageNote(language)}`,
-      ),
-      validateFrame,
-      { label: "curriculum-stream" },
-    );
-    for await (const frame of stream) {
-      yielded++;
-      yield frame;
-      // A too-broad topic has nothing else to say; anything after it is noise.
-      if (frame.p === "scopes") return;
-    }
-  } catch (err) {
-    if (yielded > 0) throw err;
-    console.error(
-      JSON.stringify({
-        evt: "curriculum_stream_fallback",
-        error: String(err instanceof Error ? err.message : err).slice(0, 300),
-      }),
-    );
-    const payload = await generateCurriculum(params);
-    if ("scopes" in payload) {
-      yield { p: "scopes", v: payload.scopes };
-      return;
-    }
-    yield { p: "graph", v: payload.graph };
-    for (const [i, q] of payload.diagnostic.entries())
-      yield { p: "diagnostic", i, v: q };
-  }
 }
 
 // ---- kind: consume ---------------------------------------------------------

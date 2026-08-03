@@ -3,6 +3,7 @@ import {
   crucibleReducer,
   crucibleStart,
   daysUntil,
+  diagnosticEffect,
   displayStates,
   feynmanReducer,
   feynmanStart,
@@ -15,11 +16,46 @@ import {
   socraticReducer,
   socraticStart,
   spawnGap,
+  stepDifficulty,
   type ConceptGraph,
   type CrucibleContent,
   type FeynmanBeat,
   type SocraticStep,
 } from "@/lib/curriculum";
+
+// ---- adaptive placement: difficulty ladder + luck-discounted grading --------
+
+describe("stepDifficulty", () => {
+  it("steps one level harder on correct, easier on a miss", () => {
+    expect(stepDifficulty("medium", true)).toBe("hard");
+    expect(stepDifficulty("medium", false)).toBe("easy");
+  });
+
+  it("clamps at both ends of the ladder", () => {
+    expect(stepDifficulty("hard", true)).toBe("hard");
+    expect(stepDifficulty("easy", false)).toBe("easy");
+  });
+});
+
+describe("diagnosticEffect", () => {
+  it("marks a correct answer mastered", () => {
+    expect(diagnosticEffect("medium", true, null)).toBe("mastered");
+  });
+
+  it("marks a miss with no prior evidence shaky (a genuine gap)", () => {
+    expect(diagnosticEffect("easy", false, null)).toBe("shaky");
+  });
+
+  it("discounts a miss no harder than evidence already proven (an ENEM-style luck slip)", () => {
+    // Aced a hard question, then fumbled an easy one — noise, not a gap.
+    expect(diagnosticEffect("easy", false, "hard")).toBe("mastered");
+  });
+
+  it("still calls a miss shaky when it's harder than anything proven so far", () => {
+    // Only proven medium; missing hard is real, uncovered evidence.
+    expect(diagnosticEffect("hard", false, "medium")).toBe("shaky");
+  });
+});
 
 // ---- fixtures ---------------------------------------------------------------
 

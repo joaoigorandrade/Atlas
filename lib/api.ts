@@ -6,6 +6,7 @@ import type {
   ConceptGraph,
   ConsumeChunk,
   CrucibleContent,
+  DiagnosticDifficulty,
   DiagnosticQuestion,
   ElaborationContent,
   FeynmanBeat,
@@ -71,9 +72,8 @@ export async function fetchCachedContent(
   }
 }
 
-export interface CurriculumPayload {
+export interface CurriculumMapPayload {
   graph: ConceptGraph;
-  diagnostic: DiagnosticQuestion[];
 }
 
 /** Too-broad topics come back as scoped sub-map offers instead of a map (#30). */
@@ -82,7 +82,7 @@ export interface ScopeOffer {
   note: string;
 }
 
-export type CurriculumResult = CurriculumPayload | { scopes: ScopeOffer[] };
+export type CurriculumMapResult = CurriculumMapPayload | { scopes: ScopeOffer[] };
 
 export interface CurriculumParams {
   topic: string;
@@ -92,34 +92,40 @@ export interface CurriculumParams {
   language?: Language;
 }
 
-export function fetchCurriculum(params: CurriculumParams): Promise<CurriculumResult> {
-  return post<CurriculumResult>({ kind: "curriculum", ...params });
+/**
+ * The onboarding build's first call: the map alone, nothing else — this is
+ * the one generation in the app that can never be warmed, since the node ids
+ * don't exist until it returns, so the map is asked for on its own to reach
+ * the screen as fast as possible. The placement questions follow one at a
+ * time through `fetchDiagnosticQuestion` once the learner is looking at it.
+ */
+export function fetchCurriculumMap(
+  params: CurriculumParams,
+): Promise<CurriculumMapResult> {
+  return post<CurriculumMapResult>({ kind: "curriculum", ...params });
+}
+
+export interface DiagnosticQuestionParams {
+  topic: string;
+  goal: GoalKind;
+  interests: string;
+  language?: Language;
+  /** Concept nodes this question may probe — already-asked ones excluded. */
+  pool: Array<{ id: string; label: string }>;
+  difficulty: DiagnosticDifficulty;
+  index: number;
 }
 
 /**
- * The onboarding build, streamed. The map arrives as its own frame and the
- * three placement questions follow one at a time, so the assembly animation
- * can start on the graph instead of on the whole payload — this is the one
- * generation in the app that can never be warmed, since the node ids don't
- * exist until it returns.
- *
- * `onGraph` may never fire: a topic too broad for one coherent map answers
- * with scope offers instead, and `onScopes` fires alone.
+ * One placement question at the given difficulty. Called again only once the
+ * learner has answered the previous one — the next difficulty is a function
+ * of that answer (see `stepDifficulty` in lib/curriculum.ts), so the
+ * questions can't be pre-fetched as a batch.
  */
-export async function fetchCurriculumStream(
-  params: CurriculumParams,
-  handlers: {
-    onGraph: (graph: ConceptGraph) => void;
-    onQuestion: (question: DiagnosticQuestion, index: number) => void;
-    onScopes: (scopes: ScopeOffer[]) => void;
-  },
-): Promise<void> {
-  await fetchStream({ kind: "curriculum", ...params }, (frame) => {
-    if (frame.p === "graph") handlers.onGraph(frame.v as ConceptGraph);
-    else if (frame.p === "scopes") handlers.onScopes(frame.v as ScopeOffer[]);
-    else if (frame.p === "diagnostic" && "i" in frame)
-      handlers.onQuestion(frame.v as DiagnosticQuestion, frame.i);
-  });
+export function fetchDiagnosticQuestion(
+  params: DiagnosticQuestionParams,
+): Promise<DiagnosticQuestion> {
+  return post<DiagnosticQuestion>({ kind: "diagnosticQuestion", ...params });
 }
 
 // Each fetcher pairs with a `<kind>Request` builder returning the exact body

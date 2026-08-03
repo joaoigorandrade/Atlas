@@ -2142,36 +2142,76 @@ export function phaseIndex(state: NodeState, reviewed: boolean): number {
 
 export type DiagnosticEffect = "mastered" | "shaky" | "none";
 
+/** An objective quiz option \u2014 just the label. Which one is correct lives on
+ *  the question (`correctIndex`), not per-option, since correctness is now
+ *  graded, not self-reported. */
 export interface DiagnosticOption {
   label: string;
-  /**
-   * What picking this option writes back: `mastered` prunes the target node
-   * (and its whole prerequisite chain \u2014 diagnosed known); `shaky` marks the
-   * node learned-but-fragile and can spawn its gap sub-node; `none` leaves it
-   * unknown.
-   */
-  effect: DiagnosticEffect;
 }
 
 /**
  * How many placement questions a build asks. Fixed rather than derived: the
- * build streams its questions in one at a time, so both the panel and the
- * "Question i of N" label need the total before the last one has arrived.
+ * questions are fetched one at a time (each depends on the last answer), so
+ * both the panel and the "Question i of N" label need the total up front.
  */
-export const DIAGNOSTIC_COUNT = 3;
+export const DIAGNOSTIC_COUNT = 5;
+
+export const DIAGNOSTIC_DIFFICULTIES = ["easy", "medium", "hard"] as const;
+export type DiagnosticDifficulty = (typeof DIAGNOSTIC_DIFFICULTIES)[number];
 
 /**
- * One generated placement probe. `nodeId` names the concept the answer writes
- * back to; `gap` (optional) is the sub-concept a hesitant answer splits out
- * under it \u2014 the first live re-plan.
+ * One generated placement probe: an objective 4-option question at a given
+ * difficulty. `nodeId` names the concept the answer writes back to; `gap`
+ * (optional) is the sub-concept a genuine miss splits out under it \u2014 the
+ * first live re-plan.
  */
 export interface DiagnosticQuestion {
   tag: string;
   q: string;
   note: string;
   nodeId: string;
+  difficulty: DiagnosticDifficulty;
   opts: DiagnosticOption[];
+  correctIndex: number;
   gap?: GapSpec;
+}
+
+/** One step harder / easier, clamped at the ends of the ladder \u2014 the ENEM-style
+ *  staircase: a correct answer asks a harder question next, a miss an easier
+ *  one. */
+export function stepDifficulty(
+  current: DiagnosticDifficulty,
+  correct: boolean,
+): DiagnosticDifficulty {
+  const i = DIAGNOSTIC_DIFFICULTIES.indexOf(current);
+  const next = correct ? i + 1 : i - 1;
+  return DIAGNOSTIC_DIFFICULTIES[
+    Math.min(DIAGNOSTIC_DIFFICULTIES.length - 1, Math.max(0, next))
+  ];
+}
+
+/**
+ * What a graded answer writes back to the node's mastery.
+ *
+ * `maxCorrectDifficulty` is the hardest level answered correctly so far this
+ * placement (or null before any correct answer) \u2014 the running evidence of
+ * ability the "luck" call leans on.
+ *
+ * A miss on a question no harder than that evidence reads as a slip, not a
+ * gap (the ENEM read: acing hard questions then fumbling an easy one is
+ * noise, not proof of not knowing it) \u2014 it's discounted to the same effect a
+ * correct answer would give, and spawns no gap node.
+ */
+export function diagnosticEffect(
+  difficulty: DiagnosticDifficulty,
+  correct: boolean,
+  maxCorrectDifficulty: DiagnosticDifficulty | null,
+): DiagnosticEffect {
+  if (correct) return "mastered";
+  const rank = (d: DiagnosticDifficulty) => DIAGNOSTIC_DIFFICULTIES.indexOf(d);
+  const isLuckMiss =
+    maxCorrectDifficulty !== null && rank(difficulty) <= rank(maxCorrectDifficulty);
+  return isLuckMiss ? "mastered" : "shaky";
 }
 
 export type GoalKind = "exam" | "project" | "mastery";

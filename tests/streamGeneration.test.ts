@@ -18,18 +18,15 @@ const graphObj = {
   edges: Array.from({ length: 11 }, (_, i) => [`n${i}`, `n${i + 1}`]),
 };
 
-const question = (i: number) => ({
-  nodeId: `n${i}`,
-  q: `Placement question ${i + 1}?`,
+const diagnosticQuestionObj = {
+  nodeId: "n3",
+  q: "What binds to what?",
   note: "what this changes",
-  opts: [
-    { label: "confident", effect: "mastered" },
-    { label: "hesitant", effect: "shaky" },
-    { label: "no idea", effect: "none" },
-  ],
-  gapLabel: `Gap ${i}`,
-  gapReason: "you hesitated",
-});
+  opts: ["A", "B", "C", "D"],
+  correctIndex: 2,
+  gapLabel: "Gap 3",
+  gapReason: "you missed the binding rule",
+};
 
 const socraticStep = (i: number) => ({
   move: ["Clarify", "Challenge the assumption", "Probe the reasoning", "Probe the implications"][i],
@@ -81,8 +78,6 @@ const isJudge = (prompt: string) => prompt.includes("You judge a learner's answe
 
 /** Which sequence of top-level objects a given prompt is asking for. */
 function objectsFor(prompt: string): unknown[] {
-  if (prompt.includes("prerequisite concept map"))
-    return [graphObj, question(0), question(1), question(2)];
   if (prompt.includes("Socratic questioning session")) return [0, 1, 2, 3].map(socraticStep);
   if (prompt.includes("Feynman teach-back")) return [0, 1, 2, 3].map(feynmanBeat);
   if (isJudge(prompt))
@@ -103,7 +98,9 @@ beforeAll(async () => {
     const prompt = (parsed.messages ?? []).map((m) => m.content).join("\n");
     const objects = objectsFor(prompt);
 
-    // The single-shot fallback path every streaming generator drops to.
+    // The single-shot fallback path every streaming generator drops to — and
+    // the only path `generateMap`/`generateDiagnosticQuestion` ever take,
+    // since neither streams.
     if (!parsed.stream) {
       const wrapped = isJudge(prompt)
         ? { quality: "near", response: "the retried critique" }
@@ -111,7 +108,11 @@ beforeAll(async () => {
         ? { steps: objects }
         : prompt.includes("Feynman")
           ? { beats: objects }
-          : { ...(objects[0] as object), diagnostic: objects.slice(1) };
+          : prompt.includes("prerequisite concept map")
+            ? graphObj
+            : prompt.includes("Write ONE placement question")
+              ? diagnosticQuestionObj
+              : objects[0];
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({ choices: [{ message: { content: JSON.stringify(wrapped) } }] }),
@@ -152,61 +153,47 @@ async function drain(gen: AsyncGenerator<{ p: string; i?: number; v: unknown }>)
   return frames;
 }
 
-describe("streamed generation, end to end", () => {
-  it("ships the map before the placement questions are written", async () => {
-    const { generateCurriculumStream } = await import("@/lib/server/generate");
-    const frames = await drain(
-      generateCurriculumStream({ topic: "Rust", goal: "mastery", interests: "" }),
-    );
+describe("curriculum map + adaptive placement, split prompts", () => {
+  it("generates the map on its own — no bundled diagnostic", async () => {
+    const { generateMap } = await import("@/lib/server/generate");
+    const result = await generateMap({ topic: "Rust", goal: "mastery", interests: "" });
 
-    expect(frames.map((f) => f.p)).toEqual([
-      "graph",
-      "diagnostic",
-      "diagnostic",
-      "diagnostic",
-    ]);
-    // The whole point: the map is in the caller's hands while the questions
-    // are still being written.
-    expect(frames[0].at).toBeLessThan(frames[3].at);
-
+    if ("scopes" in result) throw new Error("expected a graph, not scope offers");
     // Layout is computed server-side, never trusted from the model.
-    const graph = frames[0].v as { nodes: Array<{ x: number; state: string }> };
-    expect(graph.nodes).toHaveLength(12);
-    expect(graph.nodes[0].state).toBe("unknown");
-    expect(typeof graph.nodes[0].x).toBe("number");
-
-    // "Question i of 3" is pinned to the mandated total, not to how many have
-    // arrived — question 1 is labelled correctly before questions 2-3 exist.
-    expect((frames[1].v as { tag: string }).tag).toBe("Question 1 of 3");
+    expect(result.graph.nodes).toHaveLength(12);
+    expect(result.graph.nodes[0].state).toBe("unknown");
+    expect(typeof result.graph.nodes[0].x).toBe("number");
+    expect("diagnostic" in result).toBe(false);
   });
 
-  it("assembles into exactly the payload the single-shot path returns", async () => {
-    const { generateCurriculumStream } = await import("@/lib/server/generate");
-    const { framesToPayload } = await import("@/lib/server/stream");
-    const { resolveJob } = await import("@/lib/server/job");
+  it("asks one objective placement question at the requested difficulty", async () => {
+    const { generateMap, generateDiagnosticQuestion } = await import("@/lib/server/generate");
+    const map = await generateMap({ topic: "Rust", goal: "mastery", interests: "" });
+    if ("scopes" in map) throw new Error("expected a graph, not scope offers");
 
-    const frames = await drain(
-      generateCurriculumStream({ topic: "Rust", goal: "mastery", interests: "" }),
-    );
-    const job = resolveJob({ kind: "curriculum", topic: "Rust" });
-    const payload = framesToPayload(frames, job.shape!);
+    const question = await generateDiagnosticQuestion({
+      topic: "Rust",
+      goal: "mastery",
+      interests: "",
+      nodeCandidates: map.graph.nodes.map((n) => ({ id: n.id, label: n.label })),
+      difficulty: "medium",
+      index: 0,
+    });
 
-    expect(payload).not.toBeNull();
-    expect(Object.keys(payload!).sort()).toEqual(["diagnostic", "graph"]);
-    expect((payload!.diagnostic as unknown[]).length).toBe(3);
-  });
-
-  it("refuses to assemble — and so to cache — a truncated stream", async () => {
-    const { generateCurriculumStream } = await import("@/lib/server/generate");
-    const { framesToPayload } = await import("@/lib/server/stream");
-    const { resolveJob } = await import("@/lib/server/job");
-
-    const frames = await drain(
-      generateCurriculumStream({ topic: "Rust", goal: "mastery", interests: "" }),
-    );
-    const job = resolveJob({ kind: "curriculum", topic: "Rust" });
-    // Drop the last question, as a stream that died mid-write would.
-    expect(framesToPayload(frames.slice(0, -1), job.shape!)).toBeNull();
+    // "Question 1 of 5" is pinned to DIAGNOSTIC_COUNT, not to how many
+    // questions this placement has asked so far.
+    expect(question.tag).toBe("Question 1 of 5");
+    expect(question.difficulty).toBe("medium");
+    expect(question.nodeId).toBe("n3");
+    expect(question.opts).toHaveLength(4);
+    expect(question.correctIndex).toBe(2);
+    expect(question.gap).toEqual({
+      id: "gap-diag-n3",
+      label: "Gap 3",
+      reason: "you missed the binding rule",
+      dx: -85,
+      dy: 148,
+    });
   });
 
   it("falls back to the single-shot path when the stream is unusable", async () => {
