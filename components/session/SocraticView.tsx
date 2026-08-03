@@ -490,7 +490,9 @@ function Turn({ turn }: { turn: SocraticTurn }) {
           color: color.ink,
         }}
       >
-        {turn.text}
+        {/* The verdict has landed and the tutor's wording is still streaming
+            in — show it as being written, not as an empty bubble. */}
+        {turn.pending ? <InkDots size={4} /> : turn.text}
       </div>
     </div>
   );

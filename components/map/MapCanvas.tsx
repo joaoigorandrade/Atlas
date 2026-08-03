@@ -201,7 +201,10 @@ export default function MapCanvas({
                 gap: 9,
                 padding: "10px 15px",
                 background: color.card,
-                border: `1px solid ${
+                // One shorthand, not `border` plus a `borderStyle` override:
+                // mixing them makes React rewrite the style during render and
+                // warn on every node, every render.
+                border: `1px ${dimmedLock ? "dashed" : "solid"} ${
                   isSelected
                     ? color.accent
                     : onPath
@@ -210,7 +213,6 @@ export default function MapCanvas({
                         ? "rgba(201,154,46,0.5)"
                         : color.hairlineStrong
                 }`,
-                borderStyle: dimmedLock ? "dashed" : "solid",
                 borderRadius: 12,
                 whiteSpace: "nowrap",
                 cursor: "pointer",

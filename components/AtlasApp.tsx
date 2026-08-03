@@ -110,6 +110,7 @@ import {
   loadRunCore,
   saveRun,
   saveRunCaches,
+  type LoadedRun,
   type RunCaches,
   type RunSnapshot,
 } from "@/lib/persistence";
@@ -206,7 +207,16 @@ interface PanState {
   originY: number;
 }
 
-export default function AtlasApp({ userEmail }: { userEmail: string }) {
+export default function AtlasApp({
+  userEmail,
+  initialRun,
+}: {
+  userEmail: string;
+  /** The saved run's core, already read on the server (see app/page.tsx).
+   *  `undefined` means "not provided" — fall back to loading it here; `null`
+   *  means "read, and there is no saved run". */
+  initialRun?: LoadedRun | null;
+}) {
   const supabase = useMemo(() => createClient(), []);
   // The learner's chosen UI language — threaded into every generation/judge
   // call so AI content comes back in it too (a ref, like `formRef` etc.
@@ -304,6 +314,10 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
   const [outline, setOutline] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [scopes, setScopes] = useState<ScopeOffer[] | null>(null);
+  /** What the build has actually produced so far, named for the overlay.
+   *  Indeterminate waits read ~30% longer than determinate ones, and this one
+   *  now has real frames to count. */
+  const [buildNote, setBuildNote] = useState<string | null>(null);
   // Viewport width drives the minimum responsive pass (#8).
   const [vw, setVw] = useState(1440);
   const [railOpen, setRailOpen] = useState(true);
@@ -456,41 +470,53 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    /** Apply the run core and kick off the (large, slow) content half. */
+    const hydrate = (row: LoadedRun | null) => {
+      if (cancelled) return;
+      if (row) {
+        const s = row.snapshot;
+        setForm(s.form);
+        setGraph(s.graph);
+        setStates(s.states);
+        setPositions(s.positions);
+        setSpawnedIds(new Set(s.spawnedIds));
+        // Judge every day that passed while the tab was closed (#22) —
+        // a new calendar day also clears yesterday's litToday list.
+        const rolled = rolloverAdherence(s.adherence);
+        setAdherence(rolled);
+        setLitToday(rolled.lastDay === s.adherence.lastDay ? s.litToday : []);
+        setCalibSamples(s.calibSamples);
+        setShakyReasons(s.shakyReasons);
+        setReviewedNodes(s.reviewedNodes);
+        setCards(s.cards);
+        setScreen("map");
+        // A pre-v3 row still carries its caches inline; take them and skip
+        // the second query.
+        if (row.inlineCaches) applyCaches(row.inlineCaches);
+        else
+          loadRunCaches(supabase, row.subject)
+            .then((c) => {
+              if (!cancelled) applyCaches(c);
+            })
+            .catch((err: Error) => console.warn(err.message));
+      }
+      setHydrated(true);
+    };
+
+    // The server already read the core and shipped it with the HTML, so the
+    // map draws on the first commit instead of after a round-trip.
+    if (initialRun !== undefined) {
+      hydrate(initialRun);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     // Two loads, deliberately: the core is what the map draws, so it is the
     // only thing the first paint waits on. The generated content — by far the
     // larger half — streams in behind an already-interactive map.
     loadRunCore(supabase)
-      .then((row) => {
-        if (cancelled) return;
-        if (row) {
-          const s = row.snapshot;
-          setForm(s.form);
-          setGraph(s.graph);
-          setStates(s.states);
-          setPositions(s.positions);
-          setSpawnedIds(new Set(s.spawnedIds));
-          // Judge every day that passed while the tab was closed (#22) —
-          // a new calendar day also clears yesterday's litToday list.
-          const rolled = rolloverAdherence(s.adherence);
-          setAdherence(rolled);
-          setLitToday(rolled.lastDay === s.adherence.lastDay ? s.litToday : []);
-          setCalibSamples(s.calibSamples);
-          setShakyReasons(s.shakyReasons);
-          setReviewedNodes(s.reviewedNodes);
-          setCards(s.cards);
-          setScreen("map");
-          // A pre-v3 row still carries its caches inline; take them and skip
-          // the second query.
-          if (row.inlineCaches) applyCaches(row.inlineCaches);
-          else
-            loadRunCaches(supabase, row.subject)
-              .then((c) => {
-                if (!cancelled) applyCaches(c);
-              })
-              .catch((err: Error) => console.warn(err.message));
-        }
-        setHydrated(true);
-      })
+      .then(hydrate)
       .catch((err: Error) => {
         // A failed load must not brick the app — start fresh and say so.
         if (cancelled) return;
@@ -501,7 +527,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     return () => {
       cancelled = true;
     };
-  }, [supabase, showToast, applyCaches]);
+  }, [supabase, showToast, applyCaches, initialRun]);
 
   const runActive =
     hydrated &&
@@ -797,6 +823,14 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     setScreen("building");
     setReveal(0);
     setScopes(null);
+    setBuildNote(null);
+    // The previous map is not this topic's map. Clearing it up front is what
+    // stops the assembly beat animating over the *old* territory, and — more
+    // importantly — what stops a failed build from persisting those nodes
+    // under the new subject name: the save is gated on a non-empty graph.
+    setGraph({ nodes: [], edges: [] });
+    setPositions({});
+    setDiagnostic([]);
     // A new map invalidates every warmed key — the node ids are about to
     // mean something else.
     warm.clear();
@@ -804,6 +838,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     const questions: DiagnosticQuestion[] = [];
     let opened = false;
     let scoped = false;
+    /** Did *this* build produce a graph? Never `graphRef.current.nodes.length`
+     *  — that was true of the map the learner built an hour ago. */
+    let built = false;
 
     /** Move to the diagnostic once the assembly beat has played out and there
      *  is at least one question to ask. Idempotent — every frame tries. */
@@ -833,6 +870,8 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           setScopes(offers);
         },
         onGraph: (graph) => {
+          built = true;
+          setBuildNote(`${graph.nodes.length} concepts placed`);
           setGraph(graph);
           setStates(initialStates(graph));
           setPositions(
@@ -855,6 +894,9 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         },
         onQuestion: (question, index) => {
           questions[index] = question;
+          setBuildNote(
+            `placement question ${questions.filter(Boolean).length} of ${DIAGNOSTIC_COUNT}`,
+          );
           // Publish the dense prefix only: DiagnosticPanel indexes by answer
           // count, so a hole would show question 3 in slot 2.
           const dense: DiagnosticQuestion[] = [];
@@ -872,7 +914,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
         // The graph landed but no question survived. Placement is a
         // nice-to-have; the map is the product, so open it rather than
         // failing a build the learner already watched assemble.
-        if (graphRef.current.nodes.length > 0) {
+        if (built) {
           later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
           return;
         }
@@ -887,7 +929,7 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           openWhenReady();
           return;
         }
-        if (graphRef.current.nodes.length > 0) {
+        if (built) {
           later(() => setScreen("map"), Math.max(0, BUILD_MS - (Date.now() - started)));
           return;
         }
@@ -1371,6 +1413,24 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     ],
   );
 
+  /**
+   * Hovering a node is 150-400 ms of lead time on the click that usually
+   * follows, and the pass in `warmTargets` deliberately settles for 600 ms
+   * before it fires. Starting the node's first surface on hover spends nothing
+   * extra — `warm.warm` dedupes by key, so the click joins this request
+   * instead of making a second one — and buys back that settle.
+   */
+  const hoverNode = useCallback(
+    (id: string | null) => {
+      setHoverId(id);
+      if (!id) return;
+      const node = graphRef.current.nodes.find((n) => n.id === id);
+      const kind = warmKindsFor(displayRef.current[id])[0];
+      if (node && kind) warmOne(kind, node);
+    },
+    [warmOne],
+  );
+
   // ---- map actions ------------------------------------------------------
 
   /**
@@ -1630,23 +1690,40 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
       if (!step || !node) return;
       setJudging(true);
-      fetchJudgeSocratic({
-        topic: formRef.current.topic,
-        nodeLabel: node.label,
-        question: step.prompt,
-        reference: step.tell,
-        answer: text,
-        language: languageRef.current,
-      })
+      // Verdict-first: the classification lands about a second in and moves
+      // the tutor on; the wording it lands with fills the bubble underneath.
+      let applied = false;
+      const apply = (action: SocraticAction) =>
+        setSocratic((prev) => (prev ? socraticReducer(prev, action, steps) : prev));
+      fetchJudgeSocratic(
+        {
+          topic: formRef.current.topic,
+          nodeLabel: node.label,
+          question: step.prompt,
+          reference: step.tell,
+          answer: text,
+          language: languageRef.current,
+        },
+        (partial) => {
+          if (!partial.quality) return;
+          // The input stays gated until the wording lands — a second answer
+          // racing the first would break "at most one pending turn", and the
+          // learner is reading the verdict anyway.
+          applied = true;
+          apply({
+            type: "judged",
+            answer: text,
+            quality: partial.quality,
+            response: "",
+            pending: true,
+          });
+        },
+      )
         .then((j) => {
-          setSocratic((prev) =>
-            prev
-              ? socraticReducer(
-                  prev,
-                  { type: "judged", answer: text, quality: j.quality, response: j.response },
-                  steps,
-                )
-              : prev,
+          apply(
+            applied
+              ? { type: "stream", text: j.response }
+              : { type: "judged", answer: text, quality: j.quality, response: j.response },
           );
         })
         .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
@@ -1772,23 +1849,37 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
       const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
       if (!beat || !node) return;
       setJudging(true);
-      fetchJudgeFeynman({
-        topic: formRef.current.topic,
-        nodeLabel: node.label,
-        subPoint: beat.subPoint,
-        reference: beat.transcript,
-        answer: text,
-        language: languageRef.current,
-      })
+      // Verdict-first, as in Socratic: the naive student's diff lands early
+      // and the beat moves; their actual words fill in behind it.
+      let applied = false;
+      const apply = (action: FeynmanAction) =>
+        setFeynman((prev) => (prev ? feynmanReducer(prev, action, beats) : prev));
+      fetchJudgeFeynman(
+        {
+          topic: formRef.current.topic,
+          nodeLabel: node.label,
+          subPoint: beat.subPoint,
+          reference: beat.transcript,
+          answer: text,
+          language: languageRef.current,
+        },
+        (partial) => {
+          if (!partial.verdict) return;
+          applied = true;
+          apply({
+            type: "taught",
+            text,
+            verdict: partial.verdict,
+            response: "",
+            pending: true,
+          });
+        },
+      )
         .then((j) => {
-          setFeynman((prev) =>
-            prev
-              ? feynmanReducer(
-                  prev,
-                  { type: "taught", text, verdict: j.verdict, response: j.response },
-                  beats,
-                )
-              : prev,
+          apply(
+            applied
+              ? { type: "stream", text: j.response }
+              : { type: "taught", text, verdict: j.verdict, response: j.response },
           );
         })
         .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
@@ -2000,23 +2091,32 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
     // The judge grades the REAL attempt (#27): pass/partial is earned, the
     // diagnostic quotes their work, and a failure names the actual gap.
     setJudging(true);
-    fetchJudgeCrucible({
-      topic: formRef.current.topic,
-      nodeLabel: node.label,
-      problem: problem.q,
-      hint: problem.hint,
-      answer: cur.attempt,
-      language: languageRef.current,
-    })
+    // The worst wait in the app. `outcome` is one word and arrives on its own
+    // frame, so the result panel opens on it and the three diagnostic rows
+    // land into an already-open panel.
+    let applied = false;
+    const apply = (action: CrucibleAction) =>
+      setCrucible((prev) => (prev ? crucibleReducer(prev, action, content) : prev));
+    fetchJudgeCrucible(
+      {
+        topic: formRef.current.topic,
+        nodeLabel: node.label,
+        problem: problem.q,
+        hint: problem.hint,
+        answer: cur.attempt,
+        language: languageRef.current,
+      },
+      (partial) => {
+        if (!partial.outcome) return;
+        applied = true;
+        apply({ type: "result", outcome: partial.outcome, transfer: [] });
+      },
+    )
       .then((j) => {
-        setCrucible((prev) =>
-          prev
-            ? crucibleReducer(
-                prev,
-                { type: "result", outcome: j.outcome, transfer: j.transfer },
-                content,
-              )
-            : prev,
+        apply(
+          applied
+            ? { type: "transfer", transfer: j.transfer }
+            : { type: "result", outcome: j.outcome, transfer: j.transfer },
         );
         // The calibration hook made real: felt (the confidence tap) vs. what
         // actually happened on this attempt.
@@ -2938,11 +3038,11 @@ export default function AtlasApp({ userEmail }: { userEmail: string }) {
           onCanvasDown={onCanvasDown}
           onNodeDown={onNodeDown}
           onNodeDoubleClick={onNodeDoubleClick}
-          onNodeHover={setHoverId}
+          onNodeHover={hoverNode}
         />
       )}
 
-      {screen === "building" && <BuildingOverlay />}
+      {screen === "building" && <BuildingOverlay note={buildNote} />}
 
       {screen === "diagnostic" && diagnostic.length > 0 && (
         <DiagnosticPanel

@@ -69,12 +69,24 @@ const feynmanBeat = (i: number) => ({
  *  back to its single-shot, retried path. */
 let breakStream = false;
 
+/** Set to make the streamed branch finish cleanly having written nothing —
+ *  what an "empty completion" from the provider looks like on the wire. */
+let emptyStream = false;
+
+/** Set to make a judge stream stop after its verdict object, leaving the
+ *  critique to the single-shot fallback. */
+let truncateJudge = false;
+
+const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
+
 /** Which sequence of top-level objects a given prompt is asking for. */
 function objectsFor(prompt: string): unknown[] {
   if (prompt.includes("prerequisite concept map"))
     return [graphObj, question(0), question(1), question(2)];
   if (prompt.includes("Socratic questioning session")) return [0, 1, 2, 3].map(socraticStep);
   if (prompt.includes("Feynman teach-back")) return [0, 1, 2, 3].map(feynmanBeat);
+  if (isJudge(prompt))
+    return [{ quality: "near" }, { quality: "near", response: "the streamed critique" }];
   return [{}];
 }
 
@@ -93,7 +105,9 @@ beforeAll(async () => {
 
     // The single-shot fallback path every streaming generator drops to.
     if (!parsed.stream) {
-      const wrapped = prompt.includes("Socratic")
+      const wrapped = isJudge(prompt)
+        ? { quality: "near", response: "the retried critique" }
+        : prompt.includes("Socratic")
         ? { steps: objects }
         : prompt.includes("Feynman")
           ? { beats: objects }
@@ -106,7 +120,14 @@ beforeAll(async () => {
     }
 
     res.writeHead(200, { "Content-Type": "text/event-stream" });
-    for (const obj of breakStream ? [{ nonsense: true }] : objects) {
+    const written = emptyStream
+      ? []
+      : breakStream
+        ? [{ nonsense: true }]
+        : truncateJudge && isJudge(prompt)
+          ? objects.slice(0, 1)
+          : objects;
+    for (const obj of written) {
       await new Promise((r) => setTimeout(r, DELAY_MS));
       res.write(
         `data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(obj) } }] })}\n\n`,
@@ -201,6 +222,63 @@ describe("streamed generation, end to end", () => {
       expect(frames.map((f) => f.i)).toEqual([0, 1, 2, 3]);
     } finally {
       breakStream = false;
+    }
+  });
+
+  it("falls back when the stream ends cleanly having written nothing", async () => {
+    // The real failure the audit caught: an empty completion ends the stream
+    // without throwing, so `yielded` stayed 0, no fallback fired, and the
+    // route answered 502 while the documented safety net looked fine.
+    const { generateSocraticStream } = await import("@/lib/server/generate");
+    emptyStream = true;
+    try {
+      const frames = await drain(
+        generateSocraticStream({ topic: "Rust", nodeLabel: "Ownership", interests: "" }),
+      );
+      expect(frames).toHaveLength(4);
+    } finally {
+      emptyStream = false;
+    }
+  });
+
+  it("streams the judge's verdict ahead of its critique", async () => {
+    const { judgeSocraticStream } = await import("@/lib/server/generate");
+    const frames = await drain(
+      judgeSocraticStream({
+        topic: "Rust",
+        nodeLabel: "Ownership",
+        question: "why?",
+        reference: "because",
+        answer: "the owner drops it",
+      }),
+    );
+    expect(frames).toHaveLength(2);
+    expect(frames.every((f) => f.p === "judgement")).toBe(true);
+    // Frame 1 unblocks the screen; frame 2 fills in the wording.
+    expect(frames[0].v).toEqual({ quality: "near" });
+    expect(frames[1].v).toEqual({ quality: "near", response: "the streamed critique" });
+    expect(frames[0].at).toBeLessThan(frames[1].at);
+  });
+
+  it("still delivers a critique when the judge stream dies after the verdict", async () => {
+    const { judgeSocraticStream } = await import("@/lib/server/generate");
+    truncateJudge = true;
+    try {
+      const frames = await drain(
+        judgeSocraticStream({
+          topic: "Rust",
+          nodeLabel: "Ownership",
+          question: "why?",
+          reference: "because",
+          answer: "the owner drops it",
+        }),
+      );
+      // The verdict streamed; the critique came off the retried single-shot
+      // path, which is the corrective retry the judge is not allowed to lose.
+      expect(frames).toHaveLength(2);
+      expect(frames[1].v).toEqual({ quality: "near", response: "the retried critique" });
+    } finally {
+      truncateJudge = false;
     }
   });
 

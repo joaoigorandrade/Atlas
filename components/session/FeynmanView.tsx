@@ -648,7 +648,8 @@ function Line({ line }: { line: TeachLine }) {
           color: color.ink,
         }}
       >
-        {line.text}
+        {/* The verdict landed; the student's actual words are still coming. */}
+        {line.pending ? <InkDots size={4} /> : line.text}
       </div>
     </div>
   );
