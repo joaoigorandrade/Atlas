@@ -117,8 +117,8 @@ export interface Job {
    *  returned — no half-payload can ever be cached. */
   stream?: () => AsyncGenerator<StreamFrame>;
   shape?: StreamShapes;
-  /** Model calls this job may make. Drives the monthly spend ceiling; the
-   *  per-learner daily quota counts jobs, not calls. Defaults to 1. */
+  /** Model calls this job may make — how many `generation_log` rows it writes,
+   *  so spend telemetry counts calls rather than surfaces. Defaults to 1. */
   cost?: number;
 }
 

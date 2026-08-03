@@ -2,8 +2,8 @@
 //   1. Delete the caller's run_states rows via RLS (their learning data).
 //   2. Delete the auth user via the service key — its FK cascade purges BOTH
 //      run_states and generation_log. generation_log has no user-facing delete
-//      policy on purpose (that would let a user reset their #18 quota), so the
-//      cascade is the only correct way to remove those audit rows.
+//      policy on purpose (its rows are spend telemetry, not the user's data to
+//      rewrite), so the cascade is the only correct way to remove those rows.
 // Returns 200 even if the auth-user delete is skipped (no service key) — the
 // personal run data is already gone; the non-personal audit rows remain.
 

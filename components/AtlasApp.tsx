@@ -1214,8 +1214,8 @@ export default function AtlasApp({
       warm
         .run(key, fetcher, true)
         .catch((err: unknown) => {
-          // The background attempt was declined to protect the daily quota;
-          // a real click outranks that, so ask again in the foreground.
+          // The background attempt came back empty (a silent warm failure);
+          // a real click can't inherit that, so ask again in the foreground.
           if (!(err instanceof WarmDeclined)) throw err;
           warm.drop(key);
           return warm.run(key, fetcher, true);
