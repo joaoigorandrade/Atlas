@@ -15,9 +15,11 @@
 import { after, NextResponse } from "next/server";
 import {
   displayStates,
+  graphFromMapNodes,
   initialStates,
   type ConceptGraph,
   type ConceptNode,
+  type MapNode,
 } from "@/lib/curriculum";
 import { readContent, writeContent } from "@/lib/server/contentCache";
 import { BadRequest, resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
@@ -185,8 +187,11 @@ export async function POST(request: Request) {
   // predictable — and the learner is about to spend half a minute on the
   // placement questions. Fill the frontier behind the response.
   const onPayload = (payload: Record<string, unknown>) => {
-    if (job.kind !== "curriculum" || !payload.graph) return;
-    startCurriculumWarm(supabase, payload.graph as ConceptGraph, body, userId);
+    if (job.kind !== "curriculum" || !Array.isArray(payload.nodes)) return;
+    // Same derivation the client uses — the map travels as a flat node list and
+    // the graph is derived from it on both sides (see `graphFromMapNodes`).
+    const graph = graphFromMapNodes(payload.nodes as MapNode[]);
+    startCurriculumWarm(supabase, graph, body, userId);
   };
 
   if (streaming) return streamGeneration(job, userId, prefetch, onPayload);

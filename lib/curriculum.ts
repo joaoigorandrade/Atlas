@@ -54,6 +54,43 @@ export function emptyGraph(): ConceptGraph {
   return { nodes: [], edges: [] };
 }
 
+/**
+ * How a generated map travels: a laid-out node that carries its own
+ * prerequisites, rather than a graph with a separate edge list.
+ *
+ * The map streams one concept at a time (see `generateMapStream`), and
+ * `framesToPayload` can only assemble *flat* payload parts — so the progressive
+ * list can't live at `graph.nodes` and the edges can't be a second list that
+ * only makes sense once both are complete. Hanging each node's prereqs off the
+ * node itself makes every frame independently meaningful: the partial map on
+ * screen after three concepts is a real graph, not three orphans.
+ */
+export interface MapNode extends ConceptNode {
+  /** Ids of the concepts this one depends on. Always already-emitted nodes —
+   *  the generator drops forward references, which is what makes a cycle
+   *  structurally impossible. */
+  prereqs: string[];
+}
+
+/**
+ * Derive the graph a streamed (or cached) node list describes.
+ *
+ * `prereqs` is stripped on the way out: what lands in app state — and from
+ * there in the persisted `RunSnapshot.graph` — stays a plain `ConceptNode`, so
+ * the snapshot shape is unchanged. Prereqs pointing outside the list are
+ * dropped, which is what lets this run over a *partial* list mid-stream.
+ */
+export function graphFromMapNodes(mapNodes: MapNode[]): ConceptGraph {
+  const ids = new Set(mapNodes.map((n) => n.id));
+  const nodes: ConceptNode[] = [];
+  const edges: ConceptEdge[] = [];
+  for (const { prereqs, ...node } of mapNodes) {
+    nodes.push(node);
+    for (const from of prereqs) if (ids.has(from) && from !== node.id) edges.push([from, node.id]);
+  }
+  return { nodes, edges };
+}
+
 export const STATE_COLOR: Record<NodeState, string> = {
   unknown: "#b3ada2",
   frontier: "#c99a2e",
