@@ -378,6 +378,10 @@ export interface SocraticTurn {
   move?: SocraticMove;
   /** Colors the AI bubble: a caught error, an affirmation, or direct teaching. */
   tone?: "neutral" | "catch" | "affirm" | "teach";
+  /** The verdict landed but its wording is still being written (the judge
+   *  streams the two separately). The view shows the bubble as still-writing;
+   *  `stream` fills it in. At most one turn is pending at a time. */
+  pending?: boolean;
 }
 
 /** The live state of one Socratic session — held by AtlasApp, read by the view. */
@@ -459,8 +463,18 @@ export type SocraticAction =
   | { type: "reply"; index: number }
   | { type: "stuck" }
   | { type: "tell" }
-  /** A free-text answer, already judged server-side (#25). */
-  | { type: "judged"; answer: string; quality: ReplyQuality; response: string }
+  /** A free-text answer, already judged server-side (#25). `response` may be
+   *  empty when only the verdict has streamed in — mark it `pending` and send
+   *  `stream` with the wording when it lands. */
+  | {
+      type: "judged";
+      answer: string;
+      quality: ReplyQuality;
+      response: string;
+      pending?: boolean;
+    }
+  /** The judge's wording for the turn currently marked pending. */
+  | { type: "stream"; text: string }
   /** More steps have streamed in — open the one the session is parked on.
    *  `total` re-caps the pass when a stream ended short of the plan. */
   | { type: "hydrate"; total?: number };
@@ -476,6 +490,17 @@ export function socraticReducer(
   action: SocraticAction,
   steps: SocraticStep[],
 ): SocraticSession {
+  // Before the `done` guard on purpose: the verdict that finished the session
+  // is exactly the one whose wording is still arriving.
+  if (action.type === "stream") {
+    if (!session.log.some((t) => t.pending)) return session;
+    return {
+      ...session,
+      log: session.log.map((t) =>
+        t.pending ? { ...t, text: action.text, pending: undefined } : t,
+      ),
+    };
+  }
   if (session.done) return session;
 
   // More steps arrived. Re-cap the pass if the stream ended short of the plan,
@@ -565,7 +590,12 @@ export function socraticReducer(
         log: [
           ...session.log,
           { role: "learner", text: action.answer },
-          { role: "ai", text: action.response, tone: REPLY_TONE[action.quality] },
+          {
+            role: "ai",
+            text: action.response,
+            tone: REPLY_TONE[action.quality],
+            ...(action.pending ? { pending: true } : null),
+          },
         ],
       };
       if (action.quality === "correct" || action.quality === "lost") {
@@ -630,6 +660,9 @@ export interface TeachLine {
   text: string;
   /** AI lines: a naive question, an affirmation, a caught error, a skipped bit. */
   tone?: "naive" | "affirm" | "catch" | "skip";
+  /** The verdict landed but the student's wording is still streaming in — see
+   *  `SocraticTurn.pending`. At most one line is pending at a time. */
+  pending?: boolean;
 }
 
 /** How the learner answers a naive interruption — each sets the beat's verdict. */
@@ -751,7 +784,16 @@ export type FeynmanAction =
   | { type: "reply"; index: number }
   /** The learner's own typed explanation of the current beat, already diffed
    *  server-side into a verdict + naive-student reaction (#26). */
-  | { type: "taught"; text: string; verdict: TeachVerdict; response: string }
+  | {
+      type: "taught";
+      text: string;
+      verdict: TeachVerdict;
+      response: string;
+      /** True when only the verdict has arrived — `stream` fills the wording. */
+      pending?: boolean;
+    }
+  /** The naive student's wording for the line currently marked pending. */
+  | { type: "stream"; text: string }
   | { type: "openFix"; beatId: string }
   | { type: "closeFix" }
   | { type: "fix"; index: number }
@@ -774,6 +816,15 @@ export function feynmanReducer(
   beats: FeynmanBeat[],
 ): FeynmanSession {
   switch (action.type) {
+    case "stream": {
+      if (!session.log.some((l) => l.pending)) return session;
+      return {
+        ...session,
+        log: session.log.map((l) =>
+          l.pending ? { ...l, text: action.text, pending: undefined } : l,
+        ),
+      };
+    }
     case "hydrate":
       // Never shrink below the beat being taught, or the session would already
       // be past its own end and could never close.
@@ -837,7 +888,12 @@ export function feynmanReducer(
         log: [
           ...session.log,
           { role: "learner", text: action.text },
-          { role: "ai", text: action.response, tone: VERDICT_TONE[action.verdict] },
+          {
+            role: "ai",
+            text: action.response,
+            tone: VERDICT_TONE[action.verdict],
+            ...(action.pending ? { pending: true } : null),
+          },
         ],
       };
     }
@@ -1253,8 +1309,12 @@ export type CrucibleAction =
   | { type: "confidence"; level: ConfidenceLevel }
   | { type: "attempt"; value: string }
   | { type: "sample" }
-  /** The server judge's grading of the actual attempt (#27). */
+  /** The server judge's grading of the actual attempt (#27). `transfer` may be
+   *  empty when only the pass/partial verdict has streamed in. */
   | { type: "result"; outcome: CrucibleOutcome; transfer: TransferRow[] }
+  /** The diagnostic rows for an already-graded attempt, arriving behind their
+   *  verdict. Ignored unless the attempt is submitted, so it can never grade. */
+  | { type: "transfer"; transfer: TransferRow[] }
   | { type: "toggleReExplain" }
   | { type: "retry" };
 
@@ -1290,6 +1350,8 @@ export function crucibleReducer(
         outcome: action.outcome,
         transfer: action.transfer,
       };
+    case "transfer":
+      return session.submitted ? { ...session, transfer: action.transfer } : session;
     case "toggleReExplain":
       return { ...session, reExplain: !session.reExplain };
     case "retry":

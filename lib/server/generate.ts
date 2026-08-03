@@ -1445,22 +1445,110 @@ const JUDGE_SYSTEM: ChatMessage = {
     "Reply with ONLY one valid JSON object.",
 };
 
+/**
+ * Judging, verdict-first.
+ *
+ * The judge is the one generation that can never be cached — it grades one
+ * learner's own words — and the one the learner meets most often, so its
+ * latency is felt more than anything else in the app. The verdict is ~15
+ * tokens; the critique that follows it is the long part. Asking for them as
+ * two separate top-level objects lets the UI unblock on the first (the tutor
+ * advances, the mastery write lands, the input reopens) while the critique is
+ * still being written.
+ *
+ * `AGENTS.md` forbids streaming a call that needs a corrective retry — and the
+ * judge does. That constraint is kept, not broken: this only *starts* on the
+ * stream. If the full object never validates, the retried single-shot
+ * `generateJson` still produces it, and the client patches the streamed
+ * placeholder with the real thing. The verdict is never invented locally.
+ */
+async function* judgeStream<T extends object>(
+  messages: ChatMessage[],
+  spec: {
+    /** What object 1 must contain — the smallest thing that unblocks the UI. */
+    firstShape: string;
+    first: (raw: unknown) => Partial<T>;
+    full: (raw: unknown) => T;
+    label: string;
+  },
+): AsyncGenerator<StreamFrame> {
+  const last = messages.length - 1;
+  const streamed: ChatMessage[] = messages.map((m, i) =>
+    i === last
+      ? {
+          ...m,
+          content: `${m.content}
+
+Write TWO SEPARATE top-level JSON objects, one after another — NOT wrapped in
+an array, no markdown fences, nothing before/after/between them.
+
+First, immediately, the verdict alone: ${spec.firstShape}
+Then the full object described above (it repeats the verdict and adds the rest).`,
+        }
+      : m,
+  );
+
+  // Each object is tried as the *complete* judgement first, and only then as
+  // the verdict prefix. That ordering is what makes a model that ignores the
+  // two-object instruction — and writes the whole thing at once — cost one
+  // call rather than two: its single object validates as full, and the
+  // fallback below never runs.
+  let complete = false;
+  let sent = 0;
+  try {
+    for await (const v of streamJsonObjects<Partial<T> | T>(
+      streamed,
+      (raw) => {
+        try {
+          const value = spec.full(raw);
+          complete = true;
+          return value;
+        } catch {
+          return spec.first(raw);
+        }
+      },
+      { label: `${spec.label}-stream`, role: "judge" },
+    )) {
+      sent++;
+      yield { p: "judgement", v };
+      if (complete) return;
+    }
+  } catch (err) {
+    console.error(
+      JSON.stringify({
+        evt: "judge_stream_fallback",
+        label: spec.label,
+        sent,
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+  }
+  // Nothing streamed, or only the verdict did: the full judgement still owes
+  // the learner a critique, so it comes off the proven retried path. A later
+  // frame for the same slot replaces the earlier one, here and in the client.
+  yield {
+    p: "judgement",
+    v: await generateJson(messages, spec.full, { label: spec.label, role: "judge" }),
+  };
+}
+
 export interface SocraticJudgement {
   quality: "correct" | "near" | "wrong" | "lost";
   response: string;
 }
 
-export async function judgeSocratic(params: {
+interface JudgeSocraticParams {
   topic: string;
   nodeLabel: string;
   question: string;
   reference: string;
   answer: string;
   language?: Language;
-}): Promise<SocraticJudgement> {
+}
+
+function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
   const { topic, nodeLabel, question, reference, answer, language = "en" } = params;
-  return generateJson(
-    [
+  return [
       JUDGE_SYSTEM,
       {
         role: "user",
@@ -1477,16 +1565,37 @@ Classify and respond contingently:
 
 Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner"}${languageNote(language)}`,
       },
-    ],
-    (raw) => {
-      const root = obj(raw, "payload");
-      return {
-        quality: oneOf(root.quality, QUALITIES, "quality"),
-        response: str(root.response, "response"),
-      };
-    },
-    { label: "judge-socratic", role: "judge" },
-  );
+  ];
+}
+
+const validateSocraticJudgement = (raw: unknown): SocraticJudgement => {
+  const root = obj(raw, "payload");
+  return {
+    quality: oneOf(root.quality, QUALITIES, "quality"),
+    response: str(root.response, "response"),
+  };
+};
+
+export async function judgeSocratic(
+  params: JudgeSocraticParams,
+): Promise<SocraticJudgement> {
+  return generateJson(socraticJudgeMessages(params), validateSocraticJudgement, {
+    label: "judge-socratic",
+    role: "judge",
+  });
+}
+
+export function judgeSocraticStream(
+  params: JudgeSocraticParams,
+): AsyncGenerator<StreamFrame> {
+  return judgeStream<SocraticJudgement>(socraticJudgeMessages(params), {
+    firstShape: `{"quality": "correct" | "near" | "wrong" | "lost"}`,
+    first: (raw) => ({
+      quality: oneOf(obj(raw, "verdict").quality, QUALITIES, "quality"),
+    }),
+    full: validateSocraticJudgement,
+    label: "judge-socratic",
+  });
 }
 
 export interface FeynmanJudgement {
@@ -1494,17 +1603,18 @@ export interface FeynmanJudgement {
   response: string;
 }
 
-export async function judgeFeynman(params: {
+interface JudgeFeynmanParams {
   topic: string;
   nodeLabel: string;
   subPoint: string;
   reference: string;
   explanation: string;
   language?: Language;
-}): Promise<FeynmanJudgement> {
+}
+
+function feynmanJudgeMessages(params: JudgeFeynmanParams): ChatMessage[] {
   const { topic, nodeLabel, subPoint, reference, explanation, language = "en" } = params;
-  return generateJson(
-    [
+  return [
       JUDGE_SYSTEM,
       {
         role: "user",
@@ -1522,16 +1632,37 @@ Respond AS the naive student, quoting or referencing the learner's actual words:
 
 Return JSON: {"verdict": "good" | "skipped" | "confused", "response": "the naive student's reaction, referencing their words"}${languageNote(language)}`,
       },
-    ],
-    (raw) => {
-      const root = obj(raw, "payload");
-      return {
-        verdict: oneOf(root.verdict, VERDICTS, "verdict"),
-        response: str(root.response, "response"),
-      };
-    },
-    { label: "judge-feynman", role: "judge" },
-  );
+  ];
+}
+
+const validateFeynmanJudgement = (raw: unknown): FeynmanJudgement => {
+  const root = obj(raw, "payload");
+  return {
+    verdict: oneOf(root.verdict, VERDICTS, "verdict"),
+    response: str(root.response, "response"),
+  };
+};
+
+export async function judgeFeynman(
+  params: JudgeFeynmanParams,
+): Promise<FeynmanJudgement> {
+  return generateJson(feynmanJudgeMessages(params), validateFeynmanJudgement, {
+    label: "judge-feynman",
+    role: "judge",
+  });
+}
+
+export function judgeFeynmanStream(
+  params: JudgeFeynmanParams,
+): AsyncGenerator<StreamFrame> {
+  return judgeStream<FeynmanJudgement>(feynmanJudgeMessages(params), {
+    firstShape: `{"verdict": "good" | "skipped" | "confused"}`,
+    first: (raw) => ({
+      verdict: oneOf(obj(raw, "verdict").verdict, VERDICTS, "verdict"),
+    }),
+    full: validateFeynmanJudgement,
+    label: "judge-feynman",
+  });
 }
 
 export interface CrucibleJudgement {
@@ -1543,17 +1674,18 @@ export interface CrucibleJudgement {
   reExplain?: string;
 }
 
-export async function judgeCrucible(params: {
+interface JudgeCrucibleParams {
   topic: string;
   nodeLabel: string;
   problem: string;
   hint: string;
   attempt: string;
   language?: Language;
-}): Promise<CrucibleJudgement> {
+}
+
+function crucibleJudgeMessages(params: JudgeCrucibleParams): ChatMessage[] {
   const { topic, nodeLabel, problem, hint, attempt, language = "en" } = params;
-  return generateJson(
-    [
+  return [
       JUDGE_SYSTEM,
       {
         role: "user",
@@ -1575,8 +1707,10 @@ Return JSON:
   "reExplain": "a 30-second Socratic re-explanation aimed straight at that gap, ending with one question"   // partial only
 }${languageNote(language)}`,
       },
-    ],
-    (raw) => {
+  ];
+}
+
+const validateCrucibleJudgement = (raw: unknown): CrucibleJudgement => {
       const root = obj(raw, "payload");
       const outcome = oneOf(root.outcome, ["pass", "partial"] as const, "outcome");
       const transfer = arr(root.transfer, "transfer", 3, 3).map((v, i) => {
@@ -1595,9 +1729,31 @@ Return JSON:
         out.reExplain = str(root.reExplain, "reExplain (required for partial)");
       }
       return out;
-    },
-    { label: "judge-crucible", role: "judge" },
-  );
+};
+
+export async function judgeCrucible(
+  params: JudgeCrucibleParams,
+): Promise<CrucibleJudgement> {
+  return generateJson(crucibleJudgeMessages(params), validateCrucibleJudgement, {
+    label: "judge-crucible",
+    role: "judge",
+  });
+}
+
+/** The worst wait measured in the app (28 s on one attempt) — and the one
+ *  whose verdict is a single word. `outcome` alone opens the result panel; the
+ *  three diagnostic rows land into it. */
+export function judgeCrucibleStream(
+  params: JudgeCrucibleParams,
+): AsyncGenerator<StreamFrame> {
+  return judgeStream<CrucibleJudgement>(crucibleJudgeMessages(params), {
+    firstShape: `{"outcome": "pass" | "partial"}`,
+    first: (raw) => ({
+      outcome: oneOf(obj(raw, "verdict").outcome, ["pass", "partial"] as const, "outcome"),
+    }),
+    full: validateCrucibleJudgement,
+    label: "judge-crucible",
+  });
 }
 
 // ---- judge mode: choice ----------------------------------------------------
@@ -1622,17 +1778,18 @@ export function validateChoice(count: number) {
   };
 }
 
-export async function judgeChoice(params: {
+interface JudgeChoiceParams {
   topic: string;
   nodeLabel?: string;
   question: string;
   options: string[];
   answer: string;
   language?: Language;
-}): Promise<ChoiceJudgement> {
+}
+
+function choiceJudgeMessages(params: JudgeChoiceParams): ChatMessage[] {
   const { topic, nodeLabel, question, options, answer, language = "en" } = params;
-  return generateJson(
-    [
+  return [
       JUDGE_SYSTEM,
       {
         role: "user",
@@ -1647,8 +1804,33 @@ Pick the candidate that matches what they ACTUALLY said, not what they should ha
 
 Return JSON: {"index": <number>, "response": "one sentence to the learner naming what their answer showed, quoting their words"}${languageNote(language)}`,
       },
-    ],
-    validateChoice(options.length),
-    { label: "judge-choice", role: "judge" },
-  );
+  ];
+}
+
+export async function judgeChoice(
+  params: JudgeChoiceParams,
+): Promise<ChoiceJudgement> {
+  return generateJson(choiceJudgeMessages(params), validateChoice(params.options.length), {
+    label: "judge-choice",
+    role: "judge",
+  });
+}
+
+export function judgeChoiceStream(
+  params: JudgeChoiceParams,
+): AsyncGenerator<StreamFrame> {
+  const count = params.options.length;
+  return judgeStream<ChoiceJudgement>(choiceJudgeMessages(params), {
+    firstShape: `{"index": <number>}`,
+    // Not `validateChoice` with a blank response — that validator (rightly)
+    // rejects an empty `response`, so the verdict-only object would fail.
+    first: (raw) => {
+      const index = obj(raw, "verdict").index;
+      if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= count)
+        fail(`index must be an integer 0-${count - 1}`);
+      return { index: index as number };
+    },
+    full: validateChoice(count),
+    label: "judge-choice",
+  });
 }

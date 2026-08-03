@@ -338,26 +338,53 @@ export async function fetchRetain(
 
 // ---- the judging loop (#25-#27) — the learner's own words, classified ------
 
+/**
+ * A judge call, verdict-first.
+ *
+ * The server writes the verdict as its own tiny JSON object and the critique
+ * as a second one, so `onVerdict` fires roughly a second in — that is the
+ * moment the screen can move — and the promise resolves with the complete
+ * judgement when the prose lands.
+ *
+ * `onVerdict` may fire once (the usual streamed case) or never (the single-shot
+ * fallback, where the first frame already carries everything). Callers must
+ * therefore treat it as an optimisation and still handle the whole judgement
+ * on resolve — `applied` flags in AtlasApp are exactly that.
+ */
+async function judge<T>(
+  body: Record<string, unknown>,
+  onVerdict?: (partial: Partial<T>) => void,
+): Promise<T> {
+  let seen = 0;
+  let last: T | null = null;
+  const frames = await fetchStream(body, (frame) => {
+    // Only the first frame is the verdict prefix. Which frame is *last* isn't
+    // knowable until the stream ends, so the resolved value comes from the
+    // collected frames below rather than from this callback.
+    if (frame.p === "judgement" && seen++ === 0) onVerdict?.(frame.v as Partial<T>);
+  });
+  for (const frame of frames) if (frame.p === "judgement") last = frame.v as T;
+  if (!last) throw new Error("the judge returned nothing");
+  return last;
+}
+
 export interface SocraticJudgement {
   quality: "correct" | "near" | "wrong" | "lost";
   response: string;
 }
 
-export async function fetchJudgeSocratic(params: {
-  topic: string;
-  nodeLabel: string;
-  question: string;
-  reference: string;
-  answer: string;
-  language?: Language;
-}): Promise<SocraticJudgement> {
-  return (
-    await post<{ judgement: SocraticJudgement }>({
-      kind: "judge",
-      mode: "socratic",
-      ...params,
-    })
-  ).judgement;
+export function fetchJudgeSocratic(
+  params: {
+    topic: string;
+    nodeLabel: string;
+    question: string;
+    reference: string;
+    answer: string;
+    language?: Language;
+  },
+  onVerdict?: (partial: Partial<SocraticJudgement>) => void,
+): Promise<SocraticJudgement> {
+  return judge({ kind: "judge", mode: "socratic", ...params }, onVerdict);
 }
 
 export interface FeynmanJudgement {
@@ -365,21 +392,18 @@ export interface FeynmanJudgement {
   response: string;
 }
 
-export async function fetchJudgeFeynman(params: {
-  topic: string;
-  nodeLabel: string;
-  subPoint: string;
-  reference: string;
-  answer: string;
-  language?: Language;
-}): Promise<FeynmanJudgement> {
-  return (
-    await post<{ judgement: FeynmanJudgement }>({
-      kind: "judge",
-      mode: "feynman",
-      ...params,
-    })
-  ).judgement;
+export function fetchJudgeFeynman(
+  params: {
+    topic: string;
+    nodeLabel: string;
+    subPoint: string;
+    reference: string;
+    answer: string;
+    language?: Language;
+  },
+  onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
+): Promise<FeynmanJudgement> {
+  return judge({ kind: "judge", mode: "feynman", ...params }, onVerdict);
 }
 
 export interface CrucibleJudgement {
@@ -390,21 +414,18 @@ export interface CrucibleJudgement {
   reExplain?: string;
 }
 
-export async function fetchJudgeCrucible(params: {
-  topic: string;
-  nodeLabel: string;
-  problem: string;
-  hint: string;
-  answer: string;
-  language?: Language;
-}): Promise<CrucibleJudgement> {
-  return (
-    await post<{ judgement: CrucibleJudgement }>({
-      kind: "judge",
-      mode: "crucible",
-      ...params,
-    })
-  ).judgement;
+export function fetchJudgeCrucible(
+  params: {
+    topic: string;
+    nodeLabel: string;
+    problem: string;
+    hint: string;
+    answer: string;
+    language?: Language;
+  },
+  onVerdict?: (partial: Partial<CrucibleJudgement>) => void,
+): Promise<CrucibleJudgement> {
+  return judge({ kind: "judge", mode: "crucible", ...params }, onVerdict);
 }
 
 /** Maps a free-text answer onto a closed option list (the open-ended half of
@@ -414,19 +435,16 @@ export interface ChoiceJudgement {
   response: string;
 }
 
-export async function fetchJudgeChoice(params: {
-  topic: string;
-  nodeLabel?: string;
-  question: string;
-  options: string[];
-  answer: string;
-  language?: Language;
-}): Promise<ChoiceJudgement> {
-  return (
-    await post<{ judgement: ChoiceJudgement }>({
-      kind: "judge",
-      mode: "choice",
-      ...params,
-    })
-  ).judgement;
+export function fetchJudgeChoice(
+  params: {
+    topic: string;
+    nodeLabel?: string;
+    question: string;
+    options: string[];
+    answer: string;
+    language?: Language;
+  },
+  onVerdict?: (partial: Partial<ChoiceJudgement>) => void,
+): Promise<ChoiceJudgement> {
+  return judge({ kind: "judge", mode: "choice", ...params }, onVerdict);
 }

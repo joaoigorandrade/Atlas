@@ -20,9 +20,13 @@ import {
   generateSocratic,
   generateSocraticStream,
   judgeChoice,
+  judgeChoiceStream,
   judgeCrucible,
+  judgeCrucibleStream,
   judgeFeynman,
+  judgeFeynmanStream,
   judgeSocratic,
+  judgeSocraticStream,
   type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
@@ -274,9 +278,20 @@ export function resolveJob(body: GenerateBody): Job {
       const answer = s(body.answer).slice(0, CAPS.freeText);
       if (!answer.trim()) throw badRequest("answer is required");
       // Never cached: the payload is a verdict on one learner's own words.
+      // Streamed all the same — the verdict object arrives in under a second
+      // and unblocks the screen while the critique is still being written.
+      // `shape` is a single slot: the second frame replaces the first, so the
+      // assembled payload is exactly what `run` would have returned.
       const uncached = (
         run: () => Promise<Record<string, unknown>>,
-      ): Job => ({ kind: "judge", key: null, run });
+        stream: () => AsyncGenerator<StreamFrame>,
+      ): Job => ({
+        kind: "judge",
+        key: null,
+        run,
+        stream,
+        shape: { judgement: "one" },
+      });
 
       // "choice" maps a free-text answer onto a closed option list — it runs
       // on surfaces with no node (placement), so nodeLabel stays optional.
@@ -284,51 +299,62 @@ export function resolveJob(body: GenerateBody): Job {
         const options = labels(body.options, 8);
         if (options.length < 2)
           throw badRequest("options must list 2+ candidates");
-        return uncached(async () => ({
-          judgement: await judgeChoice({
-            topic,
-            nodeLabel: nodeLabel || undefined,
-            question: s(body.question).slice(0, CAPS.freeText),
-            options,
-            answer,
-            language,
-          }),
-        }));
+        const p = {
+          topic,
+          nodeLabel: nodeLabel || undefined,
+          question: s(body.question).slice(0, CAPS.freeText),
+          options,
+          answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgeChoice(p) }),
+          () => judgeChoiceStream(p),
+        );
       }
       if (!nodeLabel) throw badRequest("nodeLabel is required");
-      if (body.mode === "socratic")
-        return uncached(async () => ({
-          judgement: await judgeSocratic({
-            topic,
-            nodeLabel,
-            question: s(body.question).slice(0, CAPS.freeText),
-            reference: s(body.reference).slice(0, CAPS.freeText),
-            answer,
-            language,
-          }),
-        }));
-      if (body.mode === "feynman")
-        return uncached(async () => ({
-          judgement: await judgeFeynman({
-            topic,
-            nodeLabel,
-            subPoint: s(body.subPoint).slice(0, CAPS.nodeLabel * 2),
-            reference: s(body.reference).slice(0, CAPS.freeText),
-            explanation: answer,
-            language,
-          }),
-        }));
-      if (body.mode === "crucible")
-        return uncached(async () => ({
-          judgement: await judgeCrucible({
-            topic,
-            nodeLabel,
-            problem: s(body.problem).slice(0, CAPS.freeText),
-            hint: s(body.hint).slice(0, CAPS.freeText),
-            attempt: answer,
-            language,
-          }),
-        }));
+      if (body.mode === "socratic") {
+        const p = {
+          topic,
+          nodeLabel,
+          question: s(body.question).slice(0, CAPS.freeText),
+          reference: s(body.reference).slice(0, CAPS.freeText),
+          answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgeSocratic(p) }),
+          () => judgeSocraticStream(p),
+        );
+      }
+      if (body.mode === "feynman") {
+        const p = {
+          topic,
+          nodeLabel,
+          subPoint: s(body.subPoint).slice(0, CAPS.nodeLabel * 2),
+          reference: s(body.reference).slice(0, CAPS.freeText),
+          explanation: answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgeFeynman(p) }),
+          () => judgeFeynmanStream(p),
+        );
+      }
+      if (body.mode === "crucible") {
+        const p = {
+          topic,
+          nodeLabel,
+          problem: s(body.problem).slice(0, CAPS.freeText),
+          hint: s(body.hint).slice(0, CAPS.freeText),
+          attempt: answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgeCrucible(p) }),
+          () => judgeCrucibleStream(p),
+        );
+      }
       throw badRequest(`unknown judge mode "${String(body.mode)}"`);
     }
 

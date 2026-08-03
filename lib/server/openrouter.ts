@@ -16,6 +16,29 @@ export const DEFAULT_MODEL = "deepseek/deepseek-chat";
 const BASE_URL =
   process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 
+/**
+ * Nothing may run unbounded. Two separate bounds, because the two failures
+ * they catch are different animals:
+ *
+ * - `REQUEST_MS` caps a whole call. A model that streams forever (one probe
+ *   returned 1.9 MB of SSE for a "~600 words" prompt) dies here.
+ * - `FIRST_TOKEN_MS` caps the silence *before* the first token, and only a
+ *   stream can enforce it. A misconfigured model sat mute for 12m45s and then
+ *   streamed a perfectly valid answer — a whole-request cap would have waited
+ *   out the silence, and the learner would have too.
+ *
+ * Both are well inside the route's `maxDuration`, so a timeout surfaces as our
+ * own error rather than a platform-level 504.
+ */
+const REQUEST_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 90_000);
+const FIRST_TOKEN_MS = Number(process.env.OPENROUTER_FIRST_TOKEN_MS || 25_000);
+
+/** Output cap for judge calls — a verdict plus a few sentences, never prose.
+ *  Content generations stay uncapped: they legitimately run to thousands of
+ *  tokens, and truncating one mid-JSON just fails validation. `REQUEST_MS` is
+ *  what bounds those. */
+const JUDGE_MAX_TOKENS = Number(process.env.OPENROUTER_JUDGE_MAX_TOKENS || 1200);
+
 /** User-facing copy for transient upstream failures — never raw provider JSON. */
 const BUSY_MESSAGE = "The writer is busy — try again in a moment.";
 
@@ -62,6 +85,7 @@ async function chatOnce(
   model: string,
   messages: ChatMessage[],
   key: string,
+  maxTokens?: number,
 ): Promise<ChatResult> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -72,10 +96,12 @@ async function chatOnce(
       "HTTP-Referer": "https://atlas.local",
       "X-Title": "Atlas Learning Platform",
     },
+    signal: AbortSignal.timeout(REQUEST_MS),
     body: JSON.stringify({
       model,
       messages,
       temperature: 0.6,
+      ...(maxTokens ? { max_tokens: maxTokens } : null),
       // Most cheap models honor this; models that don't still get the
       // "JSON only" instruction in the system prompt.
       response_format: { type: "json_object" },
@@ -112,7 +138,12 @@ async function chat(messages: ChatMessage[], role: ModelRole): Promise<ChatResul
   for (const model of modelChain(role)) {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
       try {
-        return await chatOnce(model, messages, key);
+        return await chatOnce(
+          model,
+          messages,
+          key,
+          role === "judge" ? JUDGE_MAX_TOKENS : undefined,
+        );
       } catch (err) {
         const status = err instanceof OpenRouterError ? err.status : 0;
         // Key/billing problems: no retry, no fallback, no friendly mask.
@@ -221,49 +252,92 @@ async function* chatStreamOnce(
   messages: ChatMessage[],
   key: string,
   onFirstToken?: () => void,
+  maxTokens?: number,
 ): AsyncGenerator<string> {
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://atlas.local",
-      "X-Title": "Atlas Learning Platform",
-    },
-    body: JSON.stringify({ model, messages, temperature: 0.6, stream: true }),
-  });
-  if (!res.ok || !res.body) {
-    const body = await res.text().catch(() => "");
-    throw new OpenRouterError(`OpenRouter ${res.status}: ${body.slice(0, 600)}`, res.status);
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) return;
-    buf += decoder.decode(value, { stream: true });
-    const frames = buf.split("\n");
-    buf = frames.pop() ?? "";
-    for (const frame of frames) {
-      const line = frame.trim();
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (data === "[DONE]") return;
-      try {
-        const evt = JSON.parse(data) as {
-          choices?: Array<{ delta?: { content?: string } }>;
-        };
-        const delta = evt.choices?.[0]?.delta?.content;
-        if (delta) {
-          onFirstToken?.();
-          onFirstToken = undefined;
-          yield delta;
+  // Two deadlines on one controller: the silence before the first token, and
+  // the call as a whole. Whichever fires first aborts the fetch, and the
+  // reader's read() rejects — so a mute model can never hold a learner.
+  const abort = new AbortController();
+  let timedOut: "first token" | "total" | null = null;
+  const bomb = (why: "first token" | "total", ms: number) =>
+    setTimeout(() => {
+      timedOut ??= why;
+      abort.abort();
+    }, ms);
+  let firstTokenTimer: ReturnType<typeof setTimeout> | null = bomb("first token", FIRST_TOKEN_MS);
+  const totalTimer = bomb("total", REQUEST_MS);
+  const disarm = () => {
+    if (firstTokenTimer) clearTimeout(firstTokenTimer);
+    firstTokenTimer = null;
+  };
+  const failed = (err: unknown): never => {
+    if (!timedOut) throw err;
+    throw new OpenRouterError(
+      `OpenRouter ${model} exceeded the ${timedOut} timeout`,
+      504,
+    );
+  };
+
+  try {
+    const res = await fetch(`${BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://atlas.local",
+        "X-Title": "Atlas Learning Platform",
+      },
+      signal: abort.signal,
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.6,
+        ...(maxTokens ? { max_tokens: maxTokens } : null),
+        stream: true,
+      }),
+    }).catch(failed);
+    if (!res.ok || !res.body) {
+      const body = await res.text().catch(() => "");
+      throw new OpenRouterError(
+        `OpenRouter ${res.status}: ${body.slice(0, 600)}`,
+        res.status,
+      );
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read().catch(failed);
+      if (done) return;
+      buf += decoder.decode(value, { stream: true });
+      const frames = buf.split("\n");
+      buf = frames.pop() ?? "";
+      for (const frame of frames) {
+        const line = frame.trim();
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") return;
+        let delta: string | undefined;
+        try {
+          const evt = JSON.parse(data) as {
+            choices?: Array<{ delta?: { content?: string } }>;
+          };
+          delta = evt.choices?.[0]?.delta?.content;
+        } catch {
+          // A malformed SSE frame (rare keep-alive/comment) — skip it.
+          continue;
         }
-      } catch {
-        // A malformed SSE frame (rare keep-alive/comment) — skip it.
+        if (!delta) continue;
+        // The first token disarms the silence deadline; the total one runs on.
+        disarm();
+        onFirstToken?.();
+        onFirstToken = undefined;
+        yield delta;
       }
     }
+  } finally {
+    disarm();
+    clearTimeout(totalTimer);
   }
 }
 
@@ -312,13 +386,13 @@ export function extractCompleteObjects(buf: string): { objects: string[]; rest: 
 export async function* streamJsonObjects<T>(
   messages: ChatMessage[],
   validate: (raw: unknown, index: number) => T,
-  opts: { label?: string } = {},
+  opts: { label?: string; role?: ModelRole; maxTokens?: number } = {},
 ): AsyncGenerator<T> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key)
     throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
-  const { label = "unlabeled" } = opts;
-  const model = modelChain("content")[0];
+  const { label = "unlabeled", role = "content", maxTokens } = opts;
+  const model = modelChain(role)[0];
   const started = Date.now();
   let firstTokenMs: number | null = null;
   let buf = "";
@@ -328,14 +402,28 @@ export async function* streamJsonObjects<T>(
   // mid-iteration (which calls the generator's `return`).
   let outcome: StreamOutcome = "abandoned";
   try {
-    for await (const delta of chatStreamOnce(model, messages, key, () => {
-      firstTokenMs = Date.now() - started;
-    })) {
+    for await (const delta of chatStreamOnce(
+      model,
+      messages,
+      key,
+      () => {
+        firstTokenMs = Date.now() - started;
+      },
+      maxTokens,
+    )) {
       buf += delta;
       const { objects, rest } = extractCompleteObjects(buf);
       buf = rest;
       for (const raw of objects) yield validate(JSON.parse(raw), index++);
     }
+    // A stream that ends cleanly having produced nothing is a failure, not an
+    // empty answer — an empty completion is exactly what a model returns when
+    // it refuses the prompt shape. Throwing here is what routes it into every
+    // caller's `catch`, which is where the retried single-shot fallback lives;
+    // without it the route saw a clean, empty stream and returned a 502 while
+    // the documented safety net never fired.
+    if (index === 0)
+      throw new OpenRouterError("the model streamed no JSON objects", 502);
     outcome = "ok";
   } catch (err) {
     // The object count in the log line says whether anything usable landed

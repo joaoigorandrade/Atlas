@@ -15,7 +15,9 @@ const STRINGS = {
   },
 } as const;
 
-export default function BuildingOverlay() {
+/** `note` names what has actually arrived ("14 concepts placed"), so the beat
+ *  reads as progress rather than as a spinner with better typography. */
+export default function BuildingOverlay({ note }: { note?: string | null }) {
   const t = useT(STRINGS);
   return (
     <div
@@ -45,6 +47,20 @@ export default function BuildingOverlay() {
           {t.body}
         </div>
         <InkRule width={260} />
+        {note && (
+          <div
+            style={{
+              marginTop: 14,
+              fontFamily: font.mono,
+              fontSize: 11,
+              letterSpacing: "0.08em",
+              color: color.inkGhost,
+              animation: "softIn .3s both",
+            }}
+          >
+            {note}
+          </div>
+        )}
       </div>
     </div>
   );

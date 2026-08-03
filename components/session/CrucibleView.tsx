@@ -523,6 +523,21 @@ function Diagnostic({
           marginBottom: 18,
         }}
       >
+        {/* Graded, but the rows that diagnose the attempt are still being
+            written — the panel is already open on the earned verdict. */}
+        {session.transfer?.length === 0 && (
+          <div
+            style={{
+              padding: "13px 16px",
+              background: color.card,
+              border: `1px solid ${color.hairline}`,
+              borderLeft: `3px solid ${color.hairlineStrong}`,
+              borderRadius: 10,
+            }}
+          >
+            <InkDots size={4} />
+          </div>
+        )}
         {(session.transfer ?? content.transfer).map((row, i) => {
           const col = TRANSFER_COLOR[row.verdict];
           return (
