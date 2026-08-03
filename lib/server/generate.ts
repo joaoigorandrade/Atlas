@@ -7,9 +7,9 @@ import {
   DIAGNOSTIC_COUNT,
   FEYNMAN_BEATS,
   SOCRATIC_STEPS,
+  graphFromMapNodes,
   type AltKey,
   type ConceptEdge,
-  type ConceptGraph,
   type ConceptNode,
   type ConsumeChunk,
   type ConsumeFigure,
@@ -21,6 +21,7 @@ import {
   type FeynmanBeat,
   type ForecastTone,
   type GoalKind,
+  type MapNode,
   type RetainContent,
   type ReviewCard,
   type SocraticStep,
@@ -146,8 +147,12 @@ function interestNote(interests: string): string {
 
 // ---- kind: curriculum map --------------------------------------------------
 
+/** The map on the wire: a flat list of laid-out nodes, each carrying its own
+ *  prerequisites. Flat because the map streams one concept at a time and
+ *  `framesToPayload` can only assemble flat parts — `graphFromMapNodes` turns
+ *  it back into a `ConceptGraph` on both sides. */
 export interface CurriculumMapPayload {
-  graph: ConceptGraph;
+  nodes: MapNode[];
 }
 
 /** A scoped sub-map offer returned instead of a map when the topic is too
@@ -319,7 +324,6 @@ export function validateDiagnosticQuestion(
 export interface MapParams {
   topic: string;
   goal: GoalKind;
-  interests: string;
   /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
   outline?: string;
   language?: Language;
@@ -346,10 +350,37 @@ const GRAPH_SHAPE = `{
 const MAP_RULES =
   "Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas.";
 
+/** Attach each node's prerequisites, so a laid-out map travels as one flat
+ *  list. The inverse of `graphFromMapNodes`. */
+function withPrereqs(nodes: ConceptNode[], edges: ConceptEdge[]): MapNode[] {
+  const prereqs: Record<string, string[]> = {};
+  for (const [from, to] of edges) (prereqs[to] = prereqs[to] ?? []).push(from);
+  return nodes.map((n) => ({ ...n, prereqs: prereqs[n.id] ?? [] }));
+}
+
+/** The centred column layout, over nodes that carry their own prereqs. Shared
+ *  by the single-shot pass and the stream's settling pass, so a streamed map
+ *  and a generated-in-one-piece map are laid out identically. */
+function layoutMapNodes(mapNodes: MapNode[]): MapNode[] {
+  const { edges } = graphFromMapNodes(mapNodes);
+  return withPrereqs(
+    layoutGraph(
+      mapNodes.map(({ id, label }) => ({ id, label })),
+      edges,
+    ),
+    edges,
+  );
+}
+
 /**
  * The map's own prompt — nothing else. Split from the placement questions so
  * this call is small and fast: the learner sees the map assemble long before
  * any question is ready, instead of waiting on one combined generation.
+ *
+ * This is the single-shot pass: fully validated (edge-count floor, DAG check)
+ * with `generateJson`'s one corrective retry. `generateMapStream` below is what
+ * a learner normally gets; this stays the fallback when the stream fails before
+ * its first frame, and the reference the streamed payload must round-trip to.
  */
 export async function generateMap(
   params: MapParams,
@@ -374,8 +405,144 @@ ${MAP_RULES}${languageNote(language)}`,
     { label: "curriculum-map" },
   );
   if ("scopes" in raw) return { scopes: raw.scopes };
-  const nodes = layoutGraph(raw.nodes, raw.edges);
-  return { graph: { nodes, edges: raw.edges } };
+  return { nodes: withPrereqs(layoutGraph(raw.nodes, raw.edges), raw.edges) };
+}
+
+/** One streamed concept, before layout: its id, its label, and the concepts it
+ *  depends on — which must already have been written, so a forward reference is
+ *  dropped rather than believed. That one rule is what makes a prerequisite
+ *  cycle structurally impossible without a whole-graph check. */
+export function validateMapConcept(
+  raw: unknown,
+  index: number,
+  seen: Set<string>,
+): { id: string; label: string; prereqs: string[] } {
+  const c = obj(raw, `concept[${index}]`);
+  const id = str(c.id, `concept[${index}].id`)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-");
+  if (seen.has(id)) fail(`duplicate node id "${id}"`);
+  const prereqs = Array.isArray(c.prereqs)
+    ? c.prereqs
+        .filter((p): p is string => typeof p === "string")
+        .map((p) => p.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+        // Forward and self references are dropped, not failed: one hallucinated
+        // id must not cost the learner the whole map.
+        .filter((p) => seen.has(p) && p !== id)
+    : [];
+  return { id, label: str(c.label, `concept[${index}].label`), prereqs };
+}
+
+/** The map's node-count bounds, mirroring `validateGraphPart` rather than the
+ *  12-18 the prompt asks for. `Job.shape` uses the same numbers. */
+export const MAP_NODE_BOUNDS = { min: 10, max: 24 } as const;
+
+/**
+ * The map, one concept at a time.
+ *
+ * This is the generation no cache can hide (the node ids don't exist until it
+ * returns, so it can never be warmed) and the one SPEC §2 asks to *watch*:
+ * "animates nodes into place foundations-first". Asking for the concepts as
+ * separate top-level objects in prerequisite order makes that literal — each
+ * one is placed the moment it is written instead of after the last edge of the
+ * last node.
+ *
+ * Layout is still computed here, never trusted from the model. A node's column
+ * is `1 + max(depth of its prereqs)`, which — because prereqs always precede
+ * their dependants — is exactly the longest-path depth `layoutGraph` computes,
+ * so a node's x is final the moment it arrives. Only y is provisional: columns
+ * are centred, and a column's height isn't known until the stream ends. The
+ * final pass re-yields every node at its original index with the settled
+ * layout, which `framesToPayload` folds over the provisional one.
+ */
+export async function* generateMapStream(params: MapParams): AsyncGenerator<StreamFrame> {
+  const { language = "en" } = params;
+  let yielded = 0;
+  try {
+    const seen = new Set<string>();
+    const depth: Record<string, number> = {};
+    const column: Record<number, number> = {};
+    const accepted: MapNode[] = [];
+
+    const stream = streamJsonObjects<
+      { scopes: ScopeOffer[] } | { id: string; label: string; prereqs: string[] }
+    >(
+      user(
+        `${mapContext(params)}
+
+Otherwise write the concepts as SEPARATE top-level JSON objects, one after
+another — NOT wrapped in an array or a {"nodes": [...]} object, no markdown
+fences, no numbering, no commentary before/after/between them. Write them in
+prerequisite order: every concept another one depends on must already have been
+written above it. Each object has this shape:
+{"id": "short-kebab-id", "label": "Concept Name", "prereqs": ["ids of concepts already written above"]}
+
+"prereqs" is empty only for true foundations — every other concept names at
+least one. ${MAP_RULES}${languageNote(language)}`,
+      ),
+      (raw, index) => {
+        // The too-broad answer is a single object and always the first one, so
+        // it comes down this same wire untouched (#30).
+        const offers = index === 0 ? validateScopeOffer(raw) : null;
+        if (offers) return { scopes: offers };
+        return validateMapConcept(raw, index, seen);
+      },
+      { label: "curriculum-map-stream" },
+    );
+
+    for await (const item of stream) {
+      // The too-broad answer is the whole reply, and always arrives first (the
+      // validator only accepts it at index 0), so there is nothing to reconcile.
+      if ("scopes" in item) {
+        for (const [i, v] of item.scopes.entries()) yield { p: "scopes", i, v };
+        return;
+      }
+      if (accepted.length >= MAP_NODE_BOUNDS.max) break;
+      seen.add(item.id);
+      const d = item.prereqs.reduce((max, p) => Math.max(max, (depth[p] ?? 0) + 1), 0);
+      depth[item.id] = d;
+      const i = column[d] ?? 0;
+      column[d] = i + 1;
+      // Final x and final *spacing*; only the column's vertical offset is
+      // provisional, since centring needs a height the stream doesn't have yet.
+      // The settling pass slides each column up as one piece — nodes never
+      // re-space and never cross.
+      const node: MapNode = {
+        ...item,
+        state: "unknown",
+        g: d + 1,
+        week: 0,
+        x: 110 + d * 245 + (i % 2 === 1 ? 30 : 0),
+        y: 440 + i * 140,
+      };
+      accepted.push(node);
+      yield { p: "nodes", i: yielded++, v: node };
+    }
+
+    const settled = layoutMapNodes(accepted);
+    // The one whole-graph check per-concept validation can't make. Throwing
+    // here is deliberate: it is mid-stream, so nothing is written to
+    // `content_cache` and reopening retries, while the learner keeps the map
+    // already on their screen.
+    const edgeCount = settled.reduce((n, node) => n + node.prereqs.length, 0);
+    if (edgeCount < settled.length - 4)
+      fail("too few prerequisites — every concept past the foundations needs one");
+    for (const [i, v] of settled.entries()) yield { p: "nodes", i, v };
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "map_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const result = await generateMap(params);
+    if ("scopes" in result) {
+      for (const [i, v] of result.scopes.entries()) yield { p: "scopes", i, v };
+      return;
+    }
+    for (const [i, v] of result.nodes.entries()) yield { p: "nodes", i, v };
+  }
 }
 
 const DIFFICULTY_HINT: Record<DiagnosticDifficulty, string> = {

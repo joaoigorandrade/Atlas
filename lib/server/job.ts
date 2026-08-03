@@ -16,6 +16,7 @@ import {
   generateFeynman,
   generateFeynmanStream,
   generateMap,
+  generateMapStream,
   generateRetain,
   generateSocratic,
   generateSocraticStream,
@@ -27,6 +28,7 @@ import {
   judgeFeynmanStream,
   judgeSocratic,
   judgeSocraticStream,
+  MAP_NODE_BOUNDS,
   type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
@@ -149,10 +151,14 @@ export function resolveJob(body: GenerateBody): Job {
       const goal: GoalKind = ["exam", "project", "mastery"].includes(s(body.goal))
         ? (body.goal as GoalKind)
         : "mastery";
+      // `interests` is deliberately absent. The map prompt never used it —
+      // interests flavor analogies inside a concept, not which concepts the
+      // topic is made of — so keying on it split byte-identical maps across
+      // rows and cost the shared cache the one generation that can never be
+      // warmed. Two learners on the same topic now share a map.
       const params = {
         topic,
         goal,
-        interests,
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
       };
@@ -160,6 +166,14 @@ export function resolveJob(body: GenerateBody): Job {
         kind: "curriculum",
         key: contentKey("curriculum", params),
         run: async () => ({ ...(await generateMap(params)) }),
+        stream: () => generateMapStream(params),
+        // Mirrors `validateGraphPart`'s 10-24 bound, not the 12-18 the prompt
+        // asks for. The scopes variant is the too-broad answer (#30) — a
+        // complete, cacheable payload with no map in it at all.
+        shape: [
+          { nodes: { ...MAP_NODE_BOUNDS } },
+          { scopes: { min: 2, max: 3 } },
+        ],
       };
     }
 

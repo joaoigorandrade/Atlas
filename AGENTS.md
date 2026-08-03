@@ -37,12 +37,15 @@ npm run typecheck  # tsc --noEmit
 ## AI content generation
 
 All learning content is generated per topic through OpenRouter — the concept
-graph + placement diagnostic at onboarding (`kind: "curriculum"`), and each
-phase's material on first entry (`consume`, `socratic`, `feynman`, `connect`,
-`crucible`, `retain`), cached per node for the run in `AtlasApp`. Configure via
+map at onboarding (`kind: "curriculum"`, streamed one concept at a time in
+prerequisite order; the placement questions follow one at a time as
+`diagnosticQuestion`, since each one's difficulty depends on the last answer),
+and each phase's material on first entry (`consume`, `socratic`, `feynman`,
+`connect`, `crucible`, `retain`), cached per node for the run in `AtlasApp`.
+Configure via
 `.env.local` (see `.env.example`): `OPENROUTER_API_KEY` (required),
-`OPENROUTER_MODEL` (default `openai/gpt-4o-mini` — cheap and structured-output
-reliable), `OPENROUTER_BASE_URL` (override for tests). Generated JSON is
+`OPENROUTER_MODEL` (default `deepseek/deepseek-chat`),
+`OPENROUTER_BASE_URL` (override for tests). Generated JSON is
 validated server-side with one corrective retry; ids, graph layout, and gap
 placement offsets are always computed server-side, never trusted from the
 model.
@@ -94,6 +97,15 @@ kind, where latency is dominated by sequential output decoding:
 - Streaming has **no corrective retry and no model-fallback chain**, and
   `streamJsonObjects` uses the *content* model role. Don't stream a call that
   needs either — notably the judge.
+- A payload's *shape* is chosen so a partial one still means something.
+  `framesToPayload` only assembles flat parts, so the map travels as a flat
+  `nodes` list where each node carries its own `prereqs` rather than as
+  `{graph: {nodes, edges}}` — `graphFromMapNodes` (`lib/curriculum.ts`) derives
+  the graph on both sides, and derives a *real* one from the first three
+  concepts, which is what lets the canvas paint mid-stream. Anything the whole
+  payload is needed to compute is re-sent at the end instead: the map's columns
+  can't be centred until their height is known, so the settling pass re-yields
+  every node at its original index and frame replacement folds it in.
 - A surface that renders a streamed list must not derive "am I on the last
   one?" from the array's length. `SocraticSession`/`FeynmanSession` carry an
   explicit `total` for exactly this reason; deriving it from `.length` ends the

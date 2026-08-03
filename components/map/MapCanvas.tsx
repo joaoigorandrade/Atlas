@@ -32,6 +32,11 @@ interface MapCanvasProps {
   edges: ConceptEdge[];
   /** Nodes the re-planner just spawned — they assemble into place. */
   spawnedIds: Set<string>;
+  /** Stagger the assembly animation by index, rather than letting arrival be
+   *  the stagger. True only for the placeholder territory: the real map streams
+   *  in a concept at a time, and a node that has *already arrived* must not sit
+   *  invisible waiting for its turn. */
+  staggered?: boolean;
   /** Display state per node id — frontier/locking already derived. */
   display: Record<string, NodeState>;
   /** Unlearned prerequisite chain of a selected locked node ("learn these first"). */
@@ -53,6 +58,7 @@ export default function MapCanvas({
   nodes,
   edges,
   spawnedIds,
+  staggered = false,
   display,
   lockedPath,
   positions,
@@ -177,7 +183,7 @@ export default function MapCanvas({
           const dimmedLock = displayState === "unknown" && screen !== "building";
           const animation =
             screen === "building"
-              ? `assemble 0.5s ${(0.04 * i).toFixed(2)}s both`
+              ? `assemble 0.5s ${staggered ? (0.04 * i).toFixed(2) : "0"}s both`
               : spawnedIds.has(node.id)
                 ? "assemble 0.45s both"
                 : isFrontier
@@ -229,7 +235,15 @@ export default function MapCanvas({
                       ? "0 0 0 1px rgba(201,154,46,0.45), 0 4px 14px rgba(201,154,46,0.18)"
                       : "0 2px 7px rgba(44,40,35,0.06)",
                 animation,
-                transition: "border-color .2s, opacity .25s, box-shadow .2s",
+                // While building, `left`/`top` join the transition: streamed
+                // concepts are placed with a provisional vertical offset (a
+                // column can't be centred until its height is known), and the
+                // settling pass at the end of the stream moves them. Only while
+                // building — dragging a node on the real map must track the
+                // cursor exactly.
+                transition:
+                  "border-color .2s, opacity .25s, box-shadow .2s" +
+                  (screen === "building" ? ", left .35s ease, top .35s ease" : ""),
                 zIndex: isSelected ? 6 : isFrontier ? 4 : 2,
               }}
             >
