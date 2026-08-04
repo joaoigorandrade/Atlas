@@ -1183,14 +1183,20 @@ export default function AtlasApp({
     [showToast, warm],
   );
 
-  /** Direct (solid-edge) prerequisite labels of a node — grounds the prompts. */
-  const prereqLabelsOf = useCallback((nodeId: string): string[] => {
+  /** Direct (solid-edge) prerequisite nodes of a node. */
+  const prereqNodesOf = useCallback((nodeId: string): ConceptNode[] => {
     const g = graphRef.current;
     return g.edges
       .filter(([, to, dashed]) => to === nodeId && !dashed)
-      .map(([from]) => g.nodes.find((n) => n.id === from)?.label)
-      .filter((l): l is string => !!l);
+      .map(([from]) => g.nodes.find((n) => n.id === from))
+      .filter((n): n is ConceptNode => !!n);
   }, []);
+
+  /** Direct (solid-edge) prerequisite labels of a node — grounds the prompts. */
+  const prereqLabelsOf = useCallback(
+    (nodeId: string): string[] => prereqNodesOf(nodeId).map((n) => n.label),
+    [prereqNodesOf],
+  );
 
   /** Labels the learner has actually learned — context for transfer problems. */
   const learnedLabels = useCallback((): string[] => {
@@ -2509,22 +2515,27 @@ export default function AtlasApp({
 
   const consumeSkipCrucible = useCallback(() => {
     const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
-    setScreen("map");
     setConsume(null);
-    showToast(
-      `Diagnostic overshoot — skipping ahead to the Crucible for ${node?.label ?? "this node"}`,
-      "Fast-forward",
-    );
-  }, [consume, showToast]);
+    if (node) enterCrucible(node);
+    else setScreen("map");
+  }, [consume, enterCrucible]);
 
+  /** "Review prerequisite" — routes to the weakest direct prereq (shaky over
+   *  merely learning) via the same session each state opens from the map. */
   const consumeRoutePrereq = useCallback(() => {
-    setScreen("map");
+    const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
     setConsume(null);
-    showToast(
-      "Routing to a prerequisite — an earlier concept looks shaky",
-      "Map updated",
-    );
-  }, [showToast]);
+    const prereqs = node ? prereqNodesOf(node.id) : [];
+    const weakest =
+      prereqs.find((n) => statesRef.current[n.id] === "shaky") ??
+      prereqs.find((n) => statesRef.current[n.id] === "learning");
+    if (!weakest) {
+      setScreen("map");
+      return;
+    }
+    if (statesRef.current[weakest.id] === "shaky") enterCrucible(weakest);
+    else enterFeynman(weakest);
+  }, [consume, enterCrucible, enterFeynman, prereqNodesOf]);
 
   const onNodeDoubleClick = useCallback(
     (id: string) => {
