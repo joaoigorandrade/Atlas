@@ -6,10 +6,12 @@ import {
   validateDiagnosticQuestion,
   validateFeynman,
   validateGraphPart,
+  validateMapConcept,
   validateRetain,
   validateScopeOffer,
   validateSocratic,
 } from "@/lib/server/generate";
+import { graphFromMapNodes } from "@/lib/curriculum";
 import { migrateConsume, type LegacyConsumeChunk } from "@/lib/persistence";
 
 // ---- curriculum map: DAG + scoping --------------------------------------------
@@ -46,6 +48,86 @@ describe("validateGraphPart", () => {
       }),
     ).toHaveLength(2);
     expect(validateScopeOffer(graphPayload(chainEdges))).toBeNull();
+  });
+});
+
+// ---- streamed map: one concept at a time, validated as it lands -------------
+
+describe("validateMapConcept", () => {
+  const concept = (over: Record<string, unknown> = {}) => ({
+    id: "ownership",
+    label: "Ownership",
+    prereqs: [],
+    ...over,
+  });
+
+  it("normalizes the id and keeps prereqs that already landed", () => {
+    const seen = new Set(["stack-and-heap"]);
+    const out = validateMapConcept(
+      concept({ id: "Ownership!", prereqs: ["Stack And Heap"] }),
+      1,
+      seen,
+    );
+    expect(out.id).toBe("ownership-");
+    expect(out.prereqs).toEqual(["stack-and-heap"]);
+  });
+
+  it("rejects a duplicate id — two nodes cannot share one slot on the map", () => {
+    expect(() => validateMapConcept(concept(), 1, new Set(["ownership"]))).toThrow(
+      /duplicate/,
+    );
+  });
+
+  it("drops forward and self references rather than believing them", () => {
+    // This is what makes a prerequisite cycle structurally impossible without a
+    // whole-graph check: a prereq can only name a concept already written.
+    const out = validateMapConcept(
+      concept({ prereqs: ["lifetimes", "ownership", "stack-and-heap"] }),
+      3,
+      new Set(["stack-and-heap"]),
+    );
+    expect(out.prereqs).toEqual(["stack-and-heap"]);
+  });
+
+  it("treats a missing prereqs field as a foundation, not a failure", () => {
+    const out = validateMapConcept({ id: "n0", label: "Bindings" }, 0, new Set());
+    expect(out.prereqs).toEqual([]);
+  });
+});
+
+describe("graphFromMapNodes", () => {
+  const node = (id: string, prereqs: string[]) => ({
+    id,
+    label: id,
+    prereqs,
+    state: "unknown" as const,
+    g: 1,
+    week: 0,
+    x: 0,
+    y: 0,
+  });
+
+  it("derives one edge per prereq, prerequisite → dependent", () => {
+    const { nodes, edges } = graphFromMapNodes([
+      node("a", []),
+      node("b", ["a"]),
+      node("c", ["a", "b"]),
+    ]);
+    expect(edges).toEqual([
+      ["a", "b"],
+      ["a", "c"],
+      ["b", "c"],
+    ]);
+    // `prereqs` is stripped, so what reaches app state (and the persisted run
+    // snapshot) stays a plain ConceptNode.
+    expect(nodes.every((n) => !("prereqs" in n))).toBe(true);
+  });
+
+  it("is meaningful over a partial list — which is what lets the map paint mid-stream", () => {
+    // Halfway through the stream, "c" hasn't been written yet.
+    const { nodes, edges } = graphFromMapNodes([node("a", []), node("b", ["a", "c"])]);
+    expect(nodes).toHaveLength(2);
+    expect(edges).toEqual([["a", "b"]]);
   });
 });
 

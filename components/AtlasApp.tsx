@@ -20,6 +20,7 @@ import {
   FEYNMAN_BEATS,
   feynmanStart,
   freshAdherence,
+  graphFromMapNodes,
   DIAGNOSTIC_COUNT,
   diagnosticEffect,
   stepDifficulty,
@@ -88,7 +89,7 @@ import {
   fetchConsume,
   fetchConsumeStream,
   fetchCrucible,
-  fetchCurriculumMap,
+  fetchCurriculumMapStream,
   fetchDiagnosticQuestion,
   fetchFeynman,
   fetchFeynmanStream,
@@ -163,6 +164,12 @@ type Screen =
 
 /** Minimum time the map-assembly moment plays, even when generation is fast. */
 const BUILD_MS = 2600;
+
+/** Concepts that must have streamed in before the first placement question is
+ *  asked for. The map arrives foundations-first, so this prefix is exactly the
+ *  material an opening question should probe — and firing here overlaps the two
+ *  cold generations instead of serializing them. */
+const DIAGNOSTIC_POOL_MIN = 8;
 
 /** The generated surfaces the warm queue can fetch ahead of a click. */
 type WarmKind = "consume" | "socratic" | "feynman" | "connect" | "crucible";
@@ -356,6 +363,10 @@ export default function AtlasApp({
   // the hardest level answered correctly so far — the evidence the "luck"
   // read in `diagnosticEffect` leans on.
   const askedNodeIdsRef = useRef<string[]>([]);
+  /** Which build the arriving map frames belong to. A learner who re-submits
+   *  (or picks a scope) starts a second stream while the first is still
+   *  writing; without this token its concepts would land on top of the new map. */
+  const buildIdRef = useRef(0);
   const nextDifficultyRef = useRef<DiagnosticDifficulty>("medium");
   const maxCorrectDifficultyRef = useRef<DiagnosticDifficulty | null>(null);
   const statesRef = useRef(states);
@@ -815,14 +826,18 @@ export default function AtlasApp({
   // ---- onboarding flow -------------------------------------------------
 
   /**
-   * "Build my map": the map is generated on its own, fast, so it can open the
-   * moment it's ready; the 5 placement questions are then fetched one at a
-   * time, since each one's difficulty depends on how the last was answered
-   * (see `answerDiagnostic`) — there is nothing to pre-fetch as a batch.
+   * "Build my map": the map streams in one concept at a time, foundations
+   * first, and the canvas paints each one as it lands — the learner watches
+   * the territory assemble rather than a spinner standing in for it (SPEC §2).
    *
    * This is the only generation in the app that can never be warmed (the node
    * ids don't exist until it returns), so it is the one wait every learner
-   * pays.
+   * pays. Two things keep it short: the concepts are delivered progressively
+   * instead of after the last one is written, and the first placement question
+   * — a second cold generation — is fired as soon as `DIAGNOSTIC_POOL_MIN`
+   * concepts exist, so the two calls overlap instead of queueing. The
+   * remaining 4 questions still follow one at a time, since each one's
+   * difficulty depends on how the last was answered (see `answerDiagnostic`).
    *
    * `BUILD_MS` stays a floor, not a target: SPEC §2 calls the assembling
    * moment a deliberate "this is mine" beat, not a spinner to be minimized.
@@ -835,17 +850,38 @@ export default function AtlasApp({
       showToast("Name a topic first — the map is generated from it");
       return;
     }
+    const buildId = ++buildIdRef.current;
+    /** Frames from an abandoned build — a re-submit, or a picked scope — must
+     *  never land on the map that replaced it. */
+    const current = () => buildIdRef.current === buildId;
+
     setScreen("building");
     setReveal(0);
     setScopes(null);
     setBuildNote(null);
-    // The previous map is not this topic's map. Clearing it up front is what
-    // stops the assembly beat animating over the *old* territory, and — more
-    // importantly — what stops a failed build from persisting those nodes
-    // under the new subject name: the save is gated on a non-empty graph.
-    setGraph({ nodes: [], edges: [] });
+    // The previous map is not this topic's map, and everything below is keyed
+    // to its node ids. Clearing it all up front is what stops the assembly beat
+    // animating over the *old* territory, and — more importantly — what stops a
+    // failed build from persisting those nodes under the new subject name: the
+    // save is gated on a non-empty graph. It happens here rather than when the
+    // map lands because the map no longer lands at one moment.
+    setGraph(emptyGraph());
     setPositions({});
+    setStates({});
     setDiagnostic([]);
+    setSpawnedIds(new Set());
+    pendingGapsRef.current = [];
+    setLiveConsume(null);
+    setConsumeCache({});
+    setSocraticCache({});
+    setFeynmanCache({});
+    setConnectCache({});
+    setCrucibleCache({});
+    setRetainContent(null);
+    setCalibSamples([]);
+    setShakyReasons({});
+    setReviewedNodes([]);
+    setCards([]);
     // A new map invalidates every warmed key — the node ids are about to
     // mean something else.
     warm.clear();
@@ -855,61 +891,70 @@ export default function AtlasApp({
     const started = Date.now();
     const openAt = () => Math.max(0, BUILD_MS - (Date.now() - started));
 
-    fetchCurriculumMap({
+    const params = {
       topic,
       goal: formRef.current.goal,
-      interests: formRef.current.interests,
       outline: outline ?? undefined,
       language: languageRef.current,
+    };
+    /** Started mid-stream and awaited after it, so the two cold generations
+     *  overlap instead of queueing. */
+    let question1: Promise<DiagnosticQuestion> | null = null;
+    const askQuestion1 = (pool: Array<{ id: string; label: string }>) => {
+      const fetchOne = () =>
+        fetchDiagnosticQuestion({
+          topic,
+          goal: formRef.current.goal,
+          interests: formRef.current.interests,
+          language: languageRef.current,
+          pool,
+          difficulty: nextDifficultyRef.current,
+          index: 0,
+        });
+      // This call is never cached (unlike every other generation, its node
+      // ids don't exist until the map above resolves), so it fails more
+      // often than a warmed call would — one retry before giving up on the
+      // learner's very first question.
+      const pending = fetchOne().catch(fetchOne);
+      // Nothing awaits this until the map finishes; without a handler now, a
+      // rejection in between is an unhandled rejection. The real handling is
+      // on the awaited copy below.
+      pending.catch(() => {});
+      return pending;
+    };
+
+    fetchCurriculumMapStream(params, (nodes) => {
+      if (!current()) return;
+      const graph = graphFromMapNodes(nodes);
+      setGraph(graph);
+      setStates(initialStates(graph));
+      setPositions(
+        Object.fromEntries(graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
+      );
+      setBuildNote(`${graph.nodes.length} concepts placed`);
+      // The map arrives foundations-first, so this prefix is a legitimate
+      // candidate pool for an opening question — and asking now is what buys
+      // the overlap. Questions 2-5 see the whole map.
+      if (!question1 && nodes.length >= DIAGNOSTIC_POOL_MIN)
+        question1 = askQuestion1(nodes.map((n) => ({ id: n.id, label: n.label })));
     })
       .then((result) => {
+        if (!current()) return;
         // Too broad for one map: offer scoped sub-maps instead (#30).
         if ("scopes" in result) {
           setScreen("welcome");
           setScopes(result.scopes);
           return;
         }
-        const { graph } = result;
-        setBuildNote(`${graph.nodes.length} concepts placed`);
-        setGraph(graph);
-        setStates(initialStates(graph));
-        setPositions(
-          Object.fromEntries(graph.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
-        );
-        setSpawnedIds(new Set());
-        pendingGapsRef.current = [];
-        setLiveConsume(null);
-        setConsumeCache({});
-        setSocraticCache({});
-        setFeynmanCache({});
-        setConnectCache({});
-        setCrucibleCache({});
-        setRetainContent(null);
-        setCalibSamples([]);
-        setShakyReasons({});
-        setReviewedNodes([]);
-        setCards([]);
-        setDiagnostic([]);
         setBuildNote(`placement question 1 of ${DIAGNOSTIC_COUNT}`);
-
-        const askFirstQuestion = () =>
-          fetchDiagnosticQuestion({
-            topic,
-            goal: formRef.current.goal,
-            interests: formRef.current.interests,
-            language: languageRef.current,
-            pool: graph.nodes.map((n) => ({ id: n.id, label: n.label })),
-            difficulty: nextDifficultyRef.current,
-            index: 0,
-          });
-
-        // This call is never cached (unlike every other generation, its node
-        // ids don't exist until the map above resolves), so it fails more
-        // often than a warmed call would — one retry before giving up on
-        // the learner's very first question.
-        return askFirstQuestion()
-          .catch(askFirstQuestion)
+        // Short map (or a stream that ended early): the overlap never fired, so
+        // ask now against everything that landed.
+        const pending =
+          question1 ??
+          askQuestion1(result.nodes.map((n) => ({ id: n.id, label: n.label })));
+        return pending
           .then((question) => {
+            if (!current()) return;
             setDiagnostic([question]);
             later(() => {
               setScreen("diagnostic");
@@ -920,11 +965,13 @@ export default function AtlasApp({
             // Placement is a nice-to-have; the map is the product, so open it
             // rather than failing a build the learner already watched
             // assemble — but say so, instead of silently skipping the step.
+            if (!current()) return;
             showToast(err.message, "Placement skipped");
             later(() => setScreen("map"), openAt());
           });
       })
       .catch((err: Error) => {
+        if (!current()) return;
         setScreen("welcome");
         showToast(err.message, "Generation failed");
       });
@@ -1175,8 +1222,8 @@ export default function AtlasApp({
       warm
         .run(key, fetcher, true)
         .catch((err: unknown) => {
-          // The background attempt was declined to protect the daily quota;
-          // a real click outranks that, so ask again in the foreground.
+          // The background attempt came back empty (a silent warm failure);
+          // a real click can't inherit that, so ask again in the foreground.
           if (!(err instanceof WarmDeclined)) throw err;
           warm.drop(key);
           return warm.run(key, fetcher, true);
@@ -3075,6 +3122,7 @@ export default function AtlasApp({
           nodes={usingFakeMap ? FAKE_MAP_NODES : graph.nodes}
           edges={usingFakeMap ? FAKE_MAP_EDGES : graph.edges}
           spawnedIds={spawnedIds}
+          staggered={usingFakeMap}
           display={display}
           lockedPath={lockedPath}
           positions={usingFakeMap ? FAKE_MAP_POSITIONS : positions}

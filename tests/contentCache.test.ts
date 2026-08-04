@@ -17,7 +17,7 @@ describe("contentKey", () => {
   // and updating it then would reduce this to a rubber stamp. What must not
   // drift is the *shape* — NUL separators (not spaces), kind before params.
   const NUL = String.fromCharCode(0);
-  const version = process.env.CONTENT_CACHE_VERSION || "5";
+  const version = process.env.CONTENT_CACHE_VERSION || "6";
   const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 
   it("hashes exactly v{VERSION}\\0{kind}\\0{stable(params)}", () => {
@@ -67,6 +67,23 @@ describe("contentKey", () => {
     const base = { topic: "Rust", nodeLabel: "Borrowing" };
     expect(contentKey("consume", { ...base, interests: "game dev" })).not.toBe(
       contentKey("consume", { ...base, interests: "web servers" }),
+    );
+  });
+
+  it("shares one map across learners whose interests differ", () => {
+    // The mirror of the case above, and deliberately opposite: interests
+    // personalize the content *inside* a concept, not which concepts a topic is
+    // made of — the map prompt never sees them. Keying on them anyway split
+    // byte-identical maps across rows and cost the shared cache the one
+    // generation that can never be warmed.
+    const base = { kind: "curriculum" as const, topic: "Rust", goal: "mastery" as const };
+    expect(resolveJob({ ...base, interests: "game dev" }).key).toBe(
+      resolveJob({ ...base, interests: "web servers" }).key,
+    );
+    // Everything the map *is* derived from still separates.
+    expect(resolveJob(base).key).not.toBe(resolveJob({ ...base, goal: "exam" }).key);
+    expect(resolveJob(base).key).not.toBe(
+      resolveJob({ ...base, outline: "Unit 1: Ownership" }).key,
     );
   });
 

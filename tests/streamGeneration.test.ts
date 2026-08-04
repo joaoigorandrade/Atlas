@@ -18,6 +18,24 @@ const graphObj = {
   edges: Array.from({ length: 11 }, (_, i) => [`n${i}`, `n${i + 1}`]),
 };
 
+/** The same chain, written the way the *streamed* map prompt asks for it: one
+ *  top-level object per concept, in prerequisite order, each naming the ids
+ *  already written above it. Deliberately the same graph as `graphObj`, so the
+ *  streamed payload and the single-shot payload can be compared directly. */
+const conceptObjs = Array.from({ length: 12 }, (_, i) => ({
+  id: `n${i}`,
+  label: `Concept ${i}`,
+  prereqs: i === 0 ? [] : [`n${i - 1}`],
+}));
+
+const scopeObj = {
+  tooBroad: true,
+  scopes: [
+    { label: "Ownership And Borrowing", note: "the memory model on its own" },
+    { label: "Async Rust", note: "futures, executors, pinning" },
+  ],
+};
+
 const diagnosticQuestionObj = {
   nodeId: "n3",
   q: "What binds to what?",
@@ -74,12 +92,18 @@ let emptyStream = false;
  *  critique to the single-shot fallback. */
 let truncateJudge = false;
 
+/** Set to make the map answer "too broad" (#30) on both paths. */
+let tooBroad = false;
+
 const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
 
 /** Which sequence of top-level objects a given prompt is asking for. */
 function objectsFor(prompt: string): unknown[] {
   if (prompt.includes("Socratic questioning session")) return [0, 1, 2, 3].map(socraticStep);
   if (prompt.includes("Feynman teach-back")) return [0, 1, 2, 3].map(feynmanBeat);
+  // Only the streamed map prompt asks for concepts in prerequisite order; the
+  // single-shot one asks for one wrapping {nodes, edges} object.
+  if (prompt.includes("prerequisite order:")) return tooBroad ? [scopeObj] : conceptObjs;
   if (isJudge(prompt))
     return [{ quality: "near" }, { quality: "near", response: "the streamed critique" }];
   return [{}];
@@ -99,8 +123,8 @@ beforeAll(async () => {
     const objects = objectsFor(prompt);
 
     // The single-shot fallback path every streaming generator drops to — and
-    // the only path `generateMap`/`generateDiagnosticQuestion` ever take,
-    // since neither streams.
+    // the only path `generateDiagnosticQuestion` ever takes, since it doesn't
+    // stream. `generateMap` reaches it as `generateMapStream`'s fallback.
     if (!parsed.stream) {
       const wrapped = isJudge(prompt)
         ? { quality: "near", response: "the retried critique" }
@@ -109,7 +133,7 @@ beforeAll(async () => {
         : prompt.includes("Feynman")
           ? { beats: objects }
           : prompt.includes("prerequisite concept map")
-            ? graphObj
+            ? (tooBroad ? scopeObj : graphObj)
             : prompt.includes("Write ONE placement question")
               ? diagnosticQuestionObj
               : objects[0];
@@ -156,26 +180,29 @@ async function drain(gen: AsyncGenerator<{ p: string; i?: number; v: unknown }>)
 describe("curriculum map + adaptive placement, split prompts", () => {
   it("generates the map on its own — no bundled diagnostic", async () => {
     const { generateMap } = await import("@/lib/server/generate");
-    const result = await generateMap({ topic: "Rust", goal: "mastery", interests: "" });
+    const result = await generateMap({ topic: "Rust", goal: "mastery" });
 
-    if ("scopes" in result) throw new Error("expected a graph, not scope offers");
+    if ("scopes" in result) throw new Error("expected a map, not scope offers");
     // Layout is computed server-side, never trusted from the model.
-    expect(result.graph.nodes).toHaveLength(12);
-    expect(result.graph.nodes[0].state).toBe("unknown");
-    expect(typeof result.graph.nodes[0].x).toBe("number");
+    expect(result.nodes).toHaveLength(12);
+    expect(result.nodes[0].state).toBe("unknown");
+    expect(typeof result.nodes[0].x).toBe("number");
+    // Edges travel on the nodes, so a partial list is still a real graph.
+    expect(result.nodes[0].prereqs).toEqual([]);
+    expect(result.nodes[1].prereqs).toEqual(["n0"]);
     expect("diagnostic" in result).toBe(false);
   });
 
   it("asks one objective placement question at the requested difficulty", async () => {
     const { generateMap, generateDiagnosticQuestion } = await import("@/lib/server/generate");
-    const map = await generateMap({ topic: "Rust", goal: "mastery", interests: "" });
-    if ("scopes" in map) throw new Error("expected a graph, not scope offers");
+    const map = await generateMap({ topic: "Rust", goal: "mastery" });
+    if ("scopes" in map) throw new Error("expected a map, not scope offers");
 
     const question = await generateDiagnosticQuestion({
       topic: "Rust",
       goal: "mastery",
       interests: "",
-      nodeCandidates: map.graph.nodes.map((n) => ({ id: n.id, label: n.label })),
+      nodeCandidates: map.nodes.map((n) => ({ id: n.id, label: n.label })),
       difficulty: "medium",
       index: 0,
     });
@@ -194,6 +221,73 @@ describe("curriculum map + adaptive placement, split prompts", () => {
       dx: -85,
       dy: 148,
     });
+  });
+
+  it("streams the map a concept at a time, then settles the layout", async () => {
+    const { generateMapStream } = await import("@/lib/server/generate");
+    const frames = await drain(generateMapStream({ topic: "Rust", goal: "mastery" }));
+
+    const nodes = frames.filter((f) => f.p === "nodes");
+    // 12 as written, then 12 again in the settling pass that re-centres each
+    // column now its height is known — same slots, so assembly folds them.
+    expect(nodes).toHaveLength(24);
+    expect(nodes.slice(0, 12).map((f) => f.i)).toEqual([...Array(12).keys()]);
+    expect(nodes.slice(12).map((f) => f.i)).toEqual([...Array(12).keys()]);
+
+    // The whole claim: the first concept is on screen long before the last is
+    // written, rather than the map landing in one piece at the end.
+    expect(nodes[0].at).toBeLessThan(nodes[11].at / 2);
+
+    // Layout is the server's, and a node arrives already placed.
+    const first = nodes[0].v as { id: string; x: number; g: number; prereqs: string[] };
+    expect(first.id).toBe("n0");
+    expect(first.g).toBe(1);
+    expect(typeof first.x).toBe("number");
+    expect(first.prereqs).toEqual([]);
+  });
+
+  it("assembles into exactly what the single-shot pass would have returned", async () => {
+    // The round-trip that makes streaming safe to cache: /api/generate writes
+    // the assembled payload under the job's normal key, so a streamed map and
+    // a generated-in-one-piece map must be indistinguishable to `content_cache`.
+    const { generateMap, generateMapStream } = await import("@/lib/server/generate");
+    const { framesToPayload } = await import("@/lib/server/stream");
+    const { resolveJob } = await import("@/lib/server/job");
+
+    const shape = resolveJob({ kind: "curriculum", topic: "Rust", goal: "mastery" }).shape!;
+    const frames = await drain(generateMapStream({ topic: "Rust", goal: "mastery" }));
+    const assembled = framesToPayload(
+      frames.map(({ p, i, v }) => (i === undefined ? { p, v } : { p, i, v })),
+      shape,
+    );
+
+    expect(assembled).toEqual(await generateMap({ topic: "Rust", goal: "mastery" }));
+  });
+
+  it("streams scope offers for a too-broad topic, and nothing else (#30)", async () => {
+    const { generateMapStream } = await import("@/lib/server/generate");
+    tooBroad = true;
+    try {
+      const frames = await drain(generateMapStream({ topic: "Science", goal: "mastery" }));
+      expect(frames.map((f) => f.p)).toEqual(["scopes", "scopes"]);
+      expect((frames[0].v as { label: string }).label).toBe("Ownership And Borrowing");
+    } finally {
+      tooBroad = false;
+    }
+  });
+
+  it("falls back to the single-shot map when its stream is unusable", async () => {
+    const { generateMapStream } = await import("@/lib/server/generate");
+    breakStream = true;
+    try {
+      const frames = await drain(generateMapStream({ topic: "Rust", goal: "mastery" }));
+      // The learner still gets a complete map — it just arrives at once, from
+      // the retried path, instead of concept by concept.
+      expect(frames).toHaveLength(12);
+      expect(frames.map((f) => f.i)).toEqual([...Array(12).keys()]);
+    } finally {
+      breakStream = false;
+    }
   });
 
   it("falls back to the single-shot path when the stream is unusable", async () => {

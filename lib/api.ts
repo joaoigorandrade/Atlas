@@ -3,7 +3,6 @@
 // toasts.
 
 import type {
-  ConceptGraph,
   ConsumeChunk,
   CrucibleContent,
   DiagnosticDifficulty,
@@ -11,14 +10,15 @@ import type {
   ElaborationContent,
   FeynmanBeat,
   GoalKind,
+  MapNode,
   RetainContent,
   SocraticStep,
 } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 
 /** Options every content fetcher accepts. `prefetch` marks a background warm:
- *  the server may decline it (204) to keep quota for what the learner asks for
- *  by hand, and the caller treats that as a silent no-op. */
+ *  a warm that fails comes back as a silent 204 rather than an error, since
+ *  nobody is watching it, and the caller treats that as a no-op. */
 export interface FetchOpts {
   prefetch?: boolean;
 }
@@ -72,8 +72,12 @@ export async function fetchCachedContent(
   }
 }
 
+/** The map on the wire: a flat list of laid-out nodes, each carrying its own
+ *  prerequisites. `graphFromMapNodes` turns it into a `ConceptGraph` — and does
+ *  so meaningfully over a *partial* list, which is what lets the canvas paint
+ *  mid-stream. */
 export interface CurriculumMapPayload {
-  graph: ConceptGraph;
+  nodes: MapNode[];
 }
 
 /** Too-broad topics come back as scoped sub-map offers instead of a map (#30). */
@@ -87,22 +91,38 @@ export type CurriculumMapResult = CurriculumMapPayload | { scopes: ScopeOffer[] 
 export interface CurriculumParams {
   topic: string;
   goal: GoalKind;
-  interests: string;
   outline?: string;
   language?: Language;
 }
 
 /**
- * The onboarding build's first call: the map alone, nothing else — this is
- * the one generation in the app that can never be warmed, since the node ids
- * don't exist until it returns, so the map is asked for on its own to reach
- * the screen as fast as possible. The placement questions follow one at a
- * time through `fetchDiagnosticQuestion` once the learner is looking at it.
+ * The onboarding build's only blocking call, streamed one concept at a time.
+ *
+ * This is the one generation in the app that can never be warmed — the node
+ * ids don't exist until it returns — so it is also the only one where the
+ * learner watches the decode happen. `onNodes` fires per concept with every
+ * node so far, so `build()` can paint a real (if partial) map instead of
+ * waiting on the last edge of the last node.
+ *
+ * A node can arrive twice: once as it is written, and again in the settling
+ * pass that re-centres each column now that its height is known. `collectFrames`
+ * replaces by index, so the second arrival patches the first.
  */
-export function fetchCurriculumMap(
+export async function fetchCurriculumMapStream(
   params: CurriculumParams,
+  onNodes: (nodes: MapNode[]) => void,
 ): Promise<CurriculumMapResult> {
-  return post<CurriculumMapResult>({ kind: "curriculum", ...params });
+  // Replace by index, never append — the settling pass re-sends slots that
+  // already landed, and a fresh array each time is what React re-renders on.
+  const live: MapNode[] = [];
+  const frames = await fetchStream({ kind: "curriculum", ...params }, (frame) => {
+    if (frame.p !== "nodes" || !("i" in frame)) return;
+    live[frame.i] = frame.v as MapNode;
+    onNodes(live.filter((n) => n !== undefined));
+  });
+  const scopes = collectFrames<ScopeOffer>(frames, "scopes");
+  if (scopes.length > 0) return { scopes };
+  return { nodes: collectFrames<MapNode>(frames, "nodes") };
 }
 
 export interface DiagnosticQuestionParams {
