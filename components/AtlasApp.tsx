@@ -892,15 +892,23 @@ export default function AtlasApp({
         setDiagnostic([]);
         setBuildNote(`placement question 1 of ${DIAGNOSTIC_COUNT}`);
 
-        return fetchDiagnosticQuestion({
-          topic,
-          goal: formRef.current.goal,
-          interests: formRef.current.interests,
-          language: languageRef.current,
-          pool: graph.nodes.map((n) => ({ id: n.id, label: n.label })),
-          difficulty: nextDifficultyRef.current,
-          index: 0,
-        })
+        const askFirstQuestion = () =>
+          fetchDiagnosticQuestion({
+            topic,
+            goal: formRef.current.goal,
+            interests: formRef.current.interests,
+            language: languageRef.current,
+            pool: graph.nodes.map((n) => ({ id: n.id, label: n.label })),
+            difficulty: nextDifficultyRef.current,
+            index: 0,
+          });
+
+        // This call is never cached (unlike every other generation, its node
+        // ids don't exist until the map above resolves), so it fails more
+        // often than a warmed call would — one retry before giving up on
+        // the learner's very first question.
+        return askFirstQuestion()
+          .catch(askFirstQuestion)
           .then((question) => {
             setDiagnostic([question]);
             later(() => {
@@ -908,10 +916,11 @@ export default function AtlasApp({
               setAnswered(0);
             }, openAt());
           })
-          .catch(() => {
+          .catch((err: Error) => {
             // Placement is a nice-to-have; the map is the product, so open it
             // rather than failing a build the learner already watched
-            // assemble.
+            // assemble — but say so, instead of silently skipping the step.
+            showToast(err.message, "Placement skipped");
             later(() => setScreen("map"), openAt());
           });
       })
