@@ -33,12 +33,6 @@ const BASE_URL =
 const REQUEST_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 90_000);
 const FIRST_TOKEN_MS = Number(process.env.OPENROUTER_FIRST_TOKEN_MS || 25_000);
 
-/** Output cap for judge calls — a verdict plus a few sentences, never prose.
- *  Content generations stay uncapped: they legitimately run to thousands of
- *  tokens, and truncating one mid-JSON just fails validation. `REQUEST_MS` is
- *  what bounds those. */
-const JUDGE_MAX_TOKENS = Number(process.env.OPENROUTER_JUDGE_MAX_TOKENS || 1200);
-
 /** User-facing copy for transient upstream failures — never raw provider JSON. */
 const BUSY_MESSAGE = "The writer is busy — try again in a moment.";
 
@@ -85,7 +79,6 @@ async function chatOnce(
   model: string,
   messages: ChatMessage[],
   key: string,
-  maxTokens?: number,
 ): Promise<ChatResult> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -101,7 +94,6 @@ async function chatOnce(
       model,
       messages,
       temperature: 0.6,
-      ...(maxTokens ? { max_tokens: maxTokens } : null),
       // Most cheap models honor this; models that don't still get the
       // "JSON only" instruction in the system prompt.
       response_format: { type: "json_object" },
@@ -138,12 +130,7 @@ async function chat(messages: ChatMessage[], role: ModelRole): Promise<ChatResul
   for (const model of modelChain(role)) {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
       try {
-        return await chatOnce(
-          model,
-          messages,
-          key,
-          role === "judge" ? JUDGE_MAX_TOKENS : undefined,
-        );
+        return await chatOnce(model, messages, key);
       } catch (err) {
         const status = err instanceof OpenRouterError ? err.status : 0;
         // Key/billing problems: no retry, no fallback, no friendly mask.
@@ -252,7 +239,6 @@ async function* chatStreamOnce(
   messages: ChatMessage[],
   key: string,
   onFirstToken?: () => void,
-  maxTokens?: number,
 ): AsyncGenerator<string> {
   // Two deadlines on one controller: the silence before the first token, and
   // the call as a whole. Whichever fires first aborts the fetch, and the
@@ -292,7 +278,6 @@ async function* chatStreamOnce(
         model,
         messages,
         temperature: 0.6,
-        ...(maxTokens ? { max_tokens: maxTokens } : null),
         stream: true,
       }),
     }).catch(failed);
@@ -386,12 +371,12 @@ export function extractCompleteObjects(buf: string): { objects: string[]; rest: 
 export async function* streamJsonObjects<T>(
   messages: ChatMessage[],
   validate: (raw: unknown, index: number) => T,
-  opts: { label?: string; role?: ModelRole; maxTokens?: number } = {},
+  opts: { label?: string; role?: ModelRole } = {},
 ): AsyncGenerator<T> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key)
     throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
-  const { label = "unlabeled", role = "content", maxTokens } = opts;
+  const { label = "unlabeled", role = "content" } = opts;
   const model = modelChain(role)[0];
   const started = Date.now();
   let firstTokenMs: number | null = null;
@@ -402,15 +387,9 @@ export async function* streamJsonObjects<T>(
   // mid-iteration (which calls the generator's `return`).
   let outcome: StreamOutcome = "abandoned";
   try {
-    for await (const delta of chatStreamOnce(
-      model,
-      messages,
-      key,
-      () => {
-        firstTokenMs = Date.now() - started;
-      },
-      maxTokens,
-    )) {
+    for await (const delta of chatStreamOnce(model, messages, key, () => {
+      firstTokenMs = Date.now() - started;
+    })) {
       buf += delta;
       const { objects, rest } = extractCompleteObjects(buf);
       buf = rest;

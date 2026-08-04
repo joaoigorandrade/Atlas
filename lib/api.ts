@@ -17,8 +17,8 @@ import type {
 import type { Language } from "@/lib/i18n";
 
 /** Options every content fetcher accepts. `prefetch` marks a background warm:
- *  the server may decline it (204) to keep quota for what the learner asks for
- *  by hand, and the caller treats that as a silent no-op. */
+ *  a warm that fails comes back as a silent 204 rather than an error, since
+ *  nobody is watching it, and the caller treats that as a no-op. */
 export interface FetchOpts {
   prefetch?: boolean;
 }

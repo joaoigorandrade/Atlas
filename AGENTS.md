@@ -112,13 +112,14 @@ kind, where latency is dominated by sequential output decoding:
   session as soon as the learner answers the first item.
 - **`after()`** (`app/api/generate/route.ts`) warms the new map's frontier
   server-side once the build response has flushed, so the first node click is a
-  cache hit. It charges through the same `chargeGeneration` helper as everything
-  else.
+  cache hit. It records through the same `logGenerationCalls` helper as
+  everything else.
 
-Quota accounting follows the split: `generation_log` rows are *model calls*
-(the monthly ceiling, which tracks spend), while `job_id` groups them into
-*jobs* (the per-learner daily quota — a learner's fair share of surfaces). A
-job that fans out declares `Job.cost`.
+Generation is unmetered — no per-user quota, no monthly spend ceiling, no
+`max_tokens` on model calls. `generation_log` survives as observability only:
+rows are *model calls* (what tracks spend), and `job_id` groups them into
+*jobs* (the surfaces a learner asked for). A job that fans out declares
+`Job.cost`, which is how many rows it writes.
 
 ## Auth & persistence (Supabase)
 
