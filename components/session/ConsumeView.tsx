@@ -636,7 +636,11 @@ export default function ConsumeView({
               lineHeight: 1.55,
             }}
           >
-            {t.intro(chunks.length)}{" "}
+            {/* While still streaming, `chunks.length` is a running count, not
+                the pass's final section count — fall back to the no-count
+                phrasing rather than announcing a number that's about to
+                change. */}
+            {t.intro(streaming ? 0 : chunks.length)}{" "}
             {t.introTail}
           </p>
 

@@ -901,15 +901,21 @@ export default function AtlasApp({
      *  overlap instead of queueing. */
     let question1: Promise<DiagnosticQuestion> | null = null;
     const askQuestion1 = (pool: Array<{ id: string; label: string }>) => {
-      const pending = fetchDiagnosticQuestion({
-        topic,
-        goal: formRef.current.goal,
-        interests: formRef.current.interests,
-        language: languageRef.current,
-        pool,
-        difficulty: nextDifficultyRef.current,
-        index: 0,
-      });
+      const fetchOne = () =>
+        fetchDiagnosticQuestion({
+          topic,
+          goal: formRef.current.goal,
+          interests: formRef.current.interests,
+          language: languageRef.current,
+          pool,
+          difficulty: nextDifficultyRef.current,
+          index: 0,
+        });
+      // This call is never cached (unlike every other generation, its node
+      // ids don't exist until the map above resolves), so it fails more
+      // often than a warmed call would — one retry before giving up on the
+      // learner's very first question.
+      const pending = fetchOne().catch(fetchOne);
       // Nothing awaits this until the map finishes; without a handler now, a
       // rejection in between is an unhandled rejection. The real handling is
       // on the awaited copy below.
@@ -955,11 +961,13 @@ export default function AtlasApp({
               setAnswered(0);
             }, openAt());
           })
-          .catch(() => {
+          .catch((err: Error) => {
             // Placement is a nice-to-have; the map is the product, so open it
             // rather than failing a build the learner already watched
-            // assemble.
-            if (current()) later(() => setScreen("map"), openAt());
+            // assemble — but say so, instead of silently skipping the step.
+            if (!current()) return;
+            showToast(err.message, "Placement skipped");
+            later(() => setScreen("map"), openAt());
           });
       })
       .catch((err: Error) => {
@@ -1231,14 +1239,20 @@ export default function AtlasApp({
     [showToast, warm],
   );
 
-  /** Direct (solid-edge) prerequisite labels of a node — grounds the prompts. */
-  const prereqLabelsOf = useCallback((nodeId: string): string[] => {
+  /** Direct (solid-edge) prerequisite nodes of a node. */
+  const prereqNodesOf = useCallback((nodeId: string): ConceptNode[] => {
     const g = graphRef.current;
     return g.edges
       .filter(([, to, dashed]) => to === nodeId && !dashed)
-      .map(([from]) => g.nodes.find((n) => n.id === from)?.label)
-      .filter((l): l is string => !!l);
+      .map(([from]) => g.nodes.find((n) => n.id === from))
+      .filter((n): n is ConceptNode => !!n);
   }, []);
+
+  /** Direct (solid-edge) prerequisite labels of a node — grounds the prompts. */
+  const prereqLabelsOf = useCallback(
+    (nodeId: string): string[] => prereqNodesOf(nodeId).map((n) => n.label),
+    [prereqNodesOf],
+  );
 
   /** Labels the learner has actually learned — context for transfer problems. */
   const learnedLabels = useCallback((): string[] => {
@@ -2557,22 +2571,27 @@ export default function AtlasApp({
 
   const consumeSkipCrucible = useCallback(() => {
     const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
-    setScreen("map");
     setConsume(null);
-    showToast(
-      `Diagnostic overshoot — skipping ahead to the Crucible for ${node?.label ?? "this node"}`,
-      "Fast-forward",
-    );
-  }, [consume, showToast]);
+    if (node) enterCrucible(node);
+    else setScreen("map");
+  }, [consume, enterCrucible]);
 
+  /** "Review prerequisite" — routes to the weakest direct prereq (shaky over
+   *  merely learning) via the same session each state opens from the map. */
   const consumeRoutePrereq = useCallback(() => {
-    setScreen("map");
+    const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
     setConsume(null);
-    showToast(
-      "Routing to a prerequisite — an earlier concept looks shaky",
-      "Map updated",
-    );
-  }, [showToast]);
+    const prereqs = node ? prereqNodesOf(node.id) : [];
+    const weakest =
+      prereqs.find((n) => statesRef.current[n.id] === "shaky") ??
+      prereqs.find((n) => statesRef.current[n.id] === "learning");
+    if (!weakest) {
+      setScreen("map");
+      return;
+    }
+    if (statesRef.current[weakest.id] === "shaky") enterCrucible(weakest);
+    else enterFeynman(weakest);
+  }, [consume, enterCrucible, enterFeynman, prereqNodesOf]);
 
   const onNodeDoubleClick = useCallback(
     (id: string) => {
