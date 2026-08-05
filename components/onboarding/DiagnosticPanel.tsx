@@ -1,13 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import type { DiagnosticDifficulty, DiagnosticQuestion } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
+import { InkDots, InkRule } from "@/components/Pending";
 
 const STRINGS = {
   en: {
     kicker: "Placement · adaptive",
     writing: "Writing the next question…",
+    right: "Correct",
+    wrong: "Not quite",
+    rightWhy: (tag: string) => `${tag} and everything under it is marked known.`,
+    wrongWhy: (tag: string) => `We'll fit ${tag} into your map.`,
+    answerWas: "The answer:",
+    next: "Next question →",
+    finish: "See your map →",
     readyTitle: "Your map is ready.",
     readyBody:
       "We pruned what you already own and lit your frontier — the concepts you’re ready to learn next.",
@@ -20,6 +29,13 @@ const STRINGS = {
   "pt-BR": {
     kicker: "Nivelamento · adaptativo",
     writing: "Escrevendo a próxima pergunta…",
+    right: "Correto",
+    wrong: "Quase lá",
+    rightWhy: (tag: string) => `${tag} e tudo abaixo dele foi marcado como sabido.`,
+    wrongWhy: (tag: string) => `Vamos encaixar ${tag} no seu mapa.`,
+    answerWas: "A resposta:",
+    next: "Próxima pergunta →",
+    finish: "Ver seu mapa →",
     readyTitle: "Seu mapa está pronto.",
     readyBody:
       "Podamos o que você já domina e acendemos sua fronteira — os conceitos que você está pronto para aprender agora.",
@@ -55,11 +71,19 @@ export default function DiagnosticPanel({
   onStart,
 }: DiagnosticPanelProps) {
   const t = useT(STRINGS);
+  // The question just answered, held so its verdict can be read before the
+  // next one replaces it. Cleared by "Next question →".
+  const [picked, setPicked] = useState<{ q: DiagnosticQuestion; index: number } | null>(
+    null,
+  );
   const total = Math.max(expected ?? questions.length, questions.length);
-  const done = answered >= total;
+  const done = answered >= total && !picked;
   // Answered faster than the writer could write: the next question is real and
   // on its way, it just isn't here yet.
   const question: DiagnosticQuestion | undefined = questions[answered];
+  const shown = picked?.q ?? question;
+  const correct = picked ? picked.index === picked.q.correctIndex : false;
+  const readyToAdvance = answered >= total || !!question;
 
   return (
     <div
@@ -94,22 +118,32 @@ export default function DiagnosticPanel({
         ))}
       </div>
 
-      {!done && !question && (
-        <div
-          style={{
-            marginTop: 44,
-            fontFamily: font.mono,
-            fontSize: 12,
-            color: color.inkSoft,
-            animation: "softIn 0.4s both",
-          }}
-        >
-          {t.writing}
+      {!done && !shown && (
+        <div style={{ marginTop: 44, animation: "softIn 0.4s both" }}>
+          <InkRule width="100%" />
+          <div
+            style={{
+              marginTop: 16,
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              fontFamily: font.mono,
+              fontSize: 12,
+              color: color.inkSoft,
+              animation: "breathe 2.2s ease-in-out infinite",
+            }}
+          >
+            {t.writing}
+            <InkDots />
+          </div>
         </div>
       )}
 
-      {!done && question && (
-        <div key={answered} style={{ marginTop: 44, animation: "fadeUp 0.4s both" }}>
+      {!done && shown && (
+        <div
+          key={picked ? `f${answered}` : answered}
+          style={{ marginTop: 44, animation: "fadeUp 0.4s both" }}
+        >
           <div
             style={{
               display: "flex",
@@ -126,7 +160,7 @@ export default function DiagnosticPanel({
                 color: color.amberInk,
               }}
             >
-              {question.tag}
+              {shown.tag}
             </div>
             <div
               style={{
@@ -140,7 +174,7 @@ export default function DiagnosticPanel({
                 border: `1px solid ${color.hairline}`,
               }}
             >
-              {t.difficulty[question.difficulty]}
+              {t.difficulty[shown.difficulty]}
             </div>
           </div>
           <div
@@ -151,42 +185,68 @@ export default function DiagnosticPanel({
               marginBottom: 30,
             }}
           >
-            {question.q}
+            {shown.q}
           </div>
           <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-            {question.opts.map((opt, oi) => (
-              <button
-                key={opt.label}
-                role="radio"
-                aria-checked={false}
-                onClick={() => onAnswer(oi)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  textAlign: "left",
-                  padding: "15px 18px",
-                  background: color.card,
-                  border: "1px solid rgba(44,40,35,0.16)",
-                  borderRadius: 11,
-                  fontSize: 15,
-                  color: color.ink,
-                  cursor: "pointer",
-                  transition: "border-color .15s, background .15s",
-                }}
-              >
-                <span
-                  style={{
-                    flexShrink: 0,
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    border: `1.5px solid ${color.hairlineStrong}`,
+            {shown.opts.map((opt, oi) => {
+              const isAnswer = picked && oi === shown.correctIndex;
+              const isWrongPick = picked && oi === picked.index && !correct;
+              return (
+                <button
+                  key={opt.label}
+                  role="radio"
+                  aria-checked={picked ? oi === picked.index : false}
+                  disabled={!!picked}
+                  onClick={() => {
+                    setPicked({ q: shown, index: oi });
+                    onAnswer(oi);
                   }}
-                />
-                {opt.label}
-              </button>
-            ))}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    textAlign: "left",
+                    padding: "15px 18px",
+                    background: isAnswer
+                      ? color.successBg
+                      : isWrongPick
+                        ? color.amberBg
+                        : color.card,
+                    border: `1px solid ${
+                      isAnswer
+                        ? color.accent
+                        : isWrongPick
+                          ? color.amberInk
+                          : "rgba(44,40,35,0.16)"
+                    }`,
+                    borderRadius: 11,
+                    fontSize: 15,
+                    color: color.ink,
+                    opacity: picked && !isAnswer && !isWrongPick ? 0.5 : 1,
+                    cursor: picked ? "default" : "pointer",
+                    transition: "border-color .2s, background .2s, opacity .2s",
+                  }}
+                >
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      width: 16,
+                      height: 16,
+                      borderRadius: "50%",
+                      border: `1.5px solid ${
+                        isAnswer
+                          ? color.accent
+                          : isWrongPick
+                            ? color.amberInk
+                            : color.hairlineStrong
+                      }`,
+                      background: isAnswer ? color.accent : "transparent",
+                    }}
+                  />
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
           <div
             style={{
@@ -196,8 +256,61 @@ export default function DiagnosticPanel({
               lineHeight: 1.5,
             }}
           >
-            {question.note}
+            {shown.note}
           </div>
+
+          {picked && (
+            <div style={{ marginTop: 22, animation: "fadeUp 0.35s both" }}>
+              <div
+                style={{
+                  fontFamily: font.mono,
+                  fontSize: 12,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: correct ? color.accent : color.amberInk,
+                  marginBottom: 6,
+                }}
+              >
+                {correct ? t.right : t.wrong}
+              </div>
+              <div style={{ fontSize: 14, color: color.inkMuted, lineHeight: 1.55 }}>
+                {!correct && (
+                  <>
+                    {t.answerWas} {shown.opts[shown.correctIndex]?.label}
+                    <br />
+                  </>
+                )}
+                {correct ? t.rightWhy(shown.tag) : t.wrongWhy(shown.tag)}
+              </div>
+              <button
+                onClick={() => setPicked(null)}
+                disabled={!readyToAdvance}
+                style={{
+                  marginTop: 18,
+                  width: "100%",
+                  padding: 14,
+                  background: readyToAdvance ? color.accent : color.chipBg,
+                  color: readyToAdvance ? color.accentInk : color.inkFaint,
+                  border: "none",
+                  borderRadius: 11,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: readyToAdvance ? "pointer" : "default",
+                  transition: "background .25s, color .25s",
+                }}
+              >
+                {readyToAdvance ? (
+                  answered >= total ? (
+                    t.finish
+                  ) : (
+                    t.next
+                  )
+                ) : (
+                  <InkDots tone={color.inkFaint} />
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
