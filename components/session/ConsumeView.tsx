@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import {
   ALT_CONTROLS,
@@ -63,6 +63,11 @@ const STRINGS = {
     readAloud: "Read this section aloud",
     pauseReading: "Pause the reading",
     resumeReading: "Resume the reading",
+    showOriginal: "↺ original",
+    skipSection: "Skip — I know this",
+    showFullSection: "Show full section →",
+    minLeft: (n: number) => (n > 0 ? `~${n} min left` : ""),
+    askFloating: "Ask about this →",
   },
   "pt-BR": {
     back: "← Mapa",
@@ -104,6 +109,11 @@ const STRINGS = {
     readAloud: "Ouvir esta seção",
     pauseReading: "Pausar a leitura",
     resumeReading: "Continuar a leitura",
+    showOriginal: "↺ original",
+    skipSection: "Pular — já sei isso",
+    showFullSection: "Mostrar seção completa →",
+    minLeft: (n: number) => (n > 0 ? `~${n} min restantes` : ""),
+    askFloating: "Perguntar sobre isto →",
   },
 } as const;
 
@@ -124,6 +134,9 @@ export interface ConsumeSession {
   term: string | null;
   /** The chunk whose mini-Socratic aside is open. */
   aside: string | null;
+  /** Sections collapsed to just their takeaway — "I know this bit", short of
+   *  bailing on the whole node. */
+  collapsed: Record<string, boolean>;
 }
 
 interface ConsumeViewProps {
@@ -146,6 +159,7 @@ interface ConsumeViewProps {
   onSetVariant: (chunkId: string, key: AltKey) => void;
   onToggleTerm: (key: string) => void;
   onToggleAside: (chunkId: string) => void;
+  onToggleCollapse: (chunkId: string) => void;
   onSkipCrucible: () => void;
   onRoutePrereq: () => void;
 }
@@ -455,6 +469,7 @@ export default function ConsumeView({
   onSetVariant,
   onToggleTerm,
   onToggleAside,
+  onToggleCollapse,
   onSkipCrucible,
   onRoutePrereq,
 }: ConsumeViewProps) {
@@ -488,16 +503,62 @@ export default function ConsumeView({
   let simpleCount = 0;
   for (const c of chunks) if (session.variant[c.id] === "simpler") simpleCount++;
 
-  // Overshoot correction: the session's one hook was called correctly and the
-  // learner has read to the end → suggest skipping ahead. The header's
-  // "already know this?" is the same escape hatch, available from the start.
+  // Overshoot correction: the session's one hook was called correctly →
+  // surface the skip offer right away instead of making the learner read
+  // four more sections to earn it. The header's "already know this?" is the
+  // same escape hatch, available from the very start regardless.
   const hookAnswer = session.answered[chunks[0]?.id ?? ""];
-  const atEnd = session.idx >= chunks.length - 1 && !streaming;
-  const overshoot = !!hookAnswer?.correct && atEnd;
+  const overshoot = !!hookAnswer?.correct;
   // Missing-prerequisite flag: leaning on "simpler" repeatedly.
   const simpleFlag = simpleCount >= 3;
 
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
+
+  // Honest time-left estimate: word count of what's left, at ~200wpm.
+  // ponytail: while still streaming we don't yet know the pass's true length
+  // (4-6 sections), so the average size of what's landed so far stands in
+  // for sections not yet written — close enough to plan a skim vs. a read.
+  const wordsOf = (c: ConsumeChunk) =>
+    c.body.join(" ").split(/\s+/).filter(Boolean).length +
+    c.example.steps.join(" ").split(/\s+/).filter(Boolean).length;
+  const readWords = chunks
+    .slice(0, session.idx + 1)
+    .reduce((sum, c) => sum + wordsOf(c), 0);
+  const knownWords = chunks.reduce((sum, c) => sum + wordsOf(c), 0);
+  const avgWords = chunks.length ? knownWords / chunks.length : 0;
+  const projectedTotal = streaming ? Math.max(knownWords, avgWords * 5) : knownWords;
+  const minutesLeft = Math.round(Math.max(0, projectedTotal - readWords) / 200);
+
+  // Highlight → ask: a small floating button follows text selection inside
+  // any section's prose, instead of a permanent link under every one of them.
+  const [askHint, setAskHint] = useState<{ chunkId: string; x: number; y: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setAskHint(null);
+        return;
+      }
+      const anchor = sel.anchorNode;
+      const el = anchor instanceof Element ? anchor : anchor?.parentElement;
+      const prose = el?.closest("[data-chunk-id]") as HTMLElement | null;
+      if (!prose) {
+        setAskHint(null);
+        return;
+      }
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      const parentRect = prose.getBoundingClientRect();
+      setAskHint({
+        chunkId: prose.dataset.chunkId!,
+        x: rect.left - parentRect.left + rect.width / 2,
+        y: rect.top - parentRect.top,
+      });
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, []);
 
   return (
     <div
@@ -587,27 +648,55 @@ export default function ConsumeView({
         </button>
       </div>
 
-      {/* Segment progress */}
+      {/* Segment progress — each revealed dot jumps straight to its section,
+          instead of scroll-then-Continue being the only way back to it. */}
       <div
         style={{
           flex: "0 0 auto",
           display: "flex",
-          gap: 6,
+          alignItems: "center",
+          gap: 10,
           padding: "12px 24px 0",
         }}
       >
-        {chunks.map((c, i) => (
-          <div
-            key={c.id}
+        <div style={{ flex: 1, display: "flex", gap: 6 }}>
+          {chunks.map((c, i) => {
+            const reachable = i <= session.idx;
+            return (
+              <div
+                key={c.id}
+                onClick={
+                  reachable
+                    ? () =>
+                        document
+                          .getElementById(c.id)
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    : undefined
+                }
+                style={{
+                  flex: 1,
+                  height: 3,
+                  borderRadius: 2,
+                  background: reachable ? color.accent : "rgba(44,40,35,0.12)",
+                  cursor: reachable ? "pointer" : "default",
+                  transition: "background .3s",
+                }}
+              />
+            );
+          })}
+        </div>
+        {minutesLeft > 0 && (
+          <span
             style={{
-              flex: 1,
-              height: 3,
-              borderRadius: 2,
-              background: i <= session.idx ? color.accent : "rgba(44,40,35,0.12)",
-              transition: "background .3s",
+              flex: "0 0 auto",
+              fontFamily: font.mono,
+              fontSize: 10.5,
+              color: color.inkGhost,
             }}
-          />
-        ))}
+          >
+            {t.minLeft(minutesLeft)}
+          </span>
+        )}
       </div>
 
       {/* Reading column */}
@@ -697,15 +786,18 @@ export default function ConsumeView({
                   ? { text: c.pred.right, color: RIGHT }
                   : { text: c.pred.wrong, color: WRONG }
                 : null;
+            const collapsed = !!session.collapsed[c.id];
 
             return (
               <div
                 key={c.id}
+                id={c.id}
                 style={{
                   marginBottom: 40,
                   paddingBottom: 40,
                   borderBottom: `1px solid rgba(44,40,35,0.08)`,
                   animation: "fadeUp 0.4s both",
+                  scrollMarginTop: 24,
                 }}
               >
                 <div
@@ -727,16 +819,48 @@ export default function ConsumeView({
                   >
                     {c.kicker}
                   </span>
-                  {voiceOn && (
+                  {voiceOn && !collapsed && (
                     <SpeakerButton
                       active={speakingChunk === c.id}
                       paused={reading.paused}
                       onClick={() => toggleReading(c)}
                     />
                   )}
+                  <div style={{ flex: 1 }} />
+                  <button
+                    onClick={() => onToggleCollapse(c.id)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      fontFamily: "inherit",
+                      fontSize: 12,
+                      color: color.inkFaint,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {collapsed ? t.showFullSection : t.skipSection}
+                  </button>
                 </div>
 
+                {collapsed && (
+                  <div
+                    style={{
+                      fontFamily: font.serif,
+                      fontSize: 16,
+                      color: color.inkSoft,
+                      paddingLeft: 14,
+                      borderLeft: `3px solid ${color.hairlineStrong}`,
+                    }}
+                  >
+                    {c.takeaway}
+                  </div>
+                )}
+
                 {/* Pre-taught terms */}
+                {!collapsed && (
+                <>
+
                 {c.terms.length > 0 && (
                   <div
                     style={{
@@ -965,35 +1089,86 @@ export default function ConsumeView({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 300px",
+                    gridTemplateColumns: c.figure ? "1fr 300px" : "1fr",
                     gap: 30,
                     alignItems: "start",
                   }}
                 >
-                  <div>
-                    {c.body.map((para, pi) => {
-                      // Body paragraphs lead the spoken segments, so the
-                      // reading index maps straight onto them.
-                      const spokenNow = speakingChunk === c.id && reading.index === pi;
-                      return (
-                        <p
-                          key={pi}
-                          style={{
-                            fontFamily: font.serif,
-                            fontSize: 19,
-                            lineHeight: 1.68,
-                            margin: "0 -8px 18px",
-                            padding: "2px 8px",
-                            borderRadius: 7,
-                            background: spokenNow ? color.accentBg : "transparent",
-                            transition: "background .25s",
-                            color: color.ink,
-                          }}
-                        >
-                          {para}
-                        </p>
-                      );
-                    })}
+                  <div data-chunk-id={c.id} style={{ position: "relative" }}>
+                    {askHint?.chunkId === c.id && (
+                      <button
+                        onClick={() => {
+                          window.getSelection()?.removeAllRanges();
+                          setAskHint(null);
+                          onToggleAside(c.id);
+                        }}
+                        style={{
+                          position: "absolute",
+                          left: askHint.x,
+                          top: askHint.y - 34,
+                          transform: "translateX(-50%)",
+                          zIndex: 5,
+                          padding: "6px 12px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: color.accent,
+                          color: color.accentInk,
+                          fontSize: 12.5,
+                          fontFamily: "inherit",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {t.askFloating}
+                      </button>
+                    )}
+                    {/* Adaptive modality: the active rewrite REPLACES the prose
+                        it rewrites — it's a different route through the same
+                        material, not a fourth version stacked underneath it.
+                        Tapping the same control again (below) reverts it. */}
+                    {vkey && altText ? (
+                      <div
+                        style={{
+                          fontSize: 15,
+                          lineHeight: 1.62,
+                          color: color.inkSoft,
+                          background: color.chipBg,
+                          borderRadius: 10,
+                          padding: "15px 17px",
+                          whiteSpace: "pre-line",
+                          marginBottom: 18,
+                          animation: "fadeUp .3s both",
+                        }}
+                      >
+                        {altText}
+                      </div>
+                    ) : (
+                      c.body.map((para, pi) => {
+                        // Body paragraphs lead the spoken segments, so the
+                        // reading index maps straight onto them.
+                        const spokenNow = speakingChunk === c.id && reading.index === pi;
+                        return (
+                          <p
+                            key={pi}
+                            style={{
+                              fontFamily: font.serif,
+                              fontSize: 19,
+                              lineHeight: 1.68,
+                              margin: "0 -8px 18px",
+                              padding: "2px 8px",
+                              borderRadius: 7,
+                              background: spokenNow ? color.accentBg : "transparent",
+                              transition: "background .25s",
+                              color: color.ink,
+                            }}
+                          >
+                            {para}
+                          </p>
+                        );
+                      })
+                    )}
 
                     <WorkedExample example={c.example} />
 
@@ -1033,38 +1208,24 @@ export default function ConsumeView({
                       </span>
                     </div>
 
+                    {/* Citation — trust is visible, but it doesn't need its
+                        own bordered block to say so. */}
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        fontSize: 12,
+                        fontSize: 11,
                         color: color.inkFaint,
-                        margin: "18px 0",
+                        margin: "14px 0",
                       }}
                     >
-                      <span
-                        style={{
-                          fontFamily: font.mono,
-                          fontSize: 9,
-                          letterSpacing: "0.08em",
-                          textTransform: "uppercase",
-                          color: color.amberInk,
-                          border: "1px solid rgba(160,106,48,0.3)",
-                          borderRadius: 5,
-                          padding: "1px 6px",
-                        }}
-                      >
-                        {t.source}
-                      </span>
-                      {c.cite}
+                      {t.source} · {c.cite}
                     </div>
 
                     {/* Adaptive-modality rewrites — generated after the
                         reading itself, so on a fresh (uncached) open they
-                        may still be on the way for a few seconds. */}
+                        may still be on the way for a few seconds. Tapping the
+                        active one again reverts to the original prose above. */}
                     {c.alt ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                         {ALT_CONTROLS.map(([key, label]) => {
                           const active = vkey === key;
                           return (
@@ -1084,7 +1245,7 @@ export default function ConsumeView({
                                 color: active ? color.accent : color.inkMuted,
                               }}
                             >
-                              {label}
+                              {active ? t.showOriginal : label}
                             </button>
                           );
                         })}
@@ -1100,41 +1261,11 @@ export default function ConsumeView({
                         {t.rewritesWriting}
                       </div>
                     )}
-                    {altText && (
-                      <div
-                        style={{
-                          marginTop: 11,
-                          fontSize: 15,
-                          lineHeight: 1.62,
-                          color: color.inkSoft,
-                          background: color.chipBg,
-                          borderRadius: 10,
-                          padding: "15px 17px",
-                          whiteSpace: "pre-line",
-                          animation: "fadeUp .3s both",
-                        }}
-                      >
-                        {altText}
-                      </div>
-                    )}
 
-                    {/* Highlight → ask (mini-Socratic aside) */}
+                    {/* Highlight → ask (mini-Socratic aside): the trigger is
+                        the floating button that follows text selection above;
+                        this just holds the answer once it's open. */}
                     <div style={{ marginTop: 16 }}>
-                      <button
-                        onClick={() => onToggleAside(c.id)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          padding: 0,
-                          fontSize: 13,
-                          color: color.accent,
-                          cursor: "pointer",
-                          textDecoration: "underline",
-                          textUnderlineOffset: 3,
-                        }}
-                      >
-                        {t.askAboutPassage}
-                      </button>
                       {session.aside === c.id && (
                         <div
                           style={{
@@ -1167,21 +1298,25 @@ export default function ConsumeView({
                       )}
                     </div>
                   </div>
-                  <div style={{ position: "sticky", top: 12 }}>
-                    {c.figure && <Figure id={c.id} figure={c.figure} />}
-                    <div
-                      style={{
-                        marginTop: 9,
-                        fontFamily: font.mono,
-                        fontSize: 10.5,
-                        lineHeight: 1.45,
-                        color: color.inkFaint,
-                      }}
-                    >
-                      {t.diagramLabel} {c.diagram}
+                  {c.figure && (
+                    <div style={{ position: "sticky", top: 12 }}>
+                      <Figure id={c.id} figure={c.figure} />
+                      <div
+                        style={{
+                          marginTop: 9,
+                          fontFamily: font.mono,
+                          fontSize: 10.5,
+                          lineHeight: 1.45,
+                          color: color.inkFaint,
+                        }}
+                      >
+                        {t.diagramLabel} {c.diagram}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
+                </>
+                )}
 
                 {/* Continue / finish — only on the deepest revealed section */}
                 {isDeepest &&

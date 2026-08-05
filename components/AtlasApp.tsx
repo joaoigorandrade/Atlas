@@ -1536,6 +1536,7 @@ export default function AtlasApp({
           variant: {},
           term: null,
           aside: null,
+          collapsed: {},
         });
         setSelectedId(node.id);
         setScreen("consume");
@@ -1647,6 +1648,19 @@ export default function AtlasApp({
   const consumeToggleAside = useCallback((chunkId: string) => {
     setConsume((prev) =>
       prev ? { ...prev, aside: prev.aside === chunkId ? null : chunkId } : prev,
+    );
+  }, []);
+
+  /** "Skip — I know this" on one section — collapses it to its takeaway,
+   *  short of bailing on the whole node the way header's "I know this" does. */
+  const consumeToggleCollapse = useCallback((chunkId: string) => {
+    setConsume((prev) =>
+      prev
+        ? {
+            ...prev,
+            collapsed: { ...prev.collapsed, [chunkId]: !prev.collapsed[chunkId] },
+          }
+        : prev,
     );
   }, []);
 
@@ -3344,6 +3358,7 @@ export default function AtlasApp({
           onSetVariant={consumeSetVariant}
           onToggleTerm={consumeToggleTerm}
           onToggleAside={consumeToggleAside}
+          onToggleCollapse={consumeToggleCollapse}
           onSkipCrucible={consumeSkipCrucible}
           onRoutePrereq={consumeRoutePrereq}
         />
