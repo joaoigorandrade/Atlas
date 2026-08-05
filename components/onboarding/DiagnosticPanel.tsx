@@ -75,6 +75,7 @@ export default function DiagnosticPanel({
         padding: "52px 44px",
         display: "flex",
         flexDirection: "column",
+        overflowY: "auto",
         animation: "softIn 0.4s both",
       }}
     >
