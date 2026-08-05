@@ -34,8 +34,10 @@ const CONSUME_SECTION_CORE = `      "kicker": "1 · What it is",                
       },
       "takeaway": "the one sentence to carry out of this section",
       "cite": "a real canonical source (book §, lecture series chapter) — never invent one",
-      "diagram": "one-line caption for the figure below",
-      "figure": {                                          // the figure itself, specific to THIS section — never a generic placeholder
+      "diagram": "one-line caption for the figure below, OMIT (with figure) if this section isn't structural",
+      "figure": {                                          // OMIT both "diagram" and "figure" entirely when the section is a
+                                                            // definition, a comparison, or anything else that isn't a process,
+                                                            // hierarchy, or relationship — never invent boxes to fill the slot
         "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
         "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
       },

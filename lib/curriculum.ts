@@ -332,10 +332,13 @@ export interface ConsumeChunk {
   takeaway: string;
   /** Source citation — trust is visible; no memorizing hallucinations. */
   cite: string;
-  /** Caption for the diagram beside the prose. */
-  diagram: string;
+  /** Caption for the diagram beside the prose. Absent when the section isn't
+   *  structural enough to earn one — a definition or comparison doesn't need
+   *  an invented box-and-arrow graph. */
+  diagram?: string;
   /** The diagram itself — a small box-and-arrow graph. Absent on chunks
-   *  generated before figures existed; the caption stands alone then. */
+   *  generated before figures existed, or when the content wasn't diagram-
+   *  shaped; the prose gets the full column back either way. */
   figure?: ConsumeFigure;
   /** The mini-Socratic aside opened from "ask about this passage". */
   ask: string;

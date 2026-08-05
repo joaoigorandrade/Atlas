@@ -676,6 +676,9 @@ function validatePrediction(raw: unknown, name: string): ConsumePrediction {
 function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
   const c = obj(raw, `chunks[${i}]`);
   const ex = obj(c.example, `chunks[${i}].example`);
+  // The model omits both together when a section isn't structural — a
+  // definition or comparison doesn't get an invented box-and-arrow graph.
+  const hasFigure = c.figure != null;
   return {
     id: `c${i + 1}`,
     kicker: str(c.kicker, `chunks[${i}].kicker`),
@@ -697,8 +700,8 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
     },
     takeaway: str(c.takeaway, `chunks[${i}].takeaway`),
     cite: str(c.cite, `chunks[${i}].cite`),
-    diagram: str(c.diagram, `chunks[${i}].diagram`),
-    figure: validateFigure(c.figure, `chunks[${i}].figure`),
+    diagram: hasFigure ? str(c.diagram, `chunks[${i}].diagram`) : undefined,
+    figure: hasFigure ? validateFigure(c.figure, `chunks[${i}].figure`) : undefined,
     ask: str(c.ask, `chunks[${i}].ask`),
     // One hook for the whole session, on the opening section. A prediction
     // the model volunteers anywhere else is dropped: Consume reads, it
