@@ -15,6 +15,7 @@ import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
+import Rich from "@/components/Rich";
 // Connect owns the violet accent; candidate dots borrow mastered green (they're
 // the learner's already-owned nodes), and the confirmed-link check reads green.
 const VIOLET = CONNECT_COLOR.accent;
@@ -190,7 +191,7 @@ export default function ConnectView({
           {t.sessionConnect}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>
-          {content.centerLabel}
+          <Rich text={content.centerLabel} />
         </div>
         <div style={{ flex: 1 }} />
         <span
@@ -341,7 +342,7 @@ export default function ConnectView({
                         color: color.ink,
                       }}
                     >
-                      {c.front}
+                      <Rich text={c.front} />
                     </div>
                     <div
                       style={{
@@ -352,7 +353,7 @@ export default function ConnectView({
                         color: color.inkSoft,
                       }}
                     >
-                      {c.back}
+                      <Rich text={c.back} />
                     </div>
                   </div>
                 ))}
@@ -766,7 +767,7 @@ function EncodingMethod({
           marginBottom: 12,
         }}
       >
-        {content.detectNote}
+        <Rich text={content.detectNote} />
       </div>
 
       {listLike ? (
@@ -796,7 +797,7 @@ function EncodingMethod({
                   textDecoration: "line-through",
                 }}
               >
-                {m}
+                <Rich text={m} />
               </span>
             ))}
           </div>

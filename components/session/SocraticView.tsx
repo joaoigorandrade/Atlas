@@ -15,6 +15,7 @@ import { MicButton } from "@/components/VoiceInput";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
+import Rich from "@/components/Rich";
 const STRINGS = {
   en: {
     back: "← Map",
@@ -454,7 +455,7 @@ function Turn({ turn }: { turn: SocraticTurn }) {
             animation: "fadeUp .25s both",
           }}
         >
-          {turn.text}
+          <Rich text={turn.text} />
         </div>
       </div>
     );

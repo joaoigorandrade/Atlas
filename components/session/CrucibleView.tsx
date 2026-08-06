@@ -17,6 +17,7 @@ import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
+import Rich from "@/components/Rich";
 // The Crucible owns the deep-rust accent; the transfer diagnostic borrows the
 // shared mastered-green / gap-red so a carried-over sub-concept reads the same
 // here as it does on the map.
@@ -204,7 +205,7 @@ export default function CrucibleView({
           {t.sessionCrucible}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>
-          {content.centerLabel}
+          <Rich text={content.centerLabel} />
         </div>
         <div style={{ flex: 1 }} />
         <span
@@ -475,7 +476,7 @@ function Problem({ problem }: { problem: NonNullable<ReturnType<typeof crucibleP
           marginBottom: 16,
         }}
       >
-        {problem.q}
+        <Rich text={problem.q} />
       </div>
       <div
         style={{
@@ -586,7 +587,7 @@ function Diagnostic({
           {t.kickerConfidenceVsResult}
         </div>
         <div style={{ fontSize: 14, lineHeight: 1.6, color: color.inkSoft }}>
-          {calib}
+          <Rich text={calib} />
         </div>
       </div>
 
@@ -695,7 +696,7 @@ function Diagnostic({
                   color: color.ink,
                 }}
               >
-                {content.reExplain}
+                <Rich text={content.reExplain} />
               </div>
             </div>
           )}
@@ -909,7 +910,7 @@ function Sidebar({
           {t.youSaid}
         </div>
         <div style={{ fontFamily: font.serif, fontSize: 18, color: color.ink }}>
-          {confLabel}
+          <Rich text={confLabel} />
         </div>
         <div
           style={{

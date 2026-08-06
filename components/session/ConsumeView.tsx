@@ -21,6 +21,7 @@ import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
+import Rich from "@/components/Rich";
 // Consume is a Learning-phase surface: its accents borrow the shared state
 // colors (learning blue, plus mastered/shaky for right/wrong verdicts).
 const BLUE = STATE_COLOR.learning;
@@ -394,7 +395,7 @@ function Figure({
                 strokeWidth={3}
                 paintOrder="stroke"
               >
-                {e.label}
+                <Rich text={e.label} />
               </text>
             )}
           </g>
@@ -427,7 +428,7 @@ function Figure({
                   x={b.x + b.w / 2}
                   y={b.y + b.h / 2 - ((b.lines.length - 1) * LINE_H) / 2 + li * LINE_H + 3}
                 >
-                  {line}
+                  <Rich text={line} />
                 </tspan>
               ))}
             </text>
@@ -530,7 +531,7 @@ function WorkedExample({ example }: { example: ConsumeExample }) {
         {t.workedExample}
       </div>
       <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-        {example.title}
+        <Rich text={example.title} />
       </div>
       <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
         {example.steps.map((s, i) => (
@@ -555,7 +556,7 @@ function WorkedExample({ example }: { example: ConsumeExample }) {
               {String(i + 1).padStart(2, "0")}
             </span>
             <span style={{ fontSize: 14.5, lineHeight: 1.6, color: color.ink }}>
-              {s}
+              <Rich text={s} />
             </span>
           </li>
         ))}
@@ -733,7 +734,7 @@ function PassagePanel({
                 marginBottom: 10,
               }}
             >
-              {ask.question}
+              <Rich text={ask.question} />
             </div>
           )}
           {ask.parts.map((p, i) => (
@@ -861,7 +862,7 @@ function SectionCheck({
               marginBottom: 6,
             }}
           >
-            {check.q}
+            <Rich text={check.q} />
           </div>
           {!passed && (
             <div
@@ -903,7 +904,7 @@ function SectionCheck({
                     transition: "all .15s",
                   }}
                 >
-                  {o.label}
+                  <Rich text={o.label} />
                 </button>
               );
             })}
@@ -1168,7 +1169,7 @@ function ModelView({
                       marginBottom: 6,
                     }}
                   >
-                    {beat.label}
+                    <Rich text={beat.label} />
                   </div>
                   <div
                     style={{
@@ -1441,7 +1442,7 @@ export default function ConsumeView({
           color: color.inkMuted,
         }}
       >
-        {text}
+        <Rich text={text} />
       </span>
     );
 
@@ -1524,7 +1525,7 @@ export default function ConsumeView({
                       color: color.ink,
                     }}
                   >
-                    {c.takeaway}
+                    <Rich text={c.takeaway} />
                   </span>
                   {session.collapsed[c.id] && (
                     <span
@@ -1912,7 +1913,7 @@ export default function ConsumeView({
                       borderLeft: `3px solid ${color.hairlineStrong}`,
                     }}
                   >
-                    {c.takeaway}
+                    <Rich text={c.takeaway} />
                   </div>
                 )}
 
@@ -1964,7 +1965,7 @@ export default function ConsumeView({
                             >
                               {t.term}
                             </span>
-                            {term.t}
+                            <Rich text={term.t} />
                           </button>
                           {open && (
                             <div
@@ -1981,7 +1982,7 @@ export default function ConsumeView({
                                 animation: "fadeUp .25s both",
                               }}
                             >
-                              {term.d}
+                              <Rich text={term.d} />
                             </div>
                           )}
                         </div>
@@ -2052,7 +2053,7 @@ export default function ConsumeView({
                             color: color.ink,
                           }}
                         >
-                          {para}
+                          <Rich text={para} />
                         </p>
                       );
                     })}
@@ -2091,7 +2092,7 @@ export default function ConsumeView({
                           color: color.ink,
                         }}
                       >
-                        {c.takeaway}
+                        <Rich text={c.takeaway} />
                       </span>
                     </div>
 

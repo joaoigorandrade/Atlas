@@ -20,6 +20,7 @@ import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
+import Rich from "@/components/Rich";
 // Feynman borrows the shared state colors: learning blue for the naive
 // student's curiosity, mastered green for a clean explanation, gap red for a
 // caught error, and the dim unknown grey for a hand-waved skip.
@@ -609,7 +610,7 @@ function Line({ line }: { line: TeachLine }) {
             animation: "fadeUp .25s both",
           }}
         >
-          {line.text}
+          <Rich text={line.text} />
         </div>
       </div>
     );
@@ -744,7 +745,7 @@ function GapReport({
                     }}
                   />
                   <span style={{ fontFamily: font.serif, fontSize: 16, flex: 1 }}>
-                    {b.subPoint}
+                    <Rich text={b.subPoint} />
                   </span>
                   <span
                     style={{
@@ -916,7 +917,7 @@ function FixPass({
           marginBottom: 12,
         }}
       >
-        {beat.fix.probe}
+        <Rich text={beat.fix.probe} />
       </div>
       {mode === "open" ? (
         <OpenAnswer
@@ -973,7 +974,7 @@ function FixPass({
             color: color.ink,
           }}
         >
-          {reaction}
+          <Rich text={reaction} />
         </div>
       )}
       <button

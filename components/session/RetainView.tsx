@@ -26,6 +26,7 @@ import { color, font, kicker } from "@/lib/theme";
 import StreakFlame from "@/components/map/StreakFlame";
 import { useLanguage, useT } from "@/lib/i18n";
 
+import Rich from "@/components/Rich";
 // The micro-Socratic aside borrows Connect's violet; the fail re-explanation
 // borrows the learning-blue and the flagged node the shaky-amber, so each reads
 // the same here as it does on the map.
@@ -536,7 +537,7 @@ function ActiveCard({
               color: color.ink,
             }}
           >
-            {card.cloze[0]}
+            <Rich text={card.cloze[0]} />
             <span
               style={{
                 display: "inline-block",
@@ -552,7 +553,7 @@ function ActiveCard({
                 " "
               )}
             </span>
-            {card.cloze[1]}
+            <Rich text={card.cloze[1]} />
           </div>
         ) : (
           <div
@@ -563,7 +564,7 @@ function ActiveCard({
               color: color.ink,
             }}
           >
-            {card.front}
+            <Rich text={card.front} />
           </div>
         )}
 
@@ -623,7 +624,7 @@ function ActiveCard({
                 fontFamily: font.serif,
               }}
             >
-              {card.back}
+              <Rich text={card.back} />
             </div>
             <button
               onClick={onToggleAside}
@@ -753,7 +754,7 @@ function ActiveCard({
                 color: color.ink,
               }}
             >
-              {card.reExplain}
+              <Rich text={card.reExplain} />
             </div>
           </div>
 

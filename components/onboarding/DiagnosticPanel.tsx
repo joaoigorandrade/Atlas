@@ -5,6 +5,7 @@ import type { DiagnosticDifficulty, DiagnosticQuestion } from "@/lib/curriculum"
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InkDots, InkRule } from "@/components/Pending";
+import Rich from "@/components/Rich";
 
 const STRINGS = {
   en: {
@@ -186,7 +187,7 @@ export default function DiagnosticPanel({
               marginBottom: 30,
             }}
           >
-            {shown.q}
+            <Rich text={shown.q} />
           </div>
           <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 11 }}>
             {shown.opts.map((opt, oi) => {
@@ -244,7 +245,7 @@ export default function DiagnosticPanel({
                       background: isAnswer ? color.accent : "transparent",
                     }}
                   />
-                  {opt.label}
+                  <Rich text={opt.label} />
                 </button>
               );
             })}
@@ -257,7 +258,7 @@ export default function DiagnosticPanel({
               lineHeight: 1.5,
             }}
           >
-            {shown.note}
+            <Rich text={shown.note} />
           </div>
 
           {picked && (
@@ -277,7 +278,7 @@ export default function DiagnosticPanel({
               <div style={{ fontSize: 14, color: color.inkMuted, lineHeight: 1.55 }}>
                 {!correct && (
                   <>
-                    {t.answerWas} {shown.opts[shown.correctIndex]?.label}
+                    {t.answerWas} <Rich text={shown.opts[shown.correctIndex]?.label} />
                     <br />
                   </>
                 )}

@@ -19,6 +19,7 @@ import {
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
+import Rich from "@/components/Rich";
 const STRINGS = {
   en: {
     cta: {
@@ -239,7 +240,7 @@ export default function NodeDetail({
           marginBottom: 22,
         }}
       >
-        {confidenceLine}
+        <Rich text={confidenceLine} />
       </div>
 
       <div style={{ ...kicker(10), marginBottom: 12 }}>{t.phaseSpiral}</div>
