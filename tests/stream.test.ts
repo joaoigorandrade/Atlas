@@ -5,7 +5,10 @@ import {
   type StreamFrame,
   type StreamShape,
 } from "@/lib/server/stream";
-import { consumeSectionShape } from "@/lib/server/generate/shapes";
+import {
+  CONSUME_SECTION_SHAPE,
+  MODEL_BEAT_SHAPE,
+} from "@/lib/server/generate/shapes";
 
 // The assembler is what lets a streamed generation share a cache row with a
 // single-shot one. Two properties matter and nothing else does: a complete set
@@ -100,30 +103,24 @@ describe("payloadToFrames", () => {
   });
 });
 
-describe("consumeSectionShape", () => {
-  // The guard the old regex derivation never had. `CONSUME_SECTION_SHAPE_FAST`
-  // used to be produced by stripping the `alt` block out of the full shape with
-  // a regex; reformatting that block made the strip a silent no-op and the
-  // streaming pass went back to requesting the four rewrites it exists to
-  // defer — no type error, no failing test, just a section that took twice as
-  // long to close.
-  it("omits the adaptive rewrites from the streaming shape", () => {
-    expect(consumeSectionShape(false)).not.toContain('"alt"');
-    expect(consumeSectionShape(false)).not.toContain('"simpler"');
-  });
-
-  it("includes them in the single-shot shape", () => {
-    expect(consumeSectionShape(true)).toContain('"alt"');
-    expect(consumeSectionShape(true)).toContain('"deeper"');
-  });
-
-  it("differs only by the alt block", () => {
-    const core = consumeSectionShape(false).replace(/\s*\}$/, "");
-    expect(consumeSectionShape(true).startsWith(core)).toBe(true);
-  });
-
-  it("still asks for every field the validator requires", () => {
+describe("prompt shapes", () => {
+  // A shape that stops asking for a field the validator requires fails at
+  // generation time, on the model's reply, with nothing in the type system or
+  // the test suite between the two. These are that guard.
+  it("asks for every section field the validator requires", () => {
     for (const field of ["kicker", "body", "example", "takeaway", "cite", "figure", "ask"])
-      expect(consumeSectionShape(false)).toContain(`"${field}"`);
+      expect(CONSUME_SECTION_SHAPE).toContain(`"${field}"`);
+  });
+
+  // The four rewrites the section shape used to carry are the `model` kind
+  // now, generated one lens at a time. A section that asks for them again is
+  // paying for four rewrites per section that nothing renders.
+  it("no longer asks a section for its four rewrites", () => {
+    expect(CONSUME_SECTION_SHAPE).not.toContain('"alt"');
+    expect(CONSUME_SECTION_SHAPE).not.toContain('"simpler"');
+  });
+
+  it("asks for every model-view beat field the validator requires", () => {
+    for (const field of ["label", "text"]) expect(MODEL_BEAT_SHAPE).toContain(`"${field}"`);
   });
 });

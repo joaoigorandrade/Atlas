@@ -121,7 +121,7 @@ Already covered by onboarding + the Map. Ongoing, it's not a separate screen —
 - **Dual-coded:** an auto-generated diagram sits beside the prose for each section.
 - **Pre-taught terms:** key vocabulary is introduced *before* the paragraph that uses it.
 - **Source citations** on every claim — trust is visible; the learner isn't memorizing hallucinations.
-- Inline controls per section: **Simpler · Example · Analogy (from my interests) · Go deeper.** Rewrites on demand.
+- Inline controls per section: **Simpler · Example · Analogy (from my interests) · Go deeper.** Each opens a **model view** on demand — the same material walked through one beat at a time, over the section rather than in place of it. The prose the learner is mid-way through is the last thing that should vanish when they ask for help with it; closing the view lands them back on the paragraph they left.
 
 **The desirable-difficulty mechanic (the *deeper* lever), kept but rationed:**
 - The session opens with **one** prediction ("What do you think happens if…?"). A guess followed by a correction encodes better than reading cold, so the hook is worth having — once. It is **optional**: *"Skip — just teach me"* drops straight into the material, which was never waiting on it. Answered or skipped, the reading below is identical.
@@ -130,13 +130,13 @@ Already covered by onboarding + the Map. Ongoing, it's not a separate screen —
 - Read → continue → read. No answer is required to advance.
 - Optionally take the opening guess; the verdict stays pinned above the section that settles it.
 - Tap any term for its pre-taught definition inline.
-- "Rewrite as: worked example / diagram / analogy" — **adaptive modality**; the app learns which representation lands for this learner and leads with it next time.
+- Open a lens over a section — **adaptive modality**. Beats reveal one at a time (the walkthrough is a sequence, not a wall), and the lens a learner reaches for is warmed on the next section, so it opens instantly the second time.
 - Highlight text → "ask about this" opens a mini-Socratic aside without leaving the view.
 - **"I know this →"** in the header, available from the first second: nobody should have to read past what they already know to prove they know it.
 
 **Exit:** finishing the last section auto-advances to Socratic. Node moves Unknown/Frontier → **Learning**.
 
-**Edge cases:** learner calls the opening prediction correctly and reaches the end → app suggests skipping to Crucible (diagnostic overshoot correction). Learner rewrites everything to "simpler" repeatedly → app flags a missing prerequisite and offers to route there.
+**Edge cases:** learner calls the opening prediction correctly and reaches the end → app suggests skipping to Crucible (diagnostic overshoot correction). Learner opens the "simpler" lens on section after section → app flags a missing prerequisite and offers to route there.
 
 ---
 

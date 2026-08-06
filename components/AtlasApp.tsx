@@ -50,6 +50,7 @@ import {
   type ConnectAction,
   type ConnectSession,
   type ConsumeChunk,
+  type ConsumeModelBeat,
   type CrucibleAction,
   type CrucibleContent,
   type CrucibleSession,
@@ -87,6 +88,8 @@ import {
   fetchCachedContent,
   fetchConnect,
   fetchConsume,
+  fetchConsumeModel,
+  fetchConsumeModelStream,
   fetchConsumeStream,
   fetchCrucible,
   fetchCurriculumMapStream,
@@ -274,6 +277,20 @@ export default function AtlasApp({
     nodeId: string;
     chunks: ConsumeChunk[];
   } | null>(null);
+  // Model views (a lens opened over one section of the reading), keyed by
+  // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
+  // one lens on the section that didn't land, not twenty across the pass.
+  const [modelCache, setModelCache] = useState<Record<string, ConsumeModelBeat[]>>({});
+  // …and the beats of the view currently open, as they stream in. Same
+  // arrangement as `liveConsume`: a half-arrived view must never look cached.
+  const [liveModel, setLiveModel] = useState<{
+    key: string;
+    beats: ConsumeModelBeat[];
+    /** Nothing more is coming — the stream finished, or it failed part-way and
+     *  what landed is all there is. Without it a view that died mid-stream
+     *  would show "still writing…" for as long as the learner left it open. */
+    done?: boolean;
+  } | null>(null);
   // The active Socratic (Phase 3a) session, or null.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
   // Steps of the *current* node's questioning pass as they stream in — same
@@ -383,8 +400,15 @@ export default function AtlasApp({
   socraticRef.current = socratic;
   const feynmanRef = useRef(feynman);
   feynmanRef.current = feynman;
+  const consumeRef = useRef(consume);
+  consumeRef.current = consume;
+  /** The reading pass on screen — committed sections, or the streaming ones
+   *  standing in for them. Assigned once `consumeChunks` is derived, below. */
+  const consumeChunksRef = useRef<ConsumeChunk[]>([]);
   const consumeCacheRef = useRef(consumeCache);
   consumeCacheRef.current = consumeCache;
+  const modelCacheRef = useRef(modelCache);
+  modelCacheRef.current = modelCache;
   const socraticCacheRef = useRef(socraticCache);
   socraticCacheRef.current = socraticCache;
   const feynmanCacheRef = useRef(feynmanCache);
@@ -512,6 +536,7 @@ export default function AtlasApp({
       setAnswered(0);
       setConsume(null);
       setLiveConsume(null);
+      setLiveModel(null);
       setSocratic(null);
       setLiveSocratic(null);
       setFeynman(null);
@@ -520,6 +545,7 @@ export default function AtlasApp({
       setCrucible(null);
       setRetain(null);
       setConsumeCache({});
+      setModelCache({});
       setSocraticCache({});
       setFeynmanCache({});
       setConnectCache({});
@@ -769,6 +795,7 @@ export default function AtlasApp({
           setAnswered(0);
           setConsume(null);
           setLiveConsume(null);
+          setLiveModel(null);
           setSocratic(null);
           setLiveSocratic(null);
           setFeynman(null);
@@ -777,6 +804,7 @@ export default function AtlasApp({
           setCrucible(null);
           setRetain(null);
           setConsumeCache({});
+          setModelCache({});
           setSocraticCache({});
           setFeynmanCache({});
           setConnectCache({});
@@ -952,7 +980,9 @@ export default function AtlasApp({
     setSpawnedIds(new Set());
     pendingGapsRef.current = [];
     setLiveConsume(null);
+    setLiveModel(null);
     setConsumeCache({});
+    setModelCache({});
     setSocraticCache({});
     setFeynmanCache({});
     setConnectCache({});
@@ -1359,6 +1389,28 @@ export default function AtlasApp({
     [prereqLabelsOf],
   );
 
+  /**
+   * One lens over one section, as it sits on screen.
+   *
+   * The section's own prose is an input, not just context: the cache key
+   * hashes it, so every learner reading the same cached section shares the
+   * row — and a walkthrough can never be grafted onto a differently-worded
+   * generation of "the same" section (the reading runs at temperature 0.6).
+   */
+  const modelParams = useCallback(
+    (node: ConceptNode, chunk: ConsumeChunk, lens: AltKey) => ({
+      topic: formRef.current.topic,
+      nodeLabel: node.label,
+      lens,
+      kicker: chunk.kicker,
+      sectionBody: chunk.body,
+      takeaway: chunk.takeaway,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+    }),
+    [],
+  );
+
   const socraticParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
@@ -1437,6 +1489,28 @@ export default function AtlasApp({
       return chunks;
     },
     [consumeParams],
+  );
+
+  /** A model view's address, in the warm queue and in `modelCache` alike. */
+  const modelKey = (nodeId: string, chunkId: string, lens: AltKey) =>
+    `model:${nodeId}:${chunkId}:${lens}`;
+
+  const loadModel = useCallback(
+    async (
+      node: ConceptNode,
+      chunk: ConsumeChunk,
+      lens: AltKey,
+      prefetch = false,
+    ) => {
+      const beats = await fetchConsumeModel(
+        modelParams(node, chunk, lens),
+        opts(prefetch),
+      );
+      const key = modelKey(node.id, chunk.id, lens);
+      setModelCache((prev) => (prev[key] ? prev : { ...prev, [key]: beats }));
+      return beats;
+    },
+    [modelParams],
   );
 
   const loadSocratic = useCallback(
@@ -1614,6 +1688,7 @@ export default function AtlasApp({
           answered: {},
           hookSkipped: false,
           variant: {},
+          model: null,
           term: null,
           aside: null,
           collapsed: {},
@@ -1708,15 +1783,92 @@ export default function AtlasApp({
     );
   }, []);
 
-  const consumeSetVariant = useCallback((chunkId: string, key: AltKey) => {
-    setConsume((prev) => {
-      if (!prev) return prev;
-      const cur = prev.variant[chunkId];
-      return {
-        ...prev,
-        variant: { ...prev.variant, [chunkId]: cur === key ? null : key },
+  /**
+   * Open a lens over a section of the reading.
+   *
+   * The view opens on the state change, never on the round-trip: what has been
+   * generated this run is already in `modelCache`, a warm in flight is joined
+   * rather than duplicated, and a genuine miss streams so the first beat is on
+   * screen while the rest are still being written.
+   *
+   * The lens a learner reaches for is the lens they reach for again, so opening
+   * one also warms the same lens on the next section — the adaptive-modality
+   * behavior the spec asks for, at one background call rather than the twenty
+   * it would take to pre-generate every lens of every section.
+   */
+  const consumeOpenModel = useCallback(
+    (chunk: ConsumeChunk, lens: AltKey) => {
+      const nodeId = consumeRef.current?.nodeId;
+      const node = graphRef.current.nodes.find((n) => n.id === nodeId);
+      if (!nodeId || !node) return;
+      setConsume((prev) =>
+        prev
+          ? {
+              ...prev,
+              model: { chunkId: chunk.id, lens },
+              variant: { ...prev.variant, [chunk.id]: lens },
+            }
+          : prev,
+      );
+
+      const chunks = consumeChunksRef.current;
+      const next = chunks[chunks.findIndex((c) => c.id === chunk.id) + 1];
+      if (next) {
+        const nextKey = modelKey(nodeId, next.id, lens);
+        if (!modelCacheRef.current[nextKey])
+          warm.warm(nextKey, () => loadModel(node, next, lens, true));
+      }
+
+      const key = modelKey(nodeId, chunk.id, lens);
+      if (modelCacheRef.current[key]) return;
+
+      const settle = (beats?: ConsumeModelBeat[]) => {
+        if (beats)
+          setModelCache((prev) => (prev[key] ? prev : { ...prev, [key]: beats }));
+        setLiveModel((prev) => (prev?.key === key ? { ...prev, done: true } : prev));
       };
-    });
+      const failed = (err: Error) => {
+        settle();
+        showToast(err.message, "Generation failed");
+      };
+
+      const stream = () =>
+        fetchConsumeModelStream(modelParams(node, chunk, lens), (beat, index) => {
+          setLiveModel((prev) => {
+            if (!prev || prev.key !== key) return prev;
+            const beats = [...prev.beats];
+            beats[index] = beat;
+            // Frames address slots, so a gap is possible until the one before
+            // it lands; rendering a hole would put `undefined` on screen.
+            return { key, beats: beats.filter((b) => b !== undefined) };
+          });
+        })
+          .then((beats) => settle(beats))
+          .catch(failed);
+
+      setLiveModel({ key, beats: [] });
+      // A warm is already writing exactly this view — join it. The queue hands
+      // back the one in-flight promise, so clicking through early costs the
+      // remainder of a request already running, never a second generation.
+      // If that warm turns out to have failed — including the silent decline a
+      // background request gets instead of an error — this is a foreground
+      // open now, so it retries properly rather than reporting the warm's fate.
+      if (warm.has(key)) {
+        warm
+          .run(key, () => loadModel(node, chunk, lens), true)
+          .then((beats) => settle(beats))
+          .catch(() => stream());
+        return;
+      }
+      stream();
+    },
+    [loadModel, modelParams, showToast, warm],
+  );
+
+  /** Close the open view. The lens stays recorded on the section — that is the
+   *  adaptive-modality signal, and what the missing-prerequisite flag counts. */
+  const consumeCloseModel = useCallback(() => {
+    setConsume((prev) => (prev ? { ...prev, model: null } : prev));
   }, []);
 
   const consumeToggleTerm = useCallback((key: string) => {
@@ -3043,6 +3195,22 @@ export default function AtlasApp({
   // "Continue"/"Finish" affordance on the deepest streamed-in section so it
   // never reaches for a section that hasn't arrived yet.
   const consumeStreaming = !!consume && !consumeCache[consume.nodeId];
+  consumeChunksRef.current = consumeChunks ?? [];
+  // The open model view, if any: committed beats, else the ones streaming in.
+  const openModelKey =
+    consume && consume.model
+      ? modelKey(consume.nodeId, consume.model.chunkId, consume.model.lens)
+      : null;
+  const modelBeats = openModelKey
+    ? (modelCache[openModelKey] ??
+      (liveModel?.key === openModelKey ? liveModel.beats : undefined))
+    : undefined;
+  // Beats are still on the way unless the view is committed, or what streamed
+  // in is all there is ever going to be.
+  const modelStreaming =
+    !!openModelKey &&
+    !modelCache[openModelKey] &&
+    !(liveModel?.key === openModelKey && liveModel.done);
   // Same fallback as Consume: the committed pass if it exists, otherwise
   // whatever has streamed in for this node so far.
   const socraticSteps = socratic
@@ -3459,12 +3627,15 @@ export default function AtlasApp({
           chunks={consumeChunks}
           streaming={consumeStreaming}
           session={consume}
+          modelBeats={modelBeats}
+          modelStreaming={modelStreaming}
           onExit={exitConsume}
           onAnswer={consumeAnswer}
           onSkipHook={consumeSkipHook}
           onContinue={consumeContinue}
           onFinish={finishConsume}
-          onSetVariant={consumeSetVariant}
+          onOpenModel={consumeOpenModel}
+          onCloseModel={consumeCloseModel}
           onToggleTerm={consumeToggleTerm}
           onToggleAside={consumeToggleAside}
           onToggleCollapse={consumeToggleCollapse}

@@ -42,6 +42,9 @@ prerequisite order; the placement questions follow one at a time as
 `diagnosticQuestion`, since each one's difficulty depends on the last answer),
 and each phase's material on first entry (`consume`, `socratic`, `feynman`,
 `connect`, `crucible`, `retain`), cached per node for the run in `AtlasApp`.
+One kind is finer-grained than a node: `model` is a single lens (Simpler /
+Example / Analogy / Go deeper) opened over a single Consume section, keyed on
+that section's own prose and cached per (node, section, lens).
 Configure via
 `.env.local` (see `.env.example`): `OPENROUTER_API_KEY` (required),
 `OPENROUTER_MODEL` (default `deepseek/deepseek-chat`),

@@ -3,7 +3,9 @@
 // toasts.
 
 import type {
+  AltKey,
   ConsumeChunk,
+  ConsumeModelBeat,
   CrucibleContent,
   DiagnosticDifficulty,
   DiagnosticQuestion,
@@ -251,6 +253,45 @@ export async function fetchConsumeStream(
       onChunk(frame.v as ConsumeChunk, frame.i);
   });
   return collectFrames<ConsumeChunk>(frames, "chunks");
+}
+
+/** One lens over one section of the reading — what a Consume control opens.
+ *  The section's own text is part of the request (and so of the cache key):
+ *  the walkthrough is written for the exact prose on screen behind it. */
+export const modelRequest = (params: {
+  topic: string;
+  nodeLabel: string;
+  lens: AltKey;
+  kicker: string;
+  sectionBody: string[];
+  takeaway: string;
+  interests: string;
+  language?: Language;
+}) => ({ kind: "model", ...params });
+
+export async function fetchConsumeModel(
+  params: Parameters<typeof modelRequest>[0],
+  opts?: FetchOpts,
+): Promise<ConsumeModelBeat[]> {
+  return (await post<{ beats: ConsumeModelBeat[] }>(modelRequest(params), opts))
+    .beats;
+}
+
+/**
+ * Foreground model view: beats land one at a time, which is what lets the view
+ * open on its first beat instead of on its last. Background warms (the same
+ * lens on the next section, once a learner has shown which one they reach for)
+ * stay on `fetchConsumeModel`.
+ */
+export async function fetchConsumeModelStream(
+  params: Parameters<typeof modelRequest>[0],
+  onBeat: (beat: ConsumeModelBeat, index: number) => void,
+): Promise<ConsumeModelBeat[]> {
+  const frames = await fetchStream(modelRequest(params), (frame) => {
+    if (frame.p === "beats" && "i" in frame)
+      onBeat(frame.v as ConsumeModelBeat, frame.i);
+  });
+  return collectFrames<ConsumeModelBeat>(frames, "beats");
 }
 
 export const socraticRequest = (params: {

@@ -77,6 +77,19 @@ textarea:focus {
   }
 }
 
+/* A view opening over the page it belongs to (Consume's model view): it rises
+   off the surface it covers rather than appearing on top of it. */
+@keyframes modelIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* Loading vocabulary: an ink dot keeping time, a stroke drawn across the page. */
 @keyframes inkDot {
   0%,

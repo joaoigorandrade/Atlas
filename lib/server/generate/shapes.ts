@@ -1,25 +1,20 @@
 // The JSON shapes the Consume prompts ask for, composed explicitly.
 //
-// This file exists because the streaming pass and the single-shot pass need
-// the *same* section shape minus/plus one block, and the previous approach —
-// deriving the streaming variant by regex-stripping `"alt"` out of the full
-// template literal — failed silently. Reformatting the `alt` block, or adding
-// a field after it, made the regex no-op, and the streaming pass would quietly
-// go back to requesting the four rewrites it exists to defer: no type error,
-// no test failure, just a section that took twice as long to close.
+// This file exists because the shapes are shared: a section's shape is asked
+// for identically by the streaming pass and the single-shot fallback, and a
+// beat's shape by the model view's two. It was previously also the home of a
+// second, derived section shape — the streaming variant was produced by
+// regex-stripping the `"alt"` block out of the full one, and reformatting that
+// block made the strip a silent no-op. Nothing is derived here any more; the
+// four rewrites that block asked for are generated on demand, one lens at a
+// time, as the `model` kind.
 //
-// Composition can't fail that way, and `tests/shapes.test.ts` pins it.
-
-/** The four adaptive-modality rewrites a learner can switch to. */
-export const ALT_SHAPE = `{
-      "simpler": "the whole section rewritten plainly, still 2-3 paragraphs",
-      "example": "a second, different worked example",
-      "analogy": "an analogy that maps the structure",
-      "deeper": "the sharper, more rigorous version — the part a textbook would put in small print"
-    }`;
+// `tests/stream.test.ts` pins that every field a validator requires is still
+// asked for.
 
 /** Everything a section always has, from its kicker through its Socratic ask. */
-const CONSUME_SECTION_CORE = `      "kicker": "1 · What it is",                         // segment label: number · 2-4 words
+export const CONSUME_SECTION_SHAPE = `{
+      "kicker": "1 · What it is",                         // segment label: number · 2-4 words
       "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
       "pred": {                                            // FIRST SECTION ONLY — omit on all others
         "q": "a guess that primes the reading — what do you think happens if…?",
@@ -41,19 +36,11 @@ const CONSUME_SECTION_CORE = `      "kicker": "1 · What it is",                
         "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
         "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
       },
-      "ask": "a mini-Socratic prompt that answers a likely question with a question"`;
-
-/**
- * One Consume section's shape.
- *
- * `withAlt: false` is what the streaming pass asks for, so a section's object
- * closes — and renders — without the model first writing four rewrites of it
- * that nobody may ever tap. The rewrites are generated afterwards, per section,
- * and patched in by index.
- */
-export function consumeSectionShape(withAlt: boolean): string {
-  return `{
-${CONSUME_SECTION_CORE}${withAlt ? `,
-      "alt": ${ALT_SHAPE}` : ""}
+      "ask": "a mini-Socratic prompt that answers a likely question with a question"
     }`;
-}
+
+/** One beat of a model view — the unit the four lens controls open. */
+export const MODEL_BEAT_SHAPE = `{
+      "label": "2-4 words naming this beat",
+      "text": "1-3 sentences: the beat itself, concrete and self-contained"
+    }`;
