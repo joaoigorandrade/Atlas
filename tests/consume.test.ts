@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ALT_CONTROLS,
-  CONSUME_HOOK_FELT,
-  CONSUME_HOOK_REAL,
   MODALITY_PREFERENCE_MIN,
   altControls,
-  calibVerdict,
   emptyConsumeProgress,
   phaseIndex,
   preferredModality,
@@ -138,30 +135,6 @@ describe("altControls", () => {
     expect(pt.map(([key]) => key)).toEqual(ALT_CONTROLS.map(([key]) => key));
     expect(pt.map(([, label]) => label)).not.toEqual(
       ALT_CONTROLS.map(([, label]) => label),
-    );
-  });
-});
-
-// ---- the hook's calibration reading ---------------------------------------
-
-describe("the Consume hook as a calibration sample", () => {
-  it("reads an own-words guess as more confidence than a tapped option", () => {
-    expect(CONSUME_HOOK_FELT.open).toBeGreaterThan(CONSUME_HOOK_FELT.choices);
-  });
-
-  it("stops short of certainty in both directions", () => {
-    // One guess made *before* reading is weak evidence either way.
-    expect(CONSUME_HOOK_REAL.right).toBeLessThan(100);
-    expect(CONSUME_HOOK_REAL.wrong).toBeGreaterThan(0);
-  });
-
-  it("catches a confident wrong guess as overconfidence", () => {
-    expect(calibVerdict(CONSUME_HOOK_FELT.open, CONSUME_HOOK_REAL.wrong)).toBe("over");
-  });
-
-  it("doesn't punish a hedged learner who turns out to be right", () => {
-    expect(calibVerdict(CONSUME_HOOK_FELT.choices, CONSUME_HOOK_REAL.right)).toBe(
-      "under",
     );
   });
 });

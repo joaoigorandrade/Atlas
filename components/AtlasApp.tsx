@@ -23,8 +23,6 @@ import {
   graphFromMapNodes,
   emptyConsumeProgress,
   preferredModality,
-  CONSUME_HOOK_FELT,
-  CONSUME_HOOK_REAL,
   DIAGNOSTIC_COUNT,
   diagnosticEffect,
   stepDifficulty,
@@ -144,7 +142,6 @@ import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
 import ProfileScreen, { type ProfileStat } from "@/components/ProfileScreen";
 import SettingsScreen from "@/components/SettingsScreen";
-import type { AnswerMode } from "@/components/OpenAnswer";
 import ConsumeView, {
   type ConsumeSession,
   type PassageAsk,
@@ -1801,38 +1798,6 @@ export default function AtlasApp({
 
   // ---- Consume (Learn view) --------------------------------------------
 
-  /**
-   * The session's one prediction hook, answered.
-   *
-   * This is a calibration capture point (§12) and used to throw the reading
-   * away: the guess was scored, shown, and forgotten. `felt` comes off *how*
-   * the learner answered rather than a second question nobody asked for —
-   * writing it in your own words claims more than tapping one of three
-   * options — and `real` is whether the guess was right.
-   */
-  const consumeAnswer = useCallback(
-    (chunkId: string, oi: number, correct: boolean, mode: AnswerMode) => {
-      const live = consumeRef.current;
-      if (!live) return;
-      // First answer only: re-reading a pass shouldn't stack a second reading
-      // on the same guess. Checked out here rather than inside the updater —
-      // an updater that records calibration would record it twice under
-      // StrictMode's double invoke.
-      if (!live.answered[chunkId])
-        recordCalib(
-          live.nodeId,
-          CONSUME_HOOK_FELT[mode],
-          CONSUME_HOOK_REAL[correct ? "right" : "wrong"],
-        );
-      setConsume((prev) =>
-        prev
-          ? { ...prev, answered: { ...prev.answered, [chunkId]: { oi, correct } } }
-          : prev,
-      );
-    },
-    [recordCalib],
-  );
-
   /** The end-of-section comprehension check — a wrong pick is kept (so the
    *  miss can be named) and simply replaced by the next attempt. */
   const consumeCheck = useCallback(
@@ -1845,12 +1810,6 @@ export default function AtlasApp({
     },
     [],
   );
-
-  /** "Just teach me" — the hook is optional, so waving it off clears it and
-   *  leaves the material exactly where it already was. */
-  const consumeSkipHook = useCallback(() => {
-    setConsume((prev) => (prev ? { ...prev, hookSkipped: true } : prev));
-  }, []);
 
   const consumeContinue = useCallback((chunkIndex: number) => {
     setConsume((prev) =>
@@ -2096,8 +2055,6 @@ export default function AtlasApp({
       const before = prev[s.nodeId];
       const next: ConsumeProgress = {
         idx: s.idx,
-        answered: s.answered,
-        hookSkipped: s.hookSkipped,
         variant: s.variant,
         collapsed: s.collapsed,
         checks: s.checks,
@@ -2124,8 +2081,6 @@ export default function AtlasApp({
     consume,
     consume?.nodeId,
     consume?.idx,
-    consume?.answered,
-    consume?.hookSkipped,
     consume?.variant,
     consume?.collapsed,
     consume?.checks,
@@ -3921,9 +3876,7 @@ export default function AtlasApp({
           modelBeats={modelBeats}
           modelStreaming={modelStreaming}
           onExit={exitConsume}
-          onAnswer={consumeAnswer}
           onCheck={consumeCheck}
-          onSkipHook={consumeSkipHook}
           onContinue={consumeContinue}
           onFinish={finishConsume}
           onBeginSocratic={beginSocraticFromConsume}

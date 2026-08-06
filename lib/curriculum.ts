@@ -240,9 +240,9 @@ export function phaseSkipNudge(phase: Phase, lang: Language = "en"): string {
 //
 // Consume is the *reading* phase: the material is the point. Sections carry
 // several paragraphs of real explanation plus a worked example, all shown on
-// arrival — nothing is held hostage behind a question. The one prediction in
-// the session sits on the opening section as a hook the learner may skip;
-// retrieval practice proper belongs to Socratic, Feynman and Crucible.
+// arrival — nothing is held hostage behind a question. The only question in a
+// section is the comprehension check that closes it; retrieval practice proper
+// belongs to Socratic, Feynman and Crucible.
 
 /** The four lenses offered under each revealed chunk. Tapping one opens a
  *  *model view* over the section — the same material walked through one beat
@@ -280,13 +280,12 @@ export interface ConsumeTerm {
   d: string;
 }
 
-/** The one predict-before-you-read hook of a session. It primes the opening
- *  section; it never gates it — skipping straight to the material is a
- *  first-class path. */
+/** A multiple-choice question with verdict copy — the shape behind each
+ *  section's closing comprehension check. */
 export interface ConsumePrediction {
   q: string;
   opts: ReadonlyArray<{ label: string; correct: boolean }>;
-  /** Verdict copy after a right / wrong guess. */
+  /** Verdict copy after a right / wrong answer. */
   right: string;
   wrong: string;
 }
@@ -362,9 +361,6 @@ export interface ConsumeChunk {
    *  any more; the field survives because rows cached before the model view
    *  still carry it, and `migrateConsume` mines it for a takeaway. */
   alt?: Record<AltKey, string>;
-  /** The session's single prediction hook — present on the opening section
-   *  only, and optional even there. */
-  pred?: ConsumePrediction;
   /** The comprehension check that closes this section: it appears once the
    *  learner reaches the end of the reading, and the section's Continue is
    *  gated on getting it right. Absent on chunks cached before checks
@@ -389,10 +385,6 @@ export interface ConsumeChunk {
 export interface ConsumeProgress {
   /** Deepest section revealed so far. */
   idx: number;
-  /** The one prediction hook's answer, keyed by chunk id. */
-  answered: Record<string, { oi: number; correct: boolean }>;
-  /** The hook was waved off — "just teach me". */
-  hookSkipped: boolean;
   /** The lens last opened over each chunk — a record of what this learner
    *  reached for, not a rendering instruction. `null` is still in the type
    *  because rows persisted before lenses opened a model view stored one to
@@ -422,8 +414,6 @@ export interface ConsumeProgress {
 
 export const emptyConsumeProgress = (): ConsumeProgress => ({
   idx: 0,
-  answered: {},
-  hookSkipped: false,
   variant: {},
   collapsed: {},
   checks: {},
@@ -2175,24 +2165,6 @@ export interface CalibSample {
   /** Actual first-attempt performance — the honest signal. */
   real: number;
 }
-
-/**
- * The Consume hook's contribution to calibration (§12 names it a capture
- * point). `felt` is read off *how* the guess was made rather than a second
- * question nobody asked for: writing an answer in your own words claims more
- * than tapping one of three options, where part of the confidence belongs to
- * the option list. `real` is the guess itself — and stays short of 100/0,
- * because one prediction made *before* reading is weak evidence in either
- * direction.
- */
-export const CONSUME_HOOK_FELT: Record<"open" | "choices", number> = {
-  open: 72,
-  choices: 45,
-};
-export const CONSUME_HOOK_REAL: Record<"right" | "wrong", number> = {
-  right: 88,
-  wrong: 22,
-};
 
 /** How a reading sits against the diagonal: felt ahead of, behind, or tracking real. */
 export type CalibVerdict = "over" | "under" | "ok";

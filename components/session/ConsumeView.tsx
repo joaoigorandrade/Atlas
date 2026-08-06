@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import { MicButton } from "@/components/VoiceInput";
 import {
   PHASES,
@@ -41,12 +40,6 @@ const STRINGS = {
       "Rewrite any section to fit how you think, tap a term for its meaning before it’s used, and ask about any passage that doesn’t land. The questioning starts in Socratic, after this.",
     writingFirst: "Writing your first section…",
     workedExample: "Worked example",
-    optionalGuessFirst: "Optional · guess first",
-    predictPlaceholder:
-      "A guess costs nothing and makes the reading below stick harder.",
-    lockInGuess: "Lock in my guess →",
-    skipTeachMe: "Skip — just teach me ↓",
-    yourGuess: "your guess",
     takeaway: "Takeaway",
     furtherReading: "further reading",
     modelKicker: "Model view",
@@ -62,10 +55,6 @@ const STRINGS = {
     finishBeginSocratic: "Finish · begin Socratic →",
     continueSection: (next: string) => `Continue · ${next} ↓`,
     writingNext: "Writing the next section…",
-    overshootTitle: "You called this one before reading it.",
-    overshootBody:
-      "The diagnostic under-shot your level here — no need to grind the basics.",
-    skipToCrucible: "Skip to Crucible →",
     simplifyingTitle: "Simplifying a lot?",
     simplifyingBody:
       "Repeatedly reaching for the simpler version usually means an earlier concept is shaky.",
@@ -103,10 +92,6 @@ const STRINGS = {
     recapTakeaways: "What you took away",
     recapSkipped: "skipped",
     recapTermsHeading: "Terms you opened",
-    recapGuess: "Your opening guess",
-    recapGuessRight: "You called it.",
-    recapGuessWrong: "You missed it — which is what made the section land.",
-    recapGuessSkipped: "You waved the guess off and went straight to the material.",
     recapBegin: "Begin Socratic →",
     recapBackToMap: "Back to the map",
     recapReread: "↑ Re-read",
@@ -128,12 +113,6 @@ const STRINGS = {
       "Reescreva qualquer seção do jeito que funciona melhor para você, toque em um termo para ver o significado antes de ele ser usado, e pergunte sobre qualquer trecho que não fez sentido. As perguntas começam no Socrático, depois disso.",
     writingFirst: "Escrevendo sua primeira seção…",
     workedExample: "Exemplo resolvido",
-    optionalGuessFirst: "Opcional · arrisque um palpite antes",
-    predictPlaceholder:
-      "Um palpite não custa nada e faz a leitura a seguir grudar mais.",
-    lockInGuess: "Confirmar meu palpite →",
-    skipTeachMe: "Pular — só me ensine ↓",
-    yourGuess: "seu palpite",
     takeaway: "Ideia central",
     furtherReading: "para ler depois",
     modelKicker: "Visão do modelo",
@@ -149,10 +128,6 @@ const STRINGS = {
     finishBeginSocratic: "Concluir · começar o Socrático →",
     continueSection: (next: string) => `Continuar · ${next} ↓`,
     writingNext: "Escrevendo a próxima seção…",
-    overshootTitle: "Você acertou isso antes mesmo de ler.",
-    overshootBody:
-      "O diagnóstico subestimou seu nível aqui — sem necessidade de treinar o básico.",
-    skipToCrucible: "Pular para o Crucible →",
     simplifyingTitle: "Simplificando bastante?",
     simplifyingBody:
       "Recorrer repetidamente à versão mais simples geralmente indica que um conceito anterior está instável.",
@@ -190,10 +165,6 @@ const STRINGS = {
     recapTakeaways: "O que você leva daqui",
     recapSkipped: "pulada",
     recapTermsHeading: "Termos que você abriu",
-    recapGuess: "Seu palpite inicial",
-    recapGuessRight: "Você acertou.",
-    recapGuessWrong: "Você errou — e foi isso que fez a seção grudar.",
-    recapGuessSkipped: "Você dispensou o palpite e foi direto para o material.",
     recapBegin: "Começar o Socrático →",
     recapBackToMap: "Voltar ao mapa",
     recapReread: "↑ Reler",
@@ -263,10 +234,8 @@ interface ConsumeViewProps {
   /** More beats are still on the way for the open view. */
   modelStreaming?: boolean;
   onExit: () => void;
-  onAnswer: (chunkId: string, oi: number, correct: boolean, mode: AnswerMode) => void;
   /** The end-of-section check was answered — right or wrong. */
   onCheck: (chunkId: string, oi: number, correct: boolean) => void;
-  onSkipHook: () => void;
   onContinue: (chunkIndex: number) => void;
   /** The last section is done — show the recap. */
   onFinish: () => void;
@@ -1316,9 +1285,7 @@ export default function ConsumeView({
   modelBeats,
   modelStreaming = false,
   onExit,
-  onAnswer,
   onCheck,
-  onSkipHook,
   onContinue,
   onFinish,
   onBeginSocratic,
@@ -1335,8 +1302,6 @@ export default function ConsumeView({
   const t = useT(STRINGS);
   const { language } = useLanguage();
   const controls = altControls(language);
-  // The prediction is open-ended by default; the switch reveals the closed form.
-  const [mode, setMode] = useState<AnswerMode>("open");
 
   /** The lens last opened over a chunk, or null. This is a record of what the
    *  learner reached for — it marks a control, it never changes the prose. */
@@ -1383,12 +1348,6 @@ export default function ConsumeView({
   let simpleCount = 0;
   for (const c of chunks) if (lensOf(c.id) === "simpler") simpleCount++;
 
-  // Overshoot correction: the session's one hook was called correctly →
-  // surface the skip offer right away instead of making the learner read
-  // four more sections to earn it. The header's "already know this?" is the
-  // same escape hatch, available from the very start regardless.
-  const hookAnswer = session.answered[chunks[0]?.id ?? ""];
-  const overshoot = !!hookAnswer?.correct;
   // Missing-prerequisite flag: leaning on "simpler" repeatedly. A learned
   // preference doesn't count as reaching for it — it's a default they set once.
   const simpleFlag = simpleCount >= 3 && session.preferred !== "simpler";
@@ -1462,22 +1421,6 @@ export default function ConsumeView({
   }, [chunks, session.termsSeen]);
 
   if (session.recap) {
-    const hookChunk = chunks[0];
-    const hookAns = hookChunk ? session.answered[hookChunk.id] : undefined;
-    const guessLine = hookAns
-      ? hookAns.correct
-        ? t.recapGuessRight
-        : t.recapGuessWrong
-      : session.hookSkipped
-        ? t.recapGuessSkipped
-        : null;
-    const guessVerdict =
-      hookChunk?.pred && hookAns
-        ? hookAns.correct
-          ? hookChunk.pred.right
-          : hookChunk.pred.wrong
-        : null;
-
     const stat = (text: string) => (
       <span
         style={{
@@ -1612,36 +1555,6 @@ export default function ConsumeView({
                     {label}
                   </span>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {guessLine && (
-            <div style={{ marginBottom: 40 }}>
-              <div style={{ ...kicker(10), marginBottom: 12 }}>{t.recapGuess}</div>
-              <div
-                style={{
-                  paddingLeft: 15,
-                  borderLeft: `3px solid ${
-                    hookAns ? (hookAns.correct ? RIGHT : WRONG) : color.hairlineStrong
-                  }`,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: font.serif,
-                    fontSize: 17,
-                    lineHeight: 1.45,
-                    marginBottom: 6,
-                  }}
-                >
-                  {guessLine}
-                </div>
-                {guessVerdict && (
-                  <div style={{ fontSize: 14, lineHeight: 1.55, color: color.inkMuted }}>
-                    {guessVerdict}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -1916,17 +1829,6 @@ export default function ConsumeView({
             // has actually finished.
             const isLast = i === chunks.length - 1 && !streaming;
             const nextArrived = i + 1 < chunks.length;
-            const ans = session.answered[c.id];
-            // The session's one hook, on the opening section. It sits above
-            // the prose and clears once answered or waved off — the material
-            // underneath was never waiting on it.
-            const hookOpen = !!c.pred && !ans && !session.hookSkipped;
-            const verdict =
-              c.pred && ans
-                ? ans.correct
-                  ? { text: c.pred.right, color: RIGHT }
-                  : { text: c.pred.wrong, color: WRONG }
-                : null;
             const collapsed = !!session.collapsed[c.id];
             // The prose stays put. A lens (below) opens *over* it — the
             // passage a learner is mid-way through is the last thing that
@@ -2074,161 +1976,6 @@ export default function ConsumeView({
                         </div>
                       );
                     })}
-                  </div>
-                )}
-
-                {/* The one prediction hook — optional, and never a gate. */}
-                {hookOpen && c.pred && (
-                  <div
-                    style={{
-                      background: color.card,
-                      border: "1px solid rgba(91,127,191,0.28)",
-                      borderRadius: 13,
-                      padding: "18px 20px",
-                      marginBottom: 22,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: BLUE,
-                        }}
-                      />
-                      <span
-                        style={{
-                          fontFamily: font.mono,
-                          fontSize: 10,
-                          letterSpacing: "0.12em",
-                          textTransform: "uppercase",
-                          color: BLUE,
-                        }}
-                      >
-                        {t.optionalGuessFirst}
-                      </span>
-                      <span style={{ marginLeft: "auto" }}>
-                        <AnswerModeToggle
-                          mode={mode}
-                          onMode={setMode}
-                          accent={BLUE}
-                        />
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: font.serif,
-                        fontSize: 20,
-                        lineHeight: 1.32,
-                        marginBottom: 16,
-                      }}
-                    >
-                      {c.pred.q}
-                    </div>
-                    {mode === "open" ? (
-                      <OpenAnswer
-                        topic={topic}
-                        nodeLabel={title}
-                        question={c.pred.q}
-                        options={c.pred.opts.map((o) => o.label)}
-                        onResolve={(oi) =>
-                          onAnswer(c.id, oi, c.pred!.opts[oi].correct, "open")
-                        }
-                        placeholder={t.predictPlaceholder}
-                        rows={2}
-                        accent={BLUE}
-                        submitLabel={t.lockInGuess}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 9,
-                        }}
-                      >
-                        {c.pred.opts.map((o, oi) => (
-                          <button
-                            key={o.label}
-                            onClick={() => onAnswer(c.id, oi, o.correct, "choices")}
-                            style={{
-                              textAlign: "left",
-                              padding: "13px 16px",
-                              borderRadius: 10,
-                              fontSize: 14.5,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              border: `1px solid ${color.hairlineStrong}`,
-                              background: color.card,
-                              color: color.ink,
-                              transition: "all .15s",
-                            }}
-                          >
-                            {o.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={onSkipHook}
-                      style={{
-                        marginTop: 14,
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        fontFamily: "inherit",
-                        fontSize: 13,
-                        color: color.inkMuted,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {t.skipTeachMe}
-                    </button>
-                  </div>
-                )}
-
-                {/* The verdict outlives the hook; the guess still gets caught. */}
-                {verdict && (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 11,
-                      alignItems: "baseline",
-                      marginBottom: 22,
-                      paddingLeft: 14,
-                      borderLeft: `3px solid ${verdict.color}`,
-                      animation: "softIn .3s both",
-                    }}
-                  >
-                    <span
-                      style={{
-                        flex: "0 0 auto",
-                        fontFamily: font.mono,
-                        fontSize: 9.5,
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        color: verdict.color,
-                      }}
-                    >
-                      {t.yourGuess}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 14,
-                        lineHeight: 1.55,
-                        color: color.inkSoft,
-                      }}
-                    >
-                      {verdict.text}
-                    </span>
                   </div>
                 )}
 
@@ -2529,54 +2276,6 @@ export default function ConsumeView({
               </div>
             );
           })}
-
-          {/* Edge case: diagnostic overshoot */}
-          {overshoot && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 18,
-                background: color.successBg,
-                border: "1px solid rgba(76,139,99,0.3)",
-                borderRadius: 13,
-                padding: "18px 22px",
-                marginBottom: 16,
-                animation: "fadeUp .4s both",
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontFamily: font.serif,
-                    fontSize: 19,
-                    marginBottom: 3,
-                  }}
-                >
-                  {t.overshootTitle}
-                </div>
-                <div style={{ fontSize: 13.5, color: color.inkMuted }}>
-                  {t.overshootBody}
-                </div>
-              </div>
-              <button
-                onClick={onSkipCrucible}
-                style={{
-                  flex: "0 0 auto",
-                  padding: "12px 18px",
-                  background: color.accent,
-                  color: color.accentInk,
-                  border: "none",
-                  borderRadius: 11,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                {t.skipToCrucible}
-              </button>
-            </div>
-          )}
 
           {/* Edge case: leaning on "simpler" — flag a missing prerequisite */}
           {simpleFlag && (

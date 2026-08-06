@@ -335,16 +335,6 @@ function consumeChunk(i: number, over: Record<string, unknown> = {}) {
       analogy: "like a lever",
       deeper: "the rigorous version",
     },
-    pred: {
-      q: "what happens if…?",
-      opts: [
-        { label: "a", correct: false },
-        { label: "b", correct: true },
-        { label: "c", correct: false },
-      ],
-      right: "yes — and here is why",
-      wrong: "no — the usual mistake is…",
-    },
     check: {
       q: "what did that section say?",
       opts: [
@@ -364,16 +354,9 @@ const consumePayload = (over: Record<string, unknown>[] = []) => ({
 });
 
 describe("validateConsume", () => {
-  it("keeps the hook on the opening section and drops it everywhere else", () => {
+  it("carries no question before the prose — the reading opens on material", () => {
     const out = validateConsume(consumePayload());
-    expect(out[0].pred?.q).toBe("what happens if…?");
-    expect(out.slice(1).every((c) => c.pred === undefined)).toBe(true);
-  });
-
-  it("requires a hook on the opening section", () => {
-    expect(() =>
-      validateConsume(consumePayload([{ pred: undefined }])),
-    ).toThrow(/chunks\[0\].pred/);
+    expect(out.every((c) => !("pred" in c))).toBe(true);
   });
 
   it("requires a comprehension check on every section — it gates Continue", () => {
@@ -456,14 +439,13 @@ describe("migrateConsume", () => {
     },
   })) as unknown as LegacyConsumeChunk[];
 
-  it("reshapes a v2 pass and un-gates every section past the first", () => {
+  it("reshapes a v2 pass and drops every question it carried", () => {
     const out = migrateConsume({ n1: legacy }).n1;
     expect(out[0].body).toEqual(["one short paragraph"]);
     expect(out[0].example.steps).toEqual(["worked out"]);
     expect(out[0].takeaway).toBe("plainly");
-    // The chunk-level verdict copy moves onto the surviving prediction.
-    expect(out[0].pred?.right).toBe("correct");
-    expect(out[1].pred).toBeUndefined();
+    // The old pre-reading hook and its verdict copy are gone.
+    expect(out.every((c) => !("pred" in c))).toBe(true);
   });
 });
 
