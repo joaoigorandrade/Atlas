@@ -1617,6 +1617,7 @@ export default function AtlasApp({
           term: null,
           aside: null,
           collapsed: {},
+          checks: {},
         });
         setSelectedId(node.id);
         setScreen("consume");
@@ -1690,6 +1691,19 @@ export default function AtlasApp({
               ...prev,
               answered: { ...prev.answered, [chunkId]: { oi, correct } },
             }
+          : prev,
+      );
+    },
+    [],
+  );
+
+  /** The end-of-section comprehension check — a wrong pick is kept (so the
+   *  miss can be named) and simply replaced by the next attempt. */
+  const consumeCheck = useCallback(
+    (chunkId: string, oi: number, correct: boolean) => {
+      setConsume((prev) =>
+        prev
+          ? { ...prev, checks: { ...prev.checks, [chunkId]: { oi, correct } } }
           : prev,
       );
     },
@@ -3461,6 +3475,7 @@ export default function AtlasApp({
           session={consume}
           onExit={exitConsume}
           onAnswer={consumeAnswer}
+          onCheck={consumeCheck}
           onSkipHook={consumeSkipHook}
           onContinue={consumeContinue}
           onFinish={finishConsume}

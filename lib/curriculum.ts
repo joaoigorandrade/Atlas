@@ -349,6 +349,11 @@ export interface ConsumeChunk {
   /** The session's single prediction hook — present on the opening section
    *  only, and optional even there. */
   pred?: ConsumePrediction;
+  /** The comprehension check that closes this section: it appears once the
+   *  learner reaches the end of the reading, and the section's Continue is
+   *  gated on getting it right. Absent on chunks cached before checks
+   *  existed — those sections stay ungated. */
+  check?: ConsumePrediction;
 }
 
 // ---- Phase 3a · Socratic (during learning) --------------------------------
