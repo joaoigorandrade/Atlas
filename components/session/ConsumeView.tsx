@@ -8,14 +8,16 @@ import {
   STATE_COLOR,
   altControls,
   figureLayers,
+  lensNote,
   type AltKey,
   type ConsumeChunk,
   type ConsumeExample,
   type ConsumeFigure,
+  type ConsumeModelBeat,
   type ConsumePrediction,
   type ConsumeProgress,
 } from "@/lib/curriculum";
-import { altParagraphs, segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
+import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -47,7 +49,15 @@ const STRINGS = {
     yourGuess: "your guess",
     takeaway: "Takeaway",
     furtherReading: "further reading",
-    rewritesWriting: "Rewrites still writing…",
+    modelKicker: "Model view",
+    modelOpening: "Opening this view…",
+    modelWriting: "still writing…",
+    modelBeat: (n: number, total: number) => `Beat ${n} of ${total}`,
+    modelNext: "Next beat ↓",
+    modelRevealAll: "Show all",
+    modelClose: "Close",
+    modelBack: "← Back to the section",
+    modelEmpty: "This view came back empty — close it and try another lens.",
     diagramLabel: "diagram ·",
     finishBeginSocratic: "Finish · begin Socratic →",
     continueSection: (next: string) => `Continue · ${next} ↓`,
@@ -64,7 +74,6 @@ const STRINGS = {
     readAloud: "Read this section aloud",
     pauseReading: "Pause the reading",
     resumeReading: "Resume the reading",
-    showOriginal: "↺ original",
     skipSection: "Skip — I know this",
     showFullSection: "Show full section →",
     minLeft: (n: number) => (n > 0 ? `~${n} min left` : ""),
@@ -127,7 +136,15 @@ const STRINGS = {
     yourGuess: "seu palpite",
     takeaway: "Ideia central",
     furtherReading: "para ler depois",
-    rewritesWriting: "Reescritas ainda sendo geradas…",
+    modelKicker: "Visão do modelo",
+    modelOpening: "Abrindo esta visão…",
+    modelWriting: "ainda sendo escrito…",
+    modelBeat: (n: number, total: number) => `Passo ${n} de ${total}`,
+    modelNext: "Próximo passo ↓",
+    modelRevealAll: "Mostrar tudo",
+    modelClose: "Fechar",
+    modelBack: "← Voltar à seção",
+    modelEmpty: "Esta visão voltou vazia — feche e tente outra lente.",
     diagramLabel: "diagrama ·",
     finishBeginSocratic: "Concluir · começar o Socrático →",
     continueSection: (next: string) => `Continuar · ${next} ↓`,
@@ -144,7 +161,6 @@ const STRINGS = {
     readAloud: "Ouvir esta seção",
     pauseReading: "Pausar a leitura",
     resumeReading: "Continuar a leitura",
-    showOriginal: "↺ original",
     skipSection: "Pular — já sei isso",
     showFullSection: "Mostrar seção completa →",
     minLeft: (n: number) => (n > 0 ? `~${n} min restantes` : ""),
@@ -215,9 +231,14 @@ export interface ConsumeSession extends ConsumeProgress {
   nodeId: string;
   /** The pre-taught term expanded inline, keyed `chunkId:term`. */
   term: string | null;
-  /** The learned modality this learner reads best in, pre-selected on sections
-   *  they haven't already made a choice about (§6's adaptive modality). */
+  /** The learned modality this learner reads best in — the lens marked as
+   *  theirs on sections they haven't opened one over yet (§6's adaptive
+   *  modality). It suggests; it never opens anything by itself. */
   preferred: AltKey | null;
+  /** The model view currently open over a section, or null. The section it
+   *  belongs to stays mounted underneath — a lens opens over the reading, it
+   *  never replaces it. */
+  model: { chunkId: string; lens: AltKey } | null;
   /** The open "ask about this", or null. */
   passage: PassageAsk | null;
   /** The reading is done and the closing recap is on screen. */
@@ -236,6 +257,11 @@ interface ConsumeViewProps {
    *  `chunks` isn't necessarily the pass's last section yet. */
   streaming?: boolean;
   session: ConsumeSession;
+  /** Beats of the open model view, in order. Empty (or short) while they are
+   *  still being written — the view opens on its first one. */
+  modelBeats?: ConsumeModelBeat[];
+  /** More beats are still on the way for the open view. */
+  modelStreaming?: boolean;
   onExit: () => void;
   onAnswer: (chunkId: string, oi: number, correct: boolean, mode: AnswerMode) => void;
   /** The end-of-section check was answered — right or wrong. */
@@ -246,7 +272,11 @@ interface ConsumeViewProps {
   onFinish: () => void;
   /** The recap's CTA: hand off to Socratic. */
   onBeginSocratic: () => void;
-  onSetVariant: (chunkId: string, key: AltKey) => void;
+  /** Open a lens over a section. The whole chunk travels up because the model
+   *  view is written for this section's exact prose — the caller keys its
+   *  request on it. */
+  onOpenModel: (chunk: ConsumeChunk, lens: AltKey) => void;
+  onCloseModel: () => void;
   onToggleTerm: (key: string) => void;
   onToggleCollapse: (chunkId: string) => void;
   /** Open the ask panel on a chunk. `selection` is "" for the whole section. */
@@ -924,12 +954,367 @@ function SectionCheck({
   );
 }
 
+/** How long one beat holds the floor before the next reveals itself. Long
+ *  enough to read a couple of sentences, short enough that nobody sits waiting
+ *  — and skippable either way ("Next beat", "Show all"). */
+const BEAT_MS = 3400;
+
+/**
+ * The model view: one lens, opened over the section it belongs to.
+ *
+ * The four controls used to swap the section's prose for a rewrite, which took
+ * away the passage the learner was reading in the act of explaining it. This
+ * opens on top instead — the section stays exactly where it was, under the
+ * backdrop, and closing lands the learner back on the paragraph they left.
+ *
+ * Beats reveal one at a time rather than all at once, which is the point of a
+ * *model* view: a mechanism read in sequence is a mechanism, read as a wall of
+ * text it is prose. The cascade is on a timer, so it looks the same whether the
+ * beats streamed in over ten seconds or came back cached in ten milliseconds.
+ */
+function ModelView({
+  lens,
+  chunk,
+  beats,
+  streaming,
+  onClose,
+}: {
+  lens: AltKey;
+  chunk: ConsumeChunk;
+  beats: ConsumeModelBeat[];
+  streaming: boolean;
+  onClose: () => void;
+}) {
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
+  const label = new Map(altControls(language)).get(lens) ?? lens;
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  // Beats on screen so far. Never runs ahead of what has actually arrived, so
+  // the cascade and the stream share one counter.
+  const [revealed, setRevealed] = useState(1);
+  const shown = Math.min(revealed, beats.length);
+  const done = shown >= beats.length && !streaming;
+
+  useEffect(() => {
+    if (revealed >= beats.length) return;
+    const id = window.setTimeout(() => setRevealed((n) => n + 1), BEAT_MS);
+    return () => window.clearTimeout(id);
+  }, [revealed, beats.length]);
+
+  // A revealed beat below the fold is a beat nobody sees — follow the cascade
+  // down. `smooth` on the container, not the page: the reading behind must not
+  // move.
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [shown]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${label} — ${chunk.kicker}`}
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 60,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        background: "rgba(28,25,21,0.42)",
+        backdropFilter: "blur(3px)",
+        animation: "softIn .22s both",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(680px, 100%)",
+          maxHeight: "min(78vh, 720px)",
+          display: "flex",
+          flexDirection: "column",
+          background: color.card,
+          border: `1px solid ${color.hairlineStrong}`,
+          borderRadius: 16,
+          boxShadow: "0 24px 60px rgba(28,25,21,0.28)",
+          overflow: "hidden",
+          animation: "modelIn .3s cubic-bezier(.2,.8,.3,1) both",
+        }}
+      >
+        {/* Header — which lens, over which section */}
+        <div
+          style={{
+            flex: "0 0 auto",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 16,
+            padding: "18px 22px 14px",
+            borderBottom: `1px solid ${color.hairline}`,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontFamily: font.mono,
+                fontSize: 9.5,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: BLUE,
+                marginBottom: 7,
+              }}
+            >
+              {t.modelKicker} · {sectionName(chunk.kicker)}
+            </div>
+            <div style={{ fontFamily: font.serif, fontSize: 24, lineHeight: 1.2 }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 13, color: color.inkMuted, marginTop: 5 }}>
+              {lensNote(lens, language)}
+            </div>
+          </div>
+          <button
+            type="button"
+            autoFocus
+            onClick={onClose}
+            aria-label={t.modelClose}
+            title={t.modelClose}
+            style={{
+              flex: "0 0 auto",
+              width: 30,
+              height: 30,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              borderRadius: "50%",
+              border: `1px solid ${color.hairlineStrong}`,
+              background: color.paper,
+              color: color.inkMuted,
+              fontSize: 15,
+              lineHeight: 1,
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* The beats, on their rail */}
+        <div ref={bodyRef} style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>
+          {beats.length === 0 && !streaming ? (
+            // Nothing landed and nothing is coming: the generation failed and
+            // was already toasted. Say so here rather than leaving a skeleton
+            // pulsing at a learner forever.
+            <div style={{ fontSize: 14, lineHeight: 1.6, color: color.inkMuted }}>
+              {t.modelEmpty}
+            </div>
+          ) : beats.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div
+                style={{
+                  fontFamily: font.mono,
+                  fontSize: 11,
+                  color: color.inkGhost,
+                  marginBottom: 4,
+                }}
+              >
+                {t.modelOpening}
+              </div>
+              {[150, "92%", "84%"].map((w, i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: i === 0 ? 12 : 15,
+                    width: w,
+                    borderRadius: 5,
+                    background: "rgba(44,40,35,0.08)",
+                    animation: "pulseGlow 1.6s ease-in-out infinite",
+                    animationDelay: `${i * 0.12}s`,
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            beats.slice(0, shown).map((beat, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  paddingBottom: i === shown - 1 ? 0 : 18,
+                  animation: "fadeUp .45s both",
+                }}
+              >
+                {/* Rail: a filled dot per beat, the thread between them drawn
+                    only as far as the walkthrough has actually got. */}
+                <div
+                  style={{
+                    flex: "0 0 auto",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    width: 10,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: "50%",
+                      marginTop: 6,
+                      background: BLUE,
+                    }}
+                  />
+                  {i < shown - 1 && (
+                    <span
+                      style={{ flex: 1, width: 1, background: "rgba(91,127,191,0.32)" }}
+                    />
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: font.mono,
+                      fontSize: 10,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: color.inkFaint,
+                      marginBottom: 6,
+                    }}
+                  >
+                    {beat.label}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: font.serif,
+                      fontSize: 17,
+                      lineHeight: 1.62,
+                      color: color.ink,
+                    }}
+                  >
+                    {beat.text}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* Caught up to the writer. */}
+          {beats.length > 0 && streaming && shown >= beats.length && (
+            <div
+              style={{
+                marginTop: 18,
+                paddingLeft: 24,
+                fontFamily: font.mono,
+                fontSize: 11,
+                color: color.inkGhost,
+                animation: "breathe 1.8s ease-in-out infinite",
+              }}
+            >
+              {t.modelWriting}
+            </div>
+          )}
+        </div>
+
+        {/* Footer — the count, the skip, and the way back to the reading */}
+        <div
+          style={{
+            flex: "0 0 auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "13px 22px",
+            borderTop: `1px solid ${color.hairline}`,
+            background: color.cardAlt,
+          }}
+        >
+          {beats.length > 0 && (
+            <span
+              style={{ fontFamily: font.mono, fontSize: 10.5, color: color.inkFaint }}
+            >
+              {t.modelBeat(shown, beats.length)}
+            </span>
+          )}
+          <div style={{ flex: 1 }} />
+          {shown < beats.length && (
+            <>
+              <button
+                type="button"
+                onClick={() => setRevealed(beats.length)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  fontFamily: "inherit",
+                  fontSize: 12.5,
+                  color: color.inkMuted,
+                  cursor: "pointer",
+                }}
+              >
+                {t.modelRevealAll}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRevealed((n) => n + 1)}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 9,
+                  border: `1px solid ${color.hairlineStrong}`,
+                  background: color.card,
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  color: color.ink,
+                  cursor: "pointer",
+                }}
+              >
+                {t.modelNext}
+              </button>
+            </>
+          )}
+          {done && (
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: "8px 15px",
+                borderRadius: 9,
+                border: "none",
+                background: color.accent,
+                color: color.accentInk,
+                fontFamily: "inherit",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {t.modelBack}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ConsumeView({
   title,
   topic,
   chunks,
   streaming = false,
   session,
+  modelBeats,
+  modelStreaming = false,
   onExit,
   onAnswer,
   onCheck,
@@ -937,7 +1322,8 @@ export default function ConsumeView({
   onContinue,
   onFinish,
   onBeginSocratic,
-  onSetVariant,
+  onOpenModel,
+  onCloseModel,
   onToggleTerm,
   onToggleCollapse,
   onOpenPassage,
@@ -952,15 +1338,13 @@ export default function ConsumeView({
   // The prediction is open-ended by default; the switch reveals the closed form.
   const [mode, setMode] = useState<AnswerMode>("open");
 
-  /** The rewrite showing in place of a chunk's prose, if any. An explicit
-   *  `null` in `variant` is the learner reverting and beats the preference;
-   *  absence means they haven't chosen, so the learned default leads. */
-  const variantOf = (chunkId: string): AltKey | null =>
-    chunkId in session.variant ? session.variant[chunkId] : session.preferred;
-  /** …and whether it's showing because the learner picked it here, or because
-   *  it's what they always read in. */
-  const isDefaultVariant = (chunkId: string) =>
-    !(chunkId in session.variant) && session.preferred !== null;
+  /** The lens last opened over a chunk, or null. This is a record of what the
+   *  learner reached for — it marks a control, it never changes the prose. */
+  const lensOf = (chunkId: string): AltKey | null => session.variant[chunkId] ?? null;
+  /** …and whether the learned default is what's being suggested here, because
+   *  they haven't opened a lens over this section themselves. */
+  const suggestsDefault = (chunkId: string) =>
+    !session.variant[chunkId] && session.preferred !== null;
 
   // Read-aloud: the reading pass is the one place in Atlas long enough to be
   // worth listening to. One section speaks at a time — starting another
@@ -971,12 +1355,10 @@ export default function ConsumeView({
   const [spoken, setSpoken] = useState<string | null>(null);
   const voiceOn = reading.supported && readAloudPref;
   const speakingChunk = reading.speaking ? spoken : null;
-  /** What a chunk would read aloud right now — the rewrite if one is showing,
-   *  the original prose otherwise. The voice reads what's on the page. */
-  const segmentsOf = (c: ConsumeChunk) => {
-    const vkey = variantOf(c.id);
-    return segmentsForChunk(c, vkey && c.alt ? c.alt[vkey] : null);
-  };
+  /** What a chunk reads aloud: its prose, its worked example, its takeaway.
+   *  The voice reads what's on the page — and since a lens now opens *over*
+   *  the section instead of rewriting it, that is never anything but this. */
+  const segmentsOf = (c: ConsumeChunk) => segmentsForChunk(c);
   const toggleReading = (c: ConsumeChunk) => {
     if (speakingChunk === c.id) {
       if (reading.paused) reading.resume();
@@ -987,28 +1369,19 @@ export default function ConsumeView({
     reading.speak(segmentsOf(c));
   };
 
-  // Swapping the rewrite under a section that is being read aloud changes the
-  // text mid-sentence: the voice would carry on through prose nobody can see,
-  // and the paragraph highlight would point at elements that no longer exist.
-  // Stop rather than pretend.
-  const spokenVariant = spoken ? variantOf(spoken) : null;
-  const lastSpokenVariant = useRef(spokenVariant);
-  useEffect(() => {
-    if (lastSpokenVariant.current !== spokenVariant) {
-      lastSpokenVariant.current = spokenVariant;
-      if (reading.speaking) {
-        reading.cancel();
-        setSpoken(null);
-      }
-    }
-  }, [spokenVariant, reading]);
-
   // Only sections up to the deepest revealed one are on screen — the pass
   // unfolds in segments, never as a wall.
   const visible = chunks.slice(0, session.idx + 1);
 
+  // The section the open lens belongs to, looked up rather than carried in
+  // session state: while the pass is still streaming a section can be replaced
+  // in place, and the view must render the copy that is actually on screen.
+  const modelChunk = session.model
+    ? chunks.find((c) => c.id === session.model?.chunkId)
+    : undefined;
+
   let simpleCount = 0;
-  for (const c of chunks) if (variantOf(c.id) === "simpler") simpleCount++;
+  for (const c of chunks) if (lensOf(c.id) === "simpler") simpleCount++;
 
   // Overshoot correction: the session's one hook was called correctly →
   // surface the skip offer right away instead of making the learner read
@@ -1536,8 +1909,7 @@ export default function ConsumeView({
           )}
 
           {visible.map((c, i) => {
-            const vkey = variantOf(c.id);
-            const altText = vkey && c.alt ? c.alt[vkey] : null;
+            const vkey = lensOf(c.id);
             const isDeepest = i === visible.length - 1;
             // While streaming, the deepest chunk in hand isn't provably the
             // pass's last section yet — never claim "last" until the stream
@@ -1556,7 +1928,10 @@ export default function ConsumeView({
                   : { text: c.pred.wrong, color: WRONG }
                 : null;
             const collapsed = !!session.collapsed[c.id];
-            const paragraphs = altText ? altParagraphs(altText) : c.body;
+            // The prose stays put. A lens (below) opens *over* it — the
+            // passage a learner is mid-way through is the last thing that
+            // should disappear when they ask for help with it.
+            const paragraphs = c.body;
             const checkPassed = !c.check || !!session.checks[c.id]?.correct;
 
             return (
@@ -1897,12 +2272,9 @@ export default function ConsumeView({
                         {t.askFloating}
                       </button>
                     )}
-                    {/* Adaptive modality: the active rewrite REPLACES the prose
-                        it rewrites — it's a different route through the same
-                        material, not a fourth version stacked underneath it.
-                        Tapping the same control again (below) reverts it.
-                        Either way it renders as paragraphs, so the read-aloud
-                        highlight tracks it the same as the original. */}
+                    {/* The prose itself. It is always the section's own — a
+                        lens opens over it, never in place of it — so the
+                        read-aloud highlight tracks these paragraphs directly. */}
                     {paragraphs.map((para, pi) => {
                       // Prose paragraphs lead the spoken segments, so the
                       // reading index maps straight onto them.
@@ -1910,31 +2282,17 @@ export default function ConsumeView({
                       return (
                         <p
                           key={pi}
-                          style={
-                            altText
-                              ? {
-                                  fontSize: 15,
-                                  lineHeight: 1.62,
-                                  color: color.inkSoft,
-                                  background: spokenNow ? color.accentBg : color.chipBg,
-                                  borderRadius: 10,
-                                  padding: "12px 15px",
-                                  margin: "0 0 10px",
-                                  transition: "background .25s",
-                                  animation: "fadeUp .3s both",
-                                }
-                              : {
-                                  fontFamily: font.serif,
-                                  fontSize: 19,
-                                  lineHeight: 1.68,
-                                  margin: "0 -8px 18px",
-                                  padding: "2px 8px",
-                                  borderRadius: 7,
-                                  background: spokenNow ? color.accentBg : "transparent",
-                                  transition: "background .25s",
-                                  color: color.ink,
-                                }
-                          }
+                          style={{
+                            fontFamily: font.serif,
+                            fontSize: 19,
+                            lineHeight: 1.68,
+                            margin: "0 -8px 18px",
+                            padding: "2px 8px",
+                            borderRadius: 7,
+                            background: spokenNow ? color.accentBg : "transparent",
+                            transition: "background .25s",
+                            color: color.ink,
+                          }}
                         >
                           {para}
                         </p>
@@ -2014,62 +2372,58 @@ export default function ConsumeView({
                       </button>
                     </div>
 
-                    {/* Adaptive-modality rewrites — generated after the
-                        reading itself, so on a fresh (uncached) open they
-                        may still be on the way for a few seconds. Tapping the
-                        active one again reverts to the original prose above. */}
-                    {c.alt ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                        {controls.map(([key, label]) => {
-                          const active = vkey === key;
-                          return (
-                            <button
-                              key={key}
-                              onClick={() => onSetVariant(c.id, key)}
-                              style={{
-                                padding: "6px 12px",
-                                borderRadius: 8,
-                                fontSize: 12,
-                                cursor: "pointer",
-                                fontFamily: font.mono,
-                                border: `1px solid ${
-                                  active ? color.accent : color.hairlineStrong
-                                }`,
-                                background: active ? color.accentBg : color.card,
-                                color: active ? color.accent : color.inkMuted,
-                              }}
-                            >
-                              {active ? t.showOriginal : label}
-                            </button>
-                          );
-                        })}
-                        {/* Says why this section opened rewritten, so a
-                            learned default never looks like a glitch. */}
-                        {isDefaultVariant(c.id) && (
-                          <span
+                    {/* The four lenses. Each opens a model view over this
+                        section — generated on demand for this section's exact
+                        prose, so there is nothing to wait for before they are
+                        offered. The one last opened stays marked: that is the
+                        adaptive-modality record, and what the
+                        missing-prerequisite flag counts. */}
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
+                    >
+                      {controls.map(([key, label]) => {
+                        const used = vkey === key;
+                        // The learned default is marked on sections the
+                        // learner hasn't opened a lens over themselves — it
+                        // leads them to it without opening anything for them.
+                        const suggested = suggestsDefault(c.id) && session.preferred === key;
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => onOpenModel(c, key)}
                             style={{
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              fontSize: 12,
+                              cursor: "pointer",
                               fontFamily: font.mono,
-                              fontSize: 10,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
-                              color: color.inkGhost,
+                              border: `1px solid ${
+                                used || suggested ? color.accent : color.hairlineStrong
+                              }`,
+                              background: used ? color.accentBg : color.card,
+                              color: used || suggested ? color.accent : color.inkMuted,
                             }}
                           >
-                            {t.yourDefault}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          fontFamily: font.mono,
-                          fontSize: 11,
-                          color: color.inkGhost,
-                        }}
-                      >
-                        {t.rewritesWriting}
-                      </div>
-                    )}
+                            {label}
+                          </button>
+                        );
+                      })}
+                      {/* Says which one is theirs, so a marked control never
+                          looks like a glitch. */}
+                      {suggestsDefault(c.id) && (
+                        <span
+                          style={{
+                            fontFamily: font.mono,
+                            fontSize: 10,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            color: color.inkGhost,
+                          }}
+                        >
+                          {t.yourDefault}
+                        </span>
+                      )}
+                    </div>
 
                     {/* Ask about this — the learner's own question about the
                         passage they highlighted, answered against this
@@ -2272,6 +2626,22 @@ export default function ConsumeView({
           )}
         </div>
       </div>
+
+      {/* The open lens. Mounted last and fixed-positioned, so the section it
+          belongs to is still there — and still scrolled where the learner
+          left it — the moment this closes. Keyed on section + lens so
+          switching lenses restarts the cascade rather than continuing the
+          previous one's count. */}
+      {modelChunk && session.model && (
+        <ModelView
+          key={`${session.model.chunkId}:${session.model.lens}`}
+          lens={session.model.lens}
+          chunk={modelChunk}
+          beats={modelBeats ?? []}
+          streaming={modelStreaming}
+          onClose={onCloseModel}
+        />
+      )}
     </div>
   );
 }

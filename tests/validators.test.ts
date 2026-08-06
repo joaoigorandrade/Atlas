@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   validateChoice,
   validateConsume,
+  validateConsumeModel,
   validateCrucible,
   validateDiagnosticQuestion,
   validateFeynman,
@@ -397,6 +398,32 @@ describe("validateConsume", () => {
         consumePayload([{ example: { title: "worked", steps: [] } }]),
       ),
     ).toThrow(/example\.steps/);
+  });
+});
+
+// ---- model view: one lens over one section -----------------------------------
+
+describe("validateConsumeModel", () => {
+  const beats = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      label: `Beat ${i + 1}`,
+      text: "the beat itself",
+    }));
+
+  it("accepts a walkthrough within bounds", () => {
+    const out = validateConsumeModel({ beats: beats(4) });
+    expect(out).toHaveLength(4);
+    expect(out[0].label).toBe("Beat 1");
+  });
+
+  it("rejects a walkthrough too short to be one", () => {
+    expect(() => validateConsumeModel({ beats: beats(2) })).toThrow(/beats/);
+  });
+
+  it("rejects a beat with no text — a label alone reveals nothing", () => {
+    expect(() =>
+      validateConsumeModel({ beats: [...beats(2), { label: "Beat 3", text: "  " }] }),
+    ).toThrow(/beats\[2\].text/);
   });
 });
 

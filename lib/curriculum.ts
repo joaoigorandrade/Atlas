@@ -244,7 +244,9 @@ export function phaseSkipNudge(phase: Phase, lang: Language = "en"): string {
 // the session sits on the opening section as a hook the learner may skip;
 // retrieval practice proper belongs to Socratic, Feynman and Crucible.
 
-/** The on-demand rewrite modalities offered under each revealed chunk. */
+/** The four lenses offered under each revealed chunk. Tapping one opens a
+ *  *model view* over the section — the same material walked through one beat
+ *  at a time — rather than swapping the prose underneath the learner. */
 export type AltKey = "simpler" | "example" | "analogy" | "deeper";
 
 export const ALT_CONTROLS: ReadonlyArray<[AltKey, string]> = [
@@ -254,6 +256,10 @@ export const ALT_CONTROLS: ReadonlyArray<[AltKey, string]> = [
   ["deeper", "Go deeper"],
 ];
 
+/** The lens keys alone — the server validates a request's `lens` against this,
+ *  so a fifth control added above is legal everywhere at once. */
+export const ALT_KEYS: readonly AltKey[] = ALT_CONTROLS.map(([key]) => key);
+
 const ALT_CONTROLS_PT: ReadonlyArray<[AltKey, string]> = [
   ["simpler", "Mais simples"],
   ["example", "Exemplo"],
@@ -261,7 +267,7 @@ const ALT_CONTROLS_PT: ReadonlyArray<[AltKey, string]> = [
   ["deeper", "Aprofundar"],
 ];
 
-/** Language-aware alt-rewrite controls. */
+/** Language-aware lens controls. */
 export function altControls(lang: Language = "en"): ReadonlyArray<[AltKey, string]> {
   return lang === "pt-BR" ? ALT_CONTROLS_PT : ALT_CONTROLS;
 }
@@ -351,9 +357,10 @@ export interface ConsumeChunk {
   figure?: ConsumeFigure;
   /** The mini-Socratic aside opened from "ask about this passage". */
   ask: string;
-  /** Adaptive-modality rewrites of this chunk, keyed by control. Generated
-   *  after the reading itself on a fresh (uncached) open — a learner reads
-   *  before reaching for a rewrite, so it isn't worth gating the screen on. */
+  /** Adaptive-modality rewrites of this chunk, keyed by control — the model
+   *  view's predecessor, which swapped the prose in place. Nothing renders it
+   *  any more; the field survives because rows cached before the model view
+   *  still carry it, and `migrateConsume` mines it for a takeaway. */
   alt?: Record<AltKey, string>;
   /** The session's single prediction hook — present on the opening section
    *  only, and optional even there. */
@@ -386,8 +393,10 @@ export interface ConsumeProgress {
   answered: Record<string, { oi: number; correct: boolean }>;
   /** The hook was waved off — "just teach me". */
   hookSkipped: boolean;
-  /** The chosen rewrite modality per chunk. An explicit `null` is the learner
-   *  reverting to the original prose, and must outrank a learned preference. */
+  /** The lens last opened over each chunk — a record of what this learner
+   *  reached for, not a rendering instruction. `null` is still in the type
+   *  because rows persisted before lenses opened a model view stored one to
+   *  mean "reverted to the original prose"; nothing writes it any more. */
   variant: Record<string, AltKey | null>;
   /** Sections collapsed to their takeaway alone. */
   collapsed: Record<string, boolean>;
@@ -432,7 +441,7 @@ export function readingProgress(p: ConsumeProgress): { read: number; total: numb
 }
 
 /**
- * How often the learner has reached for each rewrite modality (§6: "the app
+ * How often the learner has opened each lens (§6: "the app
  * learns which representation lands for this learner and leads with it next
  * time"). Run-wide, not per node — the point is a preference that carries.
  */
@@ -456,6 +465,49 @@ export function preferredModality(tally: ModalityTally): AltKey | null {
     }
   }
   return best;
+}
+
+// ---- the model view (kind: "model") ----------------------------------------
+// What a lens control opens *over* a section. The four controls used to
+// rewrite the prose in place, which cost the learner the passage they were
+// reading; a model view leaves the section where it is and walks the same
+// material through, one beat at a time.
+//
+// Generated per (section, lens) on demand rather than four-per-section up
+// front: a learner opens one lens on the section that didn't land, not twenty
+// across the pass.
+
+/** How many beats one model view walks through. Mirrors the validator's bound
+ *  (not the number the prompt asks for), since `Job.shape` uses it to decide
+ *  whether a streamed set is complete enough to cache. */
+export const MODEL_BEAT_BOUNDS = { min: 3, max: 5 } as const;
+
+/** One beat of a model view — revealed in turn, never all at once. */
+export interface ConsumeModelBeat {
+  /** 2-4 words naming this beat; the marker on the view's rail. */
+  label: string;
+  /** The beat itself: 1-3 sentences of this lens's walk through the section. */
+  text: string;
+}
+
+/** What each lens promises the learner, shown under the model view's title. */
+const LENS_NOTE: Record<AltKey, string> = {
+  simpler: "The same idea, stripped to its plainest form.",
+  example: "A second worked case, one move at a time.",
+  analogy: "Something you already understand, mapped onto this.",
+  deeper: "The rigorous layer under the reading.",
+};
+
+const LENS_NOTE_PT: Record<AltKey, string> = {
+  simpler: "A mesma ideia, reduzida à forma mais simples.",
+  example: "Um segundo caso resolvido, um passo por vez.",
+  analogy: "Algo que você já entende, mapeado sobre isto.",
+  deeper: "A camada rigorosa por baixo da leitura.",
+};
+
+/** Language-aware lens note. */
+export function lensNote(key: AltKey, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? LENS_NOTE_PT : LENS_NOTE)[key];
 }
 
 // ---- Phase 3a · Socratic (during learning) --------------------------------

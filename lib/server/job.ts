@@ -10,6 +10,8 @@
 import {
   generateConnect,
   generateConsume,
+  generateConsumeModel,
+  generateConsumeModelStream,
   generateConsumeStream,
   generateCrucible,
   generateDiagnosticQuestion,
@@ -36,8 +38,11 @@ import {
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import type { StreamFrame, StreamShapes } from "@/lib/server/stream";
 import {
+  ALT_KEYS,
   DIAGNOSTIC_DIFFICULTIES,
   FEYNMAN_BEATS,
+  MODEL_BEAT_BOUNDS,
+  type AltKey,
   type DiagnosticDifficulty,
   type GoalKind,
 } from "@/lib/curriculum";
@@ -62,6 +67,11 @@ export interface GenerateBody {
   nodeId?: string;
   nodeLabel?: string;
   prereqLabels?: string[];
+  // model fields — the section a lens was opened over, as it is on screen
+  // (`kicker` is shared with the passage fields below)
+  lens?: string;
+  sectionBody?: string[];
+  takeaway?: string;
   masteredLabels?: string[];
   pool?: Array<{ id: string; label: string }>;
   nodes?: Array<{ id: string; label: string; state: string }>;
@@ -73,6 +83,7 @@ export interface GenerateBody {
   prefetch?: boolean;
   // passage fields ("ask about this" — the learner's own words about a
   // highlighted stretch of the reading)
+  /** The section's kicker — named by the model view and the passage ask alike. */
   kicker?: string;
   section?: string;
   selection?: string;
@@ -246,8 +257,43 @@ export function resolveJob(body: GenerateBody): Job {
         stream: () => generateConsumeStream(params),
         // Mirrors `validateConsume`'s 4-6 bound, not the 5 the prompt asks for.
         shape: { chunks: { min: 4, max: 6 } },
-        // The reading pass, plus one rewrite call per section it produces.
-        cost: 6,
+      };
+    }
+
+    case "model": {
+      if (!nodeLabel) throw badRequest("nodeLabel is required");
+      const lens = ALT_KEYS.find((k) => k === body.lens);
+      if (!lens) throw badRequest(`unknown lens "${String(body.lens)}"`);
+      const kicker = s(body.kicker).slice(0, CAPS.nodeLabel);
+      // The section's own prose, keyed on rather than merely passed: two
+      // learners reading the *same* cached section share this row, and a
+      // walkthrough can never be grafted onto wording it wasn't written for.
+      const sectionBody = (
+        Array.isArray(body.sectionBody) ? body.sectionBody : []
+      )
+        .filter((p): p is string => typeof p === "string")
+        .slice(0, 8)
+        .map((p) => p.slice(0, CAPS.freeText));
+      if (!kicker || sectionBody.length === 0)
+        throw badRequest("kicker and sectionBody are required");
+      const params = {
+        topic,
+        nodeLabel,
+        lens: lens as AltKey,
+        kicker,
+        body: sectionBody,
+        takeaway: s(body.takeaway).slice(0, CAPS.freeText),
+        interests,
+        language,
+      };
+      return {
+        kind: "model",
+        key: contentKey("model", params),
+        run: async () => ({ beats: await generateConsumeModel(params) }),
+        stream: () => generateConsumeModelStream(params),
+        // Mirrors `validateConsumeModel`'s bound, not the count the prompt
+        // asks for.
+        shape: { beats: { ...MODEL_BEAT_BOUNDS } },
       };
     }
 

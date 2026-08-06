@@ -6,13 +6,17 @@
 import {
   DIAGNOSTIC_COUNT,
   FEYNMAN_BEATS,
+  MODEL_BEAT_BOUNDS,
   SOCRATIC_STEPS,
+  altControls,
   graphFromMapNodes,
+  lensNote,
   type AltKey,
   type ConceptEdge,
   type ConceptNode,
   type ConsumeChunk,
   type ConsumeFigure,
+  type ConsumeModelBeat,
   type ConsumePrediction,
   type CrucibleContent,
   type DiagnosticDifficulty,
@@ -31,7 +35,7 @@ import {
   streamJsonObjects,
   type ChatMessage,
 } from "@/lib/server/openrouter";
-import { ALT_SHAPE, consumeSectionShape } from "@/lib/server/generate/shapes";
+import { CONSUME_SECTION_SHAPE, MODEL_BEAT_SHAPE } from "@/lib/server/generate/shapes";
 import type { StreamFrame } from "@/lib/server/stream";
 
 // ---- tiny validation helpers (throw readable errors for the retry loop) ----
@@ -620,8 +624,6 @@ Rules: exactly one of the 4 options is correct; the other three are plausible di
 
 // ---- kind: consume ---------------------------------------------------------
 
-const ALT_KEYS: readonly AltKey[] = ["simpler", "example", "analogy", "deeper"];
-
 export function validateFigure(raw: unknown, name: string): ConsumeFigure {
   const f = obj(raw, name);
   const nodes = arr(f.nodes, `${name}.nodes`, 2, 8).map((v, i) => {
@@ -670,9 +672,9 @@ function validatePrediction(raw: unknown, name: string): ConsumePrediction {
   };
 }
 
-/** Everything but the adaptive-modality rewrites — shared by the fast
- *  streaming pass (no `alt`, so the first section closes as soon as the
- *  material itself is written) and the full single-shot shape below. */
+/** One section of the reading pass. Every lens a learner can open over it is
+ *  its own on-demand generation (see "kind: model" below), so a section
+ *  validates — and renders — the moment its own material is written. */
 function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
   const c = obj(raw, `chunks[${i}]`);
   const ex = obj(c.example, `chunks[${i}].example`);
@@ -715,24 +717,9 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
   };
 }
 
-function validateConsumeAlt(raw: unknown, i: number): Record<AltKey, string> {
-  const a = obj(raw, `alts[${i}]`);
-  return Object.fromEntries(
-    ALT_KEYS.map((k) => [k, str(a[k], `alts[${i}].${k}`)]),
-  ) as Record<AltKey, string>;
-}
-
-function validateConsumeChunk(raw: unknown, i: number): ConsumeChunk {
-  const c = obj(raw, `chunks[${i}]`);
-  return {
-    ...validateConsumeSection(raw, i),
-    alt: validateConsumeAlt(c.alt, i),
-  };
-}
-
 export function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
-  return arr(root.chunks, "chunks", 4, 6).map(validateConsumeChunk);
+  return arr(root.chunks, "chunks", 4, 6).map(validateConsumeSection);
 }
 
 function consumeContext(params: {
@@ -766,85 +753,6 @@ Rules for the prose:
 - Name the common misconception explicitly and say why it is wrong.${languageNote(language)}`;
 }
 
-/** The shape of one Consume section, with and without the adaptive rewrites.
- *  Composed in `./generate/shapes` rather than derived by regex — see the note
- *  in that file for what the old derivation broke. */
-const CONSUME_SECTION_SHAPE = consumeSectionShape(true);
-const CONSUME_SECTION_SHAPE_FAST = consumeSectionShape(false);
-
-/**
- * The adaptive-modality rewrites for ONE section, generated once the reading
- * itself has already streamed to the learner. Off the critical path on
- * purpose: a learner reads before reaching for "simpler" or "go deeper", so
- * there's no reason those four rewrites should delay the section they belong
- * to.
- *
- * One call per section rather than one call for all five. The old shape
- * re-sent every section's body and worked example verbatim — around 4000
- * input tokens — to produce 4000 more, which made it both the largest prompt
- * in the app and an all-or-nothing bet: one bad section cost all five sets of
- * toggles. Each call now sees only its own section, they run concurrently, and
- * a failure is isolated to the section that caused it.
- */
-async function generateSectionAlt(
-  section: ConsumeChunk,
-  index: number,
-  params: { topic: string; nodeLabel: string; language?: Language },
-): Promise<Record<AltKey, string>> {
-  return generateJson(
-    user(
-      `This section of the reading pass on "${params.nodeLabel}" within "${params.topic}" is already written:
-
-${section.kicker}
-${section.body.join("\n")}
-Worked example (${section.example.title}): ${section.example.steps.join(" ")}
-
-Write the four adaptive-modality rewrites a learner can switch to instead of the prose above. Each must cover the SAME material as this section — a different route through it, never a different topic. Return JSON:
-${ALT_SHAPE}${languageNote(params.language)}`,
-    ),
-    (raw) => validateConsumeAlt(raw, index),
-    { label: "consume-alt" },
-  );
-}
-
-/** Concurrent alt calls in flight. Bounded so a background rewrite pass never
- *  competes with a foreground generation for the model's attention. */
-const ALT_CONCURRENCY = 3;
-
-/**
- * Every section's rewrites, fanned out. Resolves to one entry per section,
- * `null` where that section's call failed — the caller yields the ones that
- * landed and leaves the rest inert.
- */
-async function generateConsumeAlts(
-  sections: ConsumeChunk[],
-  params: { topic: string; nodeLabel: string; language?: Language },
-): Promise<Array<Record<AltKey, string> | null>> {
-  const out: Array<Record<AltKey, string> | null> = new Array(sections.length).fill(null);
-  let next = 0;
-  const worker = async () => {
-    while (true) {
-      const i = next++;
-      if (i >= sections.length) return;
-      try {
-        out[i] = await generateSectionAlt(sections[i], i, params);
-      } catch (err) {
-        console.error(
-          JSON.stringify({
-            evt: "consume_alt_section_failed",
-            section: i,
-            error: String(err instanceof Error ? err.message : err).slice(0, 300),
-          }),
-        );
-      }
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(ALT_CONCURRENCY, sections.length) }, worker),
-  );
-  return out;
-}
-
 export async function generateConsume(params: {
   topic: string;
   nodeLabel: string;
@@ -870,12 +778,7 @@ Return JSON with 5 sections:
  * Streamed variant: sections render as they're written instead of the
  * learner waiting on all 5. Asks for 5 standalone JSON objects (not one
  * wrapping array, so each is a complete, parseable unit as soon as its
- * closing brace lands) and yields each the moment it validates — without
- * `alt`, so a section never waits on its own rewrites (see
- * `consumeSectionShape`). Once all 5 are out, the rewrites are generated and
- * each section is re-yielded with `alt` filled in — at the same frame index,
- * so the client (and the assembler) patch the already-rendered copy in place
- * instead of appending a 6th–10th section.
+ * closing brace lands) and yields each the moment it validates.
  *
  * No corrective retry mid-stream — if the very first section fails to parse
  * or validate (the model ignored the format, a network hiccup), that's
@@ -894,7 +797,6 @@ export async function* generateConsumeStream(params: {
   language?: Language;
 }): AsyncGenerator<StreamFrame> {
   let yielded = 0;
-  const sections: ConsumeChunk[] = [];
   try {
     const stream = streamJsonObjects(
       user(
@@ -904,15 +806,12 @@ Write the 5 sections as 5 SEPARATE top-level JSON objects, one after another
 — NOT wrapped in an array or a {"chunks": [...]} object, no markdown fences,
 no numbering, no commentary before/after/between them. Each object has this
 shape:
-${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
+${CONSUME_SECTION_SHAPE}${languageNote(params.language)}`,
       ),
       validateConsumeSection,
       { label: "consume-stream" },
     );
-    for await (const chunk of stream) {
-      sections.push(chunk);
-      yield { p: "chunks", i: yielded++, v: chunk };
-    }
+    for await (const chunk of stream) yield { p: "chunks", i: yielded++, v: chunk };
   } catch (err) {
     if (yielded > 0) throw err;
     console.error(
@@ -923,17 +822,139 @@ ${CONSUME_SECTION_SHAPE_FAST}${languageNote(params.language)}`,
     );
     const chunks = await generateConsume(params);
     for (const [i, chunk] of chunks.entries()) yield { p: "chunks", i, v: chunk };
-    return;
   }
+}
 
-  // The reading is already fully on screen by now. A section whose rewrites
-  // fail simply keeps its toggles inert — worth logging (each failure is
-  // logged inside the fan-out), never worth failing the whole pass over, and
-  // no longer all-or-nothing: the sections that succeeded still light up.
-  const alts = await generateConsumeAlts(sections, params);
-  for (let i = 0; i < sections.length; i++) {
-    const alt = alts[i];
-    if (alt) yield { p: "chunks", i, v: { ...sections[i], alt } };
+// ---- kind: model -----------------------------------------------------------
+// One lens, opened over one section of the reading (see `ConsumeModelBeat`).
+//
+// This is the only generation in the app the learner asks for *from inside* a
+// screen they are already reading, which shapes it twice over: it streams, so
+// the first beat lands while the rest are still being written, and it is keyed
+// on the section's own prose rather than on the node — two learners looking at
+// the same cached section through the same lens share the row, and a section
+// generated at temperature 0.6 can never be handed a walkthrough written for
+// somebody else's wording of it.
+
+/** What each lens asks the model for. The learner-facing promise lives in
+ *  `lensNote` (lib/curriculum.ts); these are its instructions. */
+const LENS_BRIEF: Record<AltKey, string> = {
+  simpler:
+    "Strip the idea to its plainest form. Short sentences, no jargon that isn't defined on the spot, no loss of correctness — a plainer route to the same understanding, never a vaguer one.",
+  example:
+    "Work a SECOND, different concrete case end to end — different numbers, a different setting, the same mechanism. Show the actual work in each beat, never just describe it.",
+  analogy:
+    "Build one analogy from something the learner already understands and map it part by part onto the concept. Name where the analogy breaks down in the last beat — an unqualified analogy teaches a misconception.",
+  deeper:
+    "Go one layer below the reading: the precise statement, the condition that makes it hold, the case that motivates it. This is the small print a textbook would set apart — rigorous, and still explained.",
+};
+
+export function validateConsumeModelBeat(raw: unknown, i: number): ConsumeModelBeat {
+  const b = obj(raw, `beats[${i}]`);
+  return {
+    label: rejectEcho(str(b.label, `beats[${i}].label`), `beats[${i}].label`),
+    text: str(b.text, `beats[${i}].text`),
+  };
+}
+
+export function validateConsumeModel(raw: unknown): ConsumeModelBeat[] {
+  const root = obj(raw, "payload");
+  return arr(
+    root.beats,
+    "beats",
+    MODEL_BEAT_BOUNDS.min,
+    MODEL_BEAT_BOUNDS.max,
+  ).map(validateConsumeModelBeat);
+}
+
+export interface ModelParams {
+  topic: string;
+  nodeLabel: string;
+  /** Which of the four controls the learner tapped. */
+  lens: AltKey;
+  /** The section being looked at, as it is on screen behind the view. */
+  kicker: string;
+  body: string[];
+  takeaway: string;
+  interests: string;
+  language?: Language;
+}
+
+/** The shared framing of both model-view prompts. */
+function modelContext(params: ModelParams): string {
+  const { topic, nodeLabel, lens, kicker, body, takeaway, interests } = params;
+  const label = new Map(altControls("en")).get(lens) ?? lens;
+  return `A learner is reading the section "${kicker}" of the pass on "${nodeLabel}" within "${topic}". This is the section, exactly as it sits on their screen:
+
+${body.join("\n\n")}
+
+Takeaway: ${takeaway}
+
+They tapped "${label}" — "${lensNote(lens, "en")}" — which opens a MODEL VIEW over that section. ${LENS_BRIEF[lens]}
+
+The section is NOT replaced: it stays on screen underneath, and they will go back to it. So:
+- Cover the SAME material. A model view that drifts to a neighbouring topic strands the learner.
+- Never restate the prose above sentence for sentence — they just read it. This is a different route through it.
+- Write ${MODEL_BEAT_BOUNDS.min}-${MODEL_BEAT_BOUNDS.max} beats that are revealed one at a time and build in order, each picking up where the last left off. The first beat must stand on its own, since it is on screen while the rest are still being written.
+${interestNote(interests)}`;
+}
+
+export async function generateConsumeModel(
+  params: ModelParams,
+): Promise<ConsumeModelBeat[]> {
+  return generateJson(
+    user(
+      `${modelContext(params)}
+
+Return JSON:
+{
+  "beats": [${MODEL_BEAT_SHAPE}, ...]
+}${languageNote(params.language)}`,
+    ),
+    validateConsumeModel,
+    { label: "model" },
+  );
+}
+
+/**
+ * Streamed variant: the first beat is on screen — and reading — while the rest
+ * are still being decoded, which is the whole point of a view opened from
+ * inside a screen the learner is already on.
+ *
+ * Same fallback contract as the other streamed kinds: a failure before the
+ * first beat drops to the retried single-shot path, since "the model ignored
+ * the format" is indistinguishable from "nothing usable happened yet". After
+ * that it surfaces, the client keeps what landed, and nothing incomplete is
+ * cached — so reopening the lens retries.
+ */
+export async function* generateConsumeModelStream(
+  params: ModelParams,
+): AsyncGenerator<StreamFrame> {
+  let yielded = 0;
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${modelContext(params)}
+
+Write the beats as SEPARATE top-level JSON objects, one after another — NOT
+wrapped in an array or a {"beats": [...]} object, no markdown fences, no
+numbering, no commentary before/after/between them. Each object has this shape:
+${MODEL_BEAT_SHAPE}${languageNote(params.language)}`,
+      ),
+      validateConsumeModelBeat,
+      { label: "model-stream" },
+    );
+    for await (const beat of stream) yield { p: "beats", i: yielded++, v: beat };
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "model_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const beats = await generateConsumeModel(params);
+    for (const [i, beat] of beats.entries()) yield { p: "beats", i, v: beat };
   }
 }
 

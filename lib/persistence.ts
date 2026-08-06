@@ -71,8 +71,8 @@ export interface RunSnapshot {
    *  the longest surface in the app; losing your place in it on a refresh is
    *  the difference between a document and somewhere you can leave. */
   consumeProgress: Record<string, ConsumeProgress>;
-  /** How often each rewrite modality has been chosen, run-wide — the evidence
-   *  behind the adaptive-modality preference. */
+  /** How often each lens has been opened, run-wide — the evidence behind the
+   *  adaptive-modality preference. */
   modalityTally: ModalityTally;
 }
 
