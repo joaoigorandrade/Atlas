@@ -33,7 +33,7 @@ const CONSUME_SECTION_CORE = `      "kicker": "1 · What it is",                
         "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps
       },
       "takeaway": "the one sentence to carry out of this section",
-      "cite": "a real canonical source (book §, lecture series chapter) — never invent one",
+      "cite": "one real, well-known work a learner could go read next on this — title and author, or a named lecture series. NOT a citation of any sentence above: name only works you are confident exist, and never invent a page, section or chapter number to look precise",
       "diagram": "one-line caption for the figure below, OMIT (with figure) if this section isn't structural",
       "figure": {                                          // OMIT both "diagram" and "figure" entirely when the section is a
                                                             // definition, a comparison, or anything else that isn't a process,

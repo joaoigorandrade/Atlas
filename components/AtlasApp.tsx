@@ -21,6 +21,10 @@ import {
   feynmanStart,
   freshAdherence,
   graphFromMapNodes,
+  emptyConsumeProgress,
+  preferredModality,
+  CONSUME_HOOK_FELT,
+  CONSUME_HOOK_REAL,
   DIAGNOSTIC_COUNT,
   diagnosticEffect,
   stepDifficulty,
@@ -30,7 +34,7 @@ import {
   markTodayMet,
   orderedFrontier,
   paceStatus,
-  phaseIndex,
+  readingPhaseIndex,
   removeNode,
   retainReducer,
   retainStart,
@@ -50,6 +54,8 @@ import {
   type ConnectAction,
   type ConnectSession,
   type ConsumeChunk,
+  type ConsumeProgress,
+  type ModalityTally,
   type CrucibleAction,
   type CrucibleContent,
   type CrucibleSession,
@@ -96,6 +102,7 @@ import {
   fetchJudgeCrucible,
   fetchJudgeFeynman,
   fetchJudgeSocratic,
+  fetchPassageStream,
   fetchRetain,
   fetchSocratic,
   fetchSocraticStream,
@@ -134,8 +141,10 @@ import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
 import ProfileScreen, { type ProfileStat } from "@/components/ProfileScreen";
 import SettingsScreen from "@/components/SettingsScreen";
+import type { AnswerMode } from "@/components/OpenAnswer";
 import ConsumeView, {
   type ConsumeSession,
+  type PassageAsk,
 } from "@/components/session/ConsumeView";
 import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
@@ -274,6 +283,15 @@ export default function AtlasApp({
     nodeId: string;
     chunks: ConsumeChunk[];
   } | null>(null);
+  // Where the learner got to in each node's reading pass, persisted (§6). The
+  // live `consume` session above is this plus the transient UI bits; this is
+  // what a refresh, a re-entry, the map and the phase spiral all read.
+  const [consumeProgress, setConsumeProgress] = useState<
+    Record<string, ConsumeProgress>
+  >({});
+  // Which rewrite modality this learner keeps choosing, run-wide — the
+  // evidence behind the adaptive-modality default.
+  const [modalityTally, setModalityTally] = useState<ModalityTally>({});
   // The active Socratic (Phase 3a) session, or null.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
   // Steps of the *current* node's questioning pass as they stream in — same
@@ -385,6 +403,14 @@ export default function AtlasApp({
   feynmanRef.current = feynman;
   const consumeCacheRef = useRef(consumeCache);
   consumeCacheRef.current = consumeCache;
+  const consumeRef = useRef(consume);
+  consumeRef.current = consume;
+  const liveConsumeRef = useRef(liveConsume);
+  liveConsumeRef.current = liveConsume;
+  const consumeProgressRef = useRef(consumeProgress);
+  consumeProgressRef.current = consumeProgress;
+  const modalityTallyRef = useRef(modalityTally);
+  modalityTallyRef.current = modalityTally;
   const socraticCacheRef = useRef(socraticCache);
   socraticCacheRef.current = socraticCache;
   const feynmanCacheRef = useRef(feynmanCache);
@@ -525,6 +551,8 @@ export default function AtlasApp({
       setConnectCache({});
       setCrucibleCache({});
       setRetainContent(null);
+      setConsumeProgress({});
+      setModalityTally({});
       pendingGapsRef.current = [];
       setMomentumPlaying(false);
       setOutline(null);
@@ -546,6 +574,8 @@ export default function AtlasApp({
       setShakyReasons(s.shakyReasons);
       setReviewedNodes(s.reviewedNodes);
       setCards(s.cards);
+      setConsumeProgress(s.consumeProgress);
+      setModalityTally(s.modalityTally);
       setScreen("map");
       // A pre-v3 row still carries its caches inline; take them and skip
       // the second query.
@@ -635,7 +665,7 @@ export default function AtlasApp({
   useEffect(() => {
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 3,
+      v: 4,
       form,
       graph,
       spawnedIds: [...spawnedIds],
@@ -647,6 +677,8 @@ export default function AtlasApp({
       shakyReasons,
       reviewedNodes,
       cards,
+      consumeProgress,
+      modalityTally,
     };
     const timer = setTimeout(() => {
       saveRun(supabase, runSubject, snapshot).catch((err: Error) =>
@@ -669,6 +701,8 @@ export default function AtlasApp({
     shakyReasons,
     reviewedNodes,
     cards,
+    consumeProgress,
+    modalityTally,
   ]);
 
   // The content: large, but only ever changes when a generation lands. Its own
@@ -782,6 +816,8 @@ export default function AtlasApp({
           setConnectCache({});
           setCrucibleCache({});
           setRetainContent(null);
+          setConsumeProgress({});
+          setModalityTally({});
           setCards([]);
           setCalibSamples([]);
           setShakyReasons({});
@@ -958,6 +994,8 @@ export default function AtlasApp({
     setConnectCache({});
     setCrucibleCache({});
     setRetainContent(null);
+    setConsumeProgress({});
+    setModalityTally({});
     setCalibSamples([]);
     setShakyReasons({});
     setReviewedNodes([]);
@@ -1603,21 +1641,27 @@ export default function AtlasApp({
   /**
    * Entering a frontier node opens Phase 2 · Consume, generating the node's
    * reading pass first if this run hasn't yet. The write-back to Learning
-   * happens on exit (finishing the last chunk), per the spec.
+   * happens on exit — on finishing the pass, and now also on leaving one
+   * part-read, since two sections in is real progress and losing it was the
+   * difference between a document and somewhere you can leave.
+   *
+   * A node opened again resumes: the stored `ConsumeProgress` becomes the
+   * session, so the learner lands back on the section they stopped at with
+   * their rewrites, collapsed sections and guess intact.
    */
   const enterSession = useCallback(
     (node: ConceptNode) => {
       const open = () => {
+        const saved = consumeProgressRef.current[node.id];
         setConsume({
           nodeId: node.id,
-          idx: 0,
-          answered: {},
-          hookSkipped: false,
-          variant: {},
+          ...(saved ?? emptyConsumeProgress()),
           term: null,
-          aside: null,
-          collapsed: {},
-          checks: {},
+          passage: null,
+          recap: false,
+          // The modality the learner reads best in leads on sections they
+          // haven't already made a call about (§6's adaptive modality).
+          preferred: preferredModality(modalityTallyRef.current),
         });
         setSelectedId(node.id);
         setScreen("consume");
@@ -1683,18 +1727,36 @@ export default function AtlasApp({
 
   // ---- Consume (Learn view) --------------------------------------------
 
+  /**
+   * The session's one prediction hook, answered.
+   *
+   * This is a calibration capture point (§12) and used to throw the reading
+   * away: the guess was scored, shown, and forgotten. `felt` comes off *how*
+   * the learner answered rather than a second question nobody asked for —
+   * writing it in your own words claims more than tapping one of three
+   * options — and `real` is whether the guess was right.
+   */
   const consumeAnswer = useCallback(
-    (chunkId: string, oi: number, correct: boolean) => {
+    (chunkId: string, oi: number, correct: boolean, mode: AnswerMode) => {
+      const live = consumeRef.current;
+      if (!live) return;
+      // First answer only: re-reading a pass shouldn't stack a second reading
+      // on the same guess. Checked out here rather than inside the updater —
+      // an updater that records calibration would record it twice under
+      // StrictMode's double invoke.
+      if (!live.answered[chunkId])
+        recordCalib(
+          live.nodeId,
+          CONSUME_HOOK_FELT[mode],
+          CONSUME_HOOK_REAL[correct ? "right" : "wrong"],
+        );
       setConsume((prev) =>
         prev
-          ? {
-              ...prev,
-              answered: { ...prev.answered, [chunkId]: { oi, correct } },
-            }
+          ? { ...prev, answered: { ...prev.answered, [chunkId]: { oi, correct } } }
           : prev,
       );
     },
-    [],
+    [recordCalib],
   );
 
   /** The end-of-section comprehension check — a wrong pick is kept (so the
@@ -1722,28 +1784,143 @@ export default function AtlasApp({
     );
   }, []);
 
+  /**
+   * A rewrite modality picked (or un-picked) on one section.
+   *
+   * The "current" modality is the *effective* one — a section the learner
+   * hasn't touched shows their learned default, so tapping that same control
+   * has to mean "revert", not "select what's already showing". An explicit
+   * null is stored for exactly that reason; absence means "no opinion here,
+   * use the default".
+   *
+   * Every pick also feeds the run-wide tally that produces the default in the
+   * first place, which is what closes §6's adaptive-modality loop: reverting
+   * doesn't count, since it is a vote against the rewrite.
+   */
   const consumeSetVariant = useCallback((chunkId: string, key: AltKey) => {
-    setConsume((prev) => {
-      if (!prev) return prev;
-      const cur = prev.variant[chunkId];
-      return {
-        ...prev,
-        variant: { ...prev.variant, [chunkId]: cur === key ? null : key },
-      };
-    });
+    const live = consumeRef.current;
+    if (!live) return;
+    const effective =
+      chunkId in live.variant ? live.variant[chunkId] : live.preferred;
+    const reverting = effective === key;
+    if (!reverting)
+      setModalityTally((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+    setConsume((prev) =>
+      prev
+        ? {
+            ...prev,
+            variant: { ...prev.variant, [chunkId]: reverting ? null : key },
+          }
+        : prev,
+    );
   }, []);
 
   const consumeToggleTerm = useCallback((key: string) => {
     setConsume((prev) =>
-      prev ? { ...prev, term: prev.term === key ? null : key } : prev,
+      prev
+        ? {
+            ...prev,
+            term: prev.term === key ? null : key,
+            // Opening it is what counts; closing it again doesn't un-meet the
+            // term, and the recap lists everything the learner looked up.
+            termsSeen: prev.termsSeen.includes(key)
+              ? prev.termsSeen
+              : [...prev.termsSeen, key],
+          }
+        : prev,
     );
   }, []);
 
-  const consumeToggleAside = useCallback((chunkId: string) => {
+  // ---- ask about this (the passage aside) --------------------------------
+
+  /** Open the ask panel on a section. `selection` is the highlighted text, or
+   *  "" when asked from the keyboard path (the question is the whole section). */
+  const consumeOpenPassage = useCallback((chunkId: string, selection: string) => {
     setConsume((prev) =>
-      prev ? { ...prev, aside: prev.aside === chunkId ? null : chunkId } : prev,
+      prev
+        ? {
+            ...prev,
+            passage: {
+              chunkId,
+              selection,
+              question: "",
+              parts: [],
+              status: "composing",
+            },
+          }
+        : prev,
     );
   }, []);
+
+  const consumeClosePassage = useCallback(() => {
+    setConsume((prev) => (prev ? { ...prev, passage: null } : prev));
+  }, []);
+
+  /**
+   * Ask it — the learner's own question about the passage they highlighted,
+   * answered against the section they're reading and streamed back a paragraph
+   * at a time.
+   *
+   * The section prose stands in for the selection on the keyboard path: the
+   * generator needs something to be *about*, and "this whole section" is the
+   * truthful answer there rather than an arbitrary sentence from it.
+   */
+  const consumeAskPassage = useCallback(
+    (question: string) => {
+      const live = consumeRef.current;
+      const ask = live?.passage;
+      if (!live || !ask || ask.status !== "composing") return;
+      const node = graphRef.current.nodes.find((n) => n.id === live.nodeId);
+      const chunks =
+        consumeCacheRef.current[live.nodeId] ??
+        (liveConsumeRef.current?.nodeId === live.nodeId
+          ? liveConsumeRef.current.chunks
+          : []);
+      const chunk = chunks.find((c) => c.id === ask.chunkId);
+      if (!node || !chunk) return;
+      const section = chunk.body.join("\n\n");
+
+      /** Fold an update into the ask, but only while it's still the open one —
+       *  a learner who closed the panel or moved node mid-stream must not have
+       *  a late frame reopen it. */
+      const patch = (fn: (a: PassageAsk) => PassageAsk) =>
+        setConsume((prev) =>
+          prev &&
+          prev.nodeId === live.nodeId &&
+          prev.passage?.chunkId === ask.chunkId &&
+          prev.passage.status !== "composing"
+            ? { ...prev, passage: fn(prev.passage) }
+            : prev,
+        );
+
+      setConsume((prev) =>
+        prev && prev.passage?.chunkId === ask.chunkId
+          ? { ...prev, passage: { ...prev.passage, question, status: "asking" } }
+          : prev,
+      );
+
+      fetchPassageStream(
+        {
+          topic: formRef.current.topic,
+          nodeLabel: node.label,
+          kicker: chunk.kicker,
+          section,
+          selection: ask.selection || section,
+          question,
+          language: languageRef.current,
+        },
+        (part, index) =>
+          patch((a) => {
+            const parts = [...a.parts];
+            parts[index] = part;
+            return { ...a, parts: parts.filter((p) => p !== undefined) };
+          }),
+      )
+        .then((parts) => patch((a) => ({ ...a, parts, status: "done" })))
+        .catch(() => patch((a) => ({ ...a, status: "error" })));
+    },
+    [],
+  );
 
   /** "Skip — I know this" on one section — collapses it to its takeaway,
    *  short of bailing on the whole node the way header's "I know this" does. */
@@ -1758,7 +1935,85 @@ export default function AtlasApp({
     );
   }, []);
 
-  const exitConsume = useCallback(() => setScreen("map"), []);
+  /**
+   * Mirror the live session into the persisted per-node progress.
+   *
+   * An effect rather than a write on the way out, because "on the way out" is
+   * not the only way a reading pass ends — a closed tab, a refresh and a
+   * crash all end one too, and losing ten minutes of reading to any of them
+   * was the thing worth fixing. Every field here is a stable reference that
+   * only changes when the learner does something, so this doesn't fire on
+   * every keystroke in an ask panel.
+   */
+  useEffect(() => {
+    const s = consume;
+    if (!s) return;
+    const chunks =
+      consumeCacheRef.current[s.nodeId] ??
+      (liveConsumeRef.current?.nodeId === s.nodeId
+        ? liveConsumeRef.current.chunks
+        : []);
+    setConsumeProgress((prev) => {
+      const before = prev[s.nodeId];
+      const next: ConsumeProgress = {
+        idx: s.idx,
+        answered: s.answered,
+        hookSkipped: s.hookSkipped,
+        variant: s.variant,
+        collapsed: s.collapsed,
+        checks: s.checks,
+        termsSeen: s.termsSeen,
+        // A pass still streaming has fewer sections in hand than it will end
+        // up with; never let a mid-stream count shrink a known total.
+        total: Math.max(chunks.length, before?.total ?? 0),
+        finished: s.finished,
+        handedOff: before?.handedOff ?? s.handedOff,
+      };
+      // Opening a term pill or an ask panel changes the session but not the
+      // progress. Returning the same object keeps those off the snapshot's
+      // save debounce entirely.
+      if (
+        before &&
+        (Object.keys(next) as Array<keyof ConsumeProgress>).every(
+          (k) => before[k] === next[k],
+        )
+      )
+        return prev;
+      return { ...prev, [s.nodeId]: next };
+    });
+  }, [
+    consume,
+    consume?.nodeId,
+    consume?.idx,
+    consume?.answered,
+    consume?.hookSkipped,
+    consume?.variant,
+    consume?.collapsed,
+    consume?.checks,
+    consume?.termsSeen,
+    consume?.finished,
+  ]);
+
+  /**
+   * Leaving the reading.
+   *
+   * Reading past the first section is real progress, and used to leave no
+   * trace at all: the node stayed Frontier and the map said the learner had
+   * never started. It moves to Learning here — `readingPhaseIndex` is what
+   * keeps that honest about *which* phase is actually current, so a part-read
+   * node doesn't get Socratic ticked off along with it.
+   */
+  const exitConsume = useCallback(() => {
+    const s = consumeRef.current;
+    if (s && (s.idx >= 1 || s.finished)) {
+      setStates((prev) =>
+        prev[s.nodeId] === "unknown" || prev[s.nodeId] === undefined
+          ? { ...prev, [s.nodeId]: "learning" }
+          : prev,
+      );
+    }
+    setScreen("map");
+  }, []);
 
   // ---- Socratic (Phase 3a) ---------------------------------------------
 
@@ -1773,6 +2028,14 @@ export default function AtlasApp({
         setStates((prev) =>
           prev[node.id] === "unknown" || prev[node.id] === undefined
             ? { ...prev, [node.id]: "learning" }
+            : prev,
+        );
+        // The reading handed off. Without this, a node whose pass was read to
+        // the end and then left for the map is indistinguishable from one
+        // that went on to be questioned — see `readingPhaseIndex`.
+        setConsumeProgress((prev) =>
+          prev[node.id] && !prev[node.id].handedOff
+            ? { ...prev, [node.id]: { ...prev[node.id], handedOff: true } }
             : prev,
         );
         setSocratic(socraticStart(node.id, steps, total));
@@ -2666,16 +2929,25 @@ export default function AtlasApp({
   // ---- Consume → Socratic hand-off -------------------------------------
 
   /**
-   * Finishing the last chunk: the node moves Unknown/Frontier → Learning and
-   * auto-advances into Socratic (Phase 3a), per the spec's Consume exit.
+   * Finishing the last chunk.
+   *
+   * This used to fire the learner straight into Socratic mid-scroll. Eight to
+   * fifteen minutes of reading earns a beat that says what it added before the
+   * next phase starts taking it back: the takeaways collected, the terms met,
+   * the opening guess and how it landed. The hand-off is the recap's CTA.
    */
   const finishConsume = useCallback(() => {
-    const nodeId = consume?.nodeId;
+    setConsume((prev) => (prev ? { ...prev, finished: true, recap: true } : prev));
+  }, []);
+
+  /** The recap's CTA — the actual hand-off into Socratic (Phase 3a). */
+  const beginSocraticFromConsume = useCallback(() => {
+    const nodeId = consumeRef.current?.nodeId;
     setConsume(null);
     if (!nodeId) return;
     const node = graphRef.current.nodes.find((n) => n.id === nodeId);
     if (node) enterSocratic(node);
-  }, [consume, enterSocratic]);
+  }, [enterSocratic]);
 
   const consumeSkipCrucible = useCallback(() => {
     const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
@@ -2721,9 +2993,15 @@ export default function AtlasApp({
         case "frontier":
           enterSession(node);
           break;
-        case "learning":
-          enterFeynman(node);
+        case "learning": {
+          // A node that went Learning on a part-read reading pass resumes it
+          // — the map's own CTA says "Resume reading", and sending them to
+          // Feynman instead would be teaching back something half-read.
+          const progress = consumeProgressRef.current[node.id];
+          if (progress && !progress.finished) enterSession(node);
+          else enterFeynman(node);
           break;
+        }
         case "shaky":
           enterCrucible(node);
           break;
@@ -2760,12 +3038,22 @@ export default function AtlasApp({
 
   const onPhaseAction = useCallback(
     (node: ConceptNode, displayState: NodeState, idx: number) => {
-      const current = phaseIndex(
+      // The same index NodeDetail draws, reading progress included — a row
+      // that shows as current has to behave as current.
+      const current = readingPhaseIndex(
         displayState,
         reviewedNodes.includes(node.id),
+        consumeProgressRef.current[node.id],
       );
       if (current < 0) return;
       const phase = PHASES[idx];
+      if (phase === "Consume") {
+        // Re-reading is a first-class action, and on a part-read node it is
+        // the resume. Neither used to open anything: Consume fell through to
+        // a "re-doing…" toast.
+        enterSession(node);
+        return;
+      }
       if (phase === "Socratic") {
         enterSocratic(node);
         return;
@@ -2803,6 +3091,7 @@ export default function AtlasApp({
       enterCrucible,
       enterFeynman,
       enterReview,
+      enterSession,
       enterSocratic,
       onPrimaryAction,
       reviewedNodes,
@@ -3329,6 +3618,7 @@ export default function AtlasApp({
               display={display}
               reviewed={reviewedNodes.includes(selectedNode.id)}
               shakyReason={shakyReasons[selectedNode.id]}
+              consumeProgress={consumeProgress[selectedNode.id]}
               onSelect={setSelectedId}
               onPrimaryAction={onPrimaryAction}
               onPhaseAction={onPhaseAction}
@@ -3479,10 +3769,13 @@ export default function AtlasApp({
           onSkipHook={consumeSkipHook}
           onContinue={consumeContinue}
           onFinish={finishConsume}
+          onBeginSocratic={beginSocraticFromConsume}
           onSetVariant={consumeSetVariant}
           onToggleTerm={consumeToggleTerm}
-          onToggleAside={consumeToggleAside}
           onToggleCollapse={consumeToggleCollapse}
+          onOpenPassage={consumeOpenPassage}
+          onClosePassage={consumeClosePassage}
+          onAskPassage={consumeAskPassage}
           onSkipCrucible={consumeSkipCrucible}
           onRoutePrereq={consumeRoutePrereq}
         />
