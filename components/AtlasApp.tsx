@@ -111,6 +111,8 @@ import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
 import {
   deleteRun,
+  listRuns,
+  loadRunBySubject,
   loadRunCaches,
   loadRunCore,
   saveRun,
@@ -118,6 +120,7 @@ import {
   type LoadedRun,
   type RunCaches,
   type RunSnapshot,
+  type RunSummary,
 } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
@@ -495,38 +498,70 @@ export default function AtlasApp({
     setRetainContent((prev) => prev ?? c.retain);
   }, []);
 
+  /**
+   * Apply a loaded run as the live one, dropping any other run's in-progress
+   * session state first — this is also what "switch map" from the dashboard
+   * grid runs, not just the initial mount hydrate.
+   */
+  const applyRun = useCallback(
+    (row: LoadedRun) => {
+      warm.clear();
+      setSelectedId(null);
+      setDiagnostic([]);
+      setAnswered(0);
+      setConsume(null);
+      setLiveConsume(null);
+      setSocratic(null);
+      setLiveSocratic(null);
+      setFeynman(null);
+      setLiveFeynman(null);
+      setConnect(null);
+      setCrucible(null);
+      setRetain(null);
+      setConsumeCache({});
+      setSocraticCache({});
+      setFeynmanCache({});
+      setConnectCache({});
+      setCrucibleCache({});
+      setRetainContent(null);
+      pendingGapsRef.current = [];
+      setMomentumPlaying(false);
+      setOutline(null);
+      setUploadNote(null);
+      setScopes(null);
+
+      const s = row.snapshot;
+      setForm(s.form);
+      setGraph(s.graph);
+      setStates(s.states);
+      setPositions(s.positions);
+      setSpawnedIds(new Set(s.spawnedIds));
+      // Judge every day that passed while the tab was closed (#22) —
+      // a new calendar day also clears yesterday's litToday list.
+      const rolled = rolloverAdherence(s.adherence);
+      setAdherence(rolled);
+      setLitToday(rolled.lastDay === s.adherence.lastDay ? s.litToday : []);
+      setCalibSamples(s.calibSamples);
+      setShakyReasons(s.shakyReasons);
+      setReviewedNodes(s.reviewedNodes);
+      setCards(s.cards);
+      setScreen("map");
+      // A pre-v3 row still carries its caches inline; take them and skip
+      // the second query.
+      if (row.inlineCaches) applyCaches(row.inlineCaches);
+      else
+        loadRunCaches(supabase, row.subject)
+          .then((c) => applyCaches(c))
+          .catch((err: Error) => console.warn(err.message));
+    },
+    [warm, applyCaches, supabase],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    /** Apply the run core and kick off the (large, slow) content half. */
     const hydrate = (row: LoadedRun | null) => {
       if (cancelled) return;
-      if (row) {
-        const s = row.snapshot;
-        setForm(s.form);
-        setGraph(s.graph);
-        setStates(s.states);
-        setPositions(s.positions);
-        setSpawnedIds(new Set(s.spawnedIds));
-        // Judge every day that passed while the tab was closed (#22) —
-        // a new calendar day also clears yesterday's litToday list.
-        const rolled = rolloverAdherence(s.adherence);
-        setAdherence(rolled);
-        setLitToday(rolled.lastDay === s.adherence.lastDay ? s.litToday : []);
-        setCalibSamples(s.calibSamples);
-        setShakyReasons(s.shakyReasons);
-        setReviewedNodes(s.reviewedNodes);
-        setCards(s.cards);
-        setScreen("map");
-        // A pre-v3 row still carries its caches inline; take them and skip
-        // the second query.
-        if (row.inlineCaches) applyCaches(row.inlineCaches);
-        else
-          loadRunCaches(supabase, row.subject)
-            .then((c) => {
-              if (!cancelled) applyCaches(c);
-            })
-            .catch((err: Error) => console.warn(err.message));
-      }
+      if (row) applyRun(row);
       setHydrated(true);
     };
 
@@ -554,7 +589,7 @@ export default function AtlasApp({
     return () => {
       cancelled = true;
     };
-  }, [supabase, showToast, applyCaches, initialRun]);
+  }, [supabase, showToast, applyRun, initialRun]);
 
   const runActive =
     hydrated &&
@@ -564,6 +599,33 @@ export default function AtlasApp({
     screen !== "building" &&
     screen !== "diagnostic";
   const runSubject = form.topic.trim() || "Untitled";
+
+  /** Every saved map, for the dashboard's "Your maps" grid. Refreshed each
+   *  time the dashboard is entered, so a newly built or excluded map is never
+   *  more than one nav away from correct. */
+  const [maps, setMaps] = useState<RunSummary[]>([]);
+  const refreshMaps = useCallback(() => {
+    listRuns(supabase)
+      .then(setMaps)
+      .catch((err: Error) => console.warn(err.message));
+  }, [supabase]);
+
+  /** Open a map from the dashboard grid — a no-op switch for the one already
+   *  live, otherwise loads it as the new live run. */
+  const switchMap = useCallback(
+    (subject: string) => {
+      if (subject === runSubject) {
+        setScreen("map");
+        return;
+      }
+      loadRunBySubject(supabase, subject)
+        .then((row) => {
+          if (row) applyRun(row);
+        })
+        .catch((err: Error) => showToast(err.message, "Couldn't open that map"));
+    },
+    [runSubject, supabase, applyRun, showToast],
+  );
 
   // Write-through, debounced, in two halves (see lib/persistence.ts).
   //
@@ -663,69 +725,80 @@ export default function AtlasApp({
 
   // ---- Home (dashboard) + profile navigation ---------------------------
 
-  const enterDashboard = useCallback(() => setScreen("dashboard"), []);
+  const enterDashboard = useCallback(() => {
+    setScreen("dashboard");
+    refreshMaps();
+  }, [refreshMaps]);
   const enterProfile = useCallback(() => setScreen("profile"), []);
   const openMap = useCallback(() => setScreen("map"), []);
-  /** "+ New map" — the single-run app rebuilds from onboarding. */
+  /** "+ New map" — onboarding builds a new run alongside whatever's saved. */
   const newMap = useCallback(() => setScreen("welcome"), []);
 
   /**
-   * "Exclude this topic" on the dashboard (confirmed there first): the saved
-   * run is deleted, then everything the topic put in memory goes with it —
-   * graph, mastery states, cards, calibration, every generated cache — and the
-   * app lands back on onboarding with the learner's goal and interests kept.
+   * "Exclude this topic" on a dashboard map card (confirmed there first): the
+   * saved run is deleted outright. Excluding the live map also clears it from
+   * memory — graph, mastery states, cards, calibration, every generated cache
+   * — and lands back on onboarding with the learner's goal and interests
+   * kept; excluding any other map just drops its row and refreshes the grid.
    *
    * `excluding` gates `runActive`, so the debounced writers are already off by
    * the time the delete lands; nothing can re-upsert the row behind it.
    * Adherence is deliberately untouched: the streak is the learner's habit,
    * not the topic's, and fabricating a reset would be the dishonest read.
    */
-  const excludeTopic = useCallback(() => {
-    const subject = formRef.current.topic.trim() || "Untitled";
-    setExcluding(true);
-    deleteRun(supabase, subject)
-      .then(() => {
-        // Every warmed key belongs to node ids that no longer exist.
-        warm.clear();
-        setGraph(emptyGraph());
-        setStates({});
-        setPositions({});
-        setSpawnedIds(new Set());
-        pendingGapsRef.current = [];
-        setSelectedId(null);
-        setDiagnostic([]);
-        setAnswered(0);
-        setConsume(null);
-        setLiveConsume(null);
-        setSocratic(null);
-        setLiveSocratic(null);
-        setFeynman(null);
-        setLiveFeynman(null);
-        setConnect(null);
-        setCrucible(null);
-        setRetain(null);
-        setConsumeCache({});
-        setSocraticCache({});
-        setFeynmanCache({});
-        setConnectCache({});
-        setCrucibleCache({});
-        setRetainContent(null);
-        setCards([]);
-        setCalibSamples([]);
-        setShakyReasons({});
-        setReviewedNodes([]);
-        setLitToday([]);
-        setMomentumPlaying(false);
-        setOutline(null);
-        setUploadNote(null);
-        setScopes(null);
-        setForm((prev) => ({ ...prev, topic: "" }));
-        setScreen("welcome");
-        showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
-      })
-      .catch((err: Error) => showToast(err.message, "Couldn't exclude"))
-      .finally(() => setExcluding(false));
-  }, [supabase, warm, showToast]);
+  const excludeTopic = useCallback(
+    (subject: string) => {
+      setExcluding(true);
+      deleteRun(supabase, subject)
+        .then(() => {
+          if (subject !== runSubject) {
+            refreshMaps();
+            showToast(`“${subject}” excluded`);
+            return;
+          }
+          // Every warmed key belongs to node ids that no longer exist.
+          warm.clear();
+          setGraph(emptyGraph());
+          setStates({});
+          setPositions({});
+          setSpawnedIds(new Set());
+          pendingGapsRef.current = [];
+          setSelectedId(null);
+          setDiagnostic([]);
+          setAnswered(0);
+          setConsume(null);
+          setLiveConsume(null);
+          setSocratic(null);
+          setLiveSocratic(null);
+          setFeynman(null);
+          setLiveFeynman(null);
+          setConnect(null);
+          setCrucible(null);
+          setRetain(null);
+          setConsumeCache({});
+          setSocraticCache({});
+          setFeynmanCache({});
+          setConnectCache({});
+          setCrucibleCache({});
+          setRetainContent(null);
+          setCards([]);
+          setCalibSamples([]);
+          setShakyReasons({});
+          setReviewedNodes([]);
+          setLitToday([]);
+          setMomentumPlaying(false);
+          setOutline(null);
+          setUploadNote(null);
+          setScopes(null);
+          setForm((prev) => ({ ...prev, topic: "" }));
+          setScreen("welcome");
+          showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
+        })
+        .catch((err: Error) => showToast(err.message, "Couldn't exclude"))
+        .finally(() => setExcluding(false));
+    },
+    [supabase, warm, showToast, runSubject, refreshMaps],
+  );
   const enterSettings = useCallback(() => setScreen("settings"), []);
   const exitSettings = useCallback(() => setScreen("map"), []);
 
@@ -3013,6 +3086,34 @@ export default function AtlasApp({
   const frontierConcept = nextUp[0]?.node.label ?? null;
   const subject = form.topic.trim() || "Your map";
   const goalLabel = GOALS.find(([g]) => g === form.goal)?.[1] ?? "General mastery";
+
+  // The dashboard's "Your maps" grid: the live run's numbers stay live (they
+  // update mid-session, before any save lands); every other saved map reads
+  // off its last-saved snapshot from `maps`.
+  const mapCards = useMemo(() => {
+    const others = maps
+      .filter((m) => m.subject !== runSubject)
+      .map((m) => {
+        const otherDisplay = displayStates(m.states, m.graph);
+        const mastered = m.graph.nodes.filter(
+          (n) => m.states[n.id] === "mastered",
+        ).length;
+        return {
+          subject: m.subject,
+          goalLabel: GOALS.find(([g]) => g === m.goal)?.[1] ?? "General mastery",
+          masteryPct: m.graph.nodes.length
+            ? Math.round((mastered / m.graph.nodes.length) * 100)
+            : 0,
+          frontierTotal: m.graph.nodes.filter(
+            (n) => otherDisplay[n.id] === "frontier",
+          ).length,
+        };
+      });
+    return graph.nodes.length
+      ? [{ subject, goalLabel, masteryPct, frontierTotal }, ...others]
+      : others;
+  }, [maps, runSubject, graph, subject, goalLabel, masteryPct, frontierTotal]);
+
   const interests = form.interests
     .split(/[,\n]/)
     .map((s) => s.trim())
@@ -3298,11 +3399,12 @@ export default function AtlasApp({
           queue={queue}
           metToday={adherence.metToday}
           subject={subject}
-          goalLabel={goalLabel}
+          activeSubject={runSubject}
           frontierConcept={frontierConcept}
           frontierTotal={frontierTotal}
-          masteryPct={masteryPct}
+          maps={mapCards}
           onOpenMap={openMap}
+          onSelectMap={switchMap}
           onReview={enterReview}
           onProfile={enterProfile}
           onNewMap={newMap}

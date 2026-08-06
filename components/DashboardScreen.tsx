@@ -80,6 +80,14 @@ const STRINGS = {
   },
 } as const;
 
+/** One card's worth of a saved map — the "Your maps" grid. */
+export interface MapCardSummary {
+  subject: string;
+  goalLabel: string;
+  masteryPct: number;
+  frontierTotal: number;
+}
+
 interface DashboardScreenProps {
   /** Time-of-day greeting ("Good morning") and the friendly display name. */
   greeting: string;
@@ -96,21 +104,25 @@ interface DashboardScreenProps {
   metToday: boolean;
   /** The subject of the current run (map title). */
   subject: string;
-  /** The learner's goal — labels the map card. */
-  goalLabel: string;
+  /** Which map (by subject) is the live one — highlights its card and skips
+   *  the reload when its own card is opened. */
+  activeSubject: string;
   /** The top frontier concept, or null when nothing is on the frontier yet. */
   frontierConcept: string | null;
   /** How many concepts sit on the frontier right now. */
   frontierTotal: number;
-  /** Share of the map already mastered. */
-  masteryPct: number;
+  /** Every saved map, active one included — the "Your maps" grid. */
+  maps: MapCardSummary[];
+  /** Opens the live map — the "Your frontier" hero card only ever means that one. */
   onOpenMap: () => void;
+  /** Opens (or switches to) the given map from the grid. */
+  onSelectMap: (subject: string) => void;
   onReview: () => void;
   onProfile: () => void;
   onNewMap: () => void;
-  /** Drop this topic's run for good — confirmed here before it fires. */
-  onExcludeTopic: () => void;
-  /** True while the delete is in flight; the confirm buttons go inert. */
+  /** Drop the given topic's run for good — confirmed here before it fires. */
+  onExcludeTopic: (subject: string) => void;
+  /** True while a delete is in flight; the confirm buttons go inert. */
   excluding: boolean;
 }
 
@@ -170,11 +182,12 @@ export default function DashboardScreen({
   queue,
   metToday,
   subject,
-  goalLabel,
+  activeSubject,
   frontierConcept,
   frontierTotal,
-  masteryPct,
+  maps,
   onOpenMap,
+  onSelectMap,
   onReview,
   onProfile,
   onNewMap,
@@ -182,15 +195,6 @@ export default function DashboardScreen({
   excluding,
 }: DashboardScreenProps) {
   const t = useT(STRINGS);
-  // Purely local: which map card is asking "are you sure?". Nothing outside
-  // this screen ever reads it, so it stays out of AtlasApp's state machine.
-  const [confirming, setConfirming] = useState(false);
-  const mapStatus =
-    masteryPct >= 100
-      ? t.complete
-      : masteryPct > 0
-        ? t.inProgress
-        : t.justStarted;
 
   return (
     <div
@@ -451,168 +455,211 @@ export default function DashboardScreen({
               gap: 16,
             }}
           >
-            <div
-              onClick={confirming ? undefined : onOpenMap}
-              style={{
-                background: color.card,
-                border: `1px solid ${
-                  confirming ? "rgba(193,87,74,0.45)" : color.hairlineStrong
-                }`,
-                borderRadius: 16,
-                padding: "22px 22px 20px",
-                cursor: confirming ? "default" : "pointer",
-                transition: "transform .12s, box-shadow .12s",
-              }}
-            >
-              {confirming ? (
-                <div style={{ animation: "softIn .18s both" }}>
-                  <div
-                    style={{
-                      ...kicker(10, "0.1em"),
-                      color: STATE_COLOR.gap,
-                      marginBottom: 12,
-                    }}
-                  >
-                    {t.excludeKicker}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: font.serif,
-                      fontSize: 19,
-                      lineHeight: 1.15,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {t.excludeAsk(subject)}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      color: color.inkMuted,
-                      lineHeight: 1.5,
-                      marginBottom: 16,
-                    }}
-                  >
-                    {t.excludeBody}
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={onExcludeTopic}
-                      disabled={excluding}
-                      style={{
-                        ...confirmButtonBase,
-                        color: "#fbf9f4",
-                        background: STATE_COLOR.gap,
-                        border: `1px solid ${STATE_COLOR.gap}`,
-                        opacity: excluding ? 0.6 : 1,
-                      }}
-                    >
-                      {t.excludeConfirm}
-                    </button>
-                    <button
-                      onClick={() => setConfirming(false)}
-                      disabled={excluding}
-                      style={{
-                        ...confirmButtonBase,
-                        color: color.inkMuted,
-                        background: "none",
-                        border: `1px solid ${color.hairlineStrong}`,
-                      }}
-                    >
-                      {t.excludeCancel}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      marginBottom: 14,
-                    }}
-                  >
-                    <span style={kicker(10, "0.1em")}>{goalLabel}</span>
-                    <span
-                      style={{ display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: font.mono,
-                          fontSize: 10,
-                          letterSpacing: "0.06em",
-                          textTransform: "uppercase",
-                          color: color.accent,
-                          background: color.accentBg,
-                          border: "1px solid rgba(47,107,79,0.2)",
-                          borderRadius: 20,
-                          padding: "3px 9px",
-                        }}
-                      >
-                        {mapStatus}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          // The card itself opens the map — the × must not.
-                          e.stopPropagation();
-                          setConfirming(true);
-                        }}
-                        title={t.exclude}
-                        aria-label={t.exclude}
-                        style={excludeButtonStyle}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: font.serif,
-                      fontSize: 20,
-                      lineHeight: 1.15,
-                      marginBottom: 18,
-                      minHeight: 46,
-                    }}
-                  >
-                    {subject}
-                  </div>
-                  <div
-                    style={{
-                      height: 6,
-                      background: "#efe9df",
-                      borderRadius: 5,
-                      overflow: "hidden",
-                      marginBottom: 9,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${masteryPct}%`,
-                        height: "100%",
-                        background: color.accent,
-                        borderRadius: 5,
-                      }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: 12.5,
-                      color: color.inkFaint,
-                    }}
-                  >
-                    <span>{t.masteredPct(masteryPct)}</span>
-                    <span>{t.onFrontier(frontierTotal)}</span>
-                  </div>
-                </>
-              )}
-            </div>
+            {maps.map((m) => (
+              <MapCard
+                key={m.subject}
+                map={m}
+                active={m.subject === activeSubject}
+                onOpen={() => onSelectMap(m.subject)}
+                onExclude={() => onExcludeTopic(m.subject)}
+                excluding={excluding}
+                t={t}
+              />
+            ))}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MapCard({
+  map,
+  active,
+  onOpen,
+  onExclude,
+  excluding,
+  t,
+}: {
+  map: MapCardSummary;
+  active: boolean;
+  onOpen: () => void;
+  onExclude: () => void;
+  excluding: boolean;
+  t: (typeof STRINGS)["en"];
+}) {
+  // Purely local: whether this card is asking "are you sure?". Nothing
+  // outside this card ever reads it, so it stays out of AtlasApp's state
+  // machine.
+  const [confirming, setConfirming] = useState(false);
+  const mapStatus =
+    map.masteryPct >= 100
+      ? t.complete
+      : map.masteryPct > 0
+        ? t.inProgress
+        : t.justStarted;
+
+  return (
+    <div
+      onClick={confirming ? undefined : onOpen}
+      style={{
+        background: color.card,
+        border: `1px solid ${
+          confirming
+            ? "rgba(193,87,74,0.45)"
+            : active
+              ? "rgba(201,154,46,0.35)"
+              : color.hairlineStrong
+        }`,
+        borderRadius: 16,
+        padding: "22px 22px 20px",
+        cursor: confirming ? "default" : "pointer",
+        transition: "transform .12s, box-shadow .12s",
+      }}
+    >
+      {confirming ? (
+        <div style={{ animation: "softIn .18s both" }}>
+          <div
+            style={{
+              ...kicker(10, "0.1em"),
+              color: STATE_COLOR.gap,
+              marginBottom: 12,
+            }}
+          >
+            {t.excludeKicker}
+          </div>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 19,
+              lineHeight: 1.15,
+              marginBottom: 8,
+            }}
+          >
+            {t.excludeAsk(map.subject)}
+          </div>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: color.inkMuted,
+              lineHeight: 1.5,
+              marginBottom: 16,
+            }}
+          >
+            {t.excludeBody}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={onExclude}
+              disabled={excluding}
+              style={{
+                ...confirmButtonBase,
+                color: "#fbf9f4",
+                background: STATE_COLOR.gap,
+                border: `1px solid ${STATE_COLOR.gap}`,
+                opacity: excluding ? 0.6 : 1,
+              }}
+            >
+              {t.excludeConfirm}
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              disabled={excluding}
+              style={{
+                ...confirmButtonBase,
+                color: color.inkMuted,
+                background: "none",
+                border: `1px solid ${color.hairlineStrong}`,
+              }}
+            >
+              {t.excludeCancel}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginBottom: 14,
+            }}
+          >
+            <span style={kicker(10, "0.1em")}>{map.goalLabel}</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span
+                style={{
+                  fontFamily: font.mono,
+                  fontSize: 10,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: color.accent,
+                  background: color.accentBg,
+                  border: "1px solid rgba(47,107,79,0.2)",
+                  borderRadius: 20,
+                  padding: "3px 9px",
+                }}
+              >
+                {mapStatus}
+              </span>
+              <button
+                onClick={(e) => {
+                  // The card itself opens the map — the × must not.
+                  e.stopPropagation();
+                  setConfirming(true);
+                }}
+                title={t.exclude}
+                aria-label={t.exclude}
+                style={excludeButtonStyle}
+              >
+                ×
+              </button>
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 20,
+              lineHeight: 1.15,
+              marginBottom: 18,
+              minHeight: 46,
+            }}
+          >
+            {map.subject}
+          </div>
+          <div
+            style={{
+              height: 6,
+              background: "#efe9df",
+              borderRadius: 5,
+              overflow: "hidden",
+              marginBottom: 9,
+            }}
+          >
+            <div
+              style={{
+                width: `${map.masteryPct}%`,
+                height: "100%",
+                background: color.accent,
+                borderRadius: 5,
+              }}
+            />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 12.5,
+              color: color.inkFaint,
+            }}
+          >
+            <span>{t.masteredPct(map.masteryPct)}</span>
+            <span>{t.onFrontier(map.frontierTotal)}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
