@@ -224,6 +224,28 @@ describe("socraticReducer against a growing step list", () => {
     s = socraticReducer(s, { type: "hydrate", total: 1 }, arrived);
     expect(s.done).toBe(true);
   });
+
+  // How re-entering a saved pass reopens it (AtlasApp `enterSocratic`).
+  it("resumes a saved session, parked or not, on the step it stopped at", () => {
+    const arrived = steps.slice(0, 1);
+    let saved = socraticStart("n", arrived, steps.length);
+    saved = socraticReducer(saved, { type: "reply", index: 0 }, arrived);
+    expect(saved.awaitingNext).toBe(true);
+    // Reopened later, with every step now cached.
+    const resumed = socraticReducer(
+      saved,
+      { type: "hydrate", total: steps.length },
+      steps,
+    );
+    expect(resumed.step).toBe(1);
+    expect(resumed.awaitingNext).toBe(false);
+    expect(resumed.done).toBe(false);
+    expect(resumed.log.at(-1)?.text).toBe(steps[1].prompt);
+    // An unparked one comes back untouched.
+    expect(
+      socraticReducer(resumed, { type: "hydrate", total: steps.length }, steps),
+    ).toEqual(resumed);
+  });
 });
 
 describe("feynmanReducer against a growing beat list", () => {

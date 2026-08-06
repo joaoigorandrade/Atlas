@@ -26,6 +26,7 @@ import type {
   OnboardingForm,
   RetainContent,
   ShakyReason,
+  SocraticSession,
   SocraticStep,
   StateMap,
 } from "@/lib/curriculum";
@@ -57,7 +58,7 @@ export const emptyCaches = (): RunCaches => ({
 });
 
 export interface RunSnapshot {
-  v: 4;
+  v: 5;
   form: OnboardingForm;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
@@ -80,12 +81,16 @@ export interface RunSnapshot {
   /** How often each lens has been opened, run-wide — the evidence behind the
    *  adaptive-modality preference. */
   modalityTally: ModalityTally;
+  /** The unfinished questioning pass on each node (§3a) — same reason the
+   *  reading keeps its place: a session left half-answered is somewhere to
+   *  come back to, not a transcript to re-earn. Finished passes drop out. */
+  socraticProgress: Record<string, SocraticSession>;
 }
 
-/** What may come back from the table: a v1 … v4 snapshot. v1 predates
+/** What may come back from the table: a v1 … v5 snapshot. v1 predates
  *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
  *  content caches inline, which v3 moved to their own column; v4 adds the
- *  Consume reading progress and the modality tally. */
+ *  Consume reading progress and the modality tally; v5 the Socratic one. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
   | "v"
@@ -97,6 +102,7 @@ type LoadedSnapshot = Omit<
   | "caches"
   | "consumeProgress"
   | "modalityTally"
+  | "socraticProgress"
 > & {
   v: number;
   form: Omit<OnboardingForm, "examDate"> & { examDate?: string };
@@ -107,17 +113,18 @@ type LoadedSnapshot = Omit<
   caches?: Partial<RunCaches>;
   consumeProgress?: Record<string, ConsumeProgress>;
   modalityTally?: ModalityTally;
+  socraticProgress?: Record<string, SocraticSession>;
 };
 
 /** Every snapshot version this loader accepts. */
-const SNAPSHOT_VERSIONS = [1, 2, 3, 4];
+const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5];
 
-/** Fill an older snapshot's gaps; a v4 passes through unchanged. */
+/** Fill an older snapshot's gaps; a v5 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
   const { caches: _inline, ...rest } = raw;
   return {
     ...rest,
-    v: 4,
+    v: 5,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
@@ -127,6 +134,7 @@ function migrate(raw: LoadedSnapshot): RunSnapshot {
     // answer: the map under-claims rather than inventing a position.
     consumeProgress: raw.consumeProgress ?? {},
     modalityTally: raw.modalityTally ?? {},
+    socraticProgress: raw.socraticProgress ?? {},
   };
 }
 

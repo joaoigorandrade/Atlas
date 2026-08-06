@@ -308,6 +308,11 @@ export default function AtlasApp({
   const [modalityTally, setModalityTally] = useState<ModalityTally>({});
   // The active Socratic (Phase 3a) session, or null.
   const [socratic, setSocratic] = useState<SocraticSession | null>(null);
+  // …and the unfinished ones, per node, persisted so re-entering a pass lands
+  // back on the probe the learner stopped at with the transcript intact.
+  const [socraticProgress, setSocraticProgress] = useState<
+    Record<string, SocraticSession>
+  >({});
   // Steps of the *current* node's questioning pass as they stream in — same
   // arrangement as `liveConsume`: held apart from `socraticCache` so a
   // half-arrived pass is never mistaken for a cached, reopenable one.
@@ -432,6 +437,8 @@ export default function AtlasApp({
   modalityTallyRef.current = modalityTally;
   const socraticCacheRef = useRef(socraticCache);
   socraticCacheRef.current = socraticCache;
+  const socraticProgressRef = useRef(socraticProgress);
+  socraticProgressRef.current = socraticProgress;
   const feynmanCacheRef = useRef(feynmanCache);
   feynmanCacheRef.current = feynmanCache;
   const connectCacheRef = useRef(connectCache);
@@ -575,6 +582,7 @@ export default function AtlasApp({
       setRetainContent(null);
       setConsumeProgress({});
       setModalityTally({});
+      setSocraticProgress({});
       pendingGapsRef.current = [];
       setMomentumPlaying(false);
       setOutline(null);
@@ -598,6 +606,7 @@ export default function AtlasApp({
       setCards(s.cards);
       setConsumeProgress(s.consumeProgress);
       setModalityTally(s.modalityTally);
+      setSocraticProgress(s.socraticProgress);
       setScreen("map");
       // A pre-v3 row still carries its caches inline; take them and skip
       // the second query.
@@ -680,6 +689,24 @@ export default function AtlasApp({
     [runSubject, supabase, applyRun, showToast],
   );
 
+  // The live session is the source of truth while it's open; this mirrors it
+  // into the persisted per-node record. A finished pass drops out — coming
+  // back to a node you completed should offer the pass again, not the
+  // "understood" panel. A turn still being written is skipped: what's saved
+  // stays the last complete state rather than a bubble stuck on its dots.
+  useEffect(() => {
+    if (!socratic || socratic.log.some((t) => t.pending)) return;
+    const { nodeId } = socratic;
+    setSocraticProgress((prev) => {
+      if (socratic.done) {
+        if (!prev[nodeId]) return prev;
+        const { [nodeId]: _gone, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [nodeId]: socratic };
+    });
+  }, [socratic]);
+
   // Write-through, debounced, in two halves (see lib/persistence.ts).
   //
   // The core: small and touched constantly — a node drag alone rewrites
@@ -687,7 +714,7 @@ export default function AtlasApp({
   useEffect(() => {
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 4,
+      v: 5,
       form,
       graph,
       spawnedIds: [...spawnedIds],
@@ -701,6 +728,7 @@ export default function AtlasApp({
       cards,
       consumeProgress,
       modalityTally,
+      socraticProgress,
     };
     const timer = setTimeout(() => {
       saveRun(supabase, runSubject, snapshot).catch((err: Error) =>
@@ -725,6 +753,7 @@ export default function AtlasApp({
     cards,
     consumeProgress,
     modalityTally,
+    socraticProgress,
   ]);
 
   // The content: large, but only ever changes when a generation lands. Its own
@@ -844,6 +873,7 @@ export default function AtlasApp({
           setRetainContent(null);
           setConsumeProgress({});
           setModalityTally({});
+          setSocraticProgress({});
           setCards([]);
           setCalibSamples([]);
           setShakyReasons({});
@@ -1024,6 +1054,7 @@ export default function AtlasApp({
     setRetainContent(null);
     setConsumeProgress({});
     setModalityTally({});
+    setSocraticProgress({});
     setCalibSamples([]);
     setShakyReasons({});
     setReviewedNodes([]);
@@ -2135,7 +2166,17 @@ export default function AtlasApp({
             ? { ...prev, [node.id]: { ...prev[node.id], handedOff: true } }
             : prev,
         );
-        setSocratic(socraticStart(node.id, steps, total));
+        // A pass left part-answered resumes on the probe it stopped at, with
+        // its transcript, scaffolding level and ruled-out replies intact.
+        // A session saved while parked on a step that hadn't streamed in yet
+        // has to be re-hydrated against the steps we now hold, or it reopens
+        // with nothing to answer and nothing coming.
+        const saved = socraticProgressRef.current[node.id];
+        setSocratic(
+          saved
+            ? socraticReducer(saved, { type: "hydrate", total }, steps)
+            : socraticStart(node.id, steps, total),
+        );
         setSelectedId(node.id);
         setScreen("socratic");
         // Socratic hands straight off to Feynman — warm it now rather than
