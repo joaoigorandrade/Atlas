@@ -17,6 +17,7 @@ import type {
   CalibSample,
   ConceptGraph,
   ConsumeChunk,
+  ConsumeModelBeat,
   ConsumeProgress,
   CrucibleContent,
   ElaborationContent,
@@ -34,6 +35,10 @@ import type { StoredCard } from "@/lib/fsrs";
  *  keyed by prompt hash — this copy is the learner's own instant-resume set. */
 export interface RunCaches {
   consume: Record<string, ConsumeChunk[]>;
+  /** Lens views already opened, keyed `model:<nodeId>:<chunkId>:<lens>` — a
+   *  learner who re-enters a pass reopens the walkthrough they read, not a
+   *  freshly written one. */
+  models: Record<string, ConsumeModelBeat[]>;
   socratic: Record<string, SocraticStep[]>;
   feynman: Record<string, FeynmanBeat[]>;
   connect: Record<string, ElaborationContent>;
@@ -43,6 +48,7 @@ export interface RunCaches {
 
 export const emptyCaches = (): RunCaches => ({
   consume: {},
+  models: {},
   socratic: {},
   feynman: {},
   connect: {},

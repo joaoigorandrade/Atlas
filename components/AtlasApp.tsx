@@ -537,6 +537,7 @@ export default function AtlasApp({
     const merge = <T,>(loaded: Record<string, T>) =>
       (prev: Record<string, T>): Record<string, T> => ({ ...loaded, ...prev });
     setConsumeCache(merge(c.consume));
+    setModelCache(merge(c.models));
     setSocraticCache(merge(c.socratic));
     setFeynmanCache(merge(c.feynman));
     setConnectCache(merge(c.connect));
@@ -733,6 +734,7 @@ export default function AtlasApp({
     if (!runActive) return;
     const caches: RunCaches = {
       consume: consumeCache,
+      models: modelCache,
       socratic: socraticCache,
       feynman: feynmanCache,
       connect: connectCache,
@@ -750,6 +752,7 @@ export default function AtlasApp({
     runSubject,
     supabase,
     consumeCache,
+    modelCache,
     socraticCache,
     feynmanCache,
     connectCache,
