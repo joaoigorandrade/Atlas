@@ -136,22 +136,23 @@ export type LegacyConsumeChunk = Omit<
   takeaway?: string;
   right?: string;
   wrong?: string;
+  pred?: unknown;
 };
 
 /** Reshape a quiz-shaped reading pass into the current one. Detected by shape,
  *  not by snapshot version: these chunks live in their own column now, and a
  *  row written by the previous deploy carries no version of its own. The old
  *  material is all we have — it stays short — but it renders, and it stops
- *  gating: only the first chunk keeps its prediction, and its verdict copy
- *  moves onto it. */
+ *  gating: the pre-reading prediction hook is dropped along with its verdict
+ *  copy, since nothing renders it any more. */
 export function migrateConsume(
   cached: Record<string, LegacyConsumeChunk[]> | undefined,
 ): Record<string, ConsumeChunk[]> {
   return Object.fromEntries(
     Object.entries(cached ?? {}).map(([nodeId, chunks]) => [
       nodeId,
-      chunks.map((c, i) => {
-        const { right, wrong, pred, ...rest } = c;
+      chunks.map((c) => {
+        const { right: _right, wrong: _wrong, pred: _pred, ...rest } = c;
         return {
           ...rest,
           body: Array.isArray(c.body) ? c.body : [c.body],
@@ -160,18 +161,6 @@ export function migrateConsume(
             steps: [c.alt?.example ?? "See the passage above."],
           },
           takeaway: c.takeaway ?? c.alt?.simpler ?? "",
-          ...(i === 0 && pred
-            ? {
-                pred: {
-                  ...pred,
-                  right: pred.right ?? right ?? "That matches what follows.",
-                  wrong:
-                    pred.wrong ??
-                    wrong ??
-                    "Not quite — the section below sets it straight.",
-                },
-              }
-            : null),
         };
       }),
     ]),

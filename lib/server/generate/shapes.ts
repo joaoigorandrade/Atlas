@@ -16,12 +16,6 @@
 export const CONSUME_SECTION_SHAPE = `{
       "kicker": "1 · What it is",                         // segment label: number · 2-4 words
       "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
-      "pred": {                                            // FIRST SECTION ONLY — omit on all others
-        "q": "a guess that primes the reading — what do you think happens if…?",
-        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
-        "right": "one line confirming the guess and pointing at what follows",
-        "wrong": "one honest line naming the misconception, then pointing at what follows"
-      },
       "body": ["paragraph 1", "paragraph 2", "paragraph 3"],   // 3-5 paragraphs, 3-6 sentences each
       "example": {                                         // worked inline, part of the material
         "title": "what this example demonstrates",

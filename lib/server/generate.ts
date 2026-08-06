@@ -651,8 +651,7 @@ export function validateFigure(raw: unknown, name: string): ConsumeFigure {
   return { nodes, edges };
 }
 
-/** The session's single prediction hook, validated only for the opening
- *  section — every later section is pure material. */
+/** A multiple-choice question with verdict copy — a section's closing check. */
 function validatePrediction(raw: unknown, name: string): ConsumePrediction {
   const pred = obj(raw, name);
   const opts = arr(pred.opts, `${name}.opts`, 3, 3).map((o, j) => {
@@ -705,14 +704,9 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
     diagram: hasFigure ? str(c.diagram, `chunks[${i}].diagram`) : undefined,
     figure: hasFigure ? validateFigure(c.figure, `chunks[${i}].figure`) : undefined,
     ask: str(c.ask, `chunks[${i}].ask`),
-    // One hook for the whole session, on the opening section. A prediction
-    // the model volunteers anywhere else is dropped: Consume reads, it
-    // doesn't quiz.
-    ...(i === 0
-      ? { pred: validatePrediction(c.pred, "chunks[0].pred") }
-      : null),
-    // The comprehension check that closes every section — same shape as the
-    // hook, opposite job: the hook primes the reading, this confirms it.
+    // The comprehension check that closes every section — a receipt for
+    // reading it. Consume reads; anything the model volunteers before the
+    // prose is dropped.
     check: validatePrediction(c.check, `chunks[${i}].check`),
   };
 }
@@ -737,8 +731,8 @@ ${interestNote(interests)}
 This is the READING phase — the learner is here to be taught, not tested. Write
 real teaching material: explain the idea, show where it comes from, work an
 example, name what usually goes wrong. Real questioning happens in later
-phases, so the pass carries exactly ONE prediction hook, on the first section
-only — plus one short comprehension check per section ("check"), which the
+phases, so the pass carries no questions before the prose — only one short
+comprehension check per section ("check"), which closes it and which the
 learner must get right before continuing. A check is a receipt for reading,
 not a test: it asks for something stated or worked in THAT section's prose or
 example, and its wrong options are plausible misreadings, never absurd.
