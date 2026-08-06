@@ -17,9 +17,11 @@ import type {
   CalibSample,
   ConceptGraph,
   ConsumeChunk,
+  ConsumeProgress,
   CrucibleContent,
   ElaborationContent,
   FeynmanBeat,
+  ModalityTally,
   OnboardingForm,
   RetainContent,
   ShakyReason,
@@ -49,7 +51,7 @@ export const emptyCaches = (): RunCaches => ({
 });
 
 export interface RunSnapshot {
-  v: 3;
+  v: 4;
   form: OnboardingForm;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
@@ -65,14 +67,30 @@ export interface RunSnapshot {
   reviewedNodes: string[];
   /** The persisted FSRS card store (#21) — real due dates survive refreshes. */
   cards: StoredCard[];
+  /** Where the learner got to in each node's reading pass (§6). The reading is
+   *  the longest surface in the app; losing your place in it on a refresh is
+   *  the difference between a document and somewhere you can leave. */
+  consumeProgress: Record<string, ConsumeProgress>;
+  /** How often each rewrite modality has been chosen, run-wide — the evidence
+   *  behind the adaptive-modality preference. */
+  modalityTally: ModalityTally;
 }
 
-/** What may come back from the table: a v1, v2, or v3 snapshot. v1 predates
+/** What may come back from the table: a v1 … v4 snapshot. v1 predates
  *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
- *  content caches inline, which v3 moved to their own column. */
+ *  content caches inline, which v3 moved to their own column; v4 adds the
+ *  Consume reading progress and the modality tally. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
-  "v" | "form" | "adherence" | "shakyReasons" | "reviewedNodes" | "cards" | "caches"
+  | "v"
+  | "form"
+  | "adherence"
+  | "shakyReasons"
+  | "reviewedNodes"
+  | "cards"
+  | "caches"
+  | "consumeProgress"
+  | "modalityTally"
 > & {
   v: number;
   form: Omit<OnboardingForm, "examDate"> & { examDate?: string };
@@ -81,19 +99,28 @@ type LoadedSnapshot = Omit<
   reviewedNodes?: string[];
   cards?: StoredCard[];
   caches?: Partial<RunCaches>;
+  consumeProgress?: Record<string, ConsumeProgress>;
+  modalityTally?: ModalityTally;
 };
 
-/** Fill an older snapshot's gaps; a v3 passes through unchanged. */
+/** Every snapshot version this loader accepts. */
+const SNAPSHOT_VERSIONS = [1, 2, 3, 4];
+
+/** Fill an older snapshot's gaps; a v4 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
   const { caches: _inline, ...rest } = raw;
   return {
     ...rest,
-    v: 3,
+    v: 4,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
     reviewedNodes: raw.reviewedNodes ?? [],
     cards: raw.cards ?? [],
+    // A pre-v4 run has read passes it can't prove it read. Empty is the honest
+    // answer: the map under-claims rather than inventing a position.
+    consumeProgress: raw.consumeProgress ?? {},
+    modalityTally: raw.modalityTally ?? {},
   };
 }
 
@@ -186,7 +213,7 @@ export async function loadRunCore(
     .maybeSingle();
   if (error) throw new Error(`Loading saved run failed: ${error.message}`);
   const snapshot = data?.snapshot as LoadedSnapshot | undefined;
-  if (!snapshot || ![1, 2, 3].includes(snapshot.v)) return null;
+  if (!snapshot || !SNAPSHOT_VERSIONS.includes(snapshot.v)) return null;
   return {
     subject: data!.subject,
     snapshot: migrate(snapshot),

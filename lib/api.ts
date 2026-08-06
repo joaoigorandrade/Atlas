@@ -253,6 +253,35 @@ export async function fetchConsumeStream(
   return collectFrames<ConsumeChunk>(frames, "chunks");
 }
 
+/**
+ * "Ask about this" — the learner's own question about a stretch of prose they
+ * highlighted, answered against that section and streamed a paragraph at a
+ * time. Never warmed and never cached: the inputs are one learner's selection
+ * and one learner's words.
+ *
+ * `onPart` fires per paragraph as it lands, so the aside starts filling in
+ * about a second in rather than sitting empty until the whole answer is
+ * written — which matters more here than anywhere else in Consume, since the
+ * reading is still on screen behind it.
+ */
+export async function fetchPassageStream(
+  params: {
+    topic: string;
+    nodeLabel: string;
+    kicker: string;
+    section: string;
+    selection: string;
+    question: string;
+    language?: Language;
+  },
+  onPart: (part: string, index: number) => void,
+): Promise<string[]> {
+  const frames = await fetchStream({ kind: "passage", ...params }, (frame) => {
+    if (frame.p === "answer" && "i" in frame) onPart(frame.v as string, frame.i);
+  });
+  return collectFrames<string>(frames, "answer");
+}
+
 export const socraticRequest = (params: {
   topic: string;
   nodeLabel: string;

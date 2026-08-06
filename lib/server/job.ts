@@ -17,6 +17,8 @@ import {
   generateFeynmanStream,
   generateMap,
   generateMapStream,
+  generatePassage,
+  generatePassageStream,
   generateRetain,
   generateSocratic,
   generateSocraticStream,
@@ -40,7 +42,11 @@ import {
   type GoalKind,
 } from "@/lib/curriculum";
 
-export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion";
+export type GenerateKind =
+  | CacheableKind
+  | "judge"
+  | "diagnosticQuestion"
+  | "passage";
 
 export interface GenerateBody {
   kind: GenerateKind;
@@ -65,6 +71,11 @@ export interface GenerateBody {
   index?: number;
   /** Background warm: the client is filling its cache, nobody is waiting. */
   prefetch?: boolean;
+  // passage fields ("ask about this" — the learner's own words about a
+  // highlighted stretch of the reading)
+  kicker?: string;
+  section?: string;
+  selection?: string;
   // judge fields
   mode?: "socratic" | "feynman" | "crucible" | "choice";
   question?: string;
@@ -237,6 +248,34 @@ export function resolveJob(body: GenerateBody): Job {
         shape: { chunks: { min: 4, max: 6 } },
         // The reading pass, plus one rewrite call per section it produces.
         cost: 6,
+      };
+    }
+
+    case "passage": {
+      if (!nodeLabel) throw badRequest("nodeLabel is required");
+      const selection = s(body.selection).slice(0, CAPS.freeText).trim();
+      if (!selection) throw badRequest("selection is required");
+      const params = {
+        topic,
+        nodeLabel,
+        kicker: s(body.kicker).slice(0, CAPS.nodeLabel),
+        section: s(body.section).slice(0, CAPS.freeText),
+        selection,
+        // Optional on purpose: a learner who highlights and taps without
+        // typing is asking "explain this", which is a real question.
+        question: s(body.question).slice(0, CAPS.freeText).trim(),
+        language,
+      };
+      // Never cached — one learner's own words about one arbitrary substring.
+      return {
+        kind: "passage",
+        key: null,
+        run: async () => ({ answer: await generatePassage(params) }),
+        stream: () => generatePassageStream(params),
+        // Mirrors `validatePassage`'s 1-4 bound, not the 2-3 the prompt asks
+        // for. Nothing is cached here, but the shape is still what decides
+        // whether an assembled answer is complete.
+        shape: { answer: { min: 1, max: 4 } },
       };
     }
 

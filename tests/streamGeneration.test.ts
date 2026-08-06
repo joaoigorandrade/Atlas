@@ -96,6 +96,13 @@ let truncateJudge = false;
 let tooBroad = false;
 
 const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
+const isPassage = (prompt: string) => prompt.includes("They highlighted a passage");
+
+/** The "ask about this" answer, one top-level object per paragraph. */
+const passageObjs = [
+  { p: "The sentence you highlighted is doing one job." },
+  { p: "Here is the mechanism behind it, concretely." },
+];
 
 /** Which sequence of top-level objects a given prompt is asking for. */
 function objectsFor(prompt: string): unknown[] {
@@ -106,6 +113,7 @@ function objectsFor(prompt: string): unknown[] {
   if (prompt.includes("prerequisite order:")) return tooBroad ? [scopeObj] : conceptObjs;
   if (isJudge(prompt))
     return [{ quality: "near" }, { quality: "near", response: "the streamed critique" }];
+  if (isPassage(prompt)) return passageObjs;
   return [{}];
 }
 
@@ -128,6 +136,8 @@ beforeAll(async () => {
     if (!parsed.stream) {
       const wrapped = isJudge(prompt)
         ? { quality: "near", response: "the retried critique" }
+        : isPassage(prompt)
+        ? { answer: ["the retried answer"] }
         : prompt.includes("Socratic")
         ? { steps: objects }
         : prompt.includes("Feynman")
@@ -398,5 +408,69 @@ describe("curriculum map + adaptive placement, split prompts", () => {
       "ft-ownership-4",
     ]);
     expect(new Set(beats.map((b) => `${b.gap.dx},${b.gap.dy}`)).size).toBe(4);
+  });
+});
+
+// ---- "ask about this": the learner's own question about a passage ----------
+
+describe("passage answers", () => {
+  const params = {
+    topic: "Rust",
+    nodeLabel: "Ownership",
+    kicker: "3 · Where it breaks",
+    section: "A value has exactly one owner. When the owner goes out of scope, the value is dropped.",
+    selection: "the value is dropped",
+    question: "Dropped where — does it go on a free list?",
+  };
+
+  it("streams the answer a paragraph at a time", async () => {
+    const { generatePassageStream } = await import("@/lib/server/generate");
+    const frames = await drain(generatePassageStream(params));
+
+    expect(frames.map((f) => f.p)).toEqual(["answer", "answer"]);
+    expect(frames.map((f) => f.i)).toEqual([0, 1]);
+    expect(frames[0].v).toBe(passageObjs[0].p);
+    // The whole claim of streaming this: the first paragraph is readable well
+    // before the last one has been written.
+    expect(frames[0].at).toBeLessThan(frames[1].at - DELAY_MS / 2);
+  });
+
+  it("assembles into exactly what the single-shot path returns", async () => {
+    const { generatePassageStream } = await import("@/lib/server/generate");
+    const { framesToPayload } = await import("@/lib/server/stream");
+    const frames = await drain(generatePassageStream(params));
+
+    expect(
+      framesToPayload(
+        frames.map(({ p, i, v }) => ({ p, i: i!, v })),
+        { answer: { min: 1, max: 4 } },
+      ),
+    ).toEqual({ answer: passageObjs.map((o) => o.p) });
+  });
+
+  it("falls back to the retried single-shot path when the stream is junk", async () => {
+    const { generatePassageStream } = await import("@/lib/server/generate");
+    breakStream = true;
+    try {
+      const frames = await drain(generatePassageStream(params));
+      expect(frames.map((f) => f.v)).toEqual(["the retried answer"]);
+    } finally {
+      breakStream = false;
+    }
+  });
+
+  it("recovers from an empty completion instead of answering nothing", async () => {
+    const { generatePassageStream } = await import("@/lib/server/generate");
+    emptyStream = true;
+    try {
+      // A stream that finishes having written nothing is indistinguishable
+      // from "nothing usable happened yet", so it takes the same fallback a
+      // malformed one does — the learner gets an answer either way.
+      const frames = await drain(generatePassageStream(params));
+      expect(frames).toHaveLength(1);
+      expect(frames[0].v).toBe("the retried answer");
+    } finally {
+      emptyStream = false;
+    }
   });
 });
