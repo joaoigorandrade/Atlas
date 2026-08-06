@@ -344,6 +344,16 @@ function consumeChunk(i: number, over: Record<string, unknown> = {}) {
       right: "yes — and here is why",
       wrong: "no — the usual mistake is…",
     },
+    check: {
+      q: "what did that section say?",
+      opts: [
+        { label: "a", correct: false },
+        { label: "b", correct: true },
+        { label: "c", correct: false },
+      ],
+      right: "yes — that is the point",
+      wrong: "no — it was in paragraph two",
+    },
     ...over,
   };
 }
@@ -363,6 +373,16 @@ describe("validateConsume", () => {
     expect(() =>
       validateConsume(consumePayload([{ pred: undefined }])),
     ).toThrow(/chunks\[0\].pred/);
+  });
+
+  it("requires a comprehension check on every section — it gates Continue", () => {
+    const out = validateConsume(consumePayload());
+    expect(out.every((c) => c.check?.opts.filter((o) => o.correct).length === 1)).toBe(
+      true,
+    );
+    expect(() =>
+      validateConsume(consumePayload([{}, {}, { check: undefined }])),
+    ).toThrow(/chunks\[2\].check/);
   });
 
   it("rejects a thin body — Consume is where the material lives", () => {

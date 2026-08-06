@@ -12,6 +12,7 @@ import {
   type ConsumeChunk,
   type ConsumeExample,
   type ConsumeFigure,
+  type ConsumePrediction,
   type ConsumeProgress,
 } from "@/lib/curriculum";
 import { altParagraphs, segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
@@ -100,6 +101,10 @@ const STRINGS = {
     recapBegin: "Begin Socratic →",
     recapBackToMap: "Back to the map",
     recapReread: "↑ Re-read",
+    checkKicker: "Before you continue",
+    checkHint: "Answer from what you just read — this unlocks the next section.",
+    checkAgain: "Not quite — read that part again, then pick another.",
+    checkPassed: "Understood",
   },
   "pt-BR": {
     back: "← Mapa",
@@ -176,6 +181,10 @@ const STRINGS = {
     recapBegin: "Começar o Socrático →",
     recapBackToMap: "Voltar ao mapa",
     recapReread: "↑ Reler",
+    checkKicker: "Antes de continuar",
+    checkHint: "Responda com o que você acabou de ler — isso libera a próxima seção.",
+    checkAgain: "Ainda não — releia esse trecho e escolha outra.",
+    checkPassed: "Entendido",
   },
 } as const;
 
@@ -229,6 +238,8 @@ interface ConsumeViewProps {
   session: ConsumeSession;
   onExit: () => void;
   onAnswer: (chunkId: string, oi: number, correct: boolean, mode: AnswerMode) => void;
+  /** The end-of-section check was answered — right or wrong. */
+  onCheck: (chunkId: string, oi: number, correct: boolean) => void;
   onSkipHook: () => void;
   onContinue: (chunkIndex: number) => void;
   /** The last section is done — show the recap. */
@@ -760,6 +771,159 @@ function PassagePanel({
   );
 }
 
+/**
+ * The comprehension check that closes a section. It stays out of the way until
+ * the learner has actually scrolled to the end of the reading — the card
+ * animates in the first time its slot crosses into view — and the section's
+ * Continue only appears once the answer is right. A wrong pick is named and
+ * the options stay live: this is a receipt for reading, not a score.
+ */
+function SectionCheck({
+  check,
+  answer,
+  onAnswer,
+}: {
+  check: ConsumePrediction;
+  answer?: { oi: number; correct: boolean };
+  onAnswer: (oi: number, correct: boolean) => void;
+}) {
+  const t = useT(STRINGS);
+  const slot = useRef<HTMLDivElement>(null);
+  // Answered before this mounted (re-render after a scroll away) → already in.
+  const [revealed, setRevealed] = useState(!!answer);
+  useEffect(() => {
+    if (revealed || !slot.current) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) setRevealed(true);
+      },
+      // Not merely peeking over the fold — the end of the section has to be
+      // properly on screen.
+      { rootMargin: "0px 0px -15% 0px" },
+    );
+    io.observe(slot.current);
+    return () => io.disconnect();
+  }, [revealed]);
+
+  const passed = !!answer?.correct;
+
+  return (
+    <div ref={slot} style={{ minHeight: 1, marginTop: 30 }}>
+      {revealed && (
+        <div
+          style={{
+            background: color.card,
+            border: `1px solid ${passed ? "rgba(76,139,99,0.4)" : "rgba(91,127,191,0.28)"}`,
+            borderRadius: 13,
+            padding: "18px 20px",
+            animation: "fadeUp .45s both",
+            transition: "border-color .3s",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: passed ? RIGHT : BLUE,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: font.mono,
+                fontSize: 10,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: passed ? RIGHT : BLUE,
+              }}
+            >
+              {passed ? t.checkPassed : t.checkKicker}
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 20,
+              lineHeight: 1.32,
+              marginBottom: 6,
+            }}
+          >
+            {check.q}
+          </div>
+          {!passed && (
+            <div
+              style={{ fontSize: 13, color: color.inkFaint, marginBottom: 14 }}
+            >
+              {t.checkHint}
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {check.opts.map((o, oi) => {
+              const picked = answer?.oi === oi;
+              const shown = passed ? o.correct : picked;
+              return (
+                <button
+                  key={o.label}
+                  onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
+                  disabled={passed}
+                  style={{
+                    textAlign: "left",
+                    padding: "13px 16px",
+                    borderRadius: 10,
+                    fontSize: 14.5,
+                    fontFamily: "inherit",
+                    cursor: passed ? "default" : "pointer",
+                    border: `1px solid ${
+                      shown
+                        ? o.correct
+                          ? RIGHT
+                          : WRONG
+                        : color.hairlineStrong
+                    }`,
+                    background: shown
+                      ? o.correct
+                        ? color.successBg
+                        : color.card
+                      : color.card,
+                    color: color.ink,
+                    opacity: passed && !o.correct ? 0.5 : 1,
+                    transition: "all .15s",
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          {answer && (
+            <div
+              style={{
+                marginTop: 14,
+                paddingLeft: 13,
+                borderLeft: `3px solid ${passed ? RIGHT : WRONG}`,
+                fontSize: 14,
+                lineHeight: 1.55,
+                color: color.inkSoft,
+                animation: "softIn .3s both",
+              }}
+            >
+              {passed ? check.right : `${t.checkAgain} ${check.wrong}`}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ConsumeView({
   title,
   topic,
@@ -768,6 +932,7 @@ export default function ConsumeView({
   session,
   onExit,
   onAnswer,
+  onCheck,
   onSkipHook,
   onContinue,
   onFinish,
@@ -1392,6 +1557,7 @@ export default function ConsumeView({
                 : null;
             const collapsed = !!session.collapsed[c.id];
             const paragraphs = altText ? altParagraphs(altText) : c.body;
+            const checkPassed = !c.check || !!session.checks[c.id]?.correct;
 
             return (
               <div
@@ -1941,8 +2107,21 @@ export default function ConsumeView({
                 </>
                 )}
 
-                {/* Continue / finish — only on the deepest revealed section */}
+                {/* The section's receipt: answered right, the way onward
+                    appears; until then it is the only thing down here. */}
+                {c.check && (
+                  <SectionCheck
+                    check={c.check}
+                    answer={session.checks[c.id]}
+                    onAnswer={(oi, correct) => onCheck(c.id, oi, correct)}
+                  />
+                )}
+
+                {/* Continue / finish — only on the deepest revealed section,
+                    and only once its check is passed (sections cached before
+                    checks existed carry none, and stay ungated). */}
                 {isDeepest &&
+                  checkPassed &&
                   (nextArrived || isLast ? (
                     <div style={{ marginTop: 30 }}>
                       <button

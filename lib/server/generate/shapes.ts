@@ -41,7 +41,13 @@ const CONSUME_SECTION_CORE = `      "kicker": "1 · What it is",                
         "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
         "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
       },
-      "ask": "a mini-Socratic prompt that answers a likely question with a question"`;
+      "ask": "a mini-Socratic prompt that answers a likely question with a question",
+      "check": {                                           // EVERY SECTION — the comprehension check that closes it
+        "q": "a question answerable only by someone who read THIS section — never general knowledge, never guessable from the kicker",
+        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
+        "right": "one line confirming what they got right",
+        "wrong": "one line naming what they missed and where in the section it was — no new material"
+      }`;
 
 /**
  * One Consume section's shape.

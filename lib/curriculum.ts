@@ -358,6 +358,11 @@ export interface ConsumeChunk {
   /** The session's single prediction hook — present on the opening section
    *  only, and optional even there. */
   pred?: ConsumePrediction;
+  /** The comprehension check that closes this section: it appears once the
+   *  learner reaches the end of the reading, and the section's Continue is
+   *  gated on getting it right. Absent on chunks cached before checks
+   *  existed — those sections stay ungated. */
+  check?: ConsumePrediction;
 }
 
 /**
@@ -386,6 +391,12 @@ export interface ConsumeProgress {
   variant: Record<string, AltKey | null>;
   /** Sections collapsed to their takeaway alone. */
   collapsed: Record<string, boolean>;
+  /** The end-of-section comprehension checks, keyed by chunk id. Persisted
+   *  with the rest of the progress rather than held for the session: a check
+   *  already passed has to stay passed when the learner comes back, or
+   *  resuming would re-gate sections they demonstrably read. A wrong pick is
+   *  kept too, so the miss can still be named. */
+  checks: Record<string, { oi: number; correct: boolean }>;
   /** `chunkId:term` keys the learner expanded — the recap lists them back. */
   termsSeen: string[];
   /** Sections in the pass as last seen. With `idx`, the honest "3 of 5" — a
@@ -406,6 +417,7 @@ export const emptyConsumeProgress = (): ConsumeProgress => ({
   hookSkipped: false,
   variant: {},
   collapsed: {},
+  checks: {},
   termsSeen: [],
   total: 0,
   finished: false,

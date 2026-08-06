@@ -212,6 +212,26 @@ export async function loadRunCore(
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`Loading saved run failed: ${error.message}`);
+  return toLoadedRun(data);
+}
+
+/** The run core for one named subject — switching onto a non-default map. */
+export async function loadRunBySubject(
+  supabase: SupabaseClient,
+  subject: string,
+): Promise<LoadedRun | null> {
+  const { data, error } = await supabase
+    .from("run_states")
+    .select("subject, snapshot")
+    .eq("subject", subject)
+    .maybeSingle();
+  if (error) throw new Error(`Loading saved run failed: ${error.message}`);
+  return toLoadedRun(data);
+}
+
+function toLoadedRun(
+  data: { subject: string; snapshot: unknown } | null,
+): LoadedRun | null {
   const snapshot = data?.snapshot as LoadedSnapshot | undefined;
   if (!snapshot || !SNAPSHOT_VERSIONS.includes(snapshot.v)) return null;
   return {
@@ -219,6 +239,40 @@ export async function loadRunCore(
     snapshot: migrate(snapshot),
     inlineCaches: snapshot.caches ? normalizeCaches(snapshot.caches) : null,
   };
+}
+
+/** A dashboard-card's worth of a run — just enough to derive mastery %, the
+ *  frontier count and the goal label, without the (large) generated caches. */
+export interface RunSummary {
+  subject: string;
+  goal: OnboardingForm["goal"];
+  graph: ConceptGraph;
+  states: StateMap;
+}
+
+/** Every saved run for the caller — RLS scopes it to their own rows. Powers
+ *  the "Your maps" grid; the currently-open run isn't excluded, callers that
+ *  already hold it live prefer their own (fresher) copy. */
+export async function listRuns(
+  supabase: SupabaseClient,
+): Promise<RunSummary[]> {
+  const { data, error } = await supabase
+    .from("run_states")
+    .select("subject, snapshot")
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(`Loading your maps failed: ${error.message}`);
+  return (data ?? []).flatMap((row) => {
+    const snapshot = row.snapshot as LoadedSnapshot | undefined;
+    if (!snapshot || ![1, 2, 3].includes(snapshot.v)) return [];
+    return [
+      {
+        subject: row.subject as string,
+        goal: snapshot.form.goal,
+        graph: snapshot.graph,
+        states: snapshot.states,
+      },
+    ];
+  });
 }
 
 /** The generated content for a run — fetched after the map is already drawn. */

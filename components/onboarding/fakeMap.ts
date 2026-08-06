@@ -49,3 +49,14 @@ export const FAKE_MAP_EDGES: ConceptEdge[] = [
 
 export const FAKE_MAP_POSITIONS: Record<string, { x: number; y: number }> =
   Object.fromEntries(FAKE_MAP_NODES.map((n) => [n.id, { x: n.x, y: n.y }]));
+
+/** Midpoint of the placeholder territory, so the building screen can center
+ *  the viewport on it instead of leaving it at the default map's pan. */
+export const FAKE_MAP_CENTER = {
+  x: (Math.min(...FAKE_MAP_NODES.map((n) => n.x)) +
+    Math.max(...FAKE_MAP_NODES.map((n) => n.x))) /
+    2,
+  y: (Math.min(...FAKE_MAP_NODES.map((n) => n.y)) +
+    Math.max(...FAKE_MAP_NODES.map((n) => n.y))) /
+    2,
+};
