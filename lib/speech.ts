@@ -21,11 +21,30 @@ export function speechLang(language: Language): string {
   return language === "en" ? "en-US" : "pt-BR";
 }
 
-/** What of a Consume section reads aloud, in reading order: the prose, then
- *  the worked example (title, then steps), then the takeaway. The figure is
- *  a diagram and the citation is a reference — neither speaks sensibly. */
-export function segmentsForChunk(c: ConsumeChunk): string[] {
-  return [c.body, [c.example.title, ...c.example.steps], [c.takeaway]]
+/** An adaptive-modality rewrite as paragraphs. The model writes them as one
+ *  string with blank-line breaks (the view renders it `pre-line`), and both the
+ *  voice and the paragraph highlight need the same split to stay in step. */
+export function altParagraphs(text: string): string[] {
+  return text
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * What of a Consume section reads aloud, in reading order: the prose, then the
+ * worked example (title, then steps), then the takeaway. The figure is a
+ * diagram and the citation is a reference — neither speaks sensibly.
+ *
+ * `altText` is the rewrite currently *on screen* in place of the prose. It has
+ * to be passed in rather than assumed away: reading `c.body` while the learner
+ * is looking at the "simpler" version means the voice and the page are telling
+ * two different stories, and the paragraph highlight lands on elements that
+ * aren't rendered.
+ */
+export function segmentsForChunk(c: ConsumeChunk, altText?: string | null): string[] {
+  const prose = altText ? altParagraphs(altText) : c.body;
+  return [prose, [c.example.title, ...c.example.steps], [c.takeaway]]
     .flat()
     .map((s) => s.trim())
     .filter(Boolean);

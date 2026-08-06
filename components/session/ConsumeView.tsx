@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
+import { MicButton } from "@/components/VoiceInput";
 import {
   PHASES,
   STATE_COLOR,
@@ -13,6 +14,8 @@ import {
   type ConsumeExample,
   type ConsumeFigure,
   type ConsumeModelBeat,
+  type ConsumePrediction,
+  type ConsumeProgress,
 } from "@/lib/curriculum";
 import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker } from "@/lib/theme";
@@ -45,7 +48,7 @@ const STRINGS = {
     skipTeachMe: "Skip — just teach me ↓",
     yourGuess: "your guess",
     takeaway: "Takeaway",
-    source: "source",
+    furtherReading: "further reading",
     modelKicker: "Model view",
     modelOpening: "Opening this view…",
     modelWriting: "still writing…",
@@ -55,8 +58,6 @@ const STRINGS = {
     modelClose: "Close",
     modelBack: "← Back to the section",
     modelEmpty: "This view came back empty — close it and try another lens.",
-    askAboutPassage: "Ask about this passage",
-    socraticAside: "A quick Socratic aside, without leaving Consume:",
     diagramLabel: "diagram ·",
     finishBeginSocratic: "Finish · begin Socratic →",
     continueSection: (next: string) => `Continue · ${next} ↓`,
@@ -77,6 +78,42 @@ const STRINGS = {
     showFullSection: "Show full section →",
     minLeft: (n: number) => (n > 0 ? `~${n} min left` : ""),
     askFloating: "Ask about this →",
+    jumpTo: (n: number, name: string) => `Jump to section ${n} · ${name}`,
+    figureOf: (name: string) => `Diagram: ${name}`,
+    yourDefault: "your default",
+    // ---- ask about this
+    askSection: "Ask about this section →",
+    askAbout: "You asked about",
+    askWholeSection: "About this section",
+    askPlaceholder: "What didn’t land? Ask in your own words…",
+    askSubmit: "Ask →",
+    askExplain: "Explain this →",
+    askSuggested: "Not sure what to ask?",
+    askThinking: "Reading the passage…",
+    askClose: "Close",
+    askFailed: "Couldn’t answer that one — try asking again.",
+    // ---- the closing beat
+    recapKicker: "Session · Consume — complete",
+    recapTitle: (t: string) => `That was ${t}.`,
+    recapLead:
+      "Everything below came out of the reading you just did. Socratic starts from here — it will ask you to rebuild it without looking.",
+    recapSections: (n: number) => `${n} section${n === 1 ? "" : "s"} read`,
+    recapMinutes: (n: number) => `~${n} min`,
+    recapTerms: (n: number) => `${n} term${n === 1 ? "" : "s"} met`,
+    recapTakeaways: "What you took away",
+    recapSkipped: "skipped",
+    recapTermsHeading: "Terms you opened",
+    recapGuess: "Your opening guess",
+    recapGuessRight: "You called it.",
+    recapGuessWrong: "You missed it — which is what made the section land.",
+    recapGuessSkipped: "You waved the guess off and went straight to the material.",
+    recapBegin: "Begin Socratic →",
+    recapBackToMap: "Back to the map",
+    recapReread: "↑ Re-read",
+    checkKicker: "Before you continue",
+    checkHint: "Answer from what you just read — this unlocks the next section.",
+    checkAgain: "Not quite — read that part again, then pick another.",
+    checkPassed: "Understood",
   },
   "pt-BR": {
     back: "← Mapa",
@@ -98,7 +135,7 @@ const STRINGS = {
     skipTeachMe: "Pular — só me ensine ↓",
     yourGuess: "seu palpite",
     takeaway: "Ideia central",
-    source: "fonte",
+    furtherReading: "para ler depois",
     modelKicker: "Visão do modelo",
     modelOpening: "Abrindo esta visão…",
     modelWriting: "ainda sendo escrito…",
@@ -108,8 +145,6 @@ const STRINGS = {
     modelClose: "Fechar",
     modelBack: "← Voltar à seção",
     modelEmpty: "Esta visão voltou vazia — feche e tente outra lente.",
-    askAboutPassage: "Perguntar sobre este trecho",
-    socraticAside: "Um aparte socrático rápido, sem sair do Consumir:",
     diagramLabel: "diagrama ·",
     finishBeginSocratic: "Concluir · começar o Socrático →",
     continueSection: (next: string) => `Continuar · ${next} ↓`,
@@ -130,35 +165,84 @@ const STRINGS = {
     showFullSection: "Mostrar seção completa →",
     minLeft: (n: number) => (n > 0 ? `~${n} min restantes` : ""),
     askFloating: "Perguntar sobre isto →",
+    jumpTo: (n: number, name: string) => `Ir para a seção ${n} · ${name}`,
+    figureOf: (name: string) => `Diagrama: ${name}`,
+    yourDefault: "seu padrão",
+    // ---- ask about this
+    askSection: "Perguntar sobre esta seção →",
+    askAbout: "Você perguntou sobre",
+    askWholeSection: "Sobre esta seção",
+    askPlaceholder: "O que não ficou claro? Pergunte com suas palavras…",
+    askSubmit: "Perguntar →",
+    askExplain: "Explicar isto →",
+    askSuggested: "Não sabe o que perguntar?",
+    askThinking: "Lendo o trecho…",
+    askClose: "Fechar",
+    askFailed: "Não consegui responder essa — tente perguntar de novo.",
+    // ---- the closing beat
+    recapKicker: "Sessão · Consumir — concluída",
+    recapTitle: (t: string) => `Isso foi ${t}.`,
+    recapLead:
+      "Tudo abaixo saiu da leitura que você acabou de fazer. O Socrático começa daqui — ele vai pedir que você reconstrua isso sem olhar.",
+    recapSections: (n: number) => `${n} ${n === 1 ? "seção lida" : "seções lidas"}`,
+    recapMinutes: (n: number) => `~${n} min`,
+    recapTerms: (n: number) => `${n} ${n === 1 ? "termo visto" : "termos vistos"}`,
+    recapTakeaways: "O que você leva daqui",
+    recapSkipped: "pulada",
+    recapTermsHeading: "Termos que você abriu",
+    recapGuess: "Seu palpite inicial",
+    recapGuessRight: "Você acertou.",
+    recapGuessWrong: "Você errou — e foi isso que fez a seção grudar.",
+    recapGuessSkipped: "Você dispensou o palpite e foi direto para o material.",
+    recapBegin: "Começar o Socrático →",
+    recapBackToMap: "Voltar ao mapa",
+    recapReread: "↑ Reler",
+    checkKicker: "Antes de continuar",
+    checkHint: "Responda com o que você acabou de ler — isso libera a próxima seção.",
+    checkAgain: "Ainda não — releia esse trecho e escolha outra.",
+    checkPassed: "Entendido",
   },
 } as const;
 
-/** The live state of one Consume session — held by AtlasApp, read here. */
-export interface ConsumeSession {
+/** An open "ask about this" — one per session, held by AtlasApp because the
+ *  answer streams in from the server. The draft question stays local to the
+ *  panel; only a submitted ask reaches here. */
+export interface PassageAsk {
+  chunkId: string;
+  /** What the learner highlighted, or "" when they asked about the whole
+   *  section (the keyboard path — selection is a pointer gesture). */
+  selection: string;
+  /** The submitted question, or "" for a bare "explain this". */
+  question: string;
+  /** Answer paragraphs as they stream in. */
+  parts: string[];
+  status: "composing" | "asking" | "done" | "error";
+}
+
+/**
+ * The live state of one Consume session — held by AtlasApp, read here.
+ *
+ * It *is* the persisted `ConsumeProgress` plus the transient UI nobody needs
+ * restored: which term pill is open, whether an ask panel is up, whether the
+ * closing recap has taken over the screen. Keeping it one type is what makes
+ * resuming a session and saving one the same operation minus a spread.
+ */
+export interface ConsumeSession extends ConsumeProgress {
   nodeId: string;
-  /** Deepest section revealed so far; the pass unfolds one section at a time
-   *  so it never lands as a wall — but no section is gated by a question. */
-  idx: number;
-  /** The learner's answer to the session's one prediction hook, keyed by
-   *  chunk id (only the opening section has one). */
-  answered: Record<string, { oi: number; correct: boolean }>;
-  /** The hook was waved off — "just teach me". */
-  hookSkipped: boolean;
-  /** The last lens opened over each chunk (adaptive modality). Kept once the
-   *  view is closed — it is the record of which representation this learner
-   *  reaches for, and what the missing-prerequisite flag counts. */
-  variant: Record<string, AltKey | null>;
-  /** The model view currently open over a section, or null. The section it
-   *  belongs to stays mounted underneath — this opens over the reading, it
-   *  never replaces it. */
-  model: { chunkId: string; lens: AltKey } | null;
   /** The pre-taught term expanded inline, keyed `chunkId:term`. */
   term: string | null;
-  /** The chunk whose mini-Socratic aside is open. */
-  aside: string | null;
-  /** Sections collapsed to just their takeaway — "I know this bit", short of
-   *  bailing on the whole node. */
-  collapsed: Record<string, boolean>;
+  /** The learned modality this learner reads best in — the lens marked as
+   *  theirs on sections they haven't opened one over yet (§6's adaptive
+   *  modality). It suggests; it never opens anything by itself. */
+  preferred: AltKey | null;
+  /** The model view currently open over a section, or null. The section it
+   *  belongs to stays mounted underneath — a lens opens over the reading, it
+   *  never replaces it. */
+  model: { chunkId: string; lens: AltKey } | null;
+  /** The open "ask about this", or null. */
+  passage: PassageAsk | null;
+  /** The reading is done and the closing recap is on screen. */
+  recap: boolean;
 }
 
 interface ConsumeViewProps {
@@ -179,18 +263,27 @@ interface ConsumeViewProps {
   /** More beats are still on the way for the open view. */
   modelStreaming?: boolean;
   onExit: () => void;
-  onAnswer: (chunkId: string, oi: number, correct: boolean) => void;
+  onAnswer: (chunkId: string, oi: number, correct: boolean, mode: AnswerMode) => void;
+  /** The end-of-section check was answered — right or wrong. */
+  onCheck: (chunkId: string, oi: number, correct: boolean) => void;
   onSkipHook: () => void;
   onContinue: (chunkIndex: number) => void;
+  /** The last section is done — show the recap. */
   onFinish: () => void;
+  /** The recap's CTA: hand off to Socratic. */
+  onBeginSocratic: () => void;
   /** Open a lens over a section. The whole chunk travels up because the model
    *  view is written for this section's exact prose — the caller keys its
    *  request on it. */
   onOpenModel: (chunk: ConsumeChunk, lens: AltKey) => void;
   onCloseModel: () => void;
   onToggleTerm: (key: string) => void;
-  onToggleAside: (chunkId: string) => void;
   onToggleCollapse: (chunkId: string) => void;
+  /** Open the ask panel on a chunk. `selection` is "" for the whole section. */
+  onOpenPassage: (chunkId: string, selection: string) => void;
+  onClosePassage: () => void;
+  /** Submit the question — the answer streams back into `session.passage`. */
+  onAskPassage: (question: string) => void;
   onSkipCrucible: () => void;
   onRoutePrereq: () => void;
 }
@@ -225,7 +318,18 @@ function wrap(label: string, boxW: number): string[] {
   return lines;
 }
 
-function Figure({ id, figure }: { id: string; figure: ConsumeFigure }) {
+function Figure({
+  id,
+  figure,
+  caption,
+}: {
+  id: string;
+  figure: ConsumeFigure;
+  /** The diagram's own caption — becomes the figure's accessible name, so a
+   *  screen reader gets what the picture is about rather than "graphic". */
+  caption: string;
+}) {
+  const t = useT(STRINGS);
   const layer = figureLayers(figure);
   const rows: (typeof figure.nodes)[number][][] = [];
   for (const n of figure.nodes) {
@@ -250,6 +354,7 @@ function Figure({ id, figure }: { id: string; figure: ConsumeFigure }) {
     <svg
       viewBox={`0 0 ${FIG_W} ${height}`}
       role="img"
+      aria-labelledby={`figt-${id}`}
       style={{
         width: "100%",
         height: "auto",
@@ -259,6 +364,9 @@ function Figure({ id, figure }: { id: string; figure: ConsumeFigure }) {
         display: "block",
       }}
     >
+      {/* The accessible name. Without it this is an unlabeled `role="img"` —
+          announced as a graphic with nothing in it. */}
+      <title id={`figt-${id}`}>{t.figureOf(caption)}</title>
       <defs>
         <marker
           id={`ah-${id}`}
@@ -482,6 +590,366 @@ function WorkedExample({ example }: { example: ConsumeExample }) {
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/**
+ * "Ask about this" — the learner's own question about the passage they just
+ * highlighted, answered against this section.
+ *
+ * The draft question is local state on purpose: lifting every keystroke into
+ * the session would re-render the whole reading column per character. Only a
+ * submitted ask goes up, and the streamed answer comes back down.
+ */
+function PassagePanel({
+  ask,
+  suggestion,
+  onAsk,
+  onClose,
+}: {
+  ask: PassageAsk;
+  /** The model's pre-written question for this section — the "not sure what to
+   *  ask?" seed, which is all `chunk.ask` was ever able to be. */
+  suggestion: string;
+  onAsk: (question: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT(STRINGS);
+  const [draft, setDraft] = useState("");
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+  const composing = ask.status === "composing";
+
+  useEffect(() => {
+    if (composing) boxRef.current?.focus();
+  }, [composing]);
+
+  const submit = () => {
+    if (!composing) return;
+    onAsk(draft.trim());
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: 18,
+        borderLeft: `3px solid ${color.accent}`,
+        background: color.accentBg,
+        borderRadius: "0 10px 10px 0",
+        padding: "14px 16px",
+        animation: "fadeUp .3s both",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 9 }}>
+        <span style={{ ...kicker(9.5, "0.12em"), color: color.accent }}>
+          {ask.selection ? t.askAbout : t.askWholeSection}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            fontFamily: "inherit",
+            fontSize: 12,
+            color: color.inkFaint,
+            cursor: "pointer",
+          }}
+        >
+          {t.askClose}
+        </button>
+      </div>
+
+      {ask.selection && (
+        <div
+          style={{
+            fontFamily: font.serif,
+            fontSize: 15,
+            lineHeight: 1.5,
+            color: color.inkSoft,
+            fontStyle: "italic",
+            marginBottom: 12,
+            // A long highlight must not push the answer off the screen.
+            maxHeight: 96,
+            overflowY: "auto",
+          }}
+        >
+          “{ask.selection}”
+        </div>
+      )}
+
+      {composing ? (
+        <>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <textarea
+              ref={boxRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+              }}
+              rows={2}
+              placeholder={t.askPlaceholder}
+              style={{
+                flex: 1,
+                resize: "vertical",
+                padding: "10px 12px",
+                borderRadius: 9,
+                border: `1px solid ${color.hairlineStrong}`,
+                background: color.card,
+                color: color.ink,
+                fontFamily: "inherit",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            />
+            <MicButton value={draft} onChange={setDraft} />
+          </div>
+          <div
+            style={{
+              marginTop: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              onClick={submit}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 9,
+                border: "none",
+                background: color.accent,
+                color: color.accentInk,
+                fontFamily: "inherit",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {draft.trim() ? t.askSubmit : t.askExplain}
+            </button>
+            {suggestion && !draft.trim() && (
+              <button
+                onClick={() => setDraft(suggestion)}
+                title={suggestion}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  textAlign: "left",
+                  fontFamily: "inherit",
+                  fontSize: 12.5,
+                  color: color.inkMuted,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3,
+                }}
+              >
+                {t.askSuggested}
+              </button>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          {ask.question && (
+            <div
+              style={{
+                fontSize: 13.5,
+                color: color.inkMuted,
+                marginBottom: 10,
+              }}
+            >
+              {ask.question}
+            </div>
+          )}
+          {ask.parts.map((p, i) => (
+            <p
+              key={i}
+              style={{
+                fontFamily: font.serif,
+                fontSize: 16.5,
+                lineHeight: 1.62,
+                color: color.ink,
+                margin: i === 0 ? "0 0 12px" : "0 0 12px",
+              }}
+            >
+              {p}
+            </p>
+          ))}
+          {ask.status === "asking" && (
+            <div
+              style={{
+                fontFamily: font.mono,
+                fontSize: 11,
+                color: color.inkGhost,
+                animation: "pulseGlow 1.6s ease-in-out infinite",
+              }}
+            >
+              {t.askThinking}
+            </div>
+          )}
+          {ask.status === "error" && (
+            <div style={{ fontSize: 13, color: WRONG }}>{t.askFailed}</div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The comprehension check that closes a section. It stays out of the way until
+ * the learner has actually scrolled to the end of the reading — the card
+ * animates in the first time its slot crosses into view — and the section's
+ * Continue only appears once the answer is right. A wrong pick is named and
+ * the options stay live: this is a receipt for reading, not a score.
+ */
+function SectionCheck({
+  check,
+  answer,
+  onAnswer,
+}: {
+  check: ConsumePrediction;
+  answer?: { oi: number; correct: boolean };
+  onAnswer: (oi: number, correct: boolean) => void;
+}) {
+  const t = useT(STRINGS);
+  const slot = useRef<HTMLDivElement>(null);
+  // Answered before this mounted (re-render after a scroll away) → already in.
+  const [revealed, setRevealed] = useState(!!answer);
+  useEffect(() => {
+    if (revealed || !slot.current) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) setRevealed(true);
+      },
+      // Not merely peeking over the fold — the end of the section has to be
+      // properly on screen.
+      { rootMargin: "0px 0px -15% 0px" },
+    );
+    io.observe(slot.current);
+    return () => io.disconnect();
+  }, [revealed]);
+
+  const passed = !!answer?.correct;
+
+  return (
+    <div ref={slot} style={{ minHeight: 1, marginTop: 30 }}>
+      {revealed && (
+        <div
+          style={{
+            background: color.card,
+            border: `1px solid ${passed ? "rgba(76,139,99,0.4)" : "rgba(91,127,191,0.28)"}`,
+            borderRadius: 13,
+            padding: "18px 20px",
+            animation: "fadeUp .45s both",
+            transition: "border-color .3s",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: passed ? RIGHT : BLUE,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: font.mono,
+                fontSize: 10,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: passed ? RIGHT : BLUE,
+              }}
+            >
+              {passed ? t.checkPassed : t.checkKicker}
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 20,
+              lineHeight: 1.32,
+              marginBottom: 6,
+            }}
+          >
+            {check.q}
+          </div>
+          {!passed && (
+            <div
+              style={{ fontSize: 13, color: color.inkFaint, marginBottom: 14 }}
+            >
+              {t.checkHint}
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {check.opts.map((o, oi) => {
+              const picked = answer?.oi === oi;
+              const shown = passed ? o.correct : picked;
+              return (
+                <button
+                  key={o.label}
+                  onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
+                  disabled={passed}
+                  style={{
+                    textAlign: "left",
+                    padding: "13px 16px",
+                    borderRadius: 10,
+                    fontSize: 14.5,
+                    fontFamily: "inherit",
+                    cursor: passed ? "default" : "pointer",
+                    border: `1px solid ${
+                      shown
+                        ? o.correct
+                          ? RIGHT
+                          : WRONG
+                        : color.hairlineStrong
+                    }`,
+                    background: shown
+                      ? o.correct
+                        ? color.successBg
+                        : color.card
+                      : color.card,
+                    color: color.ink,
+                    opacity: passed && !o.correct ? 0.5 : 1,
+                    transition: "all .15s",
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          {answer && (
+            <div
+              style={{
+                marginTop: 14,
+                paddingLeft: 13,
+                borderLeft: `3px solid ${passed ? RIGHT : WRONG}`,
+                fontSize: 14,
+                lineHeight: 1.55,
+                color: color.inkSoft,
+                animation: "softIn .3s both",
+              }}
+            >
+              {passed ? check.right : `${t.checkAgain} ${check.wrong}`}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -849,21 +1317,34 @@ export default function ConsumeView({
   modelStreaming = false,
   onExit,
   onAnswer,
+  onCheck,
   onSkipHook,
   onContinue,
   onFinish,
+  onBeginSocratic,
   onOpenModel,
   onCloseModel,
   onToggleTerm,
-  onToggleAside,
   onToggleCollapse,
+  onOpenPassage,
+  onClosePassage,
+  onAskPassage,
   onSkipCrucible,
   onRoutePrereq,
 }: ConsumeViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
+  const controls = altControls(language);
   // The prediction is open-ended by default; the switch reveals the closed form.
   const [mode, setMode] = useState<AnswerMode>("open");
+
+  /** The lens last opened over a chunk, or null. This is a record of what the
+   *  learner reached for — it marks a control, it never changes the prose. */
+  const lensOf = (chunkId: string): AltKey | null => session.variant[chunkId] ?? null;
+  /** …and whether the learned default is what's being suggested here, because
+   *  they haven't opened a lens over this section themselves. */
+  const suggestsDefault = (chunkId: string) =>
+    !session.variant[chunkId] && session.preferred !== null;
 
   // Read-aloud: the reading pass is the one place in Atlas long enough to be
   // worth listening to. One section speaks at a time — starting another
@@ -874,6 +1355,10 @@ export default function ConsumeView({
   const [spoken, setSpoken] = useState<string | null>(null);
   const voiceOn = reading.supported && readAloudPref;
   const speakingChunk = reading.speaking ? spoken : null;
+  /** What a chunk reads aloud: its prose, its worked example, its takeaway.
+   *  The voice reads what's on the page — and since a lens now opens *over*
+   *  the section instead of rewriting it, that is never anything but this. */
+  const segmentsOf = (c: ConsumeChunk) => segmentsForChunk(c);
   const toggleReading = (c: ConsumeChunk) => {
     if (speakingChunk === c.id) {
       if (reading.paused) reading.resume();
@@ -881,8 +1366,9 @@ export default function ConsumeView({
       return;
     }
     setSpoken(c.id);
-    reading.speak(segmentsForChunk(c));
+    reading.speak(segmentsOf(c));
   };
+
   // Only sections up to the deepest revealed one are on screen — the pass
   // unfolds in segments, never as a wall.
   const visible = chunks.slice(0, session.idx + 1);
@@ -895,7 +1381,7 @@ export default function ConsumeView({
     : undefined;
 
   let simpleCount = 0;
-  for (const c of chunks) if (session.variant[c.id] === "simpler") simpleCount++;
+  for (const c of chunks) if (lensOf(c.id) === "simpler") simpleCount++;
 
   // Overshoot correction: the session's one hook was called correctly →
   // surface the skip offer right away instead of making the learner read
@@ -903,8 +1389,9 @@ export default function ConsumeView({
   // same escape hatch, available from the very start regardless.
   const hookAnswer = session.answered[chunks[0]?.id ?? ""];
   const overshoot = !!hookAnswer?.correct;
-  // Missing-prerequisite flag: leaning on "simpler" repeatedly.
-  const simpleFlag = simpleCount >= 3;
+  // Missing-prerequisite flag: leaning on "simpler" repeatedly. A learned
+  // preference doesn't count as reaching for it — it's a default they set once.
+  const simpleFlag = simpleCount >= 3 && session.preferred !== "simpler";
 
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
 
@@ -925,13 +1412,17 @@ export default function ConsumeView({
 
   // Highlight → ask: a small floating button follows text selection inside
   // any section's prose, instead of a permanent link under every one of them.
-  const [askHint, setAskHint] = useState<{ chunkId: string; x: number; y: number } | null>(
-    null,
-  );
+  const [askHint, setAskHint] = useState<{
+    chunkId: string;
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
   useEffect(() => {
     const onSelectionChange = () => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      const text = sel?.toString().trim() ?? "";
+      if (!sel || sel.isCollapsed || !text) {
         setAskHint(null);
         return;
       }
@@ -946,6 +1437,7 @@ export default function ConsumeView({
       const parentRect = prose.getBoundingClientRect();
       setAskHint({
         chunkId: prose.dataset.chunkId!,
+        text,
         x: rect.left - parentRect.left + rect.width / 2,
         y: rect.top - parentRect.top,
       });
@@ -953,6 +1445,244 @@ export default function ConsumeView({
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, []);
+
+  // ---- the closing beat ---------------------------------------------------
+  // Finishing the last section used to drop the learner straight into
+  // Socratic. The reading is 8-15 minutes of work; it earns a beat that says
+  // what it added before the next phase starts taking it away again.
+  const totalWords = knownWords;
+  const readMinutes = Math.max(1, Math.round(totalWords / 200));
+  const termLabels = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const c of chunks)
+      for (const term of c.terms) byKey.set(`${c.id}:${term.t}`, term.t);
+    return session.termsSeen
+      .map((k) => byKey.get(k))
+      .filter((v): v is string => !!v);
+  }, [chunks, session.termsSeen]);
+
+  if (session.recap) {
+    const hookChunk = chunks[0];
+    const hookAns = hookChunk ? session.answered[hookChunk.id] : undefined;
+    const guessLine = hookAns
+      ? hookAns.correct
+        ? t.recapGuessRight
+        : t.recapGuessWrong
+      : session.hookSkipped
+        ? t.recapGuessSkipped
+        : null;
+    const guessVerdict =
+      hookChunk?.pred && hookAns
+        ? hookAns.correct
+          ? hookChunk.pred.right
+          : hookChunk.pred.wrong
+        : null;
+
+    const stat = (text: string) => (
+      <span
+        style={{
+          fontFamily: font.mono,
+          fontSize: 11,
+          letterSpacing: "0.08em",
+          color: color.inkMuted,
+        }}
+      >
+        {text}
+      </span>
+    );
+
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: color.paper,
+          color: color.ink,
+          display: "flex",
+          flexDirection: "column",
+          fontFamily: font.sans,
+          fontSize: 15,
+          zIndex: 30,
+          animation: "softIn 0.3s both",
+          overflowY: "auto",
+        }}
+      >
+        <div style={{ maxWidth: 720, margin: "0 auto", padding: "72px 32px 100px" }}>
+          <div style={{ ...kicker(11), color: color.accent, marginBottom: 12 }}>
+            {t.recapKicker}
+          </div>
+          <h1
+            style={{
+              fontFamily: font.serif,
+              fontWeight: 500,
+              fontSize: 36,
+              lineHeight: 1.12,
+              margin: "0 0 12px",
+            }}
+          >
+            {t.recapTitle(title)}
+          </h1>
+          <p
+            style={{
+              fontSize: 15,
+              lineHeight: 1.6,
+              color: color.inkMuted,
+              margin: "0 0 18px",
+            }}
+          >
+            {t.recapLead}
+          </p>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 38 }}>
+            {stat(t.recapSections(chunks.length))}
+            {stat(t.recapMinutes(readMinutes))}
+            {termLabels.length > 0 && stat(t.recapTerms(termLabels.length))}
+          </div>
+
+          <div style={{ ...kicker(10), marginBottom: 14 }}>{t.recapTakeaways}</div>
+          <ol style={{ margin: "0 0 36px", padding: 0, listStyle: "none" }}>
+            {chunks.map((c, i) => (
+              <li
+                key={c.id}
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  alignItems: "baseline",
+                  padding: "13px 0",
+                  borderBottom: `1px solid ${color.hairline}`,
+                }}
+              >
+                <span
+                  style={{
+                    flex: "0 0 auto",
+                    fontFamily: font.mono,
+                    fontSize: 11,
+                    color: color.inkGhost,
+                  }}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span style={{ flex: 1 }}>
+                  <span
+                    style={{
+                      fontFamily: font.serif,
+                      fontSize: 17,
+                      lineHeight: 1.5,
+                      color: color.ink,
+                    }}
+                  >
+                    {c.takeaway}
+                  </span>
+                  {session.collapsed[c.id] && (
+                    <span
+                      style={{
+                        marginLeft: 9,
+                        fontFamily: font.mono,
+                        fontSize: 9.5,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        color: color.inkGhost,
+                      }}
+                    >
+                      {t.recapSkipped}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          {termLabels.length > 0 && (
+            <div style={{ marginBottom: 36 }}>
+              <div style={{ ...kicker(10), marginBottom: 12 }}>
+                {t.recapTermsHeading}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {termLabels.map((label) => (
+                  <span
+                    key={label}
+                    style={{
+                      padding: "5px 11px",
+                      background: color.chipBg,
+                      border: `1px solid ${color.hairlineStrong}`,
+                      borderRadius: 20,
+                      fontSize: 12.5,
+                      color: color.inkSoft,
+                    }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {guessLine && (
+            <div style={{ marginBottom: 40 }}>
+              <div style={{ ...kicker(10), marginBottom: 12 }}>{t.recapGuess}</div>
+              <div
+                style={{
+                  paddingLeft: 15,
+                  borderLeft: `3px solid ${
+                    hookAns ? (hookAns.correct ? RIGHT : WRONG) : color.hairlineStrong
+                  }`,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: font.serif,
+                    fontSize: 17,
+                    lineHeight: 1.45,
+                    marginBottom: 6,
+                  }}
+                >
+                  {guessLine}
+                </div>
+                {guessVerdict && (
+                  <div style={{ fontSize: 14, lineHeight: 1.55, color: color.inkMuted }}>
+                    {guessVerdict}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+            <button
+              onClick={onBeginSocratic}
+              style={{
+                padding: "14px 24px",
+                background: color.accent,
+                color: color.accentInk,
+                border: "none",
+                borderRadius: 12,
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+              }}
+            >
+              {t.recapBegin}
+            </button>
+            <button
+              onClick={onExit}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                fontFamily: "inherit",
+                fontSize: 13.5,
+                color: color.inkMuted,
+                cursor: "pointer",
+              }}
+            >
+              {t.recapBackToMap}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1042,9 +1772,11 @@ export default function ConsumeView({
         </button>
       </div>
 
-      {/* Segment progress — each revealed dot jumps straight to its section,
-          instead of scroll-then-Continue being the only way back to it. */}
-      <div
+      {/* Segment progress — each revealed segment jumps straight to its
+          section, instead of scroll-then-Continue being the only way back to
+          it. Real buttons: this is navigation, and navigation has to be
+          reachable from the keyboard. */}
+      <nav
         style={{
           flex: "0 0 auto",
           display: "flex",
@@ -1057,25 +1789,41 @@ export default function ConsumeView({
           {chunks.map((c, i) => {
             const reachable = i <= session.idx;
             return (
-              <div
+              <button
                 key={c.id}
-                onClick={
-                  reachable
-                    ? () =>
-                        document
-                          .getElementById(c.id)
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                    : undefined
+                type="button"
+                disabled={!reachable}
+                aria-label={t.jumpTo(i + 1, sectionName(c.kicker))}
+                aria-current={i === session.idx ? "step" : undefined}
+                onClick={() =>
+                  document
+                    .getElementById(c.id)
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
                 }
                 style={{
                   flex: 1,
-                  height: 3,
-                  borderRadius: 2,
-                  background: reachable ? color.accent : "rgba(44,40,35,0.12)",
+                  // The bar is 3px; the button is tall enough to hit, with the
+                  // bar drawn inside it.
+                  height: 14,
+                  padding: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  background: "none",
+                  border: "none",
                   cursor: reachable ? "pointer" : "default",
-                  transition: "background .3s",
                 }}
-              />
+              >
+                <span
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: 3,
+                    borderRadius: 2,
+                    background: reachable ? color.accent : "rgba(44,40,35,0.12)",
+                    transition: "background .3s",
+                  }}
+                />
+              </button>
             );
           })}
         </div>
@@ -1091,7 +1839,7 @@ export default function ConsumeView({
             {t.minLeft(minutesLeft)}
           </span>
         )}
-      </div>
+      </nav>
 
       {/* Reading column */}
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -1161,7 +1909,7 @@ export default function ConsumeView({
           )}
 
           {visible.map((c, i) => {
-            const vkey = session.variant[c.id] ?? null;
+            const vkey = lensOf(c.id);
             const isDeepest = i === visible.length - 1;
             // While streaming, the deepest chunk in hand isn't provably the
             // pass's last section yet — never claim "last" until the stream
@@ -1180,6 +1928,11 @@ export default function ConsumeView({
                   : { text: c.pred.wrong, color: WRONG }
                 : null;
             const collapsed = !!session.collapsed[c.id];
+            // The prose stays put. A lens (below) opens *over* it — the
+            // passage a learner is mid-way through is the last thing that
+            // should disappear when they ask for help with it.
+            const paragraphs = c.body;
+            const checkPassed = !c.check || !!session.checks[c.id]?.correct;
 
             return (
               <div
@@ -1273,6 +2026,7 @@ export default function ConsumeView({
                         >
                           <button
                             onClick={() => onToggleTerm(key)}
+                            aria-expanded={open}
                             style={{
                               display: "flex",
                               alignItems: "center",
@@ -1386,7 +2140,7 @@ export default function ConsumeView({
                         question={c.pred.q}
                         options={c.pred.opts.map((o) => o.label)}
                         onResolve={(oi) =>
-                          onAnswer(c.id, oi, c.pred!.opts[oi].correct)
+                          onAnswer(c.id, oi, c.pred!.opts[oi].correct, "open")
                         }
                         placeholder={t.predictPlaceholder}
                         rows={2}
@@ -1404,7 +2158,7 @@ export default function ConsumeView({
                         {c.pred.opts.map((o, oi) => (
                           <button
                             key={o.label}
-                            onClick={() => onAnswer(c.id, oi, o.correct)}
+                            onClick={() => onAnswer(c.id, oi, o.correct, "choices")}
                             style={{
                               textAlign: "left",
                               padding: "13px 16px",
@@ -1491,9 +2245,10 @@ export default function ConsumeView({
                     {askHint?.chunkId === c.id && (
                       <button
                         onClick={() => {
+                          const text = askHint.text;
                           window.getSelection()?.removeAllRanges();
                           setAskHint(null);
-                          onToggleAside(c.id);
+                          onOpenPassage(c.id, text);
                         }}
                         style={{
                           position: "absolute",
@@ -1517,12 +2272,11 @@ export default function ConsumeView({
                         {t.askFloating}
                       </button>
                     )}
-                    {/* The prose stays put. A lens (below) opens *over* it —
-                        the passage a learner is mid-way through is the last
-                        thing that should disappear when they ask for help
-                        with it. */}
-                    {c.body.map((para, pi) => {
-                      // Body paragraphs lead the spoken segments, so the
+                    {/* The prose itself. It is always the section's own — a
+                        lens opens over it, never in place of it — so the
+                        read-aloud highlight tracks these paragraphs directly. */}
+                    {paragraphs.map((para, pi) => {
+                      // Prose paragraphs lead the spoken segments, so the
                       // reading index maps straight onto them.
                       const spokenNow = speakingChunk === c.id && reading.index === pi;
                       return (
@@ -1583,16 +2337,39 @@ export default function ConsumeView({
                       </span>
                     </div>
 
-                    {/* Citation — trust is visible, but it doesn't need its
-                        own bordered block to say so. */}
+                    {/* Where to go next on this, not a citation of the prose
+                        above — the app can't verify a source, and dressing a
+                        model-written reference as one buys trust it hasn't
+                        earned. Named as what it is. */}
                     <div
                       style={{
-                        fontSize: 11,
-                        color: color.inkFaint,
+                        display: "flex",
+                        alignItems: "baseline",
+                        gap: 12,
+                        flexWrap: "wrap",
                         margin: "14px 0",
                       }}
                     >
-                      {t.source} · {c.cite}
+                      <span style={{ fontSize: 11, color: color.inkFaint }}>
+                        {t.furtherReading} · {c.cite}
+                      </span>
+                      <div style={{ flex: 1 }} />
+                      {/* The keyboard path to the same panel the highlight
+                          gesture opens — selecting text is a pointer move. */}
+                      <button
+                        onClick={() => onOpenPassage(c.id, "")}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          fontFamily: "inherit",
+                          fontSize: 12,
+                          color: color.accent,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {t.askSection}
+                      </button>
                     </div>
 
                     {/* The four lenses. Each opens a model view over this
@@ -1604,8 +2381,12 @@ export default function ConsumeView({
                     <div
                       style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
                     >
-                      {altControls(language).map(([key, label]) => {
+                      {controls.map(([key, label]) => {
                         const used = vkey === key;
+                        // The learned default is marked on sections the
+                        // learner hasn't opened a lens over themselves — it
+                        // leads them to it without opening anything for them.
+                        const suggested = suggestsDefault(c.id) && session.preferred === key;
                         return (
                           <button
                             key={key}
@@ -1617,57 +2398,52 @@ export default function ConsumeView({
                               cursor: "pointer",
                               fontFamily: font.mono,
                               border: `1px solid ${
-                                used ? color.accent : color.hairlineStrong
+                                used || suggested ? color.accent : color.hairlineStrong
                               }`,
                               background: used ? color.accentBg : color.card,
-                              color: used ? color.accent : color.inkMuted,
+                              color: used || suggested ? color.accent : color.inkMuted,
                             }}
                           >
                             {label}
                           </button>
                         );
                       })}
-                    </div>
-
-                    {/* Highlight → ask (mini-Socratic aside): the trigger is
-                        the floating button that follows text selection above;
-                        this just holds the answer once it's open. */}
-                    <div style={{ marginTop: 16 }}>
-                      {session.aside === c.id && (
-                        <div
+                      {/* Says which one is theirs, so a marked control never
+                          looks like a glitch. */}
+                      {suggestsDefault(c.id) && (
+                        <span
                           style={{
-                            marginTop: 11,
-                            borderLeft: `3px solid ${color.accent}`,
-                            padding: "2px 0 2px 14px",
-                            animation: "fadeUp .3s both",
+                            fontFamily: font.mono,
+                            fontSize: 10,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            color: color.inkGhost,
                           }}
                         >
-                          <div
-                            style={{
-                              fontSize: 12.5,
-                              color: color.inkFaint,
-                              marginBottom: 6,
-                            }}
-                          >
-                            {t.socraticAside}
-                          </div>
-                          <div
-                            style={{
-                              fontFamily: font.serif,
-                              fontSize: 16,
-                              lineHeight: 1.45,
-                              color: color.ink,
-                            }}
-                          >
-                            {c.ask}
-                          </div>
-                        </div>
+                          {t.yourDefault}
+                        </span>
                       )}
                     </div>
+
+                    {/* Ask about this — the learner's own question about the
+                        passage they highlighted, answered against this
+                        section. */}
+                    {session.passage?.chunkId === c.id && (
+                      <PassagePanel
+                        ask={session.passage}
+                        suggestion={c.ask}
+                        onAsk={onAskPassage}
+                        onClose={onClosePassage}
+                      />
+                    )}
                   </div>
                   {c.figure && (
                     <div style={{ position: "sticky", top: 12 }}>
-                      <Figure id={c.id} figure={c.figure} />
+                      <Figure
+                        id={c.id}
+                        figure={c.figure}
+                        caption={c.diagram ?? sectionName(c.kicker)}
+                      />
                       <div
                         style={{
                           marginTop: 9,
@@ -1685,8 +2461,21 @@ export default function ConsumeView({
                 </>
                 )}
 
-                {/* Continue / finish — only on the deepest revealed section */}
+                {/* The section's receipt: answered right, the way onward
+                    appears; until then it is the only thing down here. */}
+                {c.check && (
+                  <SectionCheck
+                    check={c.check}
+                    answer={session.checks[c.id]}
+                    onAnswer={(oi, correct) => onCheck(c.id, oi, correct)}
+                  />
+                )}
+
+                {/* Continue / finish — only on the deepest revealed section,
+                    and only once its check is passed (sections cached before
+                    checks existed carry none, and stay ungated). */}
                 {isDeepest &&
+                  checkPassed &&
                   (nextArrived || isLast ? (
                     <div style={{ marginTop: 30 }}>
                       <button

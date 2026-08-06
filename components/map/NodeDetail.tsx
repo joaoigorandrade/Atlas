@@ -5,12 +5,14 @@ import {
   PHASES,
   PHASE_SKIP_NUDGE,
   STATE_COLOR,
-  phaseIndex,
+  readingPhaseIndex,
+  readingProgress,
   shakyLine,
   stateConfidence,
   stateLabel,
   type ConceptEdge,
   type ConceptNode,
+  type ConsumeProgress,
   type NodeState,
   type ShakyReason,
 } from "@/lib/curriculum";
@@ -30,6 +32,8 @@ const STRINGS = {
     phaseSpiral: "Phase spiral",
     next: "next",
     redo: "redo",
+    readingProgress: (read: number, total: number) => `${read} of ${total} read`,
+    resumeReading: "Resume reading",
     doFirst: (phase: string) => `Do ${phase} first`,
     skipTo: (phase: string) => `Skip to ${phase} →`,
     skipKnown: "I already know this — skip it",
@@ -50,6 +54,8 @@ const STRINGS = {
     phaseSpiral: "Espiral de fases",
     next: "próximo",
     redo: "refazer",
+    readingProgress: (read: number, total: number) => `${read} de ${total} lidas`,
+    resumeReading: "Retomar a leitura",
     doFirst: (phase: string) => `Fazer ${phase} primeiro`,
     skipTo: (phase: string) => `Pular para ${phase} →`,
     skipKnown: "Eu já sei isso — pular",
@@ -72,6 +78,10 @@ interface NodeDetailProps {
   reviewed: boolean;
   /** How the node became Shaky, when it is — selects honest copy (#14). */
   shakyReason?: ShakyReason;
+  /** How far into this node's reading pass the learner got, when they have
+   *  opened it — the phase spiral reads it so a part-read node doesn't get
+   *  Consume *and* Socratic ticked off (§6). */
+  consumeProgress?: ConsumeProgress;
   onSelect: (id: string) => void;
   onPrimaryAction: (node: ConceptNode, displayState: NodeState) => void;
   /** A phase-row action: re-do a done phase, start the current, or jump ahead. */
@@ -92,6 +102,7 @@ export default function NodeDetail({
   display,
   reviewed,
   shakyReason,
+  consumeProgress,
   onSelect,
   onPrimaryAction,
   onPhaseAction,
@@ -102,7 +113,12 @@ export default function NodeDetail({
   const labelOf = (id: string) =>
     nodes.find((n) => n.id === id)?.label ?? id;
   const stateColor = STATE_COLOR[displayState];
-  const currentPhase = phaseIndex(displayState, reviewed);
+  const currentPhase = readingPhaseIndex(displayState, reviewed, consumeProgress);
+  // Shown on the Consume row when there is a real, unfinished pass behind it.
+  const reading =
+    consumeProgress && !consumeProgress.finished && consumeProgress.total > 0
+      ? readingProgress(consumeProgress)
+      : null;
   const locked = displayState === "unknown";
   const confidenceLine =
     displayState === "shaky"
@@ -309,7 +325,22 @@ export default function NodeDetail({
               >
                 {name}
               </span>
-              {isCurrent && (
+              {/* How far into the reading, on the reading's own row — the
+                  one place "you're part-way through this" belongs. */}
+              {i === 0 && reading && (
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontFamily: font.mono,
+                    fontSize: 10,
+                    letterSpacing: "0.08em",
+                    color: color.inkMuted,
+                  }}
+                >
+                  {t.readingProgress(reading.read, reading.total)}
+                </span>
+              )}
+              {isCurrent && !(i === 0 && reading) && (
                 <span
                   style={{
                     marginLeft: "auto",
@@ -420,7 +451,9 @@ export default function NodeDetail({
           boxShadow: locked ? "none" : "0 8px 22px rgba(47,107,79,0.26)",
         }}
       >
-        {t.cta[displayState]}
+        {/* A part-read node's primary action is to get back into the reading,
+            not to start something new. */}
+        {reading ? t.resumeReading : t.cta[displayState]}
       </button>
 
       {displayState === "frontier" && (

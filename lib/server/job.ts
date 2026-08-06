@@ -19,6 +19,8 @@ import {
   generateFeynmanStream,
   generateMap,
   generateMapStream,
+  generatePassage,
+  generatePassageStream,
   generateRetain,
   generateSocratic,
   generateSocraticStream,
@@ -45,7 +47,11 @@ import {
   type GoalKind,
 } from "@/lib/curriculum";
 
-export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion";
+export type GenerateKind =
+  | CacheableKind
+  | "judge"
+  | "diagnosticQuestion"
+  | "passage";
 
 export interface GenerateBody {
   kind: GenerateKind;
@@ -62,8 +68,8 @@ export interface GenerateBody {
   nodeLabel?: string;
   prereqLabels?: string[];
   // model fields — the section a lens was opened over, as it is on screen
+  // (`kicker` is shared with the passage fields below)
   lens?: string;
-  kicker?: string;
   sectionBody?: string[];
   takeaway?: string;
   masteredLabels?: string[];
@@ -75,6 +81,12 @@ export interface GenerateBody {
   index?: number;
   /** Background warm: the client is filling its cache, nobody is waiting. */
   prefetch?: boolean;
+  // passage fields ("ask about this" — the learner's own words about a
+  // highlighted stretch of the reading)
+  /** The section's kicker — named by the model view and the passage ask alike. */
+  kicker?: string;
+  section?: string;
+  selection?: string;
   // judge fields
   mode?: "socratic" | "feynman" | "crucible" | "choice";
   question?: string;
@@ -282,6 +294,34 @@ export function resolveJob(body: GenerateBody): Job {
         // Mirrors `validateConsumeModel`'s bound, not the count the prompt
         // asks for.
         shape: { beats: { ...MODEL_BEAT_BOUNDS } },
+      };
+    }
+
+    case "passage": {
+      if (!nodeLabel) throw badRequest("nodeLabel is required");
+      const selection = s(body.selection).slice(0, CAPS.freeText).trim();
+      if (!selection) throw badRequest("selection is required");
+      const params = {
+        topic,
+        nodeLabel,
+        kicker: s(body.kicker).slice(0, CAPS.nodeLabel),
+        section: s(body.section).slice(0, CAPS.freeText),
+        selection,
+        // Optional on purpose: a learner who highlights and taps without
+        // typing is asking "explain this", which is a real question.
+        question: s(body.question).slice(0, CAPS.freeText).trim(),
+        language,
+      };
+      // Never cached — one learner's own words about one arbitrary substring.
+      return {
+        kind: "passage",
+        key: null,
+        run: async () => ({ answer: await generatePassage(params) }),
+        stream: () => generatePassageStream(params),
+        // Mirrors `validatePassage`'s 1-4 bound, not the 2-3 the prompt asks
+        // for. Nothing is cached here, but the shape is still what decides
+        // whether an assembled answer is complete.
+        shape: { answer: { min: 1, max: 4 } },
       };
     }
 

@@ -12,7 +12,7 @@
 // `tests/stream.test.ts` pins that every field a validator requires is still
 // asked for.
 
-/** Everything a section always has, from its kicker through its Socratic ask. */
+/** Everything a section always has, from its kicker through its closing check. */
 export const CONSUME_SECTION_SHAPE = `{
       "kicker": "1 · What it is",                         // segment label: number · 2-4 words
       "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
@@ -28,7 +28,7 @@ export const CONSUME_SECTION_SHAPE = `{
         "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps
       },
       "takeaway": "the one sentence to carry out of this section",
-      "cite": "a real canonical source (book §, lecture series chapter) — never invent one",
+      "cite": "one real, well-known work a learner could go read next on this — title and author, or a named lecture series. NOT a citation of any sentence above: name only works you are confident exist, and never invent a page, section or chapter number to look precise",
       "diagram": "one-line caption for the figure below, OMIT (with figure) if this section isn't structural",
       "figure": {                                          // OMIT both "diagram" and "figure" entirely when the section is a
                                                             // definition, a comparison, or anything else that isn't a process,
@@ -36,7 +36,13 @@ export const CONSUME_SECTION_SHAPE = `{
         "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
         "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
       },
-      "ask": "a mini-Socratic prompt that answers a likely question with a question"
+      "ask": "a mini-Socratic prompt that answers a likely question with a question",
+      "check": {                                           // EVERY SECTION — the comprehension check that closes it
+        "q": "a question answerable only by someone who read THIS section — never general knowledge, never guessable from the kicker",
+        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
+        "right": "one line confirming what they got right",
+        "wrong": "one line naming what they missed and where in the section it was — no new material"
+      }
     }`;
 
 /** One beat of a model view — the unit the four lens controls open. */

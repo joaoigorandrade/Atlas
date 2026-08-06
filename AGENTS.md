@@ -42,9 +42,13 @@ prerequisite order; the placement questions follow one at a time as
 `diagnosticQuestion`, since each one's difficulty depends on the last answer),
 and each phase's material on first entry (`consume`, `socratic`, `feynman`,
 `connect`, `crucible`, `retain`), cached per node for the run in `AtlasApp`.
-One kind is finer-grained than a node: `model` is a single lens (Simpler /
-Example / Analogy / Go deeper) opened over a single Consume section, keyed on
-that section's own prose and cached per (node, section, lens).
+Two kinds are finer-grained than a node, both of them Consume's. `model` is a
+single lens (Simpler / Example / Analogy / Go deeper) opened over a single
+section, keyed on that section's own prose and cached per (node, section,
+lens). `passage` is "ask about this": the learner's question about a stretch of
+prose they highlighted, streamed a paragraph at a time and — like `judge` —
+never cached, since the inputs are one learner's selection and one learner's
+words.
 Configure via
 `.env.local` (see `.env.example`): `OPENROUTER_API_KEY` (required),
 `OPENROUTER_MODEL` (default `deepseek/deepseek-chat`),
@@ -136,7 +140,8 @@ rows are *model calls* (what tracks spend), and `job_id` groups them into
   `NEXT_PUBLIC_*` for the browser.
 - Run state persists coarsely (§17): one `run_states` row per (user, subject),
   split across two columns. `snapshot` is the run core — graph, StateMap,
-  positions, adherence, calibration, cards — small, versioned (v3), saved on a
+  positions, adherence, calibration, cards, per-node Consume reading progress,
+  the modality tally — small, versioned (v4), saved on a
   1.2s debounce; it is the only thing the first paint waits on. `caches` holds
   the per-node generated content — large, saved on a 4s debounce, loaded in the
   background behind an already-interactive map. `lib/persistence.ts` defines

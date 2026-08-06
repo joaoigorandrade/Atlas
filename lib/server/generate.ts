@@ -711,6 +711,9 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
     ...(i === 0
       ? { pred: validatePrediction(c.pred, "chunks[0].pred") }
       : null),
+    // The comprehension check that closes every section — same shape as the
+    // hook, opposite job: the hook primes the reading, this confirms it.
+    check: validatePrediction(c.check, `chunks[${i}].check`),
   };
 }
 
@@ -733,8 +736,12 @@ ${interestNote(interests)}
 
 This is the READING phase — the learner is here to be taught, not tested. Write
 real teaching material: explain the idea, show where it comes from, work an
-example, name what usually goes wrong. Questioning happens in later phases, so
-the pass carries exactly ONE prediction hook, on the first section only.
+example, name what usually goes wrong. Real questioning happens in later
+phases, so the pass carries exactly ONE prediction hook, on the first section
+only — plus one short comprehension check per section ("check"), which the
+learner must get right before continuing. A check is a receipt for reading,
+not a test: it asks for something stated or worked in THAT section's prose or
+example, and its wrong options are plausible misreadings, never absurd.
 
 Rules for the prose:
 - Teach, don't summarize. Each section's body is 3-5 full paragraphs of 3-6
@@ -948,6 +955,126 @@ ${MODEL_BEAT_SHAPE}${languageNote(params.language)}`,
     );
     const beats = await generateConsumeModel(params);
     for (const [i, beat] of beats.entries()) yield { p: "beats", i, v: beat };
+  }
+}
+
+// ---- kind: passage ---------------------------------------------------------
+// "Ask about this" — the learner highlights a passage mid-reading and asks
+// about it. Consume's one concession to interruption, and the only place in
+// the phase where the learner sets the question.
+//
+// Never cached, for the same reason `judge` isn't: the payload is an answer to
+// one learner's own words about one arbitrary substring of the prose. Two
+// learners highlighting the same sentence have not asked the same thing.
+
+/** One paragraph of a streamed answer — its own JSON object so it renders the
+ *  moment its closing brace lands. */
+function validatePassagePart(raw: unknown, i: number): string {
+  const o = obj(raw, `answer[${i}]`);
+  return str(o.p, `answer[${i}].p`);
+}
+
+export function validatePassage(raw: unknown): string[] {
+  const root = obj(raw, "payload");
+  return arr(root.answer, "answer", 1, 4).map((p, i) => str(p, `answer[${i}]`));
+}
+
+export interface PassageParams {
+  topic: string;
+  nodeLabel: string;
+  /** The section's kicker — "3 · Where it breaks". */
+  kicker: string;
+  /** The prose the learner is reading, as shown. */
+  section: string;
+  /** What they highlighted. */
+  selection: string;
+  /** What they asked, or empty — an empty question means "explain this". */
+  question: string;
+  language?: Language;
+}
+
+function passageContext(p: PassageParams): string {
+  const asked = p.question.trim();
+  return `A learner is part-way through the reading pass on "${p.nodeLabel}" within the topic "${p.topic}". They highlighted a passage in the section "${p.kicker}" and asked about it.
+
+THE SECTION THEY ARE READING:
+${p.section}
+
+WHAT THEY HIGHLIGHTED:
+"""
+${p.selection}
+"""
+
+THEIR QUESTION:
+${asked || "(none — they tapped “explain this”, so explain the highlighted passage.)"}
+
+Answer THAT question, about THAT passage. Rules:
+- Answer the question actually asked. Do not restate the passage back at them,
+  do not summarize the section, do not open with a preamble about what a good
+  question it is.
+- Stay grounded in the section above — this is a clarification of material the
+  learner is looking at, not a new lesson. If the honest answer is genuinely
+  outside this section, say so in a sentence and give the short version anyway.
+- If the question rests on a misunderstanding, name the misunderstanding first
+  and plainly, then answer. Never validate faulty reasoning to be agreeable.
+- If the passage is genuinely ambiguous or the sentence is poorly worded, say
+  that rather than inventing a reading of it.
+- Be concrete: a number, a case, the actual mechanism. 2-3 short paragraphs,
+  and stop — they are mid-reading and want to get back to it.${languageNote(p.language)}`;
+}
+
+export async function generatePassage(params: PassageParams): Promise<string[]> {
+  return generateJson(
+    user(
+      `${passageContext(params)}
+
+Return JSON:
+{
+  "answer": ["paragraph 1", "paragraph 2"]   // 1-4 short paragraphs
+}`,
+    ),
+    validatePassage,
+    { label: "passage" },
+  );
+}
+
+/**
+ * Streamed variant: the answer paints paragraph by paragraph. This is the one
+ * generation the learner waits on with the reading still on screen behind it,
+ * so first-paint latency is the whole game — a complete answer that arrives in
+ * one piece four seconds later reads as a hang.
+ *
+ * Falls back to the retried single-shot path if it fails before yielding
+ * anything, exactly as the Consume stream does.
+ */
+export async function* generatePassageStream(
+  params: PassageParams,
+): AsyncGenerator<StreamFrame> {
+  let yielded = 0;
+  try {
+    const stream = streamJsonObjects(
+      user(
+        `${passageContext(params)}
+
+Write the answer as 2-3 SEPARATE top-level JSON objects, one per paragraph, one
+after another — NOT wrapped in an array or an object, no markdown fences, no
+commentary before/after/between them. Each object has this shape:
+{"p": "one paragraph of the answer"}`,
+      ),
+      validatePassagePart,
+      { label: "passage-stream" },
+    );
+    for await (const part of stream) yield { p: "answer", i: yielded++, v: part };
+  } catch (err) {
+    if (yielded > 0) throw err;
+    console.error(
+      JSON.stringify({
+        evt: "passage_stream_fallback",
+        error: String(err instanceof Error ? err.message : err).slice(0, 300),
+      }),
+    );
+    const answer = await generatePassage(params);
+    for (const [i, part] of answer.entries()) yield { p: "answer", i, v: part };
   }
 }
 

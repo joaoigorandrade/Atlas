@@ -267,7 +267,7 @@ const ALT_CONTROLS_PT: ReadonlyArray<[AltKey, string]> = [
   ["deeper", "Aprofundar"],
 ];
 
-/** Language-aware alt-rewrite controls. */
+/** Language-aware lens controls. */
 export function altControls(lang: Language = "en"): ReadonlyArray<[AltKey, string]> {
   return lang === "pt-BR" ? ALT_CONTROLS_PT : ALT_CONTROLS;
 }
@@ -336,7 +336,16 @@ export interface ConsumeChunk {
   example: ConsumeExample;
   /** The one line to carry out of this section. */
   takeaway: string;
-  /** Source citation — trust is visible; no memorizing hallucinations. */
+  /**
+   * One real work to go read next on this section's material.
+   *
+   * Deliberately *not* framed as a citation of the prose above, and rendered
+   * as "further reading". A model-authored source string under a claim reads
+   * as verification the app cannot perform — an invented chapter number looks
+   * more authoritative than no reference at all, which is the opposite of the
+   * trust it was meant to buy. A pointer to a canonical work is honest, useful,
+   * and doesn't imply the sentence above was checked against it.
+   */
   cite: string;
   /** Caption for the diagram beside the prose. Absent when the section isn't
    *  structural enough to earn one — a definition or comparison doesn't need
@@ -356,6 +365,106 @@ export interface ConsumeChunk {
   /** The session's single prediction hook — present on the opening section
    *  only, and optional even there. */
   pred?: ConsumePrediction;
+  /** The comprehension check that closes this section: it appears once the
+   *  learner reaches the end of the reading, and the section's Continue is
+   *  gated on getting it right. Absent on chunks cached before checks
+   *  existed — those sections stay ungated. */
+  check?: ConsumePrediction;
+}
+
+/**
+ * What survives a Consume session.
+ *
+ * The reading pass is the longest surface in Atlas — eight to fifteen minutes
+ * — so where the learner got to has to outlive the screen. This is the half
+ * that persists (one record per node, in the run snapshot); the live
+ * `ConsumeSession` is this plus the transient UI bits (which term pill is
+ * open, which passage panel is up) that nobody needs restored.
+ *
+ * It is also the evidence later surfaces read: the map's "3 of 5 read", the
+ * phase spiral's refusal to tick Consume off on a partial pass, and the
+ * closing recap all derive from these fields rather than re-deriving progress
+ * from the cached chunks.
+ */
+export interface ConsumeProgress {
+  /** Deepest section revealed so far. */
+  idx: number;
+  /** The one prediction hook's answer, keyed by chunk id. */
+  answered: Record<string, { oi: number; correct: boolean }>;
+  /** The hook was waved off — "just teach me". */
+  hookSkipped: boolean;
+  /** The lens last opened over each chunk — a record of what this learner
+   *  reached for, not a rendering instruction. `null` is still in the type
+   *  because rows persisted before lenses opened a model view stored one to
+   *  mean "reverted to the original prose"; nothing writes it any more. */
+  variant: Record<string, AltKey | null>;
+  /** Sections collapsed to their takeaway alone. */
+  collapsed: Record<string, boolean>;
+  /** The end-of-section comprehension checks, keyed by chunk id. Persisted
+   *  with the rest of the progress rather than held for the session: a check
+   *  already passed has to stay passed when the learner comes back, or
+   *  resuming would re-gate sections they demonstrably read. A wrong pick is
+   *  kept too, so the miss can still be named. */
+  checks: Record<string, { oi: number; correct: boolean }>;
+  /** `chunkId:term` keys the learner expanded — the recap lists them back. */
+  termsSeen: string[];
+  /** Sections in the pass as last seen. With `idx`, the honest "3 of 5" — a
+   *  pass still streaming when the learner left has a smaller total than the
+   *  finished one, so this is stored rather than assumed. */
+  total: number;
+  /** The last section was reached at least once. */
+  finished: boolean;
+  /** Socratic was actually opened on this node. A finished reading that the
+   *  learner walked away from is still only a finished *reading* — see
+   *  `readingPhaseIndex`. */
+  handedOff: boolean;
+}
+
+export const emptyConsumeProgress = (): ConsumeProgress => ({
+  idx: 0,
+  answered: {},
+  hookSkipped: false,
+  variant: {},
+  collapsed: {},
+  checks: {},
+  termsSeen: [],
+  total: 0,
+  finished: false,
+  handedOff: false,
+});
+
+/** Sections read out of sections there are — never claiming past what exists,
+ *  and never short-changing a finished pass whose `total` arrived late. */
+export function readingProgress(p: ConsumeProgress): { read: number; total: number } {
+  const total = Math.max(p.total, p.idx + 1);
+  return { read: p.finished ? total : Math.min(p.idx + 1, total), total };
+}
+
+/**
+ * How often the learner has opened each lens (§6: "the app
+ * learns which representation lands for this learner and leads with it next
+ * time"). Run-wide, not per node — the point is a preference that carries.
+ */
+export type ModalityTally = Partial<Record<AltKey, number>>;
+
+/** Picks before a tally counts as a preference. One curious tap on "Analogy"
+ *  must not rewrite every section the learner opens after it. */
+export const MODALITY_PREFERENCE_MIN = 3;
+
+/** The modality this learner keeps choosing, or null while it's still a habit
+ *  rather than a preference. Ties resolve to the first in `ALT_CONTROLS`
+ *  order, so the answer is stable rather than dependent on object key order. */
+export function preferredModality(tally: ModalityTally): AltKey | null {
+  let best: AltKey | null = null;
+  let bestCount = MODALITY_PREFERENCE_MIN - 1;
+  for (const [key] of ALT_CONTROLS) {
+    const count = tally[key] ?? 0;
+    if (count > bestCount) {
+      best = key;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 // ---- the model view (kind: "model") ----------------------------------------
@@ -2067,6 +2176,24 @@ export interface CalibSample {
   real: number;
 }
 
+/**
+ * The Consume hook's contribution to calibration (§12 names it a capture
+ * point). `felt` is read off *how* the guess was made rather than a second
+ * question nobody asked for: writing an answer in your own words claims more
+ * than tapping one of three options, where part of the confidence belongs to
+ * the option list. `real` is the guess itself — and stays short of 100/0,
+ * because one prediction made *before* reading is weak evidence in either
+ * direction.
+ */
+export const CONSUME_HOOK_FELT: Record<"open" | "choices", number> = {
+  open: 72,
+  choices: 45,
+};
+export const CONSUME_HOOK_REAL: Record<"right" | "wrong", number> = {
+  right: 88,
+  wrong: 22,
+};
+
 /** How a reading sits against the diagonal: felt ahead of, behind, or tracking real. */
 export type CalibVerdict = "over" | "under" | "ok";
 
@@ -2228,6 +2355,32 @@ export function phaseIndex(state: NodeState, reviewed: boolean): number {
     default:
       return -1;
   }
+}
+
+/**
+ * `phaseIndex`, corrected by what the learner has actually done.
+ *
+ * A node goes Learning the moment a reading pass is left part-way through, and
+ * that progress is real — the map should show it. But the state alone maps to
+ * phase 2 (Feynman), which would tick off both Consume *and* Socratic on the
+ * strength of two sections read. Learning used to be reachable only by
+ * entering Socratic, which is what made that mapping true; it isn't anymore.
+ *
+ * So the reading record gets the last word where it has one:
+ *   still reading            → Consume is the current phase
+ *   read it, never went on   → Socratic is
+ *   anything else            → the state-derived answer stands
+ */
+export function readingPhaseIndex(
+  state: NodeState,
+  reviewed: boolean,
+  progress?: ConsumeProgress,
+): number {
+  if (state === "learning" && progress) {
+    if (!progress.finished) return 0;
+    if (!progress.handedOff) return 1;
+  }
+  return phaseIndex(state, reviewed);
 }
 
 export type DiagnosticEffect = "mastered" | "shaky" | "none";

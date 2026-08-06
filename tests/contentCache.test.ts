@@ -17,7 +17,7 @@ describe("contentKey", () => {
   // and updating it then would reduce this to a rubber stamp. What must not
   // drift is the *shape* — NUL separators (not spaces), kind before params.
   const NUL = String.fromCharCode(0);
-  const version = process.env.CONTENT_CACHE_VERSION || "7";
+  const version = process.env.CONTENT_CACHE_VERSION || "8";
   const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 
   it("hashes exactly v{VERSION}\\0{kind}\\0{stable(params)}", () => {
