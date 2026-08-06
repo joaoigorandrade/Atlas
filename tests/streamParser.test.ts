@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractCompleteObjects } from "@/lib/server/openrouter";
+import { closePartialJson, extractCompleteObjects } from "@/lib/server/openrouter";
 
 describe("extractCompleteObjects", () => {
   it("extracts nothing from a partial object", () => {
@@ -35,5 +35,46 @@ describe("extractCompleteObjects", () => {
       body: 'a {weird} "quoted" sentence',
     });
     expect(rest).toBe("");
+  });
+});
+
+describe("closePartialJson", () => {
+  const close = (s: string) => closePartialJson(s);
+
+  it("closes an unterminated string mid-word", () => {
+    expect(close('{"p": "the mechanism is a feed')).toEqual({
+      p: "the mechanism is a feed",
+    });
+  });
+
+  it("keeps the members already written and drops a dangling key", () => {
+    expect(close('{"label": "What it is", "text": ')).toEqual({
+      label: "What it is",
+    });
+    expect(close('{"label": "What it is", "text"')).toEqual({
+      label: "What it is",
+    });
+    expect(close('{"label": "What it is",')).toEqual({ label: "What it is" });
+  });
+
+  it("closes nested structures", () => {
+    expect(close('{"a": {"b": [1, 2')).toEqual({ a: { b: [1, 2] } });
+  });
+
+  it("is not fooled by braces or escaped quotes inside a string", () => {
+    expect(close('{"p": "a {weird} \\"quoted\\" half')).toEqual({
+      p: 'a {weird} "quoted" half',
+    });
+  });
+
+  it("survives a buffer cut on an escape character", () => {
+    expect(close('{"p": "line one\\')).toEqual({ p: "line one" });
+  });
+
+  it("returns null when nothing coherent has arrived", () => {
+    expect(close("")).toBeNull();
+    expect(close("   \n")).toBeNull();
+    expect(close("{")).toBeNull();
+    expect(close('{"')).toBeNull();
   });
 });

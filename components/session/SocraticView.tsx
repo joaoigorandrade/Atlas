@@ -10,7 +10,7 @@ import {
   type SocraticSession,
   type SocraticTurn,
 } from "@/lib/curriculum";
-import { InkDots } from "@/components/Pending";
+import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -490,9 +490,9 @@ function Turn({ turn }: { turn: SocraticTurn }) {
           color: color.ink,
         }}
       >
-        {/* The verdict has landed and the tutor's wording is still streaming
-            in — show it as being written, not as an empty bubble. */}
-        {turn.pending ? <InkDots size={4} /> : turn.text}
+        {/* The verdict has landed and the tutor's wording is still arriving —
+            it types itself into the bubble rather than swapping in whole. */}
+        <StreamingText text={turn.text} writing={!!turn.pending} />
       </div>
     </div>
   );

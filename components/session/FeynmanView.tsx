@@ -15,7 +15,7 @@ import {
   type TeachLine,
   type TeachVerdict,
 } from "@/lib/curriculum";
-import { InkDots } from "@/components/Pending";
+import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -648,8 +648,8 @@ function Line({ line }: { line: TeachLine }) {
           color: color.ink,
         }}
       >
-        {/* The verdict landed; the student's actual words are still coming. */}
-        {line.pending ? <InkDots size={4} /> : line.text}
+        {/* The verdict landed; the student's actual words type themselves in. */}
+        <StreamingText text={line.text} writing={!!line.pending} />
       </div>
     </div>
   );

@@ -33,6 +33,7 @@ import {
 import {
   generateJson,
   streamJsonObjects,
+  streamJsonObjectsProgressive,
   type ChatMessage,
 } from "@/lib/server/openrouter";
 import { CONSUME_SECTION_SHAPE, MODEL_BEAT_SHAPE } from "@/lib/server/generate/shapes";
@@ -851,6 +852,15 @@ export function validateConsumeModelBeat(raw: unknown, i: number): ConsumeModelB
   };
 }
 
+/** A beat mid-sentence. `label` is written before `text`, so a redraw with a
+ *  label and no prose is still worth showing — it names what is coming. */
+function draftConsumeModelBeat(raw: unknown): ConsumeModelBeat | null {
+  const b = raw as { label?: unknown; text?: unknown };
+  const label = typeof b?.label === "string" ? b.label : "";
+  const text = typeof b?.text === "string" ? b.text : "";
+  return label || text ? { label, text } : null;
+}
+
 export function validateConsumeModel(raw: unknown): ConsumeModelBeat[] {
   const root = obj(raw, "payload");
   return arr(
@@ -926,7 +936,7 @@ export async function* generateConsumeModelStream(
 ): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   try {
-    const stream = streamJsonObjects(
+    const stream = streamJsonObjectsProgressive(
       user(
         `${modelContext(params)}
 
@@ -936,9 +946,15 @@ numbering, no commentary before/after/between them. Each object has this shape:
 ${MODEL_BEAT_SHAPE}${languageNote(params.language)}`,
       ),
       validateConsumeModelBeat,
-      { label: "model-stream" },
+      { label: "model-stream", partial: draftConsumeModelBeat },
     );
-    for await (const beat of stream) yield { p: "beats", i: yielded++, v: beat };
+    for await (const beat of stream) {
+      if (beat.partial) {
+        yield { p: "beats", i: yielded, v: beat.value, partial: true };
+        continue;
+      }
+      yield { p: "beats", i: yielded++, v: beat.value };
+    }
   } catch (err) {
     if (yielded > 0) throw err;
     console.error(
@@ -966,6 +982,13 @@ ${MODEL_BEAT_SHAPE}${languageNote(params.language)}`,
 function validatePassagePart(raw: unknown, i: number): string {
   const o = obj(raw, `answer[${i}]`);
   return str(o.p, `answer[${i}].p`);
+}
+
+/** …and the same paragraph mid-sentence, for the token-by-token redraws. A
+ *  paragraph is a bare string, so a partial one needs nothing but the prefix. */
+function draftPassagePart(raw: unknown): string | null {
+  const p = (raw as { p?: unknown })?.p;
+  return typeof p === "string" && p.trim() ? p : null;
 }
 
 export function validatePassage(raw: unknown): string[] {
@@ -1033,10 +1056,14 @@ Return JSON:
 }
 
 /**
- * Streamed variant: the answer paints paragraph by paragraph. This is the one
- * generation the learner waits on with the reading still on screen behind it,
- * so first-paint latency is the whole game — a complete answer that arrives in
- * one piece four seconds later reads as a hang.
+ * Streamed variant: the answer paints word by word, paragraph by paragraph.
+ * This is the one generation the learner waits on with the reading still on
+ * screen behind it, so first-paint latency is the whole game — a complete
+ * answer that arrives in one piece four seconds later reads as a hang.
+ *
+ * Token-by-token here rather than merely per-paragraph: an answer is 2-3
+ * paragraphs, so paragraph frames alone still leave the panel empty for the
+ * seconds it takes to write the first one.
  *
  * Falls back to the retried single-shot path if it fails before yielding
  * anything, exactly as the Consume stream does.
@@ -1046,7 +1073,7 @@ export async function* generatePassageStream(
 ): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   try {
-    const stream = streamJsonObjects(
+    const stream = streamJsonObjectsProgressive(
       user(
         `${passageContext(params)}
 
@@ -1056,9 +1083,15 @@ commentary before/after/between them. Each object has this shape:
 {"p": "one paragraph of the answer"}`,
       ),
       validatePassagePart,
-      { label: "passage-stream" },
+      { label: "passage-stream", partial: draftPassagePart },
     );
-    for await (const part of stream) yield { p: "answer", i: yielded++, v: part };
+    for await (const part of stream) {
+      if (part.partial) {
+        yield { p: "answer", i: yielded, v: part.value, partial: true };
+        continue;
+      }
+      yield { p: "answer", i: yielded++, v: part.value };
+    }
   } catch (err) {
     if (yielded > 0) throw err;
     console.error(
@@ -1735,7 +1768,7 @@ Then the full object described above (it repeats the verdict and adds the rest).
   let complete = false;
   let sent = 0;
   try {
-    for await (const v of streamJsonObjects<Partial<T> | T>(
+    for await (const item of streamJsonObjectsProgressive<Partial<T> | T>(
       streamed,
       (raw) => {
         try {
@@ -1746,10 +1779,28 @@ Then the full object described above (it repeats the verdict and adds the rest).
           return spec.first(raw);
         }
       },
-      { label: `${spec.label}-stream`, role: "judge" },
+      // The critique is the long half of a judgement and the learner is
+      // watching an open bubble for it, so it goes out as it is written. Only
+      // `response` is drafted: a partial verdict would be a *different*
+      // classification than the one the model settles on, and that one drives
+      // mastery writes.
+      {
+        label: `${spec.label}-stream`,
+        role: "judge",
+        partial: (raw) => {
+          const response = (raw as { response?: unknown })?.response;
+          return typeof response === "string" && response.trim()
+            ? ({ response } as unknown as Partial<T>)
+            : null;
+        },
+      },
     )) {
+      if (item.partial) {
+        yield { p: "judgement", v: item.value, partial: true };
+        continue;
+      }
       sent++;
-      yield { p: "judgement", v };
+      yield { p: "judgement", v: item.value };
       if (complete) return;
     }
   } catch (err) {

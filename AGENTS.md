@@ -97,6 +97,28 @@ kind, where latency is dominated by sequential output decoding:
   to `content_cache` (hits skip validation) or to a `*Cache` in `AtlasApp` —
   partial content lives in a `live*` state so `isCached` and the warm dedupe
   can't mistake it for a finished pass.
+- **Token-by-token** is the layer under that, for the kinds whose unit is prose
+  a learner reads *while* it appears. `streamJsonObjectsProgressive`
+  (`openrouter.ts`) repairs the half-decoded object in the buffer with
+  `closePartialJson`, runs it through a *lenient* validator supplied per kind,
+  and yields it as a redraw; the generator re-sends it as a frame at the slot
+  it is writing with `partial: true`. Those frames are rendered and nothing
+  else: `ndjsonStream` doesn't retain them, `framesToPayload` drops them, and
+  `collectFrames` (client) drops them, so a redraw can never be assembled,
+  cached, or mistaken for the answer. A complete frame for the same slot always
+  follows and replaces it. Redraws are throttled (`OPENROUTER_PARTIAL_MS`,
+  ~66ms) because each one carries the whole object — per-token frames would
+  cost O(n²) bytes on a long answer.
+  It is on where prose is the unit and the learner is watching it land: the
+  passage aside, the model view's beats, and the judge's critique (drafting
+  `response` only — a half-written *verdict* is a different classification than
+  the one the model settles on, and the verdict drives mastery writes). It is
+  deliberately off for `consume`/`socratic`/`feynman`/`curriculum`, whose items
+  are structured objects — a section without its `check`, a step without its
+  `replies`, has nothing coherent to render, and every renderer would have to
+  become partial-tolerant to show half of one. `StreamingText`
+  (`components/Pending.tsx`) is the shared "being written" mark: the text so
+  far plus a blinking nib, ink dots while it's still empty.
 - The first frame is pulled *before* committing to a 200, so a real failure
   still surfaces as an error status. Each streaming generator falls back to its
   single-shot, retried `run()` if it fails before yielding anything; after that

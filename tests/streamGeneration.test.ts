@@ -95,6 +95,10 @@ let truncateJudge = false;
 /** Set to make the map answer "too broad" (#30) on both paths. */
 let tooBroad = false;
 
+/** Set to write each object across several deltas, the way a real model does —
+ *  which is what gives the token-by-token layer anything to redraw. */
+let splitDeltas = false;
+
 const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
 const isPassage = (prompt: string) => prompt.includes("They highlighted a passage");
 
@@ -162,11 +166,24 @@ beforeAll(async () => {
         : truncateJudge && isJudge(prompt)
           ? objects.slice(0, 1)
           : objects;
-    for (const obj of written) {
-      await new Promise((r) => setTimeout(r, DELAY_MS));
+    const delta = (content: string) =>
       res.write(
-        `data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(obj) } }] })}\n\n`,
+        `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`,
       );
+    for (const obj of written) {
+      const text = JSON.stringify(obj);
+      if (!splitDeltas) {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+        delta(text);
+        continue;
+      }
+      // Thirds of one object, far enough apart that each redraw clears the
+      // partial-frame throttle.
+      const step = Math.ceil(text.length / 3);
+      for (let i = 0; i < text.length; i += step) {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+        delta(text.slice(i, i + step));
+      }
     }
     res.write("data: [DONE]\n\n");
     res.end();
@@ -180,9 +197,17 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 /** Collect frames, recording how long after the start each one arrived. */
-async function drain(gen: AsyncGenerator<{ p: string; i?: number; v: unknown }>) {
+async function drain(
+  gen: AsyncGenerator<{ p: string; i?: number; v: unknown; partial?: true }>,
+) {
   const started = Date.now();
-  const frames: Array<{ p: string; i?: number; v: unknown; at: number }> = [];
+  const frames: Array<{
+    p: string;
+    i?: number;
+    v: unknown;
+    partial?: true;
+    at: number;
+  }> = [];
   for await (const f of gen) frames.push({ ...f, at: Date.now() - started });
   return frames;
 }
@@ -433,6 +458,34 @@ describe("passage answers", () => {
     // The whole claim of streaming this: the first paragraph is readable well
     // before the last one has been written.
     expect(frames[0].at).toBeLessThan(frames[1].at - DELAY_MS / 2);
+  });
+
+  it("paints each paragraph as it is written, without corrupting the payload", async () => {
+    const { generatePassageStream } = await import("@/lib/server/generate");
+    const { framesToPayload } = await import("@/lib/server/stream");
+    splitDeltas = true;
+    try {
+      const frames = await drain(generatePassageStream(params));
+      const drafts = frames.filter((f) => f.partial);
+      const complete = frames.filter((f) => !f.partial);
+
+      // Redraws of paragraph 0 arrive before paragraph 0 is finished, and each
+      // one is a prefix of it — the learner reads it as it is typed.
+      expect(drafts.length).toBeGreaterThan(0);
+      const first = drafts.filter((f) => f.i === 0);
+      expect(first[0].at).toBeLessThan(complete[0].at);
+      for (const d of first) expect(passageObjs[0].p.startsWith(d.v as string)).toBe(true);
+
+      // …and the assembled payload is still only the complete paragraphs.
+      expect(
+        framesToPayload(
+          frames.map(({ p, i, v, partial }) => ({ p, i: i!, v, partial })),
+          { answer: { min: 1, max: 4 } },
+        ),
+      ).toEqual({ answer: passageObjs.map((o) => o.p) });
+    } finally {
+      splitDeltas = false;
+    }
   });
 
   it("assembles into exactly what the single-shot path returns", async () => {

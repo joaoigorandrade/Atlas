@@ -665,8 +665,10 @@ export type SocraticAction =
       response: string;
       pending?: boolean;
     }
-  /** The judge's wording for the turn currently marked pending. */
-  | { type: "stream"; text: string }
+  /** The judge's wording for the turn currently marked pending. `pending` stays
+   *  true for the token-by-token drafts, so every later draft still finds the
+   *  turn it is filling; the final one clears it. */
+  | { type: "stream"; text: string; pending?: boolean }
   /** More steps have streamed in — open the one the session is parked on.
    *  `total` re-caps the pass when a stream ended short of the plan. */
   | { type: "hydrate"; total?: number };
@@ -689,7 +691,9 @@ export function socraticReducer(
     return {
       ...session,
       log: session.log.map((t) =>
-        t.pending ? { ...t, text: action.text, pending: undefined } : t,
+        t.pending
+          ? { ...t, text: action.text, pending: action.pending ? true : undefined }
+          : t,
       ),
     };
   }
@@ -998,8 +1002,10 @@ export type FeynmanAction =
       /** True when only the verdict has arrived — `stream` fills the wording. */
       pending?: boolean;
     }
-  /** The naive student's wording for the line currently marked pending. */
-  | { type: "stream"; text: string }
+  /** The naive student's wording for the line currently marked pending. Kept
+   *  `pending` while the wording is still being typed, so each draft finds the
+   *  same line; the final one clears it. */
+  | { type: "stream"; text: string; pending?: boolean }
   | { type: "openFix"; beatId: string }
   | { type: "closeFix" }
   | { type: "fix"; index: number }
@@ -1027,7 +1033,9 @@ export function feynmanReducer(
       return {
         ...session,
         log: session.log.map((l) =>
-          l.pending ? { ...l, text: action.text, pending: undefined } : l,
+          l.pending
+            ? { ...l, text: action.text, pending: action.pending ? true : undefined }
+            : l,
         ),
       };
     }

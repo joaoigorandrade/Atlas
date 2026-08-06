@@ -2317,6 +2317,10 @@ export default function AtlasApp({
             pending: !partial.response,
           });
         },
+        // …and the wording types itself into that bubble as it is written.
+        (draft) => {
+          if (draft.response) apply({ type: "stream", text: draft.response, pending: true });
+        },
       )
         .then((j) => {
           apply(
@@ -2476,6 +2480,10 @@ export default function AtlasApp({
             response: "",
             pending: true,
           });
+        },
+        // …and the student's reaction types itself in as it is written.
+        (draft) => {
+          if (draft.response) apply({ type: "stream", text: draft.response, pending: true });
         },
       )
         .then((j) => {

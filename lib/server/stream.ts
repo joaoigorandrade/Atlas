@@ -13,10 +13,15 @@
 // `ndjsonStream`: the first frame is pulled *before* committing to a 200, so a
 // genuine failure still surfaces as an error status instead of an empty stream.
 
-/** One slot of a payload. `i` is present iff the slot is a list item. */
+/** One slot of a payload. `i` is present iff the slot is a list item.
+ *
+ *  `partial: true` marks a redraw of the slot currently being written — the
+ *  token-by-token layer. It is for rendering only: it never validated, so it is
+ *  dropped before assembly (below) and before caching, and a complete frame for
+ *  the same slot always follows and replaces it. */
 export type StreamFrame =
-  | { p: string; v: unknown }
-  | { p: string; i: number; v: unknown };
+  | { p: string; v: unknown; partial?: true }
+  | { p: string; i: number; v: unknown; partial?: true };
 
 /**
  * What a complete payload looks like: each part name mapped to `"one"` (a
@@ -60,8 +65,11 @@ export function framesToPayload(
   frames: StreamFrame[],
   shapes: StreamShapes,
 ): Record<string, unknown> | null {
+  // Partial redraws are never part of a payload: they were never validated,
+  // and a cache hit is served without re-validation.
+  const complete = frames.filter((f) => !f.partial);
   for (const shape of asList(shapes)) {
-    const payload = assemble(frames, shape);
+    const payload = assemble(complete, shape);
     if (payload) return payload;
   }
   return null;
@@ -179,13 +187,15 @@ export async function ndjsonStream(
   }
 
   const enc = new TextEncoder();
-  const frames: StreamFrame[] = [first.value];
+  const frames: StreamFrame[] = first.value.partial ? [] : [first.value];
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       controller.enqueue(enc.encode(JSON.stringify(first.value) + "\n"));
       try {
         for await (const frame of gen) {
-          frames.push(frame);
+          // Redraws go out on the wire but are not retained: only the complete
+          // frames are the payload, and a long prose stream produces hundreds.
+          if (!frame.partial) frames.push(frame);
           controller.enqueue(enc.encode(JSON.stringify(frame) + "\n"));
         }
         opts.onComplete(frames);

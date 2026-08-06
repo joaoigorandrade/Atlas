@@ -362,17 +362,137 @@ export function extractCompleteObjects(buf: string): { objects: string[]; rest: 
 }
 
 /**
+ * Close an in-progress JSON object so half a decoded object can be shown while
+ * the rest is still being written — the token-by-token layer under
+ * `streamJsonObjectsProgressive`.
+ *
+ * The buffer is whatever came after the last complete object, so it is a prefix
+ * of one object: an unterminated string, a dangling key, unclosed brackets.
+ * Everything openable is closed and the result parsed; if that doesn't parse,
+ * the last comma-separated fragment is dropped and it's tried again, because
+ * the only part that can't be closed cleanly is the member currently being
+ * written. Returns null when nothing coherent can be salvaged yet.
+ *
+ * Deliberately lenient and lossy: its output is only ever rendered, never
+ * validated into a payload and never cached — `StreamFrame.partial` marks it.
+ */
+export function closePartialJson(buf: string): unknown | null {
+  const start = buf.indexOf("{");
+  if (start === -1) return null;
+  let text = buf.slice(start);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const closed = closeOpenStructures(text);
+    if (closed !== null) {
+      try {
+        const parsed: unknown = JSON.parse(closed);
+        // An object with nothing in it yet is not a redraw worth sending.
+        if (parsed && typeof parsed === "object" && Object.keys(parsed).length === 0)
+          return null;
+        return parsed;
+      } catch {
+        // Falls through to the trim below.
+      }
+    }
+    const cut = lastCommaOutsideString(text);
+    if (cut === -1) return null;
+    text = text.slice(0, cut);
+  }
+  return null;
+}
+
+/** Append the closers for every structure left open, after trimming whatever
+ *  trailing fragment can't stand on its own (a dangling `,` or `key:`). */
+function closeOpenStructures(text: string): string | null {
+  const closers: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") closers.push("}");
+    else if (ch === "[") closers.push("]");
+    else if (ch === "}" || ch === "]") closers.pop();
+  }
+  if (closers.length === 0) return null;
+  // A trailing backslash would escape the quote we're about to add.
+  let body = esc ? text.slice(0, -1) : text;
+  if (inStr) body += '"';
+  body = body.replace(/\s+$/, "");
+  // `{"a": 1,` and `{"a":` are both un-closable as they stand. A trailing comma
+  // just goes; a trailing colon takes its key with it, since the value it
+  // introduces hasn't been written yet.
+  for (;;) {
+    if (body.endsWith(",")) {
+      body = body.slice(0, -1).replace(/\s+$/, "");
+      continue;
+    }
+    if (!body.endsWith(":")) break;
+    const cut = lastCommaOutsideString(body);
+    body = (cut === -1 ? body.slice(0, body.lastIndexOf("{") + 1) : body.slice(0, cut))
+      .replace(/\s+$/, "");
+  }
+  return body + closers.reverse().join("");
+}
+
+/** Index of the last comma that isn't inside a string literal, or -1. */
+function lastCommaOutsideString(text: string): number {
+  let inStr = false;
+  let esc = false;
+  let last = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === ",") last = i;
+  }
+  return last;
+}
+
+/** One object off a JSON stream: complete and validated, or a partial redraw of
+ *  the object currently being written (same `index`, `partial: true`). */
+export interface StreamedJson<T> {
+  value: T;
+  index: number;
+  partial: boolean;
+}
+
+/** How often a still-being-written object is re-sent. Each redraw carries the
+ *  whole object, so per-token frames would cost O(n²) bytes for prose; ~15/s is
+ *  past the rate at which a reader perceives text as "appearing". */
+const PARTIAL_MS = Number(process.env.OPENROUTER_PARTIAL_MS || 66);
+
+/**
  * Stream a completion expected to contain a sequence of top-level JSON
  * objects (not one wrapping object/array) and yield each as it completes,
  * validated. No corrective retry here — unlike `generateJson`, a caller that
  * hits a validation error mid-stream can't cleanly redo just the bad part;
  * the caller's job is to fall back to the single-shot, retried path.
+ *
+ * With `opts.partial`, the object still being decoded is also yielded on a
+ * timer — that lenient validator gets the repaired half-object and returns what
+ * is renderable of it, or null to skip this redraw. Those yields carry
+ * `partial: true` and are never counted, never assembled, never cached.
  */
-export async function* streamJsonObjects<T>(
+export async function* streamJsonObjectsProgressive<T>(
   messages: ChatMessage[],
   validate: (raw: unknown, index: number) => T,
-  opts: { label?: string; role?: ModelRole } = {},
-): AsyncGenerator<T> {
+  opts: {
+    label?: string;
+    role?: ModelRole;
+    partial?: (raw: unknown, index: number) => T | null;
+  } = {},
+): AsyncGenerator<StreamedJson<T>> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key)
     throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
@@ -382,6 +502,7 @@ export async function* streamJsonObjects<T>(
   let firstTokenMs: number | null = null;
   let buf = "";
   let index = 0;
+  let lastPartialAt = 0;
   // `finally` rather than `catch`, so exactly one line is emitted however the
   // stream ends — cleanly, on a throw, or because the consumer walked away
   // mid-iteration (which calls the generator's `return`).
@@ -393,7 +514,23 @@ export async function* streamJsonObjects<T>(
       buf += delta;
       const { objects, rest } = extractCompleteObjects(buf);
       buf = rest;
-      for (const raw of objects) yield validate(JSON.parse(raw), index++);
+      for (const raw of objects)
+        yield { value: validate(JSON.parse(raw), index++), index: index - 1, partial: false };
+      if (!opts.partial || !buf.trim()) continue;
+      const now = Date.now();
+      if (now - lastPartialAt < PARTIAL_MS) continue;
+      lastPartialAt = now;
+      const repaired = closePartialJson(buf);
+      if (repaired === null) continue;
+      // A lenient validator that throws on a half-object is a bug in the
+      // validator, not a reason to kill a working stream.
+      let draft: T | null = null;
+      try {
+        draft = opts.partial(repaired, index);
+      } catch {
+        draft = null;
+      }
+      if (draft !== null) yield { value: draft, index, partial: true };
     }
     // A stream that ends cleanly having produced nothing is a failure, not an
     // empty answer — an empty completion is exactly what a model returns when
@@ -412,6 +549,16 @@ export async function* streamJsonObjects<T>(
   } finally {
     logStream(label, model, started, firstTokenMs, index, outcome);
   }
+}
+
+/** Complete objects only — what every kind that renders whole items wants. */
+export async function* streamJsonObjects<T>(
+  messages: ChatMessage[],
+  validate: (raw: unknown, index: number) => T,
+  opts: { label?: string; role?: ModelRole } = {},
+): AsyncGenerator<T> {
+  for await (const item of streamJsonObjectsProgressive(messages, validate, opts))
+    if (!item.partial) yield item.value;
 }
 
 function logGeneration(

@@ -172,10 +172,14 @@ export async function fetchConsume(
 
 /** One slot of a payload, as it comes off the NDJSON wire. Mirrors
  *  `lib/server/stream.ts`'s `StreamFrame` — declared here too so client code
- *  never imports from `lib/server`. */
+ *  never imports from `lib/server`.
+ *
+ *  `partial: true` is a redraw of the slot being written right now — the
+ *  token-by-token layer. Render it; never keep it. A complete frame for the
+ *  same slot always follows, and `collectFrames` drops the drafts. */
 export type StreamFrame =
-  | { p: string; v: unknown }
-  | { p: string; i: number; v: unknown };
+  | { p: string; v: unknown; partial?: true }
+  | { p: string; i: number; v: unknown; partial?: true };
 
 /**
  * Post a streaming request and read its NDJSON frames as they land. Shared by
@@ -231,7 +235,7 @@ export async function fetchStream(
 export function collectFrames<T>(frames: StreamFrame[], part: string): T[] {
   const out: T[] = [];
   for (const f of frames) {
-    if (f.p !== part || !("i" in f)) continue;
+    if (f.p !== part || f.partial || !("i" in f)) continue;
     out[f.i] = f.v as T;
   }
   return out.filter((v) => v !== undefined);
@@ -278,10 +282,11 @@ export async function fetchConsumeModel(
 }
 
 /**
- * Foreground model view: beats land one at a time, which is what lets the view
- * open on its first beat instead of on its last. Background warms (the same
- * lens on the next section, once a learner has shown which one they reach for)
- * stay on `fetchConsumeModel`.
+ * Foreground model view: beats land one at a time — and each one paints as it
+ * is written, since the server redraws the in-progress beat at its own index.
+ * That is what lets the view open on its first sentence instead of its last
+ * beat. Background warms (the same lens on the next section, once a learner has
+ * shown which one they reach for) stay on `fetchConsumeModel`.
  */
 export async function fetchConsumeModelStream(
   params: Parameters<typeof modelRequest>[0],
@@ -300,10 +305,13 @@ export async function fetchConsumeModelStream(
  * time. Never warmed and never cached: the inputs are one learner's selection
  * and one learner's words.
  *
- * `onPart` fires per paragraph as it lands, so the aside starts filling in
- * about a second in rather than sitting empty until the whole answer is
- * written — which matters more here than anywhere else in Consume, since the
- * reading is still on screen behind it.
+ * `onPart` fires as the paragraph is *written*, not only when it lands: the
+ * server redraws the in-progress paragraph at the same index every ~66ms, so
+ * the aside fills in word by word rather than sitting empty until the whole
+ * answer is done — which matters more here than anywhere else in Consume, since
+ * the reading is still on screen behind it. Callers replace by index (drafts
+ * and the final paragraph share one), and `PassageAsk.status` says when it's
+ * finished; only the resolved array is the answer.
  */
 export async function fetchPassageStream(
   params: {
@@ -446,20 +454,33 @@ export async function fetchRetain(
  * fallback, where the first frame already carries everything). Callers must
  * therefore treat it as an optimisation and still handle the whole judgement
  * on resolve — `applied` flags in AtlasApp are exactly that.
+ *
+ * `onDraft` is the same deal one level finer: the critique as it is typed, so
+ * the bubble the verdict opened fills in word by word instead of swapping from
+ * dots to a finished paragraph. It carries `response` and nothing else — a
+ * half-written verdict would be a different classification than the one the
+ * model settles on, and the verdict is what drives mastery writes.
  */
 async function judge<T>(
   body: Record<string, unknown>,
   onVerdict?: (partial: Partial<T>) => void,
+  onDraft?: (draft: Partial<T>) => void,
 ): Promise<T> {
   let seen = 0;
   let last: T | null = null;
   const frames = await fetchStream(body, (frame) => {
-    // Only the first frame is the verdict prefix. Which frame is *last* isn't
-    // knowable until the stream ends, so the resolved value comes from the
-    // collected frames below rather than from this callback.
-    if (frame.p === "judgement" && seen++ === 0) onVerdict?.(frame.v as Partial<T>);
+    if (frame.p !== "judgement") return;
+    if (frame.partial) {
+      onDraft?.(frame.v as Partial<T>);
+      return;
+    }
+    // Only the first complete frame is the verdict prefix. Which frame is
+    // *last* isn't knowable until the stream ends, so the resolved value comes
+    // from the collected frames below rather than from this callback.
+    if (seen++ === 0) onVerdict?.(frame.v as Partial<T>);
   });
-  for (const frame of frames) if (frame.p === "judgement") last = frame.v as T;
+  for (const frame of frames)
+    if (frame.p === "judgement" && !frame.partial) last = frame.v as T;
   if (!last) throw new Error("the judge returned nothing");
   return last;
 }
@@ -479,8 +500,9 @@ export function fetchJudgeSocratic(
     language?: Language;
   },
   onVerdict?: (partial: Partial<SocraticJudgement>) => void,
+  onDraft?: (draft: Partial<SocraticJudgement>) => void,
 ): Promise<SocraticJudgement> {
-  return judge({ kind: "judge", mode: "socratic", ...params }, onVerdict);
+  return judge({ kind: "judge", mode: "socratic", ...params }, onVerdict, onDraft);
 }
 
 export interface FeynmanJudgement {
@@ -498,8 +520,9 @@ export function fetchJudgeFeynman(
     language?: Language;
   },
   onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
+  onDraft?: (draft: Partial<FeynmanJudgement>) => void,
 ): Promise<FeynmanJudgement> {
-  return judge({ kind: "judge", mode: "feynman", ...params }, onVerdict);
+  return judge({ kind: "judge", mode: "feynman", ...params }, onVerdict, onDraft);
 }
 
 export interface CrucibleJudgement {

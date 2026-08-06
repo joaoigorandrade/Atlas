@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MicButton } from "@/components/VoiceInput";
+import { StreamingText } from "@/components/Pending";
 import {
   PHASES,
   STATE_COLOR,
@@ -746,10 +747,15 @@ function PassagePanel({
                 margin: i === 0 ? "0 0 12px" : "0 0 12px",
               }}
             >
-              {p}
+              {/* The answer arrives word by word; the nib sits at the end of
+                  the paragraph being written, never on the ones behind it. */}
+              <StreamingText
+                text={p}
+                writing={ask.status === "asking" && i === ask.parts.length - 1}
+              />
             </p>
           ))}
-          {ask.status === "asking" && (
+          {ask.status === "asking" && ask.parts.length === 0 && (
             <div
               style={{
                 fontFamily: font.mono,
@@ -1172,7 +1178,12 @@ function ModelView({
                       color: color.ink,
                     }}
                   >
-                    {beat.text}
+                    {/* The newest beat is still being written — its words land
+                        as they are decoded, with the nib at the end. */}
+                    <StreamingText
+                      text={beat.text}
+                      writing={streaming && i === beats.length - 1}
+                    />
                   </div>
                 </div>
               </div>

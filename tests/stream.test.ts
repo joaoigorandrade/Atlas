@@ -23,6 +23,28 @@ const chunkFrames = (n: number): StreamFrame[] =>
   Array.from({ length: n }, (_, i) => ({ p: "chunks", i, v: { id: `c${i + 1}` } }));
 
 describe("framesToPayload", () => {
+  // Token-by-token redraws are rendered, never validated. If one could be
+  // assembled it would be cached, and a cache hit skips validation — every
+  // later learner would be served half a sentence.
+  it("ignores partial redraws of a slot", () => {
+    const frames: StreamFrame[] = [
+      { p: "chunks", i: 0, v: { id: "hal" }, partial: true },
+      ...chunkFrames(4),
+      { p: "chunks", i: 4, v: { id: "half-written" }, partial: true },
+    ];
+    expect(framesToPayload(frames, CONSUME)).toEqual({
+      chunks: [{ id: "c1" }, { id: "c2" }, { id: "c3" }, { id: "c4" }],
+    });
+  });
+
+  it("refuses a set whose only frame for a slot is partial", () => {
+    const frames: StreamFrame[] = [
+      ...chunkFrames(3),
+      { p: "chunks", i: 3, v: { id: "c4" }, partial: true },
+    ];
+    expect(framesToPayload(frames, CONSUME)).toBeNull();
+  });
+
   it("folds indexed frames into an ordered array", () => {
     expect(framesToPayload(chunkFrames(5), CONSUME)).toEqual({
       chunks: [{ id: "c1" }, { id: "c2" }, { id: "c3" }, { id: "c4" }, { id: "c5" }],

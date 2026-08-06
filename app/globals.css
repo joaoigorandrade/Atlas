@@ -104,6 +104,17 @@ textarea:focus {
   }
 }
 
+/* The nib at the end of prose still being written, token by token. */
+@keyframes inkCaret {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
 @keyframes inkSweep {
   0% {
     transform: translateX(-110%);
