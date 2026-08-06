@@ -2245,11 +2245,14 @@ export default function AtlasApp({
       const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
       if (!step || !node) return;
       setJudging(true);
-      // Verdict-first: the classification lands about a second in and moves
-      // the tutor on; the wording it lands with fills the bubble underneath.
-      let applied = false;
       const apply = (action: SocraticAction) =>
         setSocratic((prev) => (prev ? socraticReducer(prev, action, steps) : prev));
+      // The answer lands in the transcript on send, with the tutor's bubble
+      // already writing beside it. Verdict-first: the classification arrives
+      // about a second in and moves the tutor on; the wording fills that
+      // same bubble when it lands.
+      apply({ type: "answer", text });
+      let applied = false;
       fetchJudgeSocratic(
         {
           topic: formRef.current.topic,
@@ -2269,8 +2272,8 @@ export default function AtlasApp({
             type: "judged",
             answer: text,
             quality: partial.quality,
-            response: "",
-            pending: true,
+            response: partial.response ?? "",
+            pending: !partial.response,
           });
         },
       )
@@ -2281,7 +2284,11 @@ export default function AtlasApp({
               : { type: "judged", answer: text, quality: j.quality, response: j.response },
           );
         })
-        .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
+        .catch((err: Error) => {
+          // Don't strand the open bubble on its dots — the failure lands in it.
+          apply({ type: "stream", text: err.message });
+          showToast(err.message, "Judge unavailable — try again");
+        })
         .finally(() => setJudging(false));
     },
     [showToast],

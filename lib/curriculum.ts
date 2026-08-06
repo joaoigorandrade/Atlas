@@ -652,6 +652,9 @@ export type SocraticAction =
   | { type: "reply"; index: number }
   | { type: "stuck" }
   | { type: "tell" }
+  /** The learner just sent their answer — it joins the transcript at once and
+   *  the tutor's bubble opens still-writing beside it, ahead of the verdict. */
+  | { type: "answer"; text: string }
   /** A free-text answer, already judged server-side (#25). `response` may be
    *  empty when only the verdict has streamed in — mark it `pending` and send
    *  `stream` with the wording when it lands. */
@@ -771,21 +774,35 @@ export function socraticReducer(
         ruledOut: [...session.ruledOut, reply.label],
       };
     }
-    case "judged": {
-      // The contingent tutor on the learner's own words: the server judge
-      // classified the free-text answer; the same advance/help rules apply.
-      const logged: SocraticSession = {
+    case "answer": {
+      if (session.log.some((t) => t.pending)) return session;
+      return {
         ...session,
         log: [
           ...session.log,
-          { role: "learner", text: action.answer },
-          {
-            role: "ai",
-            text: action.response,
-            tone: REPLY_TONE[action.quality],
-            ...(action.pending ? { pending: true } : null),
-          },
+          { role: "learner", text: action.text },
+          { role: "ai", text: "", pending: true },
         ],
+      };
+    }
+    case "judged": {
+      // The contingent tutor on the learner's own words: the server judge
+      // classified the free-text answer; the same advance/help rules apply.
+      const bubble: SocraticTurn = {
+        role: "ai",
+        text: action.response,
+        tone: REPLY_TONE[action.quality],
+        ...(action.pending ? { pending: true } : null),
+      };
+      // `answer` already opened the pair — the verdict fills that bubble
+      // rather than logging the answer a second time.
+      const open = session.log.findIndex((t) => t.pending);
+      const logged: SocraticSession = {
+        ...session,
+        log:
+          open >= 0
+            ? session.log.map((t, i) => (i === open ? bubble : t))
+            : [...session.log, { role: "learner", text: action.answer }, bubble],
       };
       if (action.quality === "correct" || action.quality === "lost") {
         const help =

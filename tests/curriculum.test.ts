@@ -149,6 +149,22 @@ describe("socraticReducer", () => {
     expect(next.step).toBe(1);
   });
 
+  it("'answer' posts the answer at once, and the verdict fills that same bubble", () => {
+    const s = socraticStart("n", steps);
+    const sent = socraticReducer(s, { type: "answer", text: "it scales it" }, steps);
+    expect(sent.log.at(-2)).toMatchObject({ role: "learner", text: "it scales it" });
+    expect(sent.log.at(-1)).toMatchObject({ role: "ai", pending: true });
+    const judged = socraticReducer(
+      sent,
+      { type: "judged", answer: "it scales it", quality: "correct", response: "right" },
+      steps,
+    );
+    // One learner line, not two — and the pending bubble became the response.
+    expect(judged.log.filter((t) => t.role === "learner")).toHaveLength(1);
+    expect(judged.log.some((t) => t.pending)).toBe(false);
+    expect(judged.step).toBe(1);
+  });
+
   it("'tell' advances and counts", () => {
     const s = socraticStart("n", steps);
     const next = socraticReducer(s, { type: "tell" }, steps);
