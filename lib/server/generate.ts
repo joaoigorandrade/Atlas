@@ -709,6 +709,9 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
     ...(i === 0
       ? { pred: validatePrediction(c.pred, "chunks[0].pred") }
       : null),
+    // The comprehension check that closes every section — same shape as the
+    // hook, opposite job: the hook primes the reading, this confirms it.
+    check: validatePrediction(c.check, `chunks[${i}].check`),
   };
 }
 
@@ -746,8 +749,12 @@ ${interestNote(interests)}
 
 This is the READING phase — the learner is here to be taught, not tested. Write
 real teaching material: explain the idea, show where it comes from, work an
-example, name what usually goes wrong. Questioning happens in later phases, so
-the pass carries exactly ONE prediction hook, on the first section only.
+example, name what usually goes wrong. Real questioning happens in later
+phases, so the pass carries exactly ONE prediction hook, on the first section
+only — plus one short comprehension check per section ("check"), which the
+learner must get right before continuing. A check is a receipt for reading,
+not a test: it asks for something stated or worked in THAT section's prose or
+example, and its wrong options are plausible misreadings, never absurd.
 
 Rules for the prose:
 - Teach, don't summarize. Each section's body is 3-5 full paragraphs of 3-6
