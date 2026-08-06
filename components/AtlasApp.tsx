@@ -125,6 +125,7 @@ import {
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import {
+  FAKE_MAP_CENTER,
   FAKE_MAP_EDGES,
   FAKE_MAP_NODES,
   FAKE_MAP_POSITIONS,
@@ -932,6 +933,12 @@ export default function AtlasApp({
     setReveal(0);
     setScopes(null);
     setBuildNote(null);
+    const scale = 0.72;
+    setView({
+      x: window.innerWidth / 2 - FAKE_MAP_CENTER.x * scale,
+      y: window.innerHeight / 2 - FAKE_MAP_CENTER.y * scale,
+      scale,
+    });
     // The previous map is not this topic's map, and everything below is keyed
     // to its node ids. Clearing it all up front is what stops the assembly beat
     // animating over the *old* territory, and — more importantly — what stops a
