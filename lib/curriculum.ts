@@ -920,13 +920,14 @@ export function socraticOutcome(session: SocraticSession, gap: boolean): Socrati
 }
 
 // ---- Phase 3b · Feynman (teach it back) -----------------------------------
-// Gap detection through self-explanation. The learner teaches; the AI plays a
-// naive student, interrupting with the questions that surface exactly what got
-// hand-waved. The output is a Gap Report — a visual diff of the explanation,
-// green/grey/red — and each unresolved gap writes back to the map as a red Gap
-// sub-node, so the phase is the loop's connective tissue, not a checklist.
-// Content ships the Linear Transformations teach-back so the speak → interrupt
-// → diff mechanic is real.
+// Gap detection through self-explanation. The learner gets a blank page and
+// teaches the whole concept to a naive student in their own words — nothing
+// prompts them, because what they never think to mention is the finding. The
+// judge then diffs that explanation against a rubric they never saw: every
+// sub-point green/grey/red, the jargon they leaned on without unpacking, and
+// the words that earned each gap. Unresolved gaps write back to the map as red
+// Gap sub-nodes quoting the learner, so the phase is the loop's connective
+// tissue, not a checklist.
 
 /** A beat's verdict in the Gap Report: explained, skipped/hand-waved, or wrong. */
 export type TeachVerdict = "good" | "skipped" | "confused";
@@ -955,25 +956,6 @@ export function verdictLabel(verdict: TeachVerdict, lang: Language = "en"): stri
   return (lang === "pt-BR" ? VERDICT_LABEL_PT : VERDICT_LABEL)[verdict];
 }
 
-/** One line of the teach-back transcript — the learner speaking, or the student. */
-export interface TeachLine {
-  role: "learner" | "ai";
-  text: string;
-  /** AI lines: a naive question, an affirmation, a caught error, a skipped bit. */
-  tone?: "naive" | "affirm" | "catch" | "skip";
-  /** The verdict landed but the student's wording is still streaming in — see
-   *  `SocraticTurn.pending`. At most one line is pending at a time. */
-  pending?: boolean;
-}
-
-/** How the learner answers a naive interruption — each sets the beat's verdict. */
-export interface TeachReply {
-  label: string;
-  verdict: TeachVerdict;
-  /** The naive student's reaction — pleased, still puzzled, or wrong-footed. */
-  response: string;
-}
-
 /** A single-probe corrective for a gap — the targeted Socratic micro-pass. */
 export interface TeachFixReply {
   label: string;
@@ -981,17 +963,22 @@ export interface TeachFixReply {
   response: string;
 }
 
-/** One beat of the explanation — a sub-point the learner teaches, then defends. */
+/**
+ * One sub-point of the concept — a *rubric* row, not a script.
+ *
+ * The learner is never shown these before they teach: the whole diagnostic
+ * value of a teach-back is what they never think to mention, and a sub-point
+ * printed above the input is the outline of the answer handed over before the
+ * test. They teach the concept end to end in their own words; the judge diffs
+ * that monologue against these rows.
+ */
 export interface FeynmanBeat {
   id: string;
-  /** The sub-point being taught — the Gap Report row label. */
+  /** The sub-point being tested — the Gap Report row label. */
   subPoint: string;
-  /** The learner's spoken explanation, streamed in as a live transcript. */
-  transcript: string;
-  /** The naive student's interrupting question ("wait, why does that matter?"). */
-  interjection: string;
-  /** How the learner can answer it — each answer sets this beat's verdict. */
-  replies: TeachReply[];
+  /** What a solid explanation has to convey for this row to count as taught.
+   *  The judge's rubric — never a model monologue to grade similarity against. */
+  mustConvey: string[];
   /** The targeted Socratic micro-pass "Fix this" opens on just this sub-point. */
   fix: { probe: string; replies: TeachFixReply[] };
   /** The red Gap sub-node this beat writes back to the map when left unresolved. */
@@ -1013,17 +1000,27 @@ export function feynmanScaffold(lang: Language = "en"): string {
 /** The live state of one Feynman session — held by AtlasApp, read by the view. */
 export interface FeynmanSession {
   nodeId: string;
-  /** The beat currently being taught (index into the generated beats). */
-  beat: number;
   /** True once teaching has begun (past the opening prompt). */
   started: boolean;
-  /** Within the current beat: waiting for the learner to speak, or to answer. */
-  awaiting: "speak" | "reply";
-  /** The teach-back transcript + naive-student interruptions, in order. */
-  log: TeachLine[];
-  /** Verdict per beat id, set when its interruption is answered (or fixed). */
+  /** Whether the stuck-scaffold has been offered. */
+  scaffolded: boolean;
+  /** The learner's own explanation, as they taught it. */
+  explanation: string;
+  /** The naive student's reaction to the whole teach-back. */
+  response: string;
+  /** The reaction is still being written — see `SocraticTurn.pending`. */
+  pending: boolean;
+  /** Verdict per beat id, diffed out of the explanation (or closed by a fix). */
   verdicts: Record<string, TeachVerdict>;
-  /** True once every beat is taught — the Gap Report shows. */
+  /** The learner's own words that earned a gap, per beat id — what the gap
+   *  sub-node and the misconception roll-up quote back at them. */
+  quotes: Record<string, string>;
+  /** Terms they leaned on without ever unpacking — the Feynman rule, checked. */
+  jargon: string[];
+  /** The previous pass's verdicts, kept across "teach it again" so the second
+   *  pass can show the delta — the one place the loop is visible working. */
+  previous: Record<string, TeachVerdict> | null;
+  /** True once the explanation has been judged — the Gap Report shows. */
   reported: boolean;
   /** A Fix-this micro-pass open on this beat id, or null. */
   fixing: string | null;
@@ -1031,15 +1028,6 @@ export interface FeynmanSession {
   fixRuledOut: string[];
   /** The naive student's latest reaction inside an open fix, or null. */
   fixReaction: string | null;
-  /** Whether the stuck-scaffold has been offered. */
-  scaffolded: boolean;
-  /**
-   * How many beats this teach-back will run. Held explicitly rather than read
-   * off `beats.length`, because the beats stream in one at a time: deriving
-   * the last beat from the array would fire the Gap Report as soon as the
-   * learner answered beat 1, while beats 2-4 were still being written.
-   */
-  total: number;
 }
 
 /** The most core probes a Socratic pass plans — one per move, and the estimate
@@ -1118,71 +1106,63 @@ export function recurringMisconceptions(
     .map((m) => `"${m.label}" — hit ${m.count}× (last under ${m.node})`);
 }
 
-/** How many beats a teach-back runs. Fixed rather than derived: the beats
- *  stream in one at a time, so the session needs its length before the last
- *  one has arrived. */
+/** How many sub-points a teach-back rubric aims for. The beats stream in one
+ *  at a time and the judge diffs against whatever arrived, so this is the
+ *  prompt's target, not a bound the session depends on. */
 export const FEYNMAN_BEATS = 4;
 
-/** A fresh teach-back. `total` is how many beats the pass will have, which may
- *  exceed what has arrived when the session opens on a stream. */
-export function feynmanStart(nodeId: string, total: number): FeynmanSession {
+/** A fresh teach-back. `previous` carries a prior pass's verdicts when the
+ *  learner is teaching it again, and is null on a first attempt. */
+export function feynmanStart(
+  nodeId: string,
+  previous: Record<string, TeachVerdict> | null = null,
+): FeynmanSession {
   return {
     nodeId,
-    beat: 0,
     started: false,
-    awaiting: "speak",
-    log: [],
+    scaffolded: false,
+    explanation: "",
+    response: "",
+    pending: false,
     verdicts: {},
+    quotes: {},
+    jargon: [],
+    previous,
     reported: false,
     fixing: null,
     fixRuledOut: [],
     fixReaction: null,
-    scaffolded: false,
-    total,
   };
 }
-
-/** The naive student's reaction tone, by the verdict the learner earned. */
-const VERDICT_TONE: Record<TeachVerdict, TeachLine["tone"]> = {
-  good: "affirm",
-  skipped: "skip",
-  confused: "catch",
-};
 
 export type FeynmanAction =
   | { type: "begin" }
   | { type: "scaffold" }
-  | { type: "speak" }
-  | { type: "reply"; index: number }
-  /** The learner's own typed explanation of the current beat, already diffed
-   *  server-side into a verdict + naive-student reaction (#26). */
+  /** The learner's whole explanation, already diffed server-side into a verdict
+   *  per sub-point, the words that earned each gap, and any unpacked jargon. */
   | {
       type: "taught";
       text: string;
-      verdict: TeachVerdict;
+      verdicts: Record<string, TeachVerdict>;
+      quotes?: Record<string, string>;
+      jargon?: string[];
       response: string;
-      /** True when only the verdict has arrived — `stream` fills the wording. */
+      /** True when only the verdicts have arrived — `stream` fills the wording. */
       pending?: boolean;
     }
-  /** The naive student's wording for the line currently marked pending. Kept
-   *  `pending` while the wording is still being typed, so each draft finds the
-   *  same line; the final one clears it. */
+  /** The naive student's reaction as it is written. */
   | { type: "stream"; text: string; pending?: boolean }
   | { type: "openFix"; beatId: string }
   | { type: "closeFix" }
   | { type: "fix"; index: number }
-  | { type: "teachAgain" }
-  /** Re-cap the pass when the beats finished streaming short of the plan, so
-   *  the Gap Report still opens instead of waiting for a beat that never came.
-   *  The `speak`/`reply`/`taught` cases already park on a missing beat. */
-  | { type: "hydrate"; total: number };
+  | { type: "teachAgain" };
 
 /**
- * The naive-student engine, as a pure transition. The learner speaks a beat →
- * the student interrupts with a naive question → the learner's answer sets that
- * beat's verdict (good/skipped/confused). After the last beat the Gap Report
- * opens; "Fix this" runs a one-probe corrective that flips a gap to good, and
- * "Teach again" resets for a fresh pass.
+ * The naive-student engine, as a pure transition. The learner teaches the whole
+ * concept in their own words with nothing prompting them → the judge diffs it
+ * against the rubric → the Gap Report opens. "Fix this" runs a one-probe
+ * corrective that flips a gap to good, and "Teach again" resets for a fresh
+ * pass while keeping the last one's verdicts for the delta.
  */
 export function feynmanReducer(
   session: FeynmanSession,
@@ -1190,87 +1170,31 @@ export function feynmanReducer(
   beats: FeynmanBeat[],
 ): FeynmanSession {
   switch (action.type) {
-    case "stream": {
-      if (!session.log.some((l) => l.pending)) return session;
-      return {
-        ...session,
-        log: session.log.map((l) =>
-          l.pending
-            ? { ...l, text: action.text, pending: action.pending ? true : undefined }
-            : l,
-        ),
-      };
-    }
-    case "hydrate":
-      // Never shrink below the beat being taught, or the session would already
-      // be past its own end and could never close.
-      return { ...session, total: Math.max(action.total, session.beat + 1) };
     case "begin":
-      // Leave the opening prompt and enter the teach-back surface, ready to
-      // speak the first beat.
       return { ...session, started: true };
     case "scaffold":
       // The freeze-scaffold: reveal the "start with the problem" nudge and drop
-      // the learner straight into teaching the first beat.
+      // the learner straight onto the blank page.
       return { ...session, started: true, scaffolded: true };
-    case "speak": {
-      if (session.reported || session.awaiting !== "speak") return session;
-      const beat = beats[session.beat];
-      if (!beat) return session;
-      return {
-        ...session,
-        started: true,
-        awaiting: "reply",
-        log: [
-          ...session.log,
-          { role: "learner", text: beat.transcript },
-          { role: "ai", text: beat.interjection, tone: "naive" },
-        ],
-      };
-    }
-    case "reply": {
-      if (session.reported || session.awaiting !== "reply") return session;
-      const beat = beats[session.beat];
-      const reply = beat?.replies[action.index];
-      if (!reply) return session;
-      const last = session.beat >= session.total - 1;
-      return {
-        ...session,
-        awaiting: "speak",
-        beat: last ? session.beat : session.beat + 1,
-        reported: last,
-        verdicts: { ...session.verdicts, [beat.id]: reply.verdict },
-        log: [
-          ...session.log,
-          { role: "learner", text: reply.label },
-          { role: "ai", text: reply.response, tone: VERDICT_TONE[reply.verdict] },
-        ],
-      };
-    }
+    case "stream":
+      if (!session.pending) return session;
+      return { ...session, response: action.text, pending: !!action.pending };
     case "taught": {
-      // Real teach-back: the learner's own words earned this verdict — the
-      // Gap Report diff is detected, not chosen from a menu.
-      if (session.reported || session.awaiting !== "speak") return session;
-      const beat = beats[session.beat];
-      if (!beat) return session;
-      const last = session.beat >= session.total - 1;
+      if (session.reported) return session;
       return {
         ...session,
         started: true,
-        awaiting: "speak",
-        beat: last ? session.beat : session.beat + 1,
-        reported: last,
-        verdicts: { ...session.verdicts, [beat.id]: action.verdict },
-        log: [
-          ...session.log,
-          { role: "learner", text: action.text },
-          {
-            role: "ai",
-            text: action.response,
-            tone: VERDICT_TONE[action.verdict],
-            ...(action.pending ? { pending: true } : null),
-          },
-        ],
+        reported: true,
+        explanation: action.text,
+        response: action.response,
+        pending: !!action.pending,
+        // A sub-point the judge never ruled on was never taught: silence is a
+        // skip, not a pass. Anything else would grade an unmentioned row good.
+        verdicts: Object.fromEntries(
+          beats.map((b) => [b.id, action.verdicts[b.id] ?? "skipped"]),
+        ),
+        quotes: action.quotes ?? {},
+        jargon: action.jargon ?? [],
       };
     }
     case "openFix":
@@ -1306,32 +1230,35 @@ export function feynmanReducer(
     }
     case "teachAgain":
       return {
-        ...session,
-        beat: 0,
+        ...feynmanStart(session.nodeId, session.verdicts),
         started: true,
-        awaiting: "speak",
-        log: [],
-        verdicts: {},
-        reported: false,
-        fixing: null,
-        fixRuledOut: [],
-        fixReaction: null,
+        scaffolded: session.scaffolded,
       };
     default:
       return session;
   }
 }
 
-/** Beats still red or grey — the gaps that write back to the map as sub-nodes. */
+/** Beats still red or grey — the gaps that write back to the map as sub-nodes.
+ *  Each carries the learner's own words when the judge caught them, so the
+ *  Socratic pass the gap opens starts from what they actually said rather than
+ *  from a reason written before they said anything. */
 export function feynmanGaps(
   session: FeynmanSession,
   beats: FeynmanBeat[],
 ): GapSpec[] {
-  return beats.filter(
-    (b) =>
-      session.verdicts[b.id] === "skipped" ||
-      session.verdicts[b.id] === "confused",
-  ).map((b) => b.gap);
+  return beats
+    .filter(
+      (b) =>
+        session.verdicts[b.id] === "skipped" ||
+        session.verdicts[b.id] === "confused",
+    )
+    .map((b) => {
+      const quote = session.quotes[b.id]?.trim();
+      return quote
+        ? { ...b.gap, reason: `You said: "${quote}" — ${b.gap.reason}` }
+        : b.gap;
+    });
 }
 
 /** A clean-enough diff: every sub-point explained well, nothing wrong or skipped. */
@@ -1340,6 +1267,17 @@ export function feynmanClean(
   beats: FeynmanBeat[],
 ): boolean {
   return beats.every((b) => session.verdicts[b.id] === "good");
+}
+
+/** How many gaps a pass ended with — the number the second-pass delta compares. */
+export function feynmanGapCount(
+  verdicts: Record<string, TeachVerdict>,
+  beats: FeynmanBeat[],
+): number {
+  return beats.filter((b) => {
+    const v = verdicts[b.id];
+    return v === "skipped" || v === "confused";
+  }).length;
 }
 
 // ---- Phase 4 · Connect (the Elaboration station) --------------------------

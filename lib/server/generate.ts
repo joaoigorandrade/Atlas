@@ -1254,24 +1254,18 @@ const FEYNMAN_GAP_OFFSETS: ReadonlyArray<[number, number]> = [
   [120, 150],
 ];
 
-/** One teach-back beat. The gap offset is indexed modulo the offset table, so
- *  a beat validates identically whether it arrived in an array or alone. */
+/** One teach-back beat — a rubric row, not a script. The gap offset is indexed
+ *  modulo the offset table, so a beat validates identically whether it arrived
+ *  in an array or alone. */
 export function validateFeynmanBeat(nodeId: string) {
   return (raw: unknown, i: number): FeynmanBeat => {
     const b = obj(raw, `beats[${i}]`);
-    const replies = arr(b.replies, `beats[${i}].replies`, 3, 3).map((r, j) => {
-      const rep = obj(r, `beats[${i}].replies[${j}]`);
-      return {
-        label: rejectEcho(
-          str(rep.label, `beats[${i}].replies[${j}].label`),
-          `beats[${i}].replies[${j}].label`,
-        ),
-        verdict: oneOf(rep.verdict, VERDICTS, `beats[${i}].replies[${j}].verdict`),
-        response: str(rep.response, `beats[${i}].replies[${j}].response`),
-      };
-    });
-    if (!replies.some((r) => r.verdict === "good"))
-      fail(`beats[${i}].replies needs a "good" option`);
+    const mustConvey = arr(b.mustConvey, `beats[${i}].mustConvey`, 1, 4).map((m, j) =>
+      rejectEcho(
+        str(m, `beats[${i}].mustConvey[${j}]`),
+        `beats[${i}].mustConvey[${j}]`,
+      ),
+    );
     const fix = obj(b.fix, `beats[${i}].fix`);
     const fixReplies = arr(fix.replies, `beats[${i}].fix.replies`, 2, 3).map((r, j) => {
       const rep = obj(r, `beats[${i}].fix.replies[${j}]`);
@@ -1287,9 +1281,7 @@ export function validateFeynmanBeat(nodeId: string) {
     return {
       id: `ft-${nodeId}-${i + 1}`,
       subPoint: str(b.subPoint, `beats[${i}].subPoint`),
-      transcript: str(b.transcript, `beats[${i}].transcript`),
-      interjection: str(b.interjection, `beats[${i}].interjection`),
-      replies,
+      mustConvey,
       fix: { probe: str(fix.probe, `beats[${i}].fix.probe`), replies: fixReplies },
       gap: {
         id: `gap-ft-${nodeId}-${i + 1}`,
@@ -1320,27 +1312,20 @@ interface FeynmanParams {
 
 /** The shared framing of both Feynman prompts. */
 function feynmanContext(params: FeynmanParams): string {
-  return `Write a Feynman teach-back session (${FEYNMAN_BEATS} beats) for the concept "${params.nodeLabel}" within "${params.topic}".
-The learner teaches; the AI plays a NAIVE STUDENT who interrupts with exactly the questions that expose hand-waving.
-${interestNote(params.interests)}
-The beats walk through the concept in order, each taking up where the last left off.`;
+  return `Write the RUBRIC for a Feynman teach-back on the concept "${params.nodeLabel}" within "${params.topic}": the ${FEYNMAN_BEATS} sub-points a learner must cover to have genuinely explained it to someone who has never heard of it.
+The learner never sees these — they teach the concept from a blank page, and their explanation is diffed against these rows. So each sub-point is what a *complete* explanation contains, in the order it would naturally be taught, not a question or a prompt.
+${interestNote(params.interests)}`;
 }
 
 const FEYNMAN_BEAT_SHAPE = `{
-      "subPoint": "the sub-point being taught (3-6 words)",
-      "transcript": "what the learner plausibly says teaching this sub-point, first person, 2-3 sentences",
-      "interjection": "the naive student's interrupting question — innocent, and aimed precisely at the likely gap",
-      "replies": [   // 3 ways the learner might answer, each WRITTEN OUT VERBATIM in the learner's own words — never a description like "a precise answer"
-        {"label": "<the actual complete, precise answer, written out>", "verdict": "good", "response": "the student's satisfied reaction"},
-        {"label": "<an actual hand-wavy dodge, written out>", "verdict": "skipped", "response": "the student saying they still don't get it, naming what was skipped"},
-        {"label": "<an actual confidently wrong claim (a real misconception), written out>", "verdict": "confused", "response": "the student noticing the contradiction, wrong-footed"}
-      ],
+      "subPoint": "the sub-point a complete explanation must cover (3-6 words)",
+      "mustConvey": ["2-3 specific things the learner's own words have to get across for this sub-point to count as taught — the grading rubric, concrete and checkable, not 'explains it well'"],
       "fix": {   // the targeted micro-pass that closes just this sub-point
         "probe": "one Socratic question aimed straight at the gap",
-        "replies": [{"label": "...", "correct": true, "response": "..."}, {"label": "the misconception again", "correct": false, "response": "the specific catch"}]
+        "replies": [{"label": "...", "correct": true, "response": "..."}, {"label": "the likely misconception, written out", "correct": false, "response": "the specific catch"}]
       },
       "gapLabel": "the gap's map label (2-5 words)",
-      "gapReason": "why it split out, phrased to the learner ('you taught X as Y — the Z trap')"
+      "gapReason": "why it split out, phrased to the learner ('the Z trap' — the sentence continues after a quote of their own words)"
     }`;
 
 export async function generateFeynman(params: FeynmanParams): Promise<FeynmanBeat[]> {
@@ -1967,69 +1952,118 @@ export function judgeSocraticStream(
   });
 }
 
-export interface FeynmanJudgement {
+export interface FeynmanVerdictRow {
+  /** Index into the rubric the judge was given. */
+  i: number;
   verdict: "good" | "skipped" | "confused";
+  /** The learner's own words that earned a gap — quoted back on the map. */
+  quote?: string;
+}
+
+export interface FeynmanJudgement {
+  verdicts: FeynmanVerdictRow[];
   response: string;
+  /** Terms they used but never unpacked — the Feynman rule, checked. */
+  jargon: string[];
 }
 
 interface JudgeFeynmanParams {
   topic: string;
   nodeLabel: string;
-  subPoint: string;
-  reference: string;
+  /** The rubric rows, in order: what a complete explanation had to convey. */
+  rubric: Array<{ subPoint: string; mustConvey: string[] }>;
   explanation: string;
   language?: Language;
 }
 
 function feynmanJudgeMessages(params: JudgeFeynmanParams): ChatMessage[] {
-  const { topic, nodeLabel, subPoint, reference, explanation, language = "en" } = params;
+  const { topic, nodeLabel, rubric, explanation, language = "en" } = params;
+  const rows = rubric
+    .map(
+      (r, i) =>
+        `${i}. ${r.subPoint} — must convey: ${r.mustConvey.join("; ")}`,
+    )
+    .join("\n");
   return [
-      JUDGE_SYSTEM,
-      {
-        role: "user",
-        content: `The learner is teaching the concept "${nodeLabel}" (topic: ${topic}) to a naive student.
-Sub-point under test: "${subPoint}"
-A solid explanation would convey: "${reference}"
-The learner's own explanation: """${explanation}"""
+    JUDGE_SYSTEM,
+    {
+      role: "user",
+      content: `The learner just taught the concept "${nodeLabel}" (topic: ${topic}) from a blank page to a naive student who has never heard of it. They were NOT shown the rubric below — what they never thought to mention is the finding.
 
-Diff their explanation against the sub-point:
-- "good": the sub-point is genuinely explained (their words, their structure — paraphrase is fine).
-- "skipped": hand-waved, asserted without explanation, or not addressed at all.
-- "confused": contains a real error or misconception about this sub-point.
+Rubric — the sub-points a complete explanation covers:
+${rows}
 
-Respond AS the naive student, quoting or referencing the learner's actual words: pleased if good, still-puzzled and naming what was skipped if skipped, noticing the contradiction if confused.
+The learner's explanation, verbatim: """${explanation}"""
 
-Return JSON: {"verdict": "good" | "skipped" | "confused", "response": "the naive student's reaction, referencing their words"}${languageNote(language)}`,
-      },
+Diff the explanation against every rubric row, by index:
+- "good": their own words genuinely convey the row (paraphrase, their own structure and examples are all fine — this is not a keyword match).
+- "skipped": never addressed, or asserted with no explanation behind it. A row they simply never mentioned is "skipped".
+- "confused": addressed, but with a real error or misconception in it.
+On "skipped" and "confused", quote the learner's own words that earned it in \`quote\` — the exact fragment, under 20 words. For a row they never mentioned at all, leave \`quote\` empty.
+
+Also apply the Feynman rule itself: list in \`jargon\` every technical term they leaned on without ever unpacking it in plain language (the term as they wrote it, at most 5). Fluent recitation of named terms is exactly the failure this phase exists to catch. Empty array if they explained everything they named.
+
+Respond AS the naive student in \`response\`: 2-4 sentences, quoting or referencing their actual words — pleased where it landed, still-puzzled and naming precisely what was missing where it didn't. Never smooth over an error.
+
+Return JSON: {"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one per rubric row], "response": "...", "jargon": ["..."]}${languageNote(language)}`,
+    },
   ];
 }
 
-const validateFeynmanJudgement = (raw: unknown): FeynmanJudgement => {
+/** The verdict rows alone — the smallest thing that opens the Gap Report. */
+function validateFeynmanVerdicts(raw: unknown, count: number): FeynmanVerdictRow[] {
   const root = obj(raw, "payload");
-  return {
-    verdict: oneOf(root.verdict, VERDICTS, "verdict"),
-    response: str(root.response, "response"),
+  const rows = arr(root.verdicts, "verdicts", 1, Math.max(count, 1)).map((r, j) => {
+    const row = obj(r, `verdicts[${j}]`);
+    const i = typeof row.i === "number" ? Math.trunc(row.i) : NaN;
+    if (!Number.isFinite(i) || i < 0 || i >= count)
+      fail(`verdicts[${j}].i must be a rubric index 0-${count - 1}`);
+    const quote = typeof row.quote === "string" ? row.quote.trim().slice(0, 200) : "";
+    return {
+      i,
+      verdict: oneOf(row.verdict, VERDICTS, `verdicts[${j}].verdict`),
+      ...(quote ? { quote } : null),
+    };
+  });
+  // One ruling per row: a repeated index is the model second-guessing itself,
+  // and the first ruling is the one it committed to.
+  return rows.filter((r, at) => rows.findIndex((o) => o.i === r.i) === at);
+}
+
+const validateFeynmanJudgement =
+  (count: number) =>
+  (raw: unknown): FeynmanJudgement => {
+    const root = obj(raw, "payload");
+    return {
+      verdicts: validateFeynmanVerdicts(raw, count),
+      response: str(root.response, "response"),
+      jargon: Array.isArray(root.jargon)
+        ? root.jargon
+            .filter((t): t is string => typeof t === "string" && !!t.trim())
+            .slice(0, 5)
+            .map((t) => t.trim().slice(0, 60))
+        : [],
+    };
   };
-};
 
 export async function judgeFeynman(
   params: JudgeFeynmanParams,
 ): Promise<FeynmanJudgement> {
-  return generateJson(feynmanJudgeMessages(params), validateFeynmanJudgement, {
-    label: "judge-feynman",
-    role: "judge",
-  });
+  return generateJson(
+    feynmanJudgeMessages(params),
+    validateFeynmanJudgement(params.rubric.length),
+    { label: "judge-feynman", role: "judge" },
+  );
 }
 
 export function judgeFeynmanStream(
   params: JudgeFeynmanParams,
 ): AsyncGenerator<StreamFrame> {
+  const count = params.rubric.length;
   return judgeStream<FeynmanJudgement>(feynmanJudgeMessages(params), {
-    firstShape: `{"verdict": "good" | "skipped" | "confused"}`,
-    first: (raw) => ({
-      verdict: oneOf(obj(raw, "verdict").verdict, VERDICTS, "verdict"),
-    }),
-    full: validateFeynmanJudgement,
+    firstShape: `{"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one per rubric row]}`,
+    first: (raw) => ({ verdicts: validateFeynmanVerdicts(raw, count) }),
+    full: validateFeynmanJudgement(count),
     label: "judge-feynman",
   });
 }

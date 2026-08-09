@@ -17,7 +17,6 @@ import {
   emptyGraph,
   feynmanGaps,
   feynmanReducer,
-  FEYNMAN_BEATS,
   feynmanStart,
   freshAdherence,
   graphFromMapNodes,
@@ -68,6 +67,7 @@ import {
   type FeynmanAction,
   type FeynmanBeat,
   type FeynmanSession,
+  type TeachVerdict,
   type GapSpec,
   type NodeState,
   type OnboardingForm,
@@ -107,6 +107,7 @@ import {
   fetchFeynmanStream,
   fetchJudgeCrucible,
   fetchJudgeFeynman,
+  type FeynmanJudgement,
   fetchJudgeSocratic,
   fetchPassageStream,
   fetchRetain,
@@ -329,6 +330,12 @@ export default function AtlasApp({
     nodeId: string;
     steps: SocraticStep[];
   } | null>(null);
+  // …and the unfinished teach-backs, per node, persisted for the same reason
+  // Socratic's are: a Gap Report is somewhere to come back to, not something
+  // to re-earn by teaching the whole concept again.
+  const [feynmanProgress, setFeynmanProgress] = useState<
+    Record<string, FeynmanSession>
+  >({});
   // The active Feynman (Phase 3b) teach-back session, or null.
   const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
   // …and the same for the teach-back's beats.
@@ -429,6 +436,8 @@ export default function AtlasApp({
   socraticRef.current = socratic;
   const feynmanRef = useRef(feynman);
   feynmanRef.current = feynman;
+  const feynmanProgressRef = useRef(feynmanProgress);
+  feynmanProgressRef.current = feynmanProgress;
   const consumeRef = useRef(consume);
   consumeRef.current = consume;
   /** The reading pass on screen — committed sections, or the streaming ones
@@ -454,6 +463,8 @@ export default function AtlasApp({
   misconceptionsRef.current = misconceptions;
   const feynmanCacheRef = useRef(feynmanCache);
   feynmanCacheRef.current = feynmanCache;
+  const liveFeynmanRef = useRef(liveFeynman);
+  liveFeynmanRef.current = liveFeynman;
   const connectCacheRef = useRef(connectCache);
   connectCacheRef.current = connectCache;
   const crucibleCacheRef = useRef(crucibleCache);
@@ -596,6 +607,7 @@ export default function AtlasApp({
       setConsumeProgress({});
       setModalityTally({});
       setSocraticProgress({});
+      setFeynmanProgress({});
       setMisconceptions([]);
       pendingGapsRef.current = [];
       setMomentumPlaying(false);
@@ -621,6 +633,7 @@ export default function AtlasApp({
       setConsumeProgress(s.consumeProgress);
       setModalityTally(s.modalityTally);
       setSocraticProgress(s.socraticProgress);
+      setFeynmanProgress(s.feynmanProgress);
       setMisconceptions(s.misconceptions);
       setScreen("map");
       // A pre-v3 row still carries its caches inline; take them and skip
@@ -722,6 +735,15 @@ export default function AtlasApp({
     });
   }, [socratic]);
 
+  // Same mirror for the teach-back. A pass mid-judgement is skipped — what's
+  // saved stays the last complete state — and a finished one drops out in
+  // `advanceFromFeynman`, once its gaps have actually reached the map.
+  useEffect(() => {
+    if (!feynman || feynman.pending) return;
+    const { nodeId } = feynman;
+    setFeynmanProgress((prev) => ({ ...prev, [nodeId]: feynman }));
+  }, [feynman]);
+
   // Write-through, debounced, in two halves (see lib/persistence.ts).
   //
   // The core: small and touched constantly — a node drag alone rewrites
@@ -729,7 +751,7 @@ export default function AtlasApp({
   useEffect(() => {
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 6,
+      v: 7,
       form,
       graph,
       spawnedIds: [...spawnedIds],
@@ -744,6 +766,7 @@ export default function AtlasApp({
       consumeProgress,
       modalityTally,
       socraticProgress,
+      feynmanProgress,
       misconceptions,
     };
     const timer = setTimeout(() => {
@@ -770,6 +793,7 @@ export default function AtlasApp({
     consumeProgress,
     modalityTally,
     socraticProgress,
+    feynmanProgress,
     misconceptions,
   ]);
 
@@ -2448,9 +2472,9 @@ export default function AtlasApp({
             ? { ...prev, [node.id]: "learning" }
             : prev,
         );
-        setFeynman(
-          feynmanStart(node.id, feynmanCacheRef.current[node.id]?.length ?? FEYNMAN_BEATS),
-        );
+        // A pass left on its Gap Report resumes there — the gaps it found are
+        // not something to re-earn by teaching the whole thing again.
+        setFeynman(feynmanProgressRef.current[node.id] ?? feynmanStart(node.id));
         setSelectedId(node.id);
         setScreen("feynman");
         // Feynman hands straight off to Connect — and the pool Connect keys on
@@ -2493,17 +2517,20 @@ export default function AtlasApp({
             prev[node.id] ? prev : { ...prev, [node.id]: beats },
           );
           setLiveFeynman((prev) => (prev?.nodeId === node.id ? null : prev));
-          // A pass that came up short still has to reach its Gap Report.
-          setFeynman((prev) =>
-            prev?.nodeId === node.id
-              ? feynmanReducer(prev, { type: "hydrate", total: beats.length }, beats)
-              : prev,
-          );
         })
         .catch((err: Error) => {
           if (receivedAny) {
+            // Commit what arrived: without this the rubric never reaches the
+            // cache, so the diff has nothing to grade against and the gaps
+            // never write back to the map — silently, while the toast claims
+            // the opposite.
+            const partial = arrived.filter(Boolean);
+            setFeynmanCache((prev) =>
+              prev[node.id] ? prev : { ...prev, [node.id]: partial },
+            );
+            setLiveFeynman((prev) => (prev?.nodeId === node.id ? null : prev));
             showToast(
-              "Couldn't finish the rest of this teach-back — the beats already written still work.",
+              "Couldn't finish the rest of this teach-back — the sub-points already written still grade it.",
               "Generation incomplete",
             );
             return;
@@ -2517,50 +2544,93 @@ export default function AtlasApp({
     [feynmanParams, generate, loadFeynman, showToast, warm, warmOne],
   );
 
-  const dispatchFeynman = useCallback((action: FeynmanAction) => {
-    setFeynman((prev) => {
-      if (!prev) return prev;
-      const beats = feynmanCacheRef.current[prev.nodeId];
-      if (!beats?.length) return prev;
-      return feynmanReducer(prev, action, beats);
-    });
-  }, []);
+  /** The rubric for a node: the committed one, else whatever has streamed in
+   *  so far — the same fallback `feynmanBeats` renders from. Without it every
+   *  dispatch is a no-op on the cold path, and the learner's first click after
+   *  the opening prompt does nothing until the last row lands. */
+  const feynmanBeatsFor = useCallback(
+    (nodeId: string): FeynmanBeat[] | undefined => {
+      const cached = feynmanCacheRef.current[nodeId];
+      if (cached?.length) return cached;
+      const live = liveFeynmanRef.current;
+      return live?.nodeId === nodeId ? live.beats : undefined;
+    },
+    [],
+  );
+
+  const dispatchFeynman = useCallback(
+    (action: FeynmanAction) => {
+      setFeynman((prev) => {
+        if (!prev) return prev;
+        const beats = feynmanBeatsFor(prev.nodeId);
+        if (!beats?.length) return prev;
+        return feynmanReducer(prev, action, beats);
+      });
+    },
+    [feynmanBeatsFor],
+  );
 
   /**
-   * Real teach-back diffing (#26): the learner's own explanation of the
-   * current beat is diffed server-side against the sub-point — the verdict is
-   * detected from their words, never chosen from a menu.
+   * Real teach-back diffing (#26): the learner's whole explanation is diffed
+   * server-side against a rubric they never saw — every verdict is detected
+   * from their words, and a sub-point they never mentioned is a finding, not
+   * an unanswered prompt.
    */
   const feynmanTeach = useCallback(
     (text: string) => {
       const session = feynmanRef.current;
       if (!session || judgingRef.current) return;
-      const beats = feynmanCacheRef.current[session.nodeId];
-      const beat = beats?.[session.beat];
+      const beats = feynmanBeatsFor(session.nodeId);
       const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
-      if (!beat || !node) return;
+      if (!beats?.length || !node) return;
       setJudging(true);
-      // Verdict-first, as in Socratic: the naive student's diff lands early
-      // and the beat moves; their actual words fill in behind it.
+      // Verdicts-first, as in Socratic: the diff lands early and the Gap
+      // Report opens; the student's actual words fill in behind it.
       let applied = false;
       const apply = (action: FeynmanAction) =>
         setFeynman((prev) => (prev ? feynmanReducer(prev, action, beats) : prev));
+      /** Rows come back by rubric index; the session keys verdicts by beat id. */
+      const byBeat = (rows: FeynmanJudgement["verdicts"]) => {
+        const verdicts: Record<string, TeachVerdict> = {};
+        const quotes: Record<string, string> = {};
+        for (const row of rows) {
+          const beat = beats[row.i];
+          if (!beat) continue;
+          verdicts[beat.id] = row.verdict;
+          if (row.quote) quotes[beat.id] = row.quote;
+        }
+        return { verdicts, quotes };
+      };
+      // A confusion caught here is the richest one the app sees — the learner
+      // said it unprompted, in their own words. Filed once per judgement, on
+      // whichever frame carried the verdicts first.
+      let filed = false;
+      const fileCaught = (rows: FeynmanJudgement["verdicts"]) => {
+        if (filed) return;
+        filed = true;
+        for (const row of rows)
+          if (row.verdict === "confused" && row.quote)
+            fileMisconception(row.quote, node.label);
+      };
       fetchJudgeFeynman(
         {
           topic: formRef.current.topic,
           nodeLabel: node.label,
-          subPoint: beat.subPoint,
-          reference: beat.transcript,
+          rubric: beats.map((b) => ({
+            subPoint: b.subPoint,
+            mustConvey: b.mustConvey,
+          })),
           answer: text,
           language: languageRef.current,
         },
         (partial) => {
-          if (!partial.verdict) return;
+          if (!partial.verdicts?.length) return;
           applied = true;
+          fileCaught(partial.verdicts);
           apply({
             type: "taught",
             text,
-            verdict: partial.verdict,
+            ...byBeat(partial.verdicts),
             response: "",
             pending: true,
           });
@@ -2571,16 +2641,29 @@ export default function AtlasApp({
         },
       )
         .then((j) => {
+          fileCaught(j.verdicts);
           apply(
             applied
               ? { type: "stream", text: j.response }
-              : { type: "taught", text, verdict: j.verdict, response: j.response },
+              : {
+                  type: "taught",
+                  text,
+                  ...byBeat(j.verdicts),
+                  jargon: j.jargon,
+                  response: j.response,
+                },
           );
+          // The jargon list only arrives with the full judgement, so a session
+          // that opened on the verdict frame picks it up here.
+          if (applied && j.jargon.length)
+            setFeynman((prev) =>
+              prev?.nodeId === session.nodeId ? { ...prev, jargon: j.jargon } : prev,
+            );
         })
         .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
         .finally(() => setJudging(false));
     },
-    [showToast],
+    [feynmanBeatsFor, fileMisconception, showToast],
   );
 
   const exitFeynman = useCallback(() => {
@@ -2658,10 +2741,16 @@ export default function AtlasApp({
   const advanceFromFeynman = useCallback(() => {
     if (!feynman) return;
     const node = graphRef.current.nodes.find((n) => n.id === feynman.nodeId);
-    const beats = feynmanCacheRef.current[feynman.nodeId] ?? [];
+    const beats = feynmanBeatsFor(feynman.nodeId) ?? [];
     const specs = feynmanGaps(feynman, beats);
     if (node) specs.forEach((spec) => attachGap(node.id, spec));
     setFeynman(null);
+    // The gaps are on the map now — the pass has nothing left to come back to.
+    setFeynmanProgress((prev) => {
+      if (!prev[feynman.nodeId]) return prev;
+      const { [feynman.nodeId]: _done, ...rest } = prev;
+      return rest;
+    });
     if (node) {
       enterConnect(node);
       if (specs.length)
@@ -2672,7 +2761,7 @@ export default function AtlasApp({
     } else {
       setScreen("map");
     }
-  }, [attachGap, enterConnect, feynman, showToast]);
+  }, [attachGap, enterConnect, feynman, feynmanBeatsFor, showToast]);
 
   /**
    * Understood and connected: the learner made real links (each drafted a card
@@ -4117,6 +4206,7 @@ export default function AtlasApp({
           beats={feynmanBeats}
           session={feynman}
           judging={judging}
+          ready={!!feynmanCache[feynman.nodeId]}
           onExit={exitFeynman}
           onBegin={() => dispatchFeynman({ type: "begin" })}
           onTeach={feynmanTeach}

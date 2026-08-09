@@ -1,18 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import {
   PHASES,
   STATE_COLOR,
   VERDICT_COLOR,
   feynmanClean,
+  feynmanGapCount,
   feynmanGaps,
   feynmanScaffold,
   verdictLabel,
   type FeynmanBeat,
   type FeynmanSession,
-  type TeachLine,
   type TeachVerdict,
 } from "@/lib/curriculum";
 import { InkDots, StreamingText } from "@/components/Pending";
@@ -34,28 +34,35 @@ const STRINGS = {
     back: "← Map",
     sessionLabel: "Session · Feynman",
     confusedStudent: "Confused student",
-    teachBackLead: "Teach it back · I’m the student who’s never heard of it",
     phaseTag: "Phase 3b · Feynman",
     promptTitle: "Teach me this like I’ve never heard of it.",
     promptBody:
-      "Explain it in your own words — I’ll play the student and push back whenever something doesn’t add up. The parts you rush become your gaps.",
+      "Blank page, no outline, no prompts — teach the whole thing in your own words. What you never think to mention is exactly what you don’t own yet.",
     startTeaching: "Start teaching →",
     dontKnowStart: "I don’t know where to start",
-    upNext: "Up next",
-    teach: "teach —",
-    placeholderJudging: "Your student is thinking about what you said…",
+    teachLead: "Teach it back · I’m the student who’s never heard of it",
     placeholderTeach:
-      "Explain it in your own words — as if they've truly never heard of it",
+      "Explain the whole concept in your own words — start anywhere, keep going until you’d be understood",
+    placeholderJudging: "Your student is reading what you taught…",
+    sendToStudent: "That’s my explanation →",
     listening: "Listening",
-    sendToStudent: "Send to my student →",
-    naiveQuestion: "Naive question",
+    preparing: "Getting your student ready…",
     student: "Student",
     gapReportLead: "Gap report · your explanation, diffed",
-    cleanTitle: "Clean teach-back — you explained every piece.",
-    handWavedTitle: "Here’s where you hand-waved.",
+    cleanTitle: "Clean teach-back — you covered every piece.",
+    handWavedTitle: "Here’s what you never explained.",
     explained: (n: number) => `${n} explained`,
-    skipped: (n: number) => `${n} skipped`,
+    skipped: (n: number) => `${n} never explained`,
     confused: (n: number) => `${n} confused`,
+    jargonLead: "Jargon you leaned on without unpacking",
+    jargonNote:
+      "You used these as if I already knew them — naming a thing isn’t explaining it.",
+    delta: (before: number, after: number) =>
+      `Second pass · ${before} gap${before === 1 ? "" : "s"} → ${after}`,
+    deltaClean: (before: number) =>
+      `Second pass · ${before} gap${before === 1 ? "" : "s"} → clean`,
+    wasGap: "was a gap",
+    yourWords: "What you taught",
     fixThis: "Fix this →",
     writeBackNote: (gapCount: number, title: string) => (
       <>
@@ -63,8 +70,9 @@ const STRINGS = {
           {gapCount} gap{gapCount === 1 ? "" : "s"}
         </span>{" "}
         will attach under <span style={{ fontStyle: "italic" }}>{title}</span> as
-        red sub-nodes — each opens a targeted Socratic pass. Fix them here, or
-        carry them to the map and close them in the loop.
+        red sub-nodes — each quotes what you actually said and opens a targeted
+        Socratic pass. Fix them here, or carry them to the map and close them in
+        the loop.
       </>
     ),
     cleanAdvance: "Clean diff · Connect →",
@@ -78,28 +86,35 @@ const STRINGS = {
     back: "← Mapa",
     sessionLabel: "Sessão · Feynman",
     confusedStudent: "Aluno confuso",
-    teachBackLead: "Ensine de volta · sou o aluno que nunca ouviu falar disso",
     phaseTag: "Fase 3b · Feynman",
     promptTitle: "Me ensine isso como se eu nunca tivesse ouvido falar.",
     promptBody:
-      "Explique com suas próprias palavras — eu vou bancar o aluno e questionar sempre que algo não fizer sentido. As partes que você apressa viram suas lacunas.",
+      "Página em branco, sem roteiro, sem dicas — ensine tudo com suas próprias palavras. O que você nem pensa em mencionar é exatamente o que ainda não domina.",
     startTeaching: "Começar a ensinar →",
     dontKnowStart: "Não sei por onde começar",
-    upNext: "A seguir",
-    teach: "ensinar —",
-    placeholderJudging: "Seu aluno está pensando sobre o que você disse…",
+    teachLead: "Ensine de volta · sou o aluno que nunca ouviu falar disso",
     placeholderTeach:
-      "Explique com suas próprias palavras — como se ele realmente nunca tivesse ouvido falar disso",
+      "Explique o conceito inteiro com suas próprias palavras — comece por onde quiser e siga até ser entendido",
+    placeholderJudging: "Seu aluno está lendo o que você ensinou…",
+    sendToStudent: "É essa a minha explicação →",
     listening: "Ouvindo",
-    sendToStudent: "Enviar para meu aluno →",
-    naiveQuestion: "Pergunta ingênua",
+    preparing: "Preparando seu aluno…",
     student: "Aluno",
     gapReportLead: "Relatório de lacunas · sua explicação, comparada",
-    cleanTitle: "Explicação limpa — você explicou cada parte.",
-    handWavedTitle: "Aqui é onde você passou por cima.",
+    cleanTitle: "Explicação limpa — você cobriu cada parte.",
+    handWavedTitle: "Aqui está o que você nunca explicou.",
     explained: (n: number) => `${n} explicado${n === 1 ? "" : "s"}`,
-    skipped: (n: number) => `${n} pulado${n === 1 ? "" : "s"}`,
+    skipped: (n: number) => `${n} nunca explicado${n === 1 ? "" : "s"}`,
     confused: (n: number) => `${n} confuso${n === 1 ? "" : "s"}`,
+    jargonLead: "Jargão que você usou sem abrir",
+    jargonNote:
+      "Você usou estes termos como se eu já os conhecesse — nomear não é explicar.",
+    delta: (before: number, after: number) =>
+      `Segunda passagem · ${before} lacuna${before === 1 ? "" : "s"} → ${after}`,
+    deltaClean: (before: number) =>
+      `Segunda passagem · ${before} lacuna${before === 1 ? "" : "s"} → limpo`,
+    wasGap: "era lacuna",
+    yourWords: "O que você ensinou",
     fixThis: "Corrigir →",
     writeBackNote: (gapCount: number, title: string) => (
       <>
@@ -108,8 +123,9 @@ const STRINGS = {
         </span>{" "}
         {gapCount === 1 ? "vai" : "vão"} se anexar sob{" "}
         <span style={{ fontStyle: "italic" }}>{title}</span> como sub-nós
-        vermelhos — cada uma abre uma passagem socrática focada. Corrija-as
-        aqui, ou leve-as ao mapa e feche-as no ciclo.
+        vermelhos — cada uma cita o que você realmente disse e abre uma
+        passagem socrática focada. Corrija-as aqui, ou leve-as ao mapa e
+        feche-as no ciclo.
       </>
     ),
     cleanAdvance: "Diff limpo · Conectar →",
@@ -123,19 +139,22 @@ const STRINGS = {
 } as const;
 
 interface FeynmanViewProps {
-  /** The generated teach-back beats for this node. */
+  /** The rubric rows for this node — never shown before the explanation. */
   beats: FeynmanBeat[];
   /** The node being taught back — titles the view. */
   title: string;
   /** The subject — context for judging open-ended fix-pass answers. */
   topic: string;
   session: FeynmanSession;
-  /** True while the server judge is diffing the typed explanation (#26). */
+  /** True while the server judge is diffing the explanation (#26). */
   judging: boolean;
+  /** The rubric has finished streaming — the explanation can be diffed against
+   *  all of it rather than against the rows that happen to have arrived. */
+  ready: boolean;
   onExit: () => void;
-  /** Leave the opening prompt and enter the teach-back surface. */
+  /** Leave the opening prompt and enter the blank page. */
   onBegin: () => void;
-  /** The learner's own explanation of the current beat, sent for diffing. */
+  /** The learner's whole explanation, sent for diffing. */
   onTeach: (text: string) => void;
   /** Freeze scaffold — "start with: what problem does this solve?". */
   onScaffold: () => void;
@@ -147,26 +166,13 @@ interface FeynmanViewProps {
   onAdvance: () => void;
 }
 
-/** Accent for an AI line: a naive question, praise, a caught error, a skip. */
-function toneColor(tone: TeachLine["tone"]): string {
-  switch (tone) {
-    case "affirm":
-      return GREEN;
-    case "catch":
-      return RED;
-    case "skip":
-      return GREY;
-    default:
-      return BLUE; // naive
-  }
-}
-
 export default function FeynmanView({
   title,
   topic,
   beats,
   session,
   judging,
+  ready,
   onExit,
   onBegin,
   onTeach,
@@ -178,30 +184,17 @@ export default function FeynmanView({
   onAdvance,
 }: FeynmanViewProps) {
   const t = useT(STRINGS);
-  const beat = beats[session.beat];
-  // The beats stream in one at a time. Until the current one exists there is
-  // nothing to teach, so the opening prompt stays up with its button parked —
-  // in practice the first beat lands while the learner is still reading it.
-  const writing = !beat && !session.reported;
 
-  // ---- the transcript scrolls to the newest line -----------------------
-  const logRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [session.log.length]);
-
-  // The learner's own explanation of the current beat (#26) — spoken or
-  // typed, whichever is faster. Resets when the beat advances.
+  // The learner's own explanation — spoken or typed, whichever is faster.
+  // Cleared when a fresh pass starts.
   const [typed, setTyped] = useState("");
-  useEffect(() => {
-    setTyped("");
-  }, [session.beat, session.reported]);
-
   const send = useCallback(() => {
     const text = typed.trim();
-    if (text && !judging) onTeach(text);
-  }, [judging, onTeach, typed]);
+    if (text && !judging && ready) {
+      setTyped("");
+      onTeach(text);
+    }
+  }, [judging, onTeach, ready, typed]);
 
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
 
@@ -263,7 +256,7 @@ export default function FeynmanView({
         <StudentChip />
       </div>
 
-      {/* Body — a single centered column: teach-back, then the Gap Report */}
+      {/* Body — the opening prompt, the blank page, then the Gap Report */}
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {session.reported ? (
           <GapReport
@@ -277,47 +270,21 @@ export default function FeynmanView({
             onTeachAgain={onTeachAgain}
             onAdvance={onAdvance}
           />
-        ) : !session.started || writing ? (
+        ) : !session.started ? (
           <Prompt
             scaffolded={session.scaffolded}
-            writing={writing}
             onBegin={onBegin}
             onScaffold={onScaffold}
           />
         ) : (
-          <>
-            <div ref={logRef} style={{ flex: 1, overflowY: "auto", padding: "30px 32px" }}>
-              <div style={{ maxWidth: 620, margin: "0 auto" }}>
-                <div style={{ ...kicker(10.5), marginBottom: 22 }}>
-                  {t.teachBackLead}
-                </div>
-                {session.log.map((m, i) => (
-                  <Line key={i} line={m} />
-                ))}
-              </div>
-            </div>
-
-            {/* Input dock — speak the next beat, or answer the interruption */}
-            <div
-              style={{
-                flex: "0 0 auto",
-                borderTop: `1px solid ${color.hairline}`,
-                padding: "16px 32px 22px",
-                background: "rgba(248,246,240,0.55)",
-              }}
-            >
-              <div style={{ maxWidth: 620, margin: "0 auto" }}>
-                <TeachDock
-                  beat={beat}
-                  scaffolded={session.scaffolded && session.beat === 0}
-                  typed={typed}
-                  judging={judging}
-                  onChangeTyped={setTyped}
-                  onSend={send}
-                />
-              </div>
-            </div>
-          </>
+          <TeachPage
+            scaffolded={session.scaffolded}
+            typed={typed}
+            judging={judging}
+            ready={ready}
+            onChangeTyped={setTyped}
+            onSend={send}
+          />
         )}
       </div>
 
@@ -373,11 +340,8 @@ function Prompt({
   scaffolded,
   onBegin,
   onScaffold,
-  writing,
 }: {
   scaffolded: boolean;
-  /** The first beat has not been written yet — nothing to begin on. */
-  writing: boolean;
   onBegin: () => void;
   onScaffold: () => void;
 }) {
@@ -421,19 +385,18 @@ function Prompt({
         </div>
         <button
           onClick={onBegin}
-          disabled={writing}
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: 10,
             padding: "15px 26px",
-            background: writing ? "rgba(44,40,35,0.07)" : color.accent,
-            color: writing ? color.inkGhost : color.accentInk,
+            background: color.accent,
+            color: color.accentInk,
             border: "none",
             borderRadius: 12,
             fontSize: 15,
             fontWeight: 600,
-            cursor: writing ? "default" : "pointer",
+            cursor: "pointer",
             boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
           }}
         >
@@ -477,180 +440,105 @@ function Prompt({
   );
 }
 
-/** The teach-the-next-beat dock: the learner's own words, judged for real (#26).
- *  Voice-first per §SPEC — speaking is closer to real teaching — with typing
- *  always there beside it. */
-function TeachDock({
-  beat,
+/** The blank page. No sub-point, no outline, no "up next" — the omissions are
+ *  the finding, and a prompt above the box would hand them over. Voice-first
+ *  per §SPEC (speaking is closer to real teaching), typing always beside it. */
+function TeachPage({
   scaffolded,
   typed,
   judging,
+  ready,
   onChangeTyped,
   onSend,
 }: {
-  beat: FeynmanBeat | undefined;
   scaffolded: boolean;
   typed: string;
   judging: boolean;
+  ready: boolean;
   onChangeTyped: (v: string) => void;
   onSend: () => void;
 }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
-  if (!beat) return null;
-
+  const blocked = judging || !ready || !typed.trim();
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 11,
-        }}
-      >
-        <span style={{ ...kicker(9.5, "0.1em"), color: color.inkGhost }}>{t.upNext}</span>
-        <span style={{ fontSize: 13, color: color.inkMuted }}>
-          {t.teach} <span style={{ color: color.inkSoft }}>{beat.subPoint}</span>
-        </span>
-      </div>
+    <div style={{ flex: 1, overflowY: "auto", padding: "30px 32px 60px" }}>
+      <div style={{ maxWidth: 620, margin: "0 auto", animation: "fadeUp .3s both" }}>
+        <div style={{ ...kicker(10.5), marginBottom: 18 }}>{t.teachLead}</div>
 
-      {scaffolded && (
-        <div
-          style={{
-            marginBottom: 12,
-            borderLeft: `3px solid ${STATE_COLOR.frontier}`,
-            background: color.amberBg,
-            borderRadius: "0 8px 8px 0",
-            padding: "9px 13px",
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: color.amberInk,
-          }}
-        >
-          {feynmanScaffold(language)}
-        </div>
-      )}
-
-      <textarea
-        value={typed}
-        disabled={judging}
-        onChange={(e) => onChangeTyped(e.target.value)}
-        rows={3}
-        autoFocus
-        placeholder={
-          judging ? t.placeholderJudging : t.placeholderTeach
-        }
-        style={{
-          width: "100%",
-          resize: "none",
-          padding: "12px 14px",
-          borderRadius: 11,
-          border: `1px solid ${color.hairlineStrong}`,
-          background: color.card,
-          fontFamily: font.serif,
-          fontSize: 15.5,
-          lineHeight: 1.5,
-          color: color.ink,
-          marginBottom: 10,
-          opacity: judging ? 0.6 : 1,
-        }}
-      />
-      <div style={{ marginBottom: 12 }}>
-        <MicButton value={typed} onChange={onChangeTyped} disabled={judging} />
-      </div>
-      <button
-        onClick={onSend}
-        disabled={judging || !typed.trim()}
-        style={{
-          padding: "11px 18px",
-          background:
-            judging || !typed.trim() ? "rgba(44,40,35,0.07)" : color.accent,
-          color: judging || !typed.trim() ? color.inkGhost : color.accentInk,
-          border: "none",
-          borderRadius: 11,
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: judging || !typed.trim() ? "default" : "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 9,
-        }}
-      >
-        {judging ? (
-          <>
-            {t.listening}
-            <InkDots size={3.5} />
-          </>
-        ) : (
-          t.sendToStudent
+        {scaffolded && (
+          <div
+            style={{
+              marginBottom: 14,
+              borderLeft: `3px solid ${STATE_COLOR.frontier}`,
+              background: color.amberBg,
+              borderRadius: "0 8px 8px 0",
+              padding: "9px 13px",
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: color.amberInk,
+            }}
+          >
+            {feynmanScaffold(language)}
+          </div>
         )}
-      </button>
-    </div>
-  );
-}
 
-/** One transcript line — the learner's explanation, or the student's reaction. */
-function Line({ line }: { line: TeachLine }) {
-  const t = useT(STRINGS);
-  if (line.role === "learner") {
-    return (
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
-        <div
+        <textarea
+          value={typed}
+          disabled={judging}
+          onChange={(e) => onChangeTyped(e.target.value)}
+          rows={14}
+          autoFocus
+          placeholder={judging ? t.placeholderJudging : t.placeholderTeach}
           style={{
-            maxWidth: "84%",
-            background: color.accentBg,
-            border: `1px solid rgba(47,107,79,0.18)`,
-            borderRadius: "12px 12px 3px 12px",
-            padding: "11px 15px",
+            width: "100%",
+            resize: "vertical",
+            padding: "16px 18px",
+            borderRadius: 12,
+            border: `1px solid ${color.hairlineStrong}`,
+            background: color.card,
             fontFamily: font.serif,
-            fontSize: 15.5,
-            lineHeight: 1.5,
+            fontSize: 16,
+            lineHeight: 1.6,
             color: color.ink,
-            animation: "fadeUp .25s both",
+            marginBottom: 12,
+            opacity: judging ? 0.6 : 1,
+          }}
+        />
+        <div style={{ marginBottom: 14 }}>
+          <MicButton value={typed} onChange={onChangeTyped} disabled={judging} />
+        </div>
+        <button
+          onClick={onSend}
+          disabled={blocked}
+          style={{
+            padding: "13px 20px",
+            background: blocked ? "rgba(44,40,35,0.07)" : color.accent,
+            color: blocked ? color.inkGhost : color.accentInk,
+            border: "none",
+            borderRadius: 11,
+            fontSize: 14.5,
+            fontWeight: 600,
+            cursor: blocked ? "default" : "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 9,
           }}
         >
-          <Rich text={line.text} />
-        </div>
-      </div>
-    );
-  }
-  const accent = toneColor(line.tone);
-  const naive = line.tone === "naive";
-  return (
-    <div style={{ marginBottom: 18, animation: "fadeUp .3s both" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 7,
-          marginBottom: 6,
-          fontFamily: font.mono,
-          fontSize: 9.5,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: color.inkGhost,
-        }}
-      >
-        <span style={{ fontSize: 12 }}>🙋</span>
-        {naive ? t.naiveQuestion : t.student}
-      </div>
-      <div
-        style={{
-          maxWidth: "88%",
-          background: color.card,
-          border: `1px solid ${color.hairline}`,
-          borderLeft: `3px solid ${accent}`,
-          borderRadius: "3px 12px 12px 12px",
-          padding: "12px 15px",
-          fontFamily: font.serif,
-          fontSize: 15.5,
-          lineHeight: 1.5,
-          color: color.ink,
-        }}
-      >
-        {/* The verdict landed; the student's actual words type themselves in. */}
-        <StreamingText text={line.text} writing={!!line.pending} />
+          {judging ? (
+            <>
+              {t.listening}
+              <InkDots size={3.5} />
+            </>
+          ) : !ready ? (
+            <>
+              {t.preparing}
+              <InkDots size={3.5} />
+            </>
+          ) : (
+            t.sendToStudent
+          )}
+        </button>
       </div>
     </div>
   );
@@ -690,6 +578,11 @@ function GapReport({
   );
   const clean = feynmanClean(session, beats);
   const gapCount = feynmanGaps(session, beats).length;
+  // The delta is the only place the learner sees the loop working on them:
+  // this pass's gaps against the one they just re-taught.
+  const before = session.previous
+    ? feynmanGapCount(session.previous, beats)
+    : null;
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "30px 32px 60px" }}>
@@ -708,6 +601,97 @@ function GapReport({
           {clean ? t.cleanTitle : t.handWavedTitle}
         </div>
 
+        {before !== null && (
+          <div
+            style={{
+              display: "inline-block",
+              marginBottom: 18,
+              padding: "6px 12px",
+              borderRadius: 8,
+              background: color.chipBg,
+              fontFamily: font.mono,
+              fontSize: 11,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: gapCount < before ? GREEN : color.inkFaint,
+            }}
+          >
+            {clean ? t.deltaClean(before) : t.delta(before, gapCount)}
+          </div>
+        )}
+
+        {/* The naive student, reacting to the whole explanation */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            marginBottom: 6,
+            fontFamily: font.mono,
+            fontSize: 9.5,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: color.inkGhost,
+          }}
+        >
+          <span style={{ fontSize: 12 }}>🙋</span>
+          {t.student}
+        </div>
+        <div
+          style={{
+            background: color.card,
+            border: `1px solid ${color.hairline}`,
+            borderLeft: `3px solid ${clean ? GREEN : BLUE}`,
+            borderRadius: "3px 12px 12px 12px",
+            padding: "12px 15px",
+            fontFamily: font.serif,
+            fontSize: 15.5,
+            lineHeight: 1.5,
+            color: color.ink,
+            marginBottom: 20,
+          }}
+        >
+          <StreamingText text={session.response} writing={session.pending} />
+        </div>
+
+        {/* The Feynman rule itself: named is not explained */}
+        {session.jargon.length > 0 && (
+          <div
+            style={{
+              border: `1px solid rgba(160,106,48,0.25)`,
+              background: color.amberBg,
+              borderRadius: 10,
+              padding: "12px 15px",
+              marginBottom: 20,
+            }}
+          >
+            <div style={{ ...kicker(9.5, "0.1em"), color: color.amberInk, marginBottom: 8 }}>
+              {t.jargonLead}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 8 }}>
+              {session.jargon.map((term) => (
+                <span
+                  key={term}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 7,
+                    background: color.card,
+                    border: `1px solid rgba(160,106,48,0.3)`,
+                    fontFamily: font.mono,
+                    fontSize: 12,
+                    color: color.amberInk,
+                  }}
+                >
+                  {term}
+                </span>
+              ))}
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, color: color.amberInk }}>
+              {t.jargonNote}
+            </div>
+          </div>
+        )}
+
         {/* Legend + counts */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <LegendChip color={GREEN} label={t.explained(counts.good)} />
@@ -723,6 +707,12 @@ function GapReport({
             const c = VERDICT_COLOR[verdict];
             const open = session.fixing === b.id;
             const fixable = verdict !== "good";
+            const quote = session.quotes[b.id];
+            const closed =
+              verdict === "good" &&
+              session.previous &&
+              session.previous[b.id] &&
+              session.previous[b.id] !== "good";
             return (
               <div
                 key={b.id}
@@ -747,6 +737,19 @@ function GapReport({
                   <span style={{ fontFamily: font.serif, fontSize: 16, flex: 1 }}>
                     <Rich text={b.subPoint} />
                   </span>
+                  {closed && (
+                    <span
+                      style={{
+                        fontFamily: font.mono,
+                        fontSize: 9.5,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: color.inkGhost,
+                      }}
+                    >
+                      {t.wasGap}
+                    </span>
+                  )}
                   <span
                     style={{
                       fontFamily: font.mono,
@@ -780,6 +783,23 @@ function GapReport({
                   )}
                 </div>
 
+                {/* Their own words, caught — the same quote the gap node carries */}
+                {quote && verdict !== "good" && (
+                  <div
+                    style={{
+                      marginTop: 9,
+                      paddingLeft: 20,
+                      fontFamily: font.serif,
+                      fontSize: 14,
+                      lineHeight: 1.45,
+                      fontStyle: "italic",
+                      color: color.inkMuted,
+                    }}
+                  >
+                    “{quote}”
+                  </div>
+                )}
+
                 {open && (
                   <FixPass
                     beat={b}
@@ -795,6 +815,40 @@ function GapReport({
             );
           })}
         </div>
+
+        {/* What they actually taught, kept out of the way but never lost */}
+        {session.explanation && (
+          <details style={{ marginBottom: 20 }}>
+            <summary
+              style={{
+                cursor: "pointer",
+                fontFamily: font.mono,
+                fontSize: 10.5,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: color.inkFaint,
+              }}
+            >
+              {t.yourWords}
+            </summary>
+            <div
+              style={{
+                marginTop: 10,
+                background: color.accentBg,
+                border: `1px solid rgba(47,107,79,0.18)`,
+                borderRadius: 10,
+                padding: "12px 15px",
+                fontFamily: font.serif,
+                fontSize: 15,
+                lineHeight: 1.55,
+                whiteSpace: "pre-wrap",
+                color: color.ink,
+              }}
+            >
+              {session.explanation}
+            </div>
+          </details>
+        )}
 
         {/* Write-back note — the connective tissue back to the map */}
         {!clean && (

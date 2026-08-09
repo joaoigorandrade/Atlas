@@ -136,9 +136,14 @@ kind, where latency is dominated by sequential output decoding:
   can't be centred until their height is known, so the settling pass re-yields
   every node at its original index and frame replacement folds it in.
 - A surface that renders a streamed list must not derive "am I on the last
-  one?" from the array's length. `SocraticSession`/`FeynmanSession` carry an
-  explicit `total` for exactly this reason; deriving it from `.length` ends the
-  session as soon as the learner answers the first item.
+  one?" from the array's length. `SocraticSession` carries an explicit `total`
+  for exactly this reason; deriving it from `.length` ends the session as soon
+  as the learner answers the first item. (Feynman needs no `total`: the learner
+  teaches the whole concept once, and the rubric is graded as a set.)
+- A surface that dispatches against streamed content must read it the same way
+  it renders it — the committed cache *or* the live stream (`socraticStepsFor`,
+  `feynmanBeatsFor`). Reading only the cache makes every action a silent no-op
+  until the stream finishes, which looks like a dead button, not a wait.
 - **`after()`** (`app/api/generate/route.ts`) warms the new map's frontier
   server-side once the build response has flushed, so the first node click is a
   cache hit. It records through the same `logGenerationCalls` helper as

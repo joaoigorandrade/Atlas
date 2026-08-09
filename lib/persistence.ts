@@ -22,6 +22,7 @@ import type {
   CrucibleContent,
   ElaborationContent,
   FeynmanBeat,
+  FeynmanSession,
   MisconceptionRecord,
   ModalityTally,
   OnboardingForm,
@@ -59,7 +60,7 @@ export const emptyCaches = (): RunCaches => ({
 });
 
 export interface RunSnapshot {
-  v: 6;
+  v: 7;
   form: OnboardingForm;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
@@ -86,6 +87,10 @@ export interface RunSnapshot {
    *  reading keeps its place: a session left half-answered is somewhere to
    *  come back to, not a transcript to re-earn. Finished passes drop out. */
   socraticProgress: Record<string, SocraticSession>;
+  /** The unfinished teach-back on each node (§3b) — including one parked on
+   *  its Gap Report, whose gaps haven't been carried to the map yet. Dropped
+   *  once they have. */
+  feynmanProgress: Record<string, FeynmanSession>;
   /** What this learner keeps getting wrong, run-wide (§3a). Unlike the passes
    *  above — dropped the moment one finishes — this outlives every session,
    *  because "you keep confusing X and Y" is the one thing a tutor can only
@@ -93,11 +98,11 @@ export interface RunSnapshot {
   misconceptions: MisconceptionRecord[];
 }
 
-/** What may come back from the table: a v1 … v5 snapshot. v1 predates
+/** What may come back from the table: a v1 … v7 snapshot. v1 predates
  *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
  *  content caches inline, which v3 moved to their own column; v4 adds the
  *  Consume reading progress and the modality tally; v5 the Socratic one; v6
- *  the run-wide misconception roll-up. */
+ *  the run-wide misconception roll-up; v7 the Feynman one. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
   | "v"
@@ -110,6 +115,7 @@ type LoadedSnapshot = Omit<
   | "consumeProgress"
   | "modalityTally"
   | "socraticProgress"
+  | "feynmanProgress"
   | "misconceptions"
 > & {
   v: number;
@@ -122,18 +128,19 @@ type LoadedSnapshot = Omit<
   consumeProgress?: Record<string, ConsumeProgress>;
   modalityTally?: ModalityTally;
   socraticProgress?: Record<string, SocraticSession>;
+  feynmanProgress?: Record<string, FeynmanSession>;
   misconceptions?: MisconceptionRecord[];
 };
 
 /** Every snapshot version this loader accepts. */
-const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6];
+const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6, 7];
 
-/** Fill an older snapshot's gaps; a v6 passes through unchanged. */
+/** Fill an older snapshot's gaps; a v7 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
   const { caches: _inline, ...rest } = raw;
   return {
     ...rest,
-    v: 6,
+    v: 7,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
@@ -144,6 +151,7 @@ function migrate(raw: LoadedSnapshot): RunSnapshot {
     consumeProgress: raw.consumeProgress ?? {},
     modalityTally: raw.modalityTally ?? {},
     socraticProgress: raw.socraticProgress ?? {},
+    feynmanProgress: raw.feynmanProgress ?? {},
     misconceptions: raw.misconceptions ?? [],
   };
 }
@@ -191,6 +199,21 @@ export function migrateConsume(
   );
 }
 
+/** Teach-back rubrics written before the blank-page rewrite are scripts, not
+ *  rubrics: a learner monologue and three canned replies, with nothing to grade
+ *  an explanation against. There is no `mustConvey` to recover from them, so
+ *  they are dropped and the node writes a fresh rubric on its next teach-back.
+ *  Detected by shape, like the reading above: these rows carry no version. */
+function usableRubrics(
+  cached: Record<string, FeynmanBeat[]> | undefined,
+): Record<string, FeynmanBeat[]> {
+  return Object.fromEntries(
+    Object.entries(cached ?? {}).filter(([, beats]) =>
+      beats?.every((b) => Array.isArray(b?.mustConvey) && b.mustConvey.length),
+    ),
+  );
+}
+
 /** The one funnel every stored cache passes through — the separate column and
  *  a pre-v3 snapshot's inline copy alike. */
 function normalizeCaches(raw: Partial<RunCaches> | null | undefined): RunCaches {
@@ -200,6 +223,7 @@ function normalizeCaches(raw: Partial<RunCaches> | null | undefined): RunCaches 
     consume: migrateConsume(
       merged.consume as unknown as Record<string, LegacyConsumeChunk[]>,
     ),
+    feynman: usableRubrics(merged.feynman),
   };
 }
 

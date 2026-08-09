@@ -176,17 +176,11 @@ describe("validateDiagnosticQuestion", () => {
 
 // ---- feynman: template echoes (#10) -------------------------------------------
 
-function feynmanPayload(labels: [string, string, string]) {
+function feynmanPayload(mustConvey: [string, string, string]) {
   return {
     beats: [0, 1, 2].map((i) => ({
       subPoint: `point ${i}`,
-      transcript: "transcript",
-      interjection: "why?",
-      replies: [
-        { label: labels[0], verdict: "good", response: "ok" },
-        { label: labels[1], verdict: "skipped", response: "hm" },
-        { label: labels[2], verdict: "confused", response: "huh" },
-      ],
+      mustConvey: [mustConvey[i]],
       fix: {
         probe: "probe",
         replies: [
@@ -201,24 +195,25 @@ function feynmanPayload(labels: [string, string, string]) {
 }
 
 describe("validateFeynman", () => {
-  it("accepts concrete written-out reply labels", () => {
+  it("accepts a concrete, checkable rubric", () => {
     const beats = validateFeynman("n1")(
       feynmanPayload([
-        "A matrix times a vector recombines the columns",
-        "It just works, trust the formula",
-        "Matrix multiplication rotates every vector",
+        "that a matrix times a vector recombines the columns",
+        "that the transformation keeps the grid evenly spaced",
+        "that the origin never moves",
       ]),
     );
     expect(beats.length).toBe(3);
+    expect(beats[0].mustConvey).toHaveLength(1);
   });
 
-  it("rejects the captured template-echo payload (#10)", () => {
+  it("rejects rubric rows that echo the prompt template (#10)", () => {
     expect(() =>
       validateFeynman("n1")(
         feynmanPayload([
           "a complete, precise answer",
-          "a hand-wave ('you'll feel it', 'just trust it')",
-          "a confidently WRONG answer (a real misconception)",
+          "what the learner says",
+          "a real misconception",
         ]),
       ),
     ).toThrow(/echoes the prompt template/);

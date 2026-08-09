@@ -5,6 +5,8 @@ import {
   daysUntil,
   diagnosticEffect,
   displayStates,
+  feynmanGapCount,
+  feynmanGaps,
   feynmanReducer,
   feynmanStart,
   freshAdherence,
@@ -80,13 +82,7 @@ const steps: SocraticStep[] = [0, 1].map((i) => ({
 const beats: FeynmanBeat[] = [0, 1].map((i) => ({
   id: `b${i + 1}`,
   subPoint: `point ${i}`,
-  transcript: "reference explanation",
-  interjection: "but why?",
-  replies: [
-    { label: "good answer", verdict: "good", response: "ok" },
-    { label: "dodge", verdict: "skipped", response: "still lost" },
-    { label: "wrong claim", verdict: "confused", response: "contradiction" },
-  ],
+  mustConvey: [`the thing point ${i} has to get across`],
   fix: {
     probe: "fix probe",
     replies: [
@@ -439,65 +435,111 @@ describe("socraticReducer against a growing step list", () => {
   });
 });
 
-describe("feynmanReducer against a growing beat list", () => {
-  it("does not open the Gap Report while beats are still arriving", () => {
-    const arrived = beats.slice(0, 1);
-    const s = feynmanStart("n", beats.length);
-    const next = feynmanReducer(
-      s,
-      { type: "taught", text: "t", verdict: "good", response: "r" },
-      arrived,
-    );
-    expect(next.reported).toBe(false);
-    expect(next.beat).toBe(1);
-  });
-
-  it("parks on a beat that has not arrived instead of throwing", () => {
-    const arrived = beats.slice(0, 1);
-    let s = feynmanStart("n", beats.length);
-    s = feynmanReducer(s, { type: "taught", text: "t", verdict: "good", response: "r" }, arrived);
-    expect(feynmanReducer(s, { type: "speak" }, arrived)).toEqual(s);
-  });
-
-  it("reports when the stream ended short of the plan", () => {
-    const arrived = beats.slice(0, 1);
-    let s = feynmanStart("n", beats.length);
-    s = feynmanReducer(s, { type: "taught", text: "t", verdict: "good", response: "r" }, arrived);
-    s = feynmanReducer(s, { type: "hydrate", total: 1 }, arrived);
-    // Re-capped to the beat in hand, so the next answer closes the pass.
-    expect(s.total).toBe(2);
-  });
-});
-
-// ---- feynman ----------------------------------------------------------------
-
 describe("feynmanReducer", () => {
-  it("'taught' sets the judged verdict and advances the beat (#26)", () => {
-    const s = feynmanStart("n", beats.length);
-    const next = feynmanReducer(
-      s,
-      { type: "taught", text: "my words", verdict: "confused", response: "huh?" },
+  it("diffs the whole explanation in one pass and opens the Gap Report (#26)", () => {
+    const s = feynmanReducer(
+      feynmanStart("n"),
+      {
+        type: "taught",
+        text: "my words",
+        verdicts: { b1: "confused", b2: "good" },
+        quotes: { b1: "it just rotates" },
+        jargon: ["eigenbasis"],
+        response: "huh?",
+      },
       beats,
     );
-    expect(next.verdicts["b1"]).toBe("confused");
-    expect(next.beat).toBe(1);
-    expect(next.reported).toBe(false);
+    expect(s.reported).toBe(true);
+    expect(s.verdicts).toEqual({ b1: "confused", b2: "good" });
+    expect(s.quotes.b1).toBe("it just rotates");
+    expect(s.jargon).toEqual(["eigenbasis"]);
+    expect(s.explanation).toBe("my words");
   });
 
-  it("last beat opens the Gap Report", () => {
-    let s = feynmanStart("n", beats.length);
-    s = feynmanReducer(s, { type: "taught", text: "t", verdict: "good", response: "r" }, beats);
-    s = feynmanReducer(s, { type: "taught", text: "t", verdict: "skipped", response: "r" }, beats);
-    expect(s.reported).toBe(true);
+  it("a sub-point the judge never ruled on counts as never explained", () => {
+    const s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "good" }, response: "r" },
+      beats,
+    );
+    // Silence is a skip: an unmentioned row must never grade as taught.
     expect(s.verdicts).toEqual({ b1: "good", b2: "skipped" });
   });
 
+  it("grades against the rubric rows that arrived, not the ones that didn't", () => {
+    const arrived = beats.slice(0, 1);
+    const s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "good" }, response: "r" },
+      arrived,
+    );
+    expect(s.verdicts).toEqual({ b1: "good" });
+    expect(s.reported).toBe(true);
+  });
+
+  it("the student's reaction streams into the open report", () => {
+    let s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "good", b2: "good" }, response: "", pending: true },
+      beats,
+    );
+    s = feynmanReducer(s, { type: "stream", text: "so you mean", pending: true }, beats);
+    expect(s.response).toBe("so you mean");
+    expect(s.pending).toBe(true);
+    s = feynmanReducer(s, { type: "stream", text: "so you mean X." }, beats);
+    expect(s.pending).toBe(false);
+  });
+
   it("a correct fix flips the verdict to good", () => {
-    let s = feynmanStart("n", beats.length);
-    s = feynmanReducer(s, { type: "taught", text: "t", verdict: "confused", response: "r" }, beats);
+    let s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "confused", b2: "good" }, response: "r" },
+      beats,
+    );
     s = feynmanReducer(s, { type: "openFix", beatId: "b1" }, beats);
     s = feynmanReducer(s, { type: "fix", index: 0 }, beats);
     expect(s.verdicts["b1"]).toBe("good");
+  });
+
+  it("teaching it again keeps the last pass's verdicts for the delta", () => {
+    let s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "skipped", b2: "good" }, response: "r" },
+      beats,
+    );
+    s = feynmanReducer(s, { type: "teachAgain" }, beats);
+    expect(s.reported).toBe(false);
+    expect(s.verdicts).toEqual({});
+    expect(s.previous).toEqual({ b1: "skipped", b2: "good" });
+    expect(feynmanGapCount(s.previous!, beats)).toBe(1);
+  });
+});
+
+describe("feynmanGaps", () => {
+  it("quotes the learner's own words back on the gap it writes to the map", () => {
+    const s = feynmanReducer(
+      feynmanStart("n"),
+      {
+        type: "taught",
+        text: "t",
+        verdicts: { b1: "confused", b2: "good" },
+        quotes: { b1: "it just rotates" },
+        response: "r",
+      },
+      beats,
+    );
+    const [gap] = feynmanGaps(s, beats);
+    expect(gap.id).toBe("gap-b1");
+    expect(gap.reason).toBe('You said: "it just rotates" — why');
+  });
+
+  it("falls back to the written reason when nothing was quotable", () => {
+    const s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "skipped", b2: "good" }, response: "r" },
+      beats,
+    );
+    expect(feynmanGaps(s, beats)[0].reason).toBe("why");
   });
 });
 

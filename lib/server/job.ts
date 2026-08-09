@@ -95,7 +95,8 @@ export interface GenerateBody {
   options?: string[];
   reference?: string;
   answer?: string;
-  subPoint?: string;
+  /** judge-feynman: the rubric the whole explanation is diffed against. */
+  rubric?: Array<{ subPoint: string; mustConvey: string[] }>;
   problem?: string;
   hint?: string;
   // judge-socratic fields (#A, #B) — the dialogue so far, the anticipated
@@ -515,14 +516,26 @@ export function resolveJob(body: GenerateBody): Job {
         );
       }
       if (body.mode === "feynman") {
-        const p = {
-          topic,
-          nodeLabel,
-          subPoint: s(body.subPoint).slice(0, CAPS.nodeLabel * 2),
-          reference: s(body.reference).slice(0, CAPS.freeText),
-          explanation: answer,
-          language,
-        };
+        const rubric = Array.isArray(body.rubric)
+          ? body.rubric
+              .filter(
+                (r) =>
+                  typeof r === "object" &&
+                  r !== null &&
+                  typeof r.subPoint === "string" &&
+                  Array.isArray(r.mustConvey),
+              )
+              .slice(0, CAPS.listItems)
+              .map((r) => ({
+                subPoint: r.subPoint.slice(0, CAPS.nodeLabel * 2),
+                mustConvey: r.mustConvey
+                  .filter((m): m is string => typeof m === "string")
+                  .slice(0, 4)
+                  .map((m) => m.slice(0, CAPS.nodeLabel * 4)),
+              }))
+          : [];
+        if (!rubric.length) throw badRequest("rubric is required");
+        const p = { topic, nodeLabel, rubric, explanation: answer, language };
         return uncached(
           async () => ({ judgement: await judgeFeynman(p) }),
           () => judgeFeynmanStream(p),

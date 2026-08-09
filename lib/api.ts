@@ -515,16 +515,23 @@ export function fetchJudgeSocratic(
 }
 
 export interface FeynmanJudgement {
-  verdict: "good" | "skipped" | "confused";
+  /** One ruling per rubric row, by index — `quote` carries the learner's own
+   *  words on a gap, so the map can say them back. */
+  verdicts: Array<{
+    i: number;
+    verdict: "good" | "skipped" | "confused";
+    quote?: string;
+  }>;
   response: string;
+  /** Terms they used but never unpacked. */
+  jargon: string[];
 }
 
 export function fetchJudgeFeynman(
   params: {
     topic: string;
     nodeLabel: string;
-    subPoint: string;
-    reference: string;
+    rubric: Array<{ subPoint: string; mustConvey: string[] }>;
     answer: string;
     language?: Language;
   },

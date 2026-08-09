@@ -62,12 +62,9 @@ const socraticStep = (i: number) => ({
 
 const feynmanBeat = (i: number) => ({
   subPoint: `sub point ${i + 1}`,
-  transcript: "I would say this",
-  interjection: "but why?",
-  replies: [
-    { label: "The value drops when its owner leaves scope", verdict: "good", response: "ok" },
-    { label: "The compiler handles it for you", verdict: "skipped", response: "still lost" },
-    { label: "Both bindings stay valid afterwards", verdict: "confused", response: "contradiction" },
+  mustConvey: [
+    "that the value drops when its owner leaves scope",
+    "that the old binding stops being usable after a move",
   ],
   fix: {
     probe: "fix probe",
@@ -77,7 +74,7 @@ const feynmanBeat = (i: number) => ({
     ],
   },
   gapLabel: `gap ${i + 1}`,
-  gapReason: "you taught X as Y",
+  gapReason: "the ownership-copy trap",
 });
 
 /** Set to make the *streamed* branch emit junk, so the generator has to fall
