@@ -557,6 +557,10 @@ export interface SocraticStep {
   hint: string;
   /** Direct instruction for "Just tell me" — drops the Socratic act entirely. */
   tell: string;
+  /** A held-back probe. The pass plans its core steps (`socraticPlan`) and only
+   *  reaches for these when weak understanding buys one — so the length of a
+   *  pass follows the learner, not a constant. */
+  spare?: boolean;
 }
 
 /** One line of the Socratic transcript. */
@@ -631,8 +635,9 @@ function openStep(
 }
 
 /** A fresh session, opened on its first probe. Starts mid-dial, at Hint.
- *  `total` is the number of steps the pass will have, which may exceed what
- *  has arrived when the session opens on a stream. */
+ *  `total` is the number of steps the pass *plans* to run: more than has
+ *  arrived when it opens on a stream, and fewer than are written when the pass
+ *  came with spares (`socraticPlan`) for a struggling learner to buy. */
 export function socraticStart(
   nodeId: string,
   steps: SocraticStep[],
@@ -647,7 +652,7 @@ export function socraticStart(
     tells: 0,
     resolutions: [],
     stepAssisted: false,
-    total: Math.max(total, steps.length),
+    total: Math.max(1, total),
     awaitingNext: !first,
     done: false,
     log: first ? [{ role: "ai", text: first.prompt, move: first.move }] : [],
@@ -735,12 +740,13 @@ export function socraticReducer(
     // With no steps in hand yet (a resumed session reopening on an empty
     // stream) there is no real evidence the plan came up short — trust the
     // requested/saved total instead of clamping it down to `step + 1`.
+    // `action.total` is a cap, not a set: it closes a pass whose stream came up
+    // short, but never overrides probes the session bought on the way — the
+    // written spares run past the plan on purpose.
+    const planned = Math.min(session.total, action.total ?? Infinity);
     const total = steps.length
-      ? Math.max(
-          1,
-          Math.min(action.total ?? session.total, Math.max(steps.length, session.step + 1)),
-        )
-      : Math.max(1, action.total ?? session.total);
+      ? Math.max(1, Math.min(planned, Math.max(steps.length, session.step + 1)))
+      : Math.max(1, planned);
     const capped = { ...session, total };
     if (!capped.awaitingNext) return capped;
     if (capped.step >= total) return { ...capped, awaitingNext: false, done: true };
@@ -752,8 +758,8 @@ export function socraticReducer(
   if (!step) return session;
 
   // Advancing earns the ending: three unaided answers running end the pass
-  // early (#D), two straight assisted ones buy one more probe if the plan
-  // wrote a spare — otherwise it runs to `total` as planned.
+  // early (#D); two straight assisted ones buy another probe out of the spares
+  // — again and again, while spares last — otherwise it runs to `total`.
   const advance = (base: SocraticSession, resolution: StepResolution): SocraticSession => {
     const resolutions = [...base.resolutions, resolution];
     let total = base.total;
@@ -764,10 +770,20 @@ export function socraticReducer(
     ) {
       total = resolutions.length;
     }
+    // Weak understanding buys probes — one per two assisted steps running, for
+    // as long as the plan wrote spares to spend. Not the single spare slot
+    // `steps.length` used to allow: a learner still working at it keeps
+    // earning questions.
+    //
+    // Two told-outright steps running buy nothing. That learner isn't
+    // reasoning their way anywhere and more probes would only be more to click
+    // through; `socraticOutcome` flags them back to the reading instead.
+    const recent = resolutions.slice(-2);
     if (
       resolutions.length >= 2 &&
       total < steps.length &&
-      resolutions.slice(-2).every((r) => r !== "unaided")
+      recent.every((r) => r !== "unaided") &&
+      recent.some((r) => r === "hint")
     ) {
       total += 1;
     }
@@ -1026,10 +1042,81 @@ export interface FeynmanSession {
   total: number;
 }
 
-/** How many probes a Socratic pass runs — one per move. Fixed rather than
- *  derived for the same reason as the beats below: the steps stream in one at
- *  a time, so the session needs its length before the last one arrives. */
+/** The most core probes a Socratic pass plans — one per move, and the estimate
+ *  a streaming pass opens on before its own plan has arrived. A session needs a
+ *  length before its last step lands, which is the only reason this is a
+ *  constant at all; `socraticPlan` is the real, per-concept count. */
 export const SOCRATIC_STEPS = 4;
+
+/** The fewest core probes a concept can be worth — a simple one gets three. */
+export const SOCRATIC_MIN_STEPS = 3;
+
+/** Probes written past the core, spent one at a time by a learner who keeps
+ *  needing help. Unspent, they cost nothing but the tokens that wrote them. */
+export const SOCRATIC_SPARES = 2;
+
+/** The longest a written pass can be — core plus spares. The validator's bound,
+ *  and the ceiling a struggling learner can buy up to. */
+export const SOCRATIC_MAX_STEPS = SOCRATIC_STEPS + SOCRATIC_SPARES;
+
+/** How many probes a written pass *plans* to run: its core steps, with the
+ *  spares held back. The count is the model's call — as many as the concept
+ *  needs — so this reads it off the material instead of assuming four. */
+export function socraticPlan(steps: SocraticStep[]): number {
+  const core = steps.filter((s) => !s.spare).length;
+  return core || steps.length || SOCRATIC_STEPS;
+}
+
+// ---- misconception memory (across nodes, across sessions) -----------------
+// A `SocraticSession` is thrown away when its pass ends, and `socraticProgress`
+// deliberately drops finished ones — so every wrong turn the tutor caught used
+// to die with the session that caught it. This is the part worth keeping: what
+// this learner gets wrong *everywhere*, so the tutor can name the pattern
+// instead of meeting the same confusion cold every time.
+
+/** One wrong idea this learner has hit, rolled up run-wide. */
+export interface MisconceptionRecord {
+  /** The wrong idea itself, short enough to say back to them. */
+  label: string;
+  /** The concept it was last caught under. */
+  node: string;
+  count: number;
+}
+
+/** The roll-up stays bounded — the tutor only ever reads the top few. */
+const MISCONCEPTION_CAP = 24;
+
+/** File a caught misconception, merging it into one this learner has hit before
+ *  (case-insensitively) so a repeat becomes a count, not a second entry. */
+export function recordMisconception(
+  list: MisconceptionRecord[],
+  label: string,
+  node: string,
+): MisconceptionRecord[] {
+  const text = label.trim().slice(0, 120);
+  if (!text) return list;
+  const key = text.toLowerCase();
+  const at = list.findIndex((m) => m.label.toLowerCase() === key);
+  const next =
+    at >= 0
+      ? list.map((m, i) => (i === at ? { ...m, node, count: m.count + 1 } : m))
+      : [...list, { label: text, node, count: 1 }];
+  return next.length > MISCONCEPTION_CAP ? next.slice(-MISCONCEPTION_CAP) : next;
+}
+
+/** What the judge is told about this learner: the confusions they keep coming
+ *  back to, worst first. Seen once is noise — it earns its name on the repeat,
+ *  which is exactly when "you keep confusing X and Y" is a true thing to say. */
+export function recurringMisconceptions(
+  list: MisconceptionRecord[],
+  limit = 3,
+): string[] {
+  return list
+    .filter((m) => m.count >= 2)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map((m) => `"${m.label}" — hit ${m.count}× (last under ${m.node})`);
+}
 
 /** How many beats a teach-back runs. Fixed rather than derived: the beats
  *  stream in one at a time, so the session needs its length before the last

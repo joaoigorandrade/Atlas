@@ -41,6 +41,8 @@ import {
   ALT_KEYS,
   DIAGNOSTIC_DIFFICULTIES,
   FEYNMAN_BEATS,
+  SOCRATIC_MAX_STEPS,
+  SOCRATIC_MIN_STEPS,
   MODEL_BEAT_BOUNDS,
   type AltKey,
   type DiagnosticDifficulty,
@@ -101,6 +103,7 @@ export interface GenerateBody {
   history?: Array<{ role: "ai" | "learner"; text: string }>;
   attempt?: number;
   misconceptions?: Array<{ label: string; quality: string }>;
+  recurring?: unknown;
   help?: number;
 }
 
@@ -339,8 +342,9 @@ export function resolveJob(body: GenerateBody): Job {
         key: contentKey("socratic", params),
         run: async () => ({ steps: await generateSocratic(params) }),
         stream: () => generateSocraticStream(params),
-        // Mirrors `validateSocratic`'s 3-5 bound, not the 4 the prompt asks for.
-        shape: { steps: { min: 3, max: 5 } },
+        // Mirrors `validateSocratic`'s bound, not the core count the prompt
+        // asks for — the spares are part of the written pass.
+        shape: { steps: { min: SOCRATIC_MIN_STEPS, max: SOCRATIC_MAX_STEPS } },
       };
     }
 
@@ -485,6 +489,12 @@ export function resolveJob(body: GenerateBody): Job {
               )
               .slice(0, CAPS.listItems)
           : undefined;
+        const recurring = Array.isArray(body.recurring)
+          ? body.recurring
+              .filter((r): r is string => typeof r === "string")
+              .slice(0, CAPS.listItems)
+              .map((r) => r.slice(0, CAPS.nodeLabel * 2))
+          : undefined;
         const p = {
           topic,
           nodeLabel,
@@ -494,6 +504,7 @@ export function resolveJob(body: GenerateBody): Job {
           history,
           attempt: typeof body.attempt === "number" ? Math.max(1, Math.round(body.attempt)) : undefined,
           misconceptions,
+          recurring,
           help:
             typeof body.help === "number" ? Math.max(0, Math.min(3, Math.round(body.help))) : undefined,
           language,

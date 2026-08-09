@@ -488,6 +488,9 @@ async function judge<T>(
 export interface SocraticJudgement {
   quality: "correct" | "near" | "wrong" | "lost";
   response: string;
+  /** The wrong idea in a few words, on a caught "near"/"wrong" — filed into the
+   *  run's misconception roll-up so a repeat can be named as one. */
+  misconception?: string;
 }
 
 export function fetchJudgeSocratic(
@@ -500,6 +503,8 @@ export function fetchJudgeSocratic(
     history?: Array<{ role: "ai" | "learner"; text: string }>;
     attempt?: number;
     misconceptions?: Array<{ label: string; quality: string }>;
+    /** What this learner keeps getting wrong run-wide (`recurringMisconceptions`). */
+    recurring?: string[];
     help?: number;
     language?: Language;
   },

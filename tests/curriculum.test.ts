@@ -15,12 +15,16 @@ import {
   rolloverAdherence,
   socraticOutcome,
   socraticReducer,
+  socraticPlan,
   socraticStart,
+  recordMisconception,
+  recurringMisconceptions,
   spawnGap,
   stepDifficulty,
   type ConceptGraph,
   type CrucibleContent,
   type FeynmanBeat,
+  type SocraticSession,
   type SocraticStep,
 } from "@/lib/curriculum";
 
@@ -255,15 +259,93 @@ describe("socraticReducer adaptive length", () => {
     expect(s.resolutions).toEqual(["unaided", "unaided", "unaided"]);
   });
 
-  it("buys one more probe after two straight assisted steps, if the plan wrote a spare", () => {
-    const three = [0, 1, 2].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
-    // total pinned at 2 even though a third step is already available.
-    let s = socraticStart("n", three.slice(0, 2), 2);
-    s = socraticReducer(s, { type: "tell" }, three); // step 0: told
-    s = socraticReducer(s, { type: "tell" }, three); // step 1: told → would finish at total=2
+  it("buys probes, one per two assisted steps running, while spares last", () => {
+    // A two-probe plan with two spares written behind it.
+    const four = [0, 1, 2, 3].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
+    const assisted = (x: SocraticSession) =>
+      socraticReducer(
+        socraticReducer(x, { type: "stuck" }, four),
+        { type: "reply", index: 0 },
+        four,
+      );
+    let s = socraticStart("n", four, 2);
+    s = assisted(s); // step 0: hint
+    s = assisted(s); // step 1: hint → buys the first spare
     expect(s.total).toBe(3);
     expect(s.done).toBe(false);
-    expect(s.step).toBe(2);
+    s = assisted(s); // step 2: hint → buys the second
+    expect(s.total).toBe(4);
+    expect(s.done).toBe(false);
+    expect(s.step).toBe(3);
+  });
+
+  it("buys nothing for a learner who is only asking to be told", () => {
+    const four = [0, 1, 2, 3].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
+    let s = socraticStart("n", four, 2);
+    s = socraticReducer(s, { type: "tell" }, four); // step 0: told
+    s = socraticReducer(s, { type: "tell" }, four); // step 1: told → the pass ends
+    expect(s.total).toBe(2);
+    expect(s.done).toBe(true);
+    // …and it ends flagged, which routes back into the reading.
+    expect(socraticOutcome(s, false)).toBe("flagged");
+  });
+
+  it("a re-cap shortens a pass that came up short, but never undoes a bought probe", () => {
+    const four = [0, 1, 2, 3].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
+    let s = socraticStart("n", four, 2);
+    for (let i = 0; i < 2; i++) {
+      s = socraticReducer(s, { type: "stuck" }, four);
+      s = socraticReducer(s, { type: "reply", index: 0 }, four);
+    }
+    expect(s.total).toBe(3);
+    // The whole written pass landing must not stretch the plan back out to 4.
+    expect(socraticReducer(s, { type: "hydrate", total: four.length }, four).total).toBe(3);
+  });
+});
+
+// ---- the pass length is the concept's, not a constant ----------------------
+
+describe("socraticPlan", () => {
+  it("counts the core probes and leaves the spares out", () => {
+    const written: SocraticStep[] = [
+      steps[0],
+      steps[1],
+      { ...steps[0], id: "s3", spare: true },
+      { ...steps[0], id: "s4", spare: true },
+    ];
+    expect(socraticPlan(written)).toBe(2);
+    // Nothing marked (a pass cached before spares existed) plans all of it.
+    expect(socraticPlan(steps)).toBe(2);
+  });
+});
+
+// ---- misconception memory (across nodes, across sessions) ------------------
+
+describe("misconception roll-up", () => {
+  it("merges a repeat into a count rather than a second entry", () => {
+    let list = recordMisconception([], "Treats scaling as rotation", "Linear maps");
+    list = recordMisconception(list, "treats scaling as ROTATION", "Eigenvectors");
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ count: 2, node: "Eigenvectors" });
+  });
+
+  it("only names what the learner keeps coming back to", () => {
+    let list = recordMisconception([], "seen once", "A");
+    list = recordMisconception(list, "seen twice", "A");
+    list = recordMisconception(list, "seen twice", "B");
+    const recurring = recurringMisconceptions(list);
+    expect(recurring).toHaveLength(1);
+    expect(recurring[0]).toContain("seen twice");
+    expect(recurring[0]).toContain("2×");
+  });
+
+  it("ignores an empty tag and stays bounded", () => {
+    expect(recordMisconception([], "   ", "A")).toEqual([]);
+    let list = recordMisconception([], "m0", "A");
+    for (let i = 1; i < 40; i++) list = recordMisconception(list, `m${i}`, "A");
+    expect(list.length).toBeLessThanOrEqual(24);
+    // The most recent survive the cap.
+    expect(list.at(-1)?.label).toBe("m39");
   });
 });
 

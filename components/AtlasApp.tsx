@@ -38,7 +38,10 @@ import {
   retainStart,
   reviewCard,
   rolloverAdherence,
+  recordMisconception,
+  recurringMisconceptions,
   socraticOutcome,
+  socraticPlan,
   socraticReducer,
   socraticStart,
   SOCRATIC_STEPS,
@@ -73,6 +76,7 @@ import {
   type ReviewConfidence,
   type ReviewGrade,
   type ShakyReason,
+  type MisconceptionRecord,
   type SocraticAction,
   type SocraticSession,
   type SocraticStep,
@@ -314,6 +318,10 @@ export default function AtlasApp({
   const [socraticProgress, setSocraticProgress] = useState<
     Record<string, SocraticSession>
   >({});
+  /** What this learner keeps getting wrong, across nodes and across sessions.
+   *  The pass state above is discarded the moment a pass finishes; this is the
+   *  part worth keeping, and the judge reads it back on every answer. */
+  const [misconceptions, setMisconceptions] = useState<MisconceptionRecord[]>([]);
   // Steps of the *current* node's questioning pass as they stream in — same
   // arrangement as `liveConsume`: held apart from `socraticCache` so a
   // half-arrived pass is never mistaken for a cached, reopenable one.
@@ -442,6 +450,8 @@ export default function AtlasApp({
   liveSocraticRef.current = liveSocratic;
   const socraticProgressRef = useRef(socraticProgress);
   socraticProgressRef.current = socraticProgress;
+  const misconceptionsRef = useRef(misconceptions);
+  misconceptionsRef.current = misconceptions;
   const feynmanCacheRef = useRef(feynmanCache);
   feynmanCacheRef.current = feynmanCache;
   const connectCacheRef = useRef(connectCache);
@@ -586,6 +596,7 @@ export default function AtlasApp({
       setConsumeProgress({});
       setModalityTally({});
       setSocraticProgress({});
+      setMisconceptions([]);
       pendingGapsRef.current = [];
       setMomentumPlaying(false);
       setOutline(null);
@@ -610,6 +621,7 @@ export default function AtlasApp({
       setConsumeProgress(s.consumeProgress);
       setModalityTally(s.modalityTally);
       setSocraticProgress(s.socraticProgress);
+      setMisconceptions(s.misconceptions);
       setScreen("map");
       // A pre-v3 row still carries its caches inline; take them and skip
       // the second query.
@@ -717,7 +729,7 @@ export default function AtlasApp({
   useEffect(() => {
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 5,
+      v: 6,
       form,
       graph,
       spawnedIds: [...spawnedIds],
@@ -732,6 +744,7 @@ export default function AtlasApp({
       consumeProgress,
       modalityTally,
       socraticProgress,
+      misconceptions,
     };
     const timer = setTimeout(() => {
       saveRun(supabase, runSubject, snapshot).catch((err: Error) =>
@@ -757,6 +770,7 @@ export default function AtlasApp({
     consumeProgress,
     modalityTally,
     socraticProgress,
+    misconceptions,
   ]);
 
   // The content: large, but only ever changes when a generation lands. Its own
@@ -877,6 +891,7 @@ export default function AtlasApp({
           setConsumeProgress({});
           setModalityTally({});
           setSocraticProgress({});
+          setMisconceptions([]);
           setCards([]);
           setCalibSamples([]);
           setShakyReasons({});
@@ -1058,6 +1073,7 @@ export default function AtlasApp({
     setConsumeProgress({});
     setModalityTally({});
     setSocraticProgress({});
+    setMisconceptions([]);
     setCalibSamples([]);
     setShakyReasons({});
     setReviewedNodes([]);
@@ -2155,7 +2171,10 @@ export default function AtlasApp({
    */
   const enterSocratic = useCallback(
     (node: ConceptNode) => {
-      const open = (steps: SocraticStep[], total = steps.length) => {
+      // The written pass is longer than the pass the learner runs: `steps`
+      // carries spare probes past the plan, and only a struggling learner ever
+      // spends them (`socraticReducer`). So a session opens on the plan.
+      const open = (steps: SocraticStep[], total = socraticPlan(steps)) => {
         setStates((prev) =>
           prev[node.id] === "unknown" || prev[node.id] === undefined
             ? { ...prev, [node.id]: "learning" }
@@ -2231,10 +2250,13 @@ export default function AtlasApp({
             prev[node.id] ? prev : { ...prev, [node.id]: steps },
           );
           setLiveSocratic((prev) => (prev?.nodeId === node.id ? null : prev));
-          // A short pass still has to be finishable.
+          // A short pass still has to be finishable — and now that the whole
+          // pass is in hand its real plan is known, so the re-cap caps at the
+          // core count: a three-probe concept stops at three instead of
+          // running the four-step estimate out.
           setSocratic((prev) =>
             prev?.nodeId === node.id
-              ? socraticReducer(prev, { type: "hydrate", total: steps.length }, steps)
+              ? socraticReducer(prev, { type: "hydrate", total: socraticPlan(steps) }, steps)
               : prev,
           );
         })
@@ -2268,6 +2290,18 @@ export default function AtlasApp({
 
   const dispatchSocratic = useCallback(
     (action: SocraticAction) => {
+      // A caught wrong turn is filed run-wide before it scrolls out of the
+      // transcript: this pass is discarded when it ends, the roll-up isn't.
+      // Outside the updater below on purpose — that one has to stay pure.
+      const live = socraticRef.current;
+      const picked =
+        action.type === "reply" && live
+          ? socraticStepsFor(live.nodeId)?.[live.step]?.replies[action.index]
+          : undefined;
+      if (live && picked?.quality === "wrong" && !live.ruledOut.includes(picked.label)) {
+        const label = graphRef.current.nodes.find((n) => n.id === live.nodeId)?.label ?? "";
+        setMisconceptions((list) => recordMisconception(list, picked.label, label));
+      }
       setSocratic((prev) => {
         if (!prev) return prev;
         const steps = socraticStepsFor(prev.nodeId);
@@ -2280,6 +2314,13 @@ export default function AtlasApp({
     },
     [socraticStepsFor],
   );
+
+  /** File a misconception the judge named into the run-wide roll-up. Once per
+   *  judgement: the verdict frame files it, and the full judgement only fills
+   *  in if the verdict never arrived on its own. */
+  const fileMisconception = useCallback((label: string, nodeLabel: string) => {
+    setMisconceptions((list) => recordMisconception(list, label, nodeLabel));
+  }, []);
 
   /**
    * The live judging loop (#25): the learner's own typed answer goes to the
@@ -2330,6 +2371,9 @@ export default function AtlasApp({
           misconceptions: step.replies
             .filter((r) => r.quality !== "correct")
             .map((r) => ({ label: r.label, quality: r.quality })),
+          // …and what this learner keeps getting wrong everywhere else, so a
+          // repeat is named as a repeat instead of caught cold again.
+          recurring: recurringMisconceptions(misconceptionsRef.current),
           help: session.help,
           language: languageRef.current,
         },
@@ -2339,6 +2383,7 @@ export default function AtlasApp({
           // racing the first would break "at most one pending turn", and the
           // learner is reading the verdict anyway.
           applied = true;
+          if (partial.misconception) fileMisconception(partial.misconception, node.label);
           apply({
             type: "judged",
             answer: text,
@@ -2353,6 +2398,7 @@ export default function AtlasApp({
         },
       )
         .then((j) => {
+          if (!applied && j.misconception) fileMisconception(j.misconception, node.label);
           apply(
             applied
               ? { type: "stream", text: j.response }
@@ -2366,7 +2412,7 @@ export default function AtlasApp({
         })
         .finally(() => setJudging(false));
     },
-    [showToast, socraticStepsFor],
+    [fileMisconception, showToast, socraticStepsFor],
   );
 
   const exitSocratic = useCallback(() => {
@@ -3124,6 +3170,9 @@ export default function AtlasApp({
       return;
     }
     if (outcome === "flagged") {
+      // Land on the map first: it's where the learner stays if the reading
+      // below can't be reopened (nothing cached, a generation already in
+      // flight), rather than on a screen whose session was just cleared.
       setScreen("map");
       setSelectedId(node.id);
       // ponytail: a synthetic gap (no model-authored label/reason like
@@ -3136,15 +3185,28 @@ export default function AtlasApp({
         dx: -140,
         dy: 150,
       };
-      if (attachGap(node.id, spec))
-        showToast(
-          `Leaning on "Just tell me" — flagging a prerequisite gap under ${node.label}.`,
-          "Prerequisite gap",
-        );
+      attachGap(node.id, spec);
+      // The flag on its own is passive — it names the problem and leaves the
+      // learner free to click on to Feynman anyway. A pass that had to be told
+      // through is a reading that didn't land, so the hand-off runs backwards:
+      // into the reading, reopened at the top with nothing collapsed to its
+      // takeaway. The ref is written alongside the state because
+      // `enterSession` reads it synchronously, one line down.
+      const saved = consumeProgressRef.current[node.id];
+      if (saved) {
+        const reread = { ...saved, idx: 0, collapsed: {}, handedOff: false };
+        consumeProgressRef.current = { ...consumeProgressRef.current, [node.id]: reread };
+        setConsumeProgress((prev) => (prev[node.id] ? { ...prev, [node.id]: reread } : prev));
+      }
+      showToast(
+        `Leaning on "Just tell me" — back through the reading on ${node.label} before the questions come again.`,
+        "Re-read this first",
+      );
+      enterSession(node);
       return;
     }
     enterFeynman(node);
-  }, [attachGap, enterFeynman, removeGapNode, showToast, socratic]);
+  }, [attachGap, enterFeynman, enterSession, removeGapNode, showToast, socratic]);
 
   // ---- Consume → Socratic hand-off -------------------------------------
 

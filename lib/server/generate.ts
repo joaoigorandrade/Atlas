@@ -7,6 +7,9 @@ import {
   DIAGNOSTIC_COUNT,
   FEYNMAN_BEATS,
   MODEL_BEAT_BOUNDS,
+  SOCRATIC_MAX_STEPS,
+  SOCRATIC_MIN_STEPS,
+  SOCRATIC_SPARES,
   SOCRATIC_STEPS,
   altControls,
   graphFromMapNodes,
@@ -1121,14 +1124,16 @@ function socraticContext(params: {
   nodeLabel: string;
   interests: string;
 }): string {
-  return `Write a Socratic questioning session (${SOCRATIC_STEPS} steps) for the concept "${params.nodeLabel}" within "${params.topic}".
+  return `Write a Socratic questioning session for the concept "${params.nodeLabel}" within "${params.topic}".
 The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
 ${interestNote(params.interests)}
-The four steps build on each other in order, each picking up where the last left off.`;
+Write ${SOCRATIC_MIN_STEPS}-${SOCRATIC_STEPS} CORE probes — as many as this concept actually needs and no more; a simple idea gets ${SOCRATIC_MIN_STEPS}, a genuinely layered one gets ${SOCRATIC_STEPS} — each using a different move, in the order listed, each picking up where the last left off.
+Then write exactly ${SOCRATIC_SPARES} further probes marked "spare": true, last. These are held back: they are only asked of a learner who keeps needing help, so each must go DEEPER on the hardest part of the concept rather than restate an earlier probe.`;
 }
 
 const SOCRATIC_STEP_SHAPE = `{
-      "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // use each move once, in this order
+      "spare": false,   // true only on the held-back extra probes, which come last
+      "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // core probes: each move once, in this order; a spare reuses whichever fits
       "prompt": "the probing question the tutor opens with",
       "replies": [    // 3 plausible learner replies; exactly one "correct"; include a common misconception as "wrong"
         {"label": "what the learner says", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
@@ -1154,6 +1159,7 @@ export function validateSocraticStep(raw: unknown, i: number): SocraticStep {
     fail(`steps[${i}].replies needs a correct option`);
   return {
     id: `s${i + 1}`,
+    ...(s.spare === true ? { spare: true as const } : null),
     move: oneOf(s.move, MOVES, `steps[${i}].move`),
     prompt: str(s.prompt, `steps[${i}].prompt`),
     replies,
@@ -1164,7 +1170,9 @@ export function validateSocraticStep(raw: unknown, i: number): SocraticStep {
 
 export function validateSocratic(raw: unknown): SocraticStep[] {
   const root = obj(raw, "payload");
-  return arr(root.steps, "steps", 3, 5).map(validateSocraticStep);
+  return arr(root.steps, "steps", SOCRATIC_MIN_STEPS, SOCRATIC_MAX_STEPS).map(
+    validateSocraticStep,
+  );
 }
 
 export async function generateSocratic(params: {
@@ -1179,7 +1187,7 @@ export async function generateSocratic(params: {
 
 Return JSON:
 {
-  "steps": [${SOCRATIC_STEP_SHAPE}, ...]   // exactly ${SOCRATIC_STEPS}
+  "steps": [${SOCRATIC_STEP_SHAPE}, ...]   // the core probes, then the ${SOCRATIC_SPARES} spares
 }${languageNote(params.language ?? "en")}`,
     ),
     validateSocratic,
@@ -1212,7 +1220,7 @@ export async function* generateSocraticStream(params: {
       user(
         `${socraticContext(params)}
 
-Write the ${SOCRATIC_STEPS} steps as ${SOCRATIC_STEPS} SEPARATE top-level JSON objects, one after
+Write the steps as SEPARATE top-level JSON objects, one after
 another — NOT wrapped in an array or a {"steps": [...]} object, no markdown
 fences, no numbering, no commentary before/after/between them. Each object has
 this shape:
@@ -1825,6 +1833,9 @@ Then the full object described above (it repeats the verdict and adds the rest).
 export interface SocraticJudgement {
   quality: "correct" | "near" | "wrong" | "lost";
   response: string;
+  /** The wrong idea, tagged for the run-wide roll-up — present on a caught
+   *  "near"/"wrong", absent otherwise. */
+  misconception?: string;
 }
 
 interface JudgeSocraticTurn {
@@ -1860,6 +1871,9 @@ interface JudgeSocraticParams {
   /** The anticipated wrong/near replies authored with this step — a bank of
    *  misconceptions to catch by name instead of generically. */
   misconceptions?: JudgeSocraticMisconception[];
+  /** What this learner keeps getting wrong across nodes and sessions — the one
+   *  thing a tutor can only know from having been there before. */
+  recurring?: string[];
   /** The scaffolding dial (0-3, Silent → Show me). Defaults to Hint. */
   help?: number;
   language?: Language;
@@ -1875,6 +1889,7 @@ function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
     history,
     attempt,
     misconceptions,
+    recurring,
     help,
     language = "en",
   } = params;
@@ -1890,6 +1905,12 @@ function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
           .map((m) => `"${m.label}" (${m.quality})`)
           .join("; ")}. If the learner's answer matches one, catch it by name.\n`
       : "";
+  const recurringBlock =
+    recurring && recurring.length
+      ? `\nAcross earlier sessions this learner keeps hitting: ${recurring.join(
+          "; ",
+        )}. If this answer is another instance of one of those, say so — name the pattern ("this is the same swap you made on X") instead of catching it cold again. If it isn't, don't mention them at all.\n`
+      : "";
   return [
       JUDGE_SYSTEM,
       {
@@ -1897,7 +1918,7 @@ function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
         content: `Concept: "${nodeLabel}" (topic: ${topic}).
 The tutor asked: "${question}"
 A fully correct answer would convey: "${reference}"
-${historyBlock}${misconceptionBlock}This is attempt ${attempt ?? 1} on this step. Do not repeat a hint already given above — advance it.
+${historyBlock}${misconceptionBlock}${recurringBlock}This is attempt ${attempt ?? 1} on this step. Do not repeat a hint already given above — advance it.
 ${SOCRATIC_HELP_INSTRUCTION[help ?? 1]}
 The learner answered: """${answer}"""
 
@@ -1907,16 +1928,20 @@ Classify and respond contingently:
 - "wrong": contains a real error or misconception → name the error plainly and specifically, quoting their words; do not reveal the full answer.
 - "lost": empty, "I don't know", or entirely off-track → drop the Socratic act and teach the answer directly and completely.
 
-Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner"}${languageNote(language)}`,
+Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner", "misconception": "on \"near\"/\"wrong\" only: the wrong idea itself in 3-8 words, phrased to still read out of context weeks later (e.g. \"treats scaling as rotation\") — omit otherwise"}${languageNote(language)}`,
       },
   ];
 }
 
 const validateSocraticJudgement = (raw: unknown): SocraticJudgement => {
   const root = obj(raw, "payload");
+  // The tag is the only part of a caught wrong turn that outlives the session,
+  // but it is still read leniently: a judgement without one still judges.
+  const tag = typeof root.misconception === "string" ? root.misconception.trim() : "";
   return {
     quality: oneOf(root.quality, QUALITIES, "quality"),
     response: str(root.response, "response"),
+    ...(tag ? { misconception: tag.slice(0, 120) } : null),
   };
 };
 

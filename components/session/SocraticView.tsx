@@ -31,6 +31,7 @@ const STRINGS = {
     advanceGap: "Close the gap · back to the map →",
     advanceTeach: "Teach it back · Feynman →",
     advanceBack: "Back to the map →",
+    advanceReread: "Re-read this first · Consume →",
     yourAnswer: "Your answer — in your own words",
     placeholderJudging: "Reading your answer…",
     placeholderWriting: "Writing the next probe…",
@@ -52,6 +53,7 @@ const STRINGS = {
     advanceGap: "Fechar a lacuna · voltar ao mapa →",
     advanceTeach: "Ensinar de volta · Feynman →",
     advanceBack: "Voltar ao mapa →",
+    advanceReread: "Reler primeiro · Consumir →",
     yourAnswer: "Sua resposta — com suas próprias palavras",
     placeholderJudging: "Lendo sua resposta…",
     placeholderWriting: "Escrevendo a próxima pergunta…",
@@ -152,8 +154,16 @@ export default function SocraticView({
         : gapMode
           ? t.doneGap
           : t.doneUnderstood;
+  // A flagged regular pass doesn't hand off, it hands *back* — into the
+  // reading. A flagged gap pass has nowhere to go but the map.
   const advanceLabel =
-    outcome === "flagged" ? t.advanceBack : gapMode ? t.advanceGap : t.advanceTeach;
+    outcome === "flagged"
+      ? gapMode
+        ? t.advanceBack
+        : t.advanceReread
+      : gapMode
+        ? t.advanceGap
+        : t.advanceTeach;
 
   return (
     <div

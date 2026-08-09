@@ -22,6 +22,7 @@ import type {
   CrucibleContent,
   ElaborationContent,
   FeynmanBeat,
+  MisconceptionRecord,
   ModalityTally,
   OnboardingForm,
   RetainContent,
@@ -58,7 +59,7 @@ export const emptyCaches = (): RunCaches => ({
 });
 
 export interface RunSnapshot {
-  v: 5;
+  v: 6;
   form: OnboardingForm;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
@@ -85,12 +86,18 @@ export interface RunSnapshot {
    *  reading keeps its place: a session left half-answered is somewhere to
    *  come back to, not a transcript to re-earn. Finished passes drop out. */
   socraticProgress: Record<string, SocraticSession>;
+  /** What this learner keeps getting wrong, run-wide (§3a). Unlike the passes
+   *  above — dropped the moment one finishes — this outlives every session,
+   *  because "you keep confusing X and Y" is the one thing a tutor can only
+   *  learn by having been there before. */
+  misconceptions: MisconceptionRecord[];
 }
 
 /** What may come back from the table: a v1 … v5 snapshot. v1 predates
  *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
  *  content caches inline, which v3 moved to their own column; v4 adds the
- *  Consume reading progress and the modality tally; v5 the Socratic one. */
+ *  Consume reading progress and the modality tally; v5 the Socratic one; v6
+ *  the run-wide misconception roll-up. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
   | "v"
@@ -103,6 +110,7 @@ type LoadedSnapshot = Omit<
   | "consumeProgress"
   | "modalityTally"
   | "socraticProgress"
+  | "misconceptions"
 > & {
   v: number;
   form: Omit<OnboardingForm, "examDate"> & { examDate?: string };
@@ -114,17 +122,18 @@ type LoadedSnapshot = Omit<
   consumeProgress?: Record<string, ConsumeProgress>;
   modalityTally?: ModalityTally;
   socraticProgress?: Record<string, SocraticSession>;
+  misconceptions?: MisconceptionRecord[];
 };
 
 /** Every snapshot version this loader accepts. */
-const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5];
+const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6];
 
-/** Fill an older snapshot's gaps; a v5 passes through unchanged. */
+/** Fill an older snapshot's gaps; a v6 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
   const { caches: _inline, ...rest } = raw;
   return {
     ...rest,
-    v: 5,
+    v: 6,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
@@ -135,6 +144,7 @@ function migrate(raw: LoadedSnapshot): RunSnapshot {
     consumeProgress: raw.consumeProgress ?? {},
     modalityTally: raw.modalityTally ?? {},
     socraticProgress: raw.socraticProgress ?? {},
+    misconceptions: raw.misconceptions ?? [],
   };
 }
 
@@ -266,7 +276,9 @@ export async function listRuns(
   if (error) throw new Error(`Loading your maps failed: ${error.message}`);
   return (data ?? []).flatMap((row) => {
     const snapshot = row.snapshot as LoadedSnapshot | undefined;
-    if (!snapshot || ![1, 2, 3].includes(snapshot.v)) return [];
+    // Every version the loader accepts, not just the first three — a run saved
+    // since v4 was silently missing from the grid.
+    if (!snapshot || !SNAPSHOT_VERSIONS.includes(snapshot.v)) return [];
     return [
       {
         subject: row.subject as string,
