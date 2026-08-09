@@ -6,6 +6,7 @@ import {
   PHASES,
   STATE_COLOR,
   helpLabels,
+  socraticOutcome,
   type HelpLevel,
   type SocraticSession,
   type SocraticTurn,
@@ -25,8 +26,11 @@ const STRINGS = {
       "Construct the idea · I catch wrong turns, I don’t smooth them over",
     doneGap: "Sub-point rebuilt — this gap can close.",
     doneUnderstood: "Understanding established — you reconstructed it unaided.",
+    doneAssisted: "Understanding built — with a nudge along the way.",
+    doneFlagged: "Leaning on being told — let's shore up the basics first.",
     advanceGap: "Close the gap · back to the map →",
     advanceTeach: "Teach it back · Feynman →",
+    advanceBack: "Back to the map →",
     yourAnswer: "Your answer — in your own words",
     placeholderJudging: "Reading your answer…",
     placeholderWriting: "Writing the next probe…",
@@ -43,8 +47,11 @@ const STRINGS = {
       "Construa a ideia · eu flagro raciocínios errados, não deixo passar",
     doneGap: "Subponto reconstruído — essa lacuna pode se fechar.",
     doneUnderstood: "Compreensão estabelecida — você reconstruiu isso sozinho.",
+    doneAssisted: "Compreensão construída — com uma ajuda pelo caminho.",
+    doneFlagged: "Dependendo de respostas prontas — vamos reforçar a base primeiro.",
     advanceGap: "Fechar a lacuna · voltar ao mapa →",
     advanceTeach: "Ensinar de volta · Feynman →",
+    advanceBack: "Voltar ao mapa →",
     yourAnswer: "Sua resposta — com suas próprias palavras",
     placeholderJudging: "Lendo sua resposta…",
     placeholderWriting: "Escrevendo a próxima pergunta…",
@@ -74,6 +81,9 @@ interface SocraticViewProps {
   onAnswer: (text: string) => void;
   onStuck: () => void;
   onTell: () => void;
+  /** The learner sets the scaffolding dial by hand (#B) — it no longer only
+   *  fades on its own. */
+  onHelpChange: (level: HelpLevel) => void;
   onAdvance: () => void;
 }
 
@@ -100,6 +110,7 @@ export default function SocraticView({
   onAnswer,
   onStuck,
   onTell,
+  onHelpChange,
   onAdvance,
 }: SocraticViewProps) {
   const t = useT(STRINGS);
@@ -108,22 +119,41 @@ export default function SocraticView({
   // way it does while an answer is being judged.
   const writing = session.awaitingNext;
   const busy = judging || writing;
-  // The learner's own answer, typed — cleared whenever a new turn lands.
+  // The learner's own answer, typed. Cleared on submit, and again whenever a
+  // new step opens — but NOT on "I'm stuck" or a failed judge call, either of
+  // which used to wipe a still-relevant draft out from under the learner.
   const [draft, setDraft] = useState("");
-  useEffect(() => setDraft(""), [session.log.length]);
+  useEffect(() => setDraft(""), [session.step]);
   const submitDraft = () => {
     const text = draft.trim();
-    if (text && !busy) onAnswer(text);
+    if (!text || busy) return;
+    setDraft("");
+    onAnswer(text);
   };
 
-  // ---- the transcript scrolls to the newest turn -----------------------
+  // ---- the transcript scrolls to the newest turn, including as a pending
+  // bubble is typed into (not just when a whole new turn lands) -----------
   const logRef = useRef<HTMLDivElement | null>(null);
+  const lastText = session.log.at(-1)?.text;
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [session.log.length]);
+  }, [session.log.length, lastText]);
 
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
+  // What the pass earned (#C) — only meaningful once it's done.
+  const outcome = session.done ? socraticOutcome(session, gapMode) : null;
+  const doneColor = outcome === "flagged" ? STATE_COLOR.shaky : GREEN;
+  const doneText =
+    outcome === "flagged"
+      ? t.doneFlagged
+      : outcome === "assisted"
+        ? t.doneAssisted
+        : gapMode
+          ? t.doneGap
+          : t.doneUnderstood;
+  const advanceLabel =
+    outcome === "flagged" ? t.advanceBack : gapMode ? t.advanceGap : t.advanceTeach;
 
   return (
     <div
@@ -191,7 +221,7 @@ export default function SocraticView({
         >
           {t.scaffolding}
         </span>
-        <HelpDial help={session.help} />
+        <HelpDial help={session.help} onChange={onHelpChange} />
       </div>
 
       {/* Body — the dialogue */}
@@ -243,7 +273,7 @@ export default function SocraticView({
                       gap: 10,
                       marginBottom: 12,
                       fontSize: 13.5,
-                      color: GREEN,
+                      color: doneColor,
                     }}
                   >
                     <span
@@ -251,10 +281,10 @@ export default function SocraticView({
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        background: GREEN,
+                        background: doneColor,
                       }}
                     />
-                    {gapMode ? t.doneGap : t.doneUnderstood}
+                    {doneText}
                   </div>
                   <button
                     onClick={onAdvance}
@@ -271,7 +301,7 @@ export default function SocraticView({
                       boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
                     }}
                   >
-                    {gapMode ? t.advanceGap : t.advanceTeach}
+                    {advanceLabel}
                   </button>
                 </div>
               ) : (
@@ -397,8 +427,15 @@ export default function SocraticView({
   );
 }
 
-/** The Silent · Hint · Guide · Show me dial; the active cell warms with help. */
-function HelpDial({ help }: { help: HelpLevel }) {
+/** The Silent · Hint · Guide · Show me dial; the active cell warms with help.
+ *  Clickable (#B) — the learner sets it by hand, and the judge follows it. */
+function HelpDial({
+  help,
+  onChange,
+}: {
+  help: HelpLevel;
+  onChange: (level: HelpLevel) => void;
+}) {
   const { language } = useLanguage();
   return (
     <div
@@ -415,22 +452,25 @@ function HelpDial({ help }: { help: HelpLevel }) {
         const active = i === help;
         const c = HELP_COLOR[i as HelpLevel];
         return (
-          <div
+          <button
             key={label}
+            onClick={() => onChange(i as HelpLevel)}
             style={{
               padding: "5px 11px",
               borderRadius: 6,
+              border: "none",
               fontFamily: font.mono,
               fontSize: 10.5,
               letterSpacing: "0.04em",
               background: active ? c : "transparent",
               color: active ? color.accentInk : color.inkFaint,
               fontWeight: active ? 600 : 400,
+              cursor: "pointer",
               transition: "background .25s, color .25s",
             }}
           >
             {label}
-          </div>
+          </button>
         );
       })}
     </div>

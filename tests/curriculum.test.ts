@@ -13,6 +13,7 @@ import {
   phaseIndex,
   removeNode,
   rolloverAdherence,
+  socraticOutcome,
   socraticReducer,
   socraticStart,
   spawnGap,
@@ -170,6 +171,114 @@ describe("socraticReducer", () => {
     const next = socraticReducer(s, { type: "tell" }, steps);
     expect(next.step).toBe(1);
     expect(next.tells).toBe(1);
+  });
+
+  it("setHelp sets the dial directly, even on a finished session", () => {
+    let s = socraticStart("n", steps);
+    s = socraticReducer(s, { type: "setHelp", level: 3 }, steps);
+    expect(s.help).toBe(3);
+    s = { ...s, done: true };
+    expect(socraticReducer(s, { type: "setHelp", level: 0 }, steps).help).toBe(0);
+  });
+
+  it("records an unaided resolution on a clean correct reply", () => {
+    const s = socraticStart("n", steps);
+    const next = socraticReducer(s, { type: "reply", index: 0 }, steps);
+    expect(next.resolutions).toEqual(["unaided"]);
+  });
+
+  it("downgrades to a hint resolution once the step was assisted (#C)", () => {
+    let s = socraticStart("n", steps);
+    s = socraticReducer(s, { type: "stuck" }, steps);
+    expect(s.stepAssisted).toBe(true);
+    s = socraticReducer(s, { type: "reply", index: 0 }, steps);
+    expect(s.resolutions).toEqual(["hint"]);
+    // The next step starts clean again.
+    expect(s.stepAssisted).toBe(false);
+  });
+
+  it("records 'told' for 'tell' and for a judged 'lost' verdict", () => {
+    let s = socraticStart("n", steps);
+    s = socraticReducer(s, { type: "tell" }, steps);
+    expect(s.resolutions).toEqual(["told"]);
+    s = socraticReducer(
+      s,
+      { type: "judged", answer: "no idea", quality: "lost", response: "here's the answer" },
+      steps,
+    );
+    expect(s.resolutions).toEqual(["told", "told"]);
+    expect(s.done).toBe(true);
+  });
+});
+
+// ---- socratic outcome (#C) — "done" is not automatically "understood" ------
+
+describe("socraticOutcome", () => {
+  it("earns 'unaided' when every step went clean, and closes a gap pass", () => {
+    let s = socraticStart("n", steps);
+    for (let i = 0; i < steps.length; i++)
+      s = socraticReducer(s, { type: "reply", index: 0 }, steps);
+    expect(s.done).toBe(true);
+    expect(socraticOutcome(s, false)).toBe("unaided");
+    expect(socraticOutcome(s, true)).toBe("unaided");
+  });
+
+  it("softens to 'assisted' on a regular node with one hint; a gap still closes (reconstructed, not told)", () => {
+    let s = socraticStart("n", steps);
+    s = socraticReducer(s, { type: "stuck" }, steps);
+    s = socraticReducer(s, { type: "reply", index: 0 }, steps); // step 0: hint
+    s = socraticReducer(s, { type: "reply", index: 0 }, steps); // step 1: unaided
+    expect(s.done).toBe(true);
+    expect(socraticOutcome(s, false)).toBe("assisted");
+    expect(socraticOutcome(s, true)).toBe("unaided");
+  });
+
+  it("flags a regular node once told twice — no Feynman hand-off, no closed gap", () => {
+    let s = socraticStart("n", steps);
+    s = socraticReducer(s, { type: "tell" }, steps);
+    s = socraticReducer(s, { type: "tell" }, steps);
+    expect(s.done).toBe(true);
+    expect(s.resolutions).toEqual(["told", "told"]);
+    expect(socraticOutcome(s, false)).toBe("flagged");
+  });
+});
+
+// ---- adaptive length (#D) — the fifth pre-generated step earns its keep ----
+
+describe("socraticReducer adaptive length", () => {
+  it("ends a pass early after three unaided answers running, even with a step to spare", () => {
+    const four = [0, 1, 2, 3].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
+    let s = socraticStart("n", four);
+    for (let i = 0; i < 3; i++) s = socraticReducer(s, { type: "reply", index: 0 }, four);
+    expect(s.done).toBe(true);
+    expect(s.total).toBe(3);
+    expect(s.resolutions).toEqual(["unaided", "unaided", "unaided"]);
+  });
+
+  it("buys one more probe after two straight assisted steps, if the plan wrote a spare", () => {
+    const three = [0, 1, 2].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
+    // total pinned at 2 even though a third step is already available.
+    let s = socraticStart("n", three.slice(0, 2), 2);
+    s = socraticReducer(s, { type: "tell" }, three); // step 0: told
+    s = socraticReducer(s, { type: "tell" }, three); // step 1: told → would finish at total=2
+    expect(s.total).toBe(3);
+    expect(s.done).toBe(false);
+    expect(s.step).toBe(2);
+  });
+});
+
+// ---- resuming with nothing arrived yet (bug: total got clamped to 1) -------
+
+describe("socraticReducer hydrate against an empty step list", () => {
+  it("does not clamp a resumed session's total down when no steps have arrived yet", () => {
+    // A pass saved mid-way through step 1 of a 4-step plan…
+    let saved = socraticStart("n", steps.slice(0, 1), 4);
+    saved = socraticReducer(saved, { type: "reply", index: 0 }, steps.slice(0, 1));
+    expect(saved.step).toBe(1);
+    // …reopened while its steps are still streaming in from scratch (`open([], total)`
+    // in AtlasApp's `enterSocratic`) must not shrink the plan to 2.
+    const reopened = socraticReducer(saved, { type: "hydrate", total: 4 }, []);
+    expect(reopened.total).toBe(4);
   });
 });
 

@@ -38,6 +38,7 @@ import {
   retainStart,
   reviewCard,
   rolloverAdherence,
+  socraticOutcome,
   socraticReducer,
   socraticStart,
   SOCRATIC_STEPS,
@@ -437,6 +438,8 @@ export default function AtlasApp({
   modalityTallyRef.current = modalityTally;
   const socraticCacheRef = useRef(socraticCache);
   socraticCacheRef.current = socraticCache;
+  const liveSocraticRef = useRef(liveSocratic);
+  liveSocraticRef.current = liveSocratic;
   const socraticProgressRef = useRef(socraticProgress);
   socraticProgressRef.current = socraticProgress;
   const feynmanCacheRef = useRef(feynmanCache);
@@ -2252,24 +2255,30 @@ export default function AtlasApp({
     [generate, loadSocratic, socraticParams, showToast, warm, warmOne],
   );
 
+  /** Steps for the node on screen — the cached array once it lands, or the
+   *  live one still streaming in behind it. Without this fallback every
+   *  Socratic control (send, "I'm stuck", "Just tell me") is a silent no-op
+   *  for as long as the pass is still generating. */
+  const socraticStepsFor = useCallback((nodeId: string): SocraticStep[] | undefined => {
+    const cached = socraticCacheRef.current[nodeId];
+    if (cached?.length) return cached;
+    const live = liveSocraticRef.current;
+    return live?.nodeId === nodeId ? live.steps : undefined;
+  }, []);
+
   const dispatchSocratic = useCallback(
     (action: SocraticAction) => {
       setSocratic((prev) => {
         if (!prev) return prev;
-        const steps = socraticCacheRef.current[prev.nodeId];
+        const steps = socraticStepsFor(prev.nodeId);
         if (!steps?.length) return prev;
-        const next = socraticReducer(prev, action, steps);
-        // Repeated "Just tell me" flags a likely prerequisite gap (the spec's
-        // logged-drop-to-instruction signal).
-        if (action.type === "tell" && next.tells >= 2)
-          showToast(
-            "Leaning on “Just tell me” — an earlier concept may be shaky. I'll flag it on the map.",
-            "Prerequisite gap",
-          );
-        return next;
+        // Whether this pass earned its ending (and any prerequisite-gap flag)
+        // is settled once, at completion, in `advanceFromSocratic` (#C) — not
+        // mid-dialogue here.
+        return socraticReducer(prev, action, steps, languageRef.current);
       });
     },
-    [showToast],
+    [socraticStepsFor],
   );
 
   /**
@@ -2281,13 +2290,28 @@ export default function AtlasApp({
     (text: string) => {
       const session = socraticRef.current;
       if (!session || judgingRef.current) return;
-      const steps = socraticCacheRef.current[session.nodeId];
+      const steps = socraticStepsFor(session.nodeId);
       const step = steps?.[session.step];
       const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
       if (!step || !node) return;
       setJudging(true);
       const apply = (action: SocraticAction) =>
-        setSocratic((prev) => (prev ? socraticReducer(prev, action, steps) : prev));
+        setSocratic((prev) =>
+          prev ? socraticReducer(prev, action, steps, languageRef.current) : prev,
+        );
+      // The turns since this step opened — the tutor's actual last question
+      // (which may be a reframe, not the opening prompt) plus enough history
+      // that a repeated hint or a misgraded reframe doesn't happen twice (#A).
+      let openIdx = 0;
+      for (let i = session.log.length - 1; i >= 0; i--) {
+        if (session.log[i].role === "ai" && session.log[i].move) {
+          openIdx = i;
+          break;
+        }
+      }
+      const sinceStepOpen = session.log.slice(openIdx);
+      const lastAiTurn = [...session.log].reverse().find((t) => t.role === "ai");
+      const attempt = sinceStepOpen.filter((t) => t.role === "learner").length + 1;
       // The answer lands in the transcript on send, with the tutor's bubble
       // already writing beside it. Verdict-first: the classification arrives
       // about a second in and moves the tutor on; the wording fills that
@@ -2298,9 +2322,15 @@ export default function AtlasApp({
         {
           topic: formRef.current.topic,
           nodeLabel: node.label,
-          question: step.prompt,
+          question: lastAiTurn?.text ?? step.prompt,
           reference: step.tell,
           answer: text,
+          history: sinceStepOpen.map((t) => ({ role: t.role, text: t.text })),
+          attempt,
+          misconceptions: step.replies
+            .filter((r) => r.quality !== "correct")
+            .map((r) => ({ label: r.label, quality: r.quality })),
+          help: session.help,
           language: languageRef.current,
         },
         (partial) => {
@@ -2336,7 +2366,7 @@ export default function AtlasApp({
         })
         .finally(() => setJudging(false));
     },
-    [showToast],
+    [showToast, socraticStepsFor],
   );
 
   const exitSocratic = useCallback(() => {
@@ -3061,23 +3091,60 @@ export default function AtlasApp({
   }, []);
 
   /**
-   * Understanding established: the learner answered the core probes unaided,
-   * so Socratic (Phase 3a) is complete. A regular node hands off to Feynman;
-   * a gap node's targeted pass closes the gap — it leaves the map (#12).
+   * The pass is done — but "done" isn't automatically "understood" (#C). A
+   * gap node closes only when every step was reconstructed, not told; a
+   * regular node hands off to Feynman when it was, with a softer note if it
+   * took a hint or two, and — leaning on "Just tell me" (or the judge calling
+   * "lost") twice or more — the node stays in Learning and a real gap gets
+   * attached under it instead of a promise the old toast never kept.
    */
   const advanceFromSocratic = useCallback(() => {
-    const node = graphRef.current.nodes.find((n) => n.id === socratic?.nodeId);
+    const session = socratic;
+    const node = graphRef.current.nodes.find((n) => n.id === session?.nodeId);
     setSocratic(null);
-    if (node?.gap) {
-      removeGapNode(node.id);
+    if (!session || !node) {
       setScreen("map");
-      setSelectedId(null);
-      showToast(`Gap closed · ${node.label} resolved and off the map`, "Map updated");
       return;
     }
-    if (node) enterFeynman(node);
-    else setScreen("map");
-  }, [enterFeynman, removeGapNode, showToast, socratic]);
+    const outcome = socraticOutcome(session, !!node.gap);
+    if (node.gap) {
+      if (outcome === "unaided") {
+        removeGapNode(node.id);
+        setScreen("map");
+        setSelectedId(null);
+        showToast(`Gap closed · ${node.label} resolved and off the map`, "Map updated");
+      } else {
+        setScreen("map");
+        setSelectedId(node.id);
+        showToast(
+          `Still leaning on being told — ${node.label} stays flagged until it's reconstructed unaided.`,
+          "Gap not closed",
+        );
+      }
+      return;
+    }
+    if (outcome === "flagged") {
+      setScreen("map");
+      setSelectedId(node.id);
+      // ponytail: a synthetic gap (no model-authored label/reason like
+      // Feynman/Crucible's) — promote to a generated one if this needs
+      // richer framing than "foundations" later.
+      const spec: GapSpec = {
+        id: `gap-soc-${node.id}`,
+        label: `${node.label} — foundations`,
+        reason: "Leaned on being told outright more than once in the Socratic pass",
+        dx: -140,
+        dy: 150,
+      };
+      if (attachGap(node.id, spec))
+        showToast(
+          `Leaning on "Just tell me" — flagging a prerequisite gap under ${node.label}.`,
+          "Prerequisite gap",
+        );
+      return;
+    }
+    enterFeynman(node);
+  }, [attachGap, enterFeynman, removeGapNode, showToast, socratic]);
 
   // ---- Consume → Socratic hand-off -------------------------------------
 
@@ -3966,6 +4033,7 @@ export default function AtlasApp({
           onAnswer={socraticAnswer}
           onStuck={() => dispatchSocratic({ type: "stuck" })}
           onTell={() => dispatchSocratic({ type: "tell" })}
+          onHelpChange={(level) => dispatchSocratic({ type: "setHelp", level })}
           onAdvance={advanceFromSocratic}
         />
       )}

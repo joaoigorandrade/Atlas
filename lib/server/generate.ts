@@ -1827,17 +1827,69 @@ export interface SocraticJudgement {
   response: string;
 }
 
+interface JudgeSocraticTurn {
+  role: "ai" | "learner";
+  text: string;
+}
+
+interface JudgeSocraticMisconception {
+  label: string;
+  quality: string;
+}
+
+/** Silent → name it and move on; Show me → drop the act. The learner sets this
+ *  by hand or lets it fade with mastery — either way the judge follows it. */
+const SOCRATIC_HELP_INSTRUCTION: Record<number, string> = {
+  0: `Scaffolding is set to Silent: on a "near" or "wrong", name the error plainly and re-ask — no reframing hint.`,
+  1: `Scaffolding is set to Hint: on a "near" or "wrong", give exactly one reframing hint, then re-ask.`,
+  2: `Scaffolding is set to Guide: on a "near" or "wrong", walk through one step of the reasoning aloud with them, then re-ask.`,
+  3: `Scaffolding is set to Show me: on a "near" or "wrong", teach the relevant piece directly and completely rather than re-asking.`,
+};
+
 interface JudgeSocraticParams {
   topic: string;
   nodeLabel: string;
   question: string;
   reference: string;
   answer: string;
+  /** Recent transcript for this step, oldest first — so a repeated hint or a
+   *  misgraded reframe doesn't happen twice (#A). */
+  history?: JudgeSocraticTurn[];
+  /** Which attempt this is on the current step — 1 on the first try. */
+  attempt?: number;
+  /** The anticipated wrong/near replies authored with this step — a bank of
+   *  misconceptions to catch by name instead of generically. */
+  misconceptions?: JudgeSocraticMisconception[];
+  /** The scaffolding dial (0-3, Silent → Show me). Defaults to Hint. */
+  help?: number;
   language?: Language;
 }
 
 function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
-  const { topic, nodeLabel, question, reference, answer, language = "en" } = params;
+  const {
+    topic,
+    nodeLabel,
+    question,
+    reference,
+    answer,
+    history,
+    attempt,
+    misconceptions,
+    help,
+    language = "en",
+  } = params;
+  const historyBlock =
+    history && history.length
+      ? `\nThe conversation on this step so far:\n${history
+          .map((t) => `${t.role === "ai" ? "Tutor" : "Learner"}: ${t.text}`)
+          .join("\n")}\n`
+      : "";
+  const misconceptionBlock =
+    misconceptions && misconceptions.length
+      ? `\nMisconceptions anticipated for this step: ${misconceptions
+          .map((m) => `"${m.label}" (${m.quality})`)
+          .join("; ")}. If the learner's answer matches one, catch it by name.\n`
+      : "";
   return [
       JUDGE_SYSTEM,
       {
@@ -1845,11 +1897,13 @@ function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
         content: `Concept: "${nodeLabel}" (topic: ${topic}).
 The tutor asked: "${question}"
 A fully correct answer would convey: "${reference}"
+${historyBlock}${misconceptionBlock}This is attempt ${attempt ?? 1} on this step. Do not repeat a hint already given above — advance it.
+${SOCRATIC_HELP_INSTRUCTION[help ?? 1]}
 The learner answered: """${answer}"""
 
 Classify and respond contingently:
 - "correct": the substance is right (wording may differ) → affirm specifically, one sentence.
-- "near": right direction, one piece missing/imprecise → give a hint that reframes WITHOUT giving the answer, then re-ask.
+- "near": right direction, one piece missing/imprecise → give a hint that reframes WITHOUT giving the answer, then re-ask — a *different* angle than any hint already given.
 - "wrong": contains a real error or misconception → name the error plainly and specifically, quoting their words; do not reveal the full answer.
 - "lost": empty, "I don't know", or entirely off-track → drop the Socratic act and teach the answer directly and completely.
 

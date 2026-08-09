@@ -96,6 +96,12 @@ export interface GenerateBody {
   subPoint?: string;
   problem?: string;
   hint?: string;
+  // judge-socratic fields (#A, #B) — the dialogue so far, the anticipated
+  // misconceptions for this step, and the scaffolding dial.
+  history?: Array<{ role: "ai" | "learner"; text: string }>;
+  attempt?: number;
+  misconceptions?: Array<{ label: string; quality: string }>;
+  help?: number;
 }
 
 // Input caps (#18) — a 100KB "topic" must never reach a prompt.
@@ -456,12 +462,40 @@ export function resolveJob(body: GenerateBody): Job {
       }
       if (!nodeLabel) throw badRequest("nodeLabel is required");
       if (body.mode === "socratic") {
+        const history = Array.isArray(body.history)
+          ? body.history
+              .filter(
+                (t): t is { role: "ai" | "learner"; text: string } =>
+                  typeof t === "object" &&
+                  t !== null &&
+                  (t.role === "ai" || t.role === "learner") &&
+                  typeof t.text === "string",
+              )
+              .slice(-8)
+              .map((t) => ({ role: t.role, text: t.text.slice(0, CAPS.freeText) }))
+          : undefined;
+        const misconceptions = Array.isArray(body.misconceptions)
+          ? body.misconceptions
+              .filter(
+                (m): m is { label: string; quality: string } =>
+                  typeof m === "object" &&
+                  m !== null &&
+                  typeof m.label === "string" &&
+                  typeof m.quality === "string",
+              )
+              .slice(0, CAPS.listItems)
+          : undefined;
         const p = {
           topic,
           nodeLabel,
           question: s(body.question).slice(0, CAPS.freeText),
           reference: s(body.reference).slice(0, CAPS.freeText),
           answer,
+          history,
+          attempt: typeof body.attempt === "number" ? Math.max(1, Math.round(body.attempt)) : undefined,
+          misconceptions,
+          help:
+            typeof body.help === "number" ? Math.max(0, Math.min(3, Math.round(body.help))) : undefined,
           language,
         };
         return uncached(

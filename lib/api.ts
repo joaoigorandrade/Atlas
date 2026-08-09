@@ -497,6 +497,10 @@ export function fetchJudgeSocratic(
     question: string;
     reference: string;
     answer: string;
+    history?: Array<{ role: "ai" | "learner"; text: string }>;
+    attempt?: number;
+    misconceptions?: Array<{ label: string; quality: string }>;
+    help?: number;
     language?: Language;
   },
   onVerdict?: (partial: Partial<SocraticJudgement>) => void,

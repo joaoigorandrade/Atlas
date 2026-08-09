@@ -573,6 +573,9 @@ export interface SocraticTurn {
   pending?: boolean;
 }
 
+/** How a finished step was resolved — earns the ending differently. */
+export type StepResolution = "unaided" | "hint" | "told";
+
 /** The live state of one Socratic session — held by AtlasApp, read by the view. */
 export interface SocraticSession {
   nodeId: string;
@@ -583,6 +586,12 @@ export interface SocraticSession {
   ruledOut: string[];
   /** "Just tell me" uses — repeated use flags a prerequisite gap. */
   tells: number;
+  /** How every *finished* step resolved, oldest first — the record `socraticOutcome`
+   *  reads to decide whether the pass earned an unqualified "understood". */
+  resolutions: StepResolution[];
+  /** Any scaffolding spent on the step in progress (stuck, a caught near/wrong) —
+   *  turns an eventual correct into "hint" instead of "unaided". Resets per step. */
+  stepAssisted: boolean;
   /**
    * How many steps this session will run. Held explicitly rather than read off
    * `steps.length`, because the steps stream in one at a time: deriving the
@@ -609,11 +618,13 @@ function openStep(
   steps: SocraticStep[],
 ): SocraticSession {
   const s = steps[step];
-  if (!s) return { ...session, step, ruledOut: [], awaitingNext: true };
+  if (!s)
+    return { ...session, step, ruledOut: [], stepAssisted: false, awaitingNext: true };
   return {
     ...session,
     step,
     ruledOut: [],
+    stepAssisted: false,
     awaitingNext: false,
     log: [...session.log, { role: "ai", text: s.prompt, move: s.move }],
   };
@@ -634,12 +645,23 @@ export function socraticStart(
     help: 1,
     ruledOut: [],
     tells: 0,
+    resolutions: [],
+    stepAssisted: false,
     total: Math.max(total, steps.length),
     awaitingNext: !first,
     done: false,
     log: first ? [{ role: "ai", text: first.prompt, move: first.move }] : [],
   };
 }
+
+const STUCK_TEXT: Record<Language, string> = {
+  en: "I'm stuck — more help.",
+  "pt-BR": "Estou travado — mais ajuda.",
+};
+const TELL_TEXT: Record<Language, string> = {
+  en: "Just tell me.",
+  "pt-BR": "Só me conte.",
+};
 
 const REPLY_TONE: Record<ReplyQuality, SocraticTurn["tone"]> = {
   correct: "affirm",
@@ -652,6 +674,8 @@ export type SocraticAction =
   | { type: "reply"; index: number }
   | { type: "stuck" }
   | { type: "tell" }
+  /** The scaffolding dial, set by hand rather than only fading with mastery (#B). */
+  | { type: "setHelp"; level: HelpLevel }
   /** The learner just sent their answer — it joins the transcript at once and
    *  the tutor's bubble opens still-writing beside it, ahead of the verdict. */
   | { type: "answer"; text: string }
@@ -683,6 +707,7 @@ export function socraticReducer(
   session: SocraticSession,
   action: SocraticAction,
   steps: SocraticStep[],
+  lang: Language = "en",
 ): SocraticSession {
   // Before the `done` guard on purpose: the verdict that finished the session
   // is exactly the one whose wording is still arriving.
@@ -697,16 +722,25 @@ export function socraticReducer(
       ),
     };
   }
+  // The dial is a control, not a verdict — it works even on a finished pass.
+  if (action.type === "setHelp") {
+    return { ...session, help: clampHelp(action.level) };
+  }
   if (session.done) return session;
 
   // More steps arrived. Re-cap the pass if the stream ended short of the plan,
   // then open the step the session is parked on — or finish, if that step was
   // the one that never came.
   if (action.type === "hydrate") {
-    const total = Math.max(
-      1,
-      Math.min(action.total ?? session.total, Math.max(steps.length, session.step + 1)),
-    );
+    // With no steps in hand yet (a resumed session reopening on an empty
+    // stream) there is no real evidence the plan came up short — trust the
+    // requested/saved total instead of clamping it down to `step + 1`.
+    const total = steps.length
+      ? Math.max(
+          1,
+          Math.min(action.total ?? session.total, Math.max(steps.length, session.step + 1)),
+        )
+      : Math.max(1, action.total ?? session.total);
     const capped = { ...session, total };
     if (!capped.awaitingNext) return capped;
     if (capped.step >= total) return { ...capped, awaitingNext: false, done: true };
@@ -716,20 +750,42 @@ export function socraticReducer(
   const step = steps[session.step];
   // Nothing to act on until the parked step lands.
   if (!step) return session;
-  const last = session.step >= session.total - 1;
 
-  const advance = (base: SocraticSession): SocraticSession =>
-    last ? { ...base, done: true } : openStep(base, session.step + 1, steps);
+  // Advancing earns the ending: three unaided answers running end the pass
+  // early (#D), two straight assisted ones buy one more probe if the plan
+  // wrote a spare — otherwise it runs to `total` as planned.
+  const advance = (base: SocraticSession, resolution: StepResolution): SocraticSession => {
+    const resolutions = [...base.resolutions, resolution];
+    let total = base.total;
+    if (
+      resolutions.length >= 3 &&
+      total > resolutions.length &&
+      resolutions.slice(-3).every((r) => r === "unaided")
+    ) {
+      total = resolutions.length;
+    }
+    if (
+      resolutions.length >= 2 &&
+      total < steps.length &&
+      resolutions.slice(-2).every((r) => r !== "unaided")
+    ) {
+      total += 1;
+    }
+    const finished = session.step >= total - 1;
+    const next = { ...base, resolutions, total };
+    return finished ? { ...next, done: true } : openStep(next, session.step + 1, steps);
+  };
 
   switch (action.type) {
     case "stuck": {
       return {
         ...session,
         help: clampHelp(session.help + 1),
+        stepAssisted: true,
         ruledOut: [...session.ruledOut],
         log: [
           ...session.log,
-          { role: "learner", text: "I'm stuck — more help." },
+          { role: "learner", text: STUCK_TEXT[lang] },
           { role: "ai", text: step.hint, tone: "teach" },
         ],
       };
@@ -741,11 +797,11 @@ export function socraticReducer(
         tells: session.tells + 1,
         log: [
           ...session.log,
-          { role: "learner", text: "Just tell me." },
+          { role: "learner", text: TELL_TEXT[lang] },
           { role: "ai", text: step.tell, tone: "teach" },
         ],
       };
-      return advance(base);
+      return advance(base, "told");
     }
     case "reply": {
       const reply = step.replies[action.index];
@@ -765,7 +821,9 @@ export function socraticReducer(
           reply.quality === "correct"
             ? clampHelp(session.help - 1)
             : clampHelp(session.help + 1);
-        return advance({ ...logged, help });
+        const resolution: StepResolution =
+          reply.quality === "correct" ? (session.stepAssisted ? "hint" : "unaided") : "told";
+        return advance({ ...logged, help }, resolution);
       }
       // near → hint and let them try again; wrong → caught, help rises. Both
       // rule the reply out so the learner converges instead of re-picking it.
@@ -775,6 +833,7 @@ export function socraticReducer(
           reply.quality === "wrong"
             ? clampHelp(session.help + 1)
             : session.help,
+        stepAssisted: true,
         ruledOut: [...session.ruledOut, reply.label],
       };
     }
@@ -813,7 +872,9 @@ export function socraticReducer(
           action.quality === "correct"
             ? clampHelp(session.help - 1)
             : clampHelp(session.help + 1);
-        return advance({ ...logged, help });
+        const resolution: StepResolution =
+          action.quality === "correct" ? (session.stepAssisted ? "hint" : "unaided") : "told";
+        return advance({ ...logged, help }, resolution);
       }
       return {
         ...logged,
@@ -821,11 +882,25 @@ export function socraticReducer(
           action.quality === "wrong"
             ? clampHelp(session.help + 1)
             : session.help,
+        stepAssisted: true,
       };
     }
     default:
       return session;
   }
+}
+
+/** Overall verdict for a finished pass — earns the "understood" hand-off,
+ *  a softer "assisted" one, or flags that it wasn't earned at all (#C).
+ *  A gap pass closes only on a clean `told === 0` — hint-assisted still
+ *  counts as reconstructed, told outright does not. */
+export type SocraticOutcome = "unaided" | "assisted" | "flagged";
+
+export function socraticOutcome(session: SocraticSession, gap: boolean): SocraticOutcome {
+  const told = session.resolutions.filter((r) => r === "told").length;
+  if (gap) return told === 0 ? "unaided" : "flagged";
+  if (told >= 2) return "flagged";
+  return session.resolutions.every((r) => r === "unaided") ? "unaided" : "assisted";
 }
 
 // ---- Phase 3b · Feynman (teach it back) -----------------------------------
