@@ -16,6 +16,7 @@ import { useLanguage, useT } from "@/lib/i18n";
 const STRINGS = {
   en: {
     start: "Speak your answer",
+    starting: "Opening the mic…",
     listening: "Listening — tap to stop",
     stopLabel: "Stop dictation",
     startLabel: "Start dictation",
@@ -28,6 +29,7 @@ const STRINGS = {
   },
   "pt-BR": {
     start: "Fale sua resposta",
+    starting: "Abrindo o microfone…",
     listening: "Ouvindo — toque para parar",
     stopLabel: "Parar ditado",
     startLabel: "Começar ditado",
@@ -80,7 +82,7 @@ export function MicButton({
     valueRef.current = value;
   }, [value]);
 
-  const { supported, listening, interim, error, toggle, stop } = useDictation({
+  const { supported, listening, starting, interim, error, toggle, stop } = useDictation({
     language,
     onFinal: (text) => onChange(appendTranscript(valueRef.current, text)),
   });
@@ -92,7 +94,13 @@ export function MicButton({
 
   if (!supported || !dictation) return null;
 
-  const status = error ? t.errors[error] : listening ? t.listening : t.start;
+  const status = error
+    ? t.errors[error]
+    : starting
+      ? t.starting
+      : listening
+        ? t.listening
+        : t.start;
 
   return (
     <div style={{ marginTop: 9 }}>
@@ -118,7 +126,11 @@ export function MicButton({
             opacity: disabled ? 0.45 : 1,
             padding: 0,
             transition: "background .15s, border-color .15s",
-            animation: listening ? "pulseGlow 1.6s ease-in-out infinite" : undefined,
+            animation: starting
+              ? "breathe 1.1s ease-in-out infinite"
+              : listening
+                ? "pulseGlow 1.6s ease-in-out infinite"
+                : undefined,
           }}
         >
           <MicGlyph tint={listening ? color.accentInk : color.inkMuted} />

@@ -165,6 +165,7 @@ interface Recognition {
   interimResults: boolean;
   start(): void;
   stop(): void;
+  onstart: (() => void) | null;
   onresult: ((e: RecognitionEvent) => void) | null;
   onerror: ((e: RecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -215,6 +216,9 @@ function dictationError(code: string): DictationError {
 export interface Dictation {
   supported: boolean;
   listening: boolean;
+  /** Started, but the engine isn't on the mic yet — the permission prompt
+   *  alone can sit here for seconds. */
+  starting: boolean;
   /** The not-yet-final words, for the live preview. */
   interim: string;
   error: DictationError | null;
@@ -232,6 +236,7 @@ export function useDictation({
 }): Dictation {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [interim, setInterim] = useState("");
   const [error, setError] = useState<DictationError | null>(null);
 
@@ -253,6 +258,7 @@ export function useDictation({
     recRef.current = null;
     if (rec) {
       // Detach first: a deliberate stop shouldn't surface as an "aborted".
+      rec.onstart = null;
       rec.onresult = null;
       rec.onerror = null;
       rec.onend = null;
@@ -263,6 +269,7 @@ export function useDictation({
       }
     }
     setListening(false);
+    setStarting(false);
     setInterim("");
   }, []);
 
@@ -273,6 +280,7 @@ export function useDictation({
     rec.lang = speechLang(langRef.current);
     rec.continuous = true;
     rec.interimResults = true;
+    rec.onstart = () => setStarting(false);
     rec.onresult = (e) => {
       let final = "";
       let live = "";
@@ -294,6 +302,7 @@ export function useDictation({
     rec.onend = () => {
       recRef.current = null;
       setListening(false);
+      setStarting(false);
       setInterim("");
     };
     setError(null);
@@ -304,6 +313,7 @@ export function useDictation({
     }
     recRef.current = rec;
     setListening(true);
+    setStarting(true);
   }, [stop]);
 
   const toggle = useCallback(() => {
@@ -314,7 +324,7 @@ export function useDictation({
   // Recognition holds the mic open; it must not outlive the surface.
   useEffect(() => stop, [stop]);
 
-  return { supported, listening, interim, error, toggle, stop };
+  return { supported, listening, starting, interim, error, toggle, stop };
 }
 
 // ---- read-aloud -----------------------------------------------------------
@@ -323,6 +333,10 @@ export interface ReadAloud {
   supported: boolean;
   speaking: boolean;
   paused: boolean;
+  /** Asked to speak, but the engine hasn't uttered the first word yet —
+   *  `speechSynthesis` can take a beat to warm a voice up, and without this
+   *  the control looks dead on the click that started it. */
+  loading: boolean;
   /** Index of the segment being spoken, or -1 when silent. */
   index: number;
   speak: (segments: string[]) => void;
@@ -335,6 +349,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
   const [supported, setSupported] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [index, setIndex] = useState(-1);
 
   const segmentsRef = useRef<string[]>([]);
@@ -354,6 +369,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
   const silence = useCallback(() => {
     setSpeaking(false);
     setPaused(false);
+    setLoading(false);
     setIndex(-1);
   }, []);
 
@@ -373,6 +389,9 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
       // highlight what's being read, and sidesteps Chrome's long-text cutoff.
       const utterance = new SpeechSynthesisUtterance(segments[i]);
       utterance.lang = speechLang(langRef.current);
+      utterance.onstart = () => {
+        if (run === runRef.current) setLoading(false);
+      };
       utterance.onend = () => stepRef.current(i + 1, run);
       utterance.onerror = () => {
         if (run !== runRef.current) return;
@@ -408,6 +427,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
       segmentsRef.current = clean;
       setSpeaking(true);
       setPaused(false);
+      setLoading(true);
       step(0, runRef.current);
     },
     [silence, step],
@@ -435,5 +455,5 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
     [],
   );
 
-  return { supported, speaking, paused, index, speak, pause, resume, cancel };
+  return { supported, speaking, paused, loading, index, speak, pause, resume, cancel };
 }

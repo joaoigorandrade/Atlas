@@ -65,6 +65,7 @@ const STRINGS = {
     readAloud: "Read this section aloud",
     pauseReading: "Pause the reading",
     resumeReading: "Resume the reading",
+    startingReading: "Starting the reading…",
     skipSection: "Skip — I know this",
     showFullSection: "Show full section →",
     minLeft: (n: number) => (n > 0 ? `~${n} min left` : ""),
@@ -138,6 +139,7 @@ const STRINGS = {
     readAloud: "Ouvir esta seção",
     pauseReading: "Pausar a leitura",
     resumeReading: "Continuar a leitura",
+    startingReading: "Iniciando a leitura…",
     skipSection: "Pular — já sei isso",
     showFullSection: "Mostrar seção completa →",
     minLeft: (n: number) => (n > 0 ? `~${n} min restantes` : ""),
@@ -450,15 +452,25 @@ function sectionName(kicker: string): string {
 function SpeakerButton({
   active,
   paused,
+  loading,
   onClick,
 }: {
   active: boolean;
   paused: boolean;
+  loading: boolean;
   onClick: () => void;
 }) {
   const t = useT(STRINGS);
-  const label = !active ? t.readAloud : paused ? t.resumeReading : t.pauseReading;
-  const showPause = active && !paused;
+  const label = !active
+    ? t.readAloud
+    : loading
+      ? t.startingReading
+      : paused
+        ? t.resumeReading
+        : t.pauseReading;
+  // Waiting on the engine is neither playing nor paused: the pause bars would
+  // be a lie, so it keeps the speaker glyph and breathes instead.
+  const showPause = active && !paused && !loading;
   return (
     <button
       type="button"
@@ -478,6 +490,7 @@ function SpeakerButton({
         background: active ? BLUE : color.card,
         cursor: "pointer",
         transition: "background .15s, border-color .15s",
+        animation: active && loading ? "breathe 1.1s ease-in-out infinite" : undefined,
       }}
     >
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -1883,6 +1896,7 @@ export default function ConsumeView({
                     <SpeakerButton
                       active={speakingChunk === c.id}
                       paused={reading.paused}
+                      loading={reading.loading}
                       onClick={() => toggleReading(c)}
                     />
                   )}
