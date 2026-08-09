@@ -1406,7 +1406,6 @@ function validateConnect(
     const root = obj(raw, "payload");
     const encoding = oneOf(root.encoding, ["conceptual", "list-like"] as const, "encoding");
     const byId = new Map(pool.map((p) => [p.id, p.label]));
-    const wanted = Math.min(CONNECT_SLOTS.length, Math.max(2, pool.length));
     const seen = new Set<string>();
     const cands = arr(root.cands, "cands", Math.min(2, pool.length), CONNECT_SLOTS.length)
       .map((v, i) => {
@@ -1420,7 +1419,6 @@ function validateConnect(
       .filter((c): c is NonNullable<typeof c> => c !== null);
     if (cands.length < Math.min(2, pool.length))
       fail(`cands must include at least ${Math.min(2, pool.length)} ids from the provided list`);
-    void wanted;
     const base: ElaborationContent = {
       centerId: nodeId,
       centerLabel: nodeLabel,
@@ -1430,7 +1428,10 @@ function validateConnect(
       cands,
     };
     if (encoding === "list-like") {
-      base.items = arr(root.items, "items (required for list-like)", 3, 8).map((s, i) =>
+      // The cap is generous on purpose: "vocab" is a named list-like case, and
+      // a twenty-noun set used to fail validation twice and throw the learner
+      // an error instead of a phase.
+      base.items = arr(root.items, "items (required for list-like)", 3, 30).map((s, i) =>
         str(s, `items[${i}]`),
       );
       base.mnemonics = arr(root.mnemonics, "mnemonics (required for list-like)", 2, 3).map(
@@ -1464,7 +1465,7 @@ The learner wires the new concept into concepts they already own. Their prior co
 ${pool.map((p) => `- ${p.id}: ${p.label}`).join("\n")}
 ${interestNote(interests)}
 
-First auto-detect the encoding: "conceptual" for a mental-model idea (mnemonics would be noise), "list-like" ONLY for genuinely enumerable material — a fixed sequence of steps, a taxonomy, vocabulary.
+First auto-detect the encoding. Apply this test: could a learner be fairly asked to reproduce a fixed set or ordered sequence from memory — named stages, a closed taxonomy, an algorithm's steps, vocabulary? Then it is "list-like", even when the material also carries deep ideas (the stages of mitosis, the HTTP status classes, the cranial nerves, an elimination procedure are all list-like). Use "conceptual" when there is nothing enumerable to hold in order and a mnemonic would be noise.
 
 Return JSON:
 {
@@ -1473,8 +1474,8 @@ Return JSON:
   "cands": [   // pick the 3-5 MOST related prior concepts from the list above
     {"id": "an id from the list", "rel": "the true relationship, one sentence, specific to both concepts — a draft the learner can accept or rewrite"}
   ],
-  "items": ["step 1", ...],          // list-like only: the ordered items a mnemonic organizes
-  "mnemonics": [                       // list-like only: 3 offered aids
+  "items": ["step 1", ...],          // list-like only: 3-30 ordered items a mnemonic organizes
+  "mnemonics": [                       // list-like only: 2-3 offered aids, each a DIFFERENT kind
     {"kind": "Acronym" | "Method of loci" | "Vivid image", "title": "short title", "body": "the aid itself, editable"}
   ]
 }${languageNote(language)}`,

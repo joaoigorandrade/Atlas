@@ -16,6 +16,7 @@ import type {
   AdherenceState,
   CalibSample,
   ConceptGraph,
+  ConnectSession,
   ConsumeChunk,
   ConsumeModelBeat,
   ConsumeProgress,
@@ -60,7 +61,7 @@ export const emptyCaches = (): RunCaches => ({
 });
 
 export interface RunSnapshot {
-  v: 7;
+  v: 8;
   form: OnboardingForm;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
@@ -91,6 +92,11 @@ export interface RunSnapshot {
    *  its Gap Report, whose gaps haven't been carried to the map yet. Dropped
    *  once they have. */
   feynmanProgress: Record<string, FeynmanSession>;
+  /** The unfinished elaboration pass on each node (§4) — the confirmed links
+   *  and the drafts behind them. Same reason as the two above: stepping back
+   *  to the map used to throw away every connection the learner had just
+   *  written. Dropped once the phase finishes. */
+  connectProgress: Record<string, ConnectSession>;
   /** What this learner keeps getting wrong, run-wide (§3a). Unlike the passes
    *  above — dropped the moment one finishes — this outlives every session,
    *  because "you keep confusing X and Y" is the one thing a tutor can only
@@ -98,11 +104,11 @@ export interface RunSnapshot {
   misconceptions: MisconceptionRecord[];
 }
 
-/** What may come back from the table: a v1 … v7 snapshot. v1 predates
+/** What may come back from the table: a v1 … v8 snapshot. v1 predates
  *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
  *  content caches inline, which v3 moved to their own column; v4 adds the
  *  Consume reading progress and the modality tally; v5 the Socratic one; v6
- *  the run-wide misconception roll-up; v7 the Feynman one. */
+ *  the run-wide misconception roll-up; v7 the Feynman one; v8 the Connect one. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
   | "v"
@@ -116,6 +122,7 @@ type LoadedSnapshot = Omit<
   | "modalityTally"
   | "socraticProgress"
   | "feynmanProgress"
+  | "connectProgress"
   | "misconceptions"
 > & {
   v: number;
@@ -129,18 +136,19 @@ type LoadedSnapshot = Omit<
   modalityTally?: ModalityTally;
   socraticProgress?: Record<string, SocraticSession>;
   feynmanProgress?: Record<string, FeynmanSession>;
+  connectProgress?: Record<string, ConnectSession>;
   misconceptions?: MisconceptionRecord[];
 };
 
 /** Every snapshot version this loader accepts. */
-const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6, 7];
+const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 
-/** Fill an older snapshot's gaps; a v7 passes through unchanged. */
+/** Fill an older snapshot's gaps; a v8 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
   const { caches: _inline, ...rest } = raw;
   return {
     ...rest,
-    v: 7,
+    v: 8,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
@@ -152,6 +160,7 @@ function migrate(raw: LoadedSnapshot): RunSnapshot {
     modalityTally: raw.modalityTally ?? {},
     socraticProgress: raw.socraticProgress ?? {},
     feynmanProgress: raw.feynmanProgress ?? {},
+    connectProgress: raw.connectProgress ?? {},
     misconceptions: raw.misconceptions ?? [],
   };
 }

@@ -345,6 +345,12 @@ export default function AtlasApp({
   } | null>(null);
   // The active Connect (Phase 4 · Elaboration) session, or null.
   const [connect, setConnect] = useState<ConnectSession | null>(null);
+  // …and the unfinished ones, per node, for the same reason Socratic's and
+  // Feynman's are kept: links the learner wrote in their own words are work,
+  // not something to re-earn because they stepped back to the map.
+  const [connectProgress, setConnectProgress] = useState<
+    Record<string, ConnectSession>
+  >({});
   // The active Crucible (Phase 5 · application/transfer) session, or null.
   const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
   // The active Retain (Phase 6 · Review queue) session, or null.
@@ -438,6 +444,8 @@ export default function AtlasApp({
   feynmanRef.current = feynman;
   const feynmanProgressRef = useRef(feynmanProgress);
   feynmanProgressRef.current = feynmanProgress;
+  const connectProgressRef = useRef(connectProgress);
+  connectProgressRef.current = connectProgress;
   const consumeRef = useRef(consume);
   consumeRef.current = consume;
   /** The reading pass on screen — committed sections, or the streaming ones
@@ -608,6 +616,7 @@ export default function AtlasApp({
       setModalityTally({});
       setSocraticProgress({});
       setFeynmanProgress({});
+      setConnectProgress({});
       setMisconceptions([]);
       pendingGapsRef.current = [];
       setMomentumPlaying(false);
@@ -634,6 +643,7 @@ export default function AtlasApp({
       setModalityTally(s.modalityTally);
       setSocraticProgress(s.socraticProgress);
       setFeynmanProgress(s.feynmanProgress);
+      setConnectProgress(s.connectProgress);
       setMisconceptions(s.misconceptions);
       setScreen("map");
       // A pre-v3 row still carries its caches inline; take them and skip
@@ -751,7 +761,7 @@ export default function AtlasApp({
   useEffect(() => {
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 7,
+      v: 8,
       form,
       graph,
       spawnedIds: [...spawnedIds],
@@ -767,6 +777,7 @@ export default function AtlasApp({
       modalityTally,
       socraticProgress,
       feynmanProgress,
+      connectProgress,
       misconceptions,
     };
     const timer = setTimeout(() => {
@@ -794,6 +805,7 @@ export default function AtlasApp({
     modalityTally,
     socraticProgress,
     feynmanProgress,
+    connectProgress,
     misconceptions,
   ]);
 
@@ -916,6 +928,7 @@ export default function AtlasApp({
           setConsumeProgress({});
           setModalityTally({});
           setSocraticProgress({});
+          setConnectProgress({});
           setMisconceptions([]);
           setCards([]);
           setCalibSamples([]);
@@ -1105,6 +1118,7 @@ export default function AtlasApp({
     setConsumeProgress({});
     setModalityTally({});
     setSocraticProgress({});
+    setConnectProgress({});
     setMisconceptions([]);
     setCalibSamples([]);
     setShakyReasons({});
@@ -2691,7 +2705,9 @@ export default function AtlasApp({
             ? { ...prev, [node.id]: "learning" }
             : prev,
         );
-        setConnect(connectStart(node.id));
+        // Resume the pass if one was left open — the links already written
+        // are the learner's words, not something to re-earn.
+        setConnect(connectProgressRef.current[node.id] ?? connectStart(node.id));
         setSelectedId(node.id);
         setScreen("connect");
         // Connect ends by handing the node to the Crucible, and the mastered
@@ -2726,6 +2742,8 @@ export default function AtlasApp({
     setScreen("map");
     const nodeId = connect?.nodeId;
     if (nodeId) {
+      // Park the pass, don't discard it: ← Map is "come back to this later".
+      if (connect) setConnectProgress((prev) => ({ ...prev, [nodeId]: connect }));
       setSelectedId(nodeId);
       later(() => centerOn(nodeId), 30);
     }
@@ -2772,28 +2790,39 @@ export default function AtlasApp({
     if (!connect) return;
     const node = graphRef.current.nodes.find((n) => n.id === connect.nodeId);
     const content = connectCacheRef.current[connect.nodeId];
-    const drafted = content ? connectCards(connect, content) : [];
+    const drafted = content ? connectCards(connect, content, languageRef.current) : [];
     // Confirmed links + accepted mnemonic become REAL persisted cards (#21) —
-    // they surface in Review without a generation inventing them.
+    // they surface in Review without a generation inventing them. The card id
+    // is the link's own identity, not a timestamp, so re-doing the phase
+    // rewrites its cards in place instead of stacking a second copy of every
+    // one of them into the review queue.
     if (node && drafted.length) {
       const now = new Date();
-      const stamp = Date.now();
-      setCards((prev) => [
-        ...prev,
-        ...drafted.map((c, i) =>
-          newStoredCard(
-            {
-              id: `${node.id}-connect-${stamp}-${i}`,
-              nodeId: node.id,
-              type: "why",
-              source: "Connect",
-              front: c.front,
-              back: c.back,
-            },
-            now,
-          ),
-        ),
-      ]);
+      setCards((prev) => {
+        const byId = new Map(prev.map((c) => [c.id, c]));
+        for (const c of drafted) {
+          const existing = byId.get(c.key);
+          byId.set(
+            c.key,
+            existing
+              ? { ...existing, front: c.front, back: c.back }
+              : newStoredCard(
+                  {
+                    id: c.key,
+                    nodeId: node.id,
+                    // A mnemonic is order-recall, not a "why" — grading it as
+                    // one would misreport what the learner actually proved.
+                    type: c.kind === "mnemonic" ? "recall" : "why",
+                    source: "Connect",
+                    front: c.front,
+                    back: c.back,
+                  },
+                  now,
+                ),
+          );
+        }
+        return [...byId.values()];
+      });
     }
     if (node) {
       setStates((prev) =>
@@ -2803,6 +2832,12 @@ export default function AtlasApp({
       );
       setShakyReason(node.id, "connect-complete");
     }
+    // Finished — the parked copy has nothing left to come back to.
+    setConnectProgress((prev) => {
+      if (!prev[connect.nodeId]) return prev;
+      const { [connect.nodeId]: _done, ...rest } = prev;
+      return rest;
+    });
     setScreen("map");
     setConnect(null);
     if (node) {

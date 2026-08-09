@@ -1449,17 +1449,39 @@ export function connectLinkedCount(session: ConnectSession): number {
   return Object.values(session.linked).filter(Boolean).length;
 }
 
-/** Two real connections is plenty to move on (the design's advance gate). */
-export function connectReady(session: ConnectSession): boolean {
-  return connectLinkedCount(session) >= 2;
+/**
+ * Two real connections is plenty to move on (the design's advance gate) — but
+ * a web that only ever offered one candidate can't produce two, and a gate
+ * nobody can pass is a dead end, not a standard.
+ */
+export function connectReady(
+  session: ConnectSession,
+  candCount = Infinity,
+): boolean {
+  return connectLinkedCount(session) >= Math.min(2, Math.max(1, candCount));
 }
 
 /** A card drafted from the Connect phase — raw material for the Retain queue. */
 export interface ConnectCard {
+  /** Stable per (node, source) — re-doing the phase must not duplicate cards. */
+  key: string;
   front: string;
   back: string;
   kind: "link" | "mnemonic";
 }
+
+const CONNECT_CARD_COPY = {
+  en: {
+    link: (center: string, cand: string) =>
+      `${center} ↔ ${cand}: what’s the connection?`,
+    mnemonic: (center: string) => `${center} · what’s the order of the steps?`,
+  },
+  "pt-BR": {
+    link: (center: string, cand: string) =>
+      `${center} ↔ ${cand}: qual é a conexão?`,
+    mnemonic: (center: string) => `${center} · qual é a ordem dos passos?`,
+  },
+} as const;
 
 /**
  * The cards this session drafts: one per confirmed link, plus the accepted
@@ -1469,12 +1491,17 @@ export interface ConnectCard {
 export function connectCards(
   session: ConnectSession,
   content: ElaborationContent,
+  lang: Language = "en",
 ): ConnectCard[] {
+  const copy = CONNECT_CARD_COPY[lang];
   const cards: ConnectCard[] = content.cands
     .filter((c) => session.linked[c.id])
+    // An empty draft falls back to the map's suggested relationship, so a
+    // confirmed link never becomes a card with a blank back.
     .map((c) => ({
-      front: `${content.centerLabel} ↔ ${c.label}: what’s the connection?`,
-      back: (session.drafts[c.id] || c.rel).trim(),
+      key: `${content.centerId}-connect-${c.id}`,
+      front: copy.link(content.centerLabel, c.label),
+      back: (session.drafts[c.id]?.trim() || c.rel).trim(),
       kind: "link" as const,
     }));
   if (
@@ -1483,7 +1510,8 @@ export function connectCards(
     session.mnemonicDraft.trim()
   ) {
     cards.push({
-      front: `${content.centerLabel} · what’s the order of the steps?`,
+      key: `${content.centerId}-connect-mnemonic`,
+      front: copy.mnemonic(content.centerLabel),
       back: session.mnemonicDraft.trim(),
       kind: "mnemonic",
     });

@@ -2,18 +2,18 @@
 
 import {
   CONNECT_COLOR,
-  MNEMONIC_TOOLS_OFF,
   STATE_COLOR,
   connectCards,
   connectLinkedCount,
   connectReady,
+  mnemonicToolsOff,
   type ConnectSession,
   type ElaborationContent,
   type ElaborationLink,
 } from "@/lib/curriculum";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
-import { useT } from "@/lib/i18n";
+import { useLanguage, useT } from "@/lib/i18n";
 
 import Rich from "@/components/Rich";
 // Connect owns the violet accent; candidate dots borrow mastered green (they're
@@ -128,12 +128,13 @@ export default function ConnectView({
   onFinish,
 }: ConnectViewProps) {
   const t = useT(STRINGS);
+  const { language } = useLanguage();
   const activeCand = session.active
     ? content.cands.find((c) => c.id === session.active) ?? null
     : null;
   const linkedCount = connectLinkedCount(session);
-  const ready = connectReady(session);
-  const cards = connectCards(session, content);
+  const ready = connectReady(session, content.cands.length);
+  const cards = connectCards(session, content, language);
   const cx = content.center.x;
   const cy = content.center.y;
 
@@ -485,9 +486,10 @@ function ConceptWeb({
         const on = !!session.linked[c.id];
         const active = session.active === c.id;
         return (
-          <div
+          <button
             key={c.id}
             onClick={() => onSelect(c.id)}
+            aria-pressed={on}
             style={{
               position: "absolute",
               left: c.x,
@@ -546,7 +548,7 @@ function ConceptWeb({
                 ✓
               </span>
             )}
-          </div>
+          </button>
         );
       })}
     </div>
@@ -714,6 +716,7 @@ function EncodingMethod({
   onAcceptMnemonic: () => void;
 }) {
   const t = useT(STRINGS);
+  const { language } = useLanguage();
   const listLike = content.encoding === "list-like";
   return (
     <div
@@ -781,7 +784,7 @@ function EncodingMethod({
       ) : (
         <>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {MNEMONIC_TOOLS_OFF.map((m) => (
+            {mnemonicToolsOff(language).map((m) => (
               <span
                 key={m}
                 style={{
@@ -882,8 +885,9 @@ function MnemonicTool({
           const active = picked === i;
           return (
             <button
-              key={opt.kind}
+              key={i}
               onClick={() => onPickMnemonic(i)}
+              aria-pressed={active}
               style={{
                 display: "flex",
                 flexDirection: "column",
