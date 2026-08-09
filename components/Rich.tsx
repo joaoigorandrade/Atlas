@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { color, font } from "@/lib/theme";
 
 // The model writes markdown-flavoured prose — `code`, **bold**, *italic*, and
@@ -78,5 +78,9 @@ export default function Rich({ text }: { text: string | undefined | null }) {
     last = at + m[0].length;
   }
   if (last < text.length) out.push(...inline(text.slice(last), `b${n}`));
-  return <Fragment>{out}</Fragment>;
+  // ponytail: one wrapper element, not a fragment — a flex/grid parent turns
+  // loose children into separate items, and a `code` item shrinks to
+  // min-content (one character per line). minWidth:0 keeps it from overflowing
+  // when it *is* the flex item.
+  return <span style={{ minWidth: 0 }}>{out}</span>;
 }
