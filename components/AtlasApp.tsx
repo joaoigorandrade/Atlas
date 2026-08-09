@@ -843,8 +843,9 @@ export default function AtlasApp({
    * "Exclude this topic" on a dashboard map card (confirmed there first): the
    * saved run is deleted outright. Excluding the live map also clears it from
    * memory — graph, mastery states, cards, calibration, every generated cache
-   * — and lands back on onboarding with the learner's goal and interests
-   * kept; excluding any other map just drops its row and refreshes the grid.
+   * — and returns to the dashboard with whatever maps remain; onboarding only
+   * shows up if that was the learner's last map. Excluding any other map just
+   * drops its row and refreshes the grid.
    *
    * `excluding` gates `runActive`, so the debounced writers are already off by
    * the time the delete lands; nothing can re-upsert the row behind it.
@@ -902,13 +903,20 @@ export default function AtlasApp({
           setUploadNote(null);
           setScopes(null);
           setForm((prev) => ({ ...prev, topic: "" }));
-          setScreen("welcome");
-          showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
+          const others = maps.filter((m) => m.subject !== subject);
+          if (others.length) {
+            setMaps(others);
+            setScreen("dashboard");
+            showToast(`“${subject}” excluded`);
+          } else {
+            setScreen("welcome");
+            showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
+          }
         })
         .catch((err: Error) => showToast(err.message, "Couldn't exclude"))
         .finally(() => setExcluding(false));
     },
-    [supabase, warm, showToast, runSubject, refreshMaps],
+    [supabase, warm, showToast, runSubject, maps],
   );
   const enterSettings = useCallback(() => setScreen("settings"), []);
   const exitSettings = useCallback(() => setScreen("map"), []);
