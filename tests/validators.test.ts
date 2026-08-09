@@ -470,6 +470,21 @@ describe("validateRetain", () => {
     );
   });
 
+  it("lets a cloze card's answer stand in for a missing back", () => {
+    const cloze = {
+      type: "recall",
+      source: "Consume",
+      node: "n1",
+      cloze: ["a ", " b"],
+      answer: "the blank",
+      reExplain: "re-explain",
+    };
+    const out = validateRetain(8, new Set(["n1"]))({
+      cards: [cloze, cloze, cloze, cloze],
+    });
+    expect(out.cards[0].back).toBe("the blank");
+  });
+
   it("ignores scheduling fields a stale prompt might still send", () => {
     // The scheduler owns intervals; anything the model volunteers is dropped
     // rather than trusted, since `newStoredCard` supplies its own.

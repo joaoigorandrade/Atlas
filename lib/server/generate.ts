@@ -1638,7 +1638,9 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
         type,
         source: str(c.source, `cards[${i}].source`),
         node,
-        back: str(c.back, `cards[${i}].back`),
+        // A cloze card's answer IS its back; models routinely omit `back`
+        // there, and rejecting that blocked the whole Review queue.
+        back: str(hasCloze ? (c.back ?? c.answer) : c.back, `cards[${i}].back`),
         fails: true,
         reExplain: str(c.reExplain, `cards[${i}].reExplain`),
       };

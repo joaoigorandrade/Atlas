@@ -628,6 +628,9 @@ function LinkingPrompt({
           placeholder={t.connectionPlaceholder}
           style={{
             width: "100%",
+            // The seeded draft is a full sentence or two; a fixed box clipped it
+            // mid-word, so the learner accepted words they couldn't read.
+            fieldSizing: "content",
             minHeight: 120,
             resize: "vertical",
             border: "none",
