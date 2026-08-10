@@ -139,10 +139,16 @@ function user(content: string): ChatMessage[] {
 export type Language = "en" | "pt-BR";
 
 /** Appended to every prompt. Field NAMES stay English (the app parses fixed
- *  keys) — only the natural-language VALUES the model writes should switch. */
+ *  keys) — only the natural-language VALUES the model writes should switch.
+ *
+ *  The explicit "don't copy the template" clause is load-bearing: the schemas
+ *  above spell their example values out in English ("Novel transfer · a
+ *  framing you were never handed", "Method of loci"), and without it the model
+ *  echoes those verbatim and then writes the whole payload in English to
+ *  match. */
 function languageNote(language: Language | undefined): string {
   return language === "pt-BR"
-    ? "\n\nRespond entirely in Brazilian Portuguese (pt-BR): every natural-language string value. Keep all JSON field names and enum values (e.g. \"correct\", \"mastered\") exactly as specified in English."
+    ? "\n\nOUTPUT LANGUAGE: Brazilian Portuguese (pt-BR). Every natural-language string value you return must be written in Portuguese — including any label, tag, title or example text shown in the JSON template above. Translate those; never copy their English wording. Keep only JSON field names and enum values (e.g. \"correct\", \"mastered\", \"conceptual\", \"list-like\") exactly as specified in English."
     : "";
 }
 
@@ -1487,18 +1493,30 @@ Return JSON:
 
 // ---- kind: crucible --------------------------------------------------------
 
-const RUNGS = [
-  { label: "Recall a definition" },
-  { label: "Guided application" },
-  { label: "Novel transfer" },
-  { label: "Interleaved mix" },
-  { label: "Boss · whole branch" },
-];
+// The ladder is fixed copy, not generated — so it is translated here rather
+// than asked for from the model.
+const RUNGS: Record<Language, Array<{ label: string }>> = {
+  en: [
+    { label: "Recall a definition" },
+    { label: "Guided application" },
+    { label: "Novel transfer" },
+    { label: "Interleaved mix" },
+    { label: "Boss · whole branch" },
+  ],
+  "pt-BR": [
+    { label: "Lembrar uma definição" },
+    { label: "Aplicação guiada" },
+    { label: "Transferência inédita" },
+    { label: "Mistura intercalada" },
+    { label: "Chefão · ramo inteiro" },
+  ],
+};
 
 export function validateCrucible(
   nodeId: string,
   nodeLabel: string,
   masteredLabels: string[],
+  language: Language = "en",
 ) {
   return (raw: unknown): CrucibleContent => {
     const root = obj(raw, "payload");
@@ -1540,7 +1558,7 @@ export function validateCrucible(
       centerId: nodeId,
       centerLabel: nodeLabel,
       draws,
-      rungs: RUNGS,
+      rungs: RUNGS[language],
       gap: {
         id: `gap-cru-${nodeId}`,
         label: str(root.gapLabel, "gapLabel"),
@@ -1596,7 +1614,7 @@ Return JSON:
   "reExplain": "a 30-second Socratic re-explanation aimed straight at the gap, ending with one question"
 }${languageNote(language)}`,
     ),
-    validateCrucible(nodeId, nodeLabel, masteredLabels),
+    validateCrucible(nodeId, nodeLabel, masteredLabels, language),
     { label: "crucible" },
   );
 }

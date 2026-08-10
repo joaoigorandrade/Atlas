@@ -277,6 +277,16 @@ describe("validateCrucible", () => {
     ).toThrow(/draws must name concepts/);
   });
 
+  it("returns the difficulty ladder in the requested language", () => {
+    const payload = cruciblePayload(["Vectors"], "used row-major order, so the result was transposed");
+    expect(validateCrucible("n1", "Node", ["Vectors"], "pt-BR")(payload).rungs[0].label).toBe(
+      "Lembrar uma definição",
+    );
+    expect(validateCrucible("n1", "Node", ["Vectors"])(payload).rungs[0].label).toBe(
+      "Recall a definition",
+    );
+  });
+
   it("rejects the captured self-identical error text (#10)", () => {
     expect(() =>
       validateCrucible("n1", "Node", ["Vectors"])(

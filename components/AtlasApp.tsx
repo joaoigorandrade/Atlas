@@ -417,6 +417,23 @@ export default function AtlasApp({
   formRef.current = form;
   const languageRef = useRef(language);
   languageRef.current = language;
+  // Generated content carries the language of the prompt that wrote it and
+  // nothing else, so switching language mid-run must drop every cached
+  // surface — otherwise the learner keeps reading the old language back out
+  // of memory (and out of the saved snapshot) forever.
+  const contentLanguageRef = useRef(language);
+  useEffect(() => {
+    if (contentLanguageRef.current === language) return;
+    contentLanguageRef.current = language;
+    warm.clear();
+    setConsumeCache({});
+    setModelCache({});
+    setSocraticCache({});
+    setFeynmanCache({});
+    setConnectCache({});
+    setCrucibleCache({});
+    setRetainContent(null);
+  }, [language, warm]);
   const diagnosticRef = useRef(diagnostic);
   diagnosticRef.current = diagnostic;
   const answeredRef = useRef(answered);
