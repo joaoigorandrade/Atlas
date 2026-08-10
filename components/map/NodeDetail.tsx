@@ -39,6 +39,10 @@ const STRINGS = {
     skipTo: (phase: string) => `Skip to ${phase} →`,
     skipKnown: "I already know this — skip it",
     openGaps: "Open gaps · spawned from failures",
+    repair: "Targeted repair",
+    repairStep: "Socratic pass",
+    repairNote: "one pass · closes this gap",
+    spawnedFrom: "Spawned from",
     learnFirst: "Learn these first",
     prerequisites: "Prerequisites",
     unlocks: "Unlocks",
@@ -61,6 +65,10 @@ const STRINGS = {
     skipTo: (phase: string) => `Pular para ${phase} →`,
     skipKnown: "Eu já sei isso — pular",
     openGaps: "Lacunas abertas · geradas por falhas",
+    repair: "Reparo direcionado",
+    repairStep: "Passagem socrática",
+    repairNote: "uma passagem · fecha esta lacuna",
+    spawnedFrom: "Originado de",
     learnFirst: "Aprenda isso primeiro",
     prerequisites: "Pré-requisitos",
     unlocks: "Desbloqueia",
@@ -121,6 +129,9 @@ export default function NodeDetail({
       ? readingProgress(consumeProgress)
       : null;
   const locked = displayState === "unknown";
+  // A lacuna is not a map topic: no six-phase spiral, no green CTA. It is one
+  // targeted Socratic pass hanging off its parent, and it reads that way.
+  const isGap = displayState === "gap";
   const confidenceLine =
     displayState === "shaky"
       ? shakyLine(shakyReason, language)
@@ -141,6 +152,9 @@ export default function NodeDetail({
   const gapIds = edges
     .filter(([from, , dashed]) => from === node.id && dashed)
     .map(([, to]) => to);
+  const parentIds = edges
+    .filter(([, to, dashed]) => to === node.id && dashed)
+    .map(([from]) => from);
 
   const chipStyle = {
     display: "inline-flex",
@@ -178,8 +192,10 @@ export default function NodeDetail({
         bottom: 0,
         right: 0,
         width: 356,
-        background: "rgba(248,246,240,0.97)",
-        borderLeft: `1px solid ${color.hairline}`,
+        background: isGap ? "rgba(250,243,241,0.97)" : "rgba(248,246,240,0.97)",
+        borderLeft: isGap
+          ? `2px solid ${stateColor}`
+          : `1px solid ${color.hairline}`,
         padding: "28px 26px",
         zIndex: 15,
         overflowY: "auto",
@@ -219,7 +235,8 @@ export default function NodeDetail({
       <div
         style={{
           fontFamily: font.serif,
-          fontSize: 26,
+          fontSize: isGap ? 21 : 26,
+          fontStyle: isGap ? "italic" : "normal",
           lineHeight: 1.14,
           marginBottom: 14,
         }}
@@ -243,198 +260,258 @@ export default function NodeDetail({
         <Rich text={confidenceLine} />
       </div>
 
-      <div style={{ ...kicker(10), marginBottom: 12 }}>{t.phaseSpiral}</div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          marginBottom: 24,
-        }}
-      >
-        {PHASES.map((name, i) => {
-          const status =
-            currentPhase < 0
-              ? "locked"
-              : i < currentPhase
-                ? "done"
-                : i === currentPhase
-                  ? "current"
-                  : "locked";
-          const isCurrent = status === "current";
-          const markerColor =
-            status === "done" ? "#4c8b63" : isCurrent ? stateColor : "#c3bdb2";
-          // Done phases re-open, the current one starts, and later ones can
-          // be jumped to (after the nudge). Only a locked node stays inert.
-          const clickable = currentPhase >= 0;
-          const isJump = clickable && i > currentPhase;
-          return (
-            <button
-              key={name}
-              disabled={!clickable}
-              onClick={() =>
-                isJump
-                  ? setPendingSkip(i)
-                  : onPhaseAction(node, displayState, i)
-              }
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "9px 4px",
-                background: "none",
-                border: "none",
-                borderRadius: 8,
-                width: "100%",
-                textAlign: "left",
-                fontFamily: "inherit",
-                color: "inherit",
-                cursor: clickable ? "pointer" : "default",
-              }}
-            >
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: "50%",
-                  flex: "0 0 auto",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 12,
-                  background:
-                    status === "done"
-                      ? "rgba(76,139,99,0.14)"
-                      : isCurrent
-                        ? "rgba(201,154,46,0.14)"
-                        : "transparent",
-                  border: `1px solid ${
-                    status === "locked" ? color.hairlineStrong : markerColor
-                  }`,
-                  color: markerColor,
-                }}
-              >
-                {status === "done" ? "✓" : isCurrent ? "→" : "·"}
-              </span>
-              <span
-                style={{
-                  fontSize: 15,
-                  fontFamily: font.serif,
-                  color: status === "locked" ? color.inkGhost : color.ink,
-                  fontWeight: isCurrent ? 600 : 400,
-                }}
-              >
-                {name}
-              </span>
-              {/* How far into the reading, on the reading's own row — the
-                  one place "you're part-way through this" belongs. */}
-              {i === 0 && reading && (
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    fontFamily: font.mono,
-                    fontSize: 10,
-                    letterSpacing: "0.08em",
-                    color: color.inkMuted,
-                  }}
-                >
-                  {t.readingProgress(reading.read, reading.total)}
-                </span>
-              )}
-              {isCurrent && !(i === 0 && reading) && (
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    fontFamily: font.mono,
-                    fontSize: 10,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    color: stateColor,
-                  }}
-                >
-                  {t.next}
-                </span>
-              )}
-              {status === "done" && (
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    fontFamily: font.mono,
-                    fontSize: 10,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    color: color.inkGhost,
-                  }}
-                >
-                  {t.redo}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {pendingSkip !== null && currentPhase >= 0 && (
-        <div
-          style={{
-            background: color.amberBg,
-            border: "1px solid rgba(160,106,48,0.25)",
-            borderRadius: 10,
-            padding: "13px 15px",
-            marginTop: -8,
-            marginBottom: 18,
-            animation: "fadeUp 0.25s both",
-          }}
-        >
+      {isGap ? (
+        <>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>{t.repair}</div>
           <div
             style={{
-              fontSize: 13.5,
-              lineHeight: 1.5,
-              color: color.amberInk,
-              marginBottom: 11,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "13px 15px",
+              background: color.card,
+              border: `1px solid ${stateColor}33`,
+              borderRadius: 10,
+              marginBottom: 22,
             }}
           >
-            {PHASE_SKIP_NUDGE[PHASES[currentPhase]]}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              onClick={() => {
-                setPendingSkip(null);
-                onPhaseAction(node, displayState, currentPhase);
-              }}
+            <span
               style={{
-                padding: "8px 13px",
-                background: color.accent,
-                color: color.accentInk,
-                border: "none",
-                borderRadius: 9,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
+                width: 22,
+                height: 22,
+                borderRadius: "50%",
+                flex: "0 0 auto",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                background: `${stateColor}22`,
+                border: `1px solid ${stateColor}`,
+                color: stateColor,
               }}
             >
-              {t.doFirst(PHASES[currentPhase])}
-            </button>
-            <button
-              onClick={() => {
-                const target = pendingSkip;
-                setPendingSkip(null);
-                onPhaseAction(node, displayState, target);
-              }}
+              →
+            </span>
+            <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 600 }}>
+              {t.repairStep}
+            </span>
+            <span
               style={{
-                padding: "8px 4px",
-                background: "none",
-                border: "none",
-                fontSize: 13,
-                color: color.amberInk,
-                cursor: "pointer",
-                textDecoration: "underline",
+                marginLeft: "auto",
+                fontFamily: font.mono,
+                fontSize: 10,
+                letterSpacing: "0.08em",
+                color: color.inkMuted,
               }}
             >
-              {t.skipTo(PHASES[pendingSkip])}
-            </button>
+              {t.repairNote}
+            </span>
           </div>
+          {parentIds.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ ...kicker(10), marginBottom: 10 }}>{t.spawnedFrom}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {parentIds.map(chip)}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+        <div style={{ ...kicker(10), marginBottom: 12 }}>{t.phaseSpiral}</div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            marginBottom: 24,
+          }}
+        >
+          {PHASES.map((name, i) => {
+            const status =
+              currentPhase < 0
+                ? "locked"
+                : i < currentPhase
+                  ? "done"
+                  : i === currentPhase
+                    ? "current"
+                    : "locked";
+            const isCurrent = status === "current";
+            const markerColor =
+              status === "done" ? "#4c8b63" : isCurrent ? stateColor : "#c3bdb2";
+            // Done phases re-open, the current one starts, and later ones can
+            // be jumped to (after the nudge). Only a locked node stays inert.
+            const clickable = currentPhase >= 0;
+            const isJump = clickable && i > currentPhase;
+            return (
+              <button
+                key={name}
+                disabled={!clickable}
+                onClick={() =>
+                  isJump
+                    ? setPendingSkip(i)
+                    : onPhaseAction(node, displayState, i)
+                }
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "9px 4px",
+                  background: "none",
+                  border: "none",
+                  borderRadius: 8,
+                  width: "100%",
+                  textAlign: "left",
+                  fontFamily: "inherit",
+                  color: "inherit",
+                  cursor: clickable ? "pointer" : "default",
+                }}
+              >
+                <span
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    flex: "0 0 auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    background:
+                      status === "done"
+                        ? "rgba(76,139,99,0.14)"
+                        : isCurrent
+                          ? "rgba(201,154,46,0.14)"
+                          : "transparent",
+                    border: `1px solid ${
+                      status === "locked" ? color.hairlineStrong : markerColor
+                    }`,
+                    color: markerColor,
+                  }}
+                >
+                  {status === "done" ? "✓" : isCurrent ? "→" : "·"}
+                </span>
+                <span
+                  style={{
+                    fontSize: 15,
+                    fontFamily: font.serif,
+                    color: status === "locked" ? color.inkGhost : color.ink,
+                    fontWeight: isCurrent ? 600 : 400,
+                  }}
+                >
+                  {name}
+                </span>
+                {/* How far into the reading, on the reading's own row — the
+                    one place "you're part-way through this" belongs. */}
+                {i === 0 && reading && (
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontFamily: font.mono,
+                      fontSize: 10,
+                      letterSpacing: "0.08em",
+                      color: color.inkMuted,
+                    }}
+                  >
+                    {t.readingProgress(reading.read, reading.total)}
+                  </span>
+                )}
+                {isCurrent && !(i === 0 && reading) && (
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontFamily: font.mono,
+                      fontSize: 10,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: stateColor,
+                    }}
+                  >
+                    {t.next}
+                  </span>
+                )}
+                {status === "done" && (
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontFamily: font.mono,
+                      fontSize: 10,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: color.inkGhost,
+                    }}
+                  >
+                    {t.redo}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
+
+        {pendingSkip !== null && currentPhase >= 0 && (
+          <div
+            style={{
+              background: color.amberBg,
+              border: "1px solid rgba(160,106,48,0.25)",
+              borderRadius: 10,
+              padding: "13px 15px",
+              marginTop: -8,
+              marginBottom: 18,
+              animation: "fadeUp 0.25s both",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13.5,
+                lineHeight: 1.5,
+                color: color.amberInk,
+                marginBottom: 11,
+              }}
+            >
+              {PHASE_SKIP_NUDGE[PHASES[currentPhase]]}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => {
+                  setPendingSkip(null);
+                  onPhaseAction(node, displayState, currentPhase);
+                }}
+                style={{
+                  padding: "8px 13px",
+                  background: color.accent,
+                  color: color.accentInk,
+                  border: "none",
+                  borderRadius: 9,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {t.doFirst(PHASES[currentPhase])}
+              </button>
+              <button
+                onClick={() => {
+                  const target = pendingSkip;
+                  setPendingSkip(null);
+                  onPhaseAction(node, displayState, target);
+                }}
+                style={{
+                  padding: "8px 4px",
+                  background: "none",
+                  border: "none",
+                  fontSize: 13,
+                  color: color.amberInk,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                {t.skipTo(PHASES[pendingSkip])}
+              </button>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       <button
@@ -447,9 +524,17 @@ export default function NodeDetail({
           fontWeight: 600,
           cursor: locked ? "default" : "pointer",
           border: "none",
-          background: locked ? "rgba(44,40,35,0.07)" : color.accent,
+          background: locked
+            ? "rgba(44,40,35,0.07)"
+            : isGap
+              ? stateColor
+              : color.accent,
           color: locked ? color.inkGhost : color.accentInk,
-          boxShadow: locked ? "none" : "0 8px 22px rgba(47,107,79,0.26)",
+          boxShadow: locked
+            ? "none"
+            : isGap
+              ? "0 8px 22px rgba(193,87,74,0.26)"
+              : "0 8px 22px rgba(47,107,79,0.26)",
         }}
       >
         {/* A part-read node's primary action is to get back into the reading,
