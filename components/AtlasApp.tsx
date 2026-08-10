@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_FORM,
   PHASES,
-  ancestorsOf,
+  applyDiagnosticEffect,
   calibItems,
   calibOverCount,
   connectCards,
@@ -62,6 +62,7 @@ import {
   type CrucibleContent,
   type CrucibleSession,
   type DiagnosticDifficulty,
+  type DiagnosticEffect,
   type DiagnosticQuestion,
   type ElaborationContent,
   type FeynmanAction,
@@ -1168,7 +1169,6 @@ export default function AtlasApp({
           language: languageRef.current,
           pool,
           difficulty: nextDifficultyRef.current,
-          index: 0,
         });
       // This call is never cached (unlike every other generation, its node
       // ids don't exist until the map above resolves), so it fails more
@@ -1293,12 +1293,13 @@ export default function AtlasApp({
    * pull from — the ENEM-style placement can't know question N+1 until N is
    * graded.
    */
-  const answerDiagnostic = useCallback((optionIndex: number) => {
+  const answerDiagnostic = useCallback((optionIndex: number): DiagnosticEffect => {
     // All effects run here in the event handler, never inside a state
     // updater — React may invoke updaters more than once (#16).
     const idx = answeredRef.current;
     const q = diagnosticRef.current[idx];
-    if (!q) return;
+    if (!q) return "shaky";
+    const buildId = buildIdRef.current;
     const correct = optionIndex === q.correctIndex;
     const effect = diagnosticEffect(q.difficulty, correct, maxCorrectDifficultyRef.current);
     if (correct) {
@@ -1309,31 +1310,49 @@ export default function AtlasApp({
       )
         maxCorrectDifficultyRef.current = q.difficulty;
     }
-    if (effect !== "none") {
-      const chain = ancestorsOf(q.nodeId, graphRef.current.edges);
-      setStates((s) => {
-        const next = { ...s };
-        for (const id of chain) next[id] = "mastered";
-        if (effect === "shaky") next[q.nodeId] = "shaky";
-        return next;
-      });
-      if (effect === "shaky") setShakyReason(q.nodeId, "diagnostic-hesitation");
-      if (effect === "shaky" && q.gap)
-        pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
+    // Written as a value, not an updater, so the pool below can filter on the
+    // post-answer truth — the placement is the only writer on this screen.
+    const applied = applyDiagnosticEffect(
+      statesRef.current,
+      effect,
+      q.nodeId,
+      graphRef.current.edges,
+    );
+    setStates(applied);
+    if (effect === "shaky") {
+      setShakyReason(q.nodeId, "diagnostic-hesitation");
+      if (q.gap) pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
     }
     askedNodeIdsRef.current.push(q.nodeId);
-    const nextDifficulty = stepDifficulty(q.difficulty, correct);
+    // A discounted miss is noise, not a signal — it writes back like a correct
+    // answer, so it must not walk the ladder down either. Hold the level.
+    const nextDifficulty =
+      !correct && effect === "mastered"
+        ? q.difficulty
+        : stepDifficulty(q.difficulty, correct);
     nextDifficultyRef.current = nextDifficulty;
 
     const next = idx + 1;
     const maxG = Math.max(1, ...graphRef.current.nodes.map((n) => n.g));
     setReveal(Math.ceil((Math.min(next, DIAGNOSTIC_COUNT) / DIAGNOSTIC_COUNT) * maxG));
     setAnswered(next);
-    if (next >= DIAGNOSTIC_COUNT) return;
+    if (next >= DIAGNOSTIC_COUNT) return effect;
 
+    // Already-asked nodes are out, and so is everything the answers above
+    // already pruned: re-probing settled territory spends one of five
+    // questions to learn nothing, and a miss there would undo a prune.
     const pool = graphRef.current.nodes
-      .filter((n) => !askedNodeIdsRef.current.includes(n.id))
+      .filter(
+        (n) =>
+          !askedNodeIdsRef.current.includes(n.id) && applied[n.id] !== "mastered",
+      )
       .map((n) => ({ id: n.id, label: n.label }));
+    // Nothing left worth probing — the placement has already learned all it
+    // can. End it here instead of posting a request the server would reject.
+    if (pool.length === 0) {
+      setAnswered(DIAGNOSTIC_COUNT);
+      return effect;
+    }
 
     fetchDiagnosticQuestion({
       topic: formRef.current.topic,
@@ -1342,16 +1361,18 @@ export default function AtlasApp({
       language: languageRef.current,
       pool,
       difficulty: nextDifficulty,
-      index: next,
     })
       .then((question) => {
-        setDiagnostic((prev) => [...prev, question]);
+        // A question written for a map the learner has already left behind
+        // must not land on the one that replaced it.
+        if (buildIdRef.current === buildId) setDiagnostic((prev) => [...prev, question]);
       })
       .catch(() => {
         // The writer stumbled mid-placement: stop asking and let what's
         // already known stand rather than leaving the panel waiting forever.
-        setAnswered(DIAGNOSTIC_COUNT);
+        if (buildIdRef.current === buildId) setAnswered(DIAGNOSTIC_COUNT);
       });
+    return effect;
   }, [setShakyReason]);
 
   /**
@@ -3758,7 +3779,10 @@ export default function AtlasApp({
   // without a date gets no fabricated countdown.
   const pace = useMemo(
     () =>
-      form.goal === "exam" && form.examDate
+      // A date that has already passed is not a deadline — it would divide the
+      // remaining territory by a floor of one day and demand a fabricated
+      // 12-hour pace. No countdown beats a wrong one (#23).
+      form.goal === "exam" && daysUntil(form.examDate) > 0
         ? paceStatus(states, graph, form.target, daysUntil(form.examDate))
         : null,
     [form.goal, form.examDate, form.target, states, graph],

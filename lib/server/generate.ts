@@ -4,7 +4,6 @@
 // gap offsets are computed here, never trusted from the model.
 
 import {
-  DIAGNOSTIC_COUNT,
   FEYNMAN_BEATS,
   MODEL_BEAT_BOUNDS,
   SOCRATIC_MAX_STEPS,
@@ -574,8 +573,6 @@ export interface DiagnosticQuestionParams {
    *  the 5 questions never repeat a concept. */
   nodeCandidates: Array<{ id: string; label: string }>;
   difficulty: DiagnosticDifficulty;
-  /** 0-based position in the placement — only used for the display tag. */
-  index: number;
 }
 
 /**
@@ -586,7 +583,7 @@ export interface DiagnosticQuestionParams {
 export async function generateDiagnosticQuestion(
   params: DiagnosticQuestionParams,
 ): Promise<DiagnosticQuestion> {
-  const { language = "en", nodeCandidates, difficulty, index } = params;
+  const { language = "en", nodeCandidates, difficulty } = params;
   const nodeIds = new Set(nodeCandidates.map((n) => n.id));
   const candidateList = nodeCandidates.map((n) => `${n.id} (${n.label})`).join(", ");
   const raw = await generateJson(
@@ -612,7 +609,11 @@ Rules: exactly one of the 4 options is correct; the other three are plausible di
     { label: "diagnostic-question" },
   );
   return {
-    tag: `Question ${index + 1} of ${DIAGNOSTIC_COUNT}`,
+    // The concept this probes, not a counter: the panel renders `tag` inside
+    // "<tag> and everything under it is marked known", and the progress bar
+    // above it already carries the count (in the learner's language, which a
+    // hardcoded "Question 3 of 5" never was).
+    tag: nodeCandidates.find((n) => n.id === raw.nodeId)?.label ?? raw.nodeId,
     q: raw.q,
     note: raw.note,
     nodeId: raw.nodeId,

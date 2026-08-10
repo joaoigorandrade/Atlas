@@ -227,10 +227,6 @@ export function resolveJob(body: GenerateBody): Job {
       )
         ? (body.difficulty as DiagnosticDifficulty)
         : "medium";
-      const index =
-        typeof body.index === "number" && Number.isInteger(body.index)
-          ? body.index
-          : 0;
       const params = {
         topic,
         goal: ["exam", "project", "mastery"].includes(s(body.goal))
@@ -240,7 +236,6 @@ export function resolveJob(body: GenerateBody): Job {
         language,
         nodeCandidates: pool,
         difficulty,
-        index,
       };
       // Never cached: which question comes next depends on how the learner
       // answered the last one, so no two placements share this call's inputs.

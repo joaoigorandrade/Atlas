@@ -2501,7 +2501,7 @@ export function readingPhaseIndex(
   return phaseIndex(state, reviewed);
 }
 
-export type DiagnosticEffect = "mastered" | "shaky" | "none";
+export type DiagnosticEffect = "mastered" | "shaky";
 
 /** An objective quiz option \u2014 just the label. Which one is correct lives on
  *  the question (`correctIndex`), not per-option, since correctness is now
@@ -2555,13 +2555,15 @@ export function stepDifficulty(
  * What a graded answer writes back to the node's mastery.
  *
  * `maxCorrectDifficulty` is the hardest level answered correctly so far this
- * placement (or null before any correct answer) \u2014 the running evidence of
+ * placement (or null before any correct answer) — the running evidence of
  * ability the "luck" call leans on.
  *
- * A miss on a question no harder than that evidence reads as a slip, not a
- * gap (the ENEM read: acing hard questions then fumbling an easy one is
- * noise, not proof of not knowing it) \u2014 it's discounted to the same effect a
- * correct answer would give, and spawns no gap node.
+ * A miss on a question *strictly easier* than that evidence reads as a slip,
+ * not a gap (the ENEM read: acing hard questions then fumbling an easy one is
+ * noise) — it's discounted to the same effect a correct answer would give,
+ * and spawns no gap node. Strictly easier, not "no harder": one right and one
+ * wrong at the same level is a coin flip, not proof of mastery, and the write
+ * it triggers (prune the whole prerequisite chain) is not recoverable.
  */
 export function diagnosticEffect(
   difficulty: DiagnosticDifficulty,
@@ -2571,8 +2573,30 @@ export function diagnosticEffect(
   if (correct) return "mastered";
   const rank = (d: DiagnosticDifficulty) => DIAGNOSTIC_DIFFICULTIES.indexOf(d);
   const isLuckMiss =
-    maxCorrectDifficulty !== null && rank(difficulty) <= rank(maxCorrectDifficulty);
+    maxCorrectDifficulty !== null && rank(difficulty) < rank(maxCorrectDifficulty);
   return isLuckMiss ? "mastered" : "shaky";
+}
+
+/**
+ * The mastery write a graded placement answer makes.
+ *
+ * A correct answer (or a discounted slip) prunes the concept *and its whole
+ * prerequisite chain* — knowing something is evidence for everything it stands
+ * on. A genuine miss touches only the concept itself: the chain below a missed
+ * concept is the likeliest place the reason for the miss is hiding, and
+ * pruning it would hide it for good.
+ */
+export function applyDiagnosticEffect(
+  states: StateMap,
+  effect: DiagnosticEffect,
+  nodeId: string,
+  edges: ConceptEdge[],
+): StateMap {
+  const next = { ...states };
+  if (effect === "mastered")
+    for (const id of ancestorsOf(nodeId, edges)) next[id] = "mastered";
+  else next[nodeId] = "shaky";
+  return next;
 }
 
 export type GoalKind = "exam" | "project" | "mastery";
@@ -2607,9 +2631,11 @@ export interface OnboardingForm {
 }
 
 export const DEFAULT_FORM: OnboardingForm = {
-  topic: "Linear Algebra",
+  // Empty on purpose: a pre-filled topic makes `build()`'s empty-topic guard
+  // unreachable and lets a distracted learner build somebody else's map.
+  topic: "",
   goal: "exam",
-  interests: "chess, investing",
+  interests: "",
   target: 15,
   examDate: "",
 };

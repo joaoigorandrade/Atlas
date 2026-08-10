@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDiagnosticEffect,
   crucibleReducer,
   crucibleStart,
   daysUntil,
@@ -27,7 +28,9 @@ import {
   type CrucibleContent,
   type FeynmanBeat,
   type SocraticSession,
+  type ConceptEdge,
   type SocraticStep,
+  type StateMap,
 } from "@/lib/curriculum";
 
 // ---- adaptive placement: difficulty ladder + luck-discounted grading --------
@@ -53,7 +56,7 @@ describe("diagnosticEffect", () => {
     expect(diagnosticEffect("easy", false, null)).toBe("shaky");
   });
 
-  it("discounts a miss no harder than evidence already proven (an ENEM-style luck slip)", () => {
+  it("discounts a miss strictly easier than evidence already proven (an ENEM-style luck slip)", () => {
     // Aced a hard question, then fumbled an easy one — noise, not a gap.
     expect(diagnosticEffect("easy", false, "hard")).toBe("mastered");
   });
@@ -61,6 +64,41 @@ describe("diagnosticEffect", () => {
   it("still calls a miss shaky when it's harder than anything proven so far", () => {
     // Only proven medium; missing hard is real, uncovered evidence.
     expect(diagnosticEffect("hard", false, "medium")).toBe("shaky");
+  });
+
+  it("does not discount a miss at the level it has only matched", () => {
+    // One medium right, one medium wrong is a coin flip, not proof — and the
+    // write it would trigger (prune the whole chain) can't be taken back.
+    expect(diagnosticEffect("medium", false, "medium")).toBe("shaky");
+  });
+});
+
+describe("applyDiagnosticEffect", () => {
+  // a → b → c, plus an unrelated d.
+  const edges: ConceptEdge[] = [
+    ["a", "b"],
+    ["b", "c"],
+  ];
+  const states: StateMap = { a: "unknown", b: "unknown", c: "unknown", d: "unknown" };
+
+  it("prunes the whole prerequisite chain on a correct answer", () => {
+    expect(applyDiagnosticEffect(states, "mastered", "c", edges)).toEqual({
+      a: "mastered",
+      b: "mastered",
+      c: "mastered",
+      d: "unknown",
+    });
+  });
+
+  it("leaves the prerequisite chain alone on a genuine miss", () => {
+    // The reason they missed "c" most likely lives in a or b — marking those
+    // mastered would prune the answer out of the map.
+    expect(applyDiagnosticEffect(states, "shaky", "c", edges)).toEqual({
+      a: "unknown",
+      b: "unknown",
+      c: "shaky",
+      d: "unknown",
+    });
   });
 });
 

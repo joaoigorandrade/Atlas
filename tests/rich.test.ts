@@ -15,7 +15,7 @@ test("inline code loses its backticks and becomes a <code>", () => {
 test("bold and italic markers are consumed", () => {
   const out = html("**bold** and *italic* and _under_");
   expect(out).toBe(
-    '<strong style="font-weight:600">bold</strong> and <em>italic</em> and <em>under</em>',
+    '<span style="min-width:0"><strong style="font-weight:600">bold</strong> and <em>italic</em> and <em>under</em></span>',
   );
 });
 

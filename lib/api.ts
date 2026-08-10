@@ -135,7 +135,6 @@ export interface DiagnosticQuestionParams {
   /** Concept nodes this question may probe — already-asked ones excluded. */
   pool: Array<{ id: string; label: string }>;
   difficulty: DiagnosticDifficulty;
-  index: number;
 }
 
 /**

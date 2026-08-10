@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { DiagnosticDifficulty, DiagnosticQuestion } from "@/lib/curriculum";
+import type {
+  DiagnosticDifficulty,
+  DiagnosticEffect,
+  DiagnosticQuestion,
+} from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InkDots, InkRule } from "@/components/Pending";
@@ -15,11 +19,15 @@ const STRINGS = {
       `Want a quick placement first? ${n} adaptive questions prune what you already know and light your real frontier. Optional — you can go straight in.`,
     take: "Test my knowledge →",
     skip: "Go straight to my map",
+    skipRest: "Skip the rest — go to my map",
     writing: "Writing the next question…",
     right: "Correct",
     wrong: "Not quite",
+    slip: "Not quite — counted as a slip",
     rightWhy: (tag: string) => `${tag} and everything under it is marked known.`,
     wrongWhy: (tag: string) => `We'll fit ${tag} into your map.`,
+    slipWhy: (tag: string) =>
+      `You've answered harder questions correctly, so ${tag} stays marked known — nothing was added to your map.`,
     answerWas: "The answer:",
     next: "Next question →",
     finish: "See your map →",
@@ -39,11 +47,15 @@ const STRINGS = {
       `Quer um nivelamento rápido antes? ${n} perguntas adaptativas podam o que você já sabe e acendem sua fronteira real. Opcional — você pode ir direto.`,
     take: "Testar meu conhecimento →",
     skip: "Ir direto para o mapa",
+    skipRest: "Pular o resto — ir para o mapa",
     writing: "Escrevendo a próxima pergunta…",
     right: "Correto",
     wrong: "Quase lá",
+    slip: "Quase lá — contado como escorregão",
     rightWhy: (tag: string) => `${tag} e tudo abaixo dele foi marcado como sabido.`,
     wrongWhy: (tag: string) => `Vamos encaixar ${tag} no seu mapa.`,
+    slipWhy: (tag: string) =>
+      `Você acertou perguntas mais difíceis, então ${tag} continua marcado como sabido — nada foi adicionado ao seu mapa.`,
     answerWas: "A resposta:",
     next: "Próxima pergunta →",
     finish: "Ver seu mapa →",
@@ -69,8 +81,11 @@ interface DiagnosticPanelProps {
   expected?: number;
   /** Number of questions answered so far. */
   answered: number;
-  /** Called with the index of the chosen option — its effect writes back. */
-  onAnswer: (optionIndex: number) => void;
+  /** Called with the index of the chosen option. Returns what it actually
+   *  wrote to the map, so the verdict copy can tell the truth: a miss the
+   *  placement discounts as a slip prunes the concept rather than adding to
+   *  the map, and saying otherwise describes a map the learner doesn't have. */
+  onAnswer: (optionIndex: number) => DiagnosticEffect;
   /** "Go straight to my map" — the placement is optional (SPEC §2). */
   onSkip: () => void;
   onStart: () => void;
@@ -87,9 +102,11 @@ export default function DiagnosticPanel({
   const t = useT(STRINGS);
   // The question just answered, held so its verdict can be read before the
   // next one replaces it. Cleared by "Next question →".
-  const [picked, setPicked] = useState<{ q: DiagnosticQuestion; index: number } | null>(
-    null,
-  );
+  const [picked, setPicked] = useState<{
+    q: DiagnosticQuestion;
+    index: number;
+    effect: DiagnosticEffect;
+  } | null>(null);
   // The placement is opt-in: nothing is asked until the learner takes it.
   const [started, setStarted] = useState(false);
   const total = Math.max(expected ?? questions.length, questions.length);
@@ -99,6 +116,8 @@ export default function DiagnosticPanel({
   const question: DiagnosticQuestion | undefined = questions[answered];
   const shown = picked?.q ?? question;
   const correct = picked ? picked.index === picked.q.correctIndex : false;
+  // A miss the placement discounted: wrong answer, but it wrote back as known.
+  const slipped = !!picked && !correct && picked.effect === "mastered";
   const readyToAdvance = answered >= total || !!question;
 
   return (
@@ -275,8 +294,7 @@ export default function DiagnosticPanel({
                   aria-checked={picked ? oi === picked.index : false}
                   disabled={!!picked}
                   onClick={() => {
-                    setPicked({ q: shown, index: oi });
-                    onAnswer(oi);
+                    setPicked({ q: shown, index: oi, effect: onAnswer(oi) });
                   }}
                   style={{
                     display: "flex",
@@ -348,7 +366,7 @@ export default function DiagnosticPanel({
                   marginBottom: 6,
                 }}
               >
-                {correct ? t.right : t.wrong}
+                {correct ? t.right : slipped ? t.slip : t.wrong}
               </div>
               <div style={{ fontSize: 14, color: color.inkMuted, lineHeight: 1.55 }}>
                 {!correct && (
@@ -357,7 +375,11 @@ export default function DiagnosticPanel({
                     <br />
                   </>
                 )}
-                {correct ? t.rightWhy(shown.tag) : t.wrongWhy(shown.tag)}
+                {correct
+                  ? t.rightWhy(shown.tag)
+                  : slipped
+                    ? t.slipWhy(shown.tag)
+                    : t.wrongWhy(shown.tag)}
               </div>
               <button
                 onClick={() => setPicked(null)}
@@ -389,6 +411,28 @@ export default function DiagnosticPanel({
             </div>
           )}
         </div>
+      )}
+
+      {started && !done && (
+        // The placement stays optional after it starts: a question that never
+        // arrives (a hung write, not a rejected one) would otherwise trap the
+        // learner on "Writing the next question…" with no way to the map.
+        <button
+          onClick={onSkip}
+          style={{
+            marginTop: 26,
+            alignSelf: "flex-start",
+            background: "none",
+            border: "none",
+            padding: 0,
+            fontSize: 13,
+            color: color.inkFaint,
+            textDecoration: "underline",
+            cursor: "pointer",
+          }}
+        >
+          {t.skipRest}
+        </button>
       )}
 
       {done && (

@@ -236,12 +236,12 @@ describe("curriculum map + adaptive placement, split prompts", () => {
       interests: "",
       nodeCandidates: map.nodes.map((n) => ({ id: n.id, label: n.label })),
       difficulty: "medium",
-      index: 0,
     });
 
-    // "Question 1 of 5" is pinned to DIAGNOSTIC_COUNT, not to how many
-    // questions this placement has asked so far.
-    expect(question.tag).toBe("Question 1 of 5");
+    // The tag is the probed concept's label — the panel reads it as a noun
+    // ("<tag> and everything under it is marked known"), and the progress bar
+    // already carries the count.
+    expect(question.tag).toBe("Concept 3");
     expect(question.difficulty).toBe("medium");
     expect(question.nodeId).toBe("n3");
     expect(question.opts).toHaveLength(4);
