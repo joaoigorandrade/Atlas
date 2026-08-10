@@ -32,7 +32,7 @@ import {
   judgeFeynmanStream,
   judgeSocratic,
   judgeSocraticStream,
-  MAP_NODE_BOUNDS,
+  mapNodeBounds,
   type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
@@ -44,6 +44,8 @@ import {
   SOCRATIC_MAX_STEPS,
   SOCRATIC_MIN_STEPS,
   MODEL_BEAT_BOUNDS,
+  PARETO_DEFAULT,
+  PARETO_LEVELS,
   type AltKey,
   type DiagnosticDifficulty,
   type GoalKind,
@@ -64,6 +66,7 @@ export interface GenerateBody {
   language?: Language;
   topic?: string;
   goal?: GoalKind;
+  paretoPct?: number;
   interests?: string;
   outline?: string;
   nodeId?: string;
@@ -180,9 +183,15 @@ export function resolveJob(body: GenerateBody): Job {
 
   switch (body.kind) {
     case "curriculum": {
-      const goal: GoalKind = ["exam", "project", "mastery"].includes(s(body.goal))
+      const goal: GoalKind = ["exam", "project", "mastery", "pareto"].includes(s(body.goal))
         ? (body.goal as GoalKind)
         : "mastery";
+      // Only the offered shares are honored — an arbitrary number would fork
+      // the shared map cache for no gain.
+      const paretoPct =
+        goal === "pareto"
+          ? PARETO_LEVELS.find((p) => p === body.paretoPct) ?? PARETO_DEFAULT
+          : undefined;
       // `interests` is deliberately absent. The map prompt never used it —
       // interests flavor analogies inside a concept, not which concepts the
       // topic is made of — so keying on it split byte-identical maps across
@@ -191,6 +200,7 @@ export function resolveJob(body: GenerateBody): Job {
       const params = {
         topic,
         goal,
+        ...(paretoPct === undefined ? {} : { paretoPct }),
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
       };
@@ -199,11 +209,12 @@ export function resolveJob(body: GenerateBody): Job {
         key: contentKey("curriculum", params),
         run: async () => ({ ...(await generateMap(params)) }),
         stream: () => generateMapStream(params),
-        // Mirrors `validateGraphPart`'s 10-24 bound, not the 12-18 the prompt
-        // asks for. The scopes variant is the too-broad answer (#30) — a
-        // complete, cacheable payload with no map in it at all.
+        // Mirrors `validateGraphPart`'s bound, not the narrower band the prompt
+        // asks for — a Pareto map is deliberately smaller. The scopes variant
+        // is the too-broad answer (#30) — a complete, cacheable payload with
+        // no map in it at all.
         shape: [
-          { nodes: { ...MAP_NODE_BOUNDS } },
+          { nodes: { min: mapNodeBounds(paretoPct).min, max: mapNodeBounds(paretoPct).max } },
           { scopes: { min: 2, max: 3 } },
         ],
       };

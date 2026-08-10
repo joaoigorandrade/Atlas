@@ -3,6 +3,8 @@
 import { useRef, useState, type CSSProperties, type DragEvent } from "react";
 import {
   DAILY_TARGETS,
+  PARETO_DEFAULT,
+  PARETO_LEVELS,
   goals,
   localDay,
   type OnboardingForm,
@@ -29,6 +31,11 @@ const STRINGS = {
     interests: "Your interests",
     interestsHint: "— for analogies & examples (optional)",
     interestsPlaceholder: "e.g. chess, investing, cooking",
+    pareto: "How much of the topic?",
+    paretoHint: "— the share of real results you want, at least effort",
+    paretoPct: (pct: number) => `top ${pct}%`,
+    paretoNote: (pct: number) =>
+      `A smaller map: only the concepts carrying the top ${pct}% of real-world results — edge cases and completeness pruned.`,
     dailyTarget: "Daily target",
     dailyTargetHint: "— your streak unit & honest queue budget",
     minutes: (min: number) => `${min} min`,
@@ -51,6 +58,11 @@ const STRINGS = {
     interests: "Seus interesses",
     interestsHint: "— para analogias e exemplos (opcional)",
     interestsPlaceholder: "ex.: xadrez, investimentos, culinária",
+    pareto: "Quanto do tema?",
+    paretoHint: "— a fatia de resultado real que você quer, com menos esforço",
+    paretoPct: (pct: number) => `top ${pct}%`,
+    paretoNote: (pct: number) =>
+      `Um mapa menor: só os conceitos que carregam os ${pct}% mais úteis na prática — casos de borda e completude podados.`,
     dailyTarget: "Meta diária",
     dailyTargetHint: "— sua unidade de sequência e orçamento honesto de fila",
     minutes: (min: number) => `${min} min`,
@@ -281,7 +293,7 @@ export default function WelcomeScreen({
             {t.goalQuestion}{" "}
             <span style={{ color: color.inkGhost }}>{t.goalHint}</span>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {goals(language).map(([key, label]) => (
               <button
                 key={key}
@@ -292,6 +304,31 @@ export default function WelcomeScreen({
               </button>
             ))}
           </div>
+          {form.goal === "pareto" && (
+            <div style={{ marginTop: 14, animation: "fadeUp 0.25s both" }}>
+              <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 10 }}>
+                {t.pareto}{" "}
+                <span style={{ color: color.inkGhost }}>{t.paretoHint}</span>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {PARETO_LEVELS.map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => onChange({ paretoPct: pct })}
+                    style={optionStyle(
+                      (form.paretoPct ?? PARETO_DEFAULT) === pct,
+                      false,
+                    )}
+                  >
+                    {t.paretoPct(pct)}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 13, color: color.inkGhost, marginTop: 10 }}>
+                {t.paretoNote(form.paretoPct ?? PARETO_DEFAULT)}
+              </div>
+            </div>
+          )}
           {form.goal === "exam" && (
             <div
               style={{

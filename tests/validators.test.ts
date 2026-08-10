@@ -6,6 +6,7 @@ import {
   validateCrucible,
   validateDiagnosticQuestion,
   validateFeynman,
+  mapNodeBounds,
   validateGraphPart,
   validateMapConcept,
   validateRetain,
@@ -507,5 +508,19 @@ describe("validateRetain", () => {
     });
     expect(out.cards[0].fsrs).toBeUndefined();
     expect(out.forecast).toBeUndefined();
+  });
+});
+
+describe("mapNodeBounds", () => {
+  it("keeps the full-map band when no Pareto share is set", () => {
+    expect(mapNodeBounds()).toMatchObject({ ask: [12, 18], min: 10, max: 24 });
+  });
+
+  it("shrinks the map as the Pareto share shrinks", () => {
+    const [low, mid, high] = [20, 50, 80].map((p) => mapNodeBounds(p));
+    expect(low.ask[1]).toBeLessThan(mid.ask[0]);
+    expect(mid.ask[1]).toBeLessThan(high.ask[0]);
+    // A top-20% map must be able to validate below the full map's floor.
+    expect(low.min).toBeLessThan(mapNodeBounds().min);
   });
 });

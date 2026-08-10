@@ -93,6 +93,8 @@ export type CurriculumMapResult = CurriculumMapPayload | { scopes: ScopeOffer[] 
 export interface CurriculumParams {
   topic: string;
   goal: GoalKind;
+  /** Coverage share when goal is "pareto" — smaller, higher-leverage map. */
+  paretoPct?: number;
   outline?: string;
   language?: Language;
 }

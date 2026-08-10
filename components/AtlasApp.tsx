@@ -165,6 +165,7 @@ import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
 import Toast, { type ToastData } from "@/components/Toast";
+import ScreenTimer from "@/components/ScreenTimer";
 
 type Screen =
   | "welcome"
@@ -1154,6 +1155,7 @@ export default function AtlasApp({
     const params = {
       topic,
       goal: formRef.current.goal,
+      paretoPct: formRef.current.paretoPct,
       outline: outline ?? undefined,
       language: languageRef.current,
     };
@@ -4369,6 +4371,8 @@ export default function AtlasApp({
       {loading && <GeneratingOverlay phase={loading.phase} message={loading.message} />}
 
       {toast && <Toast toast={toast} />}
+
+      <ScreenTimer />
     </div>
   );
 }

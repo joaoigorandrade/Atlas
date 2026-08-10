@@ -2599,18 +2599,20 @@ export function applyDiagnosticEffect(
   return next;
 }
 
-export type GoalKind = "exam" | "project" | "mastery";
+export type GoalKind = "exam" | "project" | "mastery" | "pareto";
 
 export const GOALS: ReadonlyArray<[GoalKind, string]> = [
   ["exam", "Pass an exam"],
   ["project", "Build a project"],
   ["mastery", "General mastery"],
+  ["pareto", "Pareto (80/20)"],
 ];
 
 const GOALS_PT: ReadonlyArray<[GoalKind, string]> = [
   ["exam", "Passar em uma prova"],
   ["project", "Construir um projeto"],
   ["mastery", "Domínio geral"],
+  ["pareto", "Pareto (80/20)"],
 ];
 
 /** Language-aware onboarding goal options. */
@@ -2620,6 +2622,11 @@ export function goals(lang: Language = "en"): ReadonlyArray<[GoalKind, string]> 
 
 export const DAILY_TARGETS = [10, 15, 20, 30] as const;
 
+/** How much of the topic a Pareto map covers: the share of real-world results
+ *  the learner wants, which the map prompt turns into a concept count. */
+export const PARETO_LEVELS = [20, 50, 80] as const;
+export const PARETO_DEFAULT = 20;
+
 export interface OnboardingForm {
   topic: string;
   goal: GoalKind;
@@ -2628,6 +2635,9 @@ export interface OnboardingForm {
   /** ISO date (YYYY-MM-DD) of the exam when goal is "exam"; "" = not set —
    *  pace then shows no countdown instead of a fabricated one (#23). */
   examDate: string;
+  /** Coverage share when goal is "pareto"; absent = PARETO_DEFAULT (also what
+   *  every pre-Pareto saved run has). */
+  paretoPct?: number;
 }
 
 export const DEFAULT_FORM: OnboardingForm = {
@@ -2759,12 +2769,14 @@ export const GOAL_ORDER_CAPTION: Record<GoalKind, string> = {
   exam: "ordered to your exam — highest leverage first",
   project: "ordered to your build — unlocks the tools first",
   mastery: "foundations first — depth over speed",
+  pareto: "ordered by leverage — the vital few first",
 };
 
 const GOAL_ORDER_CAPTION_PT: Record<GoalKind, string> = {
   exam: "ordenado para sua prova — maior alavancagem primeiro",
   project: "ordenado para sua construção — desbloqueia as ferramentas primeiro",
   mastery: "fundamentos primeiro — profundidade antes de velocidade",
+  pareto: "ordenado por alavancagem — o essencial primeiro",
 };
 
 /** Language-aware plan-ordering caption. */

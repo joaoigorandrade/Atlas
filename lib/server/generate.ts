@@ -6,6 +6,7 @@
 import {
   FEYNMAN_BEATS,
   MODEL_BEAT_BOUNDS,
+  PARETO_DEFAULT,
   SOCRATIC_MAX_STEPS,
   SOCRATIC_MIN_STEPS,
   SOCRATIC_SPARES,
@@ -179,6 +180,7 @@ const GOAL_HINT: Record<GoalKind, string> = {
   exam: "The learner is preparing for an exam — cover the canonical syllabus.",
   project: "The learner wants to build something real — bias toward applicable tools.",
   mastery: "The learner wants deep general mastery — favor conceptual foundations.",
+  pareto: "", // supplied per-request by `paretoNote` — it depends on the chosen share.
 };
 
 /** Column layout from topological depth — deterministic, draggable afterwards. */
@@ -256,13 +258,16 @@ export function validateScopeOffer(raw: unknown): ScopeOffer[] | null {
 
 /** Nodes and edges together: the map itself — its own prompt now, so it can
  *  ship the moment it's written instead of waiting on the diagnostic. */
-export function validateGraphPart(raw: unknown): {
+export function validateGraphPart(
+  raw: unknown,
+  bounds: { min: number; max: number } = mapNodeBounds(),
+): {
   nodes: Array<{ id: string; label: string }>;
   edges: ConceptEdge[];
 } {
   const root = obj(raw, "payload");
   const seen = new Set<string>();
-  const nodes = arr(root.nodes, "nodes", 10, 24).map((v, i) => {
+  const nodes = arr(root.nodes, "nodes", bounds.min, bounds.max).map((v, i) => {
     const n = obj(v, `nodes[${i}]`);
     const id = str(n.id, `nodes[${i}].id`)
       .toLowerCase()
@@ -337,6 +342,9 @@ export function validateDiagnosticQuestion(
 export interface MapParams {
   topic: string;
   goal: GoalKind;
+  /** Share of real-world results to cover when goal is "pareto" (#pareto):
+   *  a smaller map of only the highest-leverage concepts. */
+  paretoPct?: number;
   /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
   outline?: string;
   language?: Language;
@@ -344,24 +352,47 @@ export interface MapParams {
 
 /** The opening every curriculum-adjacent prompt shares: what to build, what
  *  grounds it, and the too-broad escape hatch. */
+function paretoNote(params: MapParams): string {
+  if (params.goal !== "pareto") return "";
+  const pct = params.paretoPct ?? PARETO_DEFAULT;
+  return `The learner wants a Pareto map: only the concepts that carry roughly the top ${pct}% of real-world results in this topic, at the least effort. Ruthlessly drop edge cases, history, rarely-used variants and completeness-for-its-own-sake — keep what a competent practitioner actually uses ${pct === 80 ? "most weeks" : "every day"}. A smaller, higher-leverage map is the goal, not coverage.`;
+}
+
+/** Concept-count band per map: the range the prompt asks for, plus the
+ *  validator bounds around it. A Pareto map is deliberately smaller. */
+export function mapNodeBounds(paretoPct?: number): {
+  ask: [number, number];
+  min: number;
+  max: number;
+} {
+  if (paretoPct === undefined) return { ask: [12, 18], min: 10, max: 24 };
+  // 20% -> ~7 concepts, 50% -> ~12, 80% -> ~17.
+  const target = Math.round(4 + (paretoPct / 100) * 16);
+  return {
+    ask: [target - 1, target + 1],
+    min: Math.max(4, target - 3),
+    max: target + 4,
+  };
+}
+
 function mapContext(params: MapParams): string {
   const { topic, goal, outline } = params;
   const grounding = outline?.trim()
     ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
     : "";
-  return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}
+  return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}${paretoNote(params)}
 ${grounding}
-If (and only if) the topic is far too broad for one coherent 12-18 concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
+If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
 {"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
 }
 
-const GRAPH_SHAPE = `{
-  "nodes": [{"id": "short-kebab-id", "label": "Concept Name"}, ...],   // 12 to 18 concepts, foundations through capstone
+const graphShape = (ask: [number, number]) => `{
+  "nodes": [{"id": "short-kebab-id", "label": "Concept Name"}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
   "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
 }`;
 
-const MAP_RULES =
-  "Rules: labels are 1-3 words, title case. Node count 12-18. The map must read left-to-right from true foundations to the topic's capstone ideas.";
+const mapRules = (ask: [number, number]) =>
+  `Rules: labels are 1-3 words, title case. Node count ${ask[0]}-${ask[1]}. The map must read left-to-right from true foundations to the topic's capstone ideas.`;
 
 /** Attach each node's prerequisites, so a laid-out map travels as one flat
  *  list. The inverse of `graphFromMapNodes`. */
@@ -399,6 +430,7 @@ export async function generateMap(
   params: MapParams,
 ): Promise<CurriculumMapPayload | { scopes: ScopeOffer[] }> {
   const { language = "en" } = params;
+  const bounds = mapNodeBounds(params.goal === "pareto" ? params.paretoPct ?? PARETO_DEFAULT : undefined);
   const raw = await generateJson<
     | { scopes: ScopeOffer[] }
     | { nodes: Array<{ id: string; label: string }>; edges: ConceptEdge[] }
@@ -407,13 +439,13 @@ export async function generateMap(
       `${mapContext(params)}
 
 Otherwise return JSON:
-${GRAPH_SHAPE}
+${graphShape(bounds.ask)}
 
-${MAP_RULES}${languageNote(language)}`,
+${mapRules(bounds.ask)}${languageNote(language)}`,
     ),
     (r) => {
       const scopes = validateScopeOffer(r);
-      return scopes ? { scopes } : validateGraphPart(r);
+      return scopes ? { scopes } : validateGraphPart(r, bounds);
     },
     { label: "curriculum-map" },
   );
@@ -446,10 +478,6 @@ export function validateMapConcept(
   return { id, label: str(c.label, `concept[${index}].label`), prereqs };
 }
 
-/** The map's node-count bounds, mirroring `validateGraphPart` rather than the
- *  12-18 the prompt asks for. `Job.shape` uses the same numbers. */
-export const MAP_NODE_BOUNDS = { min: 10, max: 24 } as const;
-
 /**
  * The map, one concept at a time.
  *
@@ -470,6 +498,7 @@ export const MAP_NODE_BOUNDS = { min: 10, max: 24 } as const;
  */
 export async function* generateMapStream(params: MapParams): AsyncGenerator<StreamFrame> {
   const { language = "en" } = params;
+  const bounds = mapNodeBounds(params.goal === "pareto" ? params.paretoPct ?? PARETO_DEFAULT : undefined);
   let yielded = 0;
   try {
     const seen = new Set<string>();
@@ -491,7 +520,7 @@ written above it. Each object has this shape:
 {"id": "short-kebab-id", "label": "Concept Name", "prereqs": ["ids of concepts already written above"]}
 
 "prereqs" is empty only for true foundations — every other concept names at
-least one. ${MAP_RULES}${languageNote(language)}`,
+least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
       ),
       (raw, index) => {
         // The too-broad answer is a single object and always the first one, so
@@ -510,7 +539,7 @@ least one. ${MAP_RULES}${languageNote(language)}`,
         for (const [i, v] of item.scopes.entries()) yield { p: "scopes", i, v };
         return;
       }
-      if (accepted.length >= MAP_NODE_BOUNDS.max) break;
+      if (accepted.length >= bounds.max) break;
       seen.add(item.id);
       const d = item.prereqs.reduce((max, p) => Math.max(max, (depth[p] ?? 0) + 1), 0);
       depth[item.id] = d;
