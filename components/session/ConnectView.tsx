@@ -44,7 +44,8 @@ const STRINGS = {
       `${linked} of ${total} links made · two real connections is plenty to move on.`,
     linkingPrompt: "Linking prompt",
     howDoes: (center: string, cand: string) => `How does ${center} relate to ${cand}?`,
-    describeRelationship: "Describe the real relationship in your own words — a draft is pulled from your map to accept or rewrite.",
+    describeRelationship: "Describe the real relationship in your own words — writing it yourself is what makes it stick.",
+    showSuggestion: "Stuck? Show the map’s suggestion",
     connectionPlaceholder: "Your connection…",
     linkConfirmedUpdate: "Link confirmed · update",
     confirmThisLink: "Confirm this link →",
@@ -79,7 +80,8 @@ const STRINGS = {
       `${linked} de ${total} vínculos feitos · duas conexões reais já bastam para seguir em frente.`,
     linkingPrompt: "Prompt de vínculo",
     howDoes: (center: string, cand: string) => `Como ${center} se relaciona com ${cand}?`,
-    describeRelationship: "Descreva a relação real com suas próprias palavras — um rascunho é puxado do seu mapa para aceitar ou reescrever.",
+    describeRelationship: "Descreva a relação real com suas próprias palavras — escrever você mesmo é o que fixa.",
+    showSuggestion: "Travou? Ver a sugestão do mapa",
     connectionPlaceholder: "Sua conexão…",
     linkConfirmedUpdate: "Vínculo confirmado · atualizar",
     confirmThisLink: "Confirmar este vínculo →",
@@ -648,6 +650,27 @@ function LinkingPrompt({
         onChange={(next) => onDraft(cand.id, next)}
         accent={VIOLET}
       />
+      {/* The map's suggestion, on demand only — an escape hatch from the blank
+          box, not the default. Gone once there's anything to lose by replacing it. */}
+      {!draft.trim() && cand.rel.trim() ? (
+        <button
+          onClick={() => onDraft(cand.id, cand.rel)}
+          style={{
+            display: "block",
+            marginTop: 10,
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            fontSize: 12.5,
+            color: color.inkFaint,
+            textDecoration: "underline",
+            textUnderlineOffset: 3,
+          }}
+        >
+          {t.showSuggestion}
+        </button>
+      ) : null}
       <button
         onClick={() => onConfirm(cand.id)}
         style={{

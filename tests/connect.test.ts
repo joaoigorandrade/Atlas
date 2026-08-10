@@ -41,9 +41,9 @@ const run = (
   actions.reduce((s, a) => connectReducer(s, a, c), connectStart(c.centerId));
 
 describe("connect reducer", () => {
-  it("seeds the draft from the map on first select, and keeps edits after", () => {
-    const seeded = run([{ type: "select", id: "vectors" }]);
-    expect(seeded.drafts.vectors).toBe("maps vectors");
+  it("opens the prompt blank so the learner generates, and keeps edits after", () => {
+    const opened = run([{ type: "select", id: "vectors" }]);
+    expect(opened.drafts.vectors).toBeUndefined();
 
     const edited = run([
       { type: "select", id: "vectors" },

@@ -1403,19 +1403,12 @@ export function connectReducer(
   content: ElaborationContent,
 ): ConnectSession {
   switch (action.type) {
-    case "select": {
-      // Seed the draft from the map's suggested relationship the first time a
-      // candidate is opened — the learner accepts or rewrites it.
-      const drafts =
-        session.drafts[action.id] !== undefined
-          ? session.drafts
-          : {
-              ...session.drafts,
-              [action.id]:
-                content.cands.find((c) => c.id === action.id)?.rel ?? "",
-            };
-      return { ...session, active: action.id, drafts };
-    }
+    case "select":
+      // Open the prompt blank. The map's suggested relationship is still there
+      // (the view offers it on demand, and connectCards falls back to it), but
+      // handing it over unasked turns generation into recognition — the learner
+      // reads a plausible sentence, confirms, and encodes almost nothing.
+      return { ...session, active: action.id };
     case "draft":
       return {
         ...session,
