@@ -10,6 +10,11 @@ import Rich from "@/components/Rich";
 const STRINGS = {
   en: {
     kicker: "Placement · adaptive",
+    introTitle: "Your map is built.",
+    introBody: (n: number) =>
+      `Want a quick placement first? ${n} adaptive questions prune what you already know and light your real frontier. Optional — you can go straight in.`,
+    take: "Test my knowledge →",
+    skip: "Go straight to my map",
     writing: "Writing the next question…",
     right: "Correct",
     wrong: "Not quite",
@@ -29,6 +34,11 @@ const STRINGS = {
   },
   "pt-BR": {
     kicker: "Nivelamento · adaptativo",
+    introTitle: "Seu mapa está pronto.",
+    introBody: (n: number) =>
+      `Quer um nivelamento rápido antes? ${n} perguntas adaptativas podam o que você já sabe e acendem sua fronteira real. Opcional — você pode ir direto.`,
+    take: "Testar meu conhecimento →",
+    skip: "Ir direto para o mapa",
     writing: "Escrevendo a próxima pergunta…",
     right: "Correto",
     wrong: "Quase lá",
@@ -61,6 +71,8 @@ interface DiagnosticPanelProps {
   answered: number;
   /** Called with the index of the chosen option — its effect writes back. */
   onAnswer: (optionIndex: number) => void;
+  /** "Go straight to my map" — the placement is optional (SPEC §2). */
+  onSkip: () => void;
   onStart: () => void;
 }
 
@@ -69,6 +81,7 @@ export default function DiagnosticPanel({
   expected,
   answered,
   onAnswer,
+  onSkip,
   onStart,
 }: DiagnosticPanelProps) {
   const t = useT(STRINGS);
@@ -77,8 +90,10 @@ export default function DiagnosticPanel({
   const [picked, setPicked] = useState<{ q: DiagnosticQuestion; index: number } | null>(
     null,
   );
+  // The placement is opt-in: nothing is asked until the learner takes it.
+  const [started, setStarted] = useState(false);
   const total = Math.max(expected ?? questions.length, questions.length);
-  const done = answered >= total && !picked;
+  const done = started && answered >= total && !picked;
   // Answered faster than the writer could write: the next question is real and
   // on its way, it just isn't here yet.
   const question: DiagnosticQuestion | undefined = questions[answered];
@@ -105,6 +120,7 @@ export default function DiagnosticPanel({
       }}
     >
       <div style={kicker(11)}>{t.kicker}</div>
+      {started && (
       <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
         {Array.from({ length: total }, (_, i) => (
           <div
@@ -119,8 +135,67 @@ export default function DiagnosticPanel({
           />
         ))}
       </div>
+      )}
 
-      {!done && !shown && (
+      {!started && (
+        <div style={{ marginTop: "auto", animation: "fadeUp 0.5s both" }}>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 26,
+              lineHeight: 1.3,
+              marginBottom: 8,
+            }}
+          >
+            {t.introTitle}
+          </div>
+          <div
+            style={{
+              fontSize: 14,
+              color: color.inkMuted,
+              lineHeight: 1.55,
+              marginBottom: 24,
+            }}
+          >
+            {t.introBody(total)}
+          </div>
+          <button
+            onClick={() => setStarted(true)}
+            style={{
+              width: "100%",
+              padding: 16,
+              background: color.accent,
+              color: color.accentInk,
+              border: "none",
+              borderRadius: 12,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 8px 24px rgba(47,107,79,0.28)",
+            }}
+          >
+            {t.take}
+          </button>
+          <button
+            onClick={onSkip}
+            style={{
+              marginTop: 10,
+              width: "100%",
+              padding: 14,
+              background: "transparent",
+              color: color.inkMuted,
+              border: `1px solid ${color.hairlineStrong}`,
+              borderRadius: 12,
+              fontSize: 15,
+              cursor: "pointer",
+            }}
+          >
+            {t.skip}
+          </button>
+        </div>
+      )}
+
+      {started && !done && !shown && (
         <div style={{ marginTop: 44, animation: "softIn 0.4s both" }}>
           <InkRule width="100%" />
           <div
@@ -141,7 +216,7 @@ export default function DiagnosticPanel({
         </div>
       )}
 
-      {!done && shown && (
+      {started && !done && shown && (
         <div
           key={picked ? `f${answered}` : answered}
           style={{ marginTop: 44, animation: "fadeUp 0.4s both" }}

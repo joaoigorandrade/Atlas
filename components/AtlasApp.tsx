@@ -1211,20 +1211,26 @@ export default function AtlasApp({
         const pending =
           question1 ??
           askQuestion1(result.nodes.map((n) => ({ id: n.id, label: n.label })));
+        // The panel opens on its own choice — take the placement, or go
+        // straight to the map — so it must not wait on question 1: the
+        // learner who wants the map shouldn't pay for a test they'll skip.
+        // The question lands behind the choice.
+        let failed = false;
+        later(() => {
+          if (!current() || failed) return;
+          setScreen("diagnostic");
+          setAnswered(0);
+        }, openAt());
         return pending
           .then((question) => {
-            if (!current()) return;
-            setDiagnostic([question]);
-            later(() => {
-              setScreen("diagnostic");
-              setAnswered(0);
-            }, openAt());
+            if (current()) setDiagnostic([question]);
           })
           .catch((err: Error) => {
             // Placement is a nice-to-have; the map is the product, so open it
             // rather than failing a build the learner already watched
             // assemble — but say so, instead of silently skipping the step.
             if (!current()) return;
+            failed = true;
             showToast(err.message, "Placement skipped");
             later(() => setScreen("map"), openAt());
           });
@@ -4012,7 +4018,7 @@ export default function AtlasApp({
 
       {screen === "building" && <BuildingOverlay note={buildNote} />}
 
-      {screen === "diagnostic" && diagnostic.length > 0 && (
+      {screen === "diagnostic" && (
         <DiagnosticPanel
           questions={diagnostic}
           // The placement always asks this many, even when the panel opens on
@@ -4020,6 +4026,7 @@ export default function AtlasApp({
           expected={DIAGNOSTIC_COUNT}
           answered={answered}
           onAnswer={answerDiagnostic}
+          onSkip={startMap}
           onStart={startMap}
         />
       )}
