@@ -273,6 +273,13 @@ const GAP_Y = 34;
 const LINE_H = 11;
 const CHAR_W = 5.1;
 
+// SVG <text> can't hold <Rich>'s HTML span — it renders as an unknown element
+// in the SVG namespace, i.e. an empty box. Labels are short, so drop the
+// markdown punctuation instead of styling it.
+function plain(label: string): string {
+  return label.replace(/`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*|_([^_]+)_/g, "$1$2$3$4");
+}
+
 function wrap(label: string, boxW: number): string[] {
   const max = Math.max(6, Math.floor((boxW - 10) / CHAR_W));
   const lines: string[] = [];
@@ -314,7 +321,7 @@ function Figure({
   for (const row of rows) {
     if (!row) continue;
     const w = (FIG_W - 2 * PAD - GAP_X * (row.length - 1)) / row.length;
-    const laid = row.map((n) => wrap(n.label, w));
+    const laid = row.map((n) => wrap(plain(n.label), w));
     const h = Math.max(...laid.map((l) => l.length)) * LINE_H + 14;
     row.forEach((n, i) => {
       box.set(n.id, { x: PAD + i * (w + GAP_X), y, w, h, lines: laid[i] });
@@ -397,7 +404,7 @@ function Figure({
                 strokeWidth={3}
                 paintOrder="stroke"
               >
-                <Rich text={e.label} />
+                {plain(e.label)}
               </text>
             )}
           </g>
@@ -430,7 +437,7 @@ function Figure({
                   x={b.x + b.w / 2}
                   y={b.y + b.h / 2 - ((b.lines.length - 1) * LINE_H) / 2 + li * LINE_H + 3}
                 >
-                  <Rich text={line} />
+                  {line}
                 </tspan>
               ))}
             </text>
