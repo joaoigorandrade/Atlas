@@ -335,6 +335,18 @@ textarea {
   }
 }
 
+/* A real skeleton: ink washing across the shape of the thing being written.
+   These used to run `pulseGlow`, which animates a *box-shadow* — so they
+   breathed an amber halo rather than shimmering. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @keyframes breathe {
   0%,
   100% {

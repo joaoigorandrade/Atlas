@@ -1,6 +1,7 @@
 "use client";
 
-import { color } from "@/lib/theme";
+import { color, motion } from "@/lib/theme";
+import { useReducedMotion } from "@/lib/motion";
 
 /**
  * The app's one loading mark: three ink dots keeping time. Sits inline in
@@ -109,5 +110,49 @@ export function InkRule({
         }}
       />
     </div>
+  );
+}
+
+/**
+ * The shape of prose that is still being written — a stack of bars washing with
+ * ink, sized like the paragraph each one stands in for.
+ *
+ * A blank page reads as broken; a shape of what's coming reads as in progress.
+ * Under reduced motion the bars stay, still and legible, without the wash: the
+ * information is the layout, not the movement.
+ */
+export function SkeletonBars({
+  widths,
+  heights,
+}: {
+  widths: (number | string)[];
+  /** Per-bar height, or one height for all of them. */
+  heights: number | number[];
+}) {
+  const reduced = useReducedMotion();
+  return (
+    <>
+      {widths.map((w, i) => (
+        <div
+          key={i}
+          aria-hidden
+          style={{
+            height: Array.isArray(heights) ? heights[i] : heights,
+            width: w,
+            borderRadius: 5,
+            background: reduced
+              ? "rgba(44,40,35,0.08)"
+              : `linear-gradient(90deg, rgba(44,40,35,0.06) 30%, rgba(44,40,35,0.13) 50%, rgba(44,40,35,0.06) 70%)`,
+            backgroundSize: "200% 100%",
+            animation: reduced
+              ? undefined
+              : `shimmer 1.6s ${motion.ease.standard} infinite`,
+            // Staggered so the stack reads as one sweep down the page rather
+            // than five bars blinking in unison.
+            animationDelay: `${(i * 0.12).toFixed(2)}s`,
+          }}
+        />
+      ))}
+    </>
   );
 }

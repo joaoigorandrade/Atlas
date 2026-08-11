@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MicButton } from "@/components/VoiceInput";
-import { StreamingText } from "@/components/Pending";
+import { SkeletonBars, StreamingText } from "@/components/Pending";
 import {
   PHASES,
   STATE_COLOR,
@@ -791,7 +791,9 @@ function PassagePanel({
                 fontFamily: font.mono,
                 fontSize: 11,
                 color: color.inkGhost,
-                animation: "pulseGlow 1.6s ease-in-out infinite",
+                // `breathe`, not `pulseGlow`: this is bare text with no box to
+                // cast a shadow, so the glow keyframe animated nothing at all.
+                animation: "breathe 1.8s ease-in-out infinite",
               }}
             >
               {t.askThinking}
@@ -1149,19 +1151,7 @@ function ModelView({
               >
                 {t.modelOpening}
               </div>
-              {[150, "92%", "84%"].map((w, i) => (
-                <div
-                  key={i}
-                  style={{
-                    height: i === 0 ? 12 : 15,
-                    width: w,
-                    borderRadius: 5,
-                    background: "rgba(44,40,35,0.08)",
-                    animation: "pulseGlow 1.6s ease-in-out infinite",
-                    animationDelay: `${i * 0.12}s`,
-                  }}
-                />
-              ))}
+              <SkeletonBars widths={[150, "92%", "84%"]} heights={[12, 15, 15]} />
             </div>
           ) : (
             beats.slice(0, shown).map((beat, i) => (
@@ -1860,19 +1850,10 @@ export default function ConsumeView({
               >
                 {t.writingFirst}
               </div>
-              {[220, 100, "94%", "88%", "70%"].map((w, i) => (
-                <div
-                  key={i}
-                  style={{
-                    height: i === 0 ? 22 : 14,
-                    width: typeof w === "number" ? w : w,
-                    borderRadius: 5,
-                    background: "rgba(44,40,35,0.08)",
-                    animation: "pulseGlow 1.6s ease-in-out infinite",
-                    animationDelay: `${i * 0.12}s`,
-                  }}
-                />
-              ))}
+              <SkeletonBars
+                widths={[220, 100, "94%", "88%", "70%"]}
+                heights={[22, 14, 14, 14, 14]}
+              />
             </div>
           )}
 
