@@ -21,9 +21,15 @@ import {
   type ConceptNode,
   type MapNode,
 } from "@/lib/curriculum";
+import { logError, logEvent } from "@/lib/log";
+import {
+  apiError,
+  apiErrorFrom,
+  newRequestId,
+  withRequestId,
+} from "@/lib/server/apiError";
 import { readContent, writeContent } from "@/lib/server/contentCache";
-import { BadRequest, resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
-import { OpenRouterError } from "@/lib/server/openrouter";
+import { resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import {
   framesToPayload,
   ndjsonResponse,
@@ -49,7 +55,7 @@ type SupabaseLike = Awaited<ReturnType<typeof createClient>>;
 async function logGenerationCalls(
   supabase: SupabaseLike,
   job: Job,
-  opts: { jobId: string },
+  opts: { jobId: string; requestId?: string },
 ): Promise<void> {
   const calls = Math.max(1, job.cost ?? 1);
   const { error } = await supabase.from("generation_log").insert(
@@ -60,45 +66,56 @@ async function logGenerationCalls(
   );
   // Non-fatal (the table may lag a migration) but loudly logged.
   if (error)
-    console.error(
-      JSON.stringify({ evt: "generation_log_insert_failed", error: error.message }),
-    );
+    logError("generation_log_insert_failed", error, { req: opts.requestId });
 }
 
 /** Same error → response mapping used by the plain path and the "peek the
- *  first streamed frame before committing to a streaming response" path. */
-function errorResponse(err: unknown, prefetch: boolean): NextResponse {
-  if (err instanceof BadRequest)
-    return NextResponse.json({ error: err.message }, { status: 400 });
-  const message = err instanceof Error ? err.message : "content generation failed";
-  const status = err instanceof OpenRouterError ? err.status : 502;
+ *  first streamed frame before committing to a streaming response" path.
+ *
+ *  `apiErrorFrom` classifies: a `BadRequest` becomes a 400 `invalid`, an
+ *  `OpenRouterError` keeps its own status, anything else is a 502 `upstream`.
+ *  The upstream body never travels — only the code does. */
+function errorResponse(
+  err: unknown,
+  prefetch: boolean,
+  requestId: string,
+): NextResponse {
   // A failed warm is silent — nobody is looking at it.
   if (prefetch) return new NextResponse(null, { status: 204 });
-  return NextResponse.json({ error: message }, { status });
+  return apiErrorFrom(err, { requestId });
 }
 
 export async function POST(request: Request) {
+  const requestId = newRequestId();
+
   // Auth first: an anonymous caller must never spend OpenRouter credit.
   const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
+  const { data: claims, error: authError } = await supabase.auth.getClaims();
+  // A Supabase outage is not a signed-out learner. Answering 401 here would
+  // send a perfectly valid session to the login screen; 503 keeps them where
+  // they are and offers a retry.
+  if (authError) {
+    logError("auth_unavailable", authError, { req: requestId, at: "generate" });
+    return apiError("upstream", { requestId, status: 503 });
+  }
   const userId = claims?.claims?.sub;
-  if (!userId)
-    return NextResponse.json({ error: "sign in to generate content" }, { status: 401 });
+  if (!userId) return apiError("auth", { requestId });
 
   let body: GenerateBody;
   try {
     body = (await request.json()) as GenerateBody;
   } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+    return apiError("invalid", { requestId, reason: "body" });
   }
 
   let job;
   try {
     job = resolveJob(body);
   } catch (err) {
-    if (err instanceof BadRequest)
-      return NextResponse.json({ error: err.message }, { status: 400 });
-    throw err;
+    // Every failure here answers, including the ones that used to escape as an
+    // uncaught 500 with a Next stack page attached.
+    logError("resolve_job_failed", err, { req: requestId });
+    return apiErrorFrom(err, { requestId });
   }
 
   // A background warm that misses is not worth making the learner wait for on
@@ -112,13 +129,19 @@ export async function POST(request: Request) {
   if (job.key) {
     const hit = await readContent<Record<string, unknown>>(job.key);
     if (hit) {
-      console.log(
-        JSON.stringify({ evt: "generate_cache_hit", user: userId, kind: job.kind }),
-      );
+      logEvent("generate_cache_hit", {
+        user: userId,
+        kind: job.kind,
+        req: requestId,
+      });
       // A hit is replayed in whichever format the caller asked for, so the
       // client reads one wire shape whether the content is seconds or weeks old.
-      if (streaming) return ndjsonResponse(payloadToFrames(hit, job.shape!), "hit");
-      return NextResponse.json(hit, { headers: { "x-atlas-cache": "hit" } });
+      if (streaming)
+        return ndjsonResponse(payloadToFrames(hit, job.shape!), "hit", requestId);
+      return withRequestId(
+        NextResponse.json(hit, { headers: { "x-atlas-cache": "hit" } }),
+        requestId,
+      );
     }
   }
 
@@ -126,18 +149,16 @@ export async function POST(request: Request) {
   // through the same helper, so every model call this server makes lands in the
   // log whether a learner asked for it or the warm did.
   const jobId = crypto.randomUUID();
-  await logGenerationCalls(supabase, job, { jobId });
+  await logGenerationCalls(supabase, job, { jobId, requestId });
 
-  console.log(
-    JSON.stringify({
-      evt: "generate_request",
-      user: userId,
-      kind: job.kind,
-      job: jobId,
-      calls: job.cost ?? 1,
-      prefetch,
-    }),
-  );
+  logEvent("generate_request", {
+    user: userId,
+    kind: job.kind,
+    job: jobId,
+    calls: job.cost ?? 1,
+    prefetch,
+    req: requestId,
+  });
 
   // A finished build is the one moment the next click is perfectly
   // predictable — and the learner is about to spend half a minute on the
@@ -150,7 +171,8 @@ export async function POST(request: Request) {
     startCurriculumWarm(supabase, graph, body, userId);
   };
 
-  if (streaming) return streamGeneration(job, userId, prefetch, onPayload);
+  if (streaming)
+    return streamGeneration(job, userId, prefetch, onPayload, requestId);
 
   try {
     const payload = await job.run();
@@ -158,17 +180,17 @@ export async function POST(request: Request) {
     // and everyone after them gets it from Postgres.
     if (job.key) writeContent(job.key, job.kind, payload);
     onPayload(payload);
-    return NextResponse.json(payload, { headers: { "x-atlas-cache": "miss" } });
-  } catch (err) {
-    console.error(
-      JSON.stringify({
-        evt: "generate_failed",
-        user: userId,
-        kind: job.kind,
-        error: String(err instanceof Error ? err.message : err).slice(0, 600),
-      }),
+    return withRequestId(
+      NextResponse.json(payload, { headers: { "x-atlas-cache": "miss" } }),
+      requestId,
     );
-    return errorResponse(err, prefetch);
+  } catch (err) {
+    logError("generate_failed", err, {
+      user: userId,
+      kind: job.kind,
+      req: requestId,
+    });
+    return errorResponse(err, prefetch, requestId);
   }
 }
 
@@ -239,23 +261,9 @@ function startCurriculumWarm(
           const jobId = crypto.randomUUID();
           await logGenerationCalls(supabase, warm, { jobId });
           writeContent(warm.key, warm.kind, await warm.run());
-          console.log(
-            JSON.stringify({
-              evt: "curriculum_warm",
-              user: userId,
-              kind,
-              node: node.id,
-            }),
-          );
+          logEvent("curriculum_warm", { user: userId, kind, node: node.id });
         } catch (err) {
-          console.error(
-            JSON.stringify({
-              evt: "curriculum_warm_failed",
-              kind,
-              node: node.id,
-              error: String(err instanceof Error ? err.message : err).slice(0, 300),
-            }),
-          );
+          logError("curriculum_warm_failed", err, { kind, node: node.id });
         }
       }
     }
@@ -277,40 +285,38 @@ function streamGeneration(
   userId: string,
   prefetch: boolean,
   onPayload: (payload: Record<string, unknown>) => void,
+  requestId: string,
 ): Promise<Response> {
   return ndjsonStream(job.stream!(), {
+    requestId,
     onComplete: (frames) => {
       // `framesToPayload` returns null on a short or gappy set. Caching that
       // would be the worst kind of bug: hits skip validation, so a truncated
       // payload would flow straight into the renderer for everyone after.
       const payload = framesToPayload(frames, job.shape!);
       if (!payload) {
-        console.error(
-          JSON.stringify({
-            evt: "generate_stream_incomplete",
-            user: userId,
-            kind: job.kind,
-            frames: frames.length,
-          }),
-        );
+        logEvent("generate_stream_incomplete", {
+          user: userId,
+          kind: job.kind,
+          frames: frames.length,
+          req: requestId,
+        });
         return;
       }
       if (job.key) writeContent(job.key, job.kind, payload);
       onPayload(payload);
     },
     onError: (err, phase) => {
-      // Mid-stream, bytes are already flowing as a 200 — there's no clean way
-      // to turn this into an error status now. The client keeps whatever
-      // landed; since nothing gets cached, reopening retries.
-      console.error(
-        JSON.stringify({
-          evt: phase === "first" ? "generate_failed" : "generate_stream_failed",
-          user: userId,
-          kind: job.kind,
-          error: String(err instanceof Error ? err.message : err).slice(0, 600),
-        }),
+      // Mid-stream, bytes are already flowing as a 200 — the status can't
+      // change now. `ndjsonStream` writes a terminal `__error` frame instead,
+      // which is what lets the client stop treating a truncated stream as a
+      // finished one. Nothing gets cached either way, so a retry regenerates.
+      logError(
+        phase === "first" ? "generate_failed" : "generate_stream_failed",
+        err,
+        { user: userId, kind: job.kind, req: requestId },
       );
     },
-    errorResponse: (err) => errorResponse(err, prefetch),
+    errorResponse: (err) => errorResponse(err, prefetch, requestId),
   });
 }

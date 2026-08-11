@@ -9,20 +9,36 @@
 
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { logError, logEvent } from "@/lib/log";
+import {
+  apiError,
+  newRequestId,
+  withRequestId,
+} from "@/lib/server/apiError";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseUrl } from "@/lib/supabase/config";
 
 export async function POST() {
+  const requestId = newRequestId();
+
   const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
+  const { data: claims, error: authError } = await supabase.auth.getClaims();
+  if (authError) {
+    logError("auth_unavailable", authError, { req: requestId, at: "delete" });
+    return apiError("upstream", { requestId, status: 503 });
+  }
   const userId = claims?.claims?.sub;
-  if (!userId)
-    return NextResponse.json({ error: "sign in first" }, { status: 401 });
+  if (!userId) return apiError("auth", { requestId });
 
   // RLS confines this to the caller's own rows.
   const runs = await supabase.from("run_states").delete().eq("user_id", userId);
-  if (runs.error)
-    return NextResponse.json({ error: runs.error.message }, { status: 500 });
+  // PostgREST's own prose used to go straight onto the wire from here. It is a
+  // database's account of a database's problem — it says nothing a learner can
+  // act on, and it says more than they should see.
+  if (runs.error) {
+    logError("account_delete_rows_failed", runs.error, { req: requestId });
+    return apiError("unknown", { requestId });
+  }
 
   // Delete the auth user too when the server secret is available; otherwise the
   // data is gone but the login shell remains (degraded, but not a data leak).
@@ -33,14 +49,14 @@ export async function POST() {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { error } = await admin.auth.admin.deleteUser(userId);
-    if (error)
-      console.error(
-        JSON.stringify({ evt: "account_delete_auth_failed", error: error.message }),
-      );
+    if (error) logError("account_delete_auth_failed", error, { req: requestId });
     else authDeleted = true;
   }
 
   await supabase.auth.signOut();
-  console.log(JSON.stringify({ evt: "account_deleted", user: userId, authDeleted }));
-  return NextResponse.json({ ok: true, authDeleted });
+  logEvent("account_deleted", { user: userId, authDeleted, req: requestId });
+  return withRequestId(
+    NextResponse.json({ ok: true, authDeleted }),
+    requestId,
+  );
 }

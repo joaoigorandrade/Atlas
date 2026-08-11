@@ -12,6 +12,7 @@
 // with the publishable key.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { AtlasError } from "@/lib/errors";
 import type {
   AdherenceState,
   CalibSample,
@@ -245,6 +246,31 @@ export interface LoadedRun {
 }
 
 /**
+ * Every Postgres failure in this file, classified once.
+ *
+ * These used to throw ``new Error(`Saving run failed: ${error.message}`)`` — and
+ * PostgREST's own prose travelled from there all the way into a toast, in
+ * English, describing a schema the learner has never heard of. The `op` is kept
+ * for the log line; what reaches a screen is chosen from the code.
+ *
+ * A Supabase client error carries no HTTP status, so the split is by shape: a
+ * `fetch` that never left is the browser being offline, and anything else is
+ * the service having a problem. Both are retryable, which is what
+ * `lib/retry.ts` reads.
+ */
+function storageError(op: string, error: { message: string }): AtlasError {
+  const offline =
+    typeof navigator !== "undefined" &&
+    typeof navigator.onLine === "boolean" &&
+    !navigator.onLine;
+  return new AtlasError(
+    offline ? "offline" : "upstream",
+    `${op} failed: ${error.message}`,
+    { reason: op },
+  );
+}
+
+/**
  * The run core for the most recently touched run, without the content caches.
  * This is the query the first paint waits on, so it stays small on purpose.
  */
@@ -257,7 +283,7 @@ export async function loadRunCore(
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`Loading saved run failed: ${error.message}`);
+  if (error) throw storageError("load", error);
   return toLoadedRun(data);
 }
 
@@ -271,7 +297,7 @@ export async function loadRunBySubject(
     .select("subject, snapshot")
     .eq("subject", subject)
     .maybeSingle();
-  if (error) throw new Error(`Loading saved run failed: ${error.message}`);
+  if (error) throw storageError("load", error);
   return toLoadedRun(data);
 }
 
@@ -306,7 +332,7 @@ export async function listRuns(
     .from("run_states")
     .select("subject, snapshot")
     .order("updated_at", { ascending: false });
-  if (error) throw new Error(`Loading your maps failed: ${error.message}`);
+  if (error) throw storageError("list", error);
   return (data ?? []).flatMap((row) => {
     const snapshot = row.snapshot as LoadedSnapshot | undefined;
     // Every version the loader accepts, not just the first three — a run saved
@@ -333,7 +359,7 @@ export async function loadRunCaches(
     .select("caches")
     .eq("subject", subject)
     .maybeSingle();
-  if (error) throw new Error(`Loading saved content failed: ${error.message}`);
+  if (error) throw storageError("loadCaches", error);
   return normalizeCaches(data?.caches as Partial<RunCaches> | undefined);
 }
 
@@ -346,7 +372,7 @@ export async function saveRun(
   const { error } = await supabase
     .from("run_states")
     .upsert({ subject, snapshot }, { onConflict: "user_id,subject" });
-  if (error) throw new Error(`Saving run failed: ${error.message}`);
+  if (error) throw storageError("save", error);
 }
 
 /**
@@ -360,7 +386,7 @@ export async function deleteRun(
   subject: string,
 ): Promise<void> {
   const { error } = await supabase.from("run_states").delete().eq("subject", subject);
-  if (error) throw new Error(`Removing the topic failed: ${error.message}`);
+  if (error) throw storageError("delete", error);
 }
 
 /** Write-through upsert of the content caches alone — the big, rare write. */
@@ -372,5 +398,5 @@ export async function saveRunCaches(
   const { error } = await supabase
     .from("run_states")
     .upsert({ subject, caches }, { onConflict: "user_id,subject" });
-  if (error) throw new Error(`Saving content failed: ${error.message}`);
+  if (error) throw storageError("saveCaches", error);
 }

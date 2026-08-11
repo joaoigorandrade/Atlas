@@ -8,6 +8,13 @@
 // then generates them in the background, ahead of the click.
 
 import { NextResponse } from "next/server";
+import { logError } from "@/lib/log";
+import {
+  apiError,
+  apiErrorFrom,
+  newRequestId,
+  withRequestId,
+} from "@/lib/server/apiError";
 import { readManyContent } from "@/lib/server/contentCache";
 import { BadRequest, resolveJob, type GenerateBody } from "@/lib/server/job";
 import { createClient } from "@/lib/supabase/server";
@@ -20,16 +27,22 @@ interface ContentBody {
 }
 
 export async function POST(request: Request) {
+  const requestId = newRequestId();
+
   const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  if (!claims?.claims?.sub)
-    return NextResponse.json({ error: "sign in first" }, { status: 401 });
+  const { data: claims, error: authError } = await supabase.auth.getClaims();
+  // An outage is not a sign-out — see the same guard in /api/generate.
+  if (authError) {
+    logError("auth_unavailable", authError, { req: requestId, at: "content" });
+    return apiError("upstream", { requestId, status: 503 });
+  }
+  if (!claims?.claims?.sub) return apiError("auth", { requestId });
 
   let body: ContentBody;
   try {
     body = (await request.json()) as ContentBody;
   } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+    return apiError("invalid", { requestId, reason: "body" });
   }
 
   const items = Array.isArray(body.items) ? body.items.slice(0, MAX_ITEMS) : [];
@@ -40,13 +53,22 @@ export async function POST(request: Request) {
       const job = resolveJob(item);
       return job.key ? { index, key: job.key } : null;
     } catch (err) {
+      // A malformed item is dropped — a warm is best-effort by nature. Anything
+      // else used to escape as an uncaught 500 and fail the whole batch.
       if (err instanceof BadRequest) return null;
-      throw err;
+      logError("content_resolve_failed", err, { req: requestId });
+      return null;
     }
   });
 
   const keys = [...new Set(keyed.filter((k) => k !== null).map((k) => k!.key))];
-  const found = await readManyContent(keys);
+  let found: Record<string, unknown>;
+  try {
+    found = await readManyContent(keys);
+  } catch (err) {
+    logError("content_read_failed", err, { req: requestId });
+    return apiErrorFrom(err, { requestId });
+  }
 
   // Answer positionally: the client posted an ordered list and knows which
   // index is which screen.
@@ -56,5 +78,5 @@ export async function POST(request: Request) {
     const payload = found[entry.key];
     if (payload !== undefined) hits[entry.index] = payload;
   }
-  return NextResponse.json({ hits });
+  return withRequestId(NextResponse.json({ hits }), requestId);
 }

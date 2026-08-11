@@ -19,18 +19,25 @@ const node = (id: string, y: number, prereqs: string[] = []): MapNode => ({
   y,
 });
 
-/** Stub `/api/generate` with a fixed NDJSON body, one frame per chunk. */
+/** Stub `/api/generate` with a fixed NDJSON body, one frame per chunk.
+ *
+ *  A real `Response` rather than a hand-rolled shape: the reader now reads the
+ *  request-id header off every response, and a stub without `headers` is not a
+ *  thing `fetch` can actually return. */
 function serveFrames(frames: unknown[]) {
   const enc = new TextEncoder();
-  vi.stubGlobal("fetch", async () => ({
-    ok: true,
-    body: new ReadableStream<Uint8Array>({
-      start(controller) {
-        for (const f of frames) controller.enqueue(enc.encode(JSON.stringify(f) + "\n"));
-        controller.close();
-      },
-    }),
-  }));
+  vi.stubGlobal("fetch", async () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const f of frames)
+            controller.enqueue(enc.encode(JSON.stringify(f) + "\n"));
+          controller.close();
+        },
+      }),
+      { headers: { "x-atlas-request-id": "test-req" } },
+    ),
+  );
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -94,16 +101,30 @@ describe("fetchCurriculumMapStream", () => {
     expect(result.scopes.map((s) => s.label)).toEqual(["Ownership", "Async Rust"]);
   });
 
-  it("surfaces a failed build as a thrown error the caller can toast", async () => {
-    vi.stubGlobal("fetch", async () => ({
-      ok: false,
-      status: 429,
-      body: null,
-      json: async () => ({ error: "You've hit today's generation limit" }),
-    }));
-
-    await expect(fetchCurriculumMapStream(params, () => {})).rejects.toThrow(
-      /today's generation limit/,
+  it("surfaces a failed build as a classified error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: "You've hit today's generation limit",
+            code: "rate_limit",
+          }),
+          { status: 429, headers: { "x-atlas-request-id": "req-42" } },
+        ),
     );
+
+    // The caller no longer relays the server's sentence — it keys copy off the
+    // code, in the learner's own language. The upstream prose survives as the
+    // technical message, which is what reaches the log line beside the id.
+    await expect(
+      fetchCurriculumMapStream(params, () => {}),
+    ).rejects.toMatchObject({
+      code: "rate_limit",
+      status: 429,
+      requestId: "req-42",
+      retryable: true,
+      message: expect.stringContaining("today's generation limit"),
+    });
   });
 });

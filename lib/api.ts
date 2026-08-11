@@ -1,6 +1,7 @@
 // Client helper for the content-generation endpoint. Every screen that needs
-// AI content goes through here; errors surface as thrown Errors the caller
-// toasts.
+// AI content goes through here; failures surface as thrown `AtlasError`s
+// carrying a code, which is what lets the caller say something true about them
+// in the learner's language instead of relaying an upstream string.
 
 import type {
   AltKey,
@@ -16,7 +17,15 @@ import type {
   RetainContent,
   SocraticStep,
 } from "@/lib/curriculum";
+import {
+  AtlasError,
+  codeForStatus,
+  isErrorCode,
+  toAtlasError,
+} from "@/lib/errors";
 import type { Language } from "@/lib/i18n";
+import { logWarning } from "@/lib/log";
+import { withRetry } from "@/lib/retry";
 
 /** Options every content fetcher accepts. `prefetch` marks a background warm:
  *  a warm that fails comes back as a silent 204 rather than an error, since
@@ -25,14 +34,39 @@ export interface FetchOpts {
   prefetch?: boolean;
 }
 
-/** A background warm the server declined — swallowed by the warm queue. */
-export class WarmDeclined extends Error {
+/**
+ * A background warm the server declined — swallowed by the warm queue.
+ *
+ * It extends `AtlasError` so it is two things at once: `instanceof WarmDeclined`
+ * still works for the callers that branch on it (`AtlasApp`'s `generate`), and
+ * `toAtlasError` hands it back *by identity* rather than re-wrapping it, so
+ * passing it through the retry helper or a generic catch can't quietly turn a
+ * control-flow signal into a failure.
+ */
+export class WarmDeclined extends AtlasError {
   constructor() {
-    super("prefetch declined");
+    super("declined", "prefetch declined", { status: 204 });
+    this.name = "WarmDeclined";
   }
 }
 
-async function post<T>(
+/** Turn a non-OK response into a classified error, preferring the server's own
+ *  code over one guessed from the status. The body's `error` string is kept as
+ *  the technical message — for logs, never for the screen. */
+async function failure(res: Response): Promise<AtlasError> {
+  const requestId = res.headers.get("x-atlas-request-id") ?? undefined;
+  const body = (await res.json().catch(() => null)) as
+    | { error?: string; code?: string; reason?: string }
+    | null;
+  const code = isErrorCode(body?.code) ? body.code : codeForStatus(res.status);
+  return new AtlasError(code, body?.error ?? `request failed (${res.status})`, {
+    status: res.status,
+    requestId,
+    reason: body?.reason,
+  });
+}
+
+async function postOnce<T>(
   body: Record<string, unknown>,
   opts?: FetchOpts,
 ): Promise<T> {
@@ -42,12 +76,30 @@ async function post<T>(
     body: JSON.stringify(opts?.prefetch ? { ...body, prefetch: true } : body),
   });
   if (res.status === 204) throw new WarmDeclined();
-  const data = (await res.json().catch(() => null)) as
-    | (T & { error?: string })
-    | null;
-  if (!res.ok || !data)
-    throw new Error(data?.error ?? `generation failed (${res.status})`);
+  if (!res.ok) throw await failure(res);
+  const data = (await res.json().catch(() => null)) as T | null;
+  if (!data)
+    throw new AtlasError("upstream", "empty response body", {
+      status: res.status,
+      requestId: res.headers.get("x-atlas-request-id") ?? undefined,
+    });
   return data;
+}
+
+/**
+ * One automatic retry, and only for the codes where a second attempt is a
+ * different roll of the dice — a dropped connection, a throttle, a 502.
+ *
+ * Deliberately not more: every attempt past a cache miss is a real model call,
+ * and a learner who is owed an explanation is better served by a "Try again"
+ * they can choose than by the app spending their credit three times in silence.
+ * `WarmDeclined` is not retryable, so a declined warm still returns instantly.
+ */
+function post<T>(
+  body: Record<string, unknown>,
+  opts?: FetchOpts,
+): Promise<T> {
+  return withRetry(() => postOnce<T>(body, opts), { delays: [1200] });
 }
 
 /**
@@ -66,10 +118,18 @@ export async function fetchCachedContent(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items }),
     });
-    if (!res.ok) return {};
+    // Still degrades to "no hits" — that is the correct behaviour for a warm
+    // nobody is watching. What changes is that it is no longer *invisible*: a
+    // batch endpoint that is down used to be indistinguishable from a cold
+    // cache, so the app would quietly regenerate everything, forever.
+    if (!res.ok) {
+      logWarning("content_batch_failed", await failure(res));
+      return {};
+    }
     const data = (await res.json()) as { hits?: Record<number, unknown> };
     return data.hits ?? {};
-  } catch {
+  } catch (err) {
+    logWarning("content_batch_failed", toAtlasError(err));
     return {};
   }
 }
@@ -182,6 +242,11 @@ export type StreamFrame =
   | { p: string; v: unknown; partial?: true }
   | { p: string; i: number; v: unknown; partial?: true };
 
+/** Mirrors `ERROR_PART` in lib/server/stream.ts — declared here too for the
+ *  same reason `StreamFrame` is: client code never imports from lib/server.
+ *  The two must stay in step; `tests/streamError.test.ts` asserts they do. */
+export const ERROR_PART = "__error";
+
 /**
  * Post a streaming request and read its NDJSON frames as they land. Shared by
  * every progressively-delivered kind; `onFrame` fires the moment a frame
@@ -201,21 +266,52 @@ export async function fetchStream(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok || !res.body) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? `generation failed (${res.status})`);
-  }
+  if (!res.ok) throw await failure(res);
+  const requestId = res.headers.get("x-atlas-request-id") ?? undefined;
+  if (!res.body)
+    throw new AtlasError("upstream", "no response body", {
+      status: res.status,
+      requestId,
+    });
+
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   const frames: StreamFrame[] = [];
+  /** Set by the terminal `__error` frame — the server telling us, after it had
+   *  already committed to a 200, that the rest is not coming. */
+  let streamError: AtlasError | null = null;
   let buf = "";
+
   const takeLine = (line: string) => {
     const trimmed = line.trim();
     if (!trimmed) return;
-    const frame = JSON.parse(trimmed) as StreamFrame;
+    let frame: StreamFrame;
+    try {
+      frame = JSON.parse(trimmed) as StreamFrame;
+    } catch (err) {
+      // A malformed line used to throw a raw SyntaxError that travelled all the
+      // way to the toast. One bad line is not a reason to discard a stream that
+      // is otherwise landing — skip it and let the shape check decide.
+      logWarning("stream_line_unparsable", err, { line: trimmed.slice(0, 120) });
+      return;
+    }
+    if (frame.p === ERROR_PART) {
+      const v = (frame.v ?? {}) as {
+        code?: string;
+        message?: string;
+        requestId?: string;
+      };
+      streamError = new AtlasError(
+        isErrorCode(v.code) ? v.code : "upstream",
+        v.message ?? "the stream ended early",
+        { requestId: v.requestId ?? requestId },
+      );
+      return;
+    }
     frames.push(frame);
     onFrame(frame);
   };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -227,7 +323,19 @@ export async function fetchStream(
     }
   }
   takeLine(buf);
-  if (frames.length === 0) throw new Error("generation failed (empty response)");
+
+  // Order matters: the error frame is the more specific complaint, and a stream
+  // that died before its first frame would otherwise be reported as "empty".
+  //
+  // Frames that already landed have been handed to `onFrame` and are on screen.
+  // Throwing here does not take them back — every progressive caller keeps its
+  // `live*` state — it just stops the caller from treating a half-written
+  // reading pass as a finished one, which is what used to happen.
+  if (streamError) throw streamError;
+  if (frames.length === 0)
+    throw new AtlasError("upstream", "generation produced no frames", {
+      requestId,
+    });
   return frames;
 }
 
@@ -482,7 +590,8 @@ async function judge<T>(
   });
   for (const frame of frames)
     if (frame.p === "judgement" && !frame.partial) last = frame.v as T;
-  if (!last) throw new Error("the judge returned nothing");
+  if (!last)
+    throw new AtlasError("upstream", "the judge returned nothing");
   return last;
 }
 

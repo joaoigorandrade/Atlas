@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   DEFAULT_FORM,
   PHASES,
@@ -170,8 +177,25 @@ import { usePresence, useEarned } from "@/lib/motion";
 import { SHEET_EXIT_MS } from "@/components/Sheet";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
-import Toast, { type ToastData } from "@/components/Toast";
+import Toast, { isSticky, type ToastData } from "@/components/Toast";
 import ScreenTimer from "@/components/ScreenTimer";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { ErrorState, InlineError } from "@/components/ErrorState";
+import OfflineBanner from "@/components/OfflineBanner";
+import {
+  AtlasError,
+  codeForStatus,
+  isErrorCode,
+  toAtlasError,
+} from "@/lib/errors";
+import {
+  ERROR_STRINGS,
+  errorLines,
+  type ErrorContext,
+} from "@/lib/errorCopy";
+import { logWarning } from "@/lib/log";
+import { useOnline } from "@/lib/online";
+import { withRetry } from "@/lib/retry";
 
 /** Screens that render as a full-screen `Sheet` over the map. */
 const SHEET_SCREENS = new Set<Screen>([
@@ -430,6 +454,26 @@ export default function AtlasApp({
   const [railOpen, setRailOpen] = useState(true);
   const [detailOpen, setDetailOpen] = useState(true);
   const [toast, setToast] = useState<ToastData | null>(null);
+  /** A reading pass whose stream died after some sections had landed. What
+   *  arrived stays on screen; this is the notice pinned under it. */
+  const [consumeFailed, setConsumeFailed] = useState<{
+    nodeId: string;
+    retry: () => void;
+  } | null>(null);
+  /**
+   * True once a debounced write has failed every attempt it was given.
+   *
+   * This is the most damaging failure in the app and it used to be a
+   * `console.warn`: the learner keeps working, the map keeps updating, and none
+   * of it is being persisted. It gets a quiet, permanent chip rather than a
+   * toast — a toast that fired every 1.2s would be unusable, and the next
+   * debounce tick is already a retry.
+   */
+  const [saveFailed, setSaveFailed] = useState(false);
+  const online = useOnline();
+  /** Re-runs the judge for a Socratic turn whose grading failed — held here so
+   *  the failed bubble can offer it, not just the toast. */
+  const [socraticRetry, setSocraticRetry] = useState<(() => void) | null>(null);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
   >({});
@@ -551,14 +595,138 @@ export default function AtlasApp({
     };
   }, []);
 
-  const showToast = useCallback((message: string, kicker?: string) => {
-    // `seq` keys the toast, so a second one replays its entrance instead of
-    // swapping text inside an element that has already finished animating.
-    toastSeq.current += 1;
-    setToast({ message, kicker, seq: toastSeq.current });
+  const dismissToast = useCallback(() => {
     if (toastRef.current) clearTimeout(toastRef.current);
-    toastRef.current = setTimeout(() => setToast(null), kicker ? 3400 : 2400);
+    setToast(null);
   }, []);
+
+  /** Post a toast. `tone` defaults to "info"; an error stays until it is
+   *  dismissed or replaced by another error. */
+  const postToast = useCallback(
+    (next: Omit<ToastData, "seq">) => {
+      // `seq` keys the toast, so a second one replays its entrance instead of
+      // swapping text inside an element that has already finished animating.
+      toastSeq.current += 1;
+      const toast: ToastData = { ...next, seq: toastSeq.current };
+      setToast((current) => {
+        // Priority: a live error is not clobbered by the ordinary chatter that
+        // follows it. Half these toasts fire from effects the failure itself
+        // set in motion — the screen falls back, the map re-plans — and the
+        // learner would watch the one message that mattered get overwritten by
+        // "Jumping ahead · …" before they had finished reading it.
+        if (
+          current &&
+          current.tone === "error" &&
+          next.tone !== "error"
+        )
+          return current;
+        return toast;
+      });
+      if (toastRef.current) clearTimeout(toastRef.current);
+      if (!isSticky(toast))
+        toastRef.current = setTimeout(
+          () => setToast((c) => (c?.seq === toast.seq ? null : c)),
+          next.kicker ? 3400 : 2400,
+        );
+      return toast.seq;
+    },
+    [],
+  );
+
+  const showToast = useCallback(
+    (message: string, kicker?: string) => {
+      postToast({ message, kicker });
+    },
+    [postToast],
+  );
+
+  // Speculation is pointless without a network, and worse than pointless: every
+  // queued warm would fail instantly, drop its key, and take the deduplication
+  // with it — so the reconnect would be followed by a stampede of duplicate
+  // generations for content that was nearly ready. Foreground clicks still go
+  // through; only the guessing stops.
+  useEffect(() => {
+    if (online) warm.resume();
+    else warm.suspend();
+  }, [online, warm]);
+
+  /**
+   * The one place a caught error becomes something a learner reads.
+   *
+   * Classify it, choose the sentence in their language, and — when the same
+   * call could plausibly work a second time — hand them a button that runs it
+   * again. The error's own `message` is upstream prose (an OpenRouter body, a
+   * PostgREST complaint) and stays in the log line, next to the request id that
+   * ties it to the server's account of the same failure.
+   *
+   * `declined` never surfaces: it is the warm queue's control flow, not a
+   * failure, and a learner has no idea a prefetch was ever attempted.
+   */
+  const showError = useCallback(
+    (
+      err: unknown,
+      opts: { context?: ErrorContext; retry?: () => void } = {},
+    ) => {
+      const atlas = toAtlasError(err);
+      if (atlas.code === "declined") return;
+      logWarning("client_error", atlas, {
+        context: opts.context,
+        code: atlas.code,
+        req: atlas.requestId,
+      });
+      const strings = ERROR_STRINGS[languageRef.current];
+      const lines = errorLines(
+        languageRef.current,
+        atlas.code,
+        opts.context,
+        atlas.reason,
+      );
+      // An expired access token is usually recoverable without the learner
+      // doing anything: the refresh token outlives it. Try once, silently, and
+      // only ask them to sign in if that fails too — being bounced to a login
+      // screen mid-session for a token that could have been renewed is the
+      // most annoying possible way to be correct.
+      if (atlas.code === "auth") {
+        supabase.auth
+          .refreshSession()
+          .then(({ data, error }) => {
+            if (error || !data.session) throw error ?? new Error("no session");
+            // Recovered. Re-run what failed if we can; otherwise say the action
+            // didn't complete — a silent no-op after a silent recovery leaves
+            // the learner believing something happened that didn't.
+            if (opts.retry) opts.retry();
+            else
+              postToast({
+                ...lines,
+                tone: "error",
+                dismissLabel: strings.dismiss,
+              });
+          })
+          .catch(() =>
+            postToast({
+              ...lines,
+              tone: "error",
+              dismissLabel: strings.dismiss,
+              action: {
+                label: strings.signIn,
+                onClick: () => window.location.assign("/login"),
+              },
+            }),
+          );
+        return;
+      }
+      postToast({
+        ...lines,
+        tone: "error",
+        dismissLabel: strings.dismiss,
+        action:
+          opts.retry && atlas.retryable
+            ? { label: strings.retry, onClick: opts.retry }
+            : undefined,
+      });
+    },
+    [postToast, supabase],
+  );
 
   const setShakyReason = useCallback((id: string, reason: ShakyReason) => {
     setShakyReasons((prev) => ({ ...prev, [id]: reason }));
@@ -701,7 +869,11 @@ export default function AtlasApp({
       else
         loadRunCaches(supabase, row.subject)
           .then((c) => applyCaches(c))
-          .catch((err: Error) => console.warn(err.message));
+          // Genuinely non-fatal: the map is already drawn and every phase
+          // regenerates. Logged so a persistent failure is findable, not
+          // toasted — nothing the learner can do about it, and it costs them
+          // nothing but a wait they were going to have on a cold run anyway.
+          .catch((err: unknown) => logWarning("load_caches_failed", err));
     },
     [warm, applyCaches, supabase],
   );
@@ -728,17 +900,16 @@ export default function AtlasApp({
     // larger half — streams in behind an already-interactive map.
     loadRunCore(supabase)
       .then(hydrate)
-      .catch((err: Error) => {
+      .catch((err: unknown) => {
         // A failed load must not brick the app — start fresh and say so.
         if (cancelled) return;
-        console.warn(err.message);
         setHydrated(true);
-        showToast("Couldn't load your saved progress — starting fresh");
+        showError(err, { context: "load" });
       });
     return () => {
       cancelled = true;
     };
-  }, [supabase, showToast, applyRun, initialRun]);
+  }, [supabase, showError, applyRun, initialRun]);
 
   const runActive =
     hydrated &&
@@ -753,10 +924,19 @@ export default function AtlasApp({
    *  time the dashboard is entered, so a newly built or excluded map is never
    *  more than one nav away from correct. */
   const [maps, setMaps] = useState<RunSummary[]>([]);
+  /** Set when the grid is empty because the query failed, not because there
+   *  are no maps — two states that looked identical before. */
+  const [mapsFailed, setMapsFailed] = useState(false);
   const refreshMaps = useCallback(() => {
     listRuns(supabase)
-      .then(setMaps)
-      .catch((err: Error) => console.warn(err.message));
+      .then((rows) => {
+        setMaps(rows);
+        setMapsFailed(false);
+      })
+      .catch((err: unknown) => {
+        logWarning("list_runs_failed", err);
+        setMapsFailed(true);
+      });
   }, [supabase]);
 
   /** Open a map from the dashboard grid — a no-op switch for the one already
@@ -771,10 +951,20 @@ export default function AtlasApp({
         .then((row) => {
           if (row) applyRun(row);
         })
-        .catch((err: Error) => showToast(err.message, "Couldn't open that map"));
+        .catch((err: unknown) =>
+          showError(err, {
+            context: "openMap",
+            retry: () => switchMapRef.current?.(subject),
+          }),
+        );
     },
-    [runSubject, supabase, applyRun, showToast],
+    [runSubject, supabase, applyRun, showError],
   );
+  // The retry button on a failed open re-runs the same switch. Through a ref
+  // because the callback has to reference itself, and the toast outlives the
+  // render that posted it.
+  const switchMapRef = useRef(switchMap);
+  switchMapRef.current = switchMap;
 
   // The live session is the source of truth while it's open; this mirrors it
   // into the persisted per-node record. A finished pass drops out — coming
@@ -830,9 +1020,12 @@ export default function AtlasApp({
       misconceptions,
     };
     const timer = setTimeout(() => {
-      saveRun(supabase, runSubject, snapshot).catch((err: Error) =>
-        console.warn(err.message),
-      );
+      withRetry(() => saveRun(supabase, runSubject, snapshot))
+        .then(() => setSaveFailed(false))
+        .catch((err: unknown) => {
+          logWarning("save_run_failed", err);
+          setSaveFailed(true);
+        });
     }, 1200);
     return () => clearTimeout(timer);
   }, [
@@ -873,9 +1066,14 @@ export default function AtlasApp({
       retain: retainContent,
     };
     const timer = setTimeout(() => {
-      saveRunCaches(supabase, runSubject, caches).catch((err: Error) =>
-        console.warn(err.message),
-      );
+      withRetry(() => saveRunCaches(supabase, runSubject, caches))
+        .then(() => setSaveFailed(false))
+        .catch((err: unknown) => {
+          // The caches are re-generatable and the core write is the one that
+          // matters, so this shares the chip rather than earning its own.
+          logWarning("save_caches_failed", err);
+          setSaveFailed(true);
+        });
     }, 4000);
     return () => clearTimeout(timer);
   }, [
@@ -892,9 +1090,15 @@ export default function AtlasApp({
   ]);
 
   const signOut = useCallback(() => {
-    supabase.auth.signOut().then(() => {
-      window.location.href = "/login";
-    });
+    // Navigate either way: a failed sign-out still means the learner asked to
+    // leave, and /login clears the client session on arrival. The unhandled
+    // rejection this used to throw left them sitting on the map instead.
+    supabase.auth
+      .signOut()
+      .catch((err: unknown) => logWarning("sign_out_failed", err))
+      .finally(() => {
+        window.location.href = "/login";
+      });
   }, [supabase]);
 
   /** Delete account + all data (#33). Confirm, then the server wipes the rows. */
@@ -906,12 +1110,24 @@ export default function AtlasApp({
     )
       return;
     fetch("/api/account/delete", { method: "POST" })
-      .then((r) => {
-        if (!r.ok) throw new Error("delete failed");
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = (await r.json().catch(() => null)) as
+            | { code?: string }
+            | null;
+          throw new AtlasError(
+            isErrorCode(body?.code) ? body.code : codeForStatus(r.status),
+            `account delete failed (${r.status})`,
+            {
+              status: r.status,
+              requestId: r.headers.get("x-atlas-request-id") ?? undefined,
+            },
+          );
+        }
         window.location.href = "/login";
       })
-      .catch(() => showToast("Couldn't delete right now — try again in a moment."));
-  }, [showToast]);
+      .catch((err: unknown) => showError(err, { context: "account" }));
+  }, [showError]);
 
   // ---- Home (dashboard) + profile navigation ---------------------------
 
@@ -999,7 +1215,7 @@ export default function AtlasApp({
             showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
           }
         })
-        .catch((err: Error) => showToast(err.message, "Couldn't exclude"))
+        .catch((err: unknown) => showError(err, { context: "exclude" }))
         .finally(() => setExcluding(false));
     },
     [supabase, warm, showToast, runSubject, maps],
@@ -1263,16 +1479,20 @@ export default function AtlasApp({
             // assemble — but say so, instead of silently skipping the step.
             if (!current()) return;
             failed = true;
-            showToast(err.message, "Placement skipped");
+            showError(err, { context: "placement" });
             later(() => setScreen("map"), openAt());
           });
       })
       .catch((err: Error) => {
         if (!current()) return;
         setScreen("welcome");
-        showToast(err.message, "Generation failed");
+        showError(err, { context: "build", retry: () => buildRef.current?.() });
       });
-  }, [later, outline, showToast, warm]);
+  }, [later, outline, showError, showToast, warm]);
+  // Same self-reference as `switchMapRef`: "Try again" on a failed build starts
+  // the same build, with the form exactly as the learner left it.
+  const buildRef = useRef(build);
+  buildRef.current = build;
 
   /** A picked scope becomes the topic and builds immediately (#30). */
   const pickScope = useCallback(
@@ -1307,7 +1527,7 @@ export default function AtlasApp({
         .catch((err: Error) => {
           setOutline(null);
           setUploadNote(null);
-          showToast(err.message, "Upload");
+          showError(err, { context: "upload" });
         });
     },
     [showToast],
@@ -1399,13 +1619,18 @@ export default function AtlasApp({
         // must not land on the one that replaced it.
         if (buildIdRef.current === buildId) setDiagnostic((prev) => [...prev, question]);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         // The writer stumbled mid-placement: stop asking and let what's
         // already known stand rather than leaving the panel waiting forever.
-        if (buildIdRef.current === buildId) setAnswered(DIAGNOSTIC_COUNT);
+        if (buildIdRef.current !== buildId) return;
+        setAnswered(DIAGNOSTIC_COUNT);
+        // …and say so. Ending placement early in silence looks like the app
+        // decided it had learned enough about them, which is a different and
+        // much more confusing thing than "that step didn't work".
+        showError(err, { context: "placement" });
       });
     return effect;
-  }, [setShakyReason]);
+  }, [setShakyReason, showError]);
 
   /**
    * The node the "Start here →" / "Jump to frontier" affordances target:
@@ -1522,7 +1747,13 @@ export default function AtlasApp({
 
   /**
    * Run one content generation behind the overlay. `phase`/`message` voice the
-   * wait; a failure toasts and leaves the learner where they were.
+   * wait; a failure explains itself and leaves the learner where they were.
+   *
+   * This is the single seam that gives every phase a working retry. Each caller
+   * already hands over the exact `key` and `fetcher`, so the "Try again" button
+   * on the toast is those same two things run again — after dropping the key,
+   * because the queue remembers a failed attempt long enough to replay its
+   * rejection to the next caller.
    */
   const generate = useCallback(
     <T,>(
@@ -1549,13 +1780,24 @@ export default function AtlasApp({
         .then((content) => {
           onReady(content);
         })
-        .catch((err: Error) => {
-          showToast(err.message, "Generation failed");
+        .catch((err: unknown) => {
+          showError(err, {
+            context: "content",
+            retry: () => {
+              warm.drop(key);
+              generateRef.current(key, phase, message, fetcher, onReady);
+            },
+          });
         })
         .finally(() => setLoading(null));
     },
-    [showToast, warm],
+    [showError, warm],
   );
+
+  // `generate` retries itself from the toast, so it needs a handle on its own
+  // latest identity — the button is pressed long after this render.
+  const generateRef = useRef(generate);
+  generateRef.current = generate;
 
   /** Direct (solid-edge) prerequisite nodes of a node. */
   const prereqNodesOf = useCallback((nodeId: string): ConceptNode[] => {
@@ -1895,6 +2137,9 @@ export default function AtlasApp({
    */
   const enterSession = useCallback(
     (node: ConceptNode) => {
+      // A fresh open (including the retry, which is this same call) clears the
+      // stale "the rest never arrived" notice from the previous attempt.
+      setConsumeFailed(null);
       const open = () => {
         const saved = consumeProgressRef.current[node.id];
         setConsume({
@@ -1957,19 +2202,25 @@ export default function AtlasApp({
           setConsumeCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: chunks }));
           setLiveConsume((prev) => (prev?.nodeId === node.id ? null : prev));
         })
-        .catch((err: Error) => {
-          // Once a section has rendered, sections already read stay put;
-          // reopening the node retries since it never got cached.
-          showToast(
-            receivedAny
-              ? "Couldn't finish the rest of this reading pass — reopen the node to retry."
-              : err.message,
-            receivedAny ? "Generation incomplete" : "Generation failed",
-          );
+        .catch((err: unknown) => {
+          // Sections already read stay on screen — `liveConsume` is untouched.
+          // What changes is that the learner is told the rest isn't coming and
+          // handed the retry, instead of being left to work out that a reading
+          // pass which simply stopped was supposed to have more in it.
+          if (receivedAny)
+            setConsumeFailed({ nodeId: node.id, retry: () => enterSessionRef.current?.(node) });
+          showError(err, {
+            context: "content",
+            retry: () => enterSessionRef.current?.(node),
+          });
         });
     },
-    [consumeParams, generate, loadConsume, showToast, warm, warmOne],
+    [consumeParams, generate, loadConsume, showError, warm, warmOne],
   );
+  // Retry for a reading pass that stopped halfway: reopening the node is the
+  // retry, since nothing incomplete was ever cached.
+  const enterSessionRef = useRef(enterSession);
+  enterSessionRef.current = enterSession;
 
   // ---- Consume (Learn view) --------------------------------------------
 
@@ -2044,9 +2295,12 @@ export default function AtlasApp({
           setModelCache((prev) => (prev[key] ? prev : { ...prev, [key]: beats }));
         setLiveModel((prev) => (prev?.key === key ? { ...prev, done: true } : prev));
       };
-      const failed = (err: Error) => {
+      const failed = (err: unknown) => {
         settle();
-        showToast(err.message, "Generation failed");
+        showError(err, {
+          context: "content",
+          retry: () => consumeOpenModelRef.current?.(chunk, lens),
+        });
       };
 
       const stream = () =>
@@ -2079,8 +2333,10 @@ export default function AtlasApp({
       }
       stream();
     },
-    [loadModel, modelParams, showToast, warm],
+    [loadModel, modelParams, showError, warm],
   );
+  const consumeOpenModelRef = useRef(consumeOpenModel);
+  consumeOpenModelRef.current = consumeOpenModel;
 
   /** Close the open view. The lens stays recorded on the section — that is the
    *  adaptive-modality signal, and what the missing-prerequisite flag counts. */
@@ -2382,22 +2638,26 @@ export default function AtlasApp({
               : prev,
           );
         })
-        .catch((err: Error) => {
+        .catch((err: unknown) => {
+          // A partial pass is still a usable pass — the probes that landed are
+          // answerable — so this stays a notice rather than closing the screen.
           if (receivedAny) {
-            showToast(
-              "Couldn't finish the rest of this questioning pass — the steps already written still work.",
-              "Generation incomplete",
-            );
+            showError(err, { context: "content" });
             return;
           }
           setScreen("map");
           setSocratic(null);
           setLiveSocratic(null);
-          showToast(err.message, "Generation failed");
+          showError(err, {
+            context: "content",
+            retry: () => enterSocraticRef.current?.(node),
+          });
         });
     },
-    [generate, loadSocratic, socraticParams, showToast, warm, warmOne],
+    [generate, loadSocratic, socraticParams, showError, warm, warmOne],
   );
+  const enterSocraticRef = useRef(enterSocratic);
+  enterSocraticRef.current = enterSocratic;
 
   /** Steps for the node on screen — the cached array once it lands, or the
    *  live one still streaming in behind it. Without this fallback every
@@ -2480,8 +2740,13 @@ export default function AtlasApp({
       // about a second in and moves the tutor on; the wording fills that
       // same bubble when it lands.
       apply({ type: "answer", text });
+      setSocraticRetry(null);
+      // Wrapped so the retry can re-run *just the judge*: the learner's answer
+      // is already in the transcript, and sending it twice would put it there
+      // twice. `retryJudge` re-opens the bubble this fills.
+      const runJudge = (): Promise<void> => {
       let applied = false;
-      fetchJudgeSocratic(
+      return fetchJudgeSocratic(
         {
           topic: formRef.current.topic,
           nodeLabel: node.label,
@@ -2527,14 +2792,30 @@ export default function AtlasApp({
               : { type: "judged", answer: text, quality: j.quality, response: j.response },
           );
         })
-        .catch((err: Error) => {
-          // Don't strand the open bubble on its dots — the failure lands in it.
-          apply({ type: "stream", text: err.message });
-          showToast(err.message, "Judge unavailable — try again");
+        .catch((err: unknown) => {
+          // Don't strand the open bubble on its dots — but don't fill it with
+          // the failure either. Writing `err.message` in here was the tutor
+          // saying "OpenRouter 502" to a learner mid-question; the turn is
+          // marked failed instead and the view offers the retry.
+          apply({ type: "judgeFailed" });
+          const again = () => {
+            if (judgingRef.current) return;
+            setSocraticRetry(null);
+            setJudging(true);
+            apply({ type: "retryJudge" });
+            void runJudge();
+          };
+          // Offered in two places on purpose: the toast is where the learner is
+          // looking the moment it fails, and the bubble is where they look when
+          // they come back to the screen a minute later.
+          setSocraticRetry(() => again);
+          showError(err, { context: "judge", retry: again });
         })
         .finally(() => setJudging(false));
+      };
+      void runJudge();
     },
-    [fileMisconception, showToast, socraticStepsFor],
+    [fileMisconception, showError, socraticStepsFor],
   );
 
   const exitSocratic = useCallback(() => {
@@ -2619,20 +2900,22 @@ export default function AtlasApp({
               prev[node.id] ? prev : { ...prev, [node.id]: partial },
             );
             setLiveFeynman((prev) => (prev?.nodeId === node.id ? null : prev));
-            showToast(
-              "Couldn't finish the rest of this teach-back — the sub-points already written still grade it.",
-              "Generation incomplete",
-            );
+            showError(err, { context: "content" });
             return;
           }
           setScreen("map");
           setFeynman(null);
           setLiveFeynman(null);
-          showToast(err.message, "Generation failed");
+          showError(err, {
+            context: "content",
+            retry: () => enterFeynmanRef.current?.(node),
+          });
         });
     },
-    [feynmanParams, generate, loadFeynman, showToast, warm, warmOne],
+    [feynmanParams, generate, loadFeynman, showError, warm, warmOne],
   );
+  const enterFeynmanRef = useRef(enterFeynman);
+  enterFeynmanRef.current = enterFeynman;
 
   /** The rubric for a node: the committed one, else whatever has streamed in
    *  so far — the same fallback `feynmanBeats` renders from. Without it every
@@ -2750,11 +3033,18 @@ export default function AtlasApp({
               prev?.nodeId === session.nodeId ? { ...prev, jargon: j.jargon } : prev,
             );
         })
-        .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
+        .catch((err: unknown) =>
+          showError(err, {
+            context: "judge",
+            retry: () => feynmanTeachRef.current?.(text),
+          }),
+        )
         .finally(() => setJudging(false));
     },
-    [feynmanBeatsFor, fileMisconception, showToast],
+    [feynmanBeatsFor, fileMisconception, showError],
   );
+  const feynmanTeachRef = useRef(feynmanTeach);
+  feynmanTeachRef.current = feynmanTeach;
 
   const exitFeynman = useCallback(() => {
     setScreen("map");
@@ -3045,9 +3335,16 @@ export default function AtlasApp({
             "Map updated",
           );
       })
-      .catch((err: Error) => showToast(err.message, "Judge unavailable — try again"))
+      .catch((err: unknown) =>
+        showError(err, {
+          context: "judge",
+          retry: () => crucibleSubmitRef.current?.(),
+        }),
+      )
       .finally(() => setJudging(false));
-  }, [attachGap, recordCalib, setShakyReason, showToast]);
+  }, [attachGap, recordCalib, setShakyReason, showError, showToast]);
+  const crucibleSubmitRef = useRef(crucibleSubmit);
+  crucibleSubmitRef.current = crucibleSubmit;
 
   /**
    * Transfer confirmed: the re-attempt carried the concept into a framing it
@@ -4062,6 +4359,46 @@ export default function AtlasApp({
     );
   }
   const narrow = vw < 1280;
+  const errorStrings = ERROR_STRINGS[language];
+
+  /**
+   * Wrap one session sheet so a throw inside it costs that sheet and nothing
+   * else.
+   *
+   * This is the whole reason `ErrorBoundary` exists here. `AtlasApp` holds the
+   * entire run in memory — graph, mastery states, every generated cache — and
+   * persists it on a debounce, so before this an unhandled render error in any
+   * phase view took all of it down to Next's default error page. Now the map is
+   * still behind you and the way back is a button.
+   *
+   * `resetKeys` on the open sheet and the selected node means leaving and
+   * re-entering clears the caught error without a reload.
+   */
+  const sheetBoundary = (children: ReactNode) => (
+    <ErrorBoundary
+      resetKeys={[sheetScreen, selectedId]}
+      onError={(err) => logWarning("session_view_crashed", err, { sheetScreen })}
+      fallback={(_err, reset) => (
+        <ErrorState
+          compact
+          kicker={errorStrings.context.crash}
+          message={errorStrings.code.unknown}
+          body={errorStrings.crashBody}
+          retryLabel={errorStrings.retry}
+          onRetry={reset}
+          secondary={{
+            label: errorStrings.backToMap,
+            onClick: () => {
+              reset();
+              setScreen("map");
+            },
+          }}
+        />
+      )}
+    >
+      {children}
+    </ErrorBoundary>
+  );
 
   return (
     <div
@@ -4267,6 +4604,7 @@ export default function AtlasApp({
           onNewMap={newMap}
           onExcludeTopic={excludeTopic}
           excluding={excluding}
+          mapsFailed={mapsFailed ? { onRetry: refreshMaps } : undefined}
         />
       )}
 
@@ -4301,146 +4639,158 @@ export default function AtlasApp({
         />
       )}
 
-      {sheetScreen === "consume" && consume && consumeChunks && (
-        <ConsumeView
-          presence={sheet.state}
-          topic={form.topic}
-          title={
-            graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
-          }
-          chunks={consumeChunks}
-          streaming={consumeStreaming}
-          session={consume}
-          modelBeats={modelBeats}
-          modelStreaming={modelStreaming}
-          onExit={exitConsume}
-          onCheck={consumeCheck}
-          onContinue={consumeContinue}
-          onFinish={finishConsume}
-          onBeginSocratic={beginSocraticFromConsume}
-          onOpenModel={consumeOpenModel}
-          onCloseModel={consumeCloseModel}
-          onToggleTerm={consumeToggleTerm}
-          onToggleCollapse={consumeToggleCollapse}
-          onOpenPassage={consumeOpenPassage}
-          onClosePassage={consumeClosePassage}
-          onAskPassage={consumeAskPassage}
-          onSkipCrucible={consumeSkipCrucible}
-          onRoutePrereq={consumeRoutePrereq}
-        />
-      )}
+      {sheetScreen === "consume" && consume && consumeChunks &&
+        sheetBoundary(
+          <ConsumeView
+            presence={sheet.state}
+            topic={form.topic}
+            title={
+              graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
+            }
+            chunks={consumeChunks}
+            streaming={consumeStreaming}
+            session={consume}
+            modelBeats={modelBeats}
+            modelStreaming={modelStreaming}
+            onExit={exitConsume}
+            onCheck={consumeCheck}
+            onContinue={consumeContinue}
+            onFinish={finishConsume}
+            onBeginSocratic={beginSocraticFromConsume}
+            onOpenModel={consumeOpenModel}
+            onCloseModel={consumeCloseModel}
+            onToggleTerm={consumeToggleTerm}
+            onToggleCollapse={consumeToggleCollapse}
+            onOpenPassage={consumeOpenPassage}
+            onClosePassage={consumeClosePassage}
+            onAskPassage={consumeAskPassage}
+            onSkipCrucible={consumeSkipCrucible}
+            onRoutePrereq={consumeRoutePrereq}
+            incomplete={
+              consumeFailed?.nodeId === consume.nodeId
+                ? { onRetry: consumeFailed.retry }
+                : undefined
+            }
+          />
+        )}
 
-      {sheetScreen === "socratic" && socratic && socraticSteps && (
-        <SocraticView
-          presence={sheet.state}
-          title={
-            graph.nodes.find((n) => n.id === socratic.nodeId)?.label ??
-            "Concept"
-          }
-          session={socratic}
-          judging={judging}
-          gapMode={
-            graph.nodes.find((n) => n.id === socratic.nodeId)?.gap ?? false
-          }
-          onExit={exitSocratic}
-          onAnswer={socraticAnswer}
-          onStuck={() => dispatchSocratic({ type: "stuck" })}
-          onTell={() => dispatchSocratic({ type: "tell" })}
-          onHelpChange={(level) => dispatchSocratic({ type: "setHelp", level })}
-          onAdvance={advanceFromSocratic}
-        />
-      )}
+      {sheetScreen === "socratic" && socratic && socraticSteps &&
+        sheetBoundary(
+          <SocraticView
+            presence={sheet.state}
+            title={
+              graph.nodes.find((n) => n.id === socratic.nodeId)?.label ??
+              "Concept"
+            }
+            session={socratic}
+            judging={judging}
+            gapMode={
+              graph.nodes.find((n) => n.id === socratic.nodeId)?.gap ?? false
+            }
+            onExit={exitSocratic}
+            onAnswer={socraticAnswer}
+            onStuck={() => dispatchSocratic({ type: "stuck" })}
+            onTell={() => dispatchSocratic({ type: "tell" })}
+            onHelpChange={(level) => dispatchSocratic({ type: "setHelp", level })}
+            onAdvance={advanceFromSocratic}
+          />
+        )}
 
-      {sheetScreen === "feynman" && feynman && feynmanBeats && (
-        <FeynmanView
-          presence={sheet.state}
-          topic={form.topic}
-          title={
-            graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"
-          }
-          beats={feynmanBeats}
-          session={feynman}
-          judging={judging}
-          ready={!!feynmanCache[feynman.nodeId]}
-          onExit={exitFeynman}
-          onBegin={() => dispatchFeynman({ type: "begin" })}
-          onTeach={feynmanTeach}
-          onScaffold={() => dispatchFeynman({ type: "scaffold" })}
-          onOpenFix={(beatId) => dispatchFeynman({ type: "openFix", beatId })}
-          onCloseFix={() => dispatchFeynman({ type: "closeFix" })}
-          onFix={(index) => dispatchFeynman({ type: "fix", index })}
-          onTeachAgain={() => dispatchFeynman({ type: "teachAgain" })}
-          onAdvance={advanceFromFeynman}
-        />
-      )}
+      {sheetScreen === "feynman" && feynman && feynmanBeats &&
+        sheetBoundary(
+          <FeynmanView
+            presence={sheet.state}
+            topic={form.topic}
+            title={
+              graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"
+            }
+            beats={feynmanBeats}
+            session={feynman}
+            judging={judging}
+            ready={!!feynmanCache[feynman.nodeId]}
+            onExit={exitFeynman}
+            onBegin={() => dispatchFeynman({ type: "begin" })}
+            onTeach={feynmanTeach}
+            onScaffold={() => dispatchFeynman({ type: "scaffold" })}
+            onOpenFix={(beatId) => dispatchFeynman({ type: "openFix", beatId })}
+            onCloseFix={() => dispatchFeynman({ type: "closeFix" })}
+            onFix={(index) => dispatchFeynman({ type: "fix", index })}
+            onTeachAgain={() => dispatchFeynman({ type: "teachAgain" })}
+            onAdvance={advanceFromFeynman}
+          />
+        )}
 
-      {sheetScreen === "connect" && connect && connectContent && (
-        <ConnectView
-          presence={sheet.state}
-          content={connectContent}
-          session={connect}
-          onExit={exitConnect}
-          onSelect={(id) => dispatchConnect({ type: "select", id })}
-          onDraft={(id, value) => dispatchConnect({ type: "draft", id, value })}
-          onConfirm={(id) => dispatchConnect({ type: "confirm", id })}
-          onPickMnemonic={(index) =>
-            dispatchConnect({ type: "pickMnemonic", index })
-          }
-          onDraftMnemonic={(value) =>
-            dispatchConnect({ type: "draftMnemonic", value })
-          }
-          onAcceptMnemonic={() => dispatchConnect({ type: "acceptMnemonic" })}
-          onFinish={advanceFromConnect}
-        />
-      )}
+      {sheetScreen === "connect" && connect && connectContent &&
+        sheetBoundary(
+          <ConnectView
+            presence={sheet.state}
+            content={connectContent}
+            session={connect}
+            onExit={exitConnect}
+            onSelect={(id) => dispatchConnect({ type: "select", id })}
+            onDraft={(id, value) => dispatchConnect({ type: "draft", id, value })}
+            onConfirm={(id) => dispatchConnect({ type: "confirm", id })}
+            onPickMnemonic={(index) =>
+              dispatchConnect({ type: "pickMnemonic", index })
+            }
+            onDraftMnemonic={(value) =>
+              dispatchConnect({ type: "draftMnemonic", value })
+            }
+            onAcceptMnemonic={() => dispatchConnect({ type: "acceptMnemonic" })}
+            onFinish={advanceFromConnect}
+          />
+        )}
 
-      {sheetScreen === "crucible" && crucible && crucibleContent && (
-        <CrucibleView
-          presence={sheet.state}
-          content={crucibleContent}
-          session={crucible}
-          judging={judging}
-          onExit={exitCrucible}
-          onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}
-          onAttempt={(value) => dispatchCrucible({ type: "attempt", value })}
-          onSample={() => dispatchCrucible({ type: "sample" })}
-          onSubmit={crucibleSubmit}
-          onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
-          onRetry={() => dispatchCrucible({ type: "retry" })}
-          onFinish={advanceFromCrucible}
-        />
-      )}
+      {sheetScreen === "crucible" && crucible && crucibleContent &&
+        sheetBoundary(
+          <CrucibleView
+            presence={sheet.state}
+            content={crucibleContent}
+            session={crucible}
+            judging={judging}
+            onExit={exitCrucible}
+            onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}
+            onAttempt={(value) => dispatchCrucible({ type: "attempt", value })}
+            onSample={() => dispatchCrucible({ type: "sample" })}
+            onSubmit={crucibleSubmit}
+            onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
+            onRetry={() => dispatchCrucible({ type: "retry" })}
+            onFinish={advanceFromCrucible}
+          />
+        )}
 
-      {sheetScreen === "review" && retain && retainContent && (
-        <RetainView
-          presence={sheet.state}
-          content={retainContent}
-          session={retain}
-          nodeLabel={
-            graph.nodes.find((n) => n.id === reviewCard(retain, retainContent).node)
-              ?.label ?? "This node"
-          }
-          litNodes={masteredCount}
-          adherence={adherence}
-          litToday={litToday}
-          onToggleReminder={onToggleReminder}
-          onExit={exitReview}
-          onConfidence={retainConfidence}
-          onGrade={retainGrade}
-          onToggleAside={retainToggleAside}
-          onReteach={retainReteach}
-          onContinue={retainContinue}
-        />
-      )}
+      {sheetScreen === "review" && retain && retainContent &&
+        sheetBoundary(
+          <RetainView
+            presence={sheet.state}
+            content={retainContent}
+            session={retain}
+            nodeLabel={
+              graph.nodes.find((n) => n.id === reviewCard(retain, retainContent).node)
+                ?.label ?? "This node"
+            }
+            litNodes={masteredCount}
+            adherence={adherence}
+            litToday={litToday}
+            onToggleReminder={onToggleReminder}
+            onExit={exitReview}
+            onConfidence={retainConfidence}
+            onGrade={retainGrade}
+            onToggleAside={retainToggleAside}
+            onReteach={retainReteach}
+            onContinue={retainContinue}
+          />
+        )}
 
-      {sheetScreen === "calibration" && (
-        <CalibrationView
-          presence={sheet.state}
-          items={calib}
-          onExit={exitCalib}
-          onCloseGap={closeCalibGap}
-        />
-      )}
+      {sheetScreen === "calibration" &&
+        sheetBoundary(
+          <CalibrationView
+            presence={sheet.state}
+            items={calib}
+            onExit={exitCalib}
+            onCloseGap={closeCalibGap}
+          />
+        )}
 
       {/* Mounted through its own fade-out; `loading` is already null by then,
           so the last phase/message are kept for the exit frame. */}
@@ -4450,7 +4800,49 @@ export default function AtlasApp({
         message={loading?.message ?? lastLoading.current?.message ?? ""}
       />
 
-      <Toast toast={toast} />
+      <OfflineBanner offline={!online} message={errorStrings.offlineBanner} />
+
+      {/* A write that has exhausted its retries. Quiet and permanent rather
+          than a toast: the debounce fires every 1.2s, so a toast would be a
+          strobe, and the next tick is already the retry. Suppressed offline —
+          the banner above is a truer account of the same fact. */}
+      {saveFailed && online && (
+        <div
+          role="status"
+          style={{
+            position: "absolute",
+            top: 14,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 38,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "6px 12px",
+            borderRadius: 999,
+            background: color.dangerBg,
+            border: "1px solid rgba(154,64,52,0.22)",
+            color: color.dangerInk,
+            fontFamily: font.mono,
+            fontSize: 10.5,
+            letterSpacing: "0.06em",
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              background: color.dangerInk,
+              animation: "breathe 1.8s ease-in-out infinite",
+            }}
+          />
+          {errorStrings.notSaved}
+        </div>
+      )}
+
+      <Toast toast={toast} onDismiss={dismissToast} />
 
       <ScreenTimer />
     </div>

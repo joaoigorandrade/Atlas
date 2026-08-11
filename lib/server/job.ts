@@ -121,7 +121,15 @@ export const CAPS = {
   listItems: 30,
 } as const;
 
-export class BadRequest extends Error {}
+export class BadRequest extends Error {
+  // Set explicitly: a subclass inherits `Error.prototype.name`, and
+  // `toAtlasError` (lib/errors.ts) matches on it — client code can't import
+  // this class to `instanceof` it.
+  constructor(message: string) {
+    super(message);
+    this.name = "BadRequest";
+  }
+}
 export function badRequest(message: string): BadRequest {
   return new BadRequest(message);
 }

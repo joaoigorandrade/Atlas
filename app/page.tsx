@@ -1,11 +1,19 @@
 import { redirect } from "next/navigation";
 import AtlasApp from "@/components/AtlasApp";
+import AuthUnavailable from "@/components/AuthUnavailable";
+import { logWarning } from "@/lib/log";
 import { loadRunCore, type LoadedRun } from "@/lib/persistence";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  const { data, error } = await supabase.auth.getClaims();
+  // Couldn't ask ≠ answered no. Sending a signed-in learner to /login because
+  // Supabase blinked is worse than showing them a retry.
+  if (error) {
+    logWarning("auth_unavailable", error, { at: "home" });
+    return <AuthUnavailable />;
+  }
   if (!data?.claims) redirect("/login");
 
   // The map's first paint used to wait on a browser→Supabase round-trip for

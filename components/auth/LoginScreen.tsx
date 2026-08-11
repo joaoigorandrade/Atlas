@@ -11,6 +11,8 @@ const STRINGS = {
     kicker: "Atlas · learn anything, deeply",
     linkError:
       "That confirmation link expired or was already used — sign in again below.",
+    confirmUnavailable:
+      "We couldn't check that link just now — nothing is wrong with your account. Try the link again, or sign in below.",
     enterEmail: "Enter the email for your account.",
     passwordMin: "Password must be at least 6 characters.",
     signInTitle: "Sign in to your map",
@@ -36,6 +38,8 @@ const STRINGS = {
     kicker: "Atlas · aprenda qualquer coisa, a fundo",
     linkError:
       "Esse link de confirmação expirou ou já foi usado — entre novamente abaixo.",
+    confirmUnavailable:
+      "Não conseguimos verificar esse link agora — não há nada de errado com sua conta. Tente o link de novo, ou entre abaixo.",
     enterEmail: "Digite o e-mail da sua conta.",
     passwordMin: "A senha precisa ter pelo menos 6 caracteres.",
     signInTitle: "Entre no seu mapa",
@@ -60,20 +64,37 @@ const STRINGS = {
 } as const;
 
 interface LoginScreenProps {
-  /** Set when /auth/confirm rejected a confirmation link (expired / reused). */
-  linkError?: boolean;
+  /**
+   * The `?error=` /auth/confirm redirected with. `link`/`expired` mean the link
+   * itself is spent; `unavailable` means we couldn't check it — which is worth
+   * saying differently, because "your link expired" is a lie that makes a
+   * learner give up on a link that would work in a minute.
+   */
+  notice?: string;
 }
 
 type Mode = "signin" | "signup";
 type Status = "idle" | "working" | "sent" | "error";
 
-export default function LoginScreen({ linkError }: LoginScreenProps) {
+export default function LoginScreen({ notice }: LoginScreenProps) {
   const t = useT(STRINGS);
+  const noticeText =
+    notice === "unavailable"
+      ? t.confirmUnavailable
+      : notice === "link" || notice === "expired"
+        ? t.linkError
+        : "";
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState(linkError ? t.linkError : "");
+  // Null means "nothing has happened yet, so show the notice we arrived with".
+  // Seeding this from `noticeText` instead froze the sentence at the language
+  // of the first render — `LanguageProvider` resolves the real language in an
+  // effect, so the notice stayed pt-BR on an English browser while every other
+  // string on the screen switched.
+  const [message, setMessage] = useState<string | null>(null);
+  const shownMessage = message ?? noticeText;
 
   const submit = () => {
     const address = email.trim();
@@ -131,6 +152,8 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
   const switchMode = (next: Mode) => {
     setMode(next);
     setStatus("idle");
+    // "" rather than null: switching modes deliberately clears the arrival
+    // notice, where null would bring it back.
     setMessage("");
   };
 
@@ -307,7 +330,7 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
           </>
         )}
 
-        {message && status !== "sent" && (
+        {shownMessage && status !== "sent" && (
           <div
             style={{
               marginTop: 16,
@@ -319,7 +342,7 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
               padding: "10px 14px",
             }}
           >
-            {message}
+            {shownMessage}
           </div>
         )}
       </div>

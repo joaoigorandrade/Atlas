@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MicButton } from "@/components/VoiceInput";
 import { SkeletonBars, StreamingText } from "@/components/Pending";
+import { InlineError } from "@/components/ErrorState";
 import {
   PHASES,
   STATE_COLOR,
@@ -86,7 +87,11 @@ const STRINGS = {
     askSuggested: "Not sure what to ask?",
     askThinking: "Reading the passage…",
     askClose: "Close",
-    askFailed: "Couldn’t answer that one — try asking again.",
+    readingIncomplete:
+      "The rest of this reading pass didn’t arrive — what’s above is complete.",
+    readingRetry: "Fetch the rest",
+    askFailed: "Couldn’t answer that one.",
+    askRetry: "Ask again",
     // ---- the closing beat
     recapKicker: "Session · Consume — complete",
     recapTitle: (t: string) => `That was ${t}.`,
@@ -160,7 +165,11 @@ const STRINGS = {
     askSuggested: "Não sabe o que perguntar?",
     askThinking: "Lendo o trecho…",
     askClose: "Fechar",
-    askFailed: "Não consegui responder essa — tente perguntar de novo.",
+    readingIncomplete:
+      "O resto desta leitura não chegou — o que está acima está completo.",
+    readingRetry: "Buscar o resto",
+    askFailed: "Não consegui responder essa.",
+    askRetry: "Perguntar de novo",
     // ---- the closing beat
     recapKicker: "Sessão · Consumir — concluída",
     recapTitle: (t: string) => `Isso foi ${t}.`,
@@ -265,6 +274,9 @@ interface ConsumeViewProps {
   onAskPassage: (question: string) => void;
   onSkipCrucible: () => void;
   onRoutePrereq: () => void;
+  /** Set when the reading pass stopped mid-stream. The sections that landed
+   *  stay exactly as they are; this is the notice pinned under them. */
+  incomplete?: { onRetry: () => void };
 }
 
 // ---- figure rendering ------------------------------------------------------
@@ -800,7 +812,14 @@ function PassagePanel({
             </div>
           )}
           {ask.status === "error" && (
-            <div style={{ fontSize: 13, color: WRONG }}>{t.askFailed}</div>
+            // Was a bare red line with nothing to do about it. The retry
+            // re-asks the same question — the learner shouldn't have to
+            // re-type it because the network dropped.
+            <InlineError
+              message={t.askFailed}
+              retryLabel={t.askRetry}
+              onRetry={onAsk ? () => onAsk(ask.question) : undefined}
+            />
           )}
         </>
       )}
@@ -1345,6 +1364,7 @@ export default function ConsumeView({
   onAskPassage,
   onSkipCrucible,
   onRoutePrereq,
+  incomplete,
   presence,
 }: ConsumeViewProps) {
   const t = useT(STRINGS);
@@ -2319,6 +2339,19 @@ export default function ConsumeView({
               </div>
             );
           })}
+
+          {/* The stream died after some sections had landed. Everything above
+              is real and readable; this says the rest isn't coming, which is
+              the one thing a pass that simply stops can't say for itself. */}
+          {incomplete && (
+            <div style={{ margin: "8px 0 28px", maxWidth: 640 }}>
+              <InlineError
+                message={t.readingIncomplete}
+                retryLabel={t.readingRetry}
+                onRetry={incomplete.onRetry}
+              />
+            </div>
+          )}
 
           {/* Edge case: leaning on "simpler" — flag a missing prerequisite */}
           {simpleFlag && (

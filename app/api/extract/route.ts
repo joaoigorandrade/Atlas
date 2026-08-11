@@ -3,6 +3,12 @@
 // /api/generate; size- and type-capped server-side.
 
 import { NextResponse } from "next/server";
+import { logError } from "@/lib/log";
+import {
+  apiError,
+  newRequestId,
+  withRequestId,
+} from "@/lib/server/apiError";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
@@ -11,20 +17,25 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_CHARS = 20_000; // matches the generate route's outline cap
 
 export async function POST(request: Request) {
+  const requestId = newRequestId();
+
   const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  if (!claims?.claims?.sub)
-    return NextResponse.json({ error: "sign in first" }, { status: 401 });
+  const { data: claims, error: authError } = await supabase.auth.getClaims();
+  if (authError) {
+    logError("auth_unavailable", authError, { req: requestId, at: "extract" });
+    return apiError("upstream", { requestId, status: 503 });
+  }
+  if (!claims?.claims?.sub) return apiError("auth", { requestId });
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
+  // Every branch below is an `invalid` with a `reason`: the four distinctions
+  // this route used to draw in English prose are real and worth keeping, so
+  // they travel as sub-cases and get their sentence from `lib/errorCopy.ts`.
   if (!(file instanceof File))
-    return NextResponse.json({ error: "attach a file" }, { status: 400 });
+    return apiError("invalid", { requestId, reason: "no_file" });
   if (file.size > MAX_BYTES)
-    return NextResponse.json(
-      { error: "That file is over 10 MB — trim it to the outline pages and try again." },
-      { status: 400 },
-    );
+    return apiError("invalid", { requestId, reason: "file_too_big" });
 
   const name = file.name.toLowerCase();
   try {
@@ -41,28 +52,18 @@ export async function POST(request: Request) {
     ) {
       text = await file.text();
     } else {
-      return NextResponse.json(
-        { error: "PDF or plain text only — or just paste the outline as your topic." },
-        { status: 400 },
-      );
+      return apiError("invalid", { requestId, reason: "unsupported_type" });
     }
     const trimmed = text.replace(/\s+\n/g, "\n").trim().slice(0, MAX_CHARS);
     if (trimmed.length < 40)
-      return NextResponse.json(
-        { error: "Couldn't read text from that file (scanned/image-only PDF?) — the typed topic still works." },
-        { status: 422 },
-      );
-    return NextResponse.json({ text: trimmed });
+      return apiError("invalid", {
+        requestId,
+        reason: "no_text",
+        status: 422,
+      });
+    return withRequestId(NextResponse.json({ text: trimmed }), requestId);
   } catch (err) {
-    console.error(
-      JSON.stringify({
-        evt: "extract_failed",
-        error: String(err instanceof Error ? err.message : err).slice(0, 300),
-      }),
-    );
-    return NextResponse.json(
-      { error: "Couldn't read that file — the typed topic still works." },
-      { status: 422 },
-    );
+    logError("extract_failed", err, { req: requestId });
+    return apiError("invalid", { requestId, reason: "unreadable", status: 422 });
   }
 }

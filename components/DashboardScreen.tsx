@@ -4,6 +4,7 @@ import { useState } from "react";
 import { STATE_COLOR, type DailyQueue } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
+import { InlineError } from "@/components/ErrorState";
 
 const STRINGS = {
   en: {
@@ -29,6 +30,8 @@ const STRINGS = {
     openMap: "Open the map →",
     yourMaps: "Your maps",
     newMap: "+ New map",
+    mapsFailed: "Couldn’t load your maps — they’re safe, this is just the list.",
+    mapsRetry: "Try again",
     complete: "Complete",
     inProgress: "In progress",
     justStarted: "Just started",
@@ -65,6 +68,9 @@ const STRINGS = {
     openMap: "Abrir o mapa →",
     yourMaps: "Seus mapas",
     newMap: "+ Novo mapa",
+    mapsFailed:
+      "Não deu para carregar seus mapas — eles estão seguros, isto é só a lista.",
+    mapsRetry: "Tentar de novo",
     complete: "Completo",
     inProgress: "Em andamento",
     justStarted: "Recém-iniciado",
@@ -124,6 +130,10 @@ interface DashboardScreenProps {
   onExcludeTopic: (subject: string) => void;
   /** True while a delete is in flight; the confirm buttons go inert. */
   excluding: boolean;
+  /** Set when the grid is empty because the query failed rather than because
+   *  there are no maps — two states that used to look identical, and one of
+   *  them looks like the app lost your work. */
+  mapsFailed?: { onRetry: () => void };
 }
 
 const headerStyle = {
@@ -192,6 +202,7 @@ export default function DashboardScreen({
   onNewMap,
   onExcludeTopic,
   excluding,
+  mapsFailed,
 }: DashboardScreenProps) {
   const t = useT(STRINGS);
 
@@ -451,6 +462,15 @@ export default function DashboardScreen({
               {t.newMap}
             </button>
           </div>
+          {mapsFailed && maps.length === 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <InlineError
+                message={t.mapsFailed}
+                retryLabel={t.mapsRetry}
+                onRetry={mapsFailed.onRetry}
+              />
+            </div>
+          )}
           <div
             style={{
               display: "grid",
