@@ -220,6 +220,62 @@ textarea {
   }
 }
 
+/* Reward vocabulary. Used only where the product actually earns it — a concept
+   going green, a streak lighting, a phase closing — never for ordinary
+   feedback. Ink and paper: a ring pressed into the page, a mark stamped on it. */
+@keyframes bloom {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes markPop {
+  0% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.5);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes ignite {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.85);
+  }
+  55% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.14) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
 /* Loading vocabulary: an ink dot keeping time, a stroke drawn across the page. */
 @keyframes inkDot {
   0%,

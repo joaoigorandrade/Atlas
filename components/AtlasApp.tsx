@@ -82,6 +82,7 @@ import {
   type SocraticSession,
   type SocraticStep,
   type StateMap,
+  type ProgressState,
 } from "@/lib/curriculum";
 import {
   dueCards,
@@ -161,11 +162,20 @@ import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
-import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
+import MapCanvas, {
+  CELEBRATE_MS,
+  type ViewTransform,
+} from "@/components/map/MapCanvas";
+import { useEarned } from "@/lib/motion";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
 import Toast, { type ToastData } from "@/components/Toast";
 import ScreenTimer from "@/components/ScreenTimer";
+
+/** The state changes worth marking on the map. Reaching the frontier isn't one
+ *  — that's derived, and it's the map telling you where to go, not a result. */
+const isEarned = (next: ProgressState) =>
+  next === "mastered" || next === "gap" || next === "shaky";
 
 type Screen =
   | "welcome"
@@ -3646,6 +3656,17 @@ export default function AtlasApp({
       ),
     [graph, isMap, reveal, momentumPlaying, momentumWeek, states],
   );
+  // Concepts the learner just moved. Tracked against stored progress rather
+  // than `display`, which is masked during onboarding and by the replay, and
+  // released only once the map is actually on screen — the state is usually
+  // written mid-session, several seconds before there is anything to see it.
+  // The momentum replay steps whole weeks at a time and is never a moment.
+  const earnedNodes = useEarned(states, isEarned, {
+    visible: isMap,
+    enabled: !momentumPlaying,
+    ms: CELEBRATE_MS,
+  });
+
   const display = useMemo(
     () => displayStates(visibleStates, graph),
     [visibleStates, graph],
@@ -4036,6 +4057,7 @@ export default function AtlasApp({
           staggered={usingFakeMap}
           display={display}
           lockedPath={lockedPath}
+          earned={earnedNodes}
           positions={usingFakeMap ? FAKE_MAP_POSITIONS : positions}
           view={view}
           selectedId={selectedId}

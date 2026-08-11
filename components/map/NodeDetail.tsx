@@ -16,8 +16,8 @@ import {
   type NodeState,
   type ShakyReason,
 } from "@/lib/curriculum";
-import { color, font, kicker, motion } from "@/lib/theme";
-import { usePresence, type PresenceState } from "@/lib/motion";
+import { color, font, kicker, motion, transition } from "@/lib/theme";
+import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 
 import Rich from "@/components/Rich";
@@ -134,6 +134,7 @@ export default function NodeDetail({
 }
 
 const EXIT_MS = motion.duration.base;
+const STAMP_MS = motion.duration.deliberate;
 
 function NodeDetailBody({
   presence,
@@ -156,6 +157,19 @@ function NodeDetailBody({
     nodes.find((n) => n.id === id)?.label ?? id;
   const stateColor = STATE_COLOR[displayState];
   const currentPhase = readingPhaseIndex(displayState, reviewed, consumeProgress);
+  // A phase closing is a small win and should read as one. Keyed on the node so
+  // clicking through to a different concept doesn't stamp its whole history.
+  const justClosed = useCelebrate(
+    `${node.id}:${currentPhase}`,
+    (next, prev) => {
+      const [id, at] = next.split(":");
+      const [wasId, wasAt] = prev.split(":");
+      return id === wasId && Number(at) > Number(wasAt);
+    },
+    { ms: STAMP_MS },
+  )
+    ? currentPhase - 1
+    : -1;
   // Shown on the Consume row when there is a real, unfinished pass behind it.
   const reading =
     consumeProgress && !consumeProgress.finished && consumeProgress.total > 0
@@ -429,9 +443,23 @@ function NodeDetailBody({
                       status === "locked" ? color.hairlineStrong : markerColor
                     }`,
                     color: markerColor,
+                    transition: transition(
+                      ["background", "border-color", "color"],
+                      "slow",
+                    ),
+                  }}
+                >
+                  <span
+                  style={{
+                    display: "block",
+                    animation:
+                      i === justClosed
+                        ? `stamp ${STAMP_MS}ms ${motion.ease.spring} both`
+                        : undefined,
                   }}
                 >
                   {status === "done" ? "✓" : isCurrent ? "→" : "·"}
+                </span>
                 </span>
                 <span
                   style={{

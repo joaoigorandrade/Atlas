@@ -143,3 +143,58 @@ export function useCountUp(
 
   return shown;
 }
+
+/**
+ * Track which keys of a record just changed to a value worth marking, and hold
+ * them until a consumer is looking.
+ *
+ * Two problems this solves that a plain diff doesn't. The surface that draws
+ * the mark can be unmounted when the change happens — a concept is mastered
+ * inside a session, and the map that would celebrate it is not on screen — so
+ * changes accumulate while `visible` is false and release the moment it turns
+ * true. And a first observation is never a change: a run restored from
+ * persistence arrives with its history already in place.
+ */
+export function useEarned<T extends string>(
+  values: Record<string, T>,
+  worthMarking: (next: T, prev: T) => boolean,
+  { visible, enabled = true, ms = 900 }: { visible: boolean; enabled?: boolean; ms?: number },
+): Record<string, T> {
+  const seen = useRef<Record<string, T> | null>(null);
+  const pending = useRef<Record<string, T>>({});
+  const [shown, setShown] = useState<Record<string, T>>({});
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = values;
+    if (!before || !enabled || reduced) return;
+    for (const [key, next] of Object.entries(values) as [string, T][]) {
+      const prev = before[key];
+      if (prev !== undefined && prev !== next && worthMarking(next, prev)) {
+        pending.current[key] = next;
+      }
+    }
+    // `worthMarking` is a predicate re-created per render at most call sites.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, enabled, reduced]);
+
+  useEffect(() => {
+    if (!visible || reduced) return;
+    const ready = pending.current;
+    if (!Object.keys(ready).length) return;
+    pending.current = {};
+    setShown(ready);
+  }, [visible, values, reduced]);
+
+  // The clear is keyed on what's shown, not on `values`. Keyed on `values` a
+  // second change mid-celebration would cancel this timer and never replace it,
+  // leaving the mark on screen for good.
+  useEffect(() => {
+    if (!Object.keys(shown).length) return;
+    const t = setTimeout(() => setShown({}), ms);
+    return () => clearTimeout(t);
+  }, [shown, ms]);
+
+  return shown;
+}

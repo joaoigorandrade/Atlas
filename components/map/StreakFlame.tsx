@@ -8,10 +8,11 @@ import {
   type AdherenceState,
 } from "@/lib/curriculum";
 import { color, font, kicker, motion, transition } from "@/lib/theme";
-import { usePresence, type PresenceState } from "@/lib/motion";
+import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const POPOVER_EXIT_MS = motion.duration.fast;
+const IGNITE_MS = motion.duration.deliberate;
 
 const STRINGS = {
   en: {
@@ -72,6 +73,11 @@ export default function StreakFlame({
   const [open, setOpen] = useState(false);
   const popover = usePresence(open, POPOVER_EXIT_MS);
   const lit = adherence.metToday;
+  // Hitting today's target is the one thing the flame is for. It should look
+  // like something caught, not like a dot that grew 2px.
+  const justLit = useCelebrate(lit, (next, prev) => next && !prev, {
+    ms: IGNITE_MS,
+  });
 
   return (
     <div style={{ position: "relative" }}>
@@ -99,8 +105,24 @@ export default function StreakFlame({
             background: STREAK_COLOR.flame,
             boxShadow: `0 0 ${lit ? 12 : 8}px rgba(201,154,46,${lit ? 0.85 : 0.6})`,
             transition: transition(["width", "height", "box-shadow"], "base", "spring"),
+            animation: justLit
+              ? `ignite ${IGNITE_MS}ms ${motion.ease.spring} both`
+              : undefined,
           }}
-        />
+        >
+          {justLit && (
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: -2,
+                borderRadius: "50%",
+                border: `2px solid ${STREAK_COLOR.flame}`,
+                animation: `bloom ${IGNITE_MS}ms ${motion.ease.enter} both`,
+              }}
+            />
+          )}
+        </span>
         <span>
           <span style={{ fontWeight: 600, color: color.ink }}>
             {adherence.streak}

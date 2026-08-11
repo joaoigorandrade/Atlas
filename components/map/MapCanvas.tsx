@@ -8,7 +8,7 @@ import {
   type ConceptNode,
   type NodeState,
 } from "@/lib/curriculum";
-import { color, font, transition } from "@/lib/theme";
+import { color, font, motion, transition } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -41,6 +41,10 @@ interface MapCanvasProps {
   display: Record<string, NodeState>;
   /** Unlearned prerequisite chain of a selected locked node ("learn these first"). */
   lockedPath: Set<string> | null;
+  /** Nodes whose mastery state the learner just earned, marked for as long as
+   *  `CELEBRATE_MS`. Owned by AtlasApp: this component unmounts for the whole
+   *  session, so it cannot be the thing that remembers what changed. */
+  earned?: Record<string, NodeState>;
   positions: Record<string, { x: number; y: number }>;
   view: ViewTransform;
   selectedId: string | null;
@@ -61,6 +65,7 @@ export default function MapCanvas({
   staggered = false,
   display,
   lockedPath,
+  earned: won = {},
   positions,
   view,
   selectedId,
@@ -182,6 +187,7 @@ export default function MapCanvas({
           // A node left unknown after derivation is locked by definition;
           // keep the assemble moment uniform while the map is building.
           const dimmedLock = displayState === "unknown" && screen !== "building";
+          const justEarned = won[node.id];
           // Split across the two layers on purpose. `assemble` animates
           // `transform`, so it has to sit on the positioner — the layer whose
           // `translate(-50%,-50%)` it bakes in. If it ran on the chip its
@@ -265,19 +271,47 @@ export default function MapCanvas({
                     : "none",
                 }}
               >
+                {/* The status dot, and — the moment it changes to something
+                    earned — a ring pressed out of it. A separate element
+                    because an inline style has no `::after` to put it on. */}
                 <span
                   style={{
+                    position: "relative",
                     width: 9,
                     height: 9,
-                    borderRadius: "50%",
-                    background: dotColor,
                     flex: "0 0 auto",
-                    boxShadow: isFrontier ? `0 0 8px ${dotColor}` : "none",
-                    // A node changing state is the point of the whole product;
-                    // let the colour arrive rather than snap.
-                    transition: transition(["background", "box-shadow"], "slow"),
+                    display: "block",
                   }}
-                />
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      borderRadius: "50%",
+                      background: dotColor,
+                      boxShadow: isFrontier ? `0 0 8px ${dotColor}` : "none",
+                      // A node changing state is the point of the whole
+                      // product; let the colour arrive rather than snap.
+                      transition: transition(["background", "box-shadow"], "slow"),
+                      animation: justEarned
+                        ? `markPop ${CELEBRATE_MS}ms ${motion.ease.spring} both`
+                        : undefined,
+                    }}
+                  />
+                  {justEarned && (
+                    <span
+                      aria-hidden
+                      style={{
+                        position: "absolute",
+                        inset: -1,
+                        borderRadius: "50%",
+                        border: `2px solid ${STATE_COLOR[justEarned]}`,
+                        animation: `bloom ${CELEBRATE_MS}ms ${motion.ease.enter} both`,
+                        pointerEvents: "none",
+                      }}
+                    />
+                  )}
+                </span>
                 <span>{node.label}</span>
                 {displayState === "gap" && (
                   <span
@@ -304,3 +338,5 @@ export default function MapCanvas({
     </div>
   );
 }
+
+export const CELEBRATE_MS = 900;

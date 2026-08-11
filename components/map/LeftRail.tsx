@@ -11,6 +11,7 @@ import {
 } from "@/lib/curriculum";
 import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import { useCountUp } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -96,6 +97,10 @@ export default function LeftRail({
 }: LeftRailProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
+  // The bar was already easing its width while the number beside it jumped.
+  // One value drives both now — and it snaps on the first read, so a restored
+  // run doesn't count up from zero every time the map opens.
+  const shownPct = useCountUp(masteryPct);
   return (
     <div
       style={{
@@ -245,7 +250,8 @@ export default function LeftRail({
           <span
             style={{ fontFamily: font.serif, fontSize: 22, color: color.accent }}
           >
-            {masteryPct}%
+            {/* Travels with the bar beside it rather than snapping ahead of it. */}
+            {Math.round(shownPct)}%
           </span>
         </div>
         <div
@@ -258,7 +264,7 @@ export default function LeftRail({
         >
           <div
             style={{
-              width: `${masteryPct}%`,
+              width: `${shownPct}%`,
               height: "100%",
               background: color.accent,
               borderRadius: 5,
