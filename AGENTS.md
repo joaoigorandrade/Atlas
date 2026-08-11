@@ -177,7 +177,17 @@ rows are *model calls* (what tracks spend), and `job_id` groups them into
 
 ## Conventions
 
-- Styling is inline `style={{...}}` objects matching the design file (`Learning Platform.dc.html` in the Claude Design project); animations are the shared keyframes in `app/globals.css` (`pulseGlow`, `assemble`, `fadeUp`, `softIn`).
+- Styling is inline `style={{...}}` objects matching the design file (`Learning
+  Platform.dc.html` in the Claude Design project). Two things a pseudo-class
+  can't reach from an inline style live in `app/globals.css` instead: the shared
+  keyframes (`pulseGlow`, `assemble`, `fadeUp`, `softIn`, …) and the **interaction
+  layer** — the `at-press` / `at-lift` / `at-tint` / `at-glow` classes that carry
+  every hover, press and focus state. Anything tappable gets `at-press`; a card
+  or a map node gets `at-lift`. An inline style beats those classes for the same
+  property, so an element wearing one must not also set `transform` or
+  `transition` inline — move it to a wrapper.
+- Motion values come from `motion` / `transition()` in `lib/theme.ts`, the same
+  way colours come from `color`. Never hand-write a duration or an easing curve.
 - Node mastery states are the app's shared vocabulary: `unknown | frontier | learning | shaky | mastered | gap`. Use `STATE_COLOR` / `STATE_LABEL` from `lib/curriculum.ts` — never invent a state or a color for one.
 - Mastery state is live: `AtlasApp` holds one `StateMap` of stored progress (`ProgressState`, everything but `frontier`); `frontier` and locking are always derived from prerequisites via `displayStates` — never store `frontier` or a locked flag. New surfaces read and write that `StateMap`, nothing else.
 - Every question is asked open-ended first. A surface that also has a closed

@@ -7,7 +7,7 @@ import {
   streakStatus,
   type AdherenceState,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -72,6 +72,7 @@ export default function StreakFlame({
   return (
     <div style={{ position: "relative" }}>
       <button
+        className="at-press"
         onClick={() => setOpen((v) => !v)}
         style={{
           display: "flex",
@@ -93,7 +94,7 @@ export default function StreakFlame({
             borderRadius: "50%",
             background: STREAK_COLOR.flame,
             boxShadow: `0 0 ${lit ? 12 : 8}px rgba(201,154,46,${lit ? 0.85 : 0.6})`,
-            transition: "width .2s, height .2s, box-shadow .2s",
+            transition: transition(["width", "height", "box-shadow"], "base", "spring"),
           }}
         />
         <span>
@@ -308,6 +309,7 @@ function Popover({
         >
           <span style={{ ...kicker(9.5, "0.1em") }}>{t.reminder}</span>
           <button
+            className="at-press"
             onClick={onToggleReminder}
             role="switch"
             aria-checked={adherence.reminderOn}
@@ -322,7 +324,7 @@ function Popover({
               background: adherence.reminderOn
                 ? color.accent
                 : "rgba(44,40,35,0.18)",
-              transition: "background .18s",
+              transition: transition("background", "fast"),
             }}
           >
             <span
@@ -335,7 +337,7 @@ function Popover({
                 borderRadius: "50%",
                 background: color.card,
                 boxShadow: "0 1px 3px rgba(44,40,35,0.3)",
-                transition: "left .18s",
+                transition: transition("left", "fast", "enter"),
               }}
             />
           </button>

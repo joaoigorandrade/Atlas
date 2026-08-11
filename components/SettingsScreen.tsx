@@ -11,7 +11,7 @@ import {
   type OnboardingForm,
 } from "@/lib/curriculum";
 import { useVoicePrefs, useVoiceSupport } from "@/lib/speech";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -145,6 +145,7 @@ function ToggleRow({
 }) {
   return (
     <button
+      className="at-press"
       onClick={onToggle}
       disabled={disabled}
       style={{
@@ -165,7 +166,7 @@ function ToggleRow({
           background: on && !disabled ? color.accent : "rgba(44,40,35,0.14)",
           position: "relative",
           flex: "0 0 auto",
-          transition: "background .2s",
+          transition: transition("background"),
         }}
       >
         <span
@@ -177,7 +178,7 @@ function ToggleRow({
             height: 16,
             borderRadius: "50%",
             background: "#fff",
-            transition: "left .2s",
+            transition: transition("left", "base", "enter"),
           }}
         />
       </span>
@@ -245,6 +246,7 @@ export default function SettingsScreen({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",
@@ -275,6 +277,7 @@ export default function SettingsScreen({
           <div style={{ display: "flex", gap: 10 }}>
             {goals(language).map(([key, label]) => (
               <button
+                className="at-press"
                 key={key}
                 onClick={() => onChange({ goal: key })}
                 style={optionStyle(form.goal === key, true)}
@@ -318,12 +321,14 @@ export default function SettingsScreen({
         <Section label={t.language} hint={t.languageHint}>
           <div style={{ display: "flex", gap: 10 }}>
             <button
+              className="at-press"
               onClick={() => setLanguage("en")}
               style={optionStyle(language === "en", true)}
             >
               {t.english}
             </button>
             <button
+              className="at-press"
               onClick={() => setLanguage("pt-BR")}
               style={optionStyle(language === "pt-BR", true)}
             >
@@ -358,6 +363,7 @@ export default function SettingsScreen({
           <div style={{ display: "flex", gap: 10 }}>
             {DAILY_TARGETS.map((minutes) => (
               <button
+                className="at-press"
                 key={minutes}
                 onClick={() => onChange({ target: minutes })}
                 style={optionStyle(form.target === minutes, false)}
@@ -387,6 +393,7 @@ export default function SettingsScreen({
 
         <Section label={t.reminder}>
           <button
+            className="at-press"
             onClick={onToggleReminder}
             style={{
               display: "flex",
@@ -406,7 +413,7 @@ export default function SettingsScreen({
                   : "rgba(44,40,35,0.14)",
                 position: "relative",
                 flex: "0 0 auto",
-                transition: "background .2s",
+                transition: transition("background"),
               }}
             >
               <span
@@ -418,7 +425,7 @@ export default function SettingsScreen({
                   height: 16,
                   borderRadius: "50%",
                   background: "#fff",
-                  transition: "left .2s",
+                  transition: transition("left", "base", "enter"),
                 }}
               />
             </span>
@@ -428,13 +435,13 @@ export default function SettingsScreen({
 
         <Section label={t.yourData} hint={t.yourDataHint}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button onClick={onExportMap} style={exportStyle}>
+            <button className="at-press" onClick={onExportMap} style={exportStyle}>
               {t.exportMap}
             </button>
-            <button onClick={onExportCardsJson} style={exportStyle}>
+            <button className="at-press" onClick={onExportCardsJson} style={exportStyle}>
               {t.exportCardsJson}
             </button>
-            <button onClick={onExportCardsCsv} style={exportStyle}>
+            <button className="at-press" onClick={onExportCardsCsv} style={exportStyle}>
               {t.exportCardsCsv}
             </button>
           </div>
@@ -442,6 +449,7 @@ export default function SettingsScreen({
 
         <Section label={t.account} hint={t.accountHint}>
           <button
+            className="at-press"
             onClick={onDeleteAccount}
             style={{
               ...exportStyle,

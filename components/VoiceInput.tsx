@@ -106,6 +106,7 @@ export function MicButton({
     <div style={{ marginTop: 9 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button
+          className="at-press"
           type="button"
           onClick={toggle}
           disabled={disabled}
@@ -125,7 +126,6 @@ export function MicButton({
             cursor: disabled ? "default" : "pointer",
             opacity: disabled ? 0.45 : 1,
             padding: 0,
-            transition: "background .15s, border-color .15s",
             animation: starting
               ? "breathe 1.1s ease-in-out infinite"
               : listening

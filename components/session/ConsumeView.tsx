@@ -18,7 +18,7 @@ import {
   type ConsumeProgress,
 } from "@/lib/curriculum";
 import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
 import Rich from "@/components/Rich";
@@ -480,6 +480,7 @@ function SpeakerButton({
   const showPause = active && !paused && !loading;
   return (
     <button
+      className="at-press"
       type="button"
       onClick={onClick}
       aria-label={label}
@@ -496,7 +497,6 @@ function SpeakerButton({
         border: `1px solid ${active ? BLUE : color.hairlineStrong}`,
         background: active ? BLUE : color.card,
         cursor: "pointer",
-        transition: "background .15s, border-color .15s",
         animation: active && loading ? "breathe 1.1s ease-in-out infinite" : undefined,
       }}
     >
@@ -637,6 +637,7 @@ function PassagePanel({
         </span>
         <div style={{ flex: 1 }} />
         <button
+          className="at-press"
           onClick={onClose}
           style={{
             background: "none",
@@ -707,6 +708,7 @@ function PassagePanel({
             }}
           >
             <button
+              className="at-press"
               onClick={submit}
               style={{
                 padding: "8px 14px",
@@ -724,6 +726,7 @@ function PassagePanel({
             </button>
             {suggestion && !draft.trim() && (
               <button
+                className="at-press"
                 onClick={() => setDraft(suggestion)}
                 title={suggestion}
                 style={{
@@ -843,7 +846,7 @@ function SectionCheck({
             borderRadius: 13,
             padding: "18px 20px",
             animation: "fadeUp .45s both",
-            transition: "border-color .3s",
+            transition: transition("border-color"),
           }}
         >
           <div
@@ -897,6 +900,7 @@ function SectionCheck({
               const shown = passed ? o.correct : picked;
               return (
                 <button
+                  className="at-press"
                   key={o.label}
                   onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
                   disabled={passed}
@@ -921,7 +925,6 @@ function SectionCheck({
                       : color.card,
                     color: color.ink,
                     opacity: passed && !o.correct ? 0.5 : 1,
-                    transition: "all .15s",
                   }}
                 >
                   <Rich text={o.label} />
@@ -1080,6 +1083,7 @@ function ModelView({
             </div>
           </div>
           <button
+            className="at-press"
             type="button"
             autoFocus
             onClick={onClose}
@@ -1251,6 +1255,7 @@ function ModelView({
           {shown < beats.length && (
             <>
               <button
+                className="at-press"
                 type="button"
                 onClick={() => setRevealed(beats.length)}
                 style={{
@@ -1266,6 +1271,7 @@ function ModelView({
                 {t.modelRevealAll}
               </button>
               <button
+                className="at-press"
                 type="button"
                 onClick={() => setRevealed((n) => n + 1)}
                 style={{
@@ -1285,6 +1291,7 @@ function ModelView({
           )}
           {done && (
             <button
+              className="at-press"
               type="button"
               onClick={onClose}
               style={{
@@ -1593,6 +1600,7 @@ export default function ConsumeView({
 
           <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
             <button
+              className="at-press"
               onClick={onBeginSocratic}
               style={{
                 padding: "14px 24px",
@@ -1610,6 +1618,7 @@ export default function ConsumeView({
               {t.recapBegin}
             </button>
             <button
+              className="at-press"
               onClick={onExit}
               style={{
                 background: "none",
@@ -1659,6 +1668,7 @@ export default function ConsumeView({
         }}
       >
         <button
+          className="at-press"
           onClick={() => {
             reading.cancel();
             onExit();
@@ -1701,6 +1711,7 @@ export default function ConsumeView({
         {/* The escape hatch, always open: nobody should have to read past
             what they already know to prove they know it. */}
         <button
+          className="at-press"
           onClick={onSkipCrucible}
           style={{
             background: "none",
@@ -1735,6 +1746,7 @@ export default function ConsumeView({
             const reachable = i <= session.idx;
             return (
               <button
+                className="at-press"
                 key={c.id}
                 type="button"
                 disabled={!reachable}
@@ -1765,7 +1777,7 @@ export default function ConsumeView({
                     height: 3,
                     borderRadius: 2,
                     background: reachable ? color.accent : "rgba(44,40,35,0.12)",
-                    transition: "background .3s",
+                    transition: transition("background"),
                   }}
                 />
               </button>
@@ -1909,6 +1921,7 @@ export default function ConsumeView({
                   )}
                   <div style={{ flex: 1 }} />
                   <button
+                    className="at-press"
                     onClick={() => onToggleCollapse(c.id)}
                     style={{
                       background: "none",
@@ -1960,6 +1973,7 @@ export default function ConsumeView({
                           style={{ display: "flex", flexDirection: "column" }}
                         >
                           <button
+                            className="at-press"
                             onClick={() => onToggleTerm(key)}
                             aria-expanded={open}
                             style={{
@@ -2024,6 +2038,7 @@ export default function ConsumeView({
                   <div data-chunk-id={c.id} style={{ position: "relative" }}>
                     {askHint?.chunkId === c.id && (
                       <button
+                        className="at-press"
                         onClick={() => {
                           const text = askHint.text;
                           window.getSelection()?.removeAllRanges();
@@ -2070,7 +2085,7 @@ export default function ConsumeView({
                             padding: "2px 8px",
                             borderRadius: 7,
                             background: spokenNow ? color.accentBg : "transparent",
-                            transition: "background .25s",
+                            transition: transition("background"),
                             color: color.ink,
                           }}
                         >
@@ -2137,6 +2152,7 @@ export default function ConsumeView({
                       {/* The keyboard path to the same panel the highlight
                           gesture opens — selecting text is a pointer move. */}
                       <button
+                        className="at-press"
                         onClick={() => onOpenPassage(c.id, "")}
                         style={{
                           background: "none",
@@ -2169,6 +2185,7 @@ export default function ConsumeView({
                         const suggested = suggestsDefault(c.id) && session.preferred === key;
                         return (
                           <button
+                            className="at-press"
                             key={key}
                             onClick={() => onOpenModel(c, key)}
                             style={{
@@ -2259,6 +2276,7 @@ export default function ConsumeView({
                   (nextArrived || isLast ? (
                     <div style={{ marginTop: 30 }}>
                       <button
+                        className="at-press"
                         onClick={() => (isLast ? onFinish() : onContinue(i))}
                         style={
                           isLast
@@ -2339,6 +2357,7 @@ export default function ConsumeView({
                 </div>
               </div>
               <button
+                className="at-press"
                 onClick={onRoutePrereq}
                 style={{
                   flex: "0 0 auto",

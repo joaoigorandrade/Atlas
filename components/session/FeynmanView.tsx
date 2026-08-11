@@ -228,6 +228,7 @@ export default function FeynmanView({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",
@@ -384,6 +385,7 @@ function Prompt({
           {t.promptBody}
         </div>
         <button
+          className="at-press"
           onClick={onBegin}
           style={{
             display: "inline-flex",
@@ -404,6 +406,7 @@ function Prompt({
         </button>
         <div style={{ marginTop: 18 }}>
           <button
+            className="at-press"
             onClick={onScaffold}
             style={{
               background: "none",
@@ -509,6 +512,7 @@ function TeachPage({
           <MicButton value={typed} onChange={onChangeTyped} disabled={judging} />
         </div>
         <button
+          className="at-press"
           onClick={onSend}
           disabled={blocked}
           style={{
@@ -763,6 +767,7 @@ function GapReport({
                   </span>
                   {fixable && !open && (
                     <button
+                      className="at-press"
                       onClick={() => onOpenFix(b.id)}
                       style={{
                         padding: "6px 12px",
@@ -871,6 +876,7 @@ function GapReport({
         {/* Footer actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button
+            className="at-press"
             onClick={onAdvance}
             style={{
               width: "100%",
@@ -888,6 +894,7 @@ function GapReport({
             {clean ? t.cleanAdvance : t.attachGaps(gapCount)}
           </button>
           <button
+            className="at-press"
             onClick={onTeachAgain}
             style={{
               width: "100%",
@@ -990,6 +997,7 @@ function FixPass({
           const spent = ruledOut.includes(r.label);
           return (
             <button
+              className="at-press"
               key={r.label}
               disabled={spent}
               onClick={() => onFix(i)}
@@ -1032,6 +1040,7 @@ function FixPass({
         </div>
       )}
       <button
+        className="at-press"
         onClick={onClose}
         style={{
           marginTop: 10,

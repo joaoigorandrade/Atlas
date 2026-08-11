@@ -97,7 +97,6 @@ function optionStyle(active: boolean, grow: boolean): CSSProperties {
     cursor: "pointer",
     color: active ? color.accent : color.inkSoft,
     fontWeight: active ? 600 : 400,
-    transition: "border-color .15s, background .15s",
   };
 }
 
@@ -219,6 +218,7 @@ export default function WelcomeScreen({
             <span>
               {t.dropPrefix}
               <button
+                className="at-press"
                 onClick={() => fileRef.current?.click()}
                 style={{
                   background: "none",
@@ -265,6 +265,7 @@ export default function WelcomeScreen({
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {scopes.map((scope) => (
                 <button
+                  className="at-press"
                   key={scope.label}
                   onClick={() => onPickScope(scope.label)}
                   style={{
@@ -296,6 +297,7 @@ export default function WelcomeScreen({
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {goals(language).map(([key, label]) => (
               <button
+                className="at-press"
                 key={key}
                 onClick={() => onChange({ goal: key })}
                 style={optionStyle(form.goal === key, true)}
@@ -313,6 +315,7 @@ export default function WelcomeScreen({
               <div style={{ display: "flex", gap: 10 }}>
                 {PARETO_LEVELS.map((pct) => (
                   <button
+                    className="at-press"
                     key={pct}
                     onClick={() => onChange({ paretoPct: pct })}
                     style={optionStyle(
@@ -391,6 +394,7 @@ export default function WelcomeScreen({
           <div style={{ display: "flex", gap: 10 }}>
             {DAILY_TARGETS.map((minutes) => (
               <button
+                className="at-press"
                 key={minutes}
                 onClick={() => onChange({ target: minutes })}
                 style={optionStyle(form.target === minutes, false)}
@@ -402,6 +406,7 @@ export default function WelcomeScreen({
         </div>
 
         <button
+          className="at-press"
           onClick={onBuild}
           style={{
             width: "100%",

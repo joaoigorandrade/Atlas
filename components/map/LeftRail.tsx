@@ -9,7 +9,7 @@ import {
   type PaceStatus,
   type PlanEntry,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -176,6 +176,7 @@ export default function LeftRail({
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {nextUp.map(({ node, unlocks }) => (
               <button
+                className="at-press"
                 key={node.id}
                 onClick={() => onPickNode(node.id)}
                 style={{
@@ -261,13 +262,14 @@ export default function LeftRail({
               height: "100%",
               background: color.accent,
               borderRadius: 5,
-              transition: "width .5s",
+              transition: transition("width", "deliberate", "enter"),
             }}
           />
         </div>
       </div>
 
       <button
+        className="at-press"
         onClick={onJumpFrontier}
         style={{
           display: "flex",
@@ -287,6 +289,7 @@ export default function LeftRail({
       </button>
 
       <button
+        className="at-press"
         onClick={onCalibration}
         style={{
           display: "flex",
@@ -365,6 +368,7 @@ export default function LeftRail({
 
       <div style={{ marginTop: "auto" }}>
         <button
+          className="at-press"
           onClick={onToggleMomentum}
           style={{
             width: "100%",

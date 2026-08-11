@@ -22,7 +22,7 @@ import {
   type ReviewGrade,
   type RetainSession,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import StreakFlame from "@/components/map/StreakFlame";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -171,6 +171,7 @@ export default function RetainView({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",
@@ -416,6 +417,7 @@ function Finished({
 
       {/* Right-moment reminder — set the nudge for the learner's actual rhythm. */}
       <button
+        className="at-press"
         onClick={onToggleReminder}
         style={{
           marginTop: 8,
@@ -432,6 +434,7 @@ function Finished({
 
       <div>
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             marginTop: 22,
@@ -578,6 +581,7 @@ function ActiveCard({
                 const active = session.conf === i;
                 return (
                   <button
+                    className="at-press"
                     key={label}
                     onClick={() => onConfidence(i as ReviewConfidence)}
                     style={{
@@ -593,7 +597,6 @@ function ActiveCard({
                         active ? color.accent : color.hairlineStrong
                       }`,
                       color: active ? color.accent : color.inkSoft,
-                      transition: "border-color .15s, background .15s",
                     }}
                   >
                     {label}
@@ -627,6 +630,7 @@ function ActiveCard({
               <Rich text={card.back} />
             </div>
             <button
+              className="at-press"
               onClick={onToggleAside}
               style={{
                 marginTop: 14,
@@ -669,6 +673,7 @@ function ActiveCard({
           <div style={{ display: "flex", gap: 10 }}>
             {REVIEW_GRADES.map((g) => (
               <button
+                className="at-press"
                 key={g.key}
                 onClick={() => onGrade(g.key)}
                 style={{
@@ -682,7 +687,6 @@ function ActiveCard({
                   cursor: "pointer",
                   background: color.card,
                   border: `1px solid ${g.color}55`,
-                  transition: "border-color .15s, background .15s",
                 }}
               >
                 <span
@@ -802,6 +806,7 @@ function ActiveCard({
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
+              className="at-press"
               onClick={onReteach}
               style={{
                 padding: "13px 20px",
@@ -818,6 +823,7 @@ function ActiveCard({
               {t.reteachNow}
             </button>
             <button
+              className="at-press"
               onClick={onContinue}
               style={{
                 padding: "13px 20px",
@@ -880,7 +886,7 @@ function Sidebar({
               height: "100%",
               background: color.accent,
               borderRadius: 4,
-              transition: "width .5s",
+              transition: transition("width", "deliberate", "enter"),
             }}
           />
         </div>

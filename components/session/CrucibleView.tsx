@@ -181,6 +181,7 @@ export default function CrucibleView({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",
@@ -311,6 +312,7 @@ export default function CrucibleView({
                 ) : (
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <button
+                      className="at-press"
                       onClick={onSubmit}
                       disabled={judging}
                       style={{
@@ -338,6 +340,7 @@ export default function CrucibleView({
                       )}
                     </button>
                     <button
+                      className="at-press"
                       onClick={onSample}
                       style={{
                         background: "none",
@@ -412,6 +415,7 @@ function ConfidenceGate({
           const active = session.conf === i;
           return (
             <button
+              className="at-press"
               key={label}
               onClick={() => onConfidence(i as ConfidenceLevel)}
               style={{
@@ -425,7 +429,6 @@ function ConfidenceGate({
                 background: active ? CRUCIBLE_COLOR.soft : color.cardAlt,
                 border: `1px solid ${active ? RUST : color.hairlineStrong}`,
                 color: active ? RUST : color.inkSoft,
-                transition: "border-color .15s, background .15s",
               }}
             >
               {label}
@@ -642,6 +645,7 @@ function Diagnostic({
             }}
           >
             <button
+              className="at-press"
               onClick={onToggleReExplain}
               style={{
                 padding: "13px 20px",
@@ -657,6 +661,7 @@ function Diagnostic({
               {session.reExplain ? t.hideReExplain : t.reExplainSocratic}
             </button>
             <button
+              className="at-press"
               onClick={onRetry}
               style={{
                 padding: "13px 22px",
@@ -743,6 +748,7 @@ function Diagnostic({
             </div>
           </div>
           <button
+            className="at-press"
             onClick={onFinish}
             style={{
               padding: "15px 26px",

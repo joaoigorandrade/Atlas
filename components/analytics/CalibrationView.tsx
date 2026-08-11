@@ -136,6 +136,7 @@ export default function CalibrationView({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",

@@ -170,7 +170,12 @@ export default function NodeDetail({
   } as const;
 
   const chip = (id: string) => (
-    <button key={id} onClick={() => onSelect(id)} style={chipStyle}>
+    <button
+      key={id}
+      className="at-press at-tint"
+      onClick={() => onSelect(id)}
+      style={chipStyle}
+    >
       <span
         style={{
           width: 7,
@@ -345,6 +350,7 @@ export default function NodeDetail({
             const isJump = clickable && i > currentPhase;
             return (
               <button
+                className="at-press"
                 key={name}
                 disabled={!clickable}
                 onClick={() =>
@@ -473,6 +479,7 @@ export default function NodeDetail({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button
+                className="at-press"
                 onClick={() => {
                   setPendingSkip(null);
                   onPhaseAction(node, displayState, currentPhase);
@@ -491,6 +498,7 @@ export default function NodeDetail({
                 {t.doFirst(PHASES[currentPhase])}
               </button>
               <button
+                className="at-press"
                 onClick={() => {
                   const target = pendingSkip;
                   setPendingSkip(null);
@@ -515,6 +523,7 @@ export default function NodeDetail({
       )}
 
       <button
+        className="at-press"
         onClick={() => onPrimaryAction(node, displayState)}
         style={{
           width: "100%",
@@ -544,6 +553,7 @@ export default function NodeDetail({
 
       {displayState === "frontier" && (
         <button
+          className="at-press"
           onClick={() => onSkipKnown(node)}
           style={{
             width: "100%",

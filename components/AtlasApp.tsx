@@ -4109,6 +4109,7 @@ export default function AtlasApp({
             // Collapsed-rail toggles for laptop-narrow widths (#8).
             <>
               <button
+                className="at-press"
                 onClick={() => setRailOpen((v) => !v)}
                 style={{
                   position: "absolute",
@@ -4129,6 +4130,7 @@ export default function AtlasApp({
               </button>
               {selectedNode && (
                 <button
+                  className="at-press"
                   onClick={() => setDetailOpen((v) => !v)}
                   style={{
                     position: "absolute",

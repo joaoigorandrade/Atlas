@@ -113,6 +113,7 @@ export default function TopBar({
           const active = key === "map";
           return (
             <button
+              className="at-press"
               key={key}
               onClick={() => onSurface(key)}
               style={{
@@ -170,6 +171,7 @@ export default function TopBar({
       <div style={{ flex: 1 }} />
       <StreakFlame adherence={adherence} onToggleReminder={onToggleReminder} />
       <button
+        className="at-press"
         onClick={() => onSurface("review")}
         title={
           adherence.metToday ? t.queueClear : t.queueDue(queue.cards)
@@ -198,6 +200,7 @@ export default function TopBar({
         {adherence.metToday ? t.reviewClear : t.reviewMinutes(queue.minutes)}
       </button>
       <button
+        className="at-press"
         onClick={onProfile}
         title={userEmail ? t.profileWith(userEmail) : t.profile}
         style={{

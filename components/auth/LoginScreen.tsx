@@ -239,6 +239,7 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
               />
             </div>
             <button
+              className="at-press"
               onClick={submit}
               disabled={working}
               style={{
@@ -282,14 +283,22 @@ export default function LoginScreen({ linkError }: LoginScreenProps) {
               {mode === "signin" ? (
                 <>
                   {t.newToAtlas}{" "}
-                  <button onClick={() => switchMode("signup")} style={linkStyle}>
+                  <button
+                    className="at-press"
+                    onClick={() => switchMode("signup")}
+                    style={linkStyle}
+                  >
                     {t.createAnAccount}
                   </button>
                 </>
               ) : (
                 <>
                   {t.alreadyHaveAccount}{" "}
-                  <button onClick={() => switchMode("signin")} style={linkStyle}>
+                  <button
+                    className="at-press"
+                    onClick={() => switchMode("signin")}
+                    style={linkStyle}
+                  >
                     {t.signInLink}
                   </button>
                 </>

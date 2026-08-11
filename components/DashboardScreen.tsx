@@ -143,7 +143,6 @@ const cardBase = {
   borderRadius: 16,
   padding: "24px 26px",
   cursor: "pointer",
-  transition: "transform .12s, box-shadow .12s",
 } as const;
 
 /** The quiet "×" that opens the exclude confirmation on a map card. */
@@ -234,6 +233,7 @@ export default function DashboardScreen({
           {t.dayStreak}
         </div>
         <button
+          className="at-press"
           onClick={onProfile}
           title={t.profile}
           style={{
@@ -299,6 +299,7 @@ export default function DashboardScreen({
             }}
           >
             <div
+              className="at-lift"
               onClick={onReview}
               style={{
                 ...cardBase,
@@ -362,6 +363,7 @@ export default function DashboardScreen({
             </div>
 
             <div
+              className="at-lift"
               onClick={onOpenMap}
               style={{
                 ...cardBase,
@@ -434,6 +436,7 @@ export default function DashboardScreen({
           >
             <div style={{ fontFamily: font.serif, fontSize: 22 }}>{t.yourMaps}</div>
             <button
+              className="at-press"
               onClick={onNewMap}
               style={{
                 background: "none",
@@ -501,6 +504,9 @@ function MapCard({
 
   return (
     <div
+      // The confirmation state is a decision point, not a target — it stops
+      // inviting the cursor.
+      className={confirming ? undefined : "at-lift"}
       onClick={confirming ? undefined : onOpen}
       style={{
         background: color.card,
@@ -514,7 +520,6 @@ function MapCard({
         borderRadius: 16,
         padding: "22px 22px 20px",
         cursor: confirming ? "default" : "pointer",
-        transition: "transform .12s, box-shadow .12s",
       }}
     >
       {confirming ? (
@@ -550,6 +555,7 @@ function MapCard({
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
+              className="at-press"
               onClick={onExclude}
               disabled={excluding}
               style={{
@@ -563,6 +569,7 @@ function MapCard({
               {t.excludeConfirm}
             </button>
             <button
+              className="at-press"
               onClick={() => setConfirming(false)}
               disabled={excluding}
               style={{
@@ -605,6 +612,7 @@ function MapCard({
                 {mapStatus}
               </span>
               <button
+                className="at-press"
                 onClick={(e) => {
                   // The card itself opens the map — the × must not.
                   e.stopPropagation();
