@@ -14,6 +14,8 @@ import {
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // Connect owns the violet accent; candidate dots borrow mastered green (they're
@@ -97,6 +99,9 @@ const STRINGS = {
 } as const;
 
 interface ConnectViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The elaboration content for this node (concept web, links, mnemonics). */
   content: ElaborationContent;
   session: ConnectSession;
@@ -128,6 +133,7 @@ export default function ConnectView({
   onDraftMnemonic,
   onAcceptMnemonic,
   onFinish,
+  presence,
 }: ConnectViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -141,20 +147,7 @@ export default function ConnectView({
   const cy = content.center.y;
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Session · Connect · title · phase breadcrumb */}
       <div
         style={{
@@ -170,6 +163,7 @@ export default function ConnectView({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",
@@ -373,6 +367,7 @@ export default function ConnectView({
           {/* CTA — advance to the Crucible */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <button
+              className="at-press"
               onClick={onFinish}
               disabled={!ready}
               style={{
@@ -395,7 +390,7 @@ export default function ConnectView({
           </div>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -489,6 +484,7 @@ function ConceptWeb({
         const active = session.active === c.id;
         return (
           <button
+            className="at-press"
             key={c.id}
             onClick={() => onSelect(c.id)}
             aria-pressed={on}
@@ -519,7 +515,6 @@ function ConceptWeb({
               boxShadow: active
                 ? `0 8px 20px ${CONNECT_COLOR.glow}`
                 : "0 2px 7px rgba(44,40,35,0.06)",
-              transition: "border-color .18s, box-shadow .18s",
               zIndex: 3,
             }}
           >
@@ -654,6 +649,7 @@ function LinkingPrompt({
           box, not the default. Gone once there's anything to lose by replacing it. */}
       {!draft.trim() && cand.rel.trim() ? (
         <button
+          className="at-press"
           onClick={() => onDraft(cand.id, cand.rel)}
           style={{
             display: "block",
@@ -672,6 +668,7 @@ function LinkingPrompt({
         </button>
       ) : null}
       <button
+        className="at-press"
         onClick={() => onConfirm(cand.id)}
         style={{
           marginTop: 14,
@@ -911,6 +908,7 @@ function MnemonicTool({
           const active = picked === i;
           return (
             <button
+              className="at-press"
               key={i}
               onClick={() => onPickMnemonic(i)}
               aria-pressed={active}
@@ -977,6 +975,7 @@ function MnemonicTool({
             accent={VIOLET}
           />
           <button
+            className="at-press"
             onClick={onAcceptMnemonic}
             style={{
               marginTop: 10,

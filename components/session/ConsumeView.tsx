@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MicButton } from "@/components/VoiceInput";
-import { StreamingText } from "@/components/Pending";
+import { SkeletonBars, StreamingText } from "@/components/Pending";
 import {
   PHASES,
   STATE_COLOR,
@@ -18,8 +18,11 @@ import {
   type ConsumeProgress,
 } from "@/lib/curriculum";
 import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, motion, transition } from "@/lib/theme";
+import { usePresence } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // Consume is a Learning-phase surface: its accents borrow the shared state
@@ -221,6 +224,9 @@ export interface ConsumeSession extends ConsumeProgress {
 }
 
 interface ConsumeViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
   /** The subject — context for judging the open-ended prediction. */
@@ -480,6 +486,7 @@ function SpeakerButton({
   const showPause = active && !paused && !loading;
   return (
     <button
+      className="at-press"
       type="button"
       onClick={onClick}
       aria-label={label}
@@ -496,7 +503,6 @@ function SpeakerButton({
         border: `1px solid ${active ? BLUE : color.hairlineStrong}`,
         background: active ? BLUE : color.card,
         cursor: "pointer",
-        transition: "background .15s, border-color .15s",
         animation: active && loading ? "breathe 1.1s ease-in-out infinite" : undefined,
       }}
     >
@@ -637,6 +643,7 @@ function PassagePanel({
         </span>
         <div style={{ flex: 1 }} />
         <button
+          className="at-press"
           onClick={onClose}
           style={{
             background: "none",
@@ -707,6 +714,7 @@ function PassagePanel({
             }}
           >
             <button
+              className="at-press"
               onClick={submit}
               style={{
                 padding: "8px 14px",
@@ -724,6 +732,7 @@ function PassagePanel({
             </button>
             {suggestion && !draft.trim() && (
               <button
+                className="at-press"
                 onClick={() => setDraft(suggestion)}
                 title={suggestion}
                 style={{
@@ -782,7 +791,9 @@ function PassagePanel({
                 fontFamily: font.mono,
                 fontSize: 11,
                 color: color.inkGhost,
-                animation: "pulseGlow 1.6s ease-in-out infinite",
+                // `breathe`, not `pulseGlow`: this is bare text with no box to
+                // cast a shadow, so the glow keyframe animated nothing at all.
+                animation: "breathe 1.8s ease-in-out infinite",
               }}
             >
               {t.askThinking}
@@ -843,7 +854,7 @@ function SectionCheck({
             borderRadius: 13,
             padding: "18px 20px",
             animation: "fadeUp .45s both",
-            transition: "border-color .3s",
+            transition: transition("border-color"),
           }}
         >
           <div
@@ -897,6 +908,7 @@ function SectionCheck({
               const shown = passed ? o.correct : picked;
               return (
                 <button
+                  className="at-press"
                   key={o.label}
                   onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
                   disabled={passed}
@@ -921,7 +933,6 @@ function SectionCheck({
                       : color.card,
                     color: color.ink,
                     opacity: passed && !o.correct ? 0.5 : 1,
-                    transition: "all .15s",
                   }}
                 >
                   <Rich text={o.label} />
@@ -954,6 +965,7 @@ function SectionCheck({
  *  enough to read a couple of sentences, short enough that nobody sits waiting
  *  — and skippable either way ("Next beat", "Show all"). */
 const BEAT_MS = 3400;
+const MODEL_EXIT_MS = motion.duration.fast;
 
 /**
  * The model view: one lens, opened over the section it belongs to.
@@ -969,12 +981,15 @@ const BEAT_MS = 3400;
  * beats streamed in over ten seconds or came back cached in ten milliseconds.
  */
 function ModelView({
+  open,
   lens,
   chunk,
   beats,
   streaming,
   onClose,
 }: {
+  /** False plays the leave animation; the dialog unmounts when it finishes. */
+  open: boolean;
   lens: AltKey;
   chunk: ConsumeChunk;
   beats: ConsumeModelBeat[];
@@ -985,6 +1000,7 @@ function ModelView({
   const { language } = useLanguage();
   const label = new Map(altControls(language)).get(lens) ?? lens;
   const bodyRef = useRef<HTMLDivElement>(null);
+  const { mounted, state } = usePresence(open, MODEL_EXIT_MS);
 
   // Beats on screen so far. Never runs ahead of what has actually arrived, so
   // the cascade and the stream share one counter.
@@ -1014,6 +1030,7 @@ function ModelView({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  if (!mounted) return null;
   return (
     <div
       role="dialog"
@@ -1030,7 +1047,10 @@ function ModelView({
         padding: 24,
         background: "rgba(28,25,21,0.42)",
         backdropFilter: "blur(3px)",
-        animation: "softIn .22s both",
+        animation:
+          state === "in"
+            ? `softIn ${motion.duration.base}ms ${motion.ease.enter} both`
+            : `softOut ${MODEL_EXIT_MS}ms ${motion.ease.exit} both`,
       }}
     >
       <div
@@ -1045,7 +1065,10 @@ function ModelView({
           borderRadius: 16,
           boxShadow: "0 24px 60px rgba(28,25,21,0.28)",
           overflow: "hidden",
-          animation: "modelIn .3s cubic-bezier(.2,.8,.3,1) both",
+          animation:
+            state === "in"
+              ? `modelIn ${motion.duration.slow}ms ${motion.ease.enter} both`
+              : `modelOut ${MODEL_EXIT_MS}ms ${motion.ease.exit} both`,
         }}
       >
         {/* Header — which lens, over which section */}
@@ -1080,6 +1103,7 @@ function ModelView({
             </div>
           </div>
           <button
+            className="at-press"
             type="button"
             autoFocus
             onClick={onClose}
@@ -1127,19 +1151,7 @@ function ModelView({
               >
                 {t.modelOpening}
               </div>
-              {[150, "92%", "84%"].map((w, i) => (
-                <div
-                  key={i}
-                  style={{
-                    height: i === 0 ? 12 : 15,
-                    width: w,
-                    borderRadius: 5,
-                    background: "rgba(44,40,35,0.08)",
-                    animation: "pulseGlow 1.6s ease-in-out infinite",
-                    animationDelay: `${i * 0.12}s`,
-                  }}
-                />
-              ))}
+              <SkeletonBars widths={[150, "92%", "84%"]} heights={[12, 15, 15]} />
             </div>
           ) : (
             beats.slice(0, shown).map((beat, i) => (
@@ -1251,6 +1263,7 @@ function ModelView({
           {shown < beats.length && (
             <>
               <button
+                className="at-press"
                 type="button"
                 onClick={() => setRevealed(beats.length)}
                 style={{
@@ -1266,6 +1279,7 @@ function ModelView({
                 {t.modelRevealAll}
               </button>
               <button
+                className="at-press"
                 type="button"
                 onClick={() => setRevealed((n) => n + 1)}
                 style={{
@@ -1285,6 +1299,7 @@ function ModelView({
           )}
           {done && (
             <button
+              className="at-press"
               type="button"
               onClick={onClose}
               style={{
@@ -1330,6 +1345,7 @@ export default function ConsumeView({
   onAskPassage,
   onSkipCrucible,
   onRoutePrereq,
+  presence,
 }: ConsumeViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -1376,6 +1392,20 @@ export default function ConsumeView({
   const modelChunk = session.model
     ? chunks.find((c) => c.id === session.model?.chunkId)
     : undefined;
+  // The lens dialog animates out after `session.model` has already cleared, so
+  // the last open one is held back for those frames.
+  const lastModel = useRef<{
+    key: string;
+    lens: AltKey;
+    chunk: ConsumeChunk;
+  } | null>(null);
+  if (session.model && modelChunk) {
+    lastModel.current = {
+      key: `${session.model.chunkId}:${session.model.lens}`,
+      lens: session.model.lens,
+      chunk: modelChunk,
+    };
+  }
 
   let simpleCount = 0;
   for (const c of chunks) if (lensOf(c.id) === "simpler") simpleCount++;
@@ -1467,18 +1497,9 @@ export default function ConsumeView({
     );
 
     return (
-      <div
+      <Sheet
+        presence={presence}
         style={{
-          position: "absolute",
-          inset: 0,
-          background: color.paper,
-          color: color.ink,
-          display: "flex",
-          flexDirection: "column",
-          fontFamily: font.sans,
-          fontSize: 15,
-          zIndex: 30,
-          animation: "softIn 0.3s both",
           overflowY: "auto",
         }}
       >
@@ -1593,6 +1614,7 @@ export default function ConsumeView({
 
           <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
             <button
+              className="at-press"
               onClick={onBeginSocratic}
               style={{
                 padding: "14px 24px",
@@ -1610,6 +1632,7 @@ export default function ConsumeView({
               {t.recapBegin}
             </button>
             <button
+              className="at-press"
               onClick={onExit}
               style={{
                 background: "none",
@@ -1625,25 +1648,12 @@ export default function ConsumeView({
             </button>
           </div>
         </div>
-      </div>
+      </Sheet>
     );
   }
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header */}
       <div
         style={{
@@ -1659,6 +1669,7 @@ export default function ConsumeView({
         }}
       >
         <button
+          className="at-press"
           onClick={() => {
             reading.cancel();
             onExit();
@@ -1701,6 +1712,7 @@ export default function ConsumeView({
         {/* The escape hatch, always open: nobody should have to read past
             what they already know to prove they know it. */}
         <button
+          className="at-press"
           onClick={onSkipCrucible}
           style={{
             background: "none",
@@ -1735,6 +1747,7 @@ export default function ConsumeView({
             const reachable = i <= session.idx;
             return (
               <button
+                className="at-press"
                 key={c.id}
                 type="button"
                 disabled={!reachable}
@@ -1765,7 +1778,7 @@ export default function ConsumeView({
                     height: 3,
                     borderRadius: 2,
                     background: reachable ? color.accent : "rgba(44,40,35,0.12)",
-                    transition: "background .3s",
+                    transition: transition("background"),
                   }}
                 />
               </button>
@@ -1837,19 +1850,10 @@ export default function ConsumeView({
               >
                 {t.writingFirst}
               </div>
-              {[220, 100, "94%", "88%", "70%"].map((w, i) => (
-                <div
-                  key={i}
-                  style={{
-                    height: i === 0 ? 22 : 14,
-                    width: typeof w === "number" ? w : w,
-                    borderRadius: 5,
-                    background: "rgba(44,40,35,0.08)",
-                    animation: "pulseGlow 1.6s ease-in-out infinite",
-                    animationDelay: `${i * 0.12}s`,
-                  }}
-                />
-              ))}
+              <SkeletonBars
+                widths={[220, 100, "94%", "88%", "70%"]}
+                heights={[22, 14, 14, 14, 14]}
+              />
             </div>
           )}
 
@@ -1909,6 +1913,7 @@ export default function ConsumeView({
                   )}
                   <div style={{ flex: 1 }} />
                   <button
+                    className="at-press"
                     onClick={() => onToggleCollapse(c.id)}
                     style={{
                       background: "none",
@@ -1960,6 +1965,7 @@ export default function ConsumeView({
                           style={{ display: "flex", flexDirection: "column" }}
                         >
                           <button
+                            className="at-press"
                             onClick={() => onToggleTerm(key)}
                             aria-expanded={open}
                             style={{
@@ -2024,6 +2030,7 @@ export default function ConsumeView({
                   <div data-chunk-id={c.id} style={{ position: "relative" }}>
                     {askHint?.chunkId === c.id && (
                       <button
+                        className="at-press"
                         onClick={() => {
                           const text = askHint.text;
                           window.getSelection()?.removeAllRanges();
@@ -2070,7 +2077,7 @@ export default function ConsumeView({
                             padding: "2px 8px",
                             borderRadius: 7,
                             background: spokenNow ? color.accentBg : "transparent",
-                            transition: "background .25s",
+                            transition: transition("background"),
                             color: color.ink,
                           }}
                         >
@@ -2137,6 +2144,7 @@ export default function ConsumeView({
                       {/* The keyboard path to the same panel the highlight
                           gesture opens — selecting text is a pointer move. */}
                       <button
+                        className="at-press"
                         onClick={() => onOpenPassage(c.id, "")}
                         style={{
                           background: "none",
@@ -2169,6 +2177,7 @@ export default function ConsumeView({
                         const suggested = suggestsDefault(c.id) && session.preferred === key;
                         return (
                           <button
+                            className="at-press"
                             key={key}
                             onClick={() => onOpenModel(c, key)}
                             style={{
@@ -2259,6 +2268,7 @@ export default function ConsumeView({
                   (nextArrived || isLast ? (
                     <div style={{ marginTop: 30 }}>
                       <button
+                        className="at-press"
                         onClick={() => (isLast ? onFinish() : onContinue(i))}
                         style={
                           isLast
@@ -2339,6 +2349,7 @@ export default function ConsumeView({
                 </div>
               </div>
               <button
+                className="at-press"
                 onClick={onRoutePrereq}
                 style={{
                   flex: "0 0 auto",
@@ -2364,16 +2375,23 @@ export default function ConsumeView({
           left it — the moment this closes. Keyed on section + lens so
           switching lenses restarts the cascade rather than continuing the
           previous one's count. */}
-      {modelChunk && session.model && (
+      {(modelChunk && session.model ? true : lastModel.current !== null) && (
         <ModelView
-          key={`${session.model.chunkId}:${session.model.lens}`}
-          lens={session.model.lens}
-          chunk={modelChunk}
+          key={
+            modelChunk && session.model
+              ? `${session.model.chunkId}:${session.model.lens}`
+              : lastModel.current!.key
+          }
+          open={Boolean(modelChunk && session.model)}
+          lens={
+            session.model?.lens ?? (lastModel.current!.lens as AltKey)
+          }
+          chunk={modelChunk ?? lastModel.current!.chunk}
           beats={modelBeats ?? []}
           streaming={modelStreaming}
           onClose={onCloseModel}
         />
       )}
-    </div>
+    </Sheet>
   );
 }

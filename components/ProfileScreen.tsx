@@ -64,7 +64,6 @@ const rowStyle = {
   justifyContent: "space-between",
   padding: "18px 24px",
   cursor: "pointer",
-  transition: "background .15s",
 } as const;
 
 export default function ProfileScreen({
@@ -106,6 +105,7 @@ export default function ProfileScreen({
         }}
       >
         <button
+          className="at-press"
           onClick={onHome}
           style={{
             background: "none",
@@ -189,6 +189,7 @@ export default function ProfileScreen({
               </div>
             </div>
             <button
+              className="at-press"
               onClick={onSettings}
               style={{
                 flex: "0 0 auto",
@@ -370,7 +371,7 @@ export default function ProfileScreen({
               </div>
               <span style={{ color: color.inkGhost }}>&rarr;</span>
             </div>
-            <div onClick={onSignOut} style={rowStyle}>
+            <div className="at-press at-tint" onClick={onSignOut} style={rowStyle}>
               <div style={{ fontSize: 15, color: "#c1574a" }}>{t.signOut}</div>
               <span style={{ color: "#c1574a" }}>&rarr;</span>
             </div>

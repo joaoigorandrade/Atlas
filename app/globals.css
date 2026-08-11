@@ -23,13 +23,85 @@ textarea {
   font-family: inherit;
 }
 
-input:focus,
-textarea:focus {
+/* Focus is removed only for pointer interaction — keyboard focus keeps a ring.
+   Nothing in the app had one before; inline styles can't express the selector. */
+:focus:not(:focus-visible) {
   outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(47, 107, 79, 0.55);
+  outline-offset: 2px;
 }
 
 ::selection {
   background: rgba(47, 107, 79, 0.16);
+}
+
+/* ---------------------------------------------------------------------------
+   Interaction layer.
+
+   Styling is inline `style={{}}` objects everywhere else, but a pseudo-class is
+   unreachable from an inline style — so hover, press and focus states live here
+   as a small set of opt-in classes. Keep the set small.
+
+   Specificity: an inline style wins over these rules for the *same* property.
+   `.at-lift`/`.at-press` therefore only work on an element whose inline style
+   does not set `transform`, and `.at-tint` only where `background` isn't inline.
+   Move the conflicting property onto a wrapper rather than reaching for
+   `!important`.
+   ------------------------------------------------------------------------ */
+
+/* Anything tappable: it gives under the finger. */
+.at-press {
+  transition:
+    transform 90ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    background 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.at-press:active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+/* A card or a map node: it rises to meet the cursor, and settles when pressed. */
+.at-lift {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    opacity 240ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.at-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(44, 40, 35, 0.1);
+}
+
+.at-lift:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(44, 40, 35, 0.08);
+}
+
+/* A quiet wash for rows and chips that shouldn't move. */
+.at-tint:hover:not(:disabled) {
+  background: rgba(44, 40, 35, 0.045);
+}
+
+/* The accent ring, for the primary path through a screen. */
+.at-glow:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 1px rgba(47, 107, 79, 0.35),
+    0 6px 20px rgba(47, 107, 79, 0.14);
+}
+
+/* Opt out of every hover/press affordance while inert. */
+.at-press:disabled,
+.at-lift[aria-disabled="true"] {
+  transform: none;
 }
 
 @keyframes pulseGlow {
@@ -90,6 +162,145 @@ textarea:focus {
   }
 }
 
+/* Exit vocabulary. Nothing in the app used to leave — every overlay, drawer and
+   toast vanished on the frame its state went false. Each of these pairs with the
+   enter keyframe above it, driven by `usePresence` in `lib/motion.ts`. */
+@keyframes softOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes modelOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+
+/* The right rail is a drawer; it should arrive from the edge it lives on
+   rather than fading in place. */
+@keyframes drawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawerOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+}
+
+/* A full-screen surface arriving over the map. It rises off the page it covers
+   — the same idea as `modelIn`, at screen scale — instead of cross-fading, which
+   at this size reads as a flicker rather than a movement. */
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sheetOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.997);
+  }
+}
+
+/* Reward vocabulary. Used only where the product actually earns it — a concept
+   going green, a streak lighting, a phase closing — never for ordinary
+   feedback. Ink and paper: a ring pressed into the page, a mark stamped on it. */
+@keyframes bloom {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes markPop {
+  0% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.5);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes ignite {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.85);
+  }
+  55% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.14) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
 /* Loading vocabulary: an ink dot keeping time, a stroke drawn across the page. */
 @keyframes inkDot {
   0%,
@@ -121,6 +332,18 @@ textarea:focus {
   }
   100% {
     transform: translateX(310%);
+  }
+}
+
+/* A real skeleton: ink washing across the shape of the thing being written.
+   These used to run `pulseGlow`, which animates a *box-shadow* — so they
+   breathed an amber halo rather than shimmering. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
 

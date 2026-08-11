@@ -16,6 +16,8 @@ import { InkDots } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // The Crucible owns the deep-rust accent; the transfer diagnostic borrows the
@@ -111,6 +113,9 @@ const STRINGS = {
 } as const;
 
 interface CrucibleViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The transfer content for this node (problem ladder, interleaved draws, gap). */
   content: CrucibleContent;
   session: CrucibleSession;
@@ -145,6 +150,7 @@ export default function CrucibleView({
   onToggleReExplain,
   onRetry,
   onFinish,
+  presence,
 }: CrucibleViewProps) {
   const t = useT(STRINGS);
   const problem = crucibleProblem(session, content);
@@ -152,20 +158,7 @@ export default function CrucibleView({
   const isWork = session.stage === "work";
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Session · Crucible · title · phase breadcrumb */}
       <div
         style={{
@@ -181,6 +174,7 @@ export default function CrucibleView({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",
@@ -311,6 +305,7 @@ export default function CrucibleView({
                 ) : (
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <button
+                      className="at-press"
                       onClick={onSubmit}
                       disabled={judging}
                       style={{
@@ -338,6 +333,7 @@ export default function CrucibleView({
                       )}
                     </button>
                     <button
+                      className="at-press"
                       onClick={onSample}
                       style={{
                         background: "none",
@@ -360,7 +356,7 @@ export default function CrucibleView({
           )}
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -412,6 +408,7 @@ function ConfidenceGate({
           const active = session.conf === i;
           return (
             <button
+              className="at-press"
               key={label}
               onClick={() => onConfidence(i as ConfidenceLevel)}
               style={{
@@ -425,7 +422,6 @@ function ConfidenceGate({
                 background: active ? CRUCIBLE_COLOR.soft : color.cardAlt,
                 border: `1px solid ${active ? RUST : color.hairlineStrong}`,
                 color: active ? RUST : color.inkSoft,
-                transition: "border-color .15s, background .15s",
               }}
             >
               {label}
@@ -642,6 +638,7 @@ function Diagnostic({
             }}
           >
             <button
+              className="at-press"
               onClick={onToggleReExplain}
               style={{
                 padding: "13px 20px",
@@ -657,6 +654,7 @@ function Diagnostic({
               {session.reExplain ? t.hideReExplain : t.reExplainSocratic}
             </button>
             <button
+              className="at-press"
               onClick={onRetry}
               style={{
                 padding: "13px 22px",
@@ -743,6 +741,7 @@ function Diagnostic({
             </div>
           </div>
           <button
+            className="at-press"
             onClick={onFinish}
             style={{
               padding: "15px 26px",

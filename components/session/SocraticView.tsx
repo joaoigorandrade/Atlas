@@ -15,6 +15,8 @@ import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 const STRINGS = {
@@ -71,6 +73,9 @@ const BLUE = STATE_COLOR.learning;
 const GREEN = STATE_COLOR.mastered;
 
 interface SocraticViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
   session: SocraticSession;
@@ -114,6 +119,7 @@ export default function SocraticView({
   onTell,
   onHelpChange,
   onAdvance,
+  presence,
 }: SocraticViewProps) {
   const t = useT(STRINGS);
   // The pass streams its probes in one at a time. While the next one is still
@@ -166,20 +172,7 @@ export default function SocraticView({
         : t.advanceTeach;
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Session · Socratic · title · scaffolding dial */}
       <div
         style={{
@@ -195,6 +188,7 @@ export default function SocraticView({
         }}
       >
         <button
+          className="at-press"
           onClick={onExit}
           style={{
             background: "none",
@@ -297,6 +291,7 @@ export default function SocraticView({
                     {doneText}
                   </div>
                   <button
+                    className="at-press"
                     onClick={onAdvance}
                     style={{
                       width: "100%",
@@ -362,6 +357,7 @@ export default function SocraticView({
                       }}
                     />
                     <button
+                      className="at-press"
                       onClick={submitDraft}
                       disabled={busy || !draft.trim()}
                       style={{
@@ -384,6 +380,7 @@ export default function SocraticView({
                   <MicButton value={draft} onChange={setDraft} disabled={busy} />
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                     <button
+                      className="at-press"
                       onClick={onStuck}
                       disabled={busy}
                       style={{
@@ -399,6 +396,7 @@ export default function SocraticView({
                       {t.stuck}
                     </button>
                     <button
+                      className="at-press"
                       onClick={onTell}
                       disabled={busy}
                       style={{
@@ -433,7 +431,7 @@ export default function SocraticView({
       >
         {breadcrumb}
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -463,6 +461,7 @@ function HelpDial({
         const c = HELP_COLOR[i as HelpLevel];
         return (
           <button
+            className="at-press"
             key={label}
             onClick={() => onChange(i as HelpLevel)}
             style={{
@@ -476,7 +475,6 @@ function HelpDial({
               color: active ? color.accentInk : color.inkFaint,
               fontWeight: active ? 600 : 400,
               cursor: "pointer",
-              transition: "background .25s, color .25s",
             }}
           >
             {label}

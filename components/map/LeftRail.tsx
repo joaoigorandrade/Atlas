@@ -9,8 +9,9 @@ import {
   type PaceStatus,
   type PlanEntry,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import { useCountUp } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -96,6 +97,10 @@ export default function LeftRail({
 }: LeftRailProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
+  // The bar was already easing its width while the number beside it jumped.
+  // One value drives both now — and it snaps on the first read, so a restored
+  // run doesn't count up from zero every time the map opens.
+  const shownPct = useCountUp(masteryPct);
   return (
     <div
       style={{
@@ -176,6 +181,7 @@ export default function LeftRail({
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {nextUp.map(({ node, unlocks }) => (
               <button
+                className="at-press"
                 key={node.id}
                 onClick={() => onPickNode(node.id)}
                 style={{
@@ -244,7 +250,8 @@ export default function LeftRail({
           <span
             style={{ fontFamily: font.serif, fontSize: 22, color: color.accent }}
           >
-            {masteryPct}%
+            {/* Travels with the bar beside it rather than snapping ahead of it. */}
+            {Math.round(shownPct)}%
           </span>
         </div>
         <div
@@ -257,17 +264,18 @@ export default function LeftRail({
         >
           <div
             style={{
-              width: `${masteryPct}%`,
+              width: `${shownPct}%`,
               height: "100%",
               background: color.accent,
               borderRadius: 5,
-              transition: "width .5s",
+              transition: transition("width", "deliberate", "enter"),
             }}
           />
         </div>
       </div>
 
       <button
+        className="at-press"
         onClick={onJumpFrontier}
         style={{
           display: "flex",
@@ -287,6 +295,7 @@ export default function LeftRail({
       </button>
 
       <button
+        className="at-press"
         onClick={onCalibration}
         style={{
           display: "flex",
@@ -365,6 +374,7 @@ export default function LeftRail({
 
       <div style={{ marginTop: "auto" }}>
         <button
+          className="at-press"
           onClick={onToggleMomentum}
           style={{
             width: "100%",

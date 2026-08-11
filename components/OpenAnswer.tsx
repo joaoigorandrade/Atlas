@@ -66,6 +66,7 @@ export function AnswerModeToggle({
         const active = mode === key;
         return (
           <button
+            className="at-press"
             key={key}
             onClick={() => onMode(key)}
             style={{
@@ -166,6 +167,7 @@ export function OpenAnswer({
         accent={accent}
       />
       <button
+        className="at-press"
         onClick={submit}
         disabled={judging || !text.trim()}
         style={{

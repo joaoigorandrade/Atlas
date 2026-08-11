@@ -6,7 +6,7 @@ import type {
   DiagnosticEffect,
   DiagnosticQuestion,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InkDots, InkRule } from "@/components/Pending";
 import Rich from "@/components/Rich";
@@ -149,7 +149,7 @@ export default function DiagnosticPanel({
               height: 4,
               borderRadius: 3,
               background: i < answered ? color.accent : "rgba(44,40,35,0.12)",
-              transition: "background .3s",
+              transition: transition("background"),
             }}
           />
         ))}
@@ -179,6 +179,7 @@ export default function DiagnosticPanel({
             {t.introBody(total)}
           </div>
           <button
+            className="at-press"
             onClick={() => setStarted(true)}
             style={{
               width: "100%",
@@ -196,6 +197,7 @@ export default function DiagnosticPanel({
             {t.take}
           </button>
           <button
+            className="at-press"
             onClick={onSkip}
             style={{
               marginTop: 10,
@@ -289,6 +291,7 @@ export default function DiagnosticPanel({
               const isWrongPick = picked && oi === picked.index && !correct;
               return (
                 <button
+                  className="at-press"
                   key={opt.label}
                   role="radio"
                   aria-checked={picked ? oi === picked.index : false}
@@ -319,7 +322,6 @@ export default function DiagnosticPanel({
                     color: color.ink,
                     opacity: picked && !isAnswer && !isWrongPick ? 0.5 : 1,
                     cursor: picked ? "default" : "pointer",
-                    transition: "border-color .2s, background .2s, opacity .2s",
                   }}
                 >
                   <span
@@ -382,6 +384,7 @@ export default function DiagnosticPanel({
                     : t.wrongWhy(shown.tag)}
               </div>
               <button
+                className="at-press"
                 onClick={() => setPicked(null)}
                 disabled={!readyToAdvance}
                 style={{
@@ -395,7 +398,6 @@ export default function DiagnosticPanel({
                   fontSize: 15,
                   fontWeight: 600,
                   cursor: readyToAdvance ? "pointer" : "default",
-                  transition: "background .25s, color .25s",
                 }}
               >
                 {readyToAdvance ? (
@@ -418,6 +420,7 @@ export default function DiagnosticPanel({
         // arrives (a hung write, not a rejected one) would otherwise trap the
         // learner on "Writing the next question…" with no way to the map.
         <button
+          className="at-press"
           onClick={onSkip}
           style={{
             marginTop: 26,
@@ -458,6 +461,7 @@ export default function DiagnosticPanel({
             {t.readyBody}
           </div>
           <button
+            className="at-press"
             onClick={onStart}
             style={{
               width: "100%",

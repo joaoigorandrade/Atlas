@@ -82,6 +82,7 @@ import {
   type SocraticSession,
   type SocraticStep,
   type StateMap,
+  type ProgressState,
 } from "@/lib/curriculum";
 import {
   dueCards,
@@ -161,11 +162,33 @@ import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
-import MapCanvas, { type ViewTransform } from "@/components/map/MapCanvas";
+import MapCanvas, {
+  CELEBRATE_MS,
+  type ViewTransform,
+} from "@/components/map/MapCanvas";
+import { usePresence, useEarned } from "@/lib/motion";
+import { SHEET_EXIT_MS } from "@/components/Sheet";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
 import Toast, { type ToastData } from "@/components/Toast";
 import ScreenTimer from "@/components/ScreenTimer";
+
+/** Screens that render as a full-screen `Sheet` over the map. */
+const SHEET_SCREENS = new Set<Screen>([
+  "consume",
+  "socratic",
+  "feynman",
+  "connect",
+  "crucible",
+  "review",
+  "calibration",
+  "settings",
+]);
+
+/** The state changes worth marking on the map. Reaching the frontier isn't one
+ *  — that's derived, and it's the map telling you where to go, not a result. */
+const isEarned = (next: ProgressState) =>
+  next === "mastered" || next === "gap" || next === "shaky";
 
 type Screen =
   | "welcome"
@@ -367,6 +390,9 @@ export default function AtlasApp({
   const [retainContent, setRetainContent] = useState<RetainContent | null>(null);
   // The "AI is writing this" overlay, or null.
   const [loading, setLoading] = useState<{ phase: string; message: string } | null>(null);
+  // Held so the overlay has copy to render while it fades out.
+  const lastLoading = useRef<{ phase: string; message: string } | null>(null);
+  if (loading) lastLoading.current = loading;
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -514,6 +540,7 @@ export default function AtlasApp({
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const momentumRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastSeq = useRef(0);
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -525,7 +552,10 @@ export default function AtlasApp({
   }, []);
 
   const showToast = useCallback((message: string, kicker?: string) => {
-    setToast({ message, kicker });
+    // `seq` keys the toast, so a second one replays its entrance instead of
+    // swapping text inside an element that has already finished animating.
+    toastSeq.current += 1;
+    setToast({ message, kicker, seq: toastSeq.current });
     if (toastRef.current) clearTimeout(toastRef.current);
     toastRef.current = setTimeout(() => setToast(null), kicker ? 3400 : 2400);
   }, []);
@@ -3617,9 +3647,26 @@ export default function AtlasApp({
   // ---- derived ----------------------------------------------------------
 
   const isMap = screen === "map";
+  // The full-screen surfaces. They animate out, which means the screen they
+  // belong to has to outlive `screen` moving on — `sheetScreen` lags behind for
+  // exactly the length of the leave. Their session state is not torn down on
+  // exit (`exitConsume` and friends only set the screen), so the outgoing view
+  // still has everything it needs to draw those last frames.
+  const onSheet = SHEET_SCREENS.has(screen);
+  const sheet = usePresence(onSheet, SHEET_EXIT_MS);
+  const lastSheet = useRef<Screen | null>(null);
+  if (onSheet) lastSheet.current = screen;
+  const sheetScreen = onSheet ? screen : lastSheet.current;
   // The canvas backs onboarding + the map, but Consume is a full surface.
+  // Kept mounted underneath a sheet as well, so a session genuinely rises off
+  // the map and settles back onto it instead of onto blank paper. The canvas is
+  // inert behind an opaque surface — it re-renders only when the graph or the
+  // mastery states move, which during a session is a handful of times.
   const showCanvas =
-    screen === "building" || screen === "diagnostic" || screen === "map";
+    screen === "building" ||
+    screen === "diagnostic" ||
+    screen === "map" ||
+    sheet.mounted;
   // Before the real map exists, assemble a placeholder territory instead of
   // an empty canvas — swapped for the real graph the instant it streams in.
   const usingFakeMap = screen === "building" && graph.nodes.length === 0;
@@ -3639,6 +3686,17 @@ export default function AtlasApp({
       ),
     [graph, isMap, reveal, momentumPlaying, momentumWeek, states],
   );
+  // Concepts the learner just moved. Tracked against stored progress rather
+  // than `display`, which is masked during onboarding and by the replay, and
+  // released only once the map is actually on screen — the state is usually
+  // written mid-session, several seconds before there is anything to see it.
+  // The momentum replay steps whole weeks at a time and is never a moment.
+  const earnedNodes = useEarned(states, isEarned, {
+    visible: isMap,
+    enabled: !momentumPlaying,
+    ms: CELEBRATE_MS,
+  });
+
   const display = useMemo(
     () => displayStates(visibleStates, graph),
     [visibleStates, graph],
@@ -4029,6 +4087,7 @@ export default function AtlasApp({
           staggered={usingFakeMap}
           display={display}
           lockedPath={lockedPath}
+          earned={earnedNodes}
           positions={usingFakeMap ? FAKE_MAP_POSITIONS : positions}
           view={view}
           selectedId={selectedId}
@@ -4089,26 +4148,32 @@ export default function AtlasApp({
               }}
             />
           )}
-          {(!narrow || detailOpen) && selectedNode && selectedDisplayState && (
-            <NodeDetail
-              node={selectedNode}
-              displayState={selectedDisplayState}
-              nodes={graph.nodes}
-              edges={graph.edges}
-              display={display}
-              reviewed={reviewedNodes.includes(selectedNode.id)}
-              shakyReason={shakyReasons[selectedNode.id]}
-              consumeProgress={consumeProgress[selectedNode.id]}
-              onSelect={setSelectedId}
-              onPrimaryAction={onPrimaryAction}
-              onPhaseAction={onPhaseAction}
-              onSkipKnown={skipKnown}
-            />
-          )}
+          {/* Always mounted: the drawer owns its own enter and exit, so it
+              needs to outlive the selection it is animating away from. */}
+          <NodeDetail
+            visible={!narrow || detailOpen}
+            node={selectedNode}
+            displayState={selectedDisplayState}
+            nodes={graph.nodes}
+            edges={graph.edges}
+            display={display}
+            reviewed={
+              selectedNode ? reviewedNodes.includes(selectedNode.id) : false
+            }
+            shakyReason={selectedNode ? shakyReasons[selectedNode.id] : undefined}
+            consumeProgress={
+              selectedNode ? consumeProgress[selectedNode.id] : undefined
+            }
+            onSelect={setSelectedId}
+            onPrimaryAction={onPrimaryAction}
+            onPhaseAction={onPhaseAction}
+            onSkipKnown={skipKnown}
+          />
           {narrow && (
             // Collapsed-rail toggles for laptop-narrow widths (#8).
             <>
               <button
+                className="at-press"
                 onClick={() => setRailOpen((v) => !v)}
                 style={{
                   position: "absolute",
@@ -4129,6 +4194,7 @@ export default function AtlasApp({
               </button>
               {selectedNode && (
                 <button
+                  className="at-press"
                   onClick={() => setDetailOpen((v) => !v)}
                   style={{
                     position: "absolute",
@@ -4204,8 +4270,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "settings" && (
+      {sheetScreen === "settings" && (
         <SettingsScreen
+          presence={sheet.state}
           form={form}
           adherence={adherence}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
@@ -4234,8 +4301,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "consume" && consume && consumeChunks && (
+      {sheetScreen === "consume" && consume && consumeChunks && (
         <ConsumeView
+          presence={sheet.state}
           topic={form.topic}
           title={
             graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
@@ -4262,8 +4330,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "socratic" && socratic && socraticSteps && (
+      {sheetScreen === "socratic" && socratic && socraticSteps && (
         <SocraticView
+          presence={sheet.state}
           title={
             graph.nodes.find((n) => n.id === socratic.nodeId)?.label ??
             "Concept"
@@ -4282,8 +4351,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "feynman" && feynman && feynmanBeats && (
+      {sheetScreen === "feynman" && feynman && feynmanBeats && (
         <FeynmanView
+          presence={sheet.state}
           topic={form.topic}
           title={
             graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"
@@ -4304,8 +4374,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "connect" && connect && connectContent && (
+      {sheetScreen === "connect" && connect && connectContent && (
         <ConnectView
+          presence={sheet.state}
           content={connectContent}
           session={connect}
           onExit={exitConnect}
@@ -4323,8 +4394,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "crucible" && crucible && crucibleContent && (
+      {sheetScreen === "crucible" && crucible && crucibleContent && (
         <CrucibleView
+          presence={sheet.state}
           content={crucibleContent}
           session={crucible}
           judging={judging}
@@ -4339,8 +4411,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "review" && retain && retainContent && (
+      {sheetScreen === "review" && retain && retainContent && (
         <RetainView
+          presence={sheet.state}
           content={retainContent}
           session={retain}
           nodeLabel={
@@ -4360,17 +4433,24 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "calibration" && (
+      {sheetScreen === "calibration" && (
         <CalibrationView
+          presence={sheet.state}
           items={calib}
           onExit={exitCalib}
           onCloseGap={closeCalibGap}
         />
       )}
 
-      {loading && <GeneratingOverlay phase={loading.phase} message={loading.message} />}
+      {/* Mounted through its own fade-out; `loading` is already null by then,
+          so the last phase/message are kept for the exit frame. */}
+      <GeneratingOverlay
+        open={Boolean(loading)}
+        phase={loading?.phase ?? lastLoading.current?.phase ?? ""}
+        message={loading?.message ?? lastLoading.current?.message ?? ""}
+      />
 
-      {toast && <Toast toast={toast} />}
+      <Toast toast={toast} />
 
       <ScreenTimer />
     </div>

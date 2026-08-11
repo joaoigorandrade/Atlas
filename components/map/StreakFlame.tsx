@@ -7,8 +7,12 @@ import {
   streakStatus,
   type AdherenceState,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, motion, transition } from "@/lib/theme";
+import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
+
+const POPOVER_EXIT_MS = motion.duration.fast;
+const IGNITE_MS = motion.duration.deliberate;
 
 const STRINGS = {
   en: {
@@ -67,11 +71,18 @@ export default function StreakFlame({
 }: StreakFlameProps) {
   const t = useT(STRINGS);
   const [open, setOpen] = useState(false);
+  const popover = usePresence(open, POPOVER_EXIT_MS);
   const lit = adherence.metToday;
+  // Hitting today's target is the one thing the flame is for. It should look
+  // like something caught, not like a dot that grew 2px.
+  const justLit = useCelebrate(lit, (next, prev) => next && !prev, {
+    ms: IGNITE_MS,
+  });
 
   return (
     <div style={{ position: "relative" }}>
       <button
+        className="at-press"
         onClick={() => setOpen((v) => !v)}
         style={{
           display: "flex",
@@ -93,9 +104,25 @@ export default function StreakFlame({
             borderRadius: "50%",
             background: STREAK_COLOR.flame,
             boxShadow: `0 0 ${lit ? 12 : 8}px rgba(201,154,46,${lit ? 0.85 : 0.6})`,
-            transition: "width .2s, height .2s, box-shadow .2s",
+            transition: transition(["width", "height", "box-shadow"], "base", "spring"),
+            animation: justLit
+              ? `ignite ${IGNITE_MS}ms ${motion.ease.spring} both`
+              : undefined,
           }}
-        />
+        >
+          {justLit && (
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: -2,
+                borderRadius: "50%",
+                border: `2px solid ${STREAK_COLOR.flame}`,
+                animation: `bloom ${IGNITE_MS}ms ${motion.ease.enter} both`,
+              }}
+            />
+          )}
+        </span>
         <span>
           <span style={{ fontWeight: 600, color: color.ink }}>
             {adherence.streak}
@@ -124,14 +151,17 @@ export default function StreakFlame({
         )}
       </button>
 
-      {open && (
+      {popover.mounted && (
         <>
           {/* Click-away backdrop */}
-          <div
-            onClick={() => setOpen(false)}
-            style={{ position: "fixed", inset: 0, zIndex: 40 }}
-          />
+          {open && (
+            <div
+              onClick={() => setOpen(false)}
+              style={{ position: "fixed", inset: 0, zIndex: 40 }}
+            />
+          )}
           <Popover
+            presence={popover.state}
             adherence={adherence}
             onToggleReminder={onToggleReminder}
           />
@@ -142,9 +172,11 @@ export default function StreakFlame({
 }
 
 function Popover({
+  presence,
   adherence,
   onToggleReminder,
 }: {
+  presence: PresenceState;
   adherence: AdherenceState;
   onToggleReminder: () => void;
 }) {
@@ -163,7 +195,10 @@ function Popover({
         boxShadow: "0 16px 40px rgba(44,40,35,0.18)",
         padding: 18,
         zIndex: 41,
-        animation: "fadeUp .18s both",
+        animation:
+          presence === "in"
+            ? `fadeUp ${motion.duration.fast}ms ${motion.ease.enter} both`
+            : `fadeDown ${POPOVER_EXIT_MS}ms ${motion.ease.exit} both`,
       }}
     >
       <div
@@ -308,6 +343,7 @@ function Popover({
         >
           <span style={{ ...kicker(9.5, "0.1em") }}>{t.reminder}</span>
           <button
+            className="at-press"
             onClick={onToggleReminder}
             role="switch"
             aria-checked={adherence.reminderOn}
@@ -322,7 +358,7 @@ function Popover({
               background: adherence.reminderOn
                 ? color.accent
                 : "rgba(44,40,35,0.18)",
-              transition: "background .18s",
+              transition: transition("background", "fast"),
             }}
           >
             <span
@@ -335,7 +371,7 @@ function Popover({
                 borderRadius: "50%",
                 background: color.card,
                 boxShadow: "0 1px 3px rgba(44,40,35,0.3)",
-                transition: "left .18s",
+                transition: transition("left", "fast", "enter"),
               }}
             />
           </button>
