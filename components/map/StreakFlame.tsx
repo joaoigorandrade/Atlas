@@ -7,8 +7,11 @@ import {
   streakStatus,
   type AdherenceState,
 } from "@/lib/curriculum";
-import { color, font, kicker, transition } from "@/lib/theme";
+import { color, font, kicker, motion, transition } from "@/lib/theme";
+import { usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
+
+const POPOVER_EXIT_MS = motion.duration.fast;
 
 const STRINGS = {
   en: {
@@ -67,6 +70,7 @@ export default function StreakFlame({
 }: StreakFlameProps) {
   const t = useT(STRINGS);
   const [open, setOpen] = useState(false);
+  const popover = usePresence(open, POPOVER_EXIT_MS);
   const lit = adherence.metToday;
 
   return (
@@ -125,14 +129,17 @@ export default function StreakFlame({
         )}
       </button>
 
-      {open && (
+      {popover.mounted && (
         <>
           {/* Click-away backdrop */}
-          <div
-            onClick={() => setOpen(false)}
-            style={{ position: "fixed", inset: 0, zIndex: 40 }}
-          />
+          {open && (
+            <div
+              onClick={() => setOpen(false)}
+              style={{ position: "fixed", inset: 0, zIndex: 40 }}
+            />
+          )}
           <Popover
+            presence={popover.state}
             adherence={adherence}
             onToggleReminder={onToggleReminder}
           />
@@ -143,9 +150,11 @@ export default function StreakFlame({
 }
 
 function Popover({
+  presence,
   adherence,
   onToggleReminder,
 }: {
+  presence: PresenceState;
   adherence: AdherenceState;
   onToggleReminder: () => void;
 }) {
@@ -164,7 +173,10 @@ function Popover({
         boxShadow: "0 16px 40px rgba(44,40,35,0.18)",
         padding: 18,
         zIndex: 41,
-        animation: "fadeUp .18s both",
+        animation:
+          presence === "in"
+            ? `fadeUp ${motion.duration.fast}ms ${motion.ease.enter} both`
+            : `fadeDown ${POPOVER_EXIT_MS}ms ${motion.ease.exit} both`,
       }}
     >
       <div

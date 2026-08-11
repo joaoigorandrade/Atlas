@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PHASES,
   PHASE_SKIP_NUDGE,
@@ -16,7 +16,8 @@ import {
   type NodeState,
   type ShakyReason,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, motion } from "@/lib/theme";
+import { usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 
 import Rich from "@/components/Rich";
@@ -103,7 +104,39 @@ interface NodeDetailProps {
   onSkipKnown: (node: ConceptNode) => void;
 }
 
+/**
+ * The right rail. A drawer, so it arrives from the edge it lives on and leaves
+ * the same way — `open` going false starts the exit rather than deleting the
+ * panel mid-air, and the last node is held back so there is something to
+ * animate out.
+ */
 export default function NodeDetail({
+  visible,
+  node,
+  displayState,
+  ...rest
+}: Omit<NodeDetailProps, "node" | "displayState"> & {
+  /** Collapsed by the narrow-viewport rail, and false with nothing selected. */
+  visible: boolean;
+  node: ConceptNode | null;
+  displayState: NodeState | null;
+}) {
+  const open = visible && Boolean(node && displayState);
+  const { mounted, state } = usePresence(open, EXIT_MS);
+  const last = useRef<NodeDetailProps | null>(null);
+  useEffect(() => {
+    if (node && displayState) last.current = { node, displayState, ...rest };
+  });
+
+  const shown = node && displayState ? { node, displayState, ...rest } : last.current;
+  if (!mounted || !shown) return null;
+  return <NodeDetailBody {...shown} presence={state} />;
+}
+
+const EXIT_MS = motion.duration.base;
+
+function NodeDetailBody({
+  presence,
   node,
   displayState,
   nodes,
@@ -116,7 +149,7 @@ export default function NodeDetail({
   onPrimaryAction,
   onPhaseAction,
   onSkipKnown,
-}: NodeDetailProps) {
+}: NodeDetailProps & { presence: PresenceState }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
   const labelOf = (id: string) =>
@@ -204,7 +237,10 @@ export default function NodeDetail({
         padding: "28px 26px",
         zIndex: 15,
         overflowY: "auto",
-        animation: "softIn 0.3s both",
+        animation:
+          presence === "in"
+            ? `drawerIn ${motion.duration.slow}ms ${motion.ease.enter} both`
+            : `drawerOut ${EXIT_MS}ms ${motion.ease.exit} both`,
       }}
     >
       <div

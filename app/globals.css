@@ -162,6 +162,64 @@ textarea {
   }
 }
 
+/* Exit vocabulary. Nothing in the app used to leave — every overlay, drawer and
+   toast vanished on the frame its state went false. Each of these pairs with the
+   enter keyframe above it, driven by `usePresence` in `lib/motion.ts`. */
+@keyframes softOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes modelOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+
+/* The right rail is a drawer; it should arrive from the edge it lives on
+   rather than fading in place. */
+@keyframes drawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawerOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+}
+
 /* Loading vocabulary: an ink dot keeping time, a stroke drawn across the page. */
 @keyframes inkDot {
   0%,

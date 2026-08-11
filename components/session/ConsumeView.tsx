@@ -18,7 +18,8 @@ import {
   type ConsumeProgress,
 } from "@/lib/curriculum";
 import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
-import { color, font, kicker, transition } from "@/lib/theme";
+import { color, font, kicker, motion, transition } from "@/lib/theme";
+import { usePresence } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 
 import Rich from "@/components/Rich";
@@ -957,6 +958,7 @@ function SectionCheck({
  *  enough to read a couple of sentences, short enough that nobody sits waiting
  *  — and skippable either way ("Next beat", "Show all"). */
 const BEAT_MS = 3400;
+const MODEL_EXIT_MS = motion.duration.fast;
 
 /**
  * The model view: one lens, opened over the section it belongs to.
@@ -972,12 +974,15 @@ const BEAT_MS = 3400;
  * beats streamed in over ten seconds or came back cached in ten milliseconds.
  */
 function ModelView({
+  open,
   lens,
   chunk,
   beats,
   streaming,
   onClose,
 }: {
+  /** False plays the leave animation; the dialog unmounts when it finishes. */
+  open: boolean;
   lens: AltKey;
   chunk: ConsumeChunk;
   beats: ConsumeModelBeat[];
@@ -988,6 +993,7 @@ function ModelView({
   const { language } = useLanguage();
   const label = new Map(altControls(language)).get(lens) ?? lens;
   const bodyRef = useRef<HTMLDivElement>(null);
+  const { mounted, state } = usePresence(open, MODEL_EXIT_MS);
 
   // Beats on screen so far. Never runs ahead of what has actually arrived, so
   // the cascade and the stream share one counter.
@@ -1017,6 +1023,7 @@ function ModelView({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  if (!mounted) return null;
   return (
     <div
       role="dialog"
@@ -1033,7 +1040,10 @@ function ModelView({
         padding: 24,
         background: "rgba(28,25,21,0.42)",
         backdropFilter: "blur(3px)",
-        animation: "softIn .22s both",
+        animation:
+          state === "in"
+            ? `softIn ${motion.duration.base}ms ${motion.ease.enter} both`
+            : `softOut ${MODEL_EXIT_MS}ms ${motion.ease.exit} both`,
       }}
     >
       <div
@@ -1048,7 +1058,10 @@ function ModelView({
           borderRadius: 16,
           boxShadow: "0 24px 60px rgba(28,25,21,0.28)",
           overflow: "hidden",
-          animation: "modelIn .3s cubic-bezier(.2,.8,.3,1) both",
+          animation:
+            state === "in"
+              ? `modelIn ${motion.duration.slow}ms ${motion.ease.enter} both`
+              : `modelOut ${MODEL_EXIT_MS}ms ${motion.ease.exit} both`,
         }}
       >
         {/* Header — which lens, over which section */}
@@ -1383,6 +1396,20 @@ export default function ConsumeView({
   const modelChunk = session.model
     ? chunks.find((c) => c.id === session.model?.chunkId)
     : undefined;
+  // The lens dialog animates out after `session.model` has already cleared, so
+  // the last open one is held back for those frames.
+  const lastModel = useRef<{
+    key: string;
+    lens: AltKey;
+    chunk: ConsumeChunk;
+  } | null>(null);
+  if (session.model && modelChunk) {
+    lastModel.current = {
+      key: `${session.model.chunkId}:${session.model.lens}`,
+      lens: session.model.lens,
+      chunk: modelChunk,
+    };
+  }
 
   let simpleCount = 0;
   for (const c of chunks) if (lensOf(c.id) === "simpler") simpleCount++;
@@ -2383,11 +2410,18 @@ export default function ConsumeView({
           left it — the moment this closes. Keyed on section + lens so
           switching lenses restarts the cascade rather than continuing the
           previous one's count. */}
-      {modelChunk && session.model && (
+      {(modelChunk && session.model ? true : lastModel.current !== null) && (
         <ModelView
-          key={`${session.model.chunkId}:${session.model.lens}`}
-          lens={session.model.lens}
-          chunk={modelChunk}
+          key={
+            modelChunk && session.model
+              ? `${session.model.chunkId}:${session.model.lens}`
+              : lastModel.current!.key
+          }
+          open={Boolean(modelChunk && session.model)}
+          lens={
+            session.model?.lens ?? (lastModel.current!.lens as AltKey)
+          }
+          chunk={modelChunk ?? lastModel.current!.chunk}
           beats={modelBeats ?? []}
           streaming={modelStreaming}
           onClose={onCloseModel}

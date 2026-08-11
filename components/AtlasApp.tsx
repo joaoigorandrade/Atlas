@@ -367,6 +367,9 @@ export default function AtlasApp({
   const [retainContent, setRetainContent] = useState<RetainContent | null>(null);
   // The "AI is writing this" overlay, or null.
   const [loading, setLoading] = useState<{ phase: string; message: string } | null>(null);
+  // Held so the overlay has copy to render while it fades out.
+  const lastLoading = useRef<{ phase: string; message: string } | null>(null);
+  if (loading) lastLoading.current = loading;
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
@@ -514,6 +517,7 @@ export default function AtlasApp({
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const momentumRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastSeq = useRef(0);
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -525,7 +529,10 @@ export default function AtlasApp({
   }, []);
 
   const showToast = useCallback((message: string, kicker?: string) => {
-    setToast({ message, kicker });
+    // `seq` keys the toast, so a second one replays its entrance instead of
+    // swapping text inside an element that has already finished animating.
+    toastSeq.current += 1;
+    setToast({ message, kicker, seq: toastSeq.current });
     if (toastRef.current) clearTimeout(toastRef.current);
     toastRef.current = setTimeout(() => setToast(null), kicker ? 3400 : 2400);
   }, []);
@@ -4089,22 +4096,27 @@ export default function AtlasApp({
               }}
             />
           )}
-          {(!narrow || detailOpen) && selectedNode && selectedDisplayState && (
-            <NodeDetail
-              node={selectedNode}
-              displayState={selectedDisplayState}
-              nodes={graph.nodes}
-              edges={graph.edges}
-              display={display}
-              reviewed={reviewedNodes.includes(selectedNode.id)}
-              shakyReason={shakyReasons[selectedNode.id]}
-              consumeProgress={consumeProgress[selectedNode.id]}
-              onSelect={setSelectedId}
-              onPrimaryAction={onPrimaryAction}
-              onPhaseAction={onPhaseAction}
-              onSkipKnown={skipKnown}
-            />
-          )}
+          {/* Always mounted: the drawer owns its own enter and exit, so it
+              needs to outlive the selection it is animating away from. */}
+          <NodeDetail
+            visible={!narrow || detailOpen}
+            node={selectedNode}
+            displayState={selectedDisplayState}
+            nodes={graph.nodes}
+            edges={graph.edges}
+            display={display}
+            reviewed={
+              selectedNode ? reviewedNodes.includes(selectedNode.id) : false
+            }
+            shakyReason={selectedNode ? shakyReasons[selectedNode.id] : undefined}
+            consumeProgress={
+              selectedNode ? consumeProgress[selectedNode.id] : undefined
+            }
+            onSelect={setSelectedId}
+            onPrimaryAction={onPrimaryAction}
+            onPhaseAction={onPhaseAction}
+            onSkipKnown={skipKnown}
+          />
           {narrow && (
             // Collapsed-rail toggles for laptop-narrow widths (#8).
             <>
@@ -4370,9 +4382,15 @@ export default function AtlasApp({
         />
       )}
 
-      {loading && <GeneratingOverlay phase={loading.phase} message={loading.message} />}
+      {/* Mounted through its own fade-out; `loading` is already null by then,
+          so the last phase/message are kept for the exit frame. */}
+      <GeneratingOverlay
+        open={Boolean(loading)}
+        phase={loading?.phase ?? lastLoading.current?.phase ?? ""}
+        message={loading?.message ?? lastLoading.current?.message ?? ""}
+      />
 
-      {toast && <Toast toast={toast} />}
+      <Toast toast={toast} />
 
       <ScreenTimer />
     </div>
