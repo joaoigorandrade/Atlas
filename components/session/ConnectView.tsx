@@ -14,6 +14,8 @@ import {
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // Connect owns the violet accent; candidate dots borrow mastered green (they're
@@ -97,6 +99,9 @@ const STRINGS = {
 } as const;
 
 interface ConnectViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The elaboration content for this node (concept web, links, mnemonics). */
   content: ElaborationContent;
   session: ConnectSession;
@@ -128,6 +133,7 @@ export default function ConnectView({
   onDraftMnemonic,
   onAcceptMnemonic,
   onFinish,
+  presence,
 }: ConnectViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -141,20 +147,7 @@ export default function ConnectView({
   const cy = content.center.y;
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Session · Connect · title · phase breadcrumb */}
       <div
         style={{
@@ -397,7 +390,7 @@ export default function ConnectView({
           </div>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

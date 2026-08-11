@@ -25,6 +25,8 @@ import {
 import { color, font, kicker, transition } from "@/lib/theme";
 import StreakFlame from "@/components/map/StreakFlame";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // The micro-Socratic aside borrows Connect's violet; the fail re-explanation
@@ -96,6 +98,9 @@ const STRINGS = {
 } as const;
 
 interface RetainViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The generated review queue (cards + forecast + budget). */
   content: RetainContent;
   session: RetainSession;
@@ -136,26 +141,14 @@ export default function RetainView({
   onToggleAside,
   onReteach,
   onContinue,
+  presence,
 }: RetainViewProps) {
   const t = useT(STRINGS);
   const card = reviewCard(session, content);
   const budget = retainBudget(session, content);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Retain · Review · honest queue chip */}
       <div
         style={{
@@ -261,7 +254,7 @@ export default function RetainView({
           <Sidebar content={content} budget={budget} />
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

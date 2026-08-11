@@ -21,6 +21,8 @@ import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker, motion, transition } from "@/lib/theme";
 import { usePresence } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // Consume is a Learning-phase surface: its accents borrow the shared state
@@ -222,6 +224,9 @@ export interface ConsumeSession extends ConsumeProgress {
 }
 
 interface ConsumeViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
   /** The subject — context for judging the open-ended prediction. */
@@ -1350,6 +1355,7 @@ export default function ConsumeView({
   onAskPassage,
   onSkipCrucible,
   onRoutePrereq,
+  presence,
 }: ConsumeViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -1501,18 +1507,9 @@ export default function ConsumeView({
     );
 
     return (
-      <div
+      <Sheet
+        presence={presence}
         style={{
-          position: "absolute",
-          inset: 0,
-          background: color.paper,
-          color: color.ink,
-          display: "flex",
-          flexDirection: "column",
-          fontFamily: font.sans,
-          fontSize: 15,
-          zIndex: 30,
-          animation: "softIn 0.3s both",
           overflowY: "auto",
         }}
       >
@@ -1661,25 +1658,12 @@ export default function ConsumeView({
             </button>
           </div>
         </div>
-      </div>
+      </Sheet>
     );
   }
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header */}
       <div
         style={{
@@ -2427,6 +2411,6 @@ export default function ConsumeView({
           onClose={onCloseModel}
         />
       )}
-    </div>
+    </Sheet>
   );
 }

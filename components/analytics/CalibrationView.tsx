@@ -14,6 +14,8 @@ import {
 } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -93,6 +95,9 @@ const px = (c: number) => X0 + (c / 100) * W;
 const py = (a: number) => YB - (a / 100) * H;
 
 interface CalibrationViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** Every confidence-vs-performance reading, resolved with verdict + label. */
   items: CalibItem[];
   onExit: () => void;
@@ -104,23 +109,11 @@ export default function CalibrationView({
   items,
   onExit,
   onCloseGap,
+  presence,
 }: CalibrationViewProps) {
   const t = useT(STRINGS);
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Analytics · Calibration */}
       <div
         style={{
@@ -183,7 +176,7 @@ export default function CalibrationView({
           <Readout items={items} onCloseGap={onCloseGap} />
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

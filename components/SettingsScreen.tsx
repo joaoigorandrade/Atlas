@@ -13,6 +13,8 @@ import {
 import { useVoicePrefs, useVoiceSupport } from "@/lib/speech";
 import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -94,6 +96,8 @@ const STRINGS = {
 // export (map JSON, cards JSON + Anki-importable CSV).
 
 interface SettingsScreenProps {
+  /** Enter/leave state for the shared `Sheet` root. */
+  presence: PresenceState;
   form: OnboardingForm;
   adherence: AdherenceState;
   onChange: (patch: Partial<OnboardingForm>) => void;
@@ -217,6 +221,7 @@ export default function SettingsScreen({
   onExportCardsCsv,
   onDeleteAccount,
   onExit,
+  presence,
 }: SettingsScreenProps) {
   const t = useT(STRINGS);
   const { language, setLanguage } = useLanguage();
@@ -226,16 +231,9 @@ export default function SettingsScreen({
   const voiceSupport = useVoiceSupport();
   const voiceMissing = !voiceSupport.dictation && !voiceSupport.readAloud;
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        overflowY: "auto",
-        display: "flex",
-        justifyContent: "center",
-        background: color.paper,
-        zIndex: 30,
-      }}
+    <Sheet
+      presence={presence}
+      style={{ overflowY: "auto", flexDirection: "row", justifyContent: "center" }}
     >
       <div
         style={{
@@ -467,6 +465,6 @@ export default function SettingsScreen({
           </div>
         </Section>
       </div>
-    </div>
+    </Sheet>
   );
 }

@@ -19,6 +19,8 @@ import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // Feynman borrows the shared state colors: learning blue for the naive
@@ -139,6 +141,9 @@ const STRINGS = {
 } as const;
 
 interface FeynmanViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The rubric rows for this node — never shown before the explanation. */
   beats: FeynmanBeat[];
   /** The node being taught back — titles the view. */
@@ -182,6 +187,7 @@ export default function FeynmanView({
   onFix,
   onTeachAgain,
   onAdvance,
+  presence,
 }: FeynmanViewProps) {
   const t = useT(STRINGS);
 
@@ -199,20 +205,7 @@ export default function FeynmanView({
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Session · Feynman · title · the student persona */}
       <div
         style={{
@@ -301,7 +294,7 @@ export default function FeynmanView({
       >
         {breadcrumb}
       </div>
-    </div>
+    </Sheet>
   );
 }
 

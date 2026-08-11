@@ -16,6 +16,8 @@ import { InkDots } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
+import Sheet from "@/components/Sheet";
+import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
 // The Crucible owns the deep-rust accent; the transfer diagnostic borrows the
@@ -111,6 +113,9 @@ const STRINGS = {
 } as const;
 
 interface CrucibleViewProps {
+  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
+   *  screen mounted through its exit. */
+  presence: PresenceState;
   /** The transfer content for this node (problem ladder, interleaved draws, gap). */
   content: CrucibleContent;
   session: CrucibleSession;
@@ -145,6 +150,7 @@ export default function CrucibleView({
   onToggleReExplain,
   onRetry,
   onFinish,
+  presence,
 }: CrucibleViewProps) {
   const t = useT(STRINGS);
   const problem = crucibleProblem(session, content);
@@ -152,20 +158,7 @@ export default function CrucibleView({
   const isWork = session.stage === "work";
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: color.paper,
-        color: color.ink,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: font.sans,
-        fontSize: 15,
-        zIndex: 30,
-        animation: "softIn 0.3s both",
-      }}
-    >
+    <Sheet presence={presence}>
       {/* Header — ← Map · Session · Crucible · title · phase breadcrumb */}
       <div
         style={{
@@ -363,7 +356,7 @@ export default function CrucibleView({
           )}
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

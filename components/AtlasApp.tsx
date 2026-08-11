@@ -166,11 +166,24 @@ import MapCanvas, {
   CELEBRATE_MS,
   type ViewTransform,
 } from "@/components/map/MapCanvas";
-import { useEarned } from "@/lib/motion";
+import { usePresence, useEarned } from "@/lib/motion";
+import { SHEET_EXIT_MS } from "@/components/Sheet";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
 import Toast, { type ToastData } from "@/components/Toast";
 import ScreenTimer from "@/components/ScreenTimer";
+
+/** Screens that render as a full-screen `Sheet` over the map. */
+const SHEET_SCREENS = new Set<Screen>([
+  "consume",
+  "socratic",
+  "feynman",
+  "connect",
+  "crucible",
+  "review",
+  "calibration",
+  "settings",
+]);
 
 /** The state changes worth marking on the map. Reaching the frontier isn't one
  *  — that's derived, and it's the map telling you where to go, not a result. */
@@ -3634,9 +3647,26 @@ export default function AtlasApp({
   // ---- derived ----------------------------------------------------------
 
   const isMap = screen === "map";
+  // The full-screen surfaces. They animate out, which means the screen they
+  // belong to has to outlive `screen` moving on — `sheetScreen` lags behind for
+  // exactly the length of the leave. Their session state is not torn down on
+  // exit (`exitConsume` and friends only set the screen), so the outgoing view
+  // still has everything it needs to draw those last frames.
+  const onSheet = SHEET_SCREENS.has(screen);
+  const sheet = usePresence(onSheet, SHEET_EXIT_MS);
+  const lastSheet = useRef<Screen | null>(null);
+  if (onSheet) lastSheet.current = screen;
+  const sheetScreen = onSheet ? screen : lastSheet.current;
   // The canvas backs onboarding + the map, but Consume is a full surface.
+  // Kept mounted underneath a sheet as well, so a session genuinely rises off
+  // the map and settles back onto it instead of onto blank paper. The canvas is
+  // inert behind an opaque surface — it re-renders only when the graph or the
+  // mastery states move, which during a session is a handful of times.
   const showCanvas =
-    screen === "building" || screen === "diagnostic" || screen === "map";
+    screen === "building" ||
+    screen === "diagnostic" ||
+    screen === "map" ||
+    sheet.mounted;
   // Before the real map exists, assemble a placeholder territory instead of
   // an empty canvas — swapped for the real graph the instant it streams in.
   const usingFakeMap = screen === "building" && graph.nodes.length === 0;
@@ -4240,8 +4270,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "settings" && (
+      {sheetScreen === "settings" && (
         <SettingsScreen
+          presence={sheet.state}
           form={form}
           adherence={adherence}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
@@ -4270,8 +4301,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "consume" && consume && consumeChunks && (
+      {sheetScreen === "consume" && consume && consumeChunks && (
         <ConsumeView
+          presence={sheet.state}
           topic={form.topic}
           title={
             graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"
@@ -4298,8 +4330,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "socratic" && socratic && socraticSteps && (
+      {sheetScreen === "socratic" && socratic && socraticSteps && (
         <SocraticView
+          presence={sheet.state}
           title={
             graph.nodes.find((n) => n.id === socratic.nodeId)?.label ??
             "Concept"
@@ -4318,8 +4351,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "feynman" && feynman && feynmanBeats && (
+      {sheetScreen === "feynman" && feynman && feynmanBeats && (
         <FeynmanView
+          presence={sheet.state}
           topic={form.topic}
           title={
             graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"
@@ -4340,8 +4374,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "connect" && connect && connectContent && (
+      {sheetScreen === "connect" && connect && connectContent && (
         <ConnectView
+          presence={sheet.state}
           content={connectContent}
           session={connect}
           onExit={exitConnect}
@@ -4359,8 +4394,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "crucible" && crucible && crucibleContent && (
+      {sheetScreen === "crucible" && crucible && crucibleContent && (
         <CrucibleView
+          presence={sheet.state}
           content={crucibleContent}
           session={crucible}
           judging={judging}
@@ -4375,8 +4411,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "review" && retain && retainContent && (
+      {sheetScreen === "review" && retain && retainContent && (
         <RetainView
+          presence={sheet.state}
           content={retainContent}
           session={retain}
           nodeLabel={
@@ -4396,8 +4433,9 @@ export default function AtlasApp({
         />
       )}
 
-      {screen === "calibration" && (
+      {sheetScreen === "calibration" && (
         <CalibrationView
+          presence={sheet.state}
           items={calib}
           onExit={exitCalib}
           onCloseGap={closeCalibGap}
