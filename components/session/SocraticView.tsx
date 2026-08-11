@@ -12,6 +12,7 @@ import {
   type SocraticTurn,
 } from "@/lib/curriculum";
 import { InkDots, StreamingText } from "@/components/Pending";
+import { InlineError } from "@/components/ErrorState";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -26,6 +27,8 @@ const STRINGS = {
     scaffolding: "Scaffolding",
     breadcrumbLead:
       "Construct the idea · I catch wrong turns, I don’t smooth them over",
+    judgeFailed: "That answer didn’t get graded — nothing was lost.",
+    judgeRetry: "Grade it again",
     doneGap: "Sub-point rebuilt — this gap can close.",
     doneUnderstood: "Understanding established — you reconstructed it unaided.",
     doneAssisted: "Understanding built — with a nudge along the way.",
@@ -44,6 +47,8 @@ const STRINGS = {
   },
   "pt-BR": {
     back: "← Mapa",
+    judgeFailed: "Essa resposta não foi avaliada — nada foi perdido.",
+    judgeRetry: "Avaliar de novo",
     sessionLabel: "Sessão · Socrático",
     scaffolding: "Apoio",
     breadcrumbLead:
@@ -92,6 +97,9 @@ interface SocraticViewProps {
    *  fades on its own. */
   onHelpChange: (level: HelpLevel) => void;
   onAdvance: () => void;
+  /** Re-run the judge on the answer already in the transcript, for a turn whose
+   *  grading failed. Absent when there is nothing to retry. */
+  onRetryJudge?: () => void;
 }
 
 /** Per-tone accent for an AI bubble: a caught error, an affirmation, teaching. */
@@ -119,6 +127,7 @@ export default function SocraticView({
   onTell,
   onHelpChange,
   onAdvance,
+  onRetryJudge,
   presence,
 }: SocraticViewProps) {
   const t = useT(STRINGS);
@@ -253,7 +262,13 @@ export default function SocraticView({
                 {t.breadcrumbLead}
               </div>
               {session.log.map((m, i) => (
-                <Turn key={i} turn={m} />
+                <Turn
+                  key={i}
+                  turn={m}
+                  failedMessage={t.judgeFailed}
+                  retryLabel={t.judgeRetry}
+                  onRetry={onRetryJudge}
+                />
               ))}
             </div>
           </div>
@@ -486,7 +501,17 @@ function HelpDial({
 }
 
 /** One transcript line — an AI probe with its move tag, or a learner reply. */
-function Turn({ turn }: { turn: SocraticTurn }) {
+function Turn({
+  turn,
+  failedMessage,
+  retryLabel,
+  onRetry,
+}: {
+  turn: SocraticTurn;
+  failedMessage: string;
+  retryLabel: string;
+  onRetry?: () => void;
+}) {
   if (turn.role === "learner") {
     return (
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
@@ -539,9 +564,20 @@ function Turn({ turn }: { turn: SocraticTurn }) {
           color: color.ink,
         }}
       >
-        {/* The verdict has landed and the tutor's wording is still arriving —
-            it types itself into the bubble rather than swapping in whole. */}
-        <StreamingText text={turn.text} writing={!!turn.pending} />
+        {/* A judge call that never came back. The failure used to be written
+            in here as the tutor's own words; now the bubble says plainly that
+            nothing was graded, and offers to try again. */}
+        {turn.failed ? (
+          <InlineError
+            message={failedMessage}
+            retryLabel={retryLabel}
+            onRetry={onRetry}
+          />
+        ) : (
+          /* The verdict has landed and the tutor's wording is still arriving —
+             it types itself into the bubble rather than swapping in whole. */
+          <StreamingText text={turn.text} writing={!!turn.pending} />
+        )}
       </div>
     </div>
   );

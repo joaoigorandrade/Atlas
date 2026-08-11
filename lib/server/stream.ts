@@ -19,9 +19,32 @@
  *  token-by-token layer. It is for rendering only: it never validated, so it is
  *  dropped before assembly (below) and before caching, and a complete frame for
  *  the same slot always follows and replaces it. */
+import { toAtlasError } from "@/lib/errors";
+
 export type StreamFrame =
   | { p: string; v: unknown; partial?: true }
   | { p: string; i: number; v: unknown; partial?: true };
+
+/**
+ * The reserved part name for a stream that died after it had already committed
+ * to a 200.
+ *
+ * This is the frame that closes the app's oldest silent failure: once the first
+ * frame is out the status is fixed, so a mid-stream collapse used to reach the
+ * client as a short-but-successful response — the learner got four of six
+ * sections and no indication there were ever six. Now the reader sees this and
+ * throws, keeping whatever landed on screen and offering a retry under it.
+ *
+ * It is never part of a payload: `framesToPayload` refuses any frame set
+ * containing one, and the client's `collectFrames` only ever gathers the part
+ * it was asked for.
+ */
+export const ERROR_PART = "__error";
+
+export interface StreamErrorFrame {
+  p: typeof ERROR_PART;
+  v: { code: string; message: string; requestId?: string };
+}
 
 /**
  * What a complete payload looks like: each part name mapped to `"one"` (a
@@ -65,6 +88,13 @@ export function framesToPayload(
   frames: StreamFrame[],
   shapes: StreamShapes,
 ): Record<string, unknown> | null {
+  // An errored stream is not a payload at any shape. This has to be explicit:
+  // `assemble` walks the *shape's* parts and would simply never look at an
+  // unknown one, so `__error` would otherwise pass through unnoticed. In
+  // practice `onComplete` only fires on a clean finish, which makes this
+  // defence in depth — and worth it, because the thing on the other side is
+  // `content_cache`, whose hits skip validation and are shared across users.
+  if (frames.some((f) => f.p === ERROR_PART)) return null;
   // Partial redraws are never part of a payload: they were never validated,
   // and a cache hit is served without re-validation.
   const complete = frames.filter((f) => !f.partial);
@@ -137,13 +167,18 @@ export function payloadToFrames(
   return frames;
 }
 
-const NDJSON_HEADERS = (cache: "hit" | "miss") => ({
+const NDJSON_HEADERS = (cache: "hit" | "miss", requestId?: string) => ({
   "Content-Type": "application/x-ndjson",
   "x-atlas-cache": cache,
+  ...(requestId ? { "x-atlas-request-id": requestId } : null),
 });
 
 /** A fully-known frame list, written out at once. Used for cache hits. */
-export function ndjsonResponse(frames: StreamFrame[], cache: "hit" | "miss"): Response {
+export function ndjsonResponse(
+  frames: StreamFrame[],
+  cache: "hit" | "miss",
+  requestId?: string,
+): Response {
   const enc = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -151,7 +186,7 @@ export function ndjsonResponse(frames: StreamFrame[], cache: "hit" | "miss"): Re
       controller.close();
     },
   });
-  return new Response(stream, { headers: NDJSON_HEADERS(cache) });
+  return new Response(stream, { headers: NDJSON_HEADERS(cache, requestId) });
 }
 
 /**
@@ -171,6 +206,9 @@ export async function ndjsonStream(
     onComplete: (frames: StreamFrame[]) => void;
     onError: (err: unknown, phase: "first" | "mid") => void;
     errorResponse: (err: unknown) => Response;
+    /** Travels in the terminal error frame, so a learner's report about a
+     *  half-written screen finds the server line that explains it. */
+    requestId?: string;
   },
 ): Promise<Response> {
   let first: IteratorResult<StreamFrame>;
@@ -201,10 +239,29 @@ export async function ndjsonStream(
         opts.onComplete(frames);
       } catch (err) {
         opts.onError(err, "mid");
+        // The status is long since fixed at 200, so this frame is the only way
+        // to tell the client the rest is not coming. Best-effort: if the socket
+        // is already gone the enqueue throws, and there is nobody left to tell.
+        try {
+          const atlas = toAtlasError(err);
+          const frame: StreamErrorFrame = {
+            p: ERROR_PART,
+            v: {
+              code: atlas.code,
+              message: atlas.message.slice(0, 300),
+              requestId: opts.requestId,
+            },
+          };
+          controller.enqueue(enc.encode(JSON.stringify(frame) + "\n"));
+        } catch {
+          // Nothing to do — the reader is gone.
+        }
       } finally {
         controller.close();
       }
     },
   });
-  return new Response(stream, { headers: NDJSON_HEADERS("miss") });
+  return new Response(stream, {
+    headers: NDJSON_HEADERS("miss", opts.requestId),
+  });
 }

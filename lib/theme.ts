@@ -16,6 +16,11 @@ export const color = {
   amberInk: "#a06a30",
   amberBg: "#faf3e6",
   successBg: "#eef4ee",
+  // The failure pair, built the way the amber one is: a desaturated ink at the
+  // same lightness over a paper-tinted ground, so an error reads as urgent
+  // without leaving the palette. Nothing else in the app is this red.
+  dangerInk: "#9a4034",
+  dangerBg: "#f9edea",
   hairline: "rgba(44,40,35,0.1)",
   hairlineStrong: "rgba(44,40,35,0.14)",
 } as const;

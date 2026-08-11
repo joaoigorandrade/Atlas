@@ -38,6 +38,19 @@ export interface WarmQueue {
   drop(key: string): void;
   /** Drop everything — a new map invalidates every key. */
   clear(): void;
+  /**
+   * Stop dispatching queued warms. Anything already running is left alone —
+   * cancelling an in-flight generation would waste the model call that was
+   * already paid for, and it may well land.
+   *
+   * This is what the offline state drives. Without it, losing the network means
+   * the queue burns through every warm it has, each failing instantly, dropping
+   * its key and taking the deduplication with it — so the reconnect is followed
+   * by a stampede of regenerations for content that was nearly ready.
+   */
+  suspend(): void;
+  /** Resume dispatching. Queued warms pick up where they left off. */
+  resume(): void;
 }
 
 /** Schedule background work off the critical path where the browser allows. */
@@ -59,6 +72,7 @@ export function createWarmQueue(): WarmQueue {
   const entries = new Map<string, Entry>();
   const queue: string[] = [];
   let active = 0;
+  let suspended = false;
 
   /** Start `entry` now, settling its shared promise when the task lands. */
   function start(key: string, entry: Entry): void {
@@ -83,6 +97,7 @@ export function createWarmQueue(): WarmQueue {
   }
 
   function pump(): void {
+    if (suspended) return;
     while (active < MAX_CONCURRENT && queue.length > 0) {
       const key = queue.shift()!;
       const entry = entries.get(key);
@@ -97,6 +112,10 @@ export function createWarmQueue(): WarmQueue {
     task: () => Promise<T>,
     foreground = false,
   ): Promise<T> {
+    // A foreground call is a learner waiting on a screen, so it starts even
+    // while the background queue is held — being offline is a reason not to
+    // speculate, never a reason to refuse what was actually asked for. It fails
+    // fast and surfaces properly if there really is no network.
     const existing = entries.get(key);
     if (existing) {
       // Someone is waiting on a warm that hasn't started — start it now.
@@ -152,6 +171,14 @@ export function createWarmQueue(): WarmQueue {
       // decrement it when they land, and zeroing it here would go negative.
       entries.clear();
       queue.length = 0;
+    },
+    suspend() {
+      suspended = true;
+    },
+    resume() {
+      if (!suspended) return;
+      suspended = false;
+      pump();
     },
   };
 }

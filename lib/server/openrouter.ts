@@ -48,6 +48,7 @@ class OpenRouterError extends Error {
   status: number;
   constructor(message: string, status: number) {
     super(message);
+    this.name = "OpenRouterError";
     this.status = status;
   }
 }

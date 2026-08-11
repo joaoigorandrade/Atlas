@@ -575,6 +575,15 @@ export interface SocraticTurn {
    *  streams the two separately). The view shows the bubble as still-writing;
    *  `stream` fills it in. At most one turn is pending at a time. */
   pending?: boolean;
+  /**
+   * The judge never answered, so this bubble has nothing in it and never will.
+   *
+   * It exists because the alternative was worse: the failure used to be written
+   * *into* the bubble as `text`, which put "OpenRouter 502" on screen in the
+   * tutor's own voice, as though the tutor had said it. A turn that failed is
+   * marked, not spoken — the view renders a retry in its place.
+   */
+  failed?: boolean;
 }
 
 /** How a finished step was resolved — earns the ending differently. */
@@ -698,6 +707,14 @@ export type SocraticAction =
    *  true for the token-by-token drafts, so every later draft still finds the
    *  turn it is filling; the final one clears it. */
   | { type: "stream"; text: string; pending?: boolean }
+  /** The judge call for the pending turn failed. Clears `pending` so the bubble
+   *  stops claiming to be writing, and flags it so the view can offer a retry
+   *  instead of an empty reply. */
+  | { type: "judgeFailed" }
+  /** Put the failed bubble back to writing for a second judge attempt. The
+   *  learner's answer is already in the transcript, so a retry must re-open the
+   *  existing turn rather than send a second one. */
+  | { type: "retryJudge" }
   /** More steps have streamed in — open the one the session is parked on.
    *  `total` re-caps the pass when a stream ended short of the plan. */
   | { type: "hydrate"; total?: number };
@@ -724,6 +741,26 @@ export function socraticReducer(
         t.pending
           ? { ...t, text: action.text, pending: action.pending ? true : undefined }
           : t,
+      ),
+    };
+  }
+  // Same placement rationale as `stream`: the turn that failed may well be the
+  // one that would have finished the session.
+  if (action.type === "judgeFailed") {
+    if (!session.log.some((t) => t.pending)) return session;
+    return {
+      ...session,
+      log: session.log.map((t) =>
+        t.pending ? { ...t, pending: undefined, failed: true } : t,
+      ),
+    };
+  }
+  if (action.type === "retryJudge") {
+    if (!session.log.some((t) => t.failed)) return session;
+    return {
+      ...session,
+      log: session.log.map((t) =>
+        t.failed ? { ...t, failed: undefined, pending: true } : t,
       ),
     };
   }
