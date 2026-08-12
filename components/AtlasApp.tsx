@@ -316,6 +316,12 @@ export default function AtlasApp({
   // fetched — nothing renders before then, so a resumed run never flashes the
   // welcome screen. The generated content arrives separately, behind the map.
   const [hydrated, setHydrated] = useState(false);
+  // False only while a saved run's caches are still in flight. The caches
+  // writer is gated on it: without the gate its 4s debounce could fire before
+  // (or instead of, on a failed load) the background read landed, upserting an
+  // empty `caches` object over every rubric, chunk and elaboration the row
+  // held. A run with nothing to load — a map built this session — starts true.
+  const [cachesLoaded, setCachesLoaded] = useState(true);
   const [screen, setScreen] = useState<Screen>("welcome");
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
   const [answered, setAnswered] = useState(0);
@@ -865,15 +871,26 @@ export default function AtlasApp({
       setScreen("map");
       // A pre-v3 row still carries its caches inline; take them and skip
       // the second query.
-      if (row.inlineCaches) applyCaches(row.inlineCaches);
-      else
-        loadRunCaches(supabase, row.subject)
-          .then((c) => applyCaches(c))
-          // Genuinely non-fatal: the map is already drawn and every phase
-          // regenerates. Logged so a persistent failure is findable, not
-          // toasted — nothing the learner can do about it, and it costs them
-          // nothing but a wait they were going to have on a cold run anyway.
-          .catch((err: unknown) => logWarning("load_caches_failed", err));
+      if (row.inlineCaches) {
+        applyCaches(row.inlineCaches);
+        return;
+      }
+      setCachesLoaded(false);
+      withRetry(() => loadRunCaches(supabase, row.subject))
+        .then((c) => {
+          applyCaches(c);
+          setCachesLoaded(true);
+        })
+        // Genuinely non-fatal for *reading*: the map is already drawn and every
+        // phase regenerates (the shared `content_cache` still has them, so it
+        // is a round-trip, not a re-generation). Logged so a persistent failure
+        // is findable, not toasted — nothing the learner can do about it.
+        //
+        // `cachesLoaded` deliberately stays false: we know this row holds
+        // content we failed to read, and writing what we have over it would
+        // turn a failed read into permanent data loss. This run stops saving
+        // caches; the next load gets another chance at the row.
+        .catch((err: unknown) => logWarning("load_caches_failed", err));
     },
     [warm, applyCaches, supabase],
   );
@@ -1055,7 +1072,7 @@ export default function AtlasApp({
   // effect on a long debounce, so dragging a node no longer re-uploads every
   // chunk the run has ever generated.
   useEffect(() => {
-    if (!runActive) return;
+    if (!runActive || !cachesLoaded) return;
     const caches: RunCaches = {
       consume: consumeCache,
       models: modelCache,
@@ -1078,6 +1095,7 @@ export default function AtlasApp({
     return () => clearTimeout(timer);
   }, [
     runActive,
+    cachesLoaded,
     runSubject,
     supabase,
     consumeCache,
@@ -1193,6 +1211,7 @@ export default function AtlasApp({
           setConsumeProgress({});
           setModalityTally({});
           setSocraticProgress({});
+          setFeynmanProgress({});
           setConnectProgress({});
           setMisconceptions([]);
           setCards([]);
@@ -1380,9 +1399,14 @@ export default function AtlasApp({
     setConnectCache({});
     setCrucibleCache({});
     setRetainContent(null);
+    setCachesLoaded(true);
     setConsumeProgress({});
     setModalityTally({});
     setSocraticProgress({});
+    // Missed here and in `excludeTopic`, the unfinished teach-backs of the map
+    // being replaced survived into the new run's snapshot — persisted under the
+    // new subject, keyed by node ids that no longer exist.
+    setFeynmanProgress({});
     setConnectProgress({});
     setMisconceptions([]);
     setCalibSamples([]);
@@ -3033,12 +3057,22 @@ export default function AtlasApp({
               prev?.nodeId === session.nodeId ? { ...prev, jargon: j.jargon } : prev,
             );
         })
-        .catch((err: unknown) =>
+        .catch((err: unknown) => {
+          // Settle the session before surfacing the failure. `pending` is what
+          // the mirror effect below waits on, so a reaction that stopped
+          // mid-write used to leave the pass permanently unsaveable: the Gap
+          // Report was on screen, the verdicts were real, and stepping back to
+          // the map threw away a teach-back the learner had already given.
+          setFeynman((prev) =>
+            prev?.nodeId === session.nodeId && prev.pending
+              ? { ...prev, pending: false }
+              : prev,
+          );
           showError(err, {
             context: "judge",
             retry: () => feynmanTeachRef.current?.(text),
-          }),
-        )
+          });
+        })
         .finally(() => setJudging(false));
     },
     [feynmanBeatsFor, fileMisconception, showError],
