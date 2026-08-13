@@ -1478,6 +1478,34 @@ export function connectReducer(
   }
 }
 
+/**
+ * The prior-concept pool Connect's web is built from: ONLY nodes the learner
+ * has actually touched, most-owned first, capped at 8. There is deliberately
+ * no fallback to untouched nodes — offering concepts the learner has never met
+ * as "things you already know" is the bug elaboration exists to avoid. Empty
+ * means Connect has nothing to wire into yet.
+ */
+const CONNECT_POOL_STATES = ["mastered", "shaky", "learning"];
+
+export function connectPool(
+  nodes: ConceptNode[],
+  states: StateMap,
+  excludeId: string,
+): Array<{ id: string; label: string }> {
+  return nodes
+    .filter(
+      (n) =>
+        !n.gap && n.id !== excludeId && CONNECT_POOL_STATES.includes(states[n.id] ?? ""),
+    )
+    .sort(
+      (a, b) =>
+        CONNECT_POOL_STATES.indexOf(states[a.id] ?? "") -
+        CONNECT_POOL_STATES.indexOf(states[b.id] ?? ""),
+    )
+    .slice(0, 8)
+    .map((n) => ({ id: n.id, label: n.label }));
+}
+
 /** How many real links the learner has confirmed. */
 export function connectLinkedCount(session: ConnectSession): number {
   return Object.values(session.linked).filter(Boolean).length;

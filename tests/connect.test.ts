@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   connectCards,
   connectLinkedCount,
+  connectPool,
   connectReady,
   connectReducer,
   connectStart,
+  type ConceptNode,
   type ConnectSession,
   type ElaborationContent,
 } from "@/lib/curriculum";
@@ -172,5 +174,33 @@ describe("connect cards", () => {
     const s = run([{ type: "confirm", id: "vectors" }]);
     expect(connectCards(s, content, "en")[0].front).toContain("what’s the connection?");
     expect(connectCards(s, content, "pt-BR")[0].front).toContain("qual é a conexão?");
+  });
+});
+
+describe("connectPool", () => {
+  const nodes: ConceptNode[] = [
+    { id: "a", label: "A", state: "unknown", g: 1, week: 0, x: 0, y: 0 },
+    { id: "b", label: "B", state: "unknown", g: 1, week: 0, x: 0, y: 0 },
+    { id: "c", label: "C", state: "unknown", g: 2, week: 0, x: 0, y: 0 },
+    { id: "d", label: "D", state: "unknown", g: 2, week: 0, x: 0, y: 0 },
+    { id: "g1", label: "Gap", state: "unknown", g: 2, week: 0, x: 0, y: 0, gap: true },
+  ];
+
+  it("offers only nodes the learner has touched — never untouched ones", () => {
+    // The bug: an untouched map used to fall back to the neighbourhood, asking
+    // the learner to wire into concepts they had never met.
+    expect(connectPool(nodes, {}, "a")).toEqual([]);
+    expect(connectPool(nodes, { b: "learning", c: "unknown" }, "a")).toEqual([
+      { id: "b", label: "B" },
+    ]);
+  });
+
+  it("drops gaps and the node being connected, most-owned first", () => {
+    const pool = connectPool(
+      nodes,
+      { a: "mastered", b: "learning", c: "mastered", d: "shaky", g1: "mastered" },
+      "a",
+    );
+    expect(pool.map((p) => p.id)).toEqual(["c", "d", "b"]);
   });
 });
