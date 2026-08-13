@@ -1214,7 +1214,11 @@ export function feynmanReducer(
       // the learner straight onto the blank page.
       return { ...session, started: true, scaffolded: true };
     case "stream":
-      if (!session.pending) return session;
+      // Gated on `reported`, not `pending`: a late frame from a pass the
+      // learner has already reset must not land, but a session settled early
+      // — the judge stream failed and its retry is filling the reaction in
+      // behind an open Gap Report — still has to be writable.
+      if (!session.reported) return session;
       return { ...session, response: action.text, pending: !!action.pending };
     case "taught": {
       if (session.reported) return session;

@@ -528,6 +528,33 @@ describe("feynmanReducer", () => {
     expect(s.pending).toBe(false);
   });
 
+  it("a retry fills the reaction into a report settled by a failed stream", () => {
+    // The judge stream died after the verdicts frame, so the session was
+    // settled (`pending: false`) with an empty reaction. Its retry has to be
+    // able to write into that open report — gating `stream` on `pending` made
+    // the retry a silent no-op and left the pass unsaveable.
+    let s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "good", b2: "good" }, response: "", pending: true },
+      beats,
+    );
+    s = { ...s, pending: false };
+    s = feynmanReducer(s, { type: "stream", text: "so you mean X." }, beats);
+    expect(s.response).toBe("so you mean X.");
+    expect(s.pending).toBe(false);
+  });
+
+  it("a late frame from a pass the learner reset is dropped", () => {
+    let s = feynmanReducer(
+      feynmanStart("n"),
+      { type: "taught", text: "t", verdicts: { b1: "good", b2: "good" }, response: "", pending: true },
+      beats,
+    );
+    s = feynmanReducer(s, { type: "teachAgain" }, beats);
+    s = feynmanReducer(s, { type: "stream", text: "stale reaction" }, beats);
+    expect(s.response).toBe("");
+  });
+
   it("a correct fix flips the verdict to good", () => {
     let s = feynmanReducer(
       feynmanStart("n"),
