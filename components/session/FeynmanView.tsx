@@ -42,6 +42,7 @@ const STRINGS = {
       "Blank page, no outline, no prompts — teach the whole thing in your own words. What you never think to mention is exactly what you don’t own yet.",
     startTeaching: "Start teaching →",
     dontKnowStart: "I don’t know where to start",
+    topicsHint: "Topics to cover (peeking costs you the diagnostic)",
     teachLead: "Teach it back · I’m the student who’s never heard of it",
     placeholderTeach:
       "Explain the whole concept in your own words — start anywhere, keep going until you’d be understood",
@@ -94,6 +95,7 @@ const STRINGS = {
       "Página em branco, sem roteiro, sem dicas — ensine tudo com suas próprias palavras. O que você nem pensa em mencionar é exatamente o que ainda não domina.",
     startTeaching: "Começar a ensinar →",
     dontKnowStart: "Não sei por onde começar",
+    topicsHint: "Tópicos para cobrir (espiar custa o diagnóstico)",
     teachLead: "Ensine de volta · sou o aluno que nunca ouviu falar disso",
     placeholderTeach:
       "Explique o conceito inteiro com suas próprias palavras — comece por onde quiser e siga até ser entendido",
@@ -197,10 +199,16 @@ export default function FeynmanView({
   const send = useCallback(() => {
     const text = typed.trim();
     if (text && !judging && ready) {
-      setTyped("");
       onTeach(text);
     }
   }, [judging, onTeach, ready, typed]);
+
+  // A fresh pass starts on a blank page; sending does not, so the learner can
+  // still read what they taught while the student is reading it.
+  const teachAgain = useCallback(() => {
+    setTyped("");
+    onTeachAgain();
+  }, [onTeachAgain]);
 
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
 
@@ -261,7 +269,7 @@ export default function FeynmanView({
             onOpenFix={onOpenFix}
             onCloseFix={onCloseFix}
             onFix={onFix}
-            onTeachAgain={onTeachAgain}
+            onTeachAgain={teachAgain}
             onAdvance={onAdvance}
           />
         ) : !session.started ? (
@@ -272,6 +280,7 @@ export default function FeynmanView({
           />
         ) : (
           <TeachPage
+            beats={beats}
             scaffolded={session.scaffolded}
             typed={typed}
             judging={judging}
@@ -440,6 +449,7 @@ function Prompt({
  *  the finding, and a prompt above the box would hand them over. Voice-first
  *  per §SPEC (speaking is closer to real teaching), typing always beside it. */
 function TeachPage({
+  beats,
   scaffolded,
   typed,
   judging,
@@ -447,6 +457,7 @@ function TeachPage({
   onChangeTyped,
   onSend,
 }: {
+  beats: FeynmanBeat[];
   scaffolded: boolean;
   typed: string;
   judging: boolean;
@@ -477,6 +488,30 @@ function TeachPage({
           >
             {feynmanScaffold(language)}
           </div>
+        )}
+
+        {beats.length > 0 && (
+          <details
+            open={scaffolded}
+            style={{
+              marginBottom: 14,
+              border: `1px solid ${color.hairlineStrong}`,
+              borderRadius: 10,
+              padding: "9px 13px",
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: color.inkMuted,
+            }}
+          >
+            <summary style={{ cursor: "pointer", color: color.inkFaint }}>
+              {t.topicsHint}
+            </summary>
+            <ul style={{ margin: "9px 0 0", paddingLeft: 18 }}>
+              {beats.map((b) => (
+                <li key={b.id}>{b.subPoint}</li>
+              ))}
+            </ul>
+          </details>
         )}
 
         <textarea
