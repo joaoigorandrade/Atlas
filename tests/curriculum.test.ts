@@ -20,6 +20,7 @@ import {
   socraticReducer,
   socraticPlan,
   socraticStart,
+  SOCRATIC_STEPS,
   recordMisconception,
   recurringMisconceptions,
   spawnGap,
@@ -338,6 +339,48 @@ describe("socraticReducer adaptive length", () => {
 });
 
 // ---- the pass length is the concept's, not a constant ----------------------
+
+// The floors the right-sizing opened up: a pass is as long as the concept
+// earns, so the shortest legal one — two core probes and a single spare — must
+// still reach `done`, and a session opened on the streaming estimate must be
+// capped down to that plan rather than running the estimate out.
+describe("a smallest-legal Socratic pass", () => {
+  const written: SocraticStep[] = [
+    steps[0],
+    steps[1],
+    { ...steps[0], id: "s3", spare: true },
+  ];
+
+  it("finishes on its two core probes", () => {
+    let s = socraticStart("n", written, socraticPlan(written));
+    expect(s.total).toBe(2);
+    s = socraticReducer(s, { type: "reply", index: 0 }, written);
+    expect(s.done).toBe(false);
+    s = socraticReducer(s, { type: "reply", index: 0 }, written);
+    expect(s.done).toBe(true);
+  });
+
+  it("caps a session opened on the four-step streaming estimate down to the plan", () => {
+    const opened = socraticStart("n", [], SOCRATIC_STEPS);
+    const hydrated = socraticReducer(
+      opened,
+      { type: "hydrate", total: socraticPlan(written) },
+      written,
+    );
+    expect(hydrated.total).toBe(2);
+  });
+
+  it("still holds a spare a struggling learner can buy", () => {
+    let s = socraticStart("n", written, socraticPlan(written));
+    // Two assisted steps running buy one more probe — the spare, and only it.
+    s = socraticReducer(s, { type: "stuck" }, written);
+    s = socraticReducer(s, { type: "reply", index: 0 }, written);
+    s = socraticReducer(s, { type: "stuck" }, written);
+    s = socraticReducer(s, { type: "reply", index: 0 }, written);
+    expect(s.total).toBe(3);
+    expect(s.done).toBe(false);
+  });
+});
 
 describe("socraticPlan", () => {
   it("counts the core probes and leaves the spares out", () => {

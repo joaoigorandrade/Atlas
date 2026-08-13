@@ -40,9 +40,10 @@ import type { StreamFrame, StreamShapes } from "@/lib/server/stream";
 import {
   ALT_KEYS,
   DIAGNOSTIC_DIFFICULTIES,
-  FEYNMAN_BEATS,
+  CONSUME_SECTION_BOUNDS,
+  FEYNMAN_BEAT_BOUNDS,
   SOCRATIC_MAX_STEPS,
-  SOCRATIC_MIN_STEPS,
+  SOCRATIC_MIN_WRITTEN,
   MODEL_BEAT_BOUNDS,
   PARETO_DEFAULT,
   PARETO_LEVELS,
@@ -279,8 +280,9 @@ export function resolveJob(body: GenerateBody): Job {
         key: contentKey("consume", params),
         run: async () => ({ chunks: await generateConsume(params) }),
         stream: () => generateConsumeStream(params),
-        // Mirrors `validateConsume`'s 4-6 bound, not the 5 the prompt asks for.
-        shape: { chunks: { min: 4, max: 6 } },
+        // Mirrors `validateConsume`'s bound, not the 2-5 band the prompt asks
+        // for — a pass is as long as its concept earns.
+        shape: { chunks: { ...CONSUME_SECTION_BOUNDS } },
       };
     }
 
@@ -359,7 +361,7 @@ export function resolveJob(body: GenerateBody): Job {
         stream: () => generateSocraticStream(params),
         // Mirrors `validateSocratic`'s bound, not the core count the prompt
         // asks for — the spares are part of the written pass.
-        shape: { steps: { min: SOCRATIC_MIN_STEPS, max: SOCRATIC_MAX_STEPS } },
+        shape: { steps: { min: SOCRATIC_MIN_WRITTEN, max: SOCRATIC_MAX_STEPS } },
       };
     }
 
@@ -372,8 +374,9 @@ export function resolveJob(body: GenerateBody): Job {
         key: contentKey("feynman", params),
         run: async () => ({ beats: await generateFeynman(params) }),
         stream: () => generateFeynmanStream(params),
-        // Mirrors `validateFeynman`'s 3-4 bound, not the 4 the prompt asks for.
-        shape: { beats: { min: 3, max: FEYNMAN_BEATS } },
+        // Mirrors `validateFeynman`'s bound, which is also the band the prompt
+        // asks for — a rubric is as long as the concept genuinely is.
+        shape: { beats: { ...FEYNMAN_BEAT_BOUNDS } },
       };
     }
 
