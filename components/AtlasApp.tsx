@@ -8,6 +8,7 @@ import {
   calibItems,
   calibOverCount,
   connectCards,
+  connectPool,
   connectReducer,
   connectStart,
   crucibleReducer,
@@ -1611,26 +1612,12 @@ export default function AtlasApp({
   );
 
   /**
-   * Connect's prior-node pool: touched (learning/shaky/mastered) non-gap nodes
-   * first; a fresh map falls back to the node's neighbourhood so the web is
-   * never empty. It is part of the cache key, which is why it must be derived
-   * the same way for a warm and for the real entry.
+   * Connect's prior-node pool (see `connectPool`). It is part of the cache key,
+   * which is why it must be derived the same way for a warm and for the real
+   * entry.
    */
   const connectParams = useCallback((node: ConceptNode) => {
-    const g = graphRef.current;
-    const touched = g.nodes.filter(
-      (n) =>
-        !n.gap &&
-        n.id !== node.id &&
-        ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
-    );
-    const pool = (
-      touched.length >= 2
-        ? touched
-        : g.nodes.filter((n) => !n.gap && n.id !== node.id)
-    )
-      .slice(0, 8)
-      .map((n) => ({ id: n.id, label: n.label }));
+    const pool = connectPool(graphRef.current.nodes, statesRef.current, node.id);
     return {
       topic: formRef.current.topic,
       nodeId: node.id,
@@ -2738,6 +2725,10 @@ export default function AtlasApp({
 
   // ---- Connect (Phase 4 · Elaboration) ---------------------------------
 
+  // Connect can skip straight to the Crucible, which is defined in the section
+  // below — the ref keeps that hand-off out of a forward reference.
+  const enterCrucibleRef = useRef<(node: ConceptNode) => void>(() => {});
+
   /**
    * Open the Connect surface on a node, generating its elaboration content
    * first if needed. Candidates are drawn from nodes the learner has actually
@@ -2745,6 +2736,15 @@ export default function AtlasApp({
    */
   const enterConnect = useCallback(
     (node: ConceptNode) => {
+      // Nothing touched yet means nothing true to wire into: skip the phase
+      // rather than ask the learner to link concepts they have never met.
+      if (connectParams(node).pool.length === 0) {
+        showToast(
+          `Nothing on your map to wire ${node.label} into yet — straight to the Crucible.`,
+        );
+        enterCrucibleRef.current(node);
+        return;
+      }
       const open = () => {
         setStates((prev) =>
           prev[node.id] === "unknown" || prev[node.id] === undefined
@@ -2772,7 +2772,7 @@ export default function AtlasApp({
         open,
       );
     },
-    [generate, loadConnect, warmOne],
+    [connectParams, generate, loadConnect, showToast, warmOne],
   );
 
   const dispatchConnect = useCallback((action: ConnectAction) => {
@@ -2923,6 +2923,7 @@ export default function AtlasApp({
     },
     [generate, loadCrucible],
   );
+  enterCrucibleRef.current = enterCrucible;
 
   const dispatchCrucible = useCallback((action: CrucibleAction) => {
     setCrucible((prev) => {
