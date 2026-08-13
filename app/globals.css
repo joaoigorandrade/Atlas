@@ -357,6 +357,31 @@ textarea {
   }
 }
 
+/* Feynman's sequenced teach-back: one topic card slides in as the last one
+   leaves, so the sequence reads as motion through the material rather than a
+   textarea swapping its label. Direction encodes forward vs. back. */
+@keyframes stepInNext {
+  from {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes stepInPrev {
+  from {
+    opacity: 0;
+    transform: translateX(-22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

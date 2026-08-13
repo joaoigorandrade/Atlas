@@ -17,7 +17,7 @@ import {
 } from "@/lib/curriculum";
 import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, motion, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
 import type { PresenceState } from "@/lib/motion";
@@ -39,13 +39,18 @@ const STRINGS = {
     phaseTag: "Phase 3b · Feynman",
     promptTitle: "Teach me this like I’ve never heard of it.",
     promptBody:
-      "Blank page, no outline, no prompts — teach the whole thing in your own words. What you never think to mention is exactly what you don’t own yet.",
+      "One topic at a time, in your own words. I’ll walk you through the concept piece by piece — what you can’t explain on its own is exactly what you don’t own yet.",
     startTeaching: "Start teaching →",
     dontKnowStart: "I don’t know where to start",
-    topicsHint: "Topics to cover (peeking costs you the diagnostic)",
     teachLead: "Teach it back · I’m the student who’s never heard of it",
+    stepOf: (n: number, total: number) => `Topic ${n} of ${total}`,
+    stepNumber: (n: number) => `Topic ${String(n).padStart(2, "0")}`,
+    nextTopic: "Next topic →",
+    prevTopic: "← Back",
+    skipTopic: "Skip this one",
+    remaining: (n: number) => `${n} topic${n === 1 ? "" : "s"} left`,
     placeholderTeach:
-      "Explain the whole concept in your own words — start anywhere, keep going until you’d be understood",
+      "Explain this piece in your own words — as if I’ve never heard of it",
     placeholderJudging: "Your student is reading what you taught…",
     sendToStudent: "That’s my explanation →",
     listening: "Listening",
@@ -92,13 +97,18 @@ const STRINGS = {
     phaseTag: "Fase 3b · Feynman",
     promptTitle: "Me ensine isso como se eu nunca tivesse ouvido falar.",
     promptBody:
-      "Página em branco, sem roteiro, sem dicas — ensine tudo com suas próprias palavras. O que você nem pensa em mencionar é exatamente o que ainda não domina.",
+      "Um tópico de cada vez, com suas próprias palavras. Vou te levar pelo conceito parte por parte — o que você não consegue explicar sozinho é exatamente o que ainda não domina.",
     startTeaching: "Começar a ensinar →",
     dontKnowStart: "Não sei por onde começar",
-    topicsHint: "Tópicos para cobrir (espiar custa o diagnóstico)",
     teachLead: "Ensine de volta · sou o aluno que nunca ouviu falar disso",
+    stepOf: (n: number, total: number) => `Tópico ${n} de ${total}`,
+    stepNumber: (n: number) => `Tópico ${String(n).padStart(2, "0")}`,
+    nextTopic: "Próximo tópico →",
+    prevTopic: "← Voltar",
+    skipTopic: "Pular este",
+    remaining: (n: number) => `${n} tópico${n === 1 ? "" : "s"} restante${n === 1 ? "" : "s"}`,
     placeholderTeach:
-      "Explique o conceito inteiro com suas próprias palavras — comece por onde quiser e siga até ser entendido",
+      "Explique esta parte com suas próprias palavras — como se eu nunca tivesse ouvido falar",
     placeholderJudging: "Seu aluno está lendo o que você ensinou…",
     sendToStudent: "É essa a minha explicação →",
     listening: "Ouvindo",
@@ -193,20 +203,33 @@ export default function FeynmanView({
 }: FeynmanViewProps) {
   const t = useT(STRINGS);
 
-  // The learner's own explanation — spoken or typed, whichever is faster.
-  // Cleared when a fresh pass starts.
-  const [typed, setTyped] = useState("");
+  // The learner's explanation, one topic at a time — spoken or typed, whichever
+  // is faster. Held per beat so a step can be revisited without retyping, and
+  // cleared when a fresh pass starts.
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [step, setStep] = useState(0);
+  const setAnswer = useCallback((beatId: string, value: string) => {
+    setAnswers((prev) => ({ ...prev, [beatId]: value }));
+  }, []);
+
+  // One labelled transcript out of the sequence — the judge still diffs a
+  // single explanation against the rubric, so nothing downstream changes.
   const send = useCallback(() => {
-    const text = typed.trim();
+    const text = beats
+      .map((b) => [b.subPoint, (answers[b.id] ?? "").trim()])
+      .filter(([, a]) => a)
+      .map(([label, a]) => `${label}\n${a}`)
+      .join("\n\n");
     if (text && !judging && ready) {
       onTeach(text);
     }
-  }, [judging, onTeach, ready, typed]);
+  }, [answers, beats, judging, onTeach, ready]);
 
-  // A fresh pass starts on a blank page; sending does not, so the learner can
+  // A fresh pass starts back at topic one; sending does not, so the learner can
   // still read what they taught while the student is reading it.
   const teachAgain = useCallback(() => {
-    setTyped("");
+    setAnswers({});
+    setStep(0);
     onTeachAgain();
   }, [onTeachAgain]);
 
@@ -282,10 +305,12 @@ export default function FeynmanView({
           <TeachPage
             beats={beats}
             scaffolded={session.scaffolded}
-            typed={typed}
+            answers={answers}
+            step={step}
             judging={judging}
             ready={ready}
-            onChangeTyped={setTyped}
+            onChangeAnswer={setAnswer}
+            onStep={setStep}
             onSend={send}
           />
         )}
@@ -445,38 +470,121 @@ function Prompt({
   );
 }
 
-/** The blank page. No sub-point, no outline, no "up next" — the omissions are
- *  the finding, and a prompt above the box would hand them over. Voice-first
- *  per §SPEC (speaking is closer to real teaching), typing always beside it. */
+/** The teach-back, sequenced. One sub-point at a time instead of one blank
+ *  page: the learner explains a piece, moves to the next, and the joined
+ *  transcript is what gets diffed. Naming the sub-point costs some of the
+ *  "what did you never think to mention" signal — skipping a topic still
+ *  reads as a skip, which is what keeps the diagnostic alive.
+ *  Voice-first per §SPEC (speaking is closer to real teaching), typing always
+ *  beside it. */
 function TeachPage({
   beats,
   scaffolded,
-  typed,
+  answers,
+  step,
   judging,
   ready,
-  onChangeTyped,
+  onChangeAnswer,
+  onStep,
   onSend,
 }: {
   beats: FeynmanBeat[];
   scaffolded: boolean;
-  typed: string;
+  answers: Record<string, string>;
+  step: number;
   judging: boolean;
   ready: boolean;
-  onChangeTyped: (v: string) => void;
+  onChangeAnswer: (beatId: string, value: string) => void;
+  onStep: (index: number) => void;
   onSend: () => void;
 }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
-  const blocked = judging || !ready || !typed.trim();
+  // Which way the card should fly in — set by the control that moved the step.
+  const [dir, setDir] = useState<"next" | "prev">("next");
+  const at = Math.min(step, Math.max(beats.length - 1, 0));
+  const beat = beats[at];
+  const answered = beats.filter((b) => (answers[b.id] ?? "").trim()).length;
+  const last = at >= beats.length - 1;
+  const current = beat ? (answers[beat.id] ?? "") : "";
+  const go = useCallback(
+    (to: number) => {
+      setDir(to > at ? "next" : "prev");
+      onStep(Math.max(0, Math.min(beats.length - 1, to)));
+    },
+    [at, beats.length, onStep],
+  );
+
+  if (!beat) {
+    // The rubric is still streaming in — the sequence has no first topic yet.
+    return (
+      <div style={{ flex: 1, display: "grid", placeItems: "center", gap: 10 }}>
+        <div style={{ ...kicker(10.5), display: "flex", alignItems: "center", gap: 9 }}>
+          {t.preparing}
+          <InkDots size={3.5} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "30px 32px 60px" }}>
-      <div style={{ maxWidth: 620, margin: "0 auto", animation: "fadeUp .3s both" }}>
-        <div style={{ ...kicker(10.5), marginBottom: 18 }}>{t.teachLead}</div>
+    <div style={{ flex: 1, overflowY: "auto", padding: "26px 32px 60px" }}>
+      <div style={{ maxWidth: 620, margin: "0 auto" }}>
+        {/* Lead + where you are in the sequence */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 12,
+            marginBottom: 12,
+            animation: "fadeUp .3s both",
+          }}
+        >
+          <div style={{ ...kicker(10.5) }}>{t.teachLead}</div>
+          <div style={{ flex: 1 }} />
+          <div style={{ ...kicker(10.5), color: BLUE }}>
+            {t.stepOf(at + 1, beats.length)}
+          </div>
+        </div>
+
+        {/* The rail: one segment per topic, filled as it is taught. Clickable —
+            a learner who remembers something for topic 1 while on topic 3 can
+            go back and add it. */}
+        <div style={{ display: "flex", gap: 5, marginBottom: 22 }}>
+          {beats.map((b, i) => {
+            const done = !!(answers[b.id] ?? "").trim();
+            return (
+              <button
+                key={b.id}
+                onClick={() => go(i)}
+                aria-label={b.subPoint}
+                aria-current={i === at}
+                style={{
+                  flex: 1,
+                  height: 3,
+                  padding: 0,
+                  border: "none",
+                  cursor: "pointer",
+                  borderRadius: 2,
+                  background:
+                    i === at ? BLUE : done ? GREEN : "rgba(44,40,35,0.12)",
+                  opacity: i === at ? 1 : done ? 0.55 : 1,
+                  transform: i === at ? "scaleY(1.9)" : "scaleY(1)",
+                  transition: transition(
+                    ["background", "transform", "opacity"],
+                    "base",
+                    "enter",
+                  ),
+                }}
+              />
+            );
+          })}
+        </div>
 
         {scaffolded && (
           <div
             style={{
-              marginBottom: 14,
+              marginBottom: 16,
               borderLeft: `3px solid ${STATE_COLOR.frontier}`,
               background: color.amberBg,
               borderRadius: "0 8px 8px 0",
@@ -484,95 +592,180 @@ function TeachPage({
               fontSize: 13,
               lineHeight: 1.5,
               color: color.amberInk,
+              animation: "fadeUp .3s both",
             }}
           >
             {feynmanScaffold(language)}
           </div>
         )}
 
-        {beats.length > 0 && (
-          <details
-            open={scaffolded}
-            style={{
-              marginBottom: 14,
-              border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 10,
-              padding: "9px 13px",
-              fontSize: 13,
-              lineHeight: 1.6,
-              color: color.inkMuted,
-            }}
-          >
-            <summary style={{ cursor: "pointer", color: color.inkFaint }}>
-              {t.topicsHint}
-            </summary>
-            <ul style={{ margin: "9px 0 0", paddingLeft: 18 }}>
-              {beats.map((b) => (
-                <li key={b.id}>{b.subPoint}</li>
-              ))}
-            </ul>
-          </details>
-        )}
-
-        <textarea
-          value={typed}
-          disabled={judging}
-          onChange={(e) => onChangeTyped(e.target.value)}
-          rows={14}
-          autoFocus
-          placeholder={judging ? t.placeholderJudging : t.placeholderTeach}
+        {/* The topic card. Remounted per step (keyed) so it animates in from
+            the side the learner moved. */}
+        <div
+          key={beat.id}
           style={{
-            width: "100%",
-            resize: "vertical",
-            padding: "16px 18px",
-            borderRadius: 12,
             border: `1px solid ${color.hairlineStrong}`,
+            borderRadius: 16,
             background: color.card,
-            fontFamily: font.serif,
-            fontSize: 16,
-            lineHeight: 1.6,
-            color: color.ink,
-            marginBottom: 12,
-            opacity: judging ? 0.6 : 1,
-          }}
-        />
-        <div style={{ marginBottom: 14 }}>
-          <MicButton value={typed} onChange={onChangeTyped} disabled={judging} />
-        </div>
-        <button
-          className="at-press"
-          onClick={onSend}
-          disabled={blocked}
-          style={{
-            padding: "13px 20px",
-            background: blocked ? "rgba(44,40,35,0.07)" : color.accent,
-            color: blocked ? color.inkGhost : color.accentInk,
-            border: "none",
-            borderRadius: 11,
-            fontSize: 14.5,
-            fontWeight: 600,
-            cursor: blocked ? "default" : "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 9,
+            padding: "22px 22px 18px",
+            boxShadow: "0 1px 2px rgba(44,40,35,0.04), 0 10px 30px rgba(44,40,35,0.05)",
+            animation: `${dir === "next" ? "stepInNext" : "stepInPrev"} ${motion.duration.slow}ms ${motion.ease.enter} both`,
           }}
         >
-          {judging ? (
-            <>
-              {t.listening}
-              <InkDots size={3.5} />
-            </>
-          ) : !ready ? (
-            <>
-              {t.preparing}
-              <InkDots size={3.5} />
-            </>
-          ) : (
-            t.sendToStudent
+          <div style={{ ...kicker(10), color: color.inkGhost, marginBottom: 8 }}>
+            {t.stepNumber(at + 1)}
+          </div>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: 23,
+              lineHeight: 1.3,
+              color: color.ink,
+              marginBottom: 16,
+            }}
+          >
+            {beat.subPoint}
+          </div>
+
+          <textarea
+            value={current}
+            disabled={judging}
+            onChange={(e) => onChangeAnswer(beat.id, e.target.value)}
+            rows={9}
+            autoFocus
+            placeholder={judging ? t.placeholderJudging : t.placeholderTeach}
+            style={{
+              width: "100%",
+              resize: "vertical",
+              padding: "14px 16px",
+              borderRadius: 12,
+              border: `1px solid ${color.hairline}`,
+              background: color.cardAlt,
+              fontFamily: font.serif,
+              fontSize: 16,
+              lineHeight: 1.6,
+              color: color.ink,
+              marginBottom: 12,
+              opacity: judging ? 0.6 : 1,
+              transition: transition(["opacity", "border-color"], "fast"),
+            }}
+          />
+          <MicButton
+            value={current}
+            onChange={(v) => onChangeAnswer(beat.id, v)}
+            disabled={judging}
+          />
+        </div>
+
+        {/* Controls — back · skip · next, with the last step sending. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginTop: 18,
+          }}
+        >
+          <button
+            className="at-press"
+            onClick={() => go(at - 1)}
+            disabled={at === 0 || judging}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: at === 0 || judging ? "default" : "pointer",
+              fontSize: 13.5,
+              color: at === 0 ? color.inkGhost : color.inkMuted,
+              padding: "6px 2px",
+            }}
+          >
+            {t.prevTopic}
+          </button>
+          {!last && (
+            <button
+              className="at-press"
+              onClick={() => go(at + 1)}
+              disabled={judging}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: judging ? "default" : "pointer",
+                fontSize: 13,
+                color: color.inkGhost,
+                padding: "6px 2px",
+              }}
+            >
+              {t.skipTopic}
+            </button>
           )}
-        </button>
+          <div style={{ flex: 1 }} />
+          <span style={{ ...kicker(10), color: color.inkGhost }}>
+            {t.remaining(beats.length - answered)}
+          </span>
+          <Advance
+            label={last ? t.sendToStudent : t.nextTopic}
+            blocked={judging || (last && (!ready || answered === 0))}
+            judging={judging}
+            preparing={last && !judging && !ready}
+            onClick={() => (last ? onSend() : go(at + 1))}
+          />
+        </div>
       </div>
     </div>
+  );
+}
+
+/** The one weighted button in the sequence — next topic, or the send that
+ *  hands the whole transcript to the student. */
+function Advance({
+  label,
+  blocked,
+  judging,
+  preparing,
+  onClick,
+}: {
+  label: string;
+  blocked: boolean;
+  judging: boolean;
+  preparing: boolean;
+  onClick: () => void;
+}) {
+  const t = useT(STRINGS);
+  return (
+    <button
+      className="at-press"
+      onClick={onClick}
+      disabled={blocked}
+      style={{
+        padding: "13px 20px",
+        background: blocked ? "rgba(44,40,35,0.07)" : color.accent,
+        color: blocked ? color.inkGhost : color.accentInk,
+        border: "none",
+        borderRadius: 11,
+        fontSize: 14.5,
+        fontWeight: 600,
+        cursor: blocked ? "default" : "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 9,
+        boxShadow: blocked ? "none" : "0 6px 18px rgba(47,107,79,0.22)",
+        transition: transition(["background", "color", "box-shadow"], "fast"),
+      }}
+    >
+      {judging ? (
+        <>
+          {t.listening}
+          <InkDots size={3.5} />
+        </>
+      ) : preparing ? (
+        <>
+          {t.preparing}
+          <InkDots size={3.5} />
+        </>
+      ) : (
+        label
+      )}
+    </button>
   );
 }
 
