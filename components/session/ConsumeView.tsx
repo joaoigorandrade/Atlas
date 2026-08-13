@@ -2157,9 +2157,13 @@ export default function ConsumeView({
                         margin: "14px 0",
                       }}
                     >
-                      <span style={{ fontSize: 11, color: color.inkFaint }}>
-                        {t.furtherReading} · {c.cite}
-                      </span>
+                      {/* Absent when the model had no work it was confident
+                          exists — an omitted line beats an invented title. */}
+                      {c.cite ? (
+                        <span style={{ fontSize: 11, color: color.inkFaint }}>
+                          {t.furtherReading} · {c.cite}
+                        </span>
+                      ) : null}
                       <div style={{ flex: 1 }} />
                       {/* The keyboard path to the same panel the highlight
                           gesture opens — selecting text is a pointer move. */}

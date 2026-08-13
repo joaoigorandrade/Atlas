@@ -39,7 +39,11 @@ import {
   streamJsonObjectsProgressive,
   type ChatMessage,
 } from "@/lib/server/openrouter";
-import { CONSUME_SECTION_SHAPE, MODEL_BEAT_SHAPE } from "@/lib/server/generate/shapes";
+import {
+  CONSUME_SECTION_SHAPE,
+  MODEL_BEAT_EXAMPLE,
+  MODEL_BEAT_SHAPE,
+} from "@/lib/server/generate/shapes";
 import type { StreamFrame } from "@/lib/server/stream";
 
 // ---- tiny validation helpers (throw readable errors for the retry loop) ----
@@ -76,6 +80,12 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], name: string
 // Phrases from our own prompt templates that must never appear verbatim in
 // generated learner-facing labels — a match means the model echoed the
 // template instead of writing a concrete answer (#10).
+//
+// This is the backstop, not the fix. The cause was that the shapes shipped
+// their placeholders as plausible-looking *values*, so returning the blank
+// looked like filling it in; each shape now carries a filled-in worked example
+// instead. Entries stay in step with whatever placeholder wording the shapes
+// currently use.
 const TEMPLATE_ECHOES = [
   "a complete, precise answer",
   "a hand-wave",
@@ -85,6 +95,8 @@ const TEMPLATE_ECHOES = [
   "a real misconception",
   "what the learner says",
   "a common misconception as",
+  "the learner's reply, in their own words",
+  "written out in their voice",
 ];
 
 function rejectEcho(label: string, name: string): string {
@@ -392,7 +404,7 @@ const graphShape = (ask: [number, number]) => `{
 }`;
 
 const mapRules = (ask: [number, number]) =>
-  `Rules: labels are 1-3 words, title case. Node count ${ask[0]}-${ask[1]}. The map must read left-to-right from true foundations to the topic's capstone ideas.`;
+  `Rules: labels are 1-3 words, title case. Node count ${ask[0]}-${ask[1]}. The map must read left-to-right from true foundations to the topic's capstone ideas. Every node is a CONCEPT the learner can be taught and then tested on — never a chapter heading or a container: no "Introduction", "Overview", "Fundamentals", "Advanced Topics", "Applications", "Conclusion".`;
 
 /** Attach each node's prerequisites, so a laid-out map travels as one flat
  *  list. The inverse of `graphFromMapNodes`. */
@@ -632,7 +644,7 @@ Return JSON:
   "gapReason": "why it exposes that, phrased to the learner ('you missed ...')"
 }
 
-Rules: exactly one of the 4 options is correct; the other three are plausible distractors a partially-informed learner might pick, not throwaway wrong answers. Keep the question and options concise.${languageNote(language)}`,
+Rules: exactly one of the 4 options is correct. Each of the other three is the answer produced by ONE specific, nameable misconception — the option a learner holding that exact wrong idea would confidently pick — never a throwaway. "gapLabel" and "gapReason" name the misconception behind the most likely of those three. Keep the question and options concise.${languageNote(language)}`,
     ),
     (r) => validateDiagnosticQuestion(r, nodeIds),
     { label: "diagnostic-question" },
@@ -740,7 +752,9 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
       ),
     },
     takeaway: str(c.takeaway, `chunks[${i}].takeaway`),
-    cite: str(c.cite, `chunks[${i}].cite`),
+    // Optional on purpose: the shape tells the model never to invent a work,
+    // so it must be able to omit rather than fabricate one per section.
+    cite: c.cite ? str(c.cite, `chunks[${i}].cite`) : undefined,
     diagram: hasFigure ? str(c.diagram, `chunks[${i}].diagram`) : undefined,
     figure: hasFigure ? validateFigure(c.figure, `chunks[${i}].figure`) : undefined,
     ask: str(c.ask, `chunks[${i}].ask`),
@@ -925,15 +939,18 @@ export interface ModelParams {
 
 /** The shared framing of both model-view prompts. */
 function modelContext(params: ModelParams): string {
-  const { topic, nodeLabel, lens, kicker, body, takeaway, interests } = params;
-  const label = new Map(altControls("en")).get(lens) ?? lens;
+  const { topic, nodeLabel, lens, kicker, body, takeaway, interests, language = "en" } = params;
+  // The learner tapped a control in THEIR language — quoting the English one
+  // back at the model while `languageNote` asks for Portuguese output describes
+  // a button that isn't on their screen.
+  const label = new Map(altControls(language)).get(lens) ?? lens;
   return `A learner is reading the section "${kicker}" of the pass on "${nodeLabel}" within "${topic}". This is the section, exactly as it sits on their screen:
 
 ${body.join("\n\n")}
 
 Takeaway: ${takeaway}
 
-They tapped "${label}" — "${lensNote(lens, "en")}" — which opens a MODEL VIEW over that section. ${LENS_BRIEF[lens]}
+They tapped "${label}" — "${lensNote(lens, language)}" — which opens a MODEL VIEW over that section. ${LENS_BRIEF[lens]}
 
 The section is NOT replaced: it stays on screen underneath, and they will go back to it. So:
 - Cover the SAME material. A model view that drifts to a neighbouring topic strands the learner.
@@ -952,7 +969,9 @@ export async function generateConsumeModel(
 Return JSON:
 {
   "beats": [${MODEL_BEAT_SHAPE}, ...]
-}${languageNote(params.language)}`,
+}
+
+${MODEL_BEAT_EXAMPLE}${languageNote(params.language)}`,
     ),
     validateConsumeModel,
     { label: "model" },
@@ -982,7 +1001,9 @@ export async function* generateConsumeModelStream(
 Write the beats as SEPARATE top-level JSON objects, one after another — NOT
 wrapped in an array or a {"beats": [...]} object, no markdown fences, no
 numbering, no commentary before/after/between them. Each object has this shape:
-${MODEL_BEAT_SHAPE}${languageNote(params.language)}`,
+${MODEL_BEAT_SHAPE}
+
+${MODEL_BEAT_EXAMPLE}${languageNote(params.language)}`,
       ),
       validateConsumeModelBeat,
       { label: "model-stream", partial: draftConsumeModelBeat },
@@ -1171,11 +1192,29 @@ const SOCRATIC_STEP_SHAPE = `{
       "spare": false,   // true only on the held-back extra probes, which come last
       "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // core probes: each move once, in this order; a spare reuses whichever fits
       "prompt": "the probing question the tutor opens with",
-      "replies": [    // 3 plausible learner replies; exactly one "correct"; include a common misconception as "wrong"
-        {"label": "what the learner says", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
+      "replies": [    // 3 plausible learner replies; exactly one "correct"; one is the misconception a real learner actually holds, written out in their voice
+        {"label": "the learner's reply, in their own words", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
       ],
       "hint": "an 'I'm stuck' nudge that reframes without giving it away",
       "tell": "the direct instruction for 'Just tell me' — complete and precise"
+    }`;
+
+/** A filled-in step on an unrelated everyday concept. The schema above names
+ *  the fields; only an example can show that `label` is a sentence a learner
+ *  would actually say rather than a description of one — the failure
+ *  `rejectEcho` exists to catch. */
+const SOCRATIC_STEP_EXAMPLE = `Here is one filled-in step, from an unrelated concept, to show the expected concreteness — copy its FORM, never its content:
+{
+      "spare": false,
+      "move": "Challenge the assumption",
+      "prompt": "You said a low gear makes the bike easier to pedal. Easier in what sense — are you doing less work overall to get up the hill?",
+      "replies": [
+        {"label": "No, the total work is about the same, I just spread it over more pedal strokes.", "quality": "correct", "response": "Exactly — you traded force per stroke for number of strokes. The hill still costs what it costs."},
+        {"label": "Yes, low gear means less effort to climb the hill.", "quality": "wrong", "response": "That would be a free lunch. You feel less force in each stroke, but you pedal many more times — add those up and the hill charges you the same."},
+        {"label": "I think it's easier but I couldn't say why.", "quality": "near", "response": "You've got the feel right. Hold onto 'easier per stroke' and ask what has to grow in exchange."}
+      ],
+      "hint": "Count the pedal strokes it takes to reach the top in each gear, not how hard any one of them feels.",
+      "tell": "A low gear reduces the force per pedal stroke but increases how many strokes the climb takes. The work against gravity is fixed by your weight and the height, so the gear only changes how that cost is packaged."
     }`;
 
 export function validateSocraticStep(raw: unknown, i: number): SocraticStep {
@@ -1224,7 +1263,9 @@ export async function generateSocratic(params: {
 Return JSON:
 {
   "steps": [${SOCRATIC_STEP_SHAPE}, ...]   // the core probes, then the ${SOCRATIC_SPARES} spares
-}${languageNote(params.language ?? "en")}`,
+}
+
+${SOCRATIC_STEP_EXAMPLE}${languageNote(params.language ?? "en")}`,
     ),
     validateSocratic,
     { label: "socratic" },
@@ -1260,7 +1301,9 @@ Write the steps as SEPARATE top-level JSON objects, one after
 another — NOT wrapped in an array or a {"steps": [...]} object, no markdown
 fences, no numbering, no commentary before/after/between them. Each object has
 this shape:
-${SOCRATIC_STEP_SHAPE}${languageNote(params.language ?? "en")}`,
+${SOCRATIC_STEP_SHAPE}
+
+${SOCRATIC_STEP_EXAMPLE}${languageNote(params.language ?? "en")}`,
       ),
       validateSocraticStep,
       { label: "socratic-stream" },
@@ -1358,10 +1401,28 @@ const FEYNMAN_BEAT_SHAPE = `{
       "mustConvey": ["2-3 specific things the learner's own words have to get across for this sub-point to count as taught — the grading rubric, concrete and checkable, not 'explains it well'"],
       "fix": {   // the targeted micro-pass that closes just this sub-point
         "probe": "one Socratic question aimed straight at the gap",
-        "replies": [{"label": "...", "correct": true, "response": "..."}, {"label": "the likely misconception, written out", "correct": false, "response": "the specific catch"}]
+        "replies": [{"label": "...", "correct": true, "response": "..."}, {"label": "the misconception a real learner holds here, written out in their voice", "correct": false, "response": "the specific catch"}]
       },
       "gapLabel": "the gap's map label (2-5 words)",
       "gapReason": "why it split out, phrased to the learner ('the Z trap' — the sentence continues after a quote of their own words)"
+    }`;
+
+/** A filled-in beat on an unrelated everyday concept — `mustConvey` is the
+ *  field that most often comes back as its own description ("explains it
+ *  well"), and an example is the cheapest way to show it must be checkable. */
+const FEYNMAN_BEAT_EXAMPLE = `Here is one filled-in beat, from an unrelated concept, to show the expected concreteness — copy its FORM, never its content:
+{
+      "subPoint": "Gears repackage the same work",
+      "mustConvey": ["that a low gear lowers the force per pedal stroke", "that it raises the number of strokes the same climb takes", "that the total work against gravity is unchanged by the gear"],
+      "fix": {
+        "probe": "If a low gear really made the hill cheaper, what would stop you from fitting an ever-lower gear and climbing for free?",
+        "replies": [
+          {"label": "Nothing would stop me, but I'd be pedalling forever — the strokes multiply as the force drops.", "correct": true, "response": "That's the trade. The gear sets the exchange rate between force and strokes; it never discounts the climb."},
+          {"label": "A low enough gear really would make the climb almost effortless.", "correct": false, "response": "Effortless per stroke, yes — but you'd need so many strokes that the total effort lands right back where it started."}
+        ]
+      },
+      "gapLabel": "Gears as free effort",
+      "gapReason": "you treated the lower gear as a discount on the climb rather than a different way of paying for it"
     }`;
 
 export async function generateFeynman(params: FeynmanParams): Promise<FeynmanBeat[]> {
@@ -1372,7 +1433,9 @@ export async function generateFeynman(params: FeynmanParams): Promise<FeynmanBea
 Return JSON:
 {
   "beats": [${FEYNMAN_BEAT_SHAPE}, ...]   // exactly ${FEYNMAN_BEATS}
-}${languageNote(params.language ?? "en")}`,
+}
+
+${FEYNMAN_BEAT_EXAMPLE}${languageNote(params.language ?? "en")}`,
     ),
     validateFeynman(params.nodeId),
     { label: "feynman" },
@@ -1403,7 +1466,9 @@ Write the ${FEYNMAN_BEATS} beats as ${FEYNMAN_BEATS} SEPARATE top-level JSON obj
 after another — NOT wrapped in an array or a {"beats": [...]} object, no
 markdown fences, no numbering, no commentary before/after/between them. Each
 object has this shape:
-${FEYNMAN_BEAT_SHAPE}${languageNote(params.language ?? "en")}`,
+${FEYNMAN_BEAT_SHAPE}
+
+${FEYNMAN_BEAT_EXAMPLE}${languageNote(params.language ?? "en")}`,
       ),
       validateFeynmanBeat(params.nodeId),
       { label: "feynman-stream" },
@@ -1627,7 +1692,7 @@ Return JSON:
       "q": "a concrete real-world problem that IS this concept wearing unfamiliar clothes — never name the concept",
       "hint": "a reframe that doesn't give it away",
       "placeholder": "workspace placeholder text",
-      "sample": "a plausible learner attempt that gets MOST of it right but contains one precise, realistic error" },
+      "sample": "a plausible learner attempt that gets MOST of it right but contains one precise, realistic error — the error must actually CHANGE the result: the wrong value, step or conclusion has to differ from the right one, never 'X instead of X'" },
     { "tag": "Guided application · one rung down",
       "q": "the same idea scaffolded: one step isolated, partially filled in",
       "hint": "the rule that closes the remaining step",
@@ -1637,7 +1702,7 @@ Return JSON:
   "transfer": [   // the diagnostic for the FIRST problem's sample attempt: what carried over, what didn't
     {"verdict": "good", "text": "sub-concept that transferred, and how it showed"},
     {"verdict": "good", "text": "another sub-concept that transferred"},
-    {"verdict": "red", "text": "the precise sub-concept that did NOT carry over — name the error in the sample and the rule that fixes it"}
+    {"verdict": "red", "text": "the precise sub-concept that did NOT carry over — name the error in the sample and the rule that fixes it. If you write 'A instead of B', A and B must genuinely differ"}
   ],
   "gapLabel": "that failed sub-concept as a map label (3-7 words)",
   "gapReason": "why it split out, phrased to the learner",
@@ -1945,7 +2010,7 @@ function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
     recurring && recurring.length
       ? `\nAcross earlier sessions this learner keeps hitting: ${recurring.join(
           "; ",
-        )}. If this answer is another instance of one of those, say so — name the pattern ("this is the same swap you made on X") instead of catching it cold again. If it isn't, don't mention them at all.\n`
+        )}. If this answer is another instance of one of those, say so — name the pattern ("this is the same swap you made on X") instead of catching it cold again, and return that misconception's label back VERBATIM in the "misconception" field so it counts as the same pattern rather than a new one. If it isn't, don't mention them at all.\n`
       : "";
   return [
       JUDGE_SYSTEM,
@@ -2064,7 +2129,10 @@ Return JSON: {"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", 
 /** The verdict rows alone — the smallest thing that opens the Gap Report. */
 function validateFeynmanVerdicts(raw: unknown, count: number): FeynmanVerdictRow[] {
   const root = obj(raw, "payload");
-  const rows = arr(root.verdicts, "verdicts", 1, Math.max(count, 1)).map((r, j) => {
+  // The cap allows duplicates through: a repeated index is a real thing models
+  // do, the dedup below is what handles it, and capping at `count` here would
+  // reject the payload before that ever ran. Coverage is enforced after dedup.
+  const rows = arr(root.verdicts, "verdicts", 1, Math.max(count, 1) * 2).map((r, j) => {
     const row = obj(r, `verdicts[${j}]`);
     const i = typeof row.i === "number" ? Math.trunc(row.i) : NaN;
     if (!Number.isFinite(i) || i < 0 || i >= count)
@@ -2078,10 +2146,25 @@ function validateFeynmanVerdicts(raw: unknown, count: number): FeynmanVerdictRow
   });
   // One ruling per row: a repeated index is the model second-guessing itself,
   // and the first ruling is the one it committed to.
-  return rows.filter((r, at) => rows.findIndex((o) => o.i === r.i) === at);
+  const deduped = rows.filter((r, at) => rows.findIndex((o) => o.i === r.i) === at);
+  // Every rubric row needs a ruling. A judge that returns only the rows it
+  // found interesting leaves the rest with no verdict at all — and a row with
+  // no verdict spawns no gap, so the learner is marked clean on material they
+  // never explained. Failing here routes it through the corrective retry.
+  if (deduped.length !== count) {
+    const missing = Array.from({ length: count }, (_, i) => i).filter(
+      (i) => !deduped.some((r) => r.i === i),
+    );
+    fail(
+      `verdicts must contain exactly one ruling per rubric row (0-${count - 1}) — missing ${missing.join(", ")}`,
+    );
+  }
+  return deduped;
 }
 
-const validateFeynmanJudgement =
+/** Exported for tests: every rubric row must come back with a ruling, since a
+ *  row with no verdict silently spawns no gap. */
+export const validateFeynmanJudgement =
   (count: number) =>
   (raw: unknown): FeynmanJudgement => {
     const root = obj(raw, "payload");

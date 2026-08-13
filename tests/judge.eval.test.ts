@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   judgeCrucible,
+  judgeFeynman,
   judgeSocratic,
 } from "@/lib/server/generate";
 
@@ -54,6 +55,39 @@ describe.skipIf(!live)("live judge evals (#28)", () => {
         answer: "It makes the vector bigger somehow.",
       });
       expect(["near", "wrong"]).toContain(j.quality);
+    },
+  );
+
+  // What the learner never thought to mention is the whole finding, so a row
+  // they skipped must come back judged rather than simply absent — an omitted
+  // row spawns no gap and marks them clean on material they never explained.
+  it(
+    "rules on every rubric row, including the one the explanation skips",
+    { timeout: 120_000, retry: 1 },
+    async () => {
+      const j = await judgeFeynman({
+        topic: "Linear Algebra",
+        nodeLabel: "Scalar Multiplication",
+        rubric: [
+          {
+            subPoint: "Scaling changes length",
+            mustConvey: ["multiplying by 3 makes the vector three times as long"],
+          },
+          {
+            subPoint: "Direction is preserved",
+            mustConvey: ["a positive scalar leaves the direction unchanged"],
+          },
+          {
+            subPoint: "A negative scalar flips it",
+            mustConvey: ["multiplying by a negative scalar reverses the direction"],
+          },
+        ],
+        // Covers rows 0 and 1; never mentions negative scalars at all.
+        explanation:
+          "If you multiply a vector by 3, it gets three times as long. It still points the same way it did before — you have only stretched it, not turned it.",
+      });
+      expect(j.verdicts.map((v) => v.i).sort()).toEqual([0, 1, 2]);
+      expect(j.verdicts.find((v) => v.i === 2)?.verdict).toBe("skipped");
     },
   );
 

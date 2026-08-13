@@ -6,6 +6,7 @@ import {
   validateCrucible,
   validateDiagnosticQuestion,
   validateFeynman,
+  validateFeynmanJudgement,
   mapNodeBounds,
   validateGraphPart,
   validateMapConcept,
@@ -387,6 +388,65 @@ describe("validateConsume", () => {
         consumePayload([{ example: { title: "worked", steps: [] } }]),
       ),
     ).toThrow(/example\.steps/);
+  });
+
+  // The shape forbids naming a work the model isn't sure exists. When `cite`
+  // was also required, the only way to satisfy both was to invent one — so
+  // abstaining has to validate, and the "Further reading" line just goes away.
+  it("accepts a section that declines to name a further-reading work", () => {
+    const out = validateConsume(consumePayload([{ cite: undefined }]));
+    expect(out[0].cite).toBeUndefined();
+    expect(out[1].cite).toBe("Strang, Linear Algebra §2.1");
+  });
+});
+
+// ---- judge: feynman verdicts must cover the whole rubric ---------------------
+
+describe("validateFeynmanJudgement", () => {
+  const judgement = (over: Record<string, unknown> = {}) => ({
+    verdicts: [
+      { i: 0, verdict: "good" },
+      { i: 1, verdict: "skipped" },
+      { i: 2, verdict: "confused", quote: "they said this bit" },
+    ],
+    response: "I followed the first part, but I never learned why it holds.",
+    jargon: ["eigenbasis"],
+    ...over,
+  });
+
+  it("accepts one ruling per rubric row", () => {
+    const out = validateFeynmanJudgement(3)(judgement());
+    expect(out.verdicts.map((v) => v.i)).toEqual([0, 1, 2]);
+  });
+
+  // A row with no verdict spawns no gap, so a judge that reports only the rows
+  // it found interesting marks the learner clean on material they never
+  // explained. Failing routes it through the corrective retry instead.
+  it("rejects a rubric row left unjudged — an unjudged row spawns no gap", () => {
+    expect(() =>
+      validateFeynmanJudgement(3)(
+        judgement({
+          verdicts: [
+            { i: 0, verdict: "good" },
+            { i: 2, verdict: "confused" },
+          ],
+        }),
+      ),
+    ).toThrow(/missing 1/);
+  });
+
+  it("keeps the first ruling when the judge second-guesses an index", () => {
+    const out = validateFeynmanJudgement(2)(
+      judgement({
+        verdicts: [
+          { i: 0, verdict: "good" },
+          { i: 0, verdict: "confused" },
+          { i: 1, verdict: "skipped" },
+        ],
+      }),
+    );
+    expect(out.verdicts).toHaveLength(2);
+    expect(out.verdicts[0].verdict).toBe("good");
   });
 });
 

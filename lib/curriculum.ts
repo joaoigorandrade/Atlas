@@ -344,8 +344,13 @@ export interface ConsumeChunk {
    * more authoritative than no reference at all, which is the opposite of the
    * trust it was meant to buy. A pointer to a canonical work is honest, useful,
    * and doesn't imply the sentence above was checked against it.
+   *
+   * Optional for that same reason: the shape forbids inventing a work, so the
+   * model needs a legal way to abstain. A required string left the model no
+   * choice but to name something for every section — the "Further reading"
+   * line is simply not rendered when it declines.
    */
-  cite: string;
+  cite?: string;
   /** Caption for the diagram beside the prose. Absent when the section isn't
    *  structural enough to earn one — a definition or comparison doesn't need
    *  an invented box-and-arrow graph. */

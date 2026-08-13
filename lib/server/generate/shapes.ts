@@ -22,7 +22,7 @@ export const CONSUME_SECTION_SHAPE = `{
         "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps
       },
       "takeaway": "the one sentence to carry out of this section",
-      "cite": "one real, well-known work a learner could go read next on this — title and author, or a named lecture series. NOT a citation of any sentence above: name only works you are confident exist, and never invent a page, section or chapter number to look precise",
+      "cite": "one real, well-known work a learner could go read next on this — title and author, or a named lecture series. NOT a citation of any sentence above: name only works you are confident exist, and never invent a page, section or chapter number to look precise. OMIT the field if no work you are sure of fits",
       "diagram": "one-line caption for the figure below, OMIT (with figure) if this section isn't structural",
       "figure": {                                          // OMIT both "diagram" and "figure" entirely when the section is a
                                                             // definition, a comparison, or anything else that isn't a process,
@@ -43,4 +43,19 @@ export const CONSUME_SECTION_SHAPE = `{
 export const MODEL_BEAT_SHAPE = `{
       "label": "2-4 words naming this beat",
       "text": "1-3 sentences: the beat itself, concrete and self-contained"
+    }`;
+
+/**
+ * A filled-in beat, on a deliberately unrelated everyday concept.
+ *
+ * The schema comments above describe the fields; they cannot demonstrate the
+ * register. Without a worked example the model returns the description as the
+ * value ("2-4 words naming this beat"), which is exactly what `rejectEcho`
+ * spends its time catching. The example is off-topic on purpose: it teaches
+ * form, and copying its content would be obviously wrong.
+ */
+export const MODEL_BEAT_EXAMPLE = `Here is one filled-in beat, from an unrelated concept, to show the level of concreteness expected — copy its FORM, never its content:
+{
+      "label": "Gears trade speed",
+      "text": "A low gear turns the wheel less per pedal stroke, so the same leg force moves you a shorter distance. You buy that easier stroke by pedalling more times to cover the same ground."
     }`;

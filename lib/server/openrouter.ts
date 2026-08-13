@@ -44,6 +44,20 @@ export interface ChatMessage {
 /** Which model role a call wants: bulk content, or the stricter judge (#28). */
 export type ModelRole = "content" | "judge";
 
+/**
+ * Content is writing; judging is classification.
+ *
+ * Prose wants some room to move, but a verdict must not. The judge is the one
+ * call that is never cached — it grades one learner's own words — so every
+ * sample is re-rolled, and at 0.6 the same answer can earn "near" once and
+ * "wrong" the next time, which drives a different mastery write and a
+ * different gap on the map. Grading is the one place determinism IS the
+ * quality bar.
+ */
+function temperatureFor(role: ModelRole): number {
+  return role === "judge" ? 0 : 0.6;
+}
+
 class OpenRouterError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -80,6 +94,7 @@ async function chatOnce(
   model: string,
   messages: ChatMessage[],
   key: string,
+  role: ModelRole,
 ): Promise<ChatResult> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -94,7 +109,7 @@ async function chatOnce(
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.6,
+      temperature: temperatureFor(role),
       // Most cheap models honor this; models that don't still get the
       // "JSON only" instruction in the system prompt.
       response_format: { type: "json_object" },
@@ -131,7 +146,7 @@ async function chat(messages: ChatMessage[], role: ModelRole): Promise<ChatResul
   for (const model of modelChain(role)) {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
       try {
-        return await chatOnce(model, messages, key);
+        return await chatOnce(model, messages, key, role);
       } catch (err) {
         const status = err instanceof OpenRouterError ? err.status : 0;
         // Key/billing problems: no retry, no fallback, no friendly mask.
@@ -195,11 +210,19 @@ export async function generateJson<T>(
         ? messages
         : [
             ...messages,
+            // The reply being corrected, as the assistant turn it was. Without
+            // it the model is asked to fix output it cannot see, and tends to
+            // regenerate from scratch — reproducing the same fault. With it,
+            // the error message points at something concrete.
+            {
+              role: "assistant",
+              content: (lastResult?.content ?? "").slice(0, 8000),
+            },
             {
               role: "user",
               content: `Your previous reply failed validation: ${String(
                 lastError instanceof Error ? lastError.message : lastError,
-              )}. Reply again with ONLY the corrected JSON object.`,
+              )}. Reply again with ONLY the corrected JSON object — keep everything that was already right and change only what the error names.`,
             },
           ];
     let text: ChatResult;
@@ -239,6 +262,7 @@ async function* chatStreamOnce(
   model: string,
   messages: ChatMessage[],
   key: string,
+  role: ModelRole,
   onFirstToken?: () => void,
 ): AsyncGenerator<string> {
   // Two deadlines on one controller: the silence before the first token, and
@@ -278,7 +302,7 @@ async function* chatStreamOnce(
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.6,
+        temperature: temperatureFor(role),
         stream: true,
       }),
     }).catch(failed);
@@ -509,7 +533,7 @@ export async function* streamJsonObjectsProgressive<T>(
   // mid-iteration (which calls the generator's `return`).
   let outcome: StreamOutcome = "abandoned";
   try {
-    for await (const delta of chatStreamOnce(model, messages, key, () => {
+    for await (const delta of chatStreamOnce(model, messages, key, role, () => {
       firstTokenMs = Date.now() - started;
     })) {
       buf += delta;
