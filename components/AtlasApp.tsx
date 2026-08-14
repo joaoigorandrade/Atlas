@@ -3989,6 +3989,13 @@ export default function AtlasApp({
   const lastSheet = useRef<Screen | null>(null);
   if (onSheet) lastSheet.current = screen;
   const sheetScreen = onSheet ? screen : lastSheet.current;
+  // …and stops lagging once the leave is over. `sheetScreen` alone never goes
+  // back to null, so rendering off it left the last sheet mounted for the rest
+  // of the run: `sheetOut` fills to opacity 0, but an inset-0 element at
+  // z-index 30 still swallows every click meant for the map behind it. The
+  // `onSheet ||` covers the entry frame, where `mounted` is still catching up
+  // in an effect and the map would otherwise flash through.
+  const openSheet = onSheet || sheet.mounted ? sheetScreen : null;
   // The canvas backs onboarding + the map, but Consume is a full surface.
   // Kept mounted underneath a sheet as well, so a session genuinely rises off
   // the map and settles back onto it instead of onto blank paper. The canvas is
@@ -4643,7 +4650,7 @@ export default function AtlasApp({
         />
       )}
 
-      {sheetScreen === "settings" && (
+      {openSheet === "settings" && (
         <SettingsScreen
           presence={sheet.state}
           form={form}
@@ -4674,7 +4681,7 @@ export default function AtlasApp({
         />
       )}
 
-      {sheetScreen === "consume" && consume && consumeChunks &&
+      {openSheet === "consume" && consume && consumeChunks &&
         sheetBoundary(
           <ConsumeView
             presence={sheet.state}
@@ -4709,7 +4716,7 @@ export default function AtlasApp({
           />
         )}
 
-      {sheetScreen === "socratic" && socratic && socraticSteps &&
+      {openSheet === "socratic" && socratic && socraticSteps &&
         sheetBoundary(
           <SocraticView
             presence={sheet.state}
@@ -4731,7 +4738,7 @@ export default function AtlasApp({
           />
         )}
 
-      {sheetScreen === "feynman" && feynman && feynmanBeats &&
+      {openSheet === "feynman" && feynman && feynmanBeats &&
         sheetBoundary(
           <FeynmanView
             presence={sheet.state}
@@ -4755,7 +4762,7 @@ export default function AtlasApp({
           />
         )}
 
-      {sheetScreen === "connect" && connect && connectContent &&
+      {openSheet === "connect" && connect && connectContent &&
         sheetBoundary(
           <ConnectView
             presence={sheet.state}
@@ -4776,7 +4783,7 @@ export default function AtlasApp({
           />
         )}
 
-      {sheetScreen === "crucible" && crucible && crucibleContent &&
+      {openSheet === "crucible" && crucible && crucibleContent &&
         sheetBoundary(
           <CrucibleView
             presence={sheet.state}
@@ -4794,7 +4801,7 @@ export default function AtlasApp({
           />
         )}
 
-      {sheetScreen === "review" && retain && retainContent &&
+      {openSheet === "review" && retain && retainContent &&
         sheetBoundary(
           <RetainView
             presence={sheet.state}
@@ -4817,7 +4824,7 @@ export default function AtlasApp({
           />
         )}
 
-      {sheetScreen === "calibration" &&
+      {openSheet === "calibration" &&
         sheetBoundary(
           <CalibrationView
             presence={sheet.state}
