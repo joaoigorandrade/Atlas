@@ -323,6 +323,12 @@ export function figureLayers(fig: ConsumeFigure): Map<string, number> {
   return layer;
 }
 
+/** How many sections a reading pass may run to. The prompt picks from a
+ *  narrower band (2-5) — this is the validator's bound, with the usual slack
+ *  above it, since a pass that wrote six genuinely distinct sections is not
+ *  worth rejecting. `Job.shape` mirrors this, never the prompt's band. */
+export const CONSUME_SECTION_BOUNDS = { min: 2, max: 6 } as const;
+
 export interface ConsumeChunk {
   id: string;
   /** Segment label, e.g. "1 · What it is". */
@@ -1078,16 +1084,26 @@ export interface FeynmanSession {
  *  constant at all; `socraticPlan` is the real, per-concept count. */
 export const SOCRATIC_STEPS = 4;
 
-/** The fewest core probes a concept can be worth — a simple one gets three. */
-export const SOCRATIC_MIN_STEPS = 3;
+/** The fewest core probes a concept can be worth. Two is the honest answer for
+ *  a single-mechanism idea with one way to get it wrong: padding that out to
+ *  four costs the learner two clicks and teaches nothing. The floor is low so a
+ *  short concept can come back short. */
+export const SOCRATIC_MIN_STEPS = 2;
 
 /** Probes written past the core, spent one at a time by a learner who keeps
- *  needing help. Unspent, they cost nothing but the tokens that wrote them. */
-export const SOCRATIC_SPARES = 2;
+ *  needing help. Unspent, they cost nothing but the tokens that wrote them —
+ *  which is why there is one, not a bank: most passes never spend it. */
+export const SOCRATIC_SPARES = 1;
 
-/** The longest a written pass can be — core plus spares. The validator's bound,
- *  and the ceiling a struggling learner can buy up to. */
+/** The longest a written pass can be — core plus spares. The validator's upper
+ *  bound, and the ceiling a struggling learner can buy up to. */
 export const SOCRATIC_MAX_STEPS = SOCRATIC_STEPS + SOCRATIC_SPARES;
+
+/** The fewest steps a *written* pass can carry: the smallest core, plus its
+ *  spare. The validator's lower bound (and `Job.shape`'s), which is about the
+ *  written array rather than the plan — a pass that skipped its spare is short,
+ *  even when its core count is legitimately small. */
+export const SOCRATIC_MIN_WRITTEN = SOCRATIC_MIN_STEPS + SOCRATIC_SPARES;
 
 /** How many probes a written pass *plans* to run: its core steps, with the
  *  spares held back. The count is the model's call — as many as the concept
@@ -1148,10 +1164,17 @@ export function recurringMisconceptions(
     .map((m) => `"${m.label}" — hit ${m.count}× (last under ${m.node})`);
 }
 
-/** How many sub-points a teach-back rubric aims for. The beats stream in one
- *  at a time and the judge diffs against whatever arrived, so this is the
- *  prompt's target, not a bound the session depends on. */
+/** The most sub-points a teach-back rubric runs to. The beats stream in one at
+ *  a time and the judge diffs against whatever arrived, so this is the top of
+ *  the range the prompt asks for, not a bound the session depends on. */
 export const FEYNMAN_BEATS = 4;
+
+/** How long a rubric may be. Two rows is a complete rubric for a concept that
+ *  genuinely has two things to say — the count belongs to the material, and
+ *  `FEYNMAN_GAP_OFFSETS` indexes modulo, so a short rubric still lays out.
+ *  Mirrored by `validateFeynman` and by `Job.shape`, which uses it to decide
+ *  whether a streamed rubric is complete enough to cache. */
+export const FEYNMAN_BEAT_BOUNDS = { min: 2, max: FEYNMAN_BEATS } as const;
 
 /** A fresh teach-back. `previous` carries a prior pass's verdicts when the
  *  learner is teaching it again, and is null on a first attempt. */

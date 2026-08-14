@@ -16,7 +16,7 @@
 export const CONSUME_SECTION_SHAPE = `{
       "kicker": "1 · What it is",                         // segment label: number · 2-4 words
       "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
-      "body": ["paragraph 1", "paragraph 2", "paragraph 3"],   // 3-5 paragraphs, 3-6 sentences each
+      "body": ["paragraph 1", "paragraph 2", "paragraph 3"],   // 2-5 paragraphs of 3-6 sentences — as many as the idea needs, never padding
       "example": {                                         // worked inline, part of the material
         "title": "what this example demonstrates",
         "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps

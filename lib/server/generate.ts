@@ -4,11 +4,12 @@
 // gap offsets are computed here, never trusted from the model.
 
 import {
-  FEYNMAN_BEATS,
+  FEYNMAN_BEAT_BOUNDS,
   MODEL_BEAT_BOUNDS,
   PARETO_DEFAULT,
   SOCRATIC_MAX_STEPS,
   SOCRATIC_MIN_STEPS,
+  SOCRATIC_MIN_WRITTEN,
   SOCRATIC_SPARES,
   SOCRATIC_STEPS,
   altControls,
@@ -17,6 +18,7 @@ import {
   type AltKey,
   type ConceptEdge,
   type ConceptNode,
+  CONSUME_SECTION_BOUNDS,
   type ConsumeChunk,
   type ConsumeFigure,
   type ConsumeModelBeat,
@@ -162,6 +164,30 @@ function languageNote(language: Language | undefined): string {
   return language === "pt-BR"
     ? "\n\nOUTPUT LANGUAGE: Brazilian Portuguese (pt-BR). Every natural-language string value you return must be written in Portuguese — including any label, tag, title or example text shown in the JSON template above. Translate those; never copy their English wording. Keep only JSON field names and enum values (e.g. \"correct\", \"mastered\", \"conceptual\", \"list-like\") exactly as specified in English."
     : "";
+}
+
+/**
+ * The sizing rule every sized generation shares.
+ *
+ * These prompts used to hand the model a count — 5 sections, 4 beats, 12-18
+ * concepts — and a count reads as a quota: material worth three sections comes
+ * back as five, two of which restate the others. The learner pays for that
+ * twice, in the wait for a generation no cache can hide and again in the
+ * reading. So every sized prompt asks for a RANGE and says what each end
+ * actually means, which is what makes stopping early a correct answer rather
+ * than a shortfall.
+ */
+function sizeRule(p: {
+  /** Plural noun for what is being counted — "sections", "beats". */
+  unit: string;
+  min: number;
+  max: number;
+  /** What genuinely earns the small end. */
+  atMin: string;
+  /** What genuinely earns the large end. */
+  atMax: string;
+}): string {
+  return `SIZE — read it off the material, never off a quota: write ${p.min}-${p.max} ${p.unit}. ${p.min} is the right answer for ${p.atMin}; only ${p.atMax} earns ${p.max}. Add one only when it carries something none of the others do. Covering the material in ${p.min} and stopping is a correct answer, not a shortfall — padding to reach ${p.max} makes this worse, not more thorough.`;
 }
 
 /** Personal-interest flavoring shared by several prompts. */
@@ -377,7 +403,10 @@ export function mapNodeBounds(paretoPct?: number): {
   min: number;
   max: number;
 } {
-  if (paretoPct === undefined) return { ask: [12, 18], min: 10, max: 24 };
+  // The band is wide on purpose and the prompt picks from it: a topic that is
+  // one technique is not 12 concepts, and asking for 12 anyway got 12 — the
+  // surplus arriving as chapter headings and split hairs.
+  if (paretoPct === undefined) return { ask: [6, 16], min: 5, max: 20 };
   // 20% -> ~7 concepts, 50% -> ~12, 80% -> ~17.
   const target = Math.round(4 + (paretoPct / 100) * 16);
   return {
@@ -404,7 +433,15 @@ const graphShape = (ask: [number, number]) => `{
 }`;
 
 const mapRules = (ask: [number, number]) =>
-  `Rules: labels are 1-3 words, title case. Node count ${ask[0]}-${ask[1]}. The map must read left-to-right from true foundations to the topic's capstone ideas. Every node is a CONCEPT the learner can be taught and then tested on — never a chapter heading or a container: no "Introduction", "Overview", "Fundamentals", "Advanced Topics", "Applications", "Conclusion".`;
+  `Rules: labels are 1-3 words, title case.
+${sizeRule({
+  unit: "concepts",
+  min: ask[0],
+  max: ask[1],
+  atMin: "a topic that is one technique or one mechanism, where a handful of concepts genuinely is the whole of it",
+  atMax: "a broad field with several separate branches a learner must cross",
+})}
+The map must read left-to-right from true foundations to the topic's capstone ideas. Every node is a CONCEPT the learner can be taught and then tested on — never a chapter heading or a container: no "Introduction", "Overview", "Fundamentals", "Advanced Topics", "Applications", "Conclusion".`;
 
 /** Attach each node's prerequisites, so a laid-out map travels as one flat
  *  list. The inverse of `graphFromMapNodes`. */
@@ -742,7 +779,7 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
         d: str(term.d, `chunks[${i}].terms[${j}].d`),
       };
     }),
-    body: arr(c.body, `chunks[${i}].body`, 3, 5).map((p, j) =>
+    body: arr(c.body, `chunks[${i}].body`, 2, 5).map((p, j) =>
       str(p, `chunks[${i}].body[${j}]`),
     ),
     example: {
@@ -767,7 +804,9 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
 
 export function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
-  return arr(root.chunks, "chunks", 4, 6).map(validateConsumeSection);
+  return arr(root.chunks, "chunks", CONSUME_SECTION_BOUNDS.min, CONSUME_SECTION_BOUNDS.max).map(
+    validateConsumeSection,
+  );
 }
 
 function consumeContext(params: {
@@ -782,6 +821,14 @@ function consumeContext(params: {
 The learner already knows: ${prereqLabels.join(", ") || "nothing yet — this is a foundation"}.
 ${interestNote(interests)}
 
+${sizeRule({
+  unit: "sections",
+  min: 2,
+  max: 5,
+  atMin: "a concept with one mechanism and one way to get it wrong",
+  atMax: "a concept with several genuinely separate moving parts",
+})}
+
 This is the READING phase — the learner is here to be taught, not tested. Write
 real teaching material: explain the idea, show where it comes from, work an
 example, name what usually goes wrong. Real questioning happens in later
@@ -792,12 +839,15 @@ not a test: it asks for something stated or worked in THAT section's prose or
 example, and its wrong options are plausible misreadings, never absurd.
 
 Rules for the prose:
-- Teach, don't summarize. Each section's body is 3-5 full paragraphs of 3-6
-  sentences — enough that a learner who reads only this understands the idea.
+- Teach, don't summarize. Each section's body is 2-5 full paragraphs of 3-6
+  sentences — enough that a learner who reads only this understands the idea,
+  and no more: a paragraph that restates the one above it is padding.
 - Be concrete: real numbers, real cases, the actual mechanism. No "it can be
   shown that", no bullet-point skeletons, no restating the section title.
 - Build in order: what it is → why it works / where it comes from → how it
-  behaves → where it breaks or is misused → how it connects onward.
+  behaves → where it breaks or is misused → how it connects onward. That is the
+  ORDER, not a checklist of five sections — a small concept covers several of
+  those beats inside one section.
 - Name the common misconception explicitly and say why it is wrong.${languageNote(language)}`;
 }
 
@@ -812,9 +862,9 @@ export async function generateConsume(params: {
     user(
       `${consumeContext(params)}
 
-Return JSON with 5 sections:
+Return JSON:
 {
-  "chunks": [${CONSUME_SECTION_SHAPE}, ...]
+  "chunks": [${CONSUME_SECTION_SHAPE}, ...]   // as many sections as the concept earns
 }`,
     ),
     validateConsume,
@@ -850,7 +900,7 @@ export async function* generateConsumeStream(params: {
       user(
         `${consumeContext(params)}
 
-Write the 5 sections as 5 SEPARATE top-level JSON objects, one after another
+Write the sections as SEPARATE top-level JSON objects, one after another
 — NOT wrapped in an array or a {"chunks": [...]} object, no markdown fences,
 no numbering, no commentary before/after/between them. Each object has this
 shape:
@@ -1184,8 +1234,14 @@ function socraticContext(params: {
   return `Write a Socratic questioning session for the concept "${params.nodeLabel}" within "${params.topic}".
 The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
 ${interestNote(params.interests)}
-Write ${SOCRATIC_MIN_STEPS}-${SOCRATIC_STEPS} CORE probes — as many as this concept actually needs and no more; a simple idea gets ${SOCRATIC_MIN_STEPS}, a genuinely layered one gets ${SOCRATIC_STEPS} — each using a different move, in the order listed, each picking up where the last left off.
-Then write exactly ${SOCRATIC_SPARES} further probes marked "spare": true, last. These are held back: they are only asked of a learner who keeps needing help, so each must go DEEPER on the hardest part of the concept rather than restate an earlier probe.`;
+${sizeRule({
+  unit: "CORE probes",
+  min: SOCRATIC_MIN_STEPS,
+  max: SOCRATIC_STEPS,
+  atMin: "a single-mechanism idea with one way to get it wrong",
+  atMax: "a genuinely layered concept",
+})} Each core probe uses a different move, in the order listed, and picks up where the last left off.
+Then write exactly ${SOCRATIC_SPARES} further ${SOCRATIC_SPARES === 1 ? "probe" : "probes"} marked "spare": true, last. A spare is held back — only ever asked of a learner who keeps needing help — so it must go DEEPER on the hardest part of the concept rather than restate an earlier probe.`;
 }
 
 const SOCRATIC_STEP_SHAPE = `{
@@ -1245,7 +1301,7 @@ export function validateSocraticStep(raw: unknown, i: number): SocraticStep {
 
 export function validateSocratic(raw: unknown): SocraticStep[] {
   const root = obj(raw, "payload");
-  return arr(root.steps, "steps", SOCRATIC_MIN_STEPS, SOCRATIC_MAX_STEPS).map(
+  return arr(root.steps, "steps", SOCRATIC_MIN_WRITTEN, SOCRATIC_MAX_STEPS).map(
     validateSocraticStep,
   );
 }
@@ -1262,7 +1318,7 @@ export async function generateSocratic(params: {
 
 Return JSON:
 {
-  "steps": [${SOCRATIC_STEP_SHAPE}, ...]   // the core probes, then the ${SOCRATIC_SPARES} spares
+  "steps": [${SOCRATIC_STEP_SHAPE}, ...]   // the core probes, then the ${SOCRATIC_SPARES} spare
 }
 
 ${SOCRATIC_STEP_EXAMPLE}${languageNote(params.language ?? "en")}`,
@@ -1377,7 +1433,7 @@ export function validateFeynman(nodeId: string) {
   const beat = validateFeynmanBeat(nodeId);
   return (raw: unknown): FeynmanBeat[] => {
     const root = obj(raw, "payload");
-    return arr(root.beats, "beats", 3, 4).map(beat);
+    return arr(root.beats, "beats", FEYNMAN_BEAT_BOUNDS.min, FEYNMAN_BEAT_BOUNDS.max).map(beat);
   };
 }
 
@@ -1391,7 +1447,14 @@ interface FeynmanParams {
 
 /** The shared framing of both Feynman prompts. */
 function feynmanContext(params: FeynmanParams): string {
-  return `Write the RUBRIC for a Feynman teach-back on the concept "${params.nodeLabel}" within "${params.topic}": the ${FEYNMAN_BEATS} sub-points a learner must cover to have genuinely explained it to someone who has never heard of it.
+  return `Write the RUBRIC for a Feynman teach-back on the concept "${params.nodeLabel}" within "${params.topic}": the sub-points a learner must cover to have genuinely explained it to someone who has never heard of it.
+${sizeRule({
+  unit: "sub-points",
+  min: FEYNMAN_BEAT_BOUNDS.min,
+  max: FEYNMAN_BEAT_BOUNDS.max,
+  atMin: "a concept whose complete explanation genuinely is two things",
+  atMax: "a concept a naive listener cannot follow without all four",
+})}
 The learner never sees these — they teach the concept from a blank page, and their explanation is diffed against these rows. So each sub-point is what a *complete* explanation contains, in the order it would naturally be taught, not a question or a prompt.
 ${interestNote(params.interests)}`;
 }
@@ -1432,7 +1495,7 @@ export async function generateFeynman(params: FeynmanParams): Promise<FeynmanBea
 
 Return JSON:
 {
-  "beats": [${FEYNMAN_BEAT_SHAPE}, ...]   // exactly ${FEYNMAN_BEATS}
+  "beats": [${FEYNMAN_BEAT_SHAPE}, ...]   // ${FEYNMAN_BEAT_BOUNDS.min}-${FEYNMAN_BEAT_BOUNDS.max}, as many as the concept earns
 }
 
 ${FEYNMAN_BEAT_EXAMPLE}${languageNote(params.language ?? "en")}`,
@@ -1462,7 +1525,7 @@ export async function* generateFeynmanStream(
       user(
         `${feynmanContext(params)}
 
-Write the ${FEYNMAN_BEATS} beats as ${FEYNMAN_BEATS} SEPARATE top-level JSON objects, one
+Write the beats as SEPARATE top-level JSON objects, one
 after another — NOT wrapped in an array or a {"beats": [...]} object, no
 markdown fences, no numbering, no commentary before/after/between them. Each
 object has this shape:
@@ -1535,7 +1598,7 @@ function validateConnect(
       base.items = arr(root.items, "items (required for list-like)", 3, 30).map((s, i) =>
         str(s, `items[${i}]`),
       );
-      base.mnemonics = arr(root.mnemonics, "mnemonics (required for list-like)", 2, 3).map(
+      base.mnemonics = arr(root.mnemonics, "mnemonics (required for list-like)", 1, 3).map(
         (v, i) => {
           const m = obj(v, `mnemonics[${i}]`);
           return {
@@ -1572,11 +1635,11 @@ Return JSON:
 {
   "encoding": "conceptual" | "list-like",
   "detectNote": "one-sentence plain-language rationale for the choice, first person ('I'm using elaboration — wiring, not memorizing')",
-  "cands": [   // pick the 3-5 MOST related prior concepts from the list above
+  "cands": [   // the 2-5 prior concepts with a GENUINELY specific relationship to this one — a vague "both are about X" link is worse than leaving it out
     {"id": "an id from the list", "rel": "the true relationship, one sentence, specific to both concepts — a draft the learner can accept or rewrite"}
   ],
   "items": ["step 1", ...],          // list-like only: 3-30 ordered items a mnemonic organizes
-  "mnemonics": [                       // list-like only: 2-3 offered aids, each a DIFFERENT kind
+  "mnemonics": [                       // list-like only: 1-2 offered aids — a second ONLY when it is a genuinely different KIND of aid, not a second acronym
     {"kind": "Acronym" | "Method of loci" | "Vivid image", "title": "short title", "body": "the aid itself, editable"}
   ]
 }${languageNote(language)}`,
@@ -1718,6 +1781,24 @@ Return JSON:
 
 const CARD_TYPES = ["recall", "why", "apply"] as const;
 
+/** How many cards one Retain draft may carry, whatever the rotation looks like.
+ *  The band the prompt asks for is narrower and derived per request — see
+ *  `retainCardBounds` — since the honest count is roughly one card per node the
+ *  learner actually has in rotation. */
+export const RETAIN_CARD_BOUNDS = { min: 3, max: 8 } as const;
+
+/** The band to ask this particular draft for: about one card per node in
+ *  rotation, clamped into `RETAIN_CARD_BOUNDS`. A three-node rotation asking
+ *  for six cards got six — four of them second and third cuts at the same fact,
+ *  which is exactly what a review queue must not be made of. */
+export function retainCardBounds(nodeCount: number): { min: number; max: number } {
+  const target = Math.max(RETAIN_CARD_BOUNDS.min, Math.min(RETAIN_CARD_BOUNDS.max, nodeCount));
+  return {
+    min: Math.max(RETAIN_CARD_BOUNDS.min, target - 1),
+    max: Math.min(RETAIN_CARD_BOUNDS.max, target + 1),
+  };
+}
+
 /**
  * The Retain generation is a card FACTORY, not the queue.
  *
@@ -1740,7 +1821,12 @@ const CARD_TYPES = ["recall", "why", "apply"] as const;
 export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
   return (raw: unknown): RetainContent => {
     const root = obj(raw, "payload");
-    const cards: ReviewCard[] = arr(root.cards, "cards", 4, 8).map((v, i) => {
+    const cards: ReviewCard[] = arr(
+      root.cards,
+      "cards",
+      RETAIN_CARD_BOUNDS.min,
+      RETAIN_CARD_BOUNDS.max,
+    ).map((v, i) => {
       const c = obj(v, `cards[${i}]`);
       const node = str(c.node, `cards[${i}].node`).toLowerCase().replace(/[^a-z0-9-]/g, "-");
       if (!nodeIds.has(node)) fail(`cards[${i}].node "${node}" is not a learned node id`);
@@ -1780,6 +1866,7 @@ export async function generateRetain(params: {
   language?: Language;
 }): Promise<RetainContent> {
   const { topic, budgetMin, nodes, interests, language = "en" } = params;
+  const band = retainCardBounds(nodes.length);
   return generateJson(
     user(
       `Draft the review cards for the topic "${topic}".
@@ -1788,12 +1875,20 @@ The learner's nodes in rotation (id: label — state):
 ${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}`).join("\n")}
 ${interestNote(interests)}
 
+${sizeRule({
+  unit: "cards",
+  min: band.min,
+  max: band.max,
+  atMin: "a rotation whose nodes each carry one fact worth being asked for",
+  atMax: "a rotation where a node genuinely holds two separate facts",
+})} A node earns a second card only when it carries two facts that can be missed independently — never a second cut at the same one.
+
 Write the cards only. Scheduling — when each card is next due, and what each
 grade button is worth — is the scheduler's job, not yours.
 
 Return JSON:
 {
-  "cards": [   // 5-6 cards; mix of types; "recall" cards use cloze, "why"/"apply" use front
+  "cards": [   // ${band.min}-${band.max} cards; mix of types; "recall" cards use cloze, "why"/"apply" use front
     {
       "type": "recall" | "why" | "apply",
       "source": "Consume" | "Socratic" | "Feynman" | "Connect" | "Crucible",   // which phase plausibly drafted it

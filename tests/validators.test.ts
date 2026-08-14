@@ -10,6 +10,7 @@ import {
   mapNodeBounds,
   validateGraphPart,
   validateMapConcept,
+  retainCardBounds,
   validateRetain,
   validateScopeOffer,
   validateSocratic,
@@ -33,6 +34,14 @@ describe("validateGraphPart", () => {
   it("accepts a valid DAG", () => {
     const out = validateGraphPart(graphPayload(chainEdges));
     expect(out.nodes.length).toBe(10);
+  });
+
+  // The band the prompt asks for is 6-16 and the floor sits under it: a topic
+  // that is one technique is a small map, not a padded one.
+  it("accepts a map as small as the topic genuinely is", () => {
+    const nodes = Array.from({ length: 6 }, (_, i) => ({ id: `n${i}`, label: `Node ${i}` }));
+    const edges = Array.from({ length: 5 }, (_, i) => [`n${i}`, `n${i + 1}`]);
+    expect(validateGraphPart({ nodes, edges }).nodes).toHaveLength(6);
   });
 
   it("rejects a prerequisite cycle (#16)", () => {
@@ -209,6 +218,15 @@ describe("validateFeynman", () => {
     expect(beats[0].mustConvey).toHaveLength(1);
   });
 
+  it("accepts a two-row rubric — a short concept is explained in two", () => {
+    const { beats } = feynmanPayload([
+      "that a matrix times a vector recombines the columns",
+      "that the origin never moves",
+      "unused",
+    ]);
+    expect(validateFeynman("n1")({ beats: beats.slice(0, 2) })).toHaveLength(2);
+  });
+
   it("rejects rubric rows that echo the prompt template (#10)", () => {
     expect(() =>
       validateFeynman("n1")(
@@ -225,6 +243,27 @@ describe("validateFeynman", () => {
 // ---- socratic: template echoes -------------------------------------------------
 
 describe("validateSocratic", () => {
+  // Two core probes plus the one spare is the shortest written pass. The floor
+  // is on the written array, not the plan: a pass that skipped its spare has
+  // nothing to sell a struggling learner.
+  it("accepts two core probes and the one held-back spare", () => {
+    const probe = (spare: boolean) => ({
+      spare,
+      move: "Clarify",
+      prompt: "what does it do?",
+      replies: [
+        { label: "it recombines the columns", quality: "correct", response: "yes" },
+        { label: "it rotates the grid", quality: "wrong", response: "no — that is one case" },
+        { label: "something about columns", quality: "near", response: "keep going" },
+      ],
+      hint: "count the columns",
+      tell: "it takes a combination of the columns",
+    });
+    const out = validateSocratic({ steps: [probe(false), probe(false), probe(true)] });
+    expect(out).toHaveLength(3);
+    expect(out.filter((step) => !step.spare)).toHaveLength(2);
+  });
+
   it("rejects reply labels that echo the prompt template", () => {
     const step = {
       move: "Clarify",
@@ -376,10 +415,22 @@ describe("validateConsume", () => {
     ).toThrow(/chunks\[2\].check/);
   });
 
+  // Length is the concept's call, not a quota: two sections of two paragraphs
+  // each is a complete pass for a concept that carries two things.
+  it("accepts a two-section pass with two-paragraph bodies", () => {
+    const out = validateConsume({
+      chunks: [0, 1].map((i) =>
+        consumeChunk(i, { body: ["paragraph one", "paragraph two"] }),
+      ),
+    });
+    expect(out).toHaveLength(2);
+    expect(out[0].body).toHaveLength(2);
+  });
+
   it("rejects a thin body — Consume is where the material lives", () => {
     expect(() =>
       validateConsume(consumePayload([{ body: ["one paragraph"] }])),
-    ).toThrow(/body must have 3-5 items/);
+    ).toThrow(/body must have 2-5 items/);
   });
 
   it("requires the worked example to be worked", () => {
@@ -528,6 +579,13 @@ describe("validateRetain", () => {
   };
   const payload = { cards: [card, card, card, card] };
 
+  // The draft is sized to the rotation — a three-node rotation is three cards,
+  // not six cuts at the same three facts.
+  it("accepts a draft as small as the rotation", () => {
+    const out = validateRetain(8, new Set(["n1"]))({ cards: [card, card, card] });
+    expect(out.cards).toHaveLength(3);
+  });
+
   it("accepts cards with no scheduling fields at all", () => {
     const out = validateRetain(8, new Set(["n1"]))(payload);
     expect(out.cards).toHaveLength(4);
@@ -571,9 +629,20 @@ describe("validateRetain", () => {
   });
 });
 
+describe("retainCardBounds", () => {
+  it("asks for about one card per node in rotation", () => {
+    expect(retainCardBounds(5)).toEqual({ min: 4, max: 6 });
+  });
+
+  it("never asks below the floor or above the ceiling", () => {
+    expect(retainCardBounds(1)).toEqual({ min: 3, max: 4 });
+    expect(retainCardBounds(30)).toEqual({ min: 7, max: 8 });
+  });
+});
+
 describe("mapNodeBounds", () => {
   it("keeps the full-map band when no Pareto share is set", () => {
-    expect(mapNodeBounds()).toMatchObject({ ask: [12, 18], min: 10, max: 24 });
+    expect(mapNodeBounds()).toMatchObject({ ask: [6, 16], min: 5, max: 20 });
   });
 
   it("shrinks the map as the Pareto share shrinks", () => {
