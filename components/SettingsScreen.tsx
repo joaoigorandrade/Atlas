@@ -42,7 +42,10 @@ const STRINGS = {
     dictationOff: "Dictation off — typing only",
     readAloudOn: "Read aloud on — Consume sections can be spoken",
     readAloudOff: "Read aloud off — the reading stays silent",
-    voiceUnsupported: "This browser can’t do it — Chrome, Edge and Safari can.",
+    dictationUnsupported:
+      "This browser can’t dictate — Chrome, Edge and Safari can.",
+    readAloudUnsupported:
+      "No voice is configured on this server, so nothing can be read aloud.",
     yourData: "Your data",
     yourDataHint: "it's yours — take it anywhere",
     exportMap: "Export map · nodes, edges & mastery states (JSON)",
@@ -78,7 +81,10 @@ const STRINGS = {
     dictationOff: "Ditado desligado — só digitação",
     readAloudOn: "Leitura em voz alta ligada — as seções do Consumir podem ser ouvidas",
     readAloudOff: "Leitura em voz alta desligada — a leitura fica em silêncio",
-    voiceUnsupported: "Este navegador não suporta — Chrome, Edge e Safari suportam.",
+    dictationUnsupported:
+      "Este navegador não faz ditado — Chrome, Edge e Safari fazem.",
+    readAloudUnsupported:
+      "Nenhuma voz está configurada neste servidor, então nada pode ser lido em voz alta.",
     yourData: "Seus dados",
     yourDataHint: "são seus — leve para onde quiser",
     exportMap: "Exportar mapa · nós, conexões e domínio (JSON)",
@@ -229,7 +235,10 @@ export default function SettingsScreen({
   // straight from `lib/speech` here, exactly as the language is.
   const voice = useVoicePrefs();
   const voiceSupport = useVoiceSupport();
-  const voiceMissing = !voiceSupport.dictation && !voiceSupport.readAloud;
+  // Two halves, two reasons, two sentences. Dictation is a browser capability;
+  // read-aloud is now a hosted engine, so its absence means this deploy has no
+  // speech key — telling a learner to switch browsers would be a wrong
+  // instruction they can act on and get nowhere with.
   return (
     <Sheet
       presence={presence}
@@ -350,9 +359,19 @@ export default function SettingsScreen({
               onToggle={() => voice.setReadAloud(!voice.readAloud)}
             />
           </div>
-          {voiceMissing && (
-            <div style={{ marginTop: 10, fontSize: 12.5, color: color.inkGhost }}>
-              {t.voiceUnsupported}
+          {(!voiceSupport.dictation || !voiceSupport.readAloud) && (
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 12.5,
+                color: color.inkGhost,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              {!voiceSupport.dictation && <span>{t.dictationUnsupported}</span>}
+              {!voiceSupport.readAloud && <span>{t.readAloudUnsupported}</span>}
             </div>
           )}
         </Section>

@@ -3,9 +3,12 @@ import {
   DEFAULT_VOICE_PREFS,
   appendTranscript,
   parseVoicePrefs,
+  readProgress,
   segmentsForChunk,
   speechLang,
+  wordAt,
 } from "@/lib/speech";
+import type { SpeechMark } from "@/lib/api";
 import type { ConsumeChunk } from "@/lib/curriculum";
 
 const chunk = (over: Partial<ConsumeChunk> = {}): ConsumeChunk => ({
@@ -104,5 +107,62 @@ describe("parseVoicePrefs", () => {
       dictation: false,
       readAloud: true,
     });
+  });
+});
+
+// ---- read-aloud engine ----------------------------------------------------
+// The parts of the hosted-speech path that are pure. Everything the highlight
+// depends on lives here on purpose: a timing bug shows up as a word marked at
+// the wrong moment, which is exactly the kind of thing nobody notices in a
+// screenshot.
+
+const mark = (from: number, to: number, at: number, end: number): SpeechMark => ({
+  from,
+  to,
+  at,
+  end,
+});
+
+describe("wordAt", () => {
+  // "A matrix acts" — with the comma-length gap between the second and third.
+  const marks = [mark(0, 1, 0, 120), mark(2, 8, 120, 520), mark(9, 13, 700, 1000)];
+
+  it("finds the word covering the moment", () => {
+    expect(wordAt(marks, 300)?.from).toBe(2);
+    expect(wordAt(marks, 900)?.from).toBe(9);
+  });
+
+  it("includes a word's start and excludes its end", () => {
+    expect(wordAt(marks, 120)?.from).toBe(2);
+    expect(wordAt(marks, 520)).toBeNull();
+  });
+
+  it("marks nothing in the pause between two words", () => {
+    // The highlight goes out during a pause rather than clinging to the word
+    // the voice has already finished.
+    expect(wordAt(marks, 600)).toBeNull();
+  });
+
+  it("marks nothing before the first word or after the last", () => {
+    expect(wordAt(marks, -50)).toBeNull();
+    expect(wordAt(marks, 5000)).toBeNull();
+    expect(wordAt([], 10)).toBeNull();
+  });
+});
+
+describe("readProgress", () => {
+  it("weights by characters, so an uneven section doesn't lurch", () => {
+    const lengths = [100, 10, 100];
+    expect(readProgress(lengths, 0, 0)).toBe(0);
+    expect(readProgress(lengths, 0, 1)).toBeCloseTo(100 / 210);
+    // The ten-character title is a blip, not a third of the ring.
+    expect(readProgress(lengths, 1, 1)).toBeCloseTo(110 / 210);
+    expect(readProgress(lengths, 2, 1)).toBe(1);
+  });
+
+  it("survives an unknown duration and an empty reading", () => {
+    expect(readProgress([50, 50], 1, 0)).toBeCloseTo(0.5);
+    expect(readProgress([], 0, 0.5)).toBe(0);
+    expect(readProgress([10], -1, 0.5)).toBe(0);
   });
 });

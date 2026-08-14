@@ -18,7 +18,12 @@ import {
   type ConsumePrediction,
   type ConsumeProgress,
 } from "@/lib/curriculum";
-import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
+import {
+  segmentsForChunk,
+  useReadAloud,
+  useVoicePrefs,
+  type ReadStatus,
+} from "@/lib/speech";
 import { color, font, kicker, motion, transition } from "@/lib/theme";
 import { usePresence } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -70,6 +75,9 @@ const STRINGS = {
     pauseReading: "Pause the reading",
     resumeReading: "Resume the reading",
     startingReading: "Starting the reading…",
+    bufferingReading: "Loading the next part…",
+    readingFailed: "Reading failed — tap to try again",
+    readingFailedNote: "Couldn't read this aloud",
     skipSection: "Skip — I know this",
     showFullSection: "Show full section →",
     minLeft: (n: number) => (n > 0 ? `~${n} min left` : ""),
@@ -148,6 +156,9 @@ const STRINGS = {
     pauseReading: "Pausar a leitura",
     resumeReading: "Continuar a leitura",
     startingReading: "Iniciando a leitura…",
+    bufferingReading: "Carregando a próxima parte…",
+    readingFailed: "A leitura falhou — toque para tentar de novo",
+    readingFailedNote: "Não deu para ler em voz alta",
     skipSection: "Pular — já sei isso",
     showFullSection: "Mostrar seção completa →",
     minLeft: (n: number) => (n > 0 ? `~${n} min restantes` : ""),
@@ -472,30 +483,60 @@ function sectionName(kicker: string): string {
   return kicker.replace(/^\s*\d+\s*·\s*/, "");
 }
 
-/** Play/pause for one section's reading. Hidden entirely where the browser
- *  can't speak or the learner has read-aloud off. */
+/**
+ * Play/pause for one section's reading. Hidden entirely where the deploy has
+ * no speech engine or the learner has read-aloud off.
+ *
+ * Every state the engine can be in is drawn, and drawn differently — that is
+ * the whole point of the control. The ring carries *where* the reading is: an
+ * indeterminate sweep while a clip is on the wire, a real arc filled to how
+ * far through the section the voice has got once it is talking. The glyph
+ * carries *what a click does*: pause bars while it plays, a triangle while it
+ * waits. Neither one is ever a guess — the old control pulsed its whole
+ * opacity because "warming up" was the only wait `speechSynthesis` could
+ * report, and it could not tell that apart from failure.
+ */
 function SpeakerButton({
-  active,
-  paused,
-  loading,
+  status,
+  progress,
   onClick,
 }: {
-  active: boolean;
-  paused: boolean;
-  loading: boolean;
+  status: ReadStatus;
+  /** 0–1 through the whole section. */
+  progress: number;
   onClick: () => void;
 }) {
   const t = useT(STRINGS);
-  const label = !active
-    ? t.readAloud
-    : loading
-      ? t.startingReading
-      : paused
-        ? t.resumeReading
-        : t.pauseReading;
-  // Waiting on the engine is neither playing nor paused: the pause bars would
-  // be a lie, so it keeps the speaker glyph and breathes instead.
-  const showPause = active && !paused && !loading;
+  const label =
+    status === "idle"
+      ? t.readAloud
+      : status === "preparing"
+        ? t.startingReading
+        : status === "buffering"
+          ? t.bufferingReading
+          : status === "paused"
+            ? t.resumeReading
+            : status === "error"
+              ? t.readingFailed
+              : t.pauseReading;
+
+  const active = status !== "idle" && status !== "error";
+  const failed = status === "error";
+  const waiting = status === "preparing" || status === "buffering";
+  // Pause bars mean "clicking stops it". While a clip is on the wire nothing
+  // is playing yet, so they would be a lie — the old control made exactly this
+  // distinction and it is worth keeping.
+  const showPause = status === "playing" || status === "buffering";
+  const tint = failed ? color.dangerInk : BLUE;
+
+  // The gauge rides *outside* the 26px button, in a 34px box. Inside it, an
+  // accent arc on an accent fill is invisible — which is exactly how the first
+  // cut of this control shipped in a screenshot and read as "no progress at
+  // all". Out here it sits on paper and has something to contrast with.
+  const R = 15;
+  const CIRC = 2 * Math.PI * R;
+  const shown = Math.min(Math.max(progress, 0), 1);
+
   return (
     <button
       className="at-press"
@@ -504,6 +545,7 @@ function SpeakerButton({
       aria-label={label}
       title={label}
       style={{
+        position: "relative",
         flex: "0 0 auto",
         width: 26,
         height: 26,
@@ -511,17 +553,91 @@ function SpeakerButton({
         alignItems: "center",
         justifyContent: "center",
         padding: 0,
+        // The gauge needs room to sit outside the circle without nudging the
+        // kicker row, so the button reserves it as margin rather than width.
+        margin: 4,
         borderRadius: "50%",
-        border: `1px solid ${active ? BLUE : color.hairlineStrong}`,
-        background: active ? BLUE : color.card,
+        border: `1px solid ${active || failed ? tint : color.hairlineStrong}`,
+        background: active ? tint : color.card,
         cursor: "pointer",
-        animation: active && loading ? "breathe 1.1s ease-in-out infinite" : undefined,
+        transition: transition(["background", "border-color"], "fast"),
       }}
     >
+      {(active || failed) && (
+        <svg
+          width="34"
+          height="34"
+          viewBox="0 0 34 34"
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: -5,
+            // The arc has to start at twelve o'clock; SVG starts at three.
+            transform: "rotate(-90deg)",
+          }}
+        >
+          {/* The groove. Without it a part-filled arc reads as a broken ring
+              rather than as a measure of something. */}
+          <circle
+            cx="17"
+            cy="17"
+            r={R}
+            fill="none"
+            stroke={color.hairlineStrong}
+            strokeWidth="2"
+          />
+          {shown > 0 && (
+            <circle
+              cx="17"
+              cy="17"
+              r={R}
+              fill="none"
+              stroke={tint}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeDasharray={CIRC}
+              strokeDashoffset={CIRC * (1 - shown)}
+              // A transition, not an animation: it is the one piece of motion
+              // here that still means something when the learner has asked for
+              // less of it, and `prefers-reduced-motion` leaves it alone.
+              style={{ transition: transition("stroke-dashoffset", "fast") }}
+            />
+          )}
+        </svg>
+      )}
+      {waiting && (
+        // The wait, as its own layer over the gauge: a quarter-arc going round
+        // says "no idea how long" without overwriting the progress already
+        // earned — which is the difference between starting a section and
+        // running dry between two paragraphs of one.
+        <svg
+          width="34"
+          height="34"
+          viewBox="0 0 34 34"
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: -5,
+            transformOrigin: "center",
+            animation: `ringSpin ${motion.duration.deliberate * 2}ms linear infinite`,
+          }}
+        >
+          <circle
+            cx="17"
+            cy="17"
+            r={R}
+            fill="none"
+            stroke={tint}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeDasharray={`${CIRC * 0.22} ${CIRC}`}
+          />
+        </svg>
+      )}
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
         <path
           d="M1.4 5.2h2.4L7.2 2.3v9.4L3.8 8.8H1.4z"
-          fill={active ? color.accentInk : BLUE}
+          fill={active ? color.accentInk : tint}
         />
         {showPause ? (
           <>
@@ -529,12 +645,16 @@ function SpeakerButton({
             <rect x="11.6" y="4.4" width="1.4" height="5.2" rx="0.6" fill={color.accentInk} />
           </>
         ) : (
-          <path
-            d="M9.6 4.9a3 3 0 0 1 0 4.2M11.6 3.2a5.6 5.6 0 0 1 0 7.6"
-            stroke={active ? color.accentInk : BLUE}
-            strokeWidth="1.1"
-            strokeLinecap="round"
-          />
+          // The wave arcs are the "this will make sound" promise. They go quiet
+          // while a clip loads, because nothing is coming out yet.
+          !waiting && (
+            <path
+              d="M9.6 4.9a3 3 0 0 1 0 4.2M11.6 3.2a5.6 5.6 0 0 1 0 7.6"
+              stroke={active ? color.accentInk : tint}
+              strokeWidth="1.1"
+              strokeLinecap="round"
+            />
+          )
         )}
       </svg>
     </button>
@@ -1381,23 +1501,30 @@ export default function ConsumeView({
 
   // Read-aloud: the reading pass is the one place in Atlas long enough to be
   // worth listening to. One section speaks at a time — starting another
-  // cancels the first — and the hook cancels on unmount, since
-  // `speechSynthesis` would otherwise keep talking after the learner leaves.
+  // cancels the first — and the hook cancels on unmount, since the audio
+  // element would otherwise keep talking after the learner leaves.
   const { readAloud: readAloudPref } = useVoicePrefs();
   const reading = useReadAloud({ language });
   const [spoken, setSpoken] = useState<string | null>(null);
   const voiceOn = reading.supported && readAloudPref;
-  const speakingChunk = reading.speaking ? spoken : null;
+  // The section the control belongs to. `error` counts as attached: the
+  // failure has to stay on the section it happened to, or the learner is told
+  // something went wrong with no way to tell what.
+  const speakingChunk = reading.status === "idle" ? null : spoken;
+  const readingFailedOn = reading.status === "error" ? spoken : null;
   /** What a chunk reads aloud: its prose, its worked example, its takeaway.
    *  The voice reads what's on the page — and since a lens now opens *over*
    *  the section instead of rewriting it, that is never anything but this. */
   const segmentsOf = (c: ConsumeChunk) => segmentsForChunk(c);
   const toggleReading = (c: ConsumeChunk) => {
-    if (speakingChunk === c.id) {
-      if (reading.paused) reading.resume();
+    if (speakingChunk === c.id && reading.status !== "error") {
+      if (reading.status === "paused") reading.resume();
       else reading.pause();
       return;
     }
+    // A click on a failed reading is a retry, not a no-op — `speak` starts the
+    // section over, and the clip cache means anything that already landed
+    // costs nothing the second time.
     setSpoken(c.id);
     reading.speak(segmentsOf(c));
   };
@@ -1925,11 +2052,24 @@ export default function ConsumeView({
                   </span>
                   {voiceOn && !collapsed && (
                     <SpeakerButton
-                      active={speakingChunk === c.id}
-                      paused={reading.paused}
-                      loading={reading.loading}
+                      status={speakingChunk === c.id ? reading.status : "idle"}
+                      progress={speakingChunk === c.id ? reading.progress : 0}
                       onClick={() => toggleReading(c)}
                     />
+                  )}
+                  {voiceOn && !collapsed && readingFailedOn === c.id && (
+                    // Read-aloud used to fail silently — the control just went
+                    // back to idle and the learner was left clicking a button
+                    // that appeared to do nothing.
+                    <span
+                      style={{
+                        ...kicker(9.5, "0.1em"),
+                        color: color.dangerInk,
+                        animation: `softIn ${motion.duration.fast}ms both`,
+                      }}
+                    >
+                      {t.readingFailedNote}
+                    </span>
                   )}
                   <div style={{ flex: 1 }} />
                   <button
@@ -2101,7 +2241,16 @@ export default function ConsumeView({
                             color: color.ink,
                           }}
                         >
-                          <Rich text={para} />
+                          {/* Two scales of highlight, because they answer two
+                              questions: the paragraph wash says where the voice
+                              is on the page, the word mark says where it is in
+                              the sentence. The word range is an offset into
+                              `spokenText(para)` — the same strip `Rich` renders
+                              through — so it needs no mapping here. */}
+                          <Rich
+                            text={para}
+                            speak={spokenNow ? reading.word : null}
+                          />
                         </p>
                       );
                     })}

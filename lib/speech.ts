@@ -1,25 +1,37 @@
 "use client";
 
-// The one voice seam. Every browser speech detail lives here — no surface
-// touches `window.speechSynthesis` or `SpeechRecognition` directly, so a
-// server engine could replace the internals without touching a component.
+// The one voice seam. No surface touches a speech API directly — the hooks
+// here are the whole vocabulary — and the two halves now run on two engines,
+// because they are two different problems.
 //
-// Engine is browser-native Web Speech: no dependency, no key, no per-minute
-// cost, and the only option that gives the live as-you-talk transcript
-// §SPEC's Feynman pass asks for. Chrome/Edge/Safari have it; Firefox has no
-// `SpeechRecognition` and every voice control simply doesn't render.
+// Dictation stays on browser-native `SpeechRecognition`: no dependency, no
+// key, no per-minute cost, and the only option that gives the live
+// as-you-talk transcript §SPEC's Feynman pass asks for. Chrome/Edge/Safari
+// have it; Firefox does not, and every mic control simply doesn't render.
+//
+// Read-aloud moved off `speechSynthesis` to a hosted engine behind
+// `/api/speech`. The browser's own voices were free but unaccountable — a
+// different, usually worse voice per OS, nothing at all in some browsers, and
+// no timing information, so the most a reader could be shown was which
+// *paragraph* was being read. The hosted engine returns per-word timestamps,
+// which is what the read-along highlight and the honest progress ring are
+// built on. There is deliberately no fallback to `speechSynthesis`: one
+// engine, or none.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchSpeech, type SpeechClip, type SpeechMark } from "@/lib/api";
 import type { ConsumeChunk } from "@/lib/curriculum";
+import { toAtlasError, type ErrorCode } from "@/lib/errors";
 import type { Language } from "@/lib/i18n";
+import { speechLang } from "@/lib/locale";
+import { spokenText, type SpeakRange } from "@/lib/rich";
 
 // ---- pure helpers ---------------------------------------------------------
 
-/** BCP-47 tag for the engine. The voice follows the language setting; it is
- *  never a second choice the learner has to make. */
-export function speechLang(language: Language): string {
-  return language === "en" ? "en-US" : "pt-BR";
-}
+// The locale tag lives in `lib/locale.ts` so the server's speech route can name
+// the same voice this file's dictation does. Re-exported because every caller
+// here has always reached it through `lib/speech`.
+export { speechLang };
 
 /** An adaptive-modality rewrite as paragraphs. The model writes them as one
  *  string with blank-line breaks (the view renders it `pre-line`), and both the
@@ -185,13 +197,10 @@ export function dictationSupported(): boolean {
   return recognitionCtor() !== null;
 }
 
-export function readAloudSupported(): boolean {
-  return typeof window !== "undefined" && "speechSynthesis" in window;
-}
-
 /** Support, resolved after mount so the server and first client render agree.
  *  Both read `false` for one frame — the controls fade in, they never flip a
- *  hydrated tree. */
+ *  hydrated tree. Dictation asks the browser; read-aloud asks the deploy
+ *  (`readAloudSupported`, defined with the engine below).*/
 export function useVoiceSupport(): { dictation: boolean; readAloud: boolean } {
   const [support, setSupport] = useState({ dictation: false, readAloud: false });
   useEffect(() => {
@@ -329,33 +338,195 @@ export function useDictation({
 
 // ---- read-aloud -----------------------------------------------------------
 
+/**
+ * Where the voice is, as a state and not as three booleans.
+ *
+ * The old `speechSynthesis` engine could only distinguish "warming up" from
+ * "talking", and it signalled the difference by pulsing the whole control's
+ * opacity. A hosted engine has real, separable waits: fetching the first clip
+ * of a section is not the same event as running dry between two paragraphs,
+ * and neither is the same as failing. Each one gets a name, so the control can
+ * tell the truth about which it is in.
+ */
+export type ReadStatus =
+  /** Nothing is being read. */
+  | "idle"
+  /** Asked to speak; the first clip is still on the wire. */
+  | "preparing"
+  | "playing"
+  /** Mid-reading, and the next segment hasn't landed yet. */
+  | "buffering"
+  | "paused"
+  /** The engine, the network, or the key failed. Clicking again retries. */
+  | "error";
+
 export interface ReadAloud {
   supported: boolean;
-  speaking: boolean;
-  paused: boolean;
-  /** Asked to speak, but the engine hasn't uttered the first word yet —
-   *  `speechSynthesis` can take a beat to warm a voice up, and without this
-   *  the control looks dead on the click that started it. */
-  loading: boolean;
-  /** Index of the segment being spoken, or -1 when silent. */
+  status: ReadStatus;
+  /** Why it failed, for the sentence in `lib/errorCopy.ts`. */
+  error: ErrorCode | null;
+  /** Index of the segment being read, or -1 when silent. */
   index: number;
+  /** The word being spoken, as a range in `spokenText()` of that segment —
+   *  which is exactly the range `<Rich speak={…}>` marks. Null when the engine
+   *  returned no word timing. */
+  word: SpeakRange | null;
+  /** How far through the whole reading, 0–1. */
+  progress: number;
   speak: (segments: string[]) => void;
   pause: () => void;
   resume: () => void;
   cancel: () => void;
 }
 
+/**
+ * Is read-aloud available at all?
+ *
+ * No longer a browser question. The engine is a server route, so what decides
+ * this is whether the deploy has a provider key — mirrored into the bundle as
+ * a bare boolean by `next.config.ts`, never the key itself. Unset, and the
+ * speaker control simply never renders: there is no `speechSynthesis` fallback
+ * to drop back to, by design, so voice quality never depends on which browser
+ * the learner happens to be in.
+ */
+export function readAloudSupported(): boolean {
+  return process.env.NEXT_PUBLIC_TTS_ENABLED === "1";
+}
+
+/**
+ * The word being spoken at `ms`, or null.
+ *
+ * Binary search rather than a scan: this runs once per animation frame for the
+ * length of a paragraph. Marks are sorted and non-overlapping, and a time that
+ * lands in the gap *between* two words — the pause after a comma — returns
+ * null rather than the neighbour, so the highlight goes out during a pause
+ * instead of clinging to a word the voice has already left.
+ */
+export function wordAt(marks: SpeechMark[], ms: number): SpeechMark | null {
+  let lo = 0;
+  let hi = marks.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const mark = marks[mid];
+    if (ms < mark.at) hi = mid - 1;
+    else if (ms >= mark.end) lo = mid + 1;
+    else return mark;
+  }
+  return null;
+}
+
+/**
+ * How far into a reading we are, weighted by characters rather than by segment
+ * count.
+ *
+ * A section's segments are wildly uneven — a two-word example title sits
+ * between two long paragraphs — so "segment 3 of 6" would show a progress ring
+ * that lurches. Character count is a good proxy for duration and, unlike
+ * duration, it is known before any audio has been fetched, so the ring is
+ * honest from the first frame.
+ */
+export function readProgress(
+  lengths: number[],
+  index: number,
+  fraction: number,
+): number {
+  const total = lengths.reduce((a, b) => a + b, 0);
+  if (!total || index < 0) return 0;
+  let before = 0;
+  for (let i = 0; i < index && i < lengths.length; i++) before += lengths[i];
+  const current = (lengths[index] ?? 0) * Math.min(Math.max(fraction, 0), 1);
+  return Math.min((before + current) / total, 1);
+}
+
+// One clip cache for the whole device, not one per hook: a learner who reads a
+// section, moves on, and comes back pays for it once. `clips` holds what has
+// resolved and `pending` what is still on the wire — the split matters because
+// a segment whose audio is already in hand must not flash "buffering" for the
+// frame it takes a resolved promise to settle.
+const clips = new Map<string, SpeechClip>();
+const pending = new Map<string, Promise<SpeechClip>>();
+/** Bounded, oldest-out. A section is a handful of segments; this is a few
+ *  sections' worth of mp3 and nothing like a memory concern. */
+const CLIP_LIMIT = 40;
+
+function clipKey(text: string, language: Language): string {
+  return `${language}\u0000${text}`;
+}
+
+function remember(key: string, clip: SpeechClip): void {
+  clips.set(key, clip);
+  while (clips.size > CLIP_LIMIT) {
+    const oldest = clips.keys().next().value;
+    if (oldest === undefined) break;
+    clips.delete(oldest);
+  }
+}
+
+/** The clip for one segment: from memory, from a request already in flight, or
+ *  from a new one. Never two requests for the same words. */
+function clipFor(text: string, language: Language): Promise<SpeechClip> {
+  const key = clipKey(text, language);
+  const held = clips.get(key);
+  if (held) return Promise.resolve(held);
+  const inFlight = pending.get(key);
+  if (inFlight) return inFlight;
+  const request = fetchSpeech({ text, language })
+    .then((clip) => {
+      remember(key, clip);
+      return clip;
+    })
+    .finally(() => {
+      pending.delete(key);
+    });
+  pending.set(key, request);
+  return request;
+}
+
+/** Already in hand, synchronously — the test that keeps a prefetched segment
+ *  from rendering a buffering state it doesn't need. */
+function heldClip(text: string, language: Language): SpeechClip | undefined {
+  return clips.get(clipKey(text, language));
+}
+
+function blobUrl(base64: string): string {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+}
+
+/**
+ * Read a list of segments aloud, marking the word being spoken.
+ *
+ * Segments arrive as the markdown the page renders; what goes to the engine is
+ * `spokenText()` of each — the same strip `Rich` renders through — so the
+ * character offsets that come back index straight into what is on screen.
+ */
 export function useReadAloud({ language }: { language: Language }): ReadAloud {
   const [supported, setSupported] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<ReadStatus>("idle");
+  const [error, setError] = useState<ErrorCode | null>(null);
   const [index, setIndex] = useState(-1);
+  const [word, setWord] = useState<SpeakRange | null>(null);
+  const [progress, setProgress] = useState(0);
 
-  const segmentsRef = useRef<string[]>([]);
+  // One element for the life of the hook. Not one per segment: iOS only lets
+  // an element play if a user gesture unlocked *that element*, so a fresh
+  // `new Audio()` per paragraph would speak the first one and go silent for
+  // the rest of the section.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const urlRef = useRef<string | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const spokenRef = useRef<string[]>([]);
+  const lengthsRef = useRef<number[]>([]);
+  const marksRef = useRef<SpeechMark[]>([]);
+  const indexRef = useRef(-1);
+  const wordRef = useRef<SpeakRange | null>(null);
+  const progressRef = useRef(0);
   const langRef = useRef(language);
-  // A cancelled utterance still fires `onend` a tick later; the token tells a
-  // stale callback from the live run so a restart can't double up.
+  // A cancelled reading can still have a fetch and an `onended` in flight; the
+  // token tells a stale callback from the live run, exactly as it did when the
+  // engine was `speechSynthesis`.
   const runRef = useRef(0);
 
   useEffect(() => {
@@ -366,94 +537,243 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
     setSupported(readAloudSupported());
   }, []);
 
-  const silence = useCallback(() => {
-    setSpeaking(false);
-    setPaused(false);
-    setLoading(false);
-    setIndex(-1);
+  const stopClock = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
   }, []);
 
-  // Speaks segment `i` of run `run`, then chains to the next through the ref
-  // so the utterance callback always reaches the live step.
-  const stepRef = useRef<(i: number, run: number) => void>(() => {});
-  const step = useCallback(
-    (i: number, run: number) => {
+  const releaseUrl = useCallback(() => {
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    urlRef.current = null;
+  }, []);
+
+  const silence = useCallback(() => {
+    stopClock();
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    releaseUrl();
+    spokenRef.current = [];
+    lengthsRef.current = [];
+    marksRef.current = [];
+    indexRef.current = -1;
+    wordRef.current = null;
+    progressRef.current = 0;
+    setIndex(-1);
+    setWord(null);
+    setProgress(0);
+  }, [releaseUrl, stopClock]);
+
+  // The word clock. Reading `currentTime` per frame tracks the voice more
+  // steadily than any engine's own boundary events, and it costs a render only
+  // when the word actually changes — at three to five words a second, not at
+  // sixty frames.
+  const tick = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const ms = audio.currentTime * 1000;
+    const mark = wordAt(marksRef.current, ms);
+    const next = mark ? { from: mark.from, to: mark.to } : null;
+    const held = wordRef.current;
+    if (next?.from !== held?.from || next?.to !== held?.to) {
+      wordRef.current = next;
+      setWord(next);
+    }
+    const fraction =
+      audio.duration && Number.isFinite(audio.duration)
+        ? audio.currentTime / audio.duration
+        : 0;
+    const now = readProgress(lengthsRef.current, indexRef.current, fraction);
+    // A 26px ring can't show finer than a hundredth, and a setState per frame
+    // would re-render the whole pass sixty times a second.
+    if (Math.abs(now - progressRef.current) >= 0.01) {
+      progressRef.current = now;
+      setProgress(now);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  const startClock = useCallback(() => {
+    stopClock();
+    rafRef.current = requestAnimationFrame(tick);
+  }, [stopClock, tick]);
+
+  const fail = useCallback(
+    (err: unknown) => {
+      stopClock();
+      setError(toAtlasError(err).code);
+      setStatus("error");
+      setWord(null);
+    },
+    [stopClock],
+  );
+
+  // Plays segment `i` of run `run`, then chains to the next from `onended`.
+  const playRef = useRef<(i: number, run: number) => void>(() => {});
+  const play = useCallback(
+    async (i: number, run: number) => {
       if (run !== runRef.current) return;
-      const segments = segmentsRef.current;
+      const segments = spokenRef.current;
       if (i >= segments.length) {
+        setStatus("idle");
         silence();
         return;
       }
+      const audio = audioRef.current;
+      if (!audio) return;
+      const lang = langRef.current;
+      indexRef.current = i;
       setIndex(i);
-      // One utterance per segment, not one giant one: it lets the caller
-      // highlight what's being read, and sidesteps Chrome's long-text cutoff.
-      const utterance = new SpeechSynthesisUtterance(segments[i]);
-      utterance.lang = speechLang(langRef.current);
-      utterance.onstart = () => {
-        if (run === runRef.current) setLoading(false);
-      };
-      utterance.onend = () => stepRef.current(i + 1, run);
-      utterance.onerror = () => {
+
+      // Only announce a wait there is one. A prefetched segment goes straight
+      // from playing to playing, with no buffering frame in between.
+      let clip = heldClip(segments[i], lang);
+      if (!clip) {
+        setStatus(i === 0 ? "preparing" : "buffering");
+        setWord(null);
+        wordRef.current = null;
+        try {
+          clip = await clipFor(segments[i], lang);
+        } catch (err) {
+          if (run !== runRef.current) return;
+          fail(err);
+          return;
+        }
         if (run !== runRef.current) return;
-        runRef.current++;
-        silence();
+      }
+
+      marksRef.current = clip.marks;
+      releaseUrl();
+      urlRef.current = blobUrl(clip.audio);
+      // Bound per segment, closing over *this* run and index. Bound once in
+      // `speak` instead, a late `ended` from a cancelled reading would advance
+      // whatever run had started since — reading a section from its second
+      // paragraph, with nothing to show why.
+      audio.onended = () => {
+        if (run === runRef.current) playRef.current(i + 1, run);
       };
-      window.speechSynthesis.speak(utterance);
+      audio.onerror = () => {
+        if (run === runRef.current && audio.src) fail(new Error("playback failed"));
+      };
+      audio.src = urlRef.current;
+      try {
+        await audio.play();
+      } catch (err) {
+        if (run !== runRef.current) return;
+        fail(err);
+        return;
+      }
+      if (run !== runRef.current) return;
+      setStatus("playing");
+      setError(null);
+      startClock();
+
+      // Fetch the next segment while this one plays, so the seam between two
+      // paragraphs is silence the length of a breath rather than a round-trip.
+      const next = segments[i + 1];
+      if (next) void clipFor(next, lang).catch(() => {});
     },
-    [silence],
+    [fail, releaseUrl, silence, startClock],
   );
   useEffect(() => {
-    stepRef.current = step;
-  }, [step]);
+    playRef.current = (i, run) => void play(i, run);
+  }, [play]);
 
   const cancel = useCallback(() => {
     runRef.current++;
-    segmentsRef.current = [];
-    if (readAloudSupported()) window.speechSynthesis.cancel();
+    setStatus("idle");
+    setError(null);
     silence();
   }, [silence]);
 
   const speak = useCallback(
     (segments: string[]) => {
       if (!readAloudSupported()) return;
-      const clean = segments.map((s) => s.trim()).filter(Boolean);
+      const spoken = segments
+        .map((s) => spokenText(s).trim())
+        .filter(Boolean);
       // Starting one reading cancels any other — one section speaks at a time.
       runRef.current++;
-      window.speechSynthesis.cancel();
-      if (!clean.length) {
+      const run = runRef.current;
+      stopClock();
+
+      if (!audioRef.current) {
+        const audio = new Audio();
+        audio.preload = "auto";
+        audioRef.current = audio;
+      }
+      // `load()` inside the click is what unlocks the element on iOS. The first
+      // `play()` happens after an await, which no longer counts as gesture-
+      // initiated there, so the unlock has to happen here or not at all.
+      audioRef.current.pause();
+      audioRef.current.load();
+
+      if (!spoken.length) {
+        setStatus("idle");
         silence();
         return;
       }
-      segmentsRef.current = clean;
-      setSpeaking(true);
-      setPaused(false);
-      setLoading(true);
-      step(0, runRef.current);
+      spokenRef.current = spoken;
+      lengthsRef.current = spoken.map((s) => s.length);
+      indexRef.current = 0;
+      wordRef.current = null;
+      progressRef.current = 0;
+      setWord(null);
+      setProgress(0);
+      setError(null);
+      setStatus("preparing");
+      void play(0, run);
     },
-    [silence, step],
+    [play, silence, stopClock],
   );
 
   const pause = useCallback(() => {
-    if (!readAloudSupported()) return;
-    window.speechSynthesis.pause();
-    setPaused(true);
-  }, []);
+    const audio = audioRef.current;
+    if (!audio) return;
+    // Exact, unlike `speechSynthesis.pause()`, which several engines ignored
+    // mid-utterance and left the control claiming a pause that never happened.
+    audio.pause();
+    stopClock();
+    setStatus("paused");
+  }, [stopClock]);
 
   const resume = useCallback(() => {
-    if (!readAloudSupported()) return;
-    window.speechSynthesis.resume();
-    setPaused(false);
-  }, []);
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.play().then(
+      () => {
+        setStatus("playing");
+        startClock();
+      },
+      (err: unknown) => fail(err),
+    );
+  }, [fail, startClock]);
 
-  // `speechSynthesis` outlives React — without this it keeps talking after the
-  // learner has left the screen.
+  // The element outlives React — without this it keeps talking after the
+  // learner has left the screen, the way `speechSynthesis` used to.
   useEffect(
     () => () => {
       runRef.current++;
-      if (readAloudSupported()) window.speechSynthesis.cancel();
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      audioRef.current?.pause();
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     },
     [],
   );
 
-  return { supported, speaking, paused, loading, index, speak, pause, resume, cancel };
+  return {
+    supported,
+    status,
+    error,
+    index,
+    word,
+    progress,
+    speak,
+    pause,
+    resume,
+    cancel,
+  };
 }
