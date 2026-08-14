@@ -44,6 +44,16 @@ describe("validateGraphPart", () => {
     expect(validateGraphPart({ nodes, edges }).nodes).toHaveLength(6);
   });
 
+  it("keeps each node's summary, and tolerates one without it", () => {
+    const { nodes } = graphPayload(chainEdges);
+    const out = validateGraphPart({
+      nodes: nodes.map((n, i) => (i === 0 ? { ...n, summary: "What it is." } : n)),
+      edges: chainEdges,
+    });
+    expect(out.nodes[0].summary).toBe("What it is.");
+    expect(out.nodes[1].summary).toBeUndefined();
+  });
+
   it("rejects a prerequisite cycle (#16)", () => {
     const edges = [...chainEdges, ["n9", "n0"]];
     expect(() => validateGraphPart(graphPayload(edges))).toThrow(/cycle/);
@@ -104,6 +114,22 @@ describe("validateMapConcept", () => {
   it("treats a missing prereqs field as a foundation, not a failure", () => {
     const out = validateMapConcept({ id: "n0", label: "Bindings" }, 0, new Set());
     expect(out.prereqs).toEqual([]);
+  });
+
+  // The sentence the detail rail shows about the concept itself. It is soft on
+  // purpose: a concept that arrives without one still lands on the map, and the
+  // rail falls back to the state line for that node alone.
+  it("carries the summary through, trimmed", () => {
+    const out = validateMapConcept(
+      concept({ summary: "  Who owns a value, and when it is dropped.  " }),
+      0,
+      new Set(),
+    );
+    expect(out.summary).toBe("Who owns a value, and when it is dropped.");
+  });
+
+  it("accepts a concept with no summary rather than failing the map", () => {
+    expect(validateMapConcept(concept(), 0, new Set()).summary).toBeUndefined();
   });
 });
 

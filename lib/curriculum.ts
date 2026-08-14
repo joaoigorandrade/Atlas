@@ -25,6 +25,12 @@ export type ProgressState = Exclude<NodeState, "frontier">;
 export interface ConceptNode {
   id: string;
   label: string;
+  /** One sentence on what this concept actually is — what the detail rail says
+   *  about the topic itself, in place of copy about its mastery state. Written
+   *  by the map generation; a gap node carries the reason it was split out.
+   *  Optional: a run persisted before summaries existed has none, and the rail
+   *  falls back to the state line. */
+  summary?: string;
   /** Seed progress state (generated maps start everything `unknown`). */
   state: ProgressState;
   /** Generation (topological depth) — controls staged reveal during the diagnostic. */
@@ -2982,6 +2988,8 @@ export function spawnGap(
   const node: ConceptNode = {
     id: spec.id,
     label: spec.label,
+    // Why the AI split this out is the truest summary a gap has.
+    summary: spec.reason,
     state: "gap",
     g: parent.g,
     week: SPAWN_WEEK,

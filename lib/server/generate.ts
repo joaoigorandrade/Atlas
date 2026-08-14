@@ -223,7 +223,7 @@ const GOAL_HINT: Record<GoalKind, string> = {
 
 /** Column layout from topological depth — deterministic, draggable afterwards. */
 function layoutGraph(
-  rawNodes: Array<{ id: string; label: string }>,
+  rawNodes: Array<{ id: string; label: string; summary?: string }>,
   edges: ConceptEdge[],
 ): ConceptNode[] {
   const ids = new Set(rawNodes.map((n) => n.id));
@@ -259,6 +259,7 @@ function layoutGraph(
     return {
       id: n.id,
       label: n.label,
+      summary: n.summary,
       state: "unknown" as const,
       g: d + 1,
       week: 0,
@@ -300,7 +301,7 @@ export function validateGraphPart(
   raw: unknown,
   bounds: { min: number; max: number } = mapNodeBounds(),
 ): {
-  nodes: Array<{ id: string; label: string }>;
+  nodes: Array<{ id: string; label: string; summary?: string }>;
   edges: ConceptEdge[];
 } {
   const root = obj(raw, "payload");
@@ -312,7 +313,13 @@ export function validateGraphPart(
       .replace(/[^a-z0-9-]/g, "-");
     if (seen.has(id)) fail(`duplicate node id "${id}"`);
     seen.add(id);
-    return { id, label: str(n.label, `nodes[${i}].label`) };
+    return {
+      id,
+      label: str(n.label, `nodes[${i}].label`),
+      // A missing sentence costs one node its rail copy, not the learner their
+      // whole map — the rail falls back to the state line.
+      summary: n.summary ? str(n.summary, `nodes[${i}].summary`) : undefined,
+    };
   });
   const edges: ConceptEdge[] = [];
   for (const [i, v] of arr(root.edges, "edges", nodes.length - 1, 80).entries()) {
@@ -428,12 +435,17 @@ If (and only if) the topic is far too broad for one coherent concept map (e.g. "
 }
 
 const graphShape = (ask: [number, number]) => `{
-  "nodes": [{"id": "short-kebab-id", "label": "Concept Name"}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
+  "nodes": [{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is"}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
   "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
 }`;
 
+/** The summary rule, shared by the single-shot and streamed map prompts: it is
+ *  the only thing the detail rail says about the topic itself, so it has to
+ *  teach the gist rather than restate the label. */
+const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a learner who has never met this concept what it actually is and what it lets them do — concrete and specific to this topic. Never restate the label ("Gradient Descent is about gradient descent"), never describe the concept's role in the map or its difficulty, never start with "This concept".`;
+
 const mapRules = (ask: [number, number]) =>
-  `Rules: labels are 1-3 words, title case.
+  `Rules: labels are 1-3 words, title case. ${SUMMARY_RULE}
 ${sizeRule({
   unit: "concepts",
   min: ask[0],
@@ -458,7 +470,7 @@ function layoutMapNodes(mapNodes: MapNode[]): MapNode[] {
   const { edges } = graphFromMapNodes(mapNodes);
   return withPrereqs(
     layoutGraph(
-      mapNodes.map(({ id, label }) => ({ id, label })),
+      mapNodes.map(({ id, label, summary }) => ({ id, label, summary })),
       edges,
     ),
     edges,
@@ -482,7 +494,10 @@ export async function generateMap(
   const bounds = mapNodeBounds(params.goal === "pareto" ? params.paretoPct ?? PARETO_DEFAULT : undefined);
   const raw = await generateJson<
     | { scopes: ScopeOffer[] }
-    | { nodes: Array<{ id: string; label: string }>; edges: ConceptEdge[] }
+    | {
+        nodes: Array<{ id: string; label: string; summary?: string }>;
+        edges: ConceptEdge[];
+      }
   >(
     user(
       `${mapContext(params)}
@@ -510,7 +525,7 @@ export function validateMapConcept(
   raw: unknown,
   index: number,
   seen: Set<string>,
-): { id: string; label: string; prereqs: string[] } {
+): { id: string; label: string; summary?: string; prereqs: string[] } {
   const c = obj(raw, `concept[${index}]`);
   const id = str(c.id, `concept[${index}].id`)
     .toLowerCase()
@@ -524,7 +539,14 @@ export function validateMapConcept(
         // id must not cost the learner the whole map.
         .filter((p) => seen.has(p) && p !== id)
     : [];
-  return { id, label: str(c.label, `concept[${index}].label`), prereqs };
+  return {
+    id,
+    label: str(c.label, `concept[${index}].label`),
+    // Soft, like the single-shot validator: a concept that arrives without its
+    // sentence still lands on the map.
+    summary: c.summary ? str(c.summary, `concept[${index}].summary`) : undefined,
+    prereqs,
+  };
 }
 
 /**
@@ -556,7 +578,8 @@ export async function* generateMapStream(params: MapParams): AsyncGenerator<Stre
     const accepted: MapNode[] = [];
 
     const stream = streamJsonObjects<
-      { scopes: ScopeOffer[] } | { id: string; label: string; prereqs: string[] }
+      | { scopes: ScopeOffer[] }
+      | { id: string; label: string; summary?: string; prereqs: string[] }
     >(
       user(
         `${mapContext(params)}
@@ -566,7 +589,7 @@ another — NOT wrapped in an array or a {"nodes": [...]} object, no markdown
 fences, no numbering, no commentary before/after/between them. Write them in
 prerequisite order: every concept another one depends on must already have been
 written above it. Each object has this shape:
-{"id": "short-kebab-id", "label": "Concept Name", "prereqs": ["ids of concepts already written above"]}
+{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "prereqs": ["ids of concepts already written above"]}
 
 "prereqs" is empty only for true foundations — every other concept names at
 least one. ${mapRules(bounds.ask)}${languageNote(language)}`,

@@ -179,7 +179,12 @@ function NodeDetailBody({
   // A lacuna is not a map topic: no six-phase spiral, no green CTA. It is one
   // targeted Socratic pass hanging off its parent, and it reads that way.
   const isGap = displayState === "gap";
-  const confidenceLine =
+  // What this concept *is*, which is what the learner opened the node to find
+  // out. Copy about the mastery state is the fallback, not the headline: it
+  // only shows for a node with no summary — a run persisted before summaries,
+  // or a concept whose sentence the generation dropped.
+  const summary = node.summary?.trim();
+  const stateLine =
     displayState === "shaky"
       ? shakyLine(shakyReason, language)
       : stateConfidence(displayState, language);
@@ -312,7 +317,7 @@ function NodeDetailBody({
           marginBottom: 22,
         }}
       >
-        <Rich text={confidenceLine} />
+        <Rich text={summary || stateLine} />
       </div>
 
       {isGap ? (
