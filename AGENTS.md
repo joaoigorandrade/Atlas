@@ -188,6 +188,12 @@ rows are *model calls* (what tracks spend), and `job_id` groups them into
   `transition` inline — move it to a wrapper.
 - Motion values come from `motion` / `transition()` in `lib/theme.ts`, the same
   way colours come from `color`. Never hand-write a duration or an easing curve.
+- A hover that *says something* is `HoverHint` (`components/HoverHint.tsx`),
+  never a `title` attribute: it dwells before opening, opens on keyboard focus
+  too, and is portalled to `<body>` so a scrolling rail can't clip it. The map's
+  own version is `NodeHoverCard` — the state, phase and cost of a hovered
+  concept, read off the same `StateMap` the detail rail reads. Both use the
+  `peekIn` / `peekOut` keyframe pair via `usePresence`.
 - Node mastery states are the app's shared vocabulary: `unknown | frontier | learning | shaky | mastered | gap`. Use `STATE_COLOR` / `STATE_LABEL` from `lib/curriculum.ts` — never invent a state or a color for one.
 - Mastery state is live: `AtlasApp` holds one `StateMap` of stored progress (`ProgressState`, everything but `frontier`); `frontier` and locking are always derived from prerequisites via `displayStates` — never store `frontier` or a locked flag. New surfaces read and write that `StateMap`, nothing else.
 - Every question is asked open-ended first. A surface that also has a closed

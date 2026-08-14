@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   STATE_COLOR,
   ancestorsOf,
   type ConceptEdge,
   type ConceptNode,
+  type ConsumeProgress,
   type NodeState,
+  type ShakyReason,
 } from "@/lib/curriculum";
 import { color, font, motion, transition } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
+import NodeHoverCard, { useDwell } from "@/components/map/NodeHoverCard";
 
 const STRINGS = {
   en: { gap: "gap" },
@@ -49,6 +52,13 @@ interface MapCanvasProps {
   view: ViewTransform;
   selectedId: string | null;
   hoverId: string | null;
+  /** Read by the hover peek — how far into each node's reading pass the
+   *  learner got, which review history exists, and how a node went shaky.
+   *  All three are what the detail rail says about a *selected* node; the
+   *  peek says them about a hovered one. */
+  consumeProgress?: Record<string, ConsumeProgress>;
+  reviewedNodes?: string[];
+  shakyReasons?: Record<string, ShakyReason>;
   query: string;
   onWheel: (e: WheelEvent) => void;
   onCanvasDown: (e: React.MouseEvent) => void;
@@ -70,6 +80,9 @@ export default function MapCanvas({
   view,
   selectedId,
   hoverId,
+  consumeProgress,
+  reviewedNodes,
+  shakyReasons,
   query,
   onWheel,
   onCanvasDown,
@@ -95,12 +108,81 @@ export default function MapCanvas({
     [hoverId, edges],
   );
 
+  // The peek needs the canvas box to know whether a card fits below the node
+  // it describes, or has to open upward.
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setBox({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Dragging a node and panning the canvas both start with a press. A card
+  // parked next to the cursor through either is in the way, so the press
+  // closes it and the release re-arms the dwell.
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    if (!dragging) return;
+    const up = () => setDragging(false);
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, [dragging]);
+
+  // Only on the map: while the map is building, nodes are still arriving and
+  // a card over one would be describing a state nobody has acted on yet.
+  const peekId = useDwell(
+    screen === "map" && !dragging && hoverId !== selectedId ? hoverId : null,
+  );
+  const peek = useMemo(() => {
+    const node = peekId ? nodes.find((n) => n.id === peekId) : null;
+    const pos = node ? positions[node.id] : null;
+    if (!node || !pos || !box.h) return null;
+    const x = view.x + pos.x * view.scale;
+    const y = view.y + pos.y * view.scale;
+    // Half a chip, scaled — the card clears the node it points at.
+    const reach = 21 * view.scale;
+    return {
+      node,
+      displayState: display[node.id] ?? "unknown",
+      display,
+      edges,
+      reviewed: reviewedNodes?.includes(node.id) ?? false,
+      shakyReason: shakyReasons?.[node.id],
+      consumeProgress: consumeProgress?.[node.id],
+      // Kept inside the canvas so a node near an edge doesn't push its card
+      // off-screen.
+      x: Math.min(Math.max(x, CARD_HALF + 8), Math.max(box.w - CARD_HALF - 8, CARD_HALF + 8)),
+      y,
+      reach,
+      above: y + reach + CARD_CLEARANCE > box.h,
+    };
+  }, [
+    peekId,
+    nodes,
+    positions,
+    view,
+    display,
+    edges,
+    reviewedNodes,
+    shakyReasons,
+    consumeProgress,
+    box,
+  ]);
+
   const q = query.trim().toLowerCase();
 
   return (
     <div
       ref={elRef}
-      onMouseDown={onCanvasDown}
+      onMouseDown={(e) => {
+        setDragging(true);
+        onCanvasDown(e);
+      }}
       style={{
         position: "absolute",
         inset: 0,
@@ -228,7 +310,12 @@ export default function MapCanvas({
             >
               <div
                 className="at-lift"
-                onMouseDown={(e) => onNodeDown(e, node.id)}
+                onMouseDown={(e) => {
+                  // A node's press stops propagating (it starts a drag, not a
+                  // pan), so the card is closed from here too.
+                  setDragging(true);
+                  onNodeDown(e, node.id);
+                }}
                 onDoubleClick={() => onNodeDoubleClick(node.id)}
                 onMouseEnter={() => onNodeHover(node.id)}
                 onMouseLeave={() => onNodeHover(null)}
@@ -335,8 +422,16 @@ export default function MapCanvas({
           );
         })}
       </div>
+
+      {/* Outside the transformed layer on purpose: the card is chrome, so it
+          keeps its own type size and shadow at every zoom level. */}
+      <NodeHoverCard shown={peek} />
     </div>
   );
 }
+
+/** Half the peek card's width, and how much room it needs below a node. */
+const CARD_HALF = 136;
+const CARD_CLEARANCE = 190;
 
 export const CELEBRATE_MS = 900;

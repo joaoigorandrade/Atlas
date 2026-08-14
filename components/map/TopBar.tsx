@@ -3,13 +3,13 @@
 import type { AdherenceState, DailyQueue } from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
 import StreakFlame from "@/components/map/StreakFlame";
+import HoverHint from "@/components/HoverHint";
 import { useT } from "@/lib/i18n";
 
 export type Surface = "map" | "session" | "review";
 
 const STRINGS = {
   en: {
-    home: "Home",
     surfaces: { map: "Map", session: "Session", review: "Review" },
     searchPlaceholder: "Search concepts…",
     queueClear: "Today's queue is clear",
@@ -17,11 +17,11 @@ const STRINGS = {
       `${cards} cards due now — framed in minutes, not a card wall`,
     reviewClear: "Review · clear ✓",
     reviewMinutes: (min: number) => `Review · ~${min} min`,
-    profileWith: (email: string) => `Profile (${email})`,
+    profileWith: (email: string) => `Profile · ${email}`,
     profile: "Profile",
+    homeHint: "Back to the dashboard — every subject you have a map for.",
   },
   "pt-BR": {
-    home: "Início",
     surfaces: { map: "Mapa", session: "Sessão", review: "Revisão" },
     searchPlaceholder: "Buscar conceitos…",
     queueClear: "A fila de hoje está limpa",
@@ -29,8 +29,9 @@ const STRINGS = {
       `${cards} cartões vencidos agora — em minutos, não um mural de cartões`,
     reviewClear: "Revisão · limpa ✓",
     reviewMinutes: (min: number) => `Revisão · ~${min} min`,
-    profileWith: (email: string) => `Perfil (${email})`,
+    profileWith: (email: string) => `Perfil · ${email}`,
     profile: "Perfil",
+    homeHint: "Voltar ao painel — todos os assuntos com mapa.",
   },
 } as const;
 
@@ -84,19 +85,20 @@ export default function TopBar({
         zIndex: 20,
       }}
     >
-      <div
-        onClick={onHome}
-        title={t.home}
-        style={{
-          fontFamily: font.serif,
-          fontSize: 19,
-          fontWeight: 600,
-          letterSpacing: "-0.01em",
-          cursor: "pointer",
-        }}
-      >
-        Atlas
-      </div>
+      <HoverHint place="bottom" hint={t.homeHint}>
+        <div
+          onClick={onHome}
+          style={{
+            fontFamily: font.serif,
+            fontSize: 19,
+            fontWeight: 600,
+            letterSpacing: "-0.01em",
+            cursor: "pointer",
+          }}
+        >
+          Atlas
+        </div>
+      </HoverHint>
       <div
         style={{
           display: "flex",
@@ -170,56 +172,59 @@ export default function TopBar({
       </div>
       <div style={{ flex: 1 }} />
       <StreakFlame adherence={adherence} onToggleReminder={onToggleReminder} />
-      <button
-        className="at-press"
-        onClick={() => onSurface("review")}
-        title={
-          adherence.metToday ? t.queueClear : t.queueDue(queue.cards)
-        }
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 7,
-          background: color.accentBg,
-          border: "1px solid rgba(47,107,79,0.22)",
-          borderRadius: 20,
-          padding: "6px 13px",
-          fontSize: 13,
-          color: color.accent,
-          cursor: "pointer",
-        }}
+      <HoverHint
+        place="bottom"
+        hint={adherence.metToday ? t.queueClear : t.queueDue(queue.cards)}
       >
-        <span
+        <button
+          className="at-press"
+          onClick={() => onSurface("review")}
           style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: color.accent,
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            background: color.accentBg,
+            border: "1px solid rgba(47,107,79,0.22)",
+            borderRadius: 20,
+            padding: "6px 13px",
+            fontSize: 13,
+            color: color.accent,
+            cursor: "pointer",
           }}
-        />
-        {adherence.metToday ? t.reviewClear : t.reviewMinutes(queue.minutes)}
-      </button>
-      <button
-        className="at-press"
-        onClick={onProfile}
-        title={userEmail ? t.profileWith(userEmail) : t.profile}
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          background: color.ink,
-          color: color.accentInk,
-          border: "none",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
-      >
-        {(userEmail[0] ?? "A").toUpperCase()}
-      </button>
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: color.accent,
+            }}
+          />
+          {adherence.metToday ? t.reviewClear : t.reviewMinutes(queue.minutes)}
+        </button>
+      </HoverHint>
+      <HoverHint place="bottom" hint={userEmail ? t.profileWith(userEmail) : t.profile}>
+        <button
+          className="at-press"
+          onClick={onProfile}
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            background: color.ink,
+            color: color.accentInk,
+            border: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {(userEmail[0] ?? "A").toUpperCase()}
+        </button>
+      </HoverHint>
     </div>
   );
 }
