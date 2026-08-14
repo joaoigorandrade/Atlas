@@ -245,6 +245,32 @@ textarea {
   }
 }
 
+/* A peek: a hover card describing the thing under the cursor. It grows out of
+   its anchor rather than fading in over it, so the card reads as belonging to
+   the node (or the row) it explains. Paired with `usePresence`; the anchor sets
+   `transform-origin` so the growth points back at what was hovered. */
+@keyframes peekIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes peekOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(3px) scale(0.99);
+  }
+}
+
 /* Reward vocabulary. Used only where the product actually earns it — a concept
    going green, a streak lighting, a phase closing — never for ordinary
    feedback. Ink and paper: a ring pressed into the page, a mark stamped on it. */

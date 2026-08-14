@@ -3,6 +3,7 @@
 import {
   STATE_COLOR,
   goalOrderCaption,
+  stateConfidence,
   stateLabel,
   type GoalKind,
   type NodeState,
@@ -12,6 +13,7 @@ import {
 import { color, font, kicker, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import { useCountUp } from "@/lib/motion";
+import HoverHint from "@/components/HoverHint";
 
 const STRINGS = {
   en: {
@@ -32,6 +34,12 @@ const STRINGS = {
     placementDiagnostic: "Placement diagnostic",
     week: (n: number) => `Week ${n} of 3`,
     watchLightUp: " — watch it light up",
+    nextUpHint: (label: string, unlocks: number) =>
+      `${label} — on your frontier. Starting it opens ${unlocks} ${
+        unlocks === 1 ? "concept" : "concepts"
+      } downstream.`,
+    nextUpHintLeaf: (label: string) =>
+      `${label} — on your frontier. Nothing is waiting on it; it stands on its own.`,
   },
   "pt-BR": {
     subject: "Assunto",
@@ -51,6 +59,12 @@ const STRINGS = {
     placementDiagnostic: "Diagnóstico de nivelamento",
     week: (n: number) => `Semana ${n} de 3`,
     watchLightUp: " — veja o mapa se acender",
+    nextUpHint: (label: string, unlocks: number) =>
+      `${label} — na sua fronteira. Começar abre ${unlocks} ${
+        unlocks === 1 ? "conceito" : "conceitos"
+      } adiante.`,
+    nextUpHintLeaf: (label: string) =>
+      `${label} — na sua fronteira. Nada depende dele; ele se sustenta sozinho.`,
   },
 } as const;
 
@@ -180,56 +194,69 @@ export default function LeftRail({
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {nextUp.map(({ node, unlocks }) => (
-              <button
-                className="at-press"
+              // What "+3" means, said in words — the count alone is a number
+              // nobody has been told how to read.
+              <HoverHint
                 key={node.id}
-                onClick={() => onPickNode(node.id)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  padding: "8px 11px",
-                  background: color.card,
-                  border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 9,
-                  fontSize: 13.5,
-                  color: color.ink,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
+                block
+                place="right"
+                hint={
+                  unlocks > 0
+                    ? t.nextUpHint(node.label, unlocks)
+                    : t.nextUpHintLeaf(node.label)
+                }
               >
-                <span
+                <button
+                  className="at-press"
+                  onClick={() => onPickNode(node.id)}
                   style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: STATE_COLOR.frontier,
-                    boxShadow: `0 0 6px ${STATE_COLOR.frontier}`,
-                    flex: "0 0 auto",
-                  }}
-                />
-                <span
-                  style={{
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    fontFamily: font.serif,
-                  }}
-                >
-                  {node.label}
-                </span>
-                <span
-                  style={{
-                    fontFamily: font.mono,
-                    fontSize: 10,
-                    color: color.inkFaint,
-                    flex: "0 0 auto",
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 9,
+                    padding: "8px 11px",
+                    background: color.card,
+                    border: `1px solid ${color.hairlineStrong}`,
+                    borderRadius: 9,
+                    fontSize: 13.5,
+                    color: color.ink,
+                    cursor: "pointer",
+                    textAlign: "left",
                   }}
                 >
-                  +{unlocks}
-                </span>
-              </button>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: STATE_COLOR.frontier,
+                      boxShadow: `0 0 6px ${STATE_COLOR.frontier}`,
+                      flex: "0 0 auto",
+                    }}
+                  />
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      fontFamily: font.serif,
+                    }}
+                  >
+                    {node.label}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: font.mono,
+                      fontSize: 10,
+                      color: color.inkFaint,
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    +{unlocks}
+                  </span>
+                </button>
+              </HoverHint>
             ))}
           </div>
         </div>
@@ -343,31 +370,41 @@ export default function LeftRail({
         <div style={{ ...kicker(10), marginBottom: 12 }}>{t.states}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {LEGEND_ORDER.map((state) => (
-            <div
+            // The legend named the six states without ever saying what any of
+            // them means. Hovering one gives the same line the detail rail
+            // shows on a node in that state.
+            <HoverHint
               key={state}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontSize: 13,
-                color: color.inkSoft,
-              }}
+              block
+              place="right"
+              hint={stateConfidence(state, language)}
             >
-              <span
+              <div
                 style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: STATE_COLOR[state],
-                  flex: "0 0 auto",
-                  boxShadow:
-                    state === "frontier"
-                      ? `0 0 7px ${STATE_COLOR[state]}`
-                      : "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  fontSize: 13,
+                  color: color.inkSoft,
+                  cursor: "default",
                 }}
-              />
-              {stateLabel(state, language).replace(" · ready", "").replace(" · pronto", "")}
-            </div>
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: STATE_COLOR[state],
+                    flex: "0 0 auto",
+                    boxShadow:
+                      state === "frontier"
+                        ? `0 0 7px ${STATE_COLOR[state]}`
+                        : "none",
+                  }}
+                />
+                {stateLabel(state, language).replace(" · ready", "").replace(" · pronto", "")}
+              </div>
+            </HoverHint>
           ))}
         </div>
       </div>

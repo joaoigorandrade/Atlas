@@ -4471,6 +4471,9 @@ export default function AtlasApp({
           view={view}
           selectedId={selectedId}
           hoverId={hoverId}
+          consumeProgress={consumeProgress}
+          reviewedNodes={reviewedNodes}
+          shakyReasons={shakyReasons}
           query={query}
           onWheel={onWheel}
           onCanvasDown={onCanvasDown}
