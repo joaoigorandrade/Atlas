@@ -131,7 +131,7 @@ import {
   type ScopeOffer,
 } from "@/lib/api";
 import { createWarmQueue } from "@/lib/warm";
-import { useLanguage } from "@/lib/i18n";
+import { type Language, languageAction, useLanguage } from "@/lib/i18n";
 import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
@@ -315,7 +315,7 @@ export default function AtlasApp({
   // call so AI content comes back in it too (a ref, like `formRef` etc.
   // below, so it can be read from stable callbacks without widening their
   // dependency arrays).
-  const { language } = useLanguage();
+  const { language, adoptLanguage, settled, explicit } = useLanguage();
   // The background warm queue: content for the phases just ahead is fetched
   // while the learner works, so entering them is a state change, not a wait.
   // A foreground click on something already warming joins that request rather
@@ -516,9 +516,41 @@ export default function AtlasApp({
   // surface — otherwise the learner keeps reading the old language back out
   // of memory (and out of the saved snapshot) forever.
   const contentLanguageRef = useRef(language);
+  /** The language this run's content is actually written in, as opposed to the
+   *  one the UI happens to be showing. Undefined when genuinely unknown — a
+   *  pre-v9 snapshot never recorded it, and guessing from the reader's device
+   *  would freeze the wrong answer on exactly the maps that need fixing. Set
+   *  only where it is known: a build, a deliberate switch, or a restored run
+   *  that carried one. */
+  const [runLanguage, setRunLanguage] = useState<Language | undefined>(undefined);
+
+  // Which language wins, and whether a change is a *switch* (regenerate) or
+  // merely the app working out where it is (leave everything alone).
+  //
+  // `settled` is what makes this correct: detection needs `window`, so the
+  // first render is always the "pt-BR" placeholder and the real language lands
+  // an effect later — after this component has already hydrated the run. Acting
+  // on that transition treated every device whose locale disagreed with the run
+  // as a deliberate language switch, and dropped the caches mid-load.
   useEffect(() => {
-    if (contentLanguageRef.current === language) return;
+    const action = languageAction({
+      settled,
+      explicit,
+      runLanguage,
+      language,
+      contentLanguage: contentLanguageRef.current,
+    });
+    if (action === "wait" || action === "none") return;
+    if (action === "adopt") {
+      // `runLanguage` is defined whenever the decision is "adopt".
+      contentLanguageRef.current = runLanguage as Language;
+      adoptLanguage(runLanguage as Language);
+      return;
+    }
     contentLanguageRef.current = language;
+    // Everything is about to be regenerated in the new language, so from here
+    // the run's language is known — whatever it was before.
+    setRunLanguage(language);
     warm.clear();
     setConsumeCache({});
     setModelCache({});
@@ -527,7 +559,7 @@ export default function AtlasApp({
     setConnectCache({});
     setCrucibleCache({});
     setRetainContent(null);
-  }, [language, warm]);
+  }, [language, settled, explicit, runLanguage, adoptLanguage, warm]);
   const diagnosticRef = useRef(diagnostic);
   diagnosticRef.current = diagnostic;
   const answeredRef = useRef(answered);
@@ -864,6 +896,19 @@ export default function AtlasApp({
       setScopes(null);
 
       const s = row.snapshot;
+      // The run's language wins over the device's. UI language is detected
+      // per-browser (`navigator.language`), so the same pt-BR map opened on an
+      // en-US machine used to present as English to everything downstream —
+      // most audibly read-aloud, which picked the English voice and model for
+      // Portuguese prose and paid for a second cache key to do it. Adopting is
+      // also the cheap direction: the alternative, regenerating the whole run
+      // into the device's language, throws away content the learner owns.
+      //
+      // Recorded, not applied: the effect above owns which language wins, and
+      // it waits for detection to settle before deciding. Applying it here
+      // would race that — this runs during hydration, before the detected
+      // language has even landed.
+      setRunLanguage(s.language);
       setForm(s.form);
       setGraph(s.graph);
       setStates(s.states);
@@ -1033,8 +1078,10 @@ export default function AtlasApp({
   useEffect(() => {
     if (!runActive) return;
     const snapshot: RunSnapshot = {
-      v: 8,
+      v: 9,
       form,
+      // The run's own language, not the reader's — see `RunSnapshot.language`.
+      language: runLanguage,
       graph,
       spawnedIds: [...spawnedIds],
       states,
@@ -1066,6 +1113,7 @@ export default function AtlasApp({
     runSubject,
     supabase,
     form,
+    runLanguage,
     graph,
     spawnedIds,
     states,
@@ -1380,6 +1428,9 @@ export default function AtlasApp({
       return;
     }
     const buildId = ++buildIdRef.current;
+    // A fresh map is generated in the UI language, so this is the one moment
+    // the run's content language is known for certain.
+    setRunLanguage(languageRef.current);
     /** Frames from an abandoned build — a re-submit, or a picked scope — must
      *  never land on the map that replaced it. */
     const current = () => buildIdRef.current === buildId;
