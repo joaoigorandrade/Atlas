@@ -24,6 +24,7 @@ import {
   generateRetain,
   generateSocratic,
   generateSocraticStream,
+  generateSummary,
   judgeChoice,
   judgeChoiceStream,
   judgeCrucible,
@@ -227,6 +228,23 @@ export function resolveJob(body: GenerateBody): Job {
           { scopes: { min: 2, max: 3 } },
         ],
       };
+    }
+
+    case "summary": {
+      if (!nodeLabel) throw badRequest("nodeLabel is required");
+      // One sentence for one concept — the backfill for a node whose map
+      // arrived without it. Cached like any other generation: two learners on
+      // the same topic share the row, and it is a handful of tokens either way.
+      return cacheable(
+        "summary",
+        {
+          topic,
+          nodeLabel,
+          prereqLabels: labels(body.prereqLabels),
+          language,
+        },
+        async (p) => ({ summary: await generateSummary(p) }),
+      );
     }
 
     case "diagnosticQuestion": {

@@ -14,6 +14,7 @@ import {
   validateRetain,
   validateScopeOffer,
   validateSocratic,
+  validateSummary,
 } from "@/lib/server/generate";
 import { graphFromMapNodes } from "@/lib/curriculum";
 import { migrateConsume, type LegacyConsumeChunk } from "@/lib/persistence";
@@ -130,6 +131,26 @@ describe("validateMapConcept", () => {
 
   it("accepts a concept with no summary rather than failing the map", () => {
     expect(validateMapConcept(concept(), 0, new Set()).summary).toBeUndefined();
+  });
+});
+
+// The backfill for the concepts that landed without one — what the rail shows
+// instead of copy about the mastery state.
+describe("validateSummary", () => {
+  it("takes the sentence, trimmed", () => {
+    expect(validateSummary({ summary: "  Who owns a value.  " })).toBe(
+      "Who owns a value.",
+    );
+  });
+
+  it("rejects an empty one — the rail would be worse off than with the fallback", () => {
+    expect(() => validateSummary({ summary: "   " })).toThrow(/summary/);
+  });
+
+  it("rejects an essay: this is one sentence, and it is persisted", () => {
+    expect(() => validateSummary({ summary: "x".repeat(401) })).toThrow(
+      /ONE sentence/,
+    );
   });
 });
 

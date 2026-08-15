@@ -21,7 +21,7 @@ const base: ConceptNode = {
   y: 0,
 };
 
-const render = (node: ConceptNode) =>
+const render = (node: ConceptNode, summaryWriting = false) =>
   renderToStaticMarkup(
     createElement(
       LanguageProvider,
@@ -29,6 +29,7 @@ const render = (node: ConceptNode) =>
       createElement(NodeDetail, {
         visible: true,
         node,
+        summaryWriting,
         displayState: "frontier",
         nodes: [node],
         edges: [],
@@ -54,5 +55,19 @@ describe("NodeDetail", () => {
 
   it("falls back to the state line when a node carries no summary", () => {
     expect(render(base)).toContain("Pré-requisitos cumpridos");
+  });
+
+  // A node whose map never wrote a sentence gets one backfilled. Showing the
+  // generic state copy in the meantime and swapping it out a second later would
+  // teach the learner to ignore that box — the shape of the sentence says
+  // "coming", which is true.
+  it("shows the sentence being written rather than the state line", () => {
+    const html = render(base, true);
+    expect(html).not.toContain("Pré-requisitos cumpridos");
+  });
+
+  it("prefers a summary it already has over the writing state", () => {
+    const html = render({ ...base, summary: "Quem é dono de um valor." }, true);
+    expect(html).toContain("Quem é dono de um valor.");
   });
 });
