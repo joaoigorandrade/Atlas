@@ -35,6 +35,7 @@ import type {
   StateMap,
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
+import type { Language } from "@/lib/i18n";
 
 /** Per-node generated content. Also lives in the shared `content_cache` table
  *  keyed by prompt hash — this copy is the learner's own instant-resume set. */
@@ -62,8 +63,21 @@ export const emptyCaches = (): RunCaches => ({
 });
 
 export interface RunSnapshot {
-  v: 8;
+  v: 9;
   form: OnboardingForm;
+  /** The language the generated content is written in — a property of the run,
+   *  not of the device reading it. Without it, a restored run's language was
+   *  assumed to be the current UI language, which is detected per-browser: a
+   *  pt-BR map opened on an en-US machine read as English to everything
+   *  downstream, and read-aloud spoke Portuguese prose in an English voice
+   *  (and billed it under a second cache key).
+   *
+   *  Optional because it can only be known honestly. A pre-v9 row predates the
+   *  field, and its content language is genuinely unrecorded — guessing from
+   *  the current UI language would freeze the wrong answer permanently. Those
+   *  rows stay `undefined` and keep the old behaviour until the run is either
+   *  built or deliberately switched, the two moments that actually know. */
+  language?: Language;
   graph: ConceptGraph;
   /** Gap-node ids spawned by re-planning (a Set in memory). */
   spawnedIds: string[];
@@ -105,11 +119,12 @@ export interface RunSnapshot {
   misconceptions: MisconceptionRecord[];
 }
 
-/** What may come back from the table: a v1 … v8 snapshot. v1 predates
+/** What may come back from the table: a v1 … v9 snapshot. v1 predates
  *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
  *  content caches inline, which v3 moved to their own column; v4 adds the
  *  Consume reading progress and the modality tally; v5 the Socratic one; v6
- *  the run-wide misconception roll-up; v7 the Feynman one; v8 the Connect one. */
+ *  the run-wide misconception roll-up; v7 the Feynman one; v8 the Connect one;
+ *  v9 records the language the content was generated in. */
 type LoadedSnapshot = Omit<
   RunSnapshot,
   | "v"
@@ -142,14 +157,14 @@ type LoadedSnapshot = Omit<
 };
 
 /** Every snapshot version this loader accepts. */
-const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8];
+const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-/** Fill an older snapshot's gaps; a v8 passes through unchanged. */
+/** Fill an older snapshot's gaps; a v9 passes through unchanged. */
 function migrate(raw: LoadedSnapshot): RunSnapshot {
   const { caches: _inline, ...rest } = raw;
   return {
     ...rest,
-    v: 8,
+    v: 9,
     form: { ...raw.form, examDate: raw.form.examDate ?? "" },
     adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
     shakyReasons: raw.shakyReasons ?? {},
