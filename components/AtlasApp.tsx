@@ -15,6 +15,7 @@ import {
   calibItems,
   calibOverCount,
   connectCards,
+  conceptBoundary,
   connectPool,
   connectReducer,
   connectStart,
@@ -1905,6 +1906,18 @@ export default function AtlasApp({
     [prereqNodesOf],
   );
 
+  /**
+   * The map around a node: what earlier concepts already taught, what later
+   * ones own (`conceptBoundary`). Every per-node generation takes it, so a
+   * pass is written knowing it is one concept in a map rather than the only
+   * thing the learner will ever read. Derived here, once, because it is part
+   * of the cache key — a warm and the click after it must hash the same list.
+   */
+  const boundaryOf = useCallback(
+    (nodeId: string) => conceptBoundary(graphRef.current, nodeId),
+    [],
+  );
+
   /** Labels the learner has actually learned — context for transfer problems. */
   const learnedLabels = useCallback((): string[] => {
     const g = graphRef.current;
@@ -1926,8 +1939,9 @@ export default function AtlasApp({
       prereqLabels: prereqLabelsOf(node.id),
       interests: formRef.current.interests,
       language: languageRef.current,
+      ...boundaryOf(node.id),
     }),
-    [prereqLabelsOf],
+    [prereqLabelsOf, boundaryOf],
   );
 
   /** The backfilled sentence for a node that arrived without one. Deliberately
@@ -1972,8 +1986,9 @@ export default function AtlasApp({
       nodeLabel: node.label,
       interests: formRef.current.interests,
       language: languageRef.current,
+      ...boundaryOf(node.id),
     }),
-    [],
+    [boundaryOf],
   );
 
   const feynmanParams = useCallback(
@@ -1983,8 +1998,9 @@ export default function AtlasApp({
       nodeLabel: node.label,
       interests: formRef.current.interests,
       language: languageRef.current,
+      ...boundaryOf(node.id),
     }),
-    [],
+    [boundaryOf],
   );
 
   /**
@@ -2012,8 +2028,9 @@ export default function AtlasApp({
       masteredLabels: learnedLabels(),
       interests: formRef.current.interests,
       language: languageRef.current,
+      ...boundaryOf(node.id),
     }),
-    [learnedLabels],
+    [learnedLabels, boundaryOf],
   );
 
   /** Warm-queue / in-memory cache address for one node's surface. */

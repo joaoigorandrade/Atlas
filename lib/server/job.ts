@@ -74,6 +74,9 @@ export interface GenerateBody {
   nodeId?: string;
   nodeLabel?: string;
   prereqLabels?: string[];
+  /** The map around the concept — see `boundary` / `boundaryNote`. */
+  priorLabels?: string[];
+  laterLabels?: string[];
   // model fields — the section a lens was opened over, as it is on screen
   // (`kicker` is shared with the passage fields below)
   lens?: string;
@@ -138,6 +141,26 @@ export function badRequest(message: string): BadRequest {
 
 const s = (v: unknown, fallback = ""): string =>
   typeof v === "string" ? v : fallback;
+
+/**
+ * The map around the concept, as the per-node prompts get it (`boundaryNote`):
+ * what earlier concepts already taught, and what later ones own. Part of the
+ * cache key on purpose — content written against a different map is different
+ * content — and shared across learners, since gap nodes are excluded upstream
+ * (`conceptBoundary`). Omitted entirely when empty so a request from before
+ * this existed keys to the same row as one on a single-concept map.
+ */
+const boundary = (body: GenerateBody): {
+  priorLabels?: string[];
+  laterLabels?: string[];
+} => {
+  const priorLabels = labels(body.priorLabels);
+  const laterLabels = labels(body.laterLabels);
+  return {
+    ...(priorLabels.length ? { priorLabels } : {}),
+    ...(laterLabels.length ? { laterLabels } : {}),
+  };
+};
 
 const labels = (v: unknown, max: number = CAPS.listItems): string[] =>
   Array.isArray(v)
@@ -292,6 +315,7 @@ export function resolveJob(body: GenerateBody): Job {
         prereqLabels: labels(body.prereqLabels),
         interests,
         language,
+        ...boundary(body),
       };
       return {
         kind: "consume",
@@ -371,7 +395,7 @@ export function resolveJob(body: GenerateBody): Job {
 
     case "socratic": {
       if (!nodeLabel) throw badRequest("nodeLabel is required");
-      const params = { topic, nodeLabel, interests, language };
+      const params = { topic, nodeLabel, interests, language, ...boundary(body) };
       return {
         kind: "socratic",
         key: contentKey("socratic", params),
@@ -386,7 +410,7 @@ export function resolveJob(body: GenerateBody): Job {
     case "feynman": {
       if (!nodeId || !nodeLabel)
         throw badRequest("nodeId and nodeLabel are required");
-      const params = { topic, nodeId, nodeLabel, interests, language };
+      const params = { topic, nodeId, nodeLabel, interests, language, ...boundary(body) };
       return {
         kind: "feynman",
         key: contentKey("feynman", params),
@@ -432,6 +456,7 @@ export function resolveJob(body: GenerateBody): Job {
           masteredLabels: labels(body.masteredLabels),
           interests,
           language,
+          ...boundary(body),
         },
         async (p) => ({ content: await generateCrucible(p) }),
       );

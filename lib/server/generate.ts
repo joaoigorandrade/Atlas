@@ -197,6 +197,36 @@ function interestNote(interests: string): string {
     : "Use concrete, everyday analogies when they genuinely fit.";
 }
 
+/**
+ * The concept's boundary on the map: what the other passes already taught and
+ * what they are going to. Every per-node generation gets this, because without
+ * it each one is written as if its concept were the only thing on the map —
+ * re-deriving a prerequisite three columns back, or teaching the next concept
+ * before the learner ever clicks it.
+ *
+ * `prior` is licence, not an instruction to cover: build on it freely, never
+ * re-teach it. `later` is a fence: name it in one clause if the connection is
+ * genuinely load-bearing, never explain it.
+ */
+function boundaryNote(params: { priorLabels?: string[]; laterLabels?: string[] }): string {
+  const prior = (params.priorLabels ?? []).filter(Boolean);
+  const later = (params.laterLabels ?? []).filter(Boolean);
+  if (!prior.length && !later.length) return "";
+  const lines = ["", "THE MAP AROUND THIS CONCEPT — the learner is working through a whole map, and every other concept on it has its own pass. Stay inside this one:"];
+  if (prior.length)
+    lines.push(
+      `- Already taught, earlier on the map: ${prior.join(", ")}. Assume all of it and build on it — refer to it by name, never re-explain or re-derive it. A recap of one of those is material the learner has already read.`,
+    );
+  if (later.length)
+    lines.push(
+      `- Taught later, by their OWN pass: ${later.join(", ")}. These are not yours. Do not explain, define, derive or work an example of any of them; at most name one in a single clause to say where this leads ("which is what X builds on"). Anything you teach here the learner meets again as a repeat.`,
+    );
+  lines.push(
+    "- Anything the concept genuinely needs that appears in NEITHER list is yours to teach, in as much depth as it earns.",
+  );
+  return lines.join("\n") + "\n";
+}
+
 // ---- kind: curriculum map --------------------------------------------------
 
 /** The map on the wire: a flat list of laid-out nodes, each carrying its own
@@ -891,6 +921,9 @@ function consumeContext(params: {
   prereqLabels: string[];
   interests: string;
   language?: Language;
+  /** What the rest of the map already taught / will teach — see `boundaryNote`. */
+  priorLabels?: string[];
+  laterLabels?: string[];
 }): string {
   const { topic, nodeLabel, prereqLabels, interests, language = "en" } = params;
   return `Write the Consume (first reading) pass for the concept "${nodeLabel}" within the topic "${topic}".
@@ -924,7 +957,8 @@ Rules for the prose:
   behaves → where it breaks or is misused → how it connects onward. That is the
   ORDER, not a checklist of five sections — a small concept covers several of
   those beats inside one section.
-- Name the common misconception explicitly and say why it is wrong.${languageNote(language)}`;
+- Name the common misconception explicitly and say why it is wrong.
+${boundaryNote(params)}${languageNote(language)}`;
 }
 
 export async function generateConsume(params: {
@@ -933,6 +967,9 @@ export async function generateConsume(params: {
   prereqLabels: string[];
   interests: string;
   language?: Language;
+  /** What the rest of the map already taught / will teach — see `boundaryNote`. */
+  priorLabels?: string[];
+  laterLabels?: string[];
 }): Promise<ConsumeChunk[]> {
   return generateJson(
     user(
@@ -969,6 +1006,9 @@ export async function* generateConsumeStream(params: {
   prereqLabels: string[];
   interests: string;
   language?: Language;
+  /** What the rest of the map already taught / will teach — see `boundaryNote`. */
+  priorLabels?: string[];
+  laterLabels?: string[];
 }): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   try {
@@ -1306,6 +1346,8 @@ function socraticContext(params: {
   topic: string;
   nodeLabel: string;
   interests: string;
+  priorLabels?: string[];
+  laterLabels?: string[];
 }): string {
   return `Write a Socratic questioning session for the concept "${params.nodeLabel}" within "${params.topic}".
 The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
@@ -1317,7 +1359,8 @@ ${sizeRule({
   atMin: "a single-mechanism idea with one way to get it wrong",
   atMax: "a genuinely layered concept",
 })} Each core probe uses a different move, in the order listed, and picks up where the last left off.
-Then write exactly ${SOCRATIC_SPARES} further ${SOCRATIC_SPARES === 1 ? "probe" : "probes"} marked "spare": true, last. A spare is held back — only ever asked of a learner who keeps needing help — so it must go DEEPER on the hardest part of the concept rather than restate an earlier probe.`;
+Then write exactly ${SOCRATIC_SPARES} further ${SOCRATIC_SPARES === 1 ? "probe" : "probes"} marked "spare": true, last. A spare is held back — only ever asked of a learner who keeps needing help — so it must go DEEPER on the hardest part of the concept rather than restate an earlier probe.
+${boundaryNote(params)}`;
 }
 
 const SOCRATIC_STEP_SHAPE = `{
@@ -1387,6 +1430,8 @@ export async function generateSocratic(params: {
   nodeLabel: string;
   interests: string;
   language?: Language;
+  priorLabels?: string[];
+  laterLabels?: string[];
 }): Promise<SocraticStep[]> {
   return generateJson(
     user(
@@ -1422,6 +1467,8 @@ export async function* generateSocraticStream(params: {
   nodeLabel: string;
   interests: string;
   language?: Language;
+  priorLabels?: string[];
+  laterLabels?: string[];
 }): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   try {
@@ -1519,6 +1566,8 @@ interface FeynmanParams {
   nodeLabel: string;
   interests: string;
   language?: Language;
+  priorLabels?: string[];
+  laterLabels?: string[];
 }
 
 /** The shared framing of both Feynman prompts. */
@@ -1532,7 +1581,8 @@ ${sizeRule({
   atMax: "a concept a naive listener cannot follow without all four",
 })}
 The learner never sees these — they teach the concept from a blank page, and their explanation is diffed against these rows. So each sub-point is what a *complete* explanation contains, in the order it would naturally be taught, not a question or a prompt.
-${interestNote(params.interests)}`;
+${interestNote(params.interests)}
+${boundaryNote(params)}`;
 }
 
 const FEYNMAN_BEAT_SHAPE = `{
@@ -1814,6 +1864,8 @@ export async function generateCrucible(params: {
   masteredLabels: string[];
   interests: string;
   language?: Language;
+  priorLabels?: string[];
+  laterLabels?: string[];
 }): Promise<CrucibleContent> {
   const { topic, nodeId, nodeLabel, masteredLabels, interests, language = "en" } = params;
   return generateJson(
@@ -1822,6 +1874,7 @@ export async function generateCrucible(params: {
 Force the knowledge into a NOVEL context it was never taught in — that's the truest mastery signal.
 Concepts the learner already owns, to interleave: ${masteredLabels.join(", ") || "the concept's own prerequisites"}.
 ${interestNote(interests)}
+${boundaryNote(params)}
 
 Return JSON:
 {

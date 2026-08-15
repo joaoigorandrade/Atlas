@@ -241,6 +241,11 @@ export const consumeRequest = (params: {
   prereqLabels: string[];
   interests: string;
   language?: Language;
+  /** The concepts around this one on the map: what earlier passes already
+   *  taught, and what later ones own. Keeps a pass inside its own concept
+   *  instead of re-teaching a prerequisite or spoiling the next node. */
+  priorLabels?: string[];
+  laterLabels?: string[];
 }) => ({ kind: "consume", ...params });
 
 export async function fetchConsume(
@@ -465,6 +470,11 @@ export const socraticRequest = (params: {
   nodeLabel: string;
   interests: string;
   language?: Language;
+  /** The concepts around this one on the map: what earlier passes already
+   *  taught, and what later ones own. Keeps a pass inside its own concept
+   *  instead of re-teaching a prerequisite or spoiling the next node. */
+  priorLabels?: string[];
+  laterLabels?: string[];
 }) => ({ kind: "socratic", ...params });
 
 export async function fetchSocratic(
@@ -494,6 +504,11 @@ export const feynmanRequest = (params: {
   nodeLabel: string;
   interests: string;
   language?: Language;
+  /** The concepts around this one on the map: what earlier passes already
+   *  taught, and what later ones own. Keeps a pass inside its own concept
+   *  instead of re-teaching a prerequisite or spoiling the next node. */
+  priorLabels?: string[];
+  laterLabels?: string[];
 }) => ({ kind: "feynman", ...params });
 
 export async function fetchFeynman(
@@ -542,6 +557,11 @@ export const crucibleRequest = (params: {
   masteredLabels: string[];
   interests: string;
   language?: Language;
+  /** The concepts around this one on the map: what earlier passes already
+   *  taught, and what later ones own. Keeps a pass inside its own concept
+   *  instead of re-teaching a prerequisite or spoiling the next node. */
+  priorLabels?: string[];
+  laterLabels?: string[];
 }) => ({ kind: "crucible", ...params });
 
 export async function fetchCrucible(

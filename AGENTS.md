@@ -58,6 +58,17 @@ lens). `passage` is "ask about this": the learner's question about a stretch of
 prose they highlighted, streamed a paragraph at a time and — like `judge` —
 never cached, since the inputs are one learner's selection and one learner's
 words.
+Every per-node generation also carries the **map around the concept**
+(`conceptBoundary` in `lib/curriculum.ts` → `boundaryNote` in `generate.ts`):
+the labels of every ancestor (already taught — build on it, never re-teach it)
+and of every other concept on the map (taught by its own pass — never explain
+it here). Without it each pass is written as if its concept were the only thing
+the learner will ever read, and the map's content overlaps and spoils itself.
+It is part of the cache key for `consume`, `socratic`, `feynman` and
+`crucible`, so a warm and the click after it must derive it from the same
+`boundaryOf` callback; gap nodes are excluded so the row stays shared across
+learners on the same topic.
+
 Configure via
 `.env.local` (see `.env.example`): `OPENROUTER_API_KEY` (required),
 `OPENROUTER_MODEL` (default `deepseek/deepseek-chat`),
