@@ -36,7 +36,7 @@ Two structural facts drive everything below:
 
 **Status: landed** (2026-08-15). Six required checks on `main`; the numbers in
 the table above are the pre-Phase-0 snapshot and are kept as the baseline.
-`e2e` is the seventh and joins in Phase 1.
+`e2e` is the seventh, and joined in Phase 1.
 
 Gates land _before_ the refactor so the refactor is measured by them, and so the
 size never grows back.
@@ -85,8 +85,24 @@ code, which is already wired end-to-end in `lib/errors.ts` and `errorCopy.ts`.
 
 ## Phase 1 — The agent-testability layer
 
+**Status: landed** (2026-08-15). `e2e` is the seventh required check; the map is
+in `docs/AGENT-TESTING.md`.
+
 Ordered before the refactor on purpose: these tests are the safety net that makes
 Phase 2 safe to do at all.
+
+Two honest notes on what landed:
+
+- **Fixtures are typed builders, not `tests/fixtures/<kind>.json`.** They live in
+  `lib/server/fixtures.ts` as functions returning the interfaces the renderers
+  consume, so `tsc` catches a fixture that drifts from a shape — a JSON file
+  could only be caught at runtime. They also have to be written _against the
+  request_: a Connect payload naming an id the pool never offered, or a Feynman
+  judgement missing a rubric row, is content the reducers drop. Static files
+  would have needed a substitution engine to do the same job.
+- **The size ceilings went up, once.** Testids, aria attributes and the fixture
+  branches are real lines: `size-budget.json` was re-seeded at today's numbers.
+  Phase 2 is what brings them down; the ratchet still forbids drift in between.
 
 ### 1.1 Fixture mode — the keystone
 

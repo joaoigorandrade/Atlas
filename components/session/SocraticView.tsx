@@ -180,7 +180,11 @@ export default function SocraticView({
         : t.advanceTeach;
 
   return (
-    <Sheet presence={presence}>
+    <Sheet
+      presence={presence}
+      data-testid="phase-socratic"
+      aria-label="Socratic — {title}"
+    >
       {/* Header — ← Map · Session · Socratic · title · scaffolding dial */}
       <div
         style={{
@@ -339,6 +343,7 @@ export default function SocraticView({
                   </div>
                   <div style={{ display: "flex", gap: 9, alignItems: "flex-end" }}>
                     <textarea
+                      data-testid="field-answer"
                       value={draft}
                       disabled={busy}
                       onChange={(e) => setDraft(e.target.value)}
@@ -372,6 +377,7 @@ export default function SocraticView({
                     />
                     <button
                       className="at-press"
+                      data-testid="action-submit"
                       onClick={submitDraft}
                       disabled={busy || !draft.trim()}
                       style={{

@@ -165,7 +165,11 @@ export default function CrucibleView({
   const isWork = session.stage === "work";
 
   return (
-    <Sheet presence={presence}>
+    <Sheet
+      presence={presence}
+      data-testid="phase-crucible"
+      aria-label="Crucible — {title}"
+    >
       {/* Header — ← Map · Session · Crucible · title · phase breadcrumb */}
       <div
         style={{
@@ -421,6 +425,7 @@ function ConfidenceGate({
             <button
               className="at-press"
               key={label}
+              data-testid={`action-confidence-${i}`}
               onClick={() => onConfidence(i as ConfidenceLevel)}
               style={{
                 flex: 1,

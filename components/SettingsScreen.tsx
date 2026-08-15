@@ -239,6 +239,8 @@ export default function SettingsScreen({
   return (
     <Sheet
       presence={presence}
+      data-testid="screen-settings"
+      aria-label="Settings"
       style={{
         overflowY: "auto",
         flexDirection: "row",

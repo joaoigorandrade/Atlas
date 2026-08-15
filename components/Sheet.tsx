@@ -28,6 +28,12 @@ export default function Sheet({
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "style" | "children">) {
   return (
     <div
+      // Every surface this shell renders sits over the map and takes the whole
+      // screen, so the modal semantics belong here rather than being restated
+      // (or forgotten) at each of the eight call sites. The name comes from the
+      // call site — only it knows which phase this is.
+      role="dialog"
+      aria-modal="true"
       {...rest}
       style={{
         position: "absolute",

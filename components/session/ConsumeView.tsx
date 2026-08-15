@@ -1837,7 +1837,7 @@ export default function ConsumeView({
   }
 
   return (
-    <Sheet presence={presence}>
+    <Sheet presence={presence} data-testid="phase-consume" aria-label="Consume — {title}">
       {/* Header */}
       <div
         style={{

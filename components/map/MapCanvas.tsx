@@ -63,6 +63,9 @@ interface MapCanvasProps {
   onWheel: (e: WheelEvent) => void;
   onCanvasDown: (e: React.MouseEvent) => void;
   onNodeDown: (e: React.MouseEvent, id: string) => void;
+  /** Keyboard select — the pointer path goes through `onNodeDown`, which also
+   *  starts a drag and so needs a real mouse event. */
+  onNodeSelect: (id: string) => void;
   onNodeDoubleClick: (id: string) => void;
   onNodeHover: (id: string | null) => void;
 }
@@ -87,6 +90,7 @@ export default function MapCanvas({
   onWheel,
   onCanvasDown,
   onNodeDown,
+  onNodeSelect,
   onNodeDoubleClick,
   onNodeHover,
 }: MapCanvasProps) {
@@ -182,6 +186,9 @@ export default function MapCanvas({
   return (
     <div
       ref={elRef}
+      data-testid="map-canvas"
+      role="application"
+      aria-label="Concept map — scroll to zoom, drag to pan, double-click a lit node to begin"
       onMouseDown={(e) => {
         setDragging(true);
         onCanvasDown(e);
@@ -315,6 +322,22 @@ export default function MapCanvas({
             >
               <div
                 className="at-lift"
+                data-testid={`node-${node.id}`}
+                data-state={displayState}
+                role="button"
+                tabIndex={0}
+                aria-label={`${node.label} — ${displayState}`}
+                onKeyDown={(e) => {
+                  // The map is a mouse surface — pan, drag, double-click to
+                  // begin — and none of that is reachable from a keyboard.
+                  // Enter selects (opening the detail rail, whose phase buttons
+                  // are ordinary buttons), and that is the whole ladder: every
+                  // action on a node lives in that rail.
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onNodeSelect(node.id);
+                  }
+                }}
                 onMouseDown={(e) => {
                   // A node's press stops propagating (it starts a drag, not a
                   // pan), so the card is closed from here too.

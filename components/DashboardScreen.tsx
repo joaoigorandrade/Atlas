@@ -214,6 +214,7 @@ export default function DashboardScreen({
 
   return (
     <div
+      data-testid="screen-dashboard"
       style={{
         position: "absolute",
         inset: 0,

@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import AtlasApp from "@/components/AtlasApp";
 import AuthUnavailable from "@/components/AuthUnavailable";
+import { FIXTURES } from "@/lib/fixtureMode";
 import { logWarning } from "@/lib/log";
+import { FIXTURE_EMAIL } from "@/lib/server/fixtures";
 import { loadRunCore, type LoadedRun } from "@/lib/persistence";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,7 +26,13 @@ export default async function Home() {
   //
   // Best-effort: a failure here falls through to the client's own load rather
   // than 500ing a page that works fine without it.
+  //
+  // Skipped in fixture mode: the run lives in the seed store, which only the
+  // browser can reach. `initialRun` is left off entirely rather than passed as
+  // null — null means "the server looked and there is no run", and the client
+  // takes it at its word and never loads.
   let initialRun: LoadedRun | null = null;
+  if (FIXTURES) return <AtlasApp userEmail={FIXTURE_EMAIL} />;
   try {
     initialRun = await loadRunCore(supabase);
   } catch (err) {

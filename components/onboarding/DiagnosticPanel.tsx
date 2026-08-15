@@ -122,6 +122,7 @@ export default function DiagnosticPanel({
 
   return (
     <div
+      data-testid="screen-diagnostic"
       style={{
         position: "absolute",
         top: 0,
@@ -180,6 +181,7 @@ export default function DiagnosticPanel({
           </div>
           <button
             className="at-press"
+            data-testid="action-take-placement"
             onClick={() => setStarted(true)}
             style={{
               width: "100%",
@@ -296,6 +298,7 @@ export default function DiagnosticPanel({
                 <button
                   className="at-press"
                   key={opt.label}
+                  data-testid={`action-answer-${oi}`}
                   role="radio"
                   aria-checked={picked ? oi === picked.index : false}
                   disabled={!!picked}
@@ -394,6 +397,7 @@ export default function DiagnosticPanel({
               </div>
               <button
                 className="at-press"
+                data-testid="action-next"
                 onClick={() => setPicked(null)}
                 disabled={!readyToAdvance}
                 style={{
@@ -471,6 +475,7 @@ export default function DiagnosticPanel({
           </div>
           <button
             className="at-press"
+            data-testid="action-start"
             onClick={onStart}
             style={{
               width: "100%",

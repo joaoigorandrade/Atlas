@@ -15,6 +15,10 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["lib/**/*.ts", "lib/**/*.tsx"],
+      // Test-only surfaces. `fixtures.ts` is the e2e harness's content (Phase
+      // 1.1) — it is exercised by `npm run e2e` on every run, and counting it
+      // here would let placeholder prose inflate the floor for real logic.
+      exclude: ["lib/server/fixtures.ts", "lib/fixtureMode.ts"],
       reporter: ["text-summary"],
       thresholds: { lines: 55, functions: 49, branches: 49, statements: 55 },
     },

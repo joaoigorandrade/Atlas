@@ -113,7 +113,7 @@ export default function CalibrationView({
 }: CalibrationViewProps) {
   const t = useT(STRINGS);
   return (
-    <Sheet presence={presence}>
+    <Sheet presence={presence} data-testid="screen-calibration" aria-label="Calibration">
       {/* Header — ← Map · Analytics · Calibration */}
       <div
         style={{

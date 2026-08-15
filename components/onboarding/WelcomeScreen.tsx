@@ -124,6 +124,7 @@ export default function WelcomeScreen({
 
   return (
     <div
+      data-testid="screen-welcome"
       style={{
         position: "absolute",
         inset: 0,
@@ -172,6 +173,8 @@ export default function WelcomeScreen({
           }}
         >
           <input
+            data-testid="field-topic"
+            aria-label={t.title}
             value={form.topic}
             onChange={(e) => onChange({ topic: e.target.value })}
             placeholder={t.topicPlaceholder}
@@ -306,6 +309,8 @@ export default function WelcomeScreen({
               <button
                 className="at-press"
                 key={key}
+                data-testid={`action-goal-${key}`}
+                aria-pressed={form.goal === key}
                 onClick={() => onChange({ goal: key })}
                 style={optionStyle(form.goal === key, true)}
               >
@@ -373,6 +378,8 @@ export default function WelcomeScreen({
             {t.interests} <span style={{ color: color.inkGhost }}>{t.interestsHint}</span>
           </div>
           <input
+            data-testid="field-interests"
+            aria-label={t.interests}
             value={form.interests}
             onChange={(e) => onChange({ interests: e.target.value })}
             placeholder={t.interestsPlaceholder}
@@ -409,6 +416,7 @@ export default function WelcomeScreen({
 
         <button
           className="at-press"
+          data-testid="action-build"
           onClick={onBuild}
           style={{
             width: "100%",

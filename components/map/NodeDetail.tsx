@@ -248,6 +248,10 @@ function NodeDetailBody({
 
   return (
     <div
+      data-testid="panel-node"
+      data-node={node?.id ?? ""}
+      role="complementary"
+      aria-label="Concept detail"
       style={{
         position: "absolute",
         top: 58,
@@ -418,6 +422,8 @@ function NodeDetailBody({
                 <button
                   className="at-press"
                   key={name}
+                  data-testid={`action-phase-${i}`}
+                  data-phase={name}
                   disabled={!clickable}
                   onClick={() =>
                     isJump ? setPendingSkip(i) : onPhaseAction(node, displayState, i)
@@ -556,6 +562,7 @@ function NodeDetailBody({
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
                   className="at-press"
+                  data-testid="action-skip-cancel"
                   onClick={() => {
                     setPendingSkip(null);
                     onPhaseAction(node, displayState, currentPhase);
@@ -575,6 +582,7 @@ function NodeDetailBody({
                 </button>
                 <button
                   className="at-press"
+                  data-testid="action-skip-confirm"
                   onClick={() => {
                     const target = pendingSkip;
                     setPendingSkip(null);
@@ -600,6 +608,7 @@ function NodeDetailBody({
 
       <button
         className="at-press"
+        data-testid="action-primary"
         onClick={() => onPrimaryAction(node, displayState)}
         style={{
           width: "100%",

@@ -4573,6 +4573,14 @@ export default function AtlasApp({
 
   return (
     <div
+      // The app's one addressable landmark: which screen is up, and which sheet
+      // is over it (docs/AGENT-TESTING.md). Everything else an agent needs to
+      // know about navigation is derivable from these two attributes, which is
+      // why no screen needed a wrapper div to carry a testid.
+      data-testid="app"
+      data-screen={screen}
+      data-sheet={openSheet ?? "none"}
+      data-hydrated={hydrated ? "1" : "0"}
       style={{
         position: "relative",
         width: "100%",
@@ -4607,6 +4615,10 @@ export default function AtlasApp({
           onWheel={onWheel}
           onCanvasDown={onCanvasDown}
           onNodeDown={onNodeDown}
+          onNodeSelect={(id) => {
+            setSelectedId(id);
+            centerOn(id);
+          }}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeHover={hoverNode}
         />
