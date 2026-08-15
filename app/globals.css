@@ -408,6 +408,21 @@ textarea {
   }
 }
 
+/* The read-aloud control's indeterminate ring: a quarter-arc swept around the
+   button while a clip is on the wire. Rotation only — the arc's length is set
+   inline, so this keyframe says "we don't know how long" and nothing else.
+   Real progress, once the voice is talking, is a transition on the arc rather
+   than an animation, which is why it survives the reduced-motion block below
+   while this sweep correctly does not. */
+@keyframes ringSpin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

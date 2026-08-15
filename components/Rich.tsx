@@ -1,13 +1,19 @@
 import { type ReactNode } from "react";
+import {
+  tokenSlice,
+  tokenizeRich,
+  type RichToken,
+  type SpeakRange,
+} from "@/lib/rich";
 import { color, font } from "@/lib/theme";
 
 // The model writes markdown-flavoured prose — `code`, **bold**, *italic*, and
 // fenced blocks. Rendering it as raw text leaks the punctuation into the UI.
 // ponytail: inline spans + fenced blocks only; no lists/links/headings — add a
 // real markdown dependency when the model starts emitting those.
-
-const INLINE = /`([^`\n]+)`|\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|_([^_\n]+)_/g;
-const FENCE = /```[\w-]*\n?([\s\S]*?)```/g;
+//
+// The walk itself lives in `lib/rich.ts`, because read-aloud speaks the same
+// stripped text and highlights the word being spoken *in this output*.
 
 const codeStyle = {
   fontFamily: font.mono,
@@ -20,64 +26,89 @@ const codeStyle = {
   wordBreak: "break-word" as const,
 };
 
-function inline(text: string, prefix: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let last = 0;
-  let n = 0;
-  for (const m of text.matchAll(INLINE)) {
-    const at = m.index ?? 0;
-    if (at > last) out.push(text.slice(last, at));
-    const [raw, code, bold, em, under] = m;
-    const key = `${prefix}i${n++}`;
-    out.push(
-      code !== undefined ? (
-        <code key={key} style={codeStyle}>
-          {code}
-        </code>
-      ) : bold !== undefined ? (
-        <strong key={key} style={{ fontWeight: 600 }}>
-          {bold}
-        </strong>
-      ) : (
-        <em key={key}>{em ?? under}</em>
-      ),
-    );
-    last = at + raw.length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return out;
+// The read-along mark. `boxShadow` rather than `padding` gives the pill its
+// breathing room without moving a single glyph — the highlight has to travel
+// word by word through settled text, and a padded span would reflow the
+// paragraph on every hop.
+//
+// Deliberately not animated: at three to five words a second, a fade-in per
+// word is a strobe. The paragraph wash under it carries the motion instead.
+const spokenStyle = {
+  background: color.accentWash,
+  borderRadius: 3,
+  boxShadow: `0 0 0 2px ${color.accentWash}`,
+};
+
+/** One token's text, with the spoken slice of it marked. */
+function content(token: RichToken, speak: SpeakRange | null): ReactNode {
+  const cut = tokenSlice(token, speak);
+  if (!cut) return token.text;
+  return (
+    <>
+      {token.text.slice(0, cut.from)}
+      <span style={spokenStyle}>{token.text.slice(cut.from, cut.to)}</span>
+      {token.text.slice(cut.to)}
+    </>
+  );
 }
 
-/** Renders one string of model-written markdown inline (no wrapper element). */
-export default function Rich({ text }: { text: string | undefined | null }) {
+/**
+ * Renders one string of model-written markdown inline (no wrapper element).
+ *
+ * `speak` is a character range in `spokenText(text)` — the word the voice is
+ * saying right now — or null when nothing is being read.
+ */
+export default function Rich({
+  text,
+  speak,
+}: {
+  text: string | undefined | null;
+  speak?: SpeakRange | null;
+}) {
   if (!text) return null;
-  const out: ReactNode[] = [];
-  let last = 0;
-  let n = 0;
-  for (const m of text.matchAll(FENCE)) {
-    const at = m.index ?? 0;
-    if (at > last) out.push(...inline(text.slice(last, at), `b${n}`));
-    out.push(
-      // ponytail: <code>, not <pre> — these land inside spans and buttons,
-      // where a block element would be invalid nesting.
-      <code
-        key={`f${n++}`}
-        style={{
-          ...codeStyle,
-          display: "block",
-          padding: "12px 14px",
-          borderRadius: 8,
-          margin: "10px 0",
-          overflowX: "auto",
-          lineHeight: 1.5,
-        }}
-      >
-        {m[1].replace(/\n$/, "")}
-      </code>,
-    );
-    last = at + m[0].length;
-  }
-  if (last < text.length) out.push(...inline(text.slice(last), `b${n}`));
+  const range = speak ?? null;
+  const out: ReactNode[] = tokenizeRich(text).map((token, i) => {
+    const key = `t${i}`;
+    switch (token.kind) {
+      case "text":
+        // A bare string when nothing is marked, so the common case adds no
+        // element to the tree at all.
+        return range ? <span key={key}>{content(token, range)}</span> : token.text;
+      case "code":
+        return (
+          <code key={key} style={codeStyle}>
+            {content(token, range)}
+          </code>
+        );
+      case "bold":
+        return (
+          <strong key={key} style={{ fontWeight: 600 }}>
+            {content(token, range)}
+          </strong>
+        );
+      case "em":
+        return <em key={key}>{content(token, range)}</em>;
+      case "fence":
+        return (
+          // ponytail: <code>, not <pre> — these land inside spans and buttons,
+          // where a block element would be invalid nesting.
+          <code
+            key={key}
+            style={{
+              ...codeStyle,
+              display: "block",
+              padding: "12px 14px",
+              borderRadius: 8,
+              margin: "10px 0",
+              overflowX: "auto",
+              lineHeight: 1.5,
+            }}
+          >
+            {token.text}
+          </code>
+        );
+    }
+  });
   // ponytail: one wrapper element, not a fragment — a flex/grid parent turns
   // loose children into separate items, and a `code` item shrinks to
   // min-content (one character per line). minWidth:0 keeps it from overflowing

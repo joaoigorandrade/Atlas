@@ -693,3 +693,51 @@ export function fetchJudgeChoice(
 ): Promise<ChoiceJudgement> {
   return judge({ kind: "judge", mode: "choice", ...params }, onVerdict);
 }
+
+// ---- read-aloud -----------------------------------------------------------
+
+/** One word of a clip: `from`/`to` index into the text that was sent, `at`/`end`
+ *  are milliseconds into the audio. Mirrors `SpeechMark` in lib/server/tts.ts —
+ *  restated here because that module is server-only and this one runs in the
+ *  browser. */
+export interface SpeechMark {
+  from: number;
+  to: number;
+  at: number;
+  end: number;
+}
+
+export interface SpeechClip {
+  /** base64 mp3. */
+  audio: string;
+  marks: SpeechMark[];
+}
+
+/**
+ * Synthesize one segment of prose. `text` must already be the plain spoken
+ * string (`spokenText()` from lib/rich) — the offsets that come back index
+ * into exactly what was sent.
+ *
+ * No retry wrapper: read-aloud is a foreground action the learner triggered,
+ * and the control surfaces the failure with a retry they can choose. Spending
+ * a second synthesis behind their back is the thing the character bill is
+ * most sensitive to.
+ */
+export async function fetchSpeech(params: {
+  text: string;
+  language: Language;
+}): Promise<SpeechClip> {
+  const res = await fetch("/api/speech", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw await failure(res);
+  const data = (await res.json().catch(() => null)) as SpeechClip | null;
+  if (!data?.audio)
+    throw new AtlasError("upstream", "speech response carried no audio", {
+      status: res.status,
+      requestId: res.headers.get("x-atlas-request-id") ?? undefined,
+    });
+  return { audio: data.audio, marks: data.marks ?? [] };
+}

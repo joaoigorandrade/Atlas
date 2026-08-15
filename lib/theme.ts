@@ -12,6 +12,11 @@ export const color = {
   inkGhost: "#a8a29a",
   accent: "#2f6b4f",
   accentBg: "#f2f6f2",
+  // The read-along mark: the accent at a weight that reads as ink on paper
+  // rather than as a selection. It sits *inside* an already-washed paragraph
+  // (`accentBg`), so it has to be the darker of the two without becoming a
+  // second colour.
+  accentWash: "rgba(47,107,79,0.16)",
   accentInk: "#f7f5ef",
   amberInk: "#a06a30",
   amberBg: "#faf3e6",
