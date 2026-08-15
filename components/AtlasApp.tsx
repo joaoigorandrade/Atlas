@@ -123,8 +123,10 @@ import {
   fetchRetain,
   fetchSocratic,
   fetchSocraticStream,
+  fetchSummary,
   retainRequest,
   socraticRequest,
+  summaryRequest,
   WarmDeclined,
   type ScopeOffer,
 } from "@/lib/api";
@@ -241,7 +243,13 @@ const BUILD_MS = 2600;
 const DIAGNOSTIC_POOL_MIN = 8;
 
 /** The generated surfaces the warm queue can fetch ahead of a click. */
-type WarmKind = "consume" | "socratic" | "feynman" | "connect" | "crucible";
+type WarmKind =
+  | "summary"
+  | "consume"
+  | "socratic"
+  | "feynman"
+  | "connect"
+  | "crucible";
 
 /**
  * What to have ready for a node in a given state, in the order the learner
@@ -331,6 +339,13 @@ export default function AtlasApp({
   // onboarding, and Phase 1 (Plan) restructures it live afterwards.
   const [graph, setGraph] = useState<ConceptGraph>(emptyGraph);
   const [spawnedIds, setSpawnedIds] = useState<Set<string>>(() => new Set());
+  // Nodes whose missing sentence could not be written. A node's summary
+  // normally arrives with the map; the ones that didn't (a run built before
+  // summaries, or a sentence the generation dropped) are backfilled, and the
+  // rail shows the shape of the sentence while that lands. This is what stops
+  // that from being forever: a node in here has been tried and failed, so the
+  // rail falls back to its state copy instead of shimmering at nothing.
+  const [summaryFailed, setSummaryFailed] = useState<Record<string, true>>({});
   const [states, setStates] = useState<StateMap>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // The generated placement diagnostic — arrives with the graph.
@@ -1864,6 +1879,20 @@ export default function AtlasApp({
     [prereqLabelsOf],
   );
 
+  /** The backfilled sentence for a node that arrived without one. Deliberately
+   *  free of `interests`: the rail says what the concept IS, which is the same
+   *  for every learner on this topic — keying on interests would fork the
+   *  shared cache row for no gain. */
+  const summaryParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeLabel: node.label,
+      prereqLabels: prereqLabelsOf(node.id),
+      language: languageRef.current,
+    }),
+    [prereqLabelsOf],
+  );
+
   /**
    * One lens over one section, as it sits on screen.
    *
@@ -1940,6 +1969,53 @@ export default function AtlasApp({
   const warmKey = (kind: WarmKind, nodeId: string) => `${kind}:${nodeId}`;
 
   const opts = (prefetch: boolean) => (prefetch ? { prefetch: true } : undefined);
+
+  /**
+   * Write a backfilled sentence onto its node.
+   *
+   * It lands in the graph rather than in a side cache, which is what makes it
+   * permanent: the graph is the run snapshot, so the sentence is saved with it
+   * and the node is never summary-less again. Never overwrites one the node
+   * already has — a map's own sentence outranks a backfill.
+   */
+  const applySummary = useCallback((nodeId: string, summary: string) => {
+    const text = summary.trim();
+    if (!text) return;
+    setGraph((g) =>
+      g.nodes.some((n) => n.id === nodeId && !n.summary)
+        ? {
+            ...g,
+            nodes: g.nodes.map((n) =>
+              n.id === nodeId && !n.summary ? { ...n, summary: text } : n,
+            ),
+          }
+        : g,
+    );
+  }, []);
+
+  const loadSummary = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      // A fresh attempt un-marks a previous failure: the rail goes back to
+      // showing the sentence being written.
+      setSummaryFailed((prev) => {
+        if (!prev[node.id]) return prev;
+        const next = { ...prev };
+        delete next[node.id];
+        return next;
+      });
+      try {
+        const summary = await fetchSummary(summaryParams(node), opts(prefetch));
+        applySummary(node.id, summary);
+        return summary;
+      } catch (err) {
+        setSummaryFailed((prev) =>
+          prev[node.id] ? prev : { ...prev, [node.id]: true },
+        );
+        throw err;
+      }
+    },
+    [summaryParams, applySummary],
+  );
 
   const loadConsume = useCallback(
     async (node: ConceptNode, prefetch = false) => {
@@ -2021,6 +2097,10 @@ export default function AtlasApp({
   /** Already in memory? Then the screen opens with no request at all. */
   const isCached = useCallback((kind: WarmKind, nodeId: string): boolean => {
     switch (kind) {
+      case "summary":
+        // The node's own sentence *is* the cache — once it's on the graph
+        // there is nothing left to want.
+        return !!graphRef.current.nodes.find((n) => n.id === nodeId)?.summary;
       case "consume":
         return !!consumeCacheRef.current[nodeId];
       case "socratic":
@@ -2039,6 +2119,12 @@ export default function AtlasApp({
   const requestFor = useCallback(
     (kind: WarmKind, node: ConceptNode): Record<string, unknown> | null => {
       switch (kind) {
+        case "summary":
+          // A gap sub-node is not a concept to define: its summary is the
+          // reason the re-planner split it out, and where an older run has
+          // none, the "spawned from a detected failure" line is the true
+          // thing to say — not a definition written for a misconception.
+          return node.gap ? null : summaryRequest(summaryParams(node));
         case "consume":
           return consumeRequest(consumeParams(node));
         case "socratic":
@@ -2054,7 +2140,14 @@ export default function AtlasApp({
           return crucibleRequest(crucibleParams(node));
       }
     },
-    [consumeParams, socraticParams, feynmanParams, connectParams, crucibleParams],
+    [
+      summaryParams,
+      consumeParams,
+      socraticParams,
+      feynmanParams,
+      connectParams,
+      crucibleParams,
+    ],
   );
 
   /** Take a batch-cache hit straight into memory — no model, no waiting. */
@@ -2069,6 +2162,10 @@ export default function AtlasApp({
         set((prev) => (prev[nodeId] ? prev : { ...prev, [nodeId]: value }));
       };
       switch (kind) {
+        case "summary":
+          // Not a per-node cache but the node itself — see `applySummary`.
+          if (typeof p.summary === "string") applySummary(nodeId, p.summary);
+          return;
         case "consume":
           return put(setConsumeCache, p.chunks as ConsumeChunk[] | undefined);
         case "socratic":
@@ -2081,7 +2178,7 @@ export default function AtlasApp({
           return put(setCrucibleCache, p.content as CrucibleContent | undefined);
       }
     },
-    [],
+    [applySummary],
   );
 
   /** Queue one surface for background generation. Silent either way. */
@@ -2091,6 +2188,8 @@ export default function AtlasApp({
       if (!requestFor(kind, node)) return;
       const key = warmKey(kind, node.id);
       switch (kind) {
+        case "summary":
+          return warm.warm(key, () => loadSummary(node, true));
         case "consume":
           return warm.warm(key, () => loadConsume(node, true));
         case "socratic":
@@ -2107,6 +2206,7 @@ export default function AtlasApp({
       isCached,
       requestFor,
       warm,
+      loadSummary,
       loadConsume,
       loadSocratic,
       loadFeynman,
@@ -2127,8 +2227,13 @@ export default function AtlasApp({
       setHoverId(id);
       if (!id) return;
       const node = graphRef.current.nodes.find((n) => n.id === id);
+      if (!node) return;
+      // The hover card says what the concept is, same as the rail — so a node
+      // still missing its sentence starts writing one on the hover rather than
+      // on the click that may not come for another half second.
+      if (!node.summary) warmOne("summary", node);
       const kind = warmKindsFor(displayRef.current[id])[0];
-      if (node && kind) warmOne(kind, node);
+      if (kind) warmOne(kind, node);
     },
     [warmOne],
   );
@@ -4100,8 +4205,14 @@ export default function AtlasApp({
       if (seen.has(id)) continue;
       seen.add(id);
       const node = graph.nodes.find((n) => n.id === id);
-      const kinds = warmKindsFor(display[id]);
-      if (node && kinds.length) targets.push({ node, kinds });
+      if (!node) continue;
+      // The rail's own sentence leads: it is by far the smallest generation
+      // here, and the only one a learner reads without opening anything. Nodes
+      // whose map already wrote one — and gap sub-nodes, which are their own
+      // explanation — ask for nothing.
+      const kinds: WarmKind[] = node.summary || node.gap ? [] : ["summary"];
+      kinds.push(...warmKindsFor(display[id]));
+      if (kinds.length) targets.push({ node, kinds });
     }
     return targets;
   }, [hydrated, graph, display, selectedId, allFrontier]);
@@ -4545,6 +4656,16 @@ export default function AtlasApp({
             shakyReason={selectedNode ? shakyReasons[selectedNode.id] : undefined}
             consumeProgress={
               selectedNode ? consumeProgress[selectedNode.id] : undefined
+            }
+            // A node with no sentence of its own has one on the way (the warm
+            // pass and the hover both start it) — unless it already failed, or
+            // there is no network to write it over.
+            summaryWriting={
+              !!selectedNode &&
+              !selectedNode.summary &&
+              !selectedNode.gap &&
+              online &&
+              !summaryFailed[selectedNode.id]
             }
             onSelect={setSelectedId}
             onPrimaryAction={onPrimaryAction}

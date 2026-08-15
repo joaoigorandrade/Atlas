@@ -19,8 +19,15 @@ import { readManyContent } from "@/lib/server/contentCache";
 import { BadRequest, resolveJob, type GenerateBody } from "@/lib/server/job";
 import { createClient } from "@/lib/supabase/server";
 
-/** A pure cache read — bounded so one request can't sweep the table. */
-const MAX_ITEMS = 24;
+/** A pure cache read — bounded so one request can't sweep the table.
+ *
+ *  The bound is a real cost, not just a guard: an item dropped here comes back
+ *  as a miss, and the client's warm queue answers a miss by *generating*. The
+ *  map's warm pass now asks for each node's rail sentence alongside its phases,
+ *  so a 16-node map's batch runs past two dozen items on the first open — with
+ *  the old bound, the overflow was paid for at the model instead of read from
+ *  Postgres. Forty keys is still one bounded RPC. */
+const MAX_ITEMS = 40;
 
 interface ContentBody {
   items?: GenerateBody[];

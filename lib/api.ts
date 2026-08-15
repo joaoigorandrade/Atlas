@@ -215,6 +215,26 @@ export function fetchDiagnosticQuestion(
 // it posts. The builders are what `fetchCachedContent` batches, which is how a
 // warm addresses the same cache row the real call would.
 
+/**
+ * The one sentence the node rail says about a concept, for a node whose map
+ * arrived without it (a run built before summaries, or a sentence the map
+ * generation dropped). Everything else about a node is on the map already —
+ * this is the only thing that has to be written.
+ */
+export const summaryRequest = (params: {
+  topic: string;
+  nodeLabel: string;
+  prereqLabels: string[];
+  language?: Language;
+}) => ({ kind: "summary", ...params });
+
+export async function fetchSummary(
+  params: Parameters<typeof summaryRequest>[0],
+  opts?: FetchOpts,
+): Promise<string> {
+  return (await post<{ summary: string }>(summaryRequest(params), opts)).summary;
+}
+
 export const consumeRequest = (params: {
   topic: string;
   nodeLabel: string;

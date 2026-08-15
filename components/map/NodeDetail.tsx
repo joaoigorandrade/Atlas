@@ -21,6 +21,8 @@ import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 
 import Rich from "@/components/Rich";
+import { SkeletonBars } from "@/components/Pending";
+
 const STRINGS = {
   en: {
     cta: {
@@ -88,6 +90,11 @@ interface NodeDetailProps {
   reviewed: boolean;
   /** How the node became Shaky, when it is — selects honest copy (#14). */
   shakyReason?: ShakyReason;
+  /** This node's own sentence is missing and is being written right now — the
+   *  summary box shows the shape of it instead of falling back to copy about
+   *  the mastery state. False once the attempt has failed (or offline), which
+   *  is what keeps the fallback reachable. */
+  summaryWriting?: boolean;
   /** How far into this node's reading pass the learner got, when they have
    *  opened it — the phase spiral reads it so a part-read node doesn't get
    *  Consume *and* Socratic ticked off (§6). */
@@ -146,6 +153,7 @@ function NodeDetailBody({
   reviewed,
   shakyReason,
   consumeProgress,
+  summaryWriting,
   onSelect,
   onPrimaryAction,
   onPhaseAction,
@@ -182,7 +190,9 @@ function NodeDetailBody({
   // What this concept *is*, which is what the learner opened the node to find
   // out. Copy about the mastery state is the fallback, not the headline: it
   // only shows for a node with no summary — a run persisted before summaries,
-  // or a concept whose sentence the generation dropped.
+  // or a concept whose sentence the generation dropped — and even then only
+  // once backfilling that sentence has actually been ruled out, since the same
+  // paragraph under every Learning concept says nothing about this one.
   const summary = node.summary?.trim();
   const stateLine =
     displayState === "shaky"
@@ -315,9 +325,18 @@ function NodeDetailBody({
           borderRadius: 9,
           padding: "13px 15px",
           marginBottom: 22,
+          ...(summary || !summaryWriting
+            ? null
+            : { display: "flex", flexDirection: "column", gap: 8 }),
         }}
       >
-        <Rich text={summary || stateLine} />
+        {summary ? (
+          <Rich text={summary} />
+        ) : summaryWriting ? (
+          <SkeletonBars widths={["100%", "78%"]} heights={11} />
+        ) : (
+          <Rich text={stateLine} />
+        )}
       </div>
 
       {isGap ? (

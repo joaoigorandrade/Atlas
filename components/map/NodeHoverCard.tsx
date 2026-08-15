@@ -132,10 +132,15 @@ function Body({
     consumeProgress && !consumeProgress.finished && consumeProgress.total > 0
       ? readingProgress(consumeProgress)
       : null;
+  // Same order the detail rail uses: what the concept IS first, and copy about
+  // its mastery state only for a node that has no sentence of its own. The
+  // facts row below already carries where this node stands, so the state copy
+  // was saying it twice.
   const line =
-    displayState === "shaky"
+    node.summary?.trim() ||
+    (displayState === "shaky"
       ? shakyLine(shakyReason, language)
-      : stateConfidence(displayState, language);
+      : stateConfidence(displayState, language));
 
   // The one thing worth saying about where this node stands: the phase it is
   // owed, or the reason it can't be entered at all.

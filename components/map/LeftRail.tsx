@@ -371,8 +371,9 @@ export default function LeftRail({
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {LEGEND_ORDER.map((state) => (
             // The legend named the six states without ever saying what any of
-            // them means. Hovering one gives the same line the detail rail
-            // shows on a node in that state.
+            // them means. Hovering one explains the state itself — which is
+            // this legend's job, and the reason that copy no longer leads the
+            // node rail: there it stood in for the concept.
             <HoverHint
               key={state}
               block

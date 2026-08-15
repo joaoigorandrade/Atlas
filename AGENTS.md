@@ -44,6 +44,13 @@ prerequisite order; the placement questions follow one at a time as
 `diagnosticQuestion`, since each one's difficulty depends on the last answer),
 and each phase's material on first entry (`consume`, `socratic`, `feynman`,
 `connect`, `crucible`, `retain`), cached per node for the run in `AtlasApp`.
+One kind is smaller than a phase: `summary` writes the single sentence the node
+rail says about a concept, and exists only as a backfill — a generated map
+writes every node's `summary` inline, but a run built before summaries (or a
+concept whose sentence the map generation dropped) has none, and the rail's
+fallback is copy about the mastery state, which is identical under every
+concept in that state. It lands on the node in the graph, so it is saved with
+the run snapshot and written once per concept, ever.
 Two kinds are finer-grained than a node, both of them Consume's. `model` is a
 single lens (Simpler / Example / Analogy / Go deeper) opened over a single
 section, keyed on that section's own prose and cached per (node, section,
