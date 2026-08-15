@@ -1,10 +1,5 @@
 import { type ReactNode } from "react";
-import {
-  tokenSlice,
-  tokenizeRich,
-  type RichToken,
-  type SpeakRange,
-} from "@/lib/rich";
+import { tokenSlice, tokenizeRich, type RichToken, type SpeakRange } from "@/lib/rich";
 import { color, font } from "@/lib/theme";
 
 // The model writes markdown-flavoured prose — `code`, **bold**, *italic*, and

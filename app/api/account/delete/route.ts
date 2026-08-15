@@ -10,11 +10,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { logError, logEvent } from "@/lib/log";
-import {
-  apiError,
-  newRequestId,
-  withRequestId,
-} from "@/lib/server/apiError";
+import { apiError, newRequestId, withRequestId } from "@/lib/server/apiError";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseUrl } from "@/lib/supabase/config";
 
@@ -55,8 +51,5 @@ export async function POST() {
 
   await supabase.auth.signOut();
   logEvent("account_deleted", { user: userId, authDeleted, req: requestId });
-  return withRequestId(
-    NextResponse.json({ ok: true, authDeleted }),
-    requestId,
-  );
+  return withRequestId(NextResponse.json({ ok: true, authDeleted }), requestId);
 }

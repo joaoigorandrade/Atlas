@@ -20,7 +20,12 @@ const clientReturning = (snapshot: unknown): SupabaseClient => {
 };
 
 const core = {
-  form: { topic: "Concorrência em Swift", goal: "", paretoPct: 20, interests: [] },
+  form: {
+    topic: "Concorrência em Swift",
+    goal: "",
+    paretoPct: 20,
+    interests: [],
+  },
   graph: { nodes: [], edges: [] },
   spawnedIds: [],
   states: {},
@@ -63,7 +68,12 @@ describe("languageAction", () => {
     // The bug: this transition used to read as a deliberate switch and clear
     // the caches the hydrate was still loading.
     expect(
-      languageAction({ ...base, settled: false, language: "en", contentLanguage: "en" }),
+      languageAction({
+        ...base,
+        settled: false,
+        language: "en",
+        contentLanguage: "en",
+      }),
     ).toBe("wait");
   });
 
@@ -79,7 +89,12 @@ describe("languageAction", () => {
     // A pre-v9 snapshot: nothing to adopt, and no switch either — the content
     // is already whatever the UI is showing.
     expect(
-      languageAction({ ...base, runLanguage: undefined, language: "en", contentLanguage: "en" }),
+      languageAction({
+        ...base,
+        runLanguage: undefined,
+        language: "en",
+        contentLanguage: "en",
+      }),
     ).toBe("none");
   });
 

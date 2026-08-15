@@ -46,9 +46,7 @@ test("spokenText strips every marker the renderer consumes", () => {
 });
 
 test("spokenText drops fenced blocks, which are not prose", () => {
-  expect(spokenText("Antes\n```swift\nlet a = 1\n```\ndepois")).toBe(
-    "Antes\n\ndepois",
-  );
+  expect(spokenText("Antes\n```swift\nlet a = 1\n```\ndepois")).toBe("Antes\n\ndepois");
 });
 
 test("token offsets index into spokenText", () => {

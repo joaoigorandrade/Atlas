@@ -158,7 +158,11 @@ export function useCountUp(
 export function useEarned<T extends string>(
   values: Record<string, T>,
   worthMarking: (next: T, prev: T) => boolean,
-  { visible, enabled = true, ms = 900 }: { visible: boolean; enabled?: boolean; ms?: number },
+  {
+    visible,
+    enabled = true,
+    ms = 900,
+  }: { visible: boolean; enabled?: boolean; ms?: number },
 ): Record<string, T> {
   const seen = useRef<Record<string, T> | null>(null);
   const pending = useRef<Record<string, T>>({});

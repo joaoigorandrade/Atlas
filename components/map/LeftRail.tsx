@@ -275,7 +275,11 @@ export default function LeftRail({
             {t.territoryMastered}
           </span>
           <span
-            style={{ fontFamily: font.serif, fontSize: 22, color: color.accent }}
+            style={{
+              fontFamily: font.serif,
+              fontSize: 22,
+              color: color.accent,
+            }}
           >
             {/* Travels with the bar beside it rather than snapping ahead of it. */}
             {Math.round(shownPct)}%
@@ -398,12 +402,12 @@ export default function LeftRail({
                     background: STATE_COLOR[state],
                     flex: "0 0 auto",
                     boxShadow:
-                      state === "frontier"
-                        ? `0 0 7px ${STATE_COLOR[state]}`
-                        : "none",
+                      state === "frontier" ? `0 0 7px ${STATE_COLOR[state]}` : "none",
                   }}
                 />
-                {stateLabel(state, language).replace(" · ready", "").replace(" · pronto", "")}
+                {stateLabel(state, language)
+                  .replace(" · ready", "")
+                  .replace(" · pronto", "")}
               </div>
             </HoverHint>
           ))}
@@ -422,9 +426,7 @@ export default function LeftRail({
             cursor: "pointer",
             background: momentumPlaying ? color.accent : color.card,
             color: momentumPlaying ? color.accentInk : color.ink,
-            border: `1px solid ${
-              momentumPlaying ? color.accent : "rgba(44,40,35,0.16)"
-            }`,
+            border: `1px solid ${momentumPlaying ? color.accent : "rgba(44,40,35,0.16)"}`,
           }}
         >
           {momentumPlaying ? t.stopReplay : t.momentumReplay}
@@ -439,9 +441,7 @@ export default function LeftRail({
               textAlign: "center",
             }}
           >
-            {momentumWeek === 0
-              ? t.placementDiagnostic
-              : t.week(momentumWeek)}
+            {momentumWeek === 0 ? t.placementDiagnostic : t.week(momentumWeek)}
             {t.watchLightUp}
           </div>
         )}

@@ -4,11 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { logError } from "@/lib/log";
-import {
-  apiError,
-  newRequestId,
-  withRequestId,
-} from "@/lib/server/apiError";
+import { apiError, newRequestId, withRequestId } from "@/lib/server/apiError";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
@@ -64,6 +60,10 @@ export async function POST(request: Request) {
     return withRequestId(NextResponse.json({ text: trimmed }), requestId);
   } catch (err) {
     logError("extract_failed", err, { req: requestId });
-    return apiError("invalid", { requestId, reason: "unreadable", status: 422 });
+    return apiError("invalid", {
+      requestId,
+      reason: "unreadable",
+      status: 422,
+    });
   }
 }

@@ -64,14 +64,7 @@ export function speechKey(opts: {
   voice: string;
   model: string;
 }): string {
-  const parts = [
-    VERSION,
-    "speechify",
-    opts.model,
-    opts.voice,
-    opts.language,
-    opts.text,
-  ];
+  const parts = [VERSION, "speechify", opts.model, opts.voice, opts.language, opts.text];
   return createHash("sha256").update(parts.join("\u0000")).digest("hex");
 }
 
@@ -80,7 +73,9 @@ export async function readClip(key: string): Promise<SpeechClip | null> {
   const db = admin();
   if (!db) return null;
   try {
-    const { data, error } = await db.rpc("speech_cache_get", { cache_key: key });
+    const { data, error } = await db.rpc("speech_cache_get", {
+      cache_key: key,
+    });
     if (error) throw new Error(error.message);
     const clip = data as SpeechClip | null;
     // A row written under an older payload shape would play as silence; check

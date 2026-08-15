@@ -51,10 +51,7 @@ export const ERROR_CODES = [
  *  client learns the word for it, so unknown values fall back rather than
  *  becoming an empty message. */
 export function isErrorCode(value: unknown): value is ErrorCode {
-  return (
-    typeof value === "string" &&
-    (ERROR_CODES as readonly string[]).includes(value)
-  );
+  return typeof value === "string" && (ERROR_CODES as readonly string[]).includes(value);
 }
 
 /** Codes worth offering a retry for: the same request could plausibly succeed. */
@@ -129,10 +126,7 @@ function browserOffline(): boolean {
 
 /** A rejected `fetch` — the browser's way of saying "that never left". */
 function isFetchFailure(err: Error): boolean {
-  return (
-    err instanceof TypeError &&
-    /fetch|network|load failed/i.test(err.message)
-  );
+  return err instanceof TypeError && /fetch|network|load failed/i.test(err.message);
 }
 
 /**
@@ -152,15 +146,16 @@ export function toAtlasError(err: unknown): AtlasError {
     if (err.name === "WarmDeclined")
       return new AtlasError("declined", err.message, { cause: err });
     if (err.name === "BadRequest")
-      return new AtlasError("invalid", err.message, { status: 400, cause: err });
+      return new AtlasError("invalid", err.message, {
+        status: 400,
+        cause: err,
+      });
     if (err.name === "AbortError" || err.name === "TimeoutError")
       return new AtlasError("timeout", err.message, { cause: err });
     if (isFetchFailure(err))
-      return new AtlasError(
-        browserOffline() ? "offline" : "upstream",
-        err.message,
-        { cause: err },
-      );
+      return new AtlasError(browserOffline() ? "offline" : "upstream", err.message, {
+        cause: err,
+      });
 
     const status = (err as { status?: unknown }).status;
     if (typeof status === "number")
@@ -174,7 +169,6 @@ export function toAtlasError(err: unknown): AtlasError {
 
   // A thrown string, a rejected `null`, a DOMException that isn't an Error —
   // rare, but a catch block has to survive them.
-  const message =
-    typeof err === "string" && err ? err : "something went wrong";
+  const message = typeof err === "string" && err ? err : "something went wrong";
   return new AtlasError("unknown", message, { cause: err });
 }

@@ -13,11 +13,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { logError, logEvent } from "@/lib/log";
-import {
-  apiError,
-  newRequestId,
-  withRequestId,
-} from "@/lib/server/apiError";
+import { apiError, newRequestId, withRequestId } from "@/lib/server/apiError";
 import { supabaseUrl } from "@/lib/supabase/config";
 import { localDay, type AdherenceState } from "@/lib/curriculum";
 
@@ -60,7 +56,9 @@ async function sendReminder(
     // A 4xx from Resend is a failure that never throws — counting it as sent is
     // exactly the bug this branch exists to close.
     if (!res.ok) {
-      logError("reminder_send_failed", new Error(`resend ${res.status}`), { email });
+      logError("reminder_send_failed", new Error(`resend ${res.status}`), {
+        email,
+      });
       return "failed";
     }
     return "sent";
@@ -94,9 +92,7 @@ export async function GET(request: Request) {
   const admin = createClient(supabaseUrl(), serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await admin
-    .from("run_states")
-    .select("user_id, snapshot");
+  const { data, error } = await admin.from("run_states").select("user_id, snapshot");
   // Log the database's account of itself; don't publish it.
   if (error) {
     logError("reminders_read_failed", error, { req: requestId });
@@ -128,8 +124,5 @@ export async function GET(request: Request) {
     noop,
     req: requestId,
   });
-  return withRequestId(
-    NextResponse.json({ ok: true, sent, failed, noop }),
-    requestId,
-  );
+  return withRequestId(NextResponse.json({ ok: true, sent, failed, noop }), requestId);
 }

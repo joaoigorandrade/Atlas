@@ -40,7 +40,10 @@ describe("validateGraphPart", () => {
   // The band the prompt asks for is 6-16 and the floor sits under it: a topic
   // that is one technique is a small map, not a padded one.
   it("accepts a map as small as the topic genuinely is", () => {
-    const nodes = Array.from({ length: 6 }, (_, i) => ({ id: `n${i}`, label: `Node ${i}` }));
+    const nodes = Array.from({ length: 6 }, (_, i) => ({
+      id: `n${i}`,
+      label: `Node ${i}`,
+    }));
     const edges = Array.from({ length: 5 }, (_, i) => [`n${i}`, `n${i + 1}`]);
     expect(validateGraphPart({ nodes, edges }).nodes).toHaveLength(6);
   });
@@ -148,9 +151,7 @@ describe("validateSummary", () => {
   });
 
   it("rejects an essay: this is one sentence, and it is persisted", () => {
-    expect(() => validateSummary({ summary: "x".repeat(401) })).toThrow(
-      /ONE sentence/,
-    );
+    expect(() => validateSummary({ summary: "x".repeat(401) })).toThrow(/ONE sentence/);
   });
 });
 
@@ -299,14 +300,28 @@ describe("validateSocratic", () => {
       move: "Clarify",
       prompt: "what does it do?",
       replies: [
-        { label: "it recombines the columns", quality: "correct", response: "yes" },
-        { label: "it rotates the grid", quality: "wrong", response: "no — that is one case" },
-        { label: "something about columns", quality: "near", response: "keep going" },
+        {
+          label: "it recombines the columns",
+          quality: "correct",
+          response: "yes",
+        },
+        {
+          label: "it rotates the grid",
+          quality: "wrong",
+          response: "no — that is one case",
+        },
+        {
+          label: "something about columns",
+          quality: "near",
+          response: "keep going",
+        },
       ],
       hint: "count the columns",
       tell: "it takes a combination of the columns",
     });
-    const out = validateSocratic({ steps: [probe(false), probe(false), probe(true)] });
+    const out = validateSocratic({
+      steps: [probe(false), probe(false), probe(true)],
+    });
     expect(out).toHaveLength(3);
     expect(out.filter((step) => !step.spare)).toHaveLength(2);
   });
@@ -323,9 +338,9 @@ describe("validateSocratic", () => {
       hint: "h",
       tell: "t",
     };
-    expect(() =>
-      validateSocratic({ steps: [step, step, step] }),
-    ).toThrow(/echoes the prompt template/);
+    expect(() => validateSocratic({ steps: [step, step, step] })).toThrow(
+      /echoes the prompt template/,
+    );
   });
 });
 
@@ -352,7 +367,10 @@ function cruciblePayload(draws: string[], redText: string) {
 describe("validateCrucible", () => {
   it("filters draws to real mastered node labels (#15)", () => {
     const out = validateCrucible("n1", "Node", ["Vectors"])(
-      cruciblePayload(["Chess", "Vectors"], "used row-major order, so the result was transposed"),
+      cruciblePayload(
+        ["Chess", "Vectors"],
+        "used row-major order, so the result was transposed",
+      ),
     );
     expect(out.draws).toEqual(["Vectors"]);
   });
@@ -366,10 +384,13 @@ describe("validateCrucible", () => {
   });
 
   it("returns the difficulty ladder in the requested language", () => {
-    const payload = cruciblePayload(["Vectors"], "used row-major order, so the result was transposed");
-    expect(validateCrucible("n1", "Node", ["Vectors"], "pt-BR")(payload).rungs[0].label).toBe(
-      "Lembrar uma definição",
+    const payload = cruciblePayload(
+      ["Vectors"],
+      "used row-major order, so the result was transposed",
     );
+    expect(
+      validateCrucible("n1", "Node", ["Vectors"], "pt-BR")(payload).rungs[0].label,
+    ).toBe("Lembrar uma definição");
     expect(validateCrucible("n1", "Node", ["Vectors"])(payload).rungs[0].label).toBe(
       "Recall a definition",
     );
@@ -457,9 +478,9 @@ describe("validateConsume", () => {
     expect(out.every((c) => c.check?.opts.filter((o) => o.correct).length === 1)).toBe(
       true,
     );
-    expect(() =>
-      validateConsume(consumePayload([{}, {}, { check: undefined }])),
-    ).toThrow(/chunks\[2\].check/);
+    expect(() => validateConsume(consumePayload([{}, {}, { check: undefined }]))).toThrow(
+      /chunks\[2\].check/,
+    );
   });
 
   // Length is the concept's call, not a quota: two sections of two paragraphs
@@ -475,16 +496,14 @@ describe("validateConsume", () => {
   });
 
   it("rejects a thin body — Consume is where the material lives", () => {
-    expect(() =>
-      validateConsume(consumePayload([{ body: ["one paragraph"] }])),
-    ).toThrow(/body must have 2-5 items/);
+    expect(() => validateConsume(consumePayload([{ body: ["one paragraph"] }]))).toThrow(
+      /body must have 2-5 items/,
+    );
   });
 
   it("requires the worked example to be worked", () => {
     expect(() =>
-      validateConsume(
-        consumePayload([{ example: { title: "worked", steps: [] } }]),
-      ),
+      validateConsume(consumePayload([{ example: { title: "worked", steps: [] } }])),
     ).toThrow(/example\.steps/);
   });
 
@@ -569,7 +588,9 @@ describe("validateConsumeModel", () => {
 
   it("rejects a beat with no text — a label alone reveals nothing", () => {
     expect(() =>
-      validateConsumeModel({ beats: [...beats(2), { label: "Beat 3", text: "  " }] }),
+      validateConsumeModel({
+        beats: [...beats(2), { label: "Beat 3", text: "  " }],
+      }),
     ).toThrow(/beats\[2\].text/);
   });
 });
@@ -655,7 +676,10 @@ describe("validateRetain", () => {
       answer: "the blank",
       reExplain: "re-explain",
     };
-    const out = validateRetain(8, new Set(["n1"]))({
+    const out = validateRetain(
+      8,
+      new Set(["n1"]),
+    )({
       cards: [cloze, cloze, cloze, cloze],
     });
     expect(out.cards[0].back).toBe("the blank");
@@ -664,7 +688,10 @@ describe("validateRetain", () => {
   it("ignores scheduling fields a stale prompt might still send", () => {
     // The scheduler owns intervals; anything the model volunteers is dropped
     // rather than trusted, since `newStoredCard` supplies its own.
-    const out = validateRetain(8, new Set(["n1"]))({
+    const out = validateRetain(
+      8,
+      new Set(["n1"]),
+    )({
       forecast: [{ label: "Due now", count: "9 cards", sub: "~8 min", tone: "due" }],
       cards: Array.from({ length: 4 }, () => ({
         ...card,

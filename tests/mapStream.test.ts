@@ -26,17 +26,19 @@ const node = (id: string, y: number, prereqs: string[] = []): MapNode => ({
  *  thing `fetch` can actually return. */
 function serveFrames(frames: unknown[]) {
   const enc = new TextEncoder();
-  vi.stubGlobal("fetch", async () =>
-    new Response(
-      new ReadableStream<Uint8Array>({
-        start(controller) {
-          for (const f of frames)
-            controller.enqueue(enc.encode(JSON.stringify(f) + "\n"));
-          controller.close();
-        },
-      }),
-      { headers: { "x-atlas-request-id": "test-req" } },
-    ),
+  vi.stubGlobal(
+    "fetch",
+    async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const f of frames)
+              controller.enqueue(enc.encode(JSON.stringify(f) + "\n"));
+            controller.close();
+          },
+        }),
+        { headers: { "x-atlas-request-id": "test-req" } },
+      ),
   );
 }
 
@@ -55,7 +57,9 @@ describe("fetchCurriculumMapStream", () => {
     ]);
 
     const seen: number[] = [];
-    const result = await fetchCurriculumMapStream(params, (nodes) => seen.push(nodes.length));
+    const result = await fetchCurriculumMapStream(params, (nodes) =>
+      seen.push(nodes.length),
+    );
 
     // One callback per frame, and the map never shrinks or grows past its size:
     // the re-sends patch in place.
@@ -89,12 +93,22 @@ describe("fetchCurriculumMapStream", () => {
 
   it("reads a too-broad answer as scope offers, with no map (#30)", async () => {
     serveFrames([
-      { p: "scopes", i: 0, v: { label: "Ownership", note: "the memory model" } },
-      { p: "scopes", i: 1, v: { label: "Async Rust", note: "futures and executors" } },
+      {
+        p: "scopes",
+        i: 0,
+        v: { label: "Ownership", note: "the memory model" },
+      },
+      {
+        p: "scopes",
+        i: 1,
+        v: { label: "Async Rust", note: "futures and executors" },
+      },
     ]);
 
     const seen: number[] = [];
-    const result = await fetchCurriculumMapStream(params, (nodes) => seen.push(nodes.length));
+    const result = await fetchCurriculumMapStream(params, (nodes) =>
+      seen.push(nodes.length),
+    );
 
     expect(seen).toEqual([]);
     if (!("scopes" in result)) throw new Error("expected scope offers, not a map");
@@ -117,9 +131,7 @@ describe("fetchCurriculumMapStream", () => {
     // The caller no longer relays the server's sentence — it keys copy off the
     // code, in the learner's own language. The upstream prose survives as the
     // technical message, which is what reaches the log line beside the id.
-    await expect(
-      fetchCurriculumMapStream(params, () => {}),
-    ).rejects.toMatchObject({
+    await expect(fetchCurriculumMapStream(params, () => {})).rejects.toMatchObject({
       code: "rate_limit",
       status: 429,
       requestId: "req-42",

@@ -124,7 +124,14 @@ export default function HoverHint({
         createPortal(
           // Positioner: it owns the placement transform, leaving `transform`
           // on the bubble itself free for the peek animation.
-          <span style={{ ...at, position: "fixed", zIndex: 60, pointerEvents: "none" }}>
+          <span
+            style={{
+              ...at,
+              position: "fixed",
+              zIndex: 60,
+              pointerEvents: "none",
+            }}
+          >
             <span
               id={id}
               role="tooltip"

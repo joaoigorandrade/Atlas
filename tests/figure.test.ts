@@ -29,12 +29,29 @@ describe("validateFigure", () => {
 
 describe("figureLayers", () => {
   it("layers a chain by longest path", () => {
-    const l = figureLayers(fig(["a", "b", "c"], [["a", "b"], ["b", "c"], ["a", "c"]]));
+    const l = figureLayers(
+      fig(
+        ["a", "b", "c"],
+        [
+          ["a", "b"],
+          ["b", "c"],
+          ["a", "c"],
+        ],
+      ),
+    );
     expect([l.get("a"), l.get("b"), l.get("c")]).toEqual([0, 1, 2]);
   });
 
   it("terminates on a cycle instead of looping forever", () => {
-    const l = figureLayers(fig(["a", "b"], [["a", "b"], ["b", "a"]]));
+    const l = figureLayers(
+      fig(
+        ["a", "b"],
+        [
+          ["a", "b"],
+          ["b", "a"],
+        ],
+      ),
+    );
     expect(l.size).toBe(2);
   });
 });

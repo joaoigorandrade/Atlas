@@ -8,12 +8,7 @@
 import type { Language } from "@/lib/i18n";
 
 export type NodeState =
-  | "unknown"
-  | "frontier"
-  | "learning"
-  | "shaky"
-  | "mastered"
-  | "gap";
+  "unknown" | "frontier" | "learning" | "shaky" | "mastered" | "gap";
 
 /**
  * A node's stored progress. `frontier` is never stored — it is derived:
@@ -92,7 +87,8 @@ export function graphFromMapNodes(mapNodes: MapNode[]): ConceptGraph {
   const edges: ConceptEdge[] = [];
   for (const { prereqs, ...node } of mapNodes) {
     nodes.push(node);
-    for (const from of prereqs) if (ids.has(from) && from !== node.id) edges.push([from, node.id]);
+    for (const from of prereqs)
+      if (ids.has(from) && from !== node.id) edges.push([from, node.id]);
   }
   return { nodes, edges };
 }
@@ -139,8 +135,7 @@ export const STATE_CONFIDENCE: Record<NodeState, string> = {
     "Understanding is forming. Teach it back next to surface the parts you're still hand-waving.",
   shaky:
     "You feel solid here, but your last application failed. That's fluency, not mastery — re-attempt the Crucible.",
-  unknown:
-    "Locked. Clear the prerequisites below and this lights up on your frontier.",
+  unknown: "Locked. Clear the prerequisites below and this lights up on your frontier.",
   gap: "Spawned from a detected failure. A targeted Socratic pass closes just this sub-point.",
 };
 
@@ -165,10 +160,7 @@ export function stateConfidence(state: NodeState, lang: Language = "en"): string
 
 /** How a node became Shaky — selects an honest confidence line (#14). */
 export type ShakyReason =
-  | "connect-complete"
-  | "diagnostic-hesitation"
-  | "crucible-fail"
-  | "review-miss";
+  "connect-complete" | "diagnostic-hesitation" | "crucible-fail" | "review-miss";
 
 export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
   "connect-complete":
@@ -442,7 +434,10 @@ export const emptyConsumeProgress = (): ConsumeProgress => ({
 
 /** Sections read out of sections there are — never claiming past what exists,
  *  and never short-changing a finished pass whose `total` arrived late. */
-export function readingProgress(p: ConsumeProgress): { read: number; total: number } {
+export function readingProgress(p: ConsumeProgress): {
+  read: number;
+  total: number;
+} {
   const total = Math.max(p.total, p.idx + 1);
   return { read: p.finished ? total : Math.min(p.idx + 1, total), total };
 }
@@ -649,7 +644,13 @@ function openStep(
 ): SocraticSession {
   const s = steps[step];
   if (!s)
-    return { ...session, step, ruledOut: [], stepAssisted: false, awaitingNext: true };
+    return {
+      ...session,
+      step,
+      ruledOut: [],
+      stepAssisted: false,
+      awaitingNext: true,
+    };
   return {
     ...session,
     step,
@@ -756,7 +757,11 @@ export function socraticReducer(
       ...session,
       log: session.log.map((t) =>
         t.pending
-          ? { ...t, text: action.text, pending: action.pending ? true : undefined }
+          ? {
+              ...t,
+              text: action.text,
+              pending: action.pending ? true : undefined,
+            }
           : t,
       ),
     };
@@ -814,7 +819,10 @@ export function socraticReducer(
   // Advancing earns the ending: three unaided answers running end the pass
   // early (#D); two straight assisted ones buy another probe out of the spares
   // — again and again, while spares last — otherwise it runs to `total`.
-  const advance = (base: SocraticSession, resolution: StepResolution): SocraticSession => {
+  const advance = (
+    base: SocraticSession,
+    resolution: StepResolution,
+  ): SocraticSession => {
     const resolutions = [...base.resolutions, resolution];
     let total = base.total;
     if (
@@ -892,17 +900,18 @@ export function socraticReducer(
             ? clampHelp(session.help - 1)
             : clampHelp(session.help + 1);
         const resolution: StepResolution =
-          reply.quality === "correct" ? (session.stepAssisted ? "hint" : "unaided") : "told";
+          reply.quality === "correct"
+            ? session.stepAssisted
+              ? "hint"
+              : "unaided"
+            : "told";
         return advance({ ...logged, help }, resolution);
       }
       // near → hint and let them try again; wrong → caught, help rises. Both
       // rule the reply out so the learner converges instead of re-picking it.
       return {
         ...logged,
-        help:
-          reply.quality === "wrong"
-            ? clampHelp(session.help + 1)
-            : session.help,
+        help: reply.quality === "wrong" ? clampHelp(session.help + 1) : session.help,
         stepAssisted: true,
         ruledOut: [...session.ruledOut, reply.label],
       };
@@ -943,15 +952,16 @@ export function socraticReducer(
             ? clampHelp(session.help - 1)
             : clampHelp(session.help + 1);
         const resolution: StepResolution =
-          action.quality === "correct" ? (session.stepAssisted ? "hint" : "unaided") : "told";
+          action.quality === "correct"
+            ? session.stepAssisted
+              ? "hint"
+              : "unaided"
+            : "told";
         return advance({ ...logged, help }, resolution);
       }
       return {
         ...logged,
-        help:
-          action.quality === "wrong"
-            ? clampHelp(session.help + 1)
-            : session.help,
+        help: action.quality === "wrong" ? clampHelp(session.help + 1) : session.help,
         stepAssisted: true,
       };
     }
@@ -1318,15 +1328,11 @@ export function feynmanReducer(
  *  Each carries the learner's own words when the judge caught them, so the
  *  Socratic pass the gap opens starts from what they actually said rather than
  *  from a reason written before they said anything. */
-export function feynmanGaps(
-  session: FeynmanSession,
-  beats: FeynmanBeat[],
-): GapSpec[] {
+export function feynmanGaps(session: FeynmanSession, beats: FeynmanBeat[]): GapSpec[] {
   return beats
     .filter(
       (b) =>
-        session.verdicts[b.id] === "skipped" ||
-        session.verdicts[b.id] === "confused",
+        session.verdicts[b.id] === "skipped" || session.verdicts[b.id] === "confused",
     )
     .map((b) => {
       const quote = session.quotes[b.id]?.trim();
@@ -1337,10 +1343,7 @@ export function feynmanGaps(
 }
 
 /** A clean-enough diff: every sub-point explained well, nothing wrong or skipped. */
-export function feynmanClean(
-  session: FeynmanSession,
-  beats: FeynmanBeat[],
-): boolean {
+export function feynmanClean(session: FeynmanSession, beats: FeynmanBeat[]): boolean {
   return beats.every((b) => session.verdicts[b.id] === "good");
 }
 
@@ -1422,7 +1425,11 @@ export interface ElaborationContent {
 /** The three memory aids shown struck-through when the content is conceptual. */
 export const MNEMONIC_TOOLS_OFF = ["Memory palace", "Acronym", "Vivid image"] as const;
 
-const MNEMONIC_TOOLS_OFF_PT = ["Palácio da memória", "Acrônimo", "Imagem vívida"] as const;
+const MNEMONIC_TOOLS_OFF_PT = [
+  "Palácio da memória",
+  "Acrônimo",
+  "Imagem vívida",
+] as const;
 
 /** Language-aware struck-through mnemonic tool names. */
 export function mnemonicToolsOff(lang: Language = "en"): readonly string[] {
@@ -1550,10 +1557,7 @@ export function connectLinkedCount(session: ConnectSession): number {
  * a web that only ever offered one candidate can't produce two, and a gate
  * nobody can pass is a dead end, not a standard.
  */
-export function connectReady(
-  session: ConnectSession,
-  candCount = Infinity,
-): boolean {
+export function connectReady(session: ConnectSession, candCount = Infinity): boolean {
   return connectLinkedCount(session) >= Math.min(2, Math.max(1, candCount));
 }
 
@@ -1568,13 +1572,11 @@ export interface ConnectCard {
 
 const CONNECT_CARD_COPY = {
   en: {
-    link: (center: string, cand: string) =>
-      `${center} ↔ ${cand}: what’s the connection?`,
+    link: (center: string, cand: string) => `${center} ↔ ${cand}: what’s the connection?`,
     mnemonic: (center: string) => `${center} · what’s the order of the steps?`,
   },
   "pt-BR": {
-    link: (center: string, cand: string) =>
-      `${center} ↔ ${cand}: qual é a conexão?`,
+    link: (center: string, cand: string) => `${center} ↔ ${cand}: qual é a conexão?`,
     mnemonic: (center: string) => `${center} · qual é a ordem dos passos?`,
   },
 } as const;
@@ -1833,10 +1835,7 @@ export function crucibleCurrentRung(session: CrucibleSession): number {
  * happened. Overconfidence (felt sure, transfer broke) is the thing this phase
  * exists to catch; low confidence that proved real is well-calibrated.
  */
-export function crucibleCalib(
-  session: CrucibleSession,
-  lang: Language = "en",
-): string {
+export function crucibleCalib(session: CrucibleSession, lang: Language = "en"): string {
   if (lang === "pt-BR") {
     if (session.outcome === "partial") {
       if (session.conf === 2)
@@ -1879,14 +1878,12 @@ export function crucibleCalib(
 export type ReviewCardType = "recall" | "why" | "apply";
 
 /** Each type's label + accent (recall = learning, why = Connect, apply = Crucible). */
-export const REVIEW_TYPE_META: Record<
-  ReviewCardType,
-  { label: string; color: string }
-> = {
-  recall: { label: "Recall", color: STATE_COLOR.learning },
-  why: { label: "Explain why", color: CONNECT_COLOR.accent },
-  apply: { label: "Application", color: CRUCIBLE_COLOR.accent },
-};
+export const REVIEW_TYPE_META: Record<ReviewCardType, { label: string; color: string }> =
+  {
+    recall: { label: "Recall", color: STATE_COLOR.learning },
+    why: { label: "Explain why", color: CONNECT_COLOR.accent },
+    apply: { label: "Application", color: CRUCIBLE_COLOR.accent },
+  };
 
 const REVIEW_TYPE_LABEL_PT: Record<ReviewCardType, string> = {
   recall: "Recordar",
@@ -2080,15 +2077,13 @@ export function retainReducer(
       if (session.stage !== "confidence") return session;
       return { ...session, conf: action.level, stage: "reveal" };
     case "toggleAside":
-      if (session.stage !== "reveal" && session.stage !== "aside")
-        return session;
+      if (session.stage !== "reveal" && session.stage !== "aside") return session;
       return {
         ...session,
         stage: session.stage === "aside" ? "reveal" : "aside",
       };
     case "grade": {
-      if (session.stage !== "reveal" && session.stage !== "aside")
-        return session;
+      if (session.stage !== "reveal" && session.stage !== "aside") return session;
       const card = content.cards[session.idx];
       const done = { ...session.done, [card.id]: action.grade };
       // A miss doesn't just reschedule — it opens the alive-loop and flags the
@@ -2107,10 +2102,7 @@ export function retainReducer(
 }
 
 /** The card on screen (clamped to the generated deck). */
-export function reviewCard(
-  session: RetainSession,
-  content: RetainContent,
-): ReviewCard {
+export function reviewCard(session: RetainSession, content: RetainContent): ReviewCard {
   return content.cards[Math.min(session.idx, content.cards.length - 1)];
 }
 
@@ -2493,16 +2485,12 @@ export function calibOverCount(items: CalibItem[]): number {
 
 /** The most overconfident reading (largest felt-over-real gap), if any. */
 export function calibWorstOver(items: CalibItem[]): CalibItem | undefined {
-  return items
-    .filter((d) => d.verdict === "over")
-    .sort((a, b) => b.diff - a.diff)[0];
+  return items.filter((d) => d.verdict === "over").sort((a, b) => b.diff - a.diff)[0];
 }
 
 /** The most underconfident reading (largest real-over-felt gap), if any. */
 export function calibWorstUnder(items: CalibItem[]): CalibItem | undefined {
-  return items
-    .filter((d) => d.verdict === "under")
-    .sort((a, b) => a.diff - b.diff)[0];
+  return items.filter((d) => d.verdict === "under").sort((a, b) => a.diff - b.diff)[0];
 }
 
 /**
@@ -2530,7 +2518,9 @@ export function calibTopicLine(items: CalibItem[], lang: Language = "en"): strin
       return `Você está sistematicamente confiante demais em ${over
         .slice(0, 3)
         .map((d) => d.label)
-        .join(", ")} — esses pareciam mais claros do que se mostraram sob um problema novo.`;
+        .join(
+          ", ",
+        )} — esses pareciam mais claros do que se mostraram sob um problema novo.`;
     if (items.length === 0)
       return "Ainda sem leituras — os toques de confiança no Crisol e na Revisão constroem essa curva à medida que você trabalha.";
     return "Ainda sem tendência sistemática — continue trabalhando; cada toque de confiança refina essa leitura.";
@@ -2922,10 +2912,7 @@ export const NODE_MINUTES = 35;
 export function daysUntil(dateISO: string, now: Date = new Date()): number {
   const target = Date.parse(dateISO);
   if (Number.isNaN(target)) return 0;
-  return Math.max(
-    0,
-    Math.ceil((target - Date.parse(localDay(now))) / 86_400_000),
-  );
+  return Math.max(0, Math.ceil((target - Date.parse(localDay(now))) / 86_400_000));
 }
 
 export interface PaceStatus {

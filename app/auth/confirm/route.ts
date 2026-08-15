@@ -28,7 +28,5 @@ export async function GET(request: NextRequest) {
   const reason = /expired|invalid|not found/i.test(error.message)
     ? "expired"
     : "unavailable";
-  return NextResponse.redirect(
-    new URL(`/login?error=${reason}`, request.url),
-  );
+  return NextResponse.redirect(new URL(`/login?error=${reason}`, request.url));
 }

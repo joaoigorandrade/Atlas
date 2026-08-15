@@ -249,8 +249,6 @@ interface ConsumeViewProps {
   presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
-  /** The subject — context for judging the open-ended prediction. */
-  topic: string;
   /** The generated reading pass for this node — sections already streamed
    *  in, more may still be on the way while `streaming` is true. */
   chunks: ConsumeChunk[];
@@ -345,7 +343,10 @@ function Figure({
     const l = layer.get(n.id) ?? 0;
     (rows[l] ??= []).push(n);
   }
-  const box = new Map<string, { x: number; y: number; w: number; h: number; lines: string[] }>();
+  const box = new Map<
+    string,
+    { x: number; y: number; w: number; h: number; lines: string[] }
+  >();
   let y = PAD;
   for (const row of rows) {
     if (!row) continue;
@@ -407,9 +408,7 @@ function Figure({
               : [b.x > a.x ? b.x : b.x + b.w, b.y + b.h / 2];
         // Edges that skip a layer bow out to the side so they don't hide
         // under the straight arrows of the main chain.
-        const span = Math.abs(
-          (layer.get(e.to) ?? 0) - (layer.get(e.from) ?? 0),
-        );
+        const span = Math.abs((layer.get(e.to) ?? 0) - (layer.get(e.from) ?? 0));
         const cx = (ax + bx) / 2 + (span > 1 ? 34 : 0);
         const cy = (ay + by) / 2;
         return (
@@ -464,7 +463,9 @@ function Figure({
                 <tspan
                   key={li}
                   x={b.x + b.w / 2}
-                  y={b.y + b.h / 2 - ((b.lines.length - 1) * LINE_H) / 2 + li * LINE_H + 3}
+                  y={
+                    b.y + b.h / 2 - ((b.lines.length - 1) * LINE_H) / 2 + li * LINE_H + 3
+                  }
                 >
                   {line}
                 </tspan>
@@ -641,8 +642,22 @@ function SpeakerButton({
         />
         {showPause ? (
           <>
-            <rect x="9.3" y="4.4" width="1.4" height="5.2" rx="0.6" fill={color.accentInk} />
-            <rect x="11.6" y="4.4" width="1.4" height="5.2" rx="0.6" fill={color.accentInk} />
+            <rect
+              x="9.3"
+              y="4.4"
+              width="1.4"
+              height="5.2"
+              rx="0.6"
+              fill={color.accentInk}
+            />
+            <rect
+              x="11.6"
+              y="4.4"
+              width="1.4"
+              height="5.2"
+              rx="0.6"
+              fill={color.accentInk}
+            />
           </>
         ) : (
           // The wave arcs are the "this will make sound" promise. They go quiet
@@ -769,7 +784,14 @@ function PassagePanel({
         animation: "fadeUp .3s both",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 9 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 10,
+          marginBottom: 9,
+        }}
+      >
         <span style={{ ...kicker(9.5, "0.12em"), color: color.accent }}>
           {ask.selection ? t.askAbout : t.askWholeSection}
         </span>
@@ -1035,9 +1057,7 @@ function SectionCheck({
             <Rich text={check.q} />
           </div>
           {!passed && (
-            <div
-              style={{ fontSize: 13, color: color.inkFaint, marginBottom: 14 }}
-            >
+            <div style={{ fontSize: 13, color: color.inkFaint, marginBottom: 14 }}>
               {t.checkHint}
             </div>
           )}
@@ -1058,13 +1078,7 @@ function SectionCheck({
                     fontSize: 14.5,
                     fontFamily: "inherit",
                     cursor: passed ? "default" : "pointer",
-                    border: `1px solid ${
-                      shown
-                        ? o.correct
-                          ? RIGHT
-                          : WRONG
-                        : color.hairlineStrong
-                    }`,
+                    border: `1px solid ${shown ? (o.correct ? RIGHT : WRONG) : color.hairlineStrong}`,
                     background: shown
                       ? o.correct
                         ? color.successBg
@@ -1325,7 +1339,11 @@ function ModelView({
                   />
                   {i < shown - 1 && (
                     <span
-                      style={{ flex: 1, width: 1, background: "rgba(91,127,191,0.32)" }}
+                      style={{
+                        flex: 1,
+                        width: 1,
+                        background: "rgba(91,127,191,0.32)",
+                      }}
                     />
                   )}
                 </div>
@@ -1393,7 +1411,11 @@ function ModelView({
         >
           {beats.length > 0 && (
             <span
-              style={{ fontFamily: font.mono, fontSize: 10.5, color: color.inkFaint }}
+              style={{
+                fontFamily: font.mono,
+                fontSize: 10.5,
+                color: color.inkFaint,
+              }}
             >
               {t.modelBeat(shown, beats.length)}
             </span>
@@ -1464,7 +1486,6 @@ function ModelView({
 
 export default function ConsumeView({
   title,
-  topic,
   chunks,
   streaming = false,
   session,
@@ -1624,9 +1645,7 @@ export default function ConsumeView({
     const byKey = new Map<string, string>();
     for (const c of chunks)
       for (const term of c.terms) byKey.set(`${c.id}:${term.t}`, term.t);
-    return session.termsSeen
-      .map((k) => byKey.get(k))
-      .filter((v): v is string => !!v);
+    return session.termsSeen.map((k) => byKey.get(k)).filter((v): v is string => !!v);
   }, [chunks, session.termsSeen]);
 
   if (session.recap) {
@@ -1650,7 +1669,13 @@ export default function ConsumeView({
           overflowY: "auto",
         }}
       >
-        <div style={{ maxWidth: 720, margin: "0 auto", padding: "72px 32px 100px" }}>
+        <div
+          style={{
+            maxWidth: 720,
+            margin: "0 auto",
+            padding: "72px 32px 100px",
+          }}
+        >
           <div style={{ ...kicker(11), color: color.accent, marginBottom: 12 }}>
             {t.recapKicker}
           </div>
@@ -1675,7 +1700,14 @@ export default function ConsumeView({
           >
             {t.recapLead}
           </p>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 38 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 16,
+              flexWrap: "wrap",
+              marginBottom: 38,
+            }}
+          >
             {stat(t.recapSections(chunks.length))}
             {stat(t.recapMinutes(readMinutes))}
             {termLabels.length > 0 && stat(t.recapTerms(termLabels.length))}
@@ -1736,9 +1768,7 @@ export default function ConsumeView({
 
           {termLabels.length > 0 && (
             <div style={{ marginBottom: 36 }}>
-              <div style={{ ...kicker(10), marginBottom: 12 }}>
-                {t.recapTermsHeading}
-              </div>
+              <div style={{ ...kicker(10), marginBottom: 12 }}>{t.recapTermsHeading}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {termLabels.map((label) => (
                   <span
@@ -1759,7 +1789,14 @@ export default function ConsumeView({
             </div>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 18,
+              flexWrap: "wrap",
+            }}
+          >
             <button
               className="at-press"
               onClick={onBeginSocratic}
@@ -1831,9 +1868,7 @@ export default function ConsumeView({
         >
           {t.back}
         </button>
-        <div
-          style={{ width: 1, height: 20, background: color.hairlineStrong }}
-        />
+        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
         <span
           style={{
             fontFamily: font.mono,
@@ -1948,10 +1983,14 @@ export default function ConsumeView({
 
       {/* Reading column */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <div style={{ maxWidth: 940, margin: "0 auto", padding: "40px 32px 120px" }}>
-          <div style={{ ...kicker(11), marginBottom: 10 }}>
-            {t.kicker}
-          </div>
+        <div
+          style={{
+            maxWidth: 940,
+            margin: "0 auto",
+            padding: "40px 32px 120px",
+          }}
+        >
+          <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kicker}</div>
           <h1
             style={{
               fontFamily: font.serif,
@@ -1976,8 +2015,7 @@ export default function ConsumeView({
                 the pass's final section count — fall back to the no-count
                 phrasing rather than announcing a number that's about to
                 change. */}
-            {t.intro(streaming ? 0 : chunks.length)}{" "}
-            {t.introTail}
+            {t.intro(streaming ? 0 : chunks.length)} {t.introTail}
           </p>
 
           {/* The very first open of a fresh node: the screen is already up,
@@ -1985,7 +2023,12 @@ export default function ConsumeView({
               broken; a shape of what's coming reads as "in progress". */}
           {chunks.length === 0 && (
             <div
-              style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fadeUp .3s both" }}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                animation: "fadeUp .3s both",
+              }}
             >
               <div
                 style={{
@@ -2105,322 +2148,331 @@ export default function ConsumeView({
 
                 {/* Pre-taught terms */}
                 {!collapsed && (
-                <>
-
-                {c.terms.length > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 10,
-                      marginBottom: 18,
-                    }}
-                  >
-                    {c.terms.map((term) => {
-                      const key = `${c.id}:${term.t}`;
-                      const open = session.term === key;
-                      return (
-                        <div
-                          key={key}
-                          style={{ display: "flex", flexDirection: "column" }}
-                        >
-                          <button
-                            className="at-press"
-                            onClick={() => onToggleTerm(key)}
-                            aria-expanded={open}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 7,
-                              padding: "5px 11px",
-                              background: color.chipBg,
-                              border: `1px solid ${color.hairlineStrong}`,
-                              borderRadius: 20,
-                              fontSize: 12.5,
-                              color: color.inkSoft,
-                              cursor: "pointer",
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontFamily: font.mono,
-                                fontSize: 9,
-                                letterSpacing: "0.08em",
-                                textTransform: "uppercase",
-                                color: color.amberInk,
-                              }}
-                            >
-                              {t.term}
-                            </span>
-                            <Rich text={term.t} />
-                          </button>
-                          {open && (
-                            <div
-                              style={{
-                                marginTop: 7,
-                                maxWidth: 340,
-                                fontSize: 13,
-                                lineHeight: 1.5,
-                                color: color.inkSoft,
-                                background: color.amberBg,
-                                border: "1px solid rgba(160,106,48,0.2)",
-                                borderRadius: 9,
-                                padding: "9px 12px",
-                                animation: "fadeUp .25s both",
-                              }}
-                            >
-                              <Rich text={term.d} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* The material — dual-coded, and on screen from the start. */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: c.figure ? "1fr 300px" : "1fr",
-                    gap: 30,
-                    alignItems: "start",
-                  }}
-                >
-                  <div data-chunk-id={c.id} style={{ position: "relative" }}>
-                    {askHint?.chunkId === c.id && (
-                      <button
-                        className="at-press"
-                        onClick={() => {
-                          const text = askHint.text;
-                          window.getSelection()?.removeAllRanges();
-                          setAskHint(null);
-                          onOpenPassage(c.id, text);
-                        }}
+                  <>
+                    {c.terms.length > 0 && (
+                      <div
                         style={{
-                          position: "absolute",
-                          left: askHint.x,
-                          top: askHint.y - 34,
-                          transform: "translateX(-50%)",
-                          zIndex: 5,
-                          padding: "6px 12px",
-                          borderRadius: 8,
-                          border: "none",
-                          background: color.accent,
-                          color: color.accentInk,
-                          fontSize: 12.5,
-                          fontFamily: "inherit",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
-                          whiteSpace: "nowrap",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 10,
+                          marginBottom: 18,
                         }}
                       >
-                        {t.askFloating}
-                      </button>
+                        {c.terms.map((term) => {
+                          const key = `${c.id}:${term.t}`;
+                          const open = session.term === key;
+                          return (
+                            <div
+                              key={key}
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                              }}
+                            >
+                              <button
+                                className="at-press"
+                                onClick={() => onToggleTerm(key)}
+                                aria-expanded={open}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 7,
+                                  padding: "5px 11px",
+                                  background: color.chipBg,
+                                  border: `1px solid ${color.hairlineStrong}`,
+                                  borderRadius: 20,
+                                  fontSize: 12.5,
+                                  color: color.inkSoft,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontFamily: font.mono,
+                                    fontSize: 9,
+                                    letterSpacing: "0.08em",
+                                    textTransform: "uppercase",
+                                    color: color.amberInk,
+                                  }}
+                                >
+                                  {t.term}
+                                </span>
+                                <Rich text={term.t} />
+                              </button>
+                              {open && (
+                                <div
+                                  style={{
+                                    marginTop: 7,
+                                    maxWidth: 340,
+                                    fontSize: 13,
+                                    lineHeight: 1.5,
+                                    color: color.inkSoft,
+                                    background: color.amberBg,
+                                    border: "1px solid rgba(160,106,48,0.2)",
+                                    borderRadius: 9,
+                                    padding: "9px 12px",
+                                    animation: "fadeUp .25s both",
+                                  }}
+                                >
+                                  <Rich text={term.d} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
-                    {/* The prose itself. It is always the section's own — a
+
+                    {/* The material — dual-coded, and on screen from the start. */}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: c.figure ? "1fr 300px" : "1fr",
+                        gap: 30,
+                        alignItems: "start",
+                      }}
+                    >
+                      <div data-chunk-id={c.id} style={{ position: "relative" }}>
+                        {askHint?.chunkId === c.id && (
+                          <button
+                            className="at-press"
+                            onClick={() => {
+                              const text = askHint.text;
+                              window.getSelection()?.removeAllRanges();
+                              setAskHint(null);
+                              onOpenPassage(c.id, text);
+                            }}
+                            style={{
+                              position: "absolute",
+                              left: askHint.x,
+                              top: askHint.y - 34,
+                              transform: "translateX(-50%)",
+                              zIndex: 5,
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: color.accent,
+                              color: color.accentInk,
+                              fontSize: 12.5,
+                              fontFamily: "inherit",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {t.askFloating}
+                          </button>
+                        )}
+                        {/* The prose itself. It is always the section's own — a
                         lens opens over it, never in place of it — so the
                         read-aloud highlight tracks these paragraphs directly. */}
-                    {paragraphs.map((para, pi) => {
-                      // Prose paragraphs lead the spoken segments, so the
-                      // reading index maps straight onto them.
-                      const spokenNow = speakingChunk === c.id && reading.index === pi;
-                      return (
-                        <p
-                          key={pi}
-                          style={{
-                            fontFamily: font.serif,
-                            fontSize: 19,
-                            lineHeight: 1.68,
-                            margin: "0 -8px 18px",
-                            padding: "2px 8px",
-                            borderRadius: 7,
-                            background: spokenNow ? color.accentBg : "transparent",
-                            transition: transition("background"),
-                            color: color.ink,
-                          }}
-                        >
-                          {/* Two scales of highlight, because they answer two
+                        {paragraphs.map((para, pi) => {
+                          // Prose paragraphs lead the spoken segments, so the
+                          // reading index maps straight onto them.
+                          const spokenNow =
+                            speakingChunk === c.id && reading.index === pi;
+                          return (
+                            <p
+                              key={pi}
+                              style={{
+                                fontFamily: font.serif,
+                                fontSize: 19,
+                                lineHeight: 1.68,
+                                margin: "0 -8px 18px",
+                                padding: "2px 8px",
+                                borderRadius: 7,
+                                background: spokenNow ? color.accentBg : "transparent",
+                                transition: transition("background"),
+                                color: color.ink,
+                              }}
+                            >
+                              {/* Two scales of highlight, because they answer two
                               questions: the paragraph wash says where the voice
                               is on the page, the word mark says where it is in
                               the sentence. The word range is an offset into
                               `spokenText(para)` — the same strip `Rich` renders
                               through — so it needs no mapping here. */}
-                          <Rich
-                            text={para}
-                            speak={spokenNow ? reading.word : null}
-                          />
-                        </p>
-                      );
-                    })}
+                              <Rich text={para} speak={spokenNow ? reading.word : null} />
+                            </p>
+                          );
+                        })}
 
-                    <WorkedExample example={c.example} />
+                        <WorkedExample example={c.example} />
 
-                    <div
-                      style={{
-                        marginTop: 22,
-                        display: "flex",
-                        gap: 12,
-                        alignItems: "baseline",
-                        background: color.accentBg,
-                        border: "1px solid rgba(47,107,79,0.18)",
-                        borderRadius: 10,
-                        padding: "13px 16px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          flex: "0 0 auto",
-                          fontFamily: font.mono,
-                          fontSize: 9.5,
-                          letterSpacing: "0.12em",
-                          textTransform: "uppercase",
-                          color: color.accent,
-                        }}
-                      >
-                        {t.takeaway}
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: font.serif,
-                          fontSize: 16.5,
-                          lineHeight: 1.5,
-                          color: color.ink,
-                        }}
-                      >
-                        <Rich text={c.takeaway} />
-                      </span>
-                    </div>
+                        <div
+                          style={{
+                            marginTop: 22,
+                            display: "flex",
+                            gap: 12,
+                            alignItems: "baseline",
+                            background: color.accentBg,
+                            border: "1px solid rgba(47,107,79,0.18)",
+                            borderRadius: 10,
+                            padding: "13px 16px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              flex: "0 0 auto",
+                              fontFamily: font.mono,
+                              fontSize: 9.5,
+                              letterSpacing: "0.12em",
+                              textTransform: "uppercase",
+                              color: color.accent,
+                            }}
+                          >
+                            {t.takeaway}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: font.serif,
+                              fontSize: 16.5,
+                              lineHeight: 1.5,
+                              color: color.ink,
+                            }}
+                          >
+                            <Rich text={c.takeaway} />
+                          </span>
+                        </div>
 
-                    {/* Where to go next on this, not a citation of the prose
+                        {/* Where to go next on this, not a citation of the prose
                         above — the app can't verify a source, and dressing a
                         model-written reference as one buys trust it hasn't
                         earned. Named as what it is. */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "baseline",
-                        gap: 12,
-                        flexWrap: "wrap",
-                        margin: "14px 0",
-                      }}
-                    >
-                      {/* Absent when the model had no work it was confident
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "baseline",
+                            gap: 12,
+                            flexWrap: "wrap",
+                            margin: "14px 0",
+                          }}
+                        >
+                          {/* Absent when the model had no work it was confident
                           exists — an omitted line beats an invented title. */}
-                      {c.cite ? (
-                        <span style={{ fontSize: 11, color: color.inkFaint }}>
-                          {t.furtherReading} · {c.cite}
-                        </span>
-                      ) : null}
-                      <div style={{ flex: 1 }} />
-                      {/* The keyboard path to the same panel the highlight
+                          {c.cite ? (
+                            <span style={{ fontSize: 11, color: color.inkFaint }}>
+                              {t.furtherReading} · {c.cite}
+                            </span>
+                          ) : null}
+                          <div style={{ flex: 1 }} />
+                          {/* The keyboard path to the same panel the highlight
                           gesture opens — selecting text is a pointer move. */}
-                      <button
-                        className="at-press"
-                        onClick={() => onOpenPassage(c.id, "")}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          padding: 0,
-                          fontFamily: "inherit",
-                          fontSize: 12,
-                          color: color.accent,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {t.askSection}
-                      </button>
-                    </div>
+                          <button
+                            className="at-press"
+                            onClick={() => onOpenPassage(c.id, "")}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              fontFamily: "inherit",
+                              fontSize: 12,
+                              color: color.accent,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {t.askSection}
+                          </button>
+                        </div>
 
-                    {/* The four lenses. Each opens a model view over this
+                        {/* The four lenses. Each opens a model view over this
                         section — generated on demand for this section's exact
                         prose, so there is nothing to wait for before they are
                         offered. The one last opened stays marked: that is the
                         adaptive-modality record, and what the
                         missing-prerequisite flag counts. */}
-                    <div
-                      style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
-                    >
-                      {controls.map(([key, label]) => {
-                        const used = vkey === key;
-                        // The learned default is marked on sections the
-                        // learner hasn't opened a lens over themselves — it
-                        // leads them to it without opening anything for them.
-                        const suggested = suggestsDefault(c.id) && session.preferred === key;
-                        return (
-                          <button
-                            className="at-press"
-                            key={key}
-                            onClick={() => onOpenModel(c, key)}
-                            style={{
-                              padding: "6px 12px",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              cursor: "pointer",
-                              fontFamily: font.mono,
-                              border: `1px solid ${
-                                used || suggested ? color.accent : color.hairlineStrong
-                              }`,
-                              background: used ? color.accentBg : color.card,
-                              color: used || suggested ? color.accent : color.inkMuted,
-                            }}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                      {/* Says which one is theirs, so a marked control never
-                          looks like a glitch. */}
-                      {suggestsDefault(c.id) && (
-                        <span
+                        <div
                           style={{
-                            fontFamily: font.mono,
-                            fontSize: 10,
-                            letterSpacing: "0.08em",
-                            textTransform: "uppercase",
-                            color: color.inkGhost,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 8,
+                            alignItems: "center",
                           }}
                         >
-                          {t.yourDefault}
-                        </span>
-                      )}
-                    </div>
+                          {controls.map(([key, label]) => {
+                            const used = vkey === key;
+                            // The learned default is marked on sections the
+                            // learner hasn't opened a lens over themselves — it
+                            // leads them to it without opening anything for them.
+                            const suggested =
+                              suggestsDefault(c.id) && session.preferred === key;
+                            return (
+                              <button
+                                className="at-press"
+                                key={key}
+                                onClick={() => onOpenModel(c, key)}
+                                style={{
+                                  padding: "6px 12px",
+                                  borderRadius: 8,
+                                  fontSize: 12,
+                                  cursor: "pointer",
+                                  fontFamily: font.mono,
+                                  border: `1px solid ${
+                                    used || suggested
+                                      ? color.accent
+                                      : color.hairlineStrong
+                                  }`,
+                                  background: used ? color.accentBg : color.card,
+                                  color:
+                                    used || suggested ? color.accent : color.inkMuted,
+                                }}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                          {/* Says which one is theirs, so a marked control never
+                          looks like a glitch. */}
+                          {suggestsDefault(c.id) && (
+                            <span
+                              style={{
+                                fontFamily: font.mono,
+                                fontSize: 10,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                                color: color.inkGhost,
+                              }}
+                            >
+                              {t.yourDefault}
+                            </span>
+                          )}
+                        </div>
 
-                    {/* Ask about this — the learner's own question about the
+                        {/* Ask about this — the learner's own question about the
                         passage they highlighted, answered against this
                         section. */}
-                    {session.passage?.chunkId === c.id && (
-                      <PassagePanel
-                        ask={session.passage}
-                        suggestion={c.ask}
-                        onAsk={onAskPassage}
-                        onClose={onClosePassage}
-                      />
-                    )}
-                  </div>
-                  {c.figure && (
-                    <div style={{ position: "sticky", top: 12 }}>
-                      <Figure
-                        id={c.id}
-                        figure={c.figure}
-                        caption={c.diagram ?? sectionName(c.kicker)}
-                      />
-                      <div
-                        style={{
-                          marginTop: 9,
-                          fontFamily: font.mono,
-                          fontSize: 10.5,
-                          lineHeight: 1.45,
-                          color: color.inkFaint,
-                        }}
-                      >
-                        {t.diagramLabel} {c.diagram}
+                        {session.passage?.chunkId === c.id && (
+                          <PassagePanel
+                            ask={session.passage}
+                            suggestion={c.ask}
+                            onAsk={onAskPassage}
+                            onClose={onClosePassage}
+                          />
+                        )}
                       </div>
+                      {c.figure && (
+                        <div style={{ position: "sticky", top: 12 }}>
+                          <Figure
+                            id={c.id}
+                            figure={c.figure}
+                            caption={c.diagram ?? sectionName(c.kicker)}
+                          />
+                          <div
+                            style={{
+                              marginTop: 9,
+                              fontFamily: font.mono,
+                              fontSize: 10.5,
+                              lineHeight: 1.45,
+                              color: color.inkFaint,
+                            }}
+                          >
+                            {t.diagramLabel} {c.diagram}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                </>
+                  </>
                 )}
 
                 {/* The section's receipt: answered right, the way onward
@@ -2569,9 +2621,7 @@ export default function ConsumeView({
               : lastModel.current!.key
           }
           open={Boolean(modelChunk && session.model)}
-          lens={
-            session.model?.lens ?? (lastModel.current!.lens as AltKey)
-          }
+          lens={session.model?.lens ?? (lastModel.current!.lens as AltKey)}
           chunk={modelChunk ?? lastModel.current!.chunk}
           beats={modelBeats ?? []}
           streaming={modelStreaming}

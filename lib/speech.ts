@@ -81,7 +81,10 @@ export interface VoicePrefs {
 }
 
 /** Both halves are on wherever the browser can do them. */
-export const DEFAULT_VOICE_PREFS: VoicePrefs = { dictation: true, readAloud: true };
+export const DEFAULT_VOICE_PREFS: VoicePrefs = {
+  dictation: true,
+  readAloud: true,
+};
 
 /** Tolerates a missing, malformed, or half-written value — a corrupt entry
  *  falls back to the defaults rather than taking voice away. */
@@ -97,13 +100,9 @@ export function parseVoicePrefs(raw: string | null): VoicePrefs {
   const rec = parsed as Record<string, unknown>;
   return {
     dictation:
-      typeof rec.dictation === "boolean"
-        ? rec.dictation
-        : DEFAULT_VOICE_PREFS.dictation,
+      typeof rec.dictation === "boolean" ? rec.dictation : DEFAULT_VOICE_PREFS.dictation,
     readAloud:
-      typeof rec.readAloud === "boolean"
-        ? rec.readAloud
-        : DEFAULT_VOICE_PREFS.readAloud,
+      typeof rec.readAloud === "boolean" ? rec.readAloud : DEFAULT_VOICE_PREFS.readAloud,
   };
 }
 
@@ -202,9 +201,15 @@ export function dictationSupported(): boolean {
  *  hydrated tree. Dictation asks the browser; read-aloud asks the deploy
  *  (`readAloudSupported`, defined with the engine below).*/
 export function useVoiceSupport(): { dictation: boolean; readAloud: boolean } {
-  const [support, setSupport] = useState({ dictation: false, readAloud: false });
+  const [support, setSupport] = useState({
+    dictation: false,
+    readAloud: false,
+  });
   useEffect(() => {
-    setSupport({ dictation: dictationSupported(), readAloud: readAloudSupported() });
+    setSupport({
+      dictation: dictationSupported(),
+      readAloud: readAloudSupported(),
+    });
   }, []);
   return support;
 }
@@ -425,11 +430,7 @@ export function wordAt(marks: SpeechMark[], ms: number): SpeechMark | null {
  * duration, it is known before any audio has been fetched, so the ring is
  * honest from the first frame.
  */
-export function readProgress(
-  lengths: number[],
-  index: number,
-  fraction: number,
-): number {
+export function readProgress(lengths: number[], index: number, fraction: number): number {
   const total = lengths.reduce((a, b) => a + b, 0);
   if (!total || index < 0) return 0;
   let before = 0;
@@ -692,9 +693,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
   const speak = useCallback(
     (segments: string[]) => {
       if (!readAloudSupported()) return;
-      const spoken = segments
-        .map((s) => spokenText(s).trim())
-        .filter(Boolean);
+      const spoken = segments.map((s) => spokenText(s).trim()).filter(Boolean);
       // Starting one reading cancels any other — one section speaks at a time.
       runRef.current++;
       const run = runRef.current;

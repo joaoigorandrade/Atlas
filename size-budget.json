@@ -1,0 +1,28 @@
+{
+  "default": 400,
+  "files": {
+    "components/AtlasApp.tsx": 5030,
+    "components/DashboardScreen.tsx": 692,
+    "components/SettingsScreen.tsx": 489,
+    "components/analytics/CalibrationView.tsx": 687,
+    "components/map/LeftRail.tsx": 452,
+    "components/map/MapCanvas.tsx": 441,
+    "components/map/NodeDetail.tsx": 677,
+    "components/map/StreakFlame.tsx": 441,
+    "components/onboarding/DiagnosticPanel.tsx": 495,
+    "components/onboarding/WelcomeScreen.tsx": 442,
+    "components/session/ConnectView.tsx": 1014,
+    "components/session/ConsumeView.tsx": 2634,
+    "components/session/CrucibleView.tsx": 949,
+    "components/session/FeynmanView.tsx": 1316,
+    "components/session/RetainView.tsx": 992,
+    "components/session/SocraticView.tsx": 589,
+    "lib/api.ts": 765,
+    "lib/curriculum.ts": 3045,
+    "lib/persistence.ts": 413,
+    "lib/server/generate.ts": 2676,
+    "lib/server/job.ts": 650,
+    "lib/server/openrouter.ts": 662,
+    "lib/speech.ts": 779
+  }
+}

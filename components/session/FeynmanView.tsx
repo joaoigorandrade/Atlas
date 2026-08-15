@@ -77,10 +77,9 @@ const STRINGS = {
         <span style={{ color: RED, fontWeight: 600 }}>
           {gapCount} gap{gapCount === 1 ? "" : "s"}
         </span>{" "}
-        will attach under <span style={{ fontStyle: "italic" }}>{title}</span> as
-        red sub-nodes — each quotes what you actually said and opens a targeted
-        Socratic pass. Fix them here, or carry them to the map and close them in
-        the loop.
+        will attach under <span style={{ fontStyle: "italic" }}>{title}</span> as red
+        sub-nodes — each quotes what you actually said and opens a targeted Socratic pass.
+        Fix them here, or carry them to the map and close them in the loop.
       </>
     ),
     cleanAdvance: "Clean diff · Connect →",
@@ -106,7 +105,8 @@ const STRINGS = {
     nextTopic: "Próximo tópico →",
     prevTopic: "← Voltar",
     skipTopic: "Pular este",
-    remaining: (n: number) => `${n} tópico${n === 1 ? "" : "s"} restante${n === 1 ? "" : "s"}`,
+    remaining: (n: number) =>
+      `${n} tópico${n === 1 ? "" : "s"} restante${n === 1 ? "" : "s"}`,
     placeholderTeach:
       "Explique esta parte com suas próprias palavras — como se eu nunca tivesse ouvido falar",
     placeholderJudging: "Seu aluno está lendo o que você ensinou…",
@@ -136,15 +136,13 @@ const STRINGS = {
           {gapCount} lacuna{gapCount === 1 ? "" : "s"}
         </span>{" "}
         {gapCount === 1 ? "vai" : "vão"} se anexar sob{" "}
-        <span style={{ fontStyle: "italic" }}>{title}</span> como sub-nós
-        vermelhos — cada uma cita o que você realmente disse e abre uma
-        passagem socrática focada. Corrija-as aqui, ou leve-as ao mapa e
-        feche-as no ciclo.
+        <span style={{ fontStyle: "italic" }}>{title}</span> como sub-nós vermelhos — cada
+        uma cita o que você realmente disse e abre uma passagem socrática focada.
+        Corrija-as aqui, ou leve-as ao mapa e feche-as no ciclo.
       </>
     ),
     cleanAdvance: "Diff limpo · Conectar →",
-    attachGaps: (n: number) =>
-      `Anexar ${n} lacuna${n === 1 ? "" : "s"} e continuar →`,
+    attachGaps: (n: number) => `Anexar ${n} lacuna${n === 1 ? "" : "s"} e continuar →`,
     teachAgain: "↺ Ensinar de novo desde o início",
     targetedPass: "Passagem socrática focada",
     answerInWords: "Responda à pergunta com suas próprias palavras…",
@@ -282,7 +280,14 @@ export default function FeynmanView({
       </div>
 
       {/* Body — the opening prompt, the blank page, then the Gap Report */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div
+        style={{
+          flex: 1,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {session.reported ? (
           <GapReport
             title={title}
@@ -519,7 +524,14 @@ function TeachPage({
     // The rubric is still streaming in — the sequence has no first topic yet.
     return (
       <div style={{ flex: 1, display: "grid", placeItems: "center", gap: 10 }}>
-        <div style={{ ...kicker(10.5), display: "flex", alignItems: "center", gap: 9 }}>
+        <div
+          style={{
+            ...kicker(10.5),
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+          }}
+        >
           {t.preparing}
           <InkDots size={3.5} />
         </div>
@@ -566,8 +578,7 @@ function TeachPage({
                   border: "none",
                   cursor: "pointer",
                   borderRadius: 2,
-                  background:
-                    i === at ? BLUE : done ? GREEN : "rgba(44,40,35,0.12)",
+                  background: i === at ? BLUE : done ? GREEN : "rgba(44,40,35,0.12)",
                   opacity: i === at ? 1 : done ? 0.55 : 1,
                   transform: i === at ? "scaleY(1.9)" : "scaleY(1)",
                   transition: transition(
@@ -805,16 +816,18 @@ function GapReport({
   const gapCount = feynmanGaps(session, beats).length;
   // The delta is the only place the learner sees the loop working on them:
   // this pass's gaps against the one they just re-taught.
-  const before = session.previous
-    ? feynmanGapCount(session.previous, beats)
-    : null;
+  const before = session.previous ? feynmanGapCount(session.previous, beats) : null;
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "30px 32px 60px" }}>
-      <div style={{ maxWidth: 620, margin: "0 auto", animation: "fadeUp .35s both" }}>
-        <div style={{ ...kicker(10.5), marginBottom: 10 }}>
-          {t.gapReportLead}
-        </div>
+      <div
+        style={{
+          maxWidth: 620,
+          margin: "0 auto",
+          animation: "fadeUp .35s both",
+        }}
+      >
+        <div style={{ ...kicker(10.5), marginBottom: 10 }}>{t.gapReportLead}</div>
         <div
           style={{
             fontFamily: font.serif,
@@ -890,10 +903,23 @@ function GapReport({
               marginBottom: 20,
             }}
           >
-            <div style={{ ...kicker(9.5, "0.1em"), color: color.amberInk, marginBottom: 8 }}>
+            <div
+              style={{
+                ...kicker(9.5, "0.1em"),
+                color: color.amberInk,
+                marginBottom: 8,
+              }}
+            >
               {t.jargonLead}
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 7,
+                marginBottom: 8,
+              }}
+            >
               {session.jargon.map((term) => (
                 <span
                   key={term}
@@ -918,14 +944,28 @@ function GapReport({
         )}
 
         {/* Legend + counts */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+            marginBottom: 24,
+          }}
+        >
           <LegendChip color={GREEN} label={t.explained(counts.good)} />
           <LegendChip color={GREY} label={t.skipped(counts.skipped)} />
           <LegendChip color={RED} label={t.confused(counts.confused)} />
         </div>
 
         {/* The diff rows */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 26 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            marginBottom: 26,
+          }}
+        >
           {beats.map((b) => {
             const verdict = session.verdicts[b.id];
             if (!verdict) return null;
@@ -1139,9 +1179,7 @@ function GapReport({
 function LegendChip({ color: c, label }: { color: string; label: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-      <span
-        style={{ width: 10, height: 10, borderRadius: "50%", background: c }}
-      />
+      <span style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />
       <span style={{ fontSize: 13, color: color.inkSoft }}>{label}</span>
     </div>
   );
@@ -1185,9 +1223,7 @@ function FixPass({
           marginBottom: 8,
         }}
       >
-        <div style={{ ...kicker(9.5, "0.1em"), color: BLUE }}>
-          {t.targetedPass}
-        </div>
+        <div style={{ ...kicker(9.5, "0.1em"), color: BLUE }}>{t.targetedPass}</div>
         <AnswerModeToggle mode={mode} onMode={setMode} accent={BLUE} />
       </div>
       <div
@@ -1213,35 +1249,35 @@ function FixPass({
           accent={BLUE}
         />
       ) : (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {beat.fix.replies.map((r, i) => {
-          const spent = ruledOut.includes(r.label);
-          return (
-            <button
-              className="at-press"
-              key={r.label}
-              disabled={spent}
-              onClick={() => onFix(i)}
-              style={{
-                textAlign: "left",
-                padding: "10px 13px",
-                borderRadius: 9,
-                fontSize: 13.5,
-                lineHeight: 1.4,
-                cursor: spent ? "default" : "pointer",
-                fontFamily: "inherit",
-                border: `1px solid ${color.hairlineStrong}`,
-                background: color.paper,
-                color: color.ink,
-                opacity: spent ? 0.45 : 1,
-                textDecoration: spent ? "line-through" : "none",
-              }}
-            >
-              {r.label}
-            </button>
-          );
-        })}
-      </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {beat.fix.replies.map((r, i) => {
+            const spent = ruledOut.includes(r.label);
+            return (
+              <button
+                className="at-press"
+                key={r.label}
+                disabled={spent}
+                onClick={() => onFix(i)}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 13px",
+                  borderRadius: 9,
+                  fontSize: 13.5,
+                  lineHeight: 1.4,
+                  cursor: spent ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  border: `1px solid ${color.hairlineStrong}`,
+                  background: color.paper,
+                  color: color.ink,
+                  opacity: spent ? 0.45 : 1,
+                  textDecoration: spent ? "line-through" : "none",
+                }}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
       )}
       {reaction && (
         <div

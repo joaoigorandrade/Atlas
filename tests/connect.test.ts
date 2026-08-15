@@ -19,8 +19,20 @@ const content: ElaborationContent = {
   center: { x: 290, y: 210 },
   cands: [
     { id: "vectors", label: "Vectors", x: 104, y: 66, rel: "maps vectors" },
-    { id: "matrices", label: "Matrices", x: 408, y: 92, rel: "represented by a matrix" },
-    { id: "basis", label: "Basis", x: 472, y: 314, rel: "determined on the basis" },
+    {
+      id: "matrices",
+      label: "Matrices",
+      x: 408,
+      y: 92,
+      rel: "represented by a matrix",
+    },
+    {
+      id: "basis",
+      label: "Basis",
+      x: 472,
+      y: 314,
+      rel: "determined on the basis",
+    },
   ],
 };
 
@@ -183,7 +195,16 @@ describe("connectPool", () => {
     { id: "b", label: "B", state: "unknown", g: 1, week: 0, x: 0, y: 0 },
     { id: "c", label: "C", state: "unknown", g: 2, week: 0, x: 0, y: 0 },
     { id: "d", label: "D", state: "unknown", g: 2, week: 0, x: 0, y: 0 },
-    { id: "g1", label: "Gap", state: "unknown", g: 2, week: 0, x: 0, y: 0, gap: true },
+    {
+      id: "g1",
+      label: "Gap",
+      state: "unknown",
+      g: 2,
+      week: 0,
+      x: 0,
+      y: 0,
+      gap: true,
+    },
   ];
 
   it("offers only nodes the learner has touched — never untouched ones", () => {
@@ -198,7 +219,13 @@ describe("connectPool", () => {
   it("drops gaps and the node being connected, most-owned first", () => {
     const pool = connectPool(
       nodes,
-      { a: "mastered", b: "learning", c: "mastered", d: "shaky", g1: "mastered" },
+      {
+        a: "mastered",
+        b: "learning",
+        c: "mastered",
+        d: "shaky",
+        g1: "mastered",
+      },
       "a",
     );
     expect(pool.map((p) => p.id)).toEqual(["c", "d", "b"]);

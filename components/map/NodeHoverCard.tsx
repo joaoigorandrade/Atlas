@@ -120,12 +120,8 @@ function Body({
     const s = display[id];
     return s === "learning" || s === "shaky" || s === "mastered";
   }).length;
-  const unlocks = edges.filter(
-    ([from, , dashed]) => from === node.id && !dashed,
-  ).length;
-  const gaps = edges.filter(
-    ([from, , dashed]) => from === node.id && dashed,
-  ).length;
+  const unlocks = edges.filter(([from, , dashed]) => from === node.id && !dashed).length;
+  const gaps = edges.filter(([from, , dashed]) => from === node.id && dashed).length;
 
   const phase = readingPhaseIndex(displayState, reviewed, consumeProgress);
   const reading =
@@ -167,7 +163,9 @@ function Body({
       style={{
         position: "absolute",
         left: x,
-        [above ? "bottom" : "top"]: above ? `calc(100% - ${y - reach - 12}px)` : y + reach + 12,
+        [above ? "bottom" : "top"]: above
+          ? `calc(100% - ${y - reach - 12}px)`
+          : y + reach + 12,
         transform: "translateX(-50%)",
         zIndex: 12,
         pointerEvents: "none",
@@ -203,8 +201,7 @@ function Body({
               height: 7,
               borderRadius: "50%",
               background: stateColor,
-              boxShadow:
-                displayState === "frontier" ? `0 0 6px ${stateColor}` : "none",
+              boxShadow: displayState === "frontier" ? `0 0 6px ${stateColor}` : "none",
               flex: "0 0 auto",
             }}
           />
@@ -291,11 +288,7 @@ function Body({
  * real pause, and once a card is up, moving to the next node swaps it fast —
  * by then the learner is reading, not passing through.
  */
-export function useDwell(
-  value: string | null,
-  ms = 300,
-  handoffMs = 90,
-): string | null {
+export function useDwell(value: string | null, ms = 300, handoffMs = 90): string | null {
   const [settled, setSettled] = useState<string | null>(null);
   const open = settled !== null;
 

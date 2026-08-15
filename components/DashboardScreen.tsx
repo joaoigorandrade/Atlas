@@ -17,7 +17,8 @@ const STRINGS = {
     queueClear: "Queue clear ✓",
     cardsDue: (n: number) => `${n} card${n === 1 ? "" : "s"} due`,
     nothingDueYet: "Nothing due yet",
-    metTodayBody: "You've met today's target. New cards surface as memories start to fade.",
+    metTodayBody:
+      "You've met today's target. New cards surface as memories start to fade.",
     cardsDueBody: (min: number) =>
       `~${min} min · timed to the moment these memories are about to fade.`,
     nothingDueBody: "Learn a concept to the end and it starts feeding the review queue.",
@@ -50,21 +51,26 @@ const STRINGS = {
     profile: "Perfil",
     frontierIntro: (n: number) =>
       `Você está na fronteira de ${n} conceito${n === 1 ? "" : "s"}. Continue de onde parou.`,
-    fullyMastered: "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão.",
+    fullyMastered:
+      "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão.",
     todaysReview: "Revisão de hoje",
     queueClear: "Fila limpa ✓",
-    cardsDue: (n: number) => `${n} cartã${n === 1 ? "o" : "os"} pendente${n === 1 ? "" : "s"}`,
+    cardsDue: (n: number) =>
+      `${n} cartã${n === 1 ? "o" : "os"} pendente${n === 1 ? "" : "s"}`,
     nothingDueYet: "Nada pendente ainda",
-    metTodayBody: "Você cumpriu a meta de hoje. Novos cartões surgem à medida que as memórias começam a desvanecer.",
+    metTodayBody:
+      "Você cumpriu a meta de hoje. Novos cartões surgem à medida que as memórias começam a desvanecer.",
     cardsDueBody: (min: number) =>
       `~${min} min · no momento exato em que essas memórias estão prestes a desvanecer.`,
-    nothingDueBody: "Aprenda um conceito até o fim e ele passa a alimentar a fila de revisão.",
+    nothingDueBody:
+      "Aprenda um conceito até o fim e ele passa a alimentar a fila de revisão.",
     startReview: "Iniciar revisão →",
     yourFrontier: "Sua fronteira",
     allCaughtUp: "Tudo em dia",
     frontierBody: (subject: string) =>
       `O próximo conceito que você está pronto para aprender em ${subject}.`,
-    frontierDoneBody: (subject: string) => `Todo conceito em ${subject} está em andamento.`,
+    frontierDoneBody: (subject: string) =>
+      `Todo conceito em ${subject} está em andamento.`,
     openMap: "Abrir o mapa →",
     yourMaps: "Seus mapas",
     newMap: "+ Novo mapa",
@@ -218,9 +224,7 @@ export default function DashboardScreen({
       }}
     >
       <div style={headerStyle}>
-        <div style={{ fontFamily: font.serif, fontSize: 19, fontWeight: 600 }}>
-          Atlas
-        </div>
+        <div style={{ fontFamily: font.serif, fontSize: 19, fontWeight: 600 }}>Atlas</div>
         <div style={{ flex: 1 }} />
         <div
           style={{
@@ -296,9 +300,7 @@ export default function DashboardScreen({
               marginBottom: 36,
             }}
           >
-            {frontierTotal > 0
-              ? t.frontierIntro(frontierTotal)
-              : t.fullyMastered}
+            {frontierTotal > 0 ? t.frontierIntro(frontierTotal) : t.fullyMastered}
           </div>
 
           <div
@@ -366,9 +368,7 @@ export default function DashboardScreen({
                     ? t.cardsDueBody(queue.minutes)
                     : t.nothingDueBody}
               </div>
-              <div
-                style={{ fontSize: 13.5, color: color.accent, fontWeight: 600 }}
-              >
+              <div style={{ fontSize: 13.5, color: color.accent, fontWeight: 600 }}>
                 {t.startReview}
               </div>
             </div>
@@ -421,9 +421,7 @@ export default function DashboardScreen({
                   lineHeight: 1.5,
                 }}
               >
-                {frontierConcept
-                  ? t.frontierBody(subject)
-                  : t.frontierDoneBody(subject)}
+                {frontierConcept ? t.frontierBody(subject) : t.frontierDoneBody(subject)}
               </div>
               <div
                 style={{

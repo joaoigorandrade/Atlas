@@ -140,20 +140,20 @@ export default function DiagnosticPanel({
     >
       <div style={kicker(11)}>{t.kicker}</div>
       {started && (
-      <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
-        {Array.from({ length: total }, (_, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              height: 4,
-              borderRadius: 3,
-              background: i < answered ? color.accent : "rgba(44,40,35,0.12)",
-              transition: transition("background"),
-            }}
-          />
-        ))}
-      </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
+          {Array.from({ length: total }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                height: 4,
+                borderRadius: 3,
+                background: i < answered ? color.accent : "rgba(44,40,35,0.12)",
+                transition: transition("background"),
+              }}
+            />
+          ))}
+        </div>
       )}
 
       {!started && (
@@ -285,7 +285,10 @@ export default function DiagnosticPanel({
           >
             <Rich text={shown.q} />
           </div>
-          <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+          <div
+            role="radiogroup"
+            style={{ display: "flex", flexDirection: "column", gap: 11 }}
+          >
             {shown.opts.map((opt, oi) => {
               const isAnswer = picked && oi === shown.correctIndex;
               const isWrongPick = picked && oi === picked.index && !correct;
@@ -370,7 +373,13 @@ export default function DiagnosticPanel({
               >
                 {correct ? t.right : slipped ? t.slip : t.wrong}
               </div>
-              <div style={{ fontSize: 14, color: color.inkMuted, lineHeight: 1.55 }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: color.inkMuted,
+                  lineHeight: 1.55,
+                }}
+              >
                 {!correct && (
                   <>
                     {t.answerWas} <Rich text={shown.opts[shown.correctIndex]?.label} />

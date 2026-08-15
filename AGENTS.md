@@ -17,11 +17,25 @@ OpenRouter (see "AI content generation" below).
 ## Commands
 
 ```bash
-npm run dev        # dev server on :3000
-npm run build      # production build — must pass before pushing
-npm run start      # serve the production build
-npm run typecheck  # tsc --noEmit
+npm run dev            # dev server on :3000
+npm run build          # production build — must pass before pushing
+npm run start          # serve the production build
+npm run typecheck      # tsc --noEmit
+npm run lint           # eslint — real-bug rules only, no style
+npm run format         # prettier --write .  (format:check to verify)
+npm test               # vitest (test:coverage adds the lib/** floor)
+npm run size           # file-length ratchet — see below
 ```
+
+Every one of those is a required CI check (`.github/workflows/ci.yml`), one
+status check per gate.
+
+**The size ratchet.** `size-budget.json` holds a line ceiling per file: 400 by
+default, an explicit entry for the files already over it. CI fails when a file
+grows past its ceiling, so size can only go down. When a file shrinks, run
+`node scripts/size-budget.mjs --update` in the same PR to lower its entry —
+ceilings never rise. Adding a genuinely new large file means editing
+`size-budget.json` by hand, on purpose, in review.
 
 ## Layout
 
@@ -34,7 +48,7 @@ npm run typecheck  # tsc --noEmit
 - `lib/rich.ts` — the markdown walk `components/Rich.tsx` renders, as a pure function. Read-aloud speaks `spokenText()` and gets character offsets back, so the string the engine says and the string the reader sees must be the same one; `Rich` takes a `speak` range and marks the word being spoken.
 - `lib/server/` — the OpenRouter client (`openrouter.ts`) and the per-kind content generators (`generate.ts`: prompts, validators, layout/ids/offsets post-processing). Server-only; the API key never reaches the browser.
 - `app/api/generate/route.ts` — the single generation endpoint the client posts to; `lib/api.ts` is its typed client wrapper.
-- `app/api/speech/route.ts` — read-aloud synthesis: auth-gated, one plain segment in, base64 audio + per-word marks out. Clips are cached in `speech_cache` (`lib/server/speechCache.ts`) and shared across users, so a section is billed once however many learners read it — deliberately its own table, since `content_cache`'s version moves whenever a *prompt* does and audio for unchanged prose must not be re-billed for that.
+- `app/api/speech/route.ts` — read-aloud synthesis: auth-gated, one plain segment in, base64 audio + per-word marks out. Clips are cached in `speech_cache` (`lib/server/speechCache.ts`) and shared across users, so a section is billed once however many learners read it — deliberately its own table, since `content_cache`'s version moves whenever a _prompt_ does and audio for unchanged prose must not be re-billed for that.
 
 ## AI content generation
 
@@ -101,11 +115,11 @@ it that way, and a new surface must use all three:
   that request rather than starting a second one.
 
 The rule that makes it safe: a warm and the click that follows must derive
-their inputs from the *same* function (the `*Params` callbacks in `AtlasApp`).
+their inputs from the _same_ function (the `*Params` callbacks in `AtlasApp`).
 Compute a pool or a label list twice and the keys diverge — you get a cache
 miss and pay for the generation twice.
 
-A fourth layer covers the wait no cache can hide — the *first* generation of a
+A fourth layer covers the wait no cache can hide — the _first_ generation of a
 kind, where latency is dominated by sequential output decoding:
 
 - **`lib/server/stream.ts`** — progressive delivery. A generator yields
@@ -118,9 +132,9 @@ kind, where latency is dominated by sequential output decoding:
   partial content lives in a `live*` state so `isCached` and the warm dedupe
   can't mistake it for a finished pass.
 - **Token-by-token** is the layer under that, for the kinds whose unit is prose
-  a learner reads *while* it appears. `streamJsonObjectsProgressive`
+  a learner reads _while_ it appears. `streamJsonObjectsProgressive`
   (`openrouter.ts`) repairs the half-decoded object in the buffer with
-  `closePartialJson`, runs it through a *lenient* validator supplied per kind,
+  `closePartialJson`, runs it through a _lenient_ validator supplied per kind,
   and yields it as a redraw; the generator re-sends it as a frame at the slot
   it is writing with `partial: true`. Those frames are rendered and nothing
   else: `ndjsonStream` doesn't retain them, `framesToPayload` drops them, and
@@ -131,7 +145,7 @@ kind, where latency is dominated by sequential output decoding:
   cost O(n²) bytes on a long answer.
   It is on where prose is the unit and the learner is watching it land: the
   passage aside, the model view's beats, and the judge's critique (drafting
-  `response` only — a half-written *verdict* is a different classification than
+  `response` only — a half-written _verdict_ is a different classification than
   the one the model settles on, and the verdict drives mastery writes). It is
   deliberately off for `consume`/`socratic`/`feynman`/`curriculum`, whose items
   are structured objects — a section without its `check`, a step without its
@@ -139,18 +153,18 @@ kind, where latency is dominated by sequential output decoding:
   become partial-tolerant to show half of one. `StreamingText`
   (`components/Pending.tsx`) is the shared "being written" mark: the text so
   far plus a blinking nib, ink dots while it's still empty.
-- The first frame is pulled *before* committing to a 200, so a real failure
+- The first frame is pulled _before_ committing to a 200, so a real failure
   still surfaces as an error status. Each streaming generator falls back to its
   single-shot, retried `run()` if it fails before yielding anything; after that
   it surfaces, and the client keeps whatever landed.
 - Streaming has **no corrective retry and no model-fallback chain**, and
-  `streamJsonObjects` uses the *content* model role. Don't stream a call that
+  `streamJsonObjects` uses the _content_ model role. Don't stream a call that
   needs either — notably the judge.
-- A payload's *shape* is chosen so a partial one still means something.
+- A payload's _shape_ is chosen so a partial one still means something.
   `framesToPayload` only assembles flat parts, so the map travels as a flat
   `nodes` list where each node carries its own `prereqs` rather than as
   `{graph: {nodes, edges}}` — `graphFromMapNodes` (`lib/curriculum.ts`) derives
-  the graph on both sides, and derives a *real* one from the first three
+  the graph on both sides, and derives a _real_ one from the first three
   concepts, which is what lets the canvas paint mid-stream. Anything the whole
   payload is needed to compute is re-sent at the end instead: the map's columns
   can't be centred until their height is known, so the settling pass re-yields
@@ -161,7 +175,7 @@ kind, where latency is dominated by sequential output decoding:
   as the learner answers the first item. (Feynman needs no `total`: the learner
   teaches the whole concept once, and the rubric is graded as a set.)
 - A surface that dispatches against streamed content must read it the same way
-  it renders it — the committed cache *or* the live stream (`socraticStepsFor`,
+  it renders it — the committed cache _or_ the live stream (`socraticStepsFor`,
   `feynmanBeatsFor`). Reading only the cache makes every action a silent no-op
   until the stream finishes, which looks like a dead button, not a wait.
 - **`after()`** (`app/api/generate/route.ts`) warms the new map's frontier
@@ -169,11 +183,19 @@ kind, where latency is dominated by sequential output decoding:
   cache hit. It records through the same `logGenerationCalls` helper as
   everything else.
 
-Generation is unmetered — no per-user quota, no monthly spend ceiling, no
-`max_tokens` on model calls. `generation_log` survives as observability only:
-rows are *model calls* (what tracks spend), and `job_id` groups them into
-*jobs* (the surfaces a learner asked for). A job that fans out declares
-`Job.cost`, which is how many rows it writes.
+`generation_log` rows are _model calls_ (what tracks spend), and `job_id`
+groups them into _jobs_ (the surfaces a learner asked for). A job that fans out
+declares `Job.cost`, which is how many rows it writes.
+
+A learner is capped at `GENERATION_DAILY_QUOTA` distinct jobs per UTC day
+(default 60), counted off that table by the `generation_jobs_today()` RPC and
+enforced in `lib/server/quota.ts` — after the free cache hit, before the first
+model call. Over the cap, `/api/generate` answers 429 `rate_limit`; a
+background warm is declined silently with a 204 instead. The check **fails
+open**: if the count is unavailable the request proceeds, because 429-ing every
+learner over a broken meter is the worse failure. Still missing: a global
+monthly spend ceiling (`generation_calls_this_month()` exists and is unused)
+and any `max_tokens` on model calls.
 
 ## Auth & persistence (Supabase)
 
@@ -198,7 +220,7 @@ rows are *model calls* (what tracks spend), and `job_id` groups them into
 ## Conventions
 
 - Styling is inline `style={{...}}` objects matching the design file (`Learning
-  Platform.dc.html` in the Claude Design project). Two things a pseudo-class
+Platform.dc.html` in the Claude Design project). Two things a pseudo-class
   can't reach from an inline style live in `app/globals.css` instead: the shared
   keyframes (`pulseGlow`, `assemble`, `fadeUp`, `softIn`, …) and the **interaction
   layer** — the `at-press` / `at-lift` / `at-tint` / `at-glow` classes that carry
@@ -208,7 +230,7 @@ rows are *model calls* (what tracks spend), and `job_id` groups them into
   `transition` inline — move it to a wrapper.
 - Motion values come from `motion` / `transition()` in `lib/theme.ts`, the same
   way colours come from `color`. Never hand-write a duration or an easing curve.
-- A hover that *says something* is `HoverHint` (`components/HoverHint.tsx`),
+- A hover that _says something_ is `HoverHint` (`components/HoverHint.tsx`),
   never a `title` attribute: it dwells before opening, opens on keyboard focus
   too, and is portalled to `<body>` so a scrolling rail can't clip it. The map's
   own version is `NodeHoverCard` — the state, phase and cost of a hovered

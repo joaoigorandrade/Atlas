@@ -15,9 +15,7 @@ export async function updateSession(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet, headers) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value),
-        );
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         supabaseResponse = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) =>
           supabaseResponse.cookies.set(name, value, options),
@@ -36,9 +34,7 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isPublic =
-    path.startsWith("/login") ||
-    path.startsWith("/auth") ||
-    path.startsWith("/privacy");
+    path.startsWith("/login") || path.startsWith("/auth") || path.startsWith("/privacy");
 
   // An error here means we could not *ask* whether they are signed in — Supabase
   // was unreachable, or answered 5xx. That is not the same as "signed out", and

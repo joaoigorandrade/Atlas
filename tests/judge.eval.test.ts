@@ -4,11 +4,7 @@
 // offline. `npm run eval` runs it.
 
 import { describe, expect, it } from "vitest";
-import {
-  judgeCrucible,
-  judgeFeynman,
-  judgeSocratic,
-} from "@/lib/server/generate";
+import { judgeCrucible, judgeFeynman, judgeSocratic } from "@/lib/server/generate";
 
 const live = !!process.env.RUN_EVAL && !!process.env.OPENROUTER_API_KEY;
 

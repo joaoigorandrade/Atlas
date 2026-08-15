@@ -65,10 +65,7 @@ const DOT_COLOR: Record<string, string> = {
  * visible streak is the pull back. Click it for the popover: the forgiving-freeze
  * reassurance, the day strip, best + banked freezes, and the rhythm-tuned reminder.
  */
-export default function StreakFlame({
-  adherence,
-  onToggleReminder,
-}: StreakFlameProps) {
+export default function StreakFlame({ adherence, onToggleReminder }: StreakFlameProps) {
   const t = useT(STRINGS);
   const [open, setOpen] = useState(false);
   const popover = usePresence(open, POPOVER_EXIT_MS);
@@ -124,9 +121,7 @@ export default function StreakFlame({
           )}
         </span>
         <span>
-          <span style={{ fontWeight: 600, color: color.ink }}>
-            {adherence.streak}
-          </span>{" "}
+          <span style={{ fontWeight: 600, color: color.ink }}>{adherence.streak}</span>{" "}
           {t.dayStreak}
         </span>
         {adherence.freezes > 0 && (
@@ -268,9 +263,7 @@ function Popover({
                       : "rgba(44,40,35,0.05)",
               border:
                 day.status === "today"
-                  ? `1.5px dashed ${
-                      adherence.metToday ? STREAK_COLOR.flame : color.inkGhost
-                    }`
+                  ? `1.5px dashed ${adherence.metToday ? STREAK_COLOR.flame : color.inkGhost}`
                   : "none",
             }}
           >
@@ -291,9 +284,7 @@ function Popover({
                       ? `1.5px solid ${color.inkGhost}`
                       : "none",
                   boxShadow:
-                    day.status === "hit"
-                      ? `0 0 5px ${STREAK_COLOR.flame}`
-                      : "none",
+                    day.status === "hit" ? `0 0 5px ${STREAK_COLOR.flame}` : "none",
                 }}
               />
             )}
@@ -355,9 +346,7 @@ function Popover({
               border: "none",
               cursor: "pointer",
               padding: 0,
-              background: adherence.reminderOn
-                ? color.accent
-                : "rgba(44,40,35,0.18)",
+              background: adherence.reminderOn ? color.accent : "rgba(44,40,35,0.18)",
               transition: transition("background", "fast"),
             }}
           >

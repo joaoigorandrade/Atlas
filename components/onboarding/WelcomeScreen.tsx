@@ -141,9 +141,7 @@ export default function WelcomeScreen({
           animation: "fadeUp 0.5s both",
         }}
       >
-        <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>
-          {t.kicker}
-        </div>
+        <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>{t.kicker}</div>
         <h1
           style={{
             fontFamily: font.serif,
@@ -166,9 +164,7 @@ export default function WelcomeScreen({
           onDrop={onDrop}
           style={{
             background: color.card,
-            border: `1px ${dragging ? "dashed" : "solid"} ${
-              dragging ? color.accent : color.hairlineStrong
-            }`,
+            border: `1px ${dragging ? "dashed" : "solid"} ${dragging ? color.accent : color.hairlineStrong}`,
             borderRadius: 14,
             padding: 6,
             marginBottom: 8,
@@ -259,7 +255,13 @@ export default function WelcomeScreen({
               animation: "fadeUp 0.3s both",
             }}
           >
-            <div style={{ fontSize: 14.5, color: color.amberInk, marginBottom: 14 }}>
+            <div
+              style={{
+                fontSize: 14.5,
+                color: color.amberInk,
+                marginBottom: 14,
+              }}
+            >
               {t.scopeIntro(form.topic)}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -277,7 +279,13 @@ export default function WelcomeScreen({
                     cursor: "pointer",
                   }}
                 >
-                  <div style={{ fontFamily: font.serif, fontSize: 16.5, color: color.ink }}>
+                  <div
+                    style={{
+                      fontFamily: font.serif,
+                      fontSize: 16.5,
+                      color: color.ink,
+                    }}
+                  >
                     {scope.label} →
                   </div>
                   <div style={{ fontSize: 13, color: color.inkSoft, marginTop: 3 }}>
@@ -291,8 +299,7 @@ export default function WelcomeScreen({
 
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            {t.goalQuestion}{" "}
-            <span style={{ color: color.inkGhost }}>{t.goalHint}</span>
+            {t.goalQuestion} <span style={{ color: color.inkGhost }}>{t.goalHint}</span>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {goals(language).map(([key, label]) => (
@@ -309,8 +316,7 @@ export default function WelcomeScreen({
           {form.goal === "pareto" && (
             <div style={{ marginTop: 14, animation: "fadeUp 0.25s both" }}>
               <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 10 }}>
-                {t.pareto}{" "}
-                <span style={{ color: color.inkGhost }}>{t.paretoHint}</span>
+                {t.pareto} <span style={{ color: color.inkGhost }}>{t.paretoHint}</span>
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 {PARETO_LEVELS.map((pct) => (
@@ -318,10 +324,7 @@ export default function WelcomeScreen({
                     className="at-press"
                     key={pct}
                     onClick={() => onChange({ paretoPct: pct })}
-                    style={optionStyle(
-                      (form.paretoPct ?? PARETO_DEFAULT) === pct,
-                      false,
-                    )}
+                    style={optionStyle((form.paretoPct ?? PARETO_DEFAULT) === pct, false)}
                   >
                     {t.paretoPct(pct)}
                   </button>
@@ -367,8 +370,7 @@ export default function WelcomeScreen({
 
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            {t.interests}{" "}
-            <span style={{ color: color.inkGhost }}>{t.interestsHint}</span>
+            {t.interests} <span style={{ color: color.inkGhost }}>{t.interestsHint}</span>
           </div>
           <input
             value={form.interests}

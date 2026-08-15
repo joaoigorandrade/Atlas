@@ -16,9 +16,30 @@ describe("normalizeMarks", () => {
     endTime: 1000,
     value: "A matrix acts",
     chunks: [
-      { type: "word", start: 0, end: 1, startTime: 0, endTime: 120, value: "A" },
-      { type: "word", start: 2, end: 8, startTime: 120, endTime: 520, value: "matrix" },
-      { type: "word", start: 9, end: 13, startTime: 700, endTime: 1000, value: "acts" },
+      {
+        type: "word",
+        start: 0,
+        end: 1,
+        startTime: 0,
+        endTime: 120,
+        value: "A",
+      },
+      {
+        type: "word",
+        start: 2,
+        end: 8,
+        startTime: 120,
+        endTime: 520,
+        value: "matrix",
+      },
+      {
+        type: "word",
+        start: 9,
+        end: 13,
+        startTime: 700,
+        endTime: 1000,
+        value: "acts",
+      },
     ],
   };
 

@@ -29,34 +29,39 @@ const STRINGS = {
     sessionConnect: "Session · Connect",
     kickerElaboration: "Elaboration · durable encoding through real connections",
     heading: "Wire this into what you already know.",
-    intro1: "Understanding isn’t storage — you lock a concept in by tying it to things you already own. These are real nodes from ",
+    intro1:
+      "Understanding isn’t storage — you lock a concept in by tying it to things you already own. These are real nodes from ",
     introEm: "your",
-    intro2: " map, not generic trivia. Confirm the links that are true, in your own words.",
+    intro2:
+      " map, not generic trivia. Confirm the links that are true, in your own words.",
     conceptWeb: "Concept web · drawn from your mastered nodes",
     rawMaterial: "Raw material for Retain",
     noCardsYet: "no cards yet",
-    cardsDrafted: (n: number) =>
-      `${n} ${n === 1 ? "card" : "cards"} drafted, atomically`,
+    cardsDrafted: (n: number) => `${n} ${n === 1 ? "card" : "cards"} drafted, atomically`,
     mnemonicCard: "mnemonic card",
     connectionCard: "connection card",
     emptyCards: "Confirm a link above and its card drafts itself here.",
     ctaFinish: "Connected · continue to Crucible →",
-    readyNote: "Understood and connected — but not Mastered until the Crucible proves transfer.",
+    readyNote:
+      "Understood and connected — but not Mastered until the Crucible proves transfer.",
     notReadyNote: (linked: number, total: number) =>
       `${linked} of ${total} links made · two real connections is plenty to move on.`,
     linkingPrompt: "Linking prompt",
     howDoes: (center: string, cand: string) => `How does ${center} relate to ${cand}?`,
-    describeRelationship: "Describe the real relationship in your own words — writing it yourself is what makes it stick.",
+    describeRelationship:
+      "Describe the real relationship in your own words — writing it yourself is what makes it stick.",
     showSuggestion: "Stuck? Show the map’s suggestion",
     connectionPlaceholder: "Your connection…",
     linkConfirmedUpdate: "Link confirmed · update",
     confirmThisLink: "Confirm this link →",
     pickConcept: "Pick a concept to link",
-    idleBody: "Tap any node in the web on the left. Each real link you confirm becomes a card in the Retain phase — the tedious step, done for you.",
+    idleBody:
+      "Tap any node in the web on the left. Each real link you confirm becomes a card in the Retain phase — the tedious step, done for you.",
     listLike: "list-like",
     conceptual: "conceptual",
     encodingAuto: "encoding method · auto-detected",
-    mnemonicHidden: "Memory-palace & acronym tools stay hidden unless a node is genuinely list-like — sequences, taxonomies, raw vocab.",
+    mnemonicHidden:
+      "Memory-palace & acronym tools stay hidden unless a node is genuinely list-like — sequences, taxonomies, raw vocab.",
     accepted: "Accepted · saved as a card",
     acceptThisAid: "Accept this aid →",
   },
@@ -65,9 +70,11 @@ const STRINGS = {
     sessionConnect: "Sessão · Connect",
     kickerElaboration: "Elaboração · codificação duradoura por conexões reais",
     heading: "Conecte isso ao que você já sabe.",
-    intro1: "Compreender não é armazenar — você fixa um conceito ao amarrá-lo a coisas que você já domina. Estes são nós reais do ",
+    intro1:
+      "Compreender não é armazenar — você fixa um conceito ao amarrá-lo a coisas que você já domina. Estes são nós reais do ",
     introEm: "seu",
-    intro2: " mapa, não trivialidades genéricas. Confirme os vínculos que forem verdadeiros, com suas próprias palavras.",
+    intro2:
+      " mapa, não trivialidades genéricas. Confirme os vínculos que forem verdadeiros, com suas próprias palavras.",
     conceptWeb: "Rede de conceitos · construída a partir dos seus nós dominados",
     rawMaterial: "Matéria-prima para o Retain",
     noCardsYet: "nenhum card ainda",
@@ -77,22 +84,26 @@ const STRINGS = {
     connectionCard: "card de conexão",
     emptyCards: "Confirme um vínculo acima e o card se rascunha sozinho aqui.",
     ctaFinish: "Conectado · continuar para o Crucible →",
-    readyNote: "Compreendido e conectado — mas não Dominado até o Crucible provar a transferência.",
+    readyNote:
+      "Compreendido e conectado — mas não Dominado até o Crucible provar a transferência.",
     notReadyNote: (linked: number, total: number) =>
       `${linked} de ${total} vínculos feitos · duas conexões reais já bastam para seguir em frente.`,
     linkingPrompt: "Prompt de vínculo",
     howDoes: (center: string, cand: string) => `Como ${center} se relaciona com ${cand}?`,
-    describeRelationship: "Descreva a relação real com suas próprias palavras — escrever você mesmo é o que fixa.",
+    describeRelationship:
+      "Descreva a relação real com suas próprias palavras — escrever você mesmo é o que fixa.",
     showSuggestion: "Travou? Ver a sugestão do mapa",
     connectionPlaceholder: "Sua conexão…",
     linkConfirmedUpdate: "Vínculo confirmado · atualizar",
     confirmThisLink: "Confirmar este vínculo →",
     pickConcept: "Escolha um conceito para vincular",
-    idleBody: "Toque em qualquer nó da rede à esquerda. Cada vínculo real que você confirmar vira um card na fase Retain — a parte chata, já feita para você.",
+    idleBody:
+      "Toque em qualquer nó da rede à esquerda. Cada vínculo real que você confirmar vira um card na fase Retain — a parte chata, já feita para você.",
     listLike: "tipo lista",
     conceptual: "conceitual",
     encodingAuto: "método de codificação · detectado automaticamente",
-    mnemonicHidden: "As ferramentas de palácio da memória e acrônimos ficam escondidas a menos que um nó seja genuinamente do tipo lista — sequências, taxonomias, vocabulário puro.",
+    mnemonicHidden:
+      "As ferramentas de palácio da memória e acrônimos ficam escondidas a menos que um nó seja genuinamente do tipo lista — sequências, taxonomias, vocabulário puro.",
     accepted: "Aceito · salvo como card",
     acceptThisAid: "Aceitar este recurso →",
   },
@@ -138,7 +149,7 @@ export default function ConnectView({
   const t = useT(STRINGS);
   const { language } = useLanguage();
   const activeCand = session.active
-    ? content.cands.find((c) => c.id === session.active) ?? null
+    ? (content.cands.find((c) => c.id === session.active) ?? null)
     : null;
   const linkedCount = connectLinkedCount(session);
   const ready = connectReady(session, content.cands.length);
@@ -191,20 +202,22 @@ export default function ConnectView({
           <Rich text={content.centerLabel} />
         </div>
         <div style={{ flex: 1 }} />
-        <span
-          style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}
-        >
-          Consume → Socratic → Feynman →{" "}
-          <b style={{ color: VIOLET }}>Connect</b> → Crucible → Retain
+        <span style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}>
+          Consume → Socratic → Feynman → <b style={{ color: VIOLET }}>Connect</b> →
+          Crucible → Retain
         </span>
       </div>
 
       {/* Body — scrolls; centered 1040 column */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <div style={{ maxWidth: 1040, margin: "0 auto", padding: "40px 32px 110px" }}>
-          <div style={{ ...kicker(11), marginBottom: 10 }}>
-            {t.kickerElaboration}
-          </div>
+        <div
+          style={{
+            maxWidth: 1040,
+            margin: "0 auto",
+            padding: "40px 32px 110px",
+          }}
+        >
+          <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kickerElaboration}</div>
           <h1
             style={{
               fontFamily: font.serif,
@@ -241,9 +254,7 @@ export default function ConnectView({
           >
             {/* Concept web */}
             <div>
-              <div style={{ ...kicker(10), marginBottom: 12 }}>
-                {t.conceptWeb}
-              </div>
+              <div style={{ ...kicker(10), marginBottom: 12 }}>{t.conceptWeb}</div>
               <ConceptWeb
                 content={content}
                 session={session}
@@ -357,7 +368,11 @@ export default function ConnectView({
               </div>
             ) : (
               <div
-                style={{ fontSize: 14, color: color.inkGhost, fontStyle: "italic" }}
+                style={{
+                  fontSize: 14,
+                  color: color.inkGhost,
+                  fontStyle: "italic",
+                }}
               >
                 {t.emptyCards}
               </div>
@@ -384,7 +399,13 @@ export default function ConnectView({
             >
               {t.ctaFinish}
             </button>
-            <span style={{ fontSize: 13.5, color: color.inkFaint, lineHeight: 1.45 }}>
+            <span
+              style={{
+                fontSize: 13.5,
+                color: color.inkFaint,
+                lineHeight: 1.45,
+              }}
+            >
               {ready ? t.readyNote : t.notReadyNote(linkedCount, content.cands.length)}
             </span>
           </div>
@@ -498,13 +519,7 @@ function ConceptWeb({
               gap: 7,
               padding: "8px 12px",
               background: color.card,
-              border: `1px solid ${
-                active
-                  ? VIOLET
-                  : on
-                    ? "rgba(76,139,99,0.55)"
-                    : color.hairlineStrong
-              }`,
+              border: `1px solid ${active ? VIOLET : on ? "rgba(76,139,99,0.55)" : color.hairlineStrong}`,
               borderRadius: 10,
               whiteSpace: "nowrap",
               cursor: "pointer",
@@ -713,9 +728,7 @@ function IdlePrompt() {
       >
         {t.pickConcept}
       </div>
-      <div style={{ fontSize: 14, lineHeight: 1.55 }}>
-        {t.idleBody}
-      </div>
+      <div style={{ fontSize: 14, lineHeight: 1.55 }}>{t.idleBody}</div>
     </div>
   );
 }

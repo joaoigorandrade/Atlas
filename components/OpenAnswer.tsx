@@ -160,12 +160,7 @@ export function OpenAnswer({
           opacity: judging ? 0.6 : 1,
         }}
       />
-      <MicButton
-        value={text}
-        onChange={setText}
-        disabled={judging}
-        accent={accent}
-      />
+      <MicButton value={text} onChange={setText} disabled={judging} accent={accent} />
       <button
         className="at-press"
         onClick={submit}
@@ -194,7 +189,8 @@ export function OpenAnswer({
             color: color.amberInk,
           }}
         >
-          {error}{t.errorSuffix}
+          {error}
+          {t.errorSuffix}
         </div>
       )}
       <div style={{ ...kicker(9.5, "0.1em"), marginTop: 10 }}>{t.hint}</div>

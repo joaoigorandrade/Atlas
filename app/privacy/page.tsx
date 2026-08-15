@@ -3,6 +3,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
@@ -57,7 +58,8 @@ const STRINGS = {
     deletingDataStrong: "Configurações → Conta → Excluir conta e todos os dados",
     deletingDataPost:
       ". Isso remove imediatamente o estado da sua jornada e o registro de geração, e sua conta junto com eles. Não pode ser desfeito.",
-    questions: "Dúvidas sobre seus dados? Entre em contato pela conta com a qual você se cadastrou.",
+    questions:
+      "Dúvidas sobre seus dados? Entre em contato pela conta com a qual você se cadastrou.",
   },
 } as const;
 
@@ -87,12 +89,10 @@ export default function PrivacyPage() {
       }}
     >
       <main style={{ width: "100%", maxWidth: 640, padding: "64px 28px 96px" }}>
-        <a href="/" style={{ fontSize: 13.5, color: color.inkMuted }}>
+        <Link href="/" style={{ fontSize: 13.5, color: color.inkMuted }}>
           {t.backToAtlas}
-        </a>
-        <div style={{ ...kicker(11, "0.2em"), margin: "28px 0 14px" }}>
-          {t.kicker}
-        </div>
+        </Link>
+        <div style={{ ...kicker(11, "0.2em"), margin: "28px 0 14px" }}>{t.kicker}</div>
         <h1
           style={{
             fontFamily: font.serif,

@@ -51,9 +51,7 @@ export default function BuildingOverlay({ note }: { note?: string | null }) {
       }}
     >
       <div style={{ textAlign: "center", animation: "fadeUp 0.6s both" }}>
-        <div style={{ ...kicker(11, "0.18em"), marginBottom: 10 }}>
-          {t.kicker}
-        </div>
+        <div style={{ ...kicker(11, "0.18em"), marginBottom: 10 }}>{t.kicker}</div>
         <div
           key={line}
           style={{

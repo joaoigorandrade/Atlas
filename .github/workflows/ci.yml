@@ -1,6 +1,19 @@
-# CI (#20): typecheck, unit tests (reducers, validators, FSRS store — all
-# offline), and the production build. Live-model evals (npm run eval) are
-# intentionally NOT run here — they cost money and need a key.
+# CI — the Phase 0 gates. Each matrix entry is its own status check, so each can
+# be required on main individually (see docs/PLAN-QUALITY.md §0.5) and a failure
+# names the gate that failed rather than "ci".
+#
+#   lint          eslint — real-bug rules only, no style (Prettier owns style)
+#   format:check  prettier
+#   typecheck     tsc --noEmit
+#   test:coverage vitest + the coverage floor on lib/** (vitest.config.ts)
+#   size          scripts/size-budget.mjs — the ratchet on file length
+#   build         next build
+#
+# e2e joins this list in Phase 1, once fixture mode makes the app drivable
+# without a live OpenRouter call.
+#
+# Live-model evals (npm run eval) are intentionally NOT run here — they cost
+# money and need a key.
 
 name: CI
 
@@ -10,8 +23,13 @@ on:
   pull_request:
 
 jobs:
-  ci:
+  check:
+    name: ${{ matrix.check }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [lint, format:check, typecheck, test:coverage, size, build]
     env:
       # Build-time placeholders — no real service is reached during CI.
       SUPABASE_URL: https://placeholder.supabase.co
@@ -23,6 +41,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - run: npm run ${{ matrix.check }}

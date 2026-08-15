@@ -21,7 +21,11 @@ describe("contentKey", () => {
   const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 
   it("hashes exactly v{VERSION}\\0{kind}\\0{stable(params)}", () => {
-    const params = { topic: "Rust", nodeLabel: "Ownership", interests: "game dev" };
+    const params = {
+      topic: "Rust",
+      nodeLabel: "Ownership",
+      interests: "game dev",
+    };
     const stable = '{"interests":"game dev","nodeLabel":"Ownership","topic":"Rust"}';
     expect(contentKey("consume", params)).toBe(
       digest(`v${version}${NUL}consume${NUL}${stable}`),
@@ -58,9 +62,7 @@ describe("contentKey", () => {
 
   it("separates kinds sharing identical params", () => {
     const params = { topic: "Rust", nodeLabel: "Borrowing", interests: "" };
-    expect(contentKey("consume", params)).not.toBe(
-      contentKey("socratic", params),
-    );
+    expect(contentKey("consume", params)).not.toBe(contentKey("socratic", params));
   });
 
   it("separates learners whose interests differ — content is personalized", () => {
@@ -76,7 +78,11 @@ describe("contentKey", () => {
     // made of — the map prompt never sees them. Keying on them anyway split
     // byte-identical maps across rows and cost the shared cache the one
     // generation that can never be warmed.
-    const base = { kind: "curriculum" as const, topic: "Rust", goal: "mastery" as const };
+    const base = {
+      kind: "curriculum" as const,
+      topic: "Rust",
+      goal: "mastery" as const,
+    };
     expect(resolveJob({ ...base, interests: "game dev" }).key).toBe(
       resolveJob({ ...base, interests: "web servers" }).key,
     );
@@ -100,8 +106,12 @@ describe("contentKey", () => {
   });
 
   it("distinguishes a different pool — the content references it", () => {
-    const a = contentKey("connect", { pool: [{ id: "n1", label: "Ownership" }] });
-    const b = contentKey("connect", { pool: [{ id: "n2", label: "Lifetimes" }] });
+    const a = contentKey("connect", {
+      pool: [{ id: "n1", label: "Ownership" }],
+    });
+    const b = contentKey("connect", {
+      pool: [{ id: "n2", label: "Lifetimes" }],
+    });
     expect(a).not.toBe(b);
   });
 });

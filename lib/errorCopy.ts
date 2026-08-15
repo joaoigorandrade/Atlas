@@ -26,11 +26,7 @@ import type { Language } from "@/lib/i18n";
  * server (`AtlasError.reason`, on the wire as `reason`), never by prose.
  */
 export type ErrorReason =
-  | "no_file"
-  | "file_too_big"
-  | "unsupported_type"
-  | "no_text"
-  | "unreadable";
+  "no_file" | "file_too_big" | "unsupported_type" | "no_text" | "unreadable";
 
 export type ErrorContext =
   | "build"
@@ -49,15 +45,12 @@ export type ErrorContext =
 export const ERROR_STRINGS = {
   en: {
     code: {
-      offline:
-        "You're offline — nothing was lost. This picks up the moment you're back.",
+      offline: "You're offline — nothing was lost. This picks up the moment you're back.",
       auth: "Your session expired. Sign in again to pick up where you left off.",
-      rate_limit:
-        "Too many requests at once — give it a few seconds and try again.",
+      rate_limit: "Too many requests at once — give it a few seconds and try again.",
       timeout:
         "That took too long to come back. Try again — it usually lands on the second pass.",
-      upstream:
-        "The model didn't answer this time. Nothing is lost — try again.",
+      upstream: "The model didn't answer this time. Nothing is lost — try again.",
       invalid: "That didn't go through. Adjust it and try again.",
       notfound: "That isn't here any more.",
       // Never rendered — a declined warm is swallowed by the queue — but the
@@ -110,12 +103,10 @@ export const ERROR_STRINGS = {
       offline:
         "Você está sem conexão — nada foi perdido. Retomamos assim que ela voltar.",
       auth: "Sua sessão expirou. Entre de novo para continuar de onde parou.",
-      rate_limit:
-        "Pedidos demais de uma vez — espere alguns segundos e tente de novo.",
+      rate_limit: "Pedidos demais de uma vez — espere alguns segundos e tente de novo.",
       timeout:
         "Isso demorou demais para responder. Tente de novo — costuma dar certo na segunda.",
-      upstream:
-        "O modelo não respondeu desta vez. Nada foi perdido — tente de novo.",
+      upstream: "O modelo não respondeu desta vez. Nada foi perdido — tente de novo.",
       invalid: "Isso não passou. Ajuste e tente de novo.",
       notfound: "Isso não está mais aqui.",
       declined: "Ignorado em segundo plano.",
@@ -153,8 +144,7 @@ export const ERROR_STRINGS = {
     offlineBanner:
       "Você está sem conexão — seu progresso fica seguro aqui até a conexão voltar.",
     notSaved: "Progresso não salvo · tentando de novo",
-    crashBody:
-      "Seu mapa e tudo o que você aprendeu estão intactos — só esta tela parou.",
+    crashBody: "Seu mapa e tudo o que você aprendeu estão intactos — só esta tela parou.",
     notFoundKicker: "Nada por aqui",
     notFoundTitle: "Esta página não faz parte do mapa.",
     notFoundBody:

@@ -54,14 +54,7 @@ export default function Toast({
   if (!mounted || !shown) return null;
   // Keyed on `seq` so a second toast replaces the first with a fresh entrance
   // rather than silently swapping its text.
-  return (
-    <ToastBody
-      key={shown.seq}
-      toast={shown}
-      state={state}
-      onDismiss={onDismiss}
-    />
-  );
+  return <ToastBody key={shown.seq} toast={shown} state={state} onDismiss={onDismiss} />;
 }
 
 function ToastBody({

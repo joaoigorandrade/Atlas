@@ -184,9 +184,7 @@ export default function ProfileScreen({
               >
                 {name}
               </h1>
-              <div style={{ fontSize: 14, color: color.inkMuted }}>
-                {userEmail}
-              </div>
+              <div style={{ fontSize: 14, color: color.inkMuted }}>{userEmail}</div>
             </div>
             <button
               className="at-press"
@@ -298,9 +296,7 @@ export default function ProfileScreen({
                 >
                   {t.interestsLabel}
                 </div>
-                <div
-                  style={{ display: "flex", flexWrap: "wrap", gap: 9 }}
-                >
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
                   {interests.map((c) => (
                     <span
                       key={c}

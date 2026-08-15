@@ -21,11 +21,7 @@ export function describe(err: unknown): string {
   return message.slice(0, LOG_DETAIL_CHARS);
 }
 
-function emit(
-  write: (line: string) => void,
-  evt: string,
-  fields: LogFields,
-): void {
+function emit(write: (line: string) => void, evt: string, fields: LogFields): void {
   // Undefined fields are dropped rather than serialized as absent keys with
   // meaning — a log line should not imply a value was measured and empty.
   const entry: LogFields = { evt };
@@ -40,20 +36,12 @@ export function logEvent(evt: string, fields: LogFields = {}): void {
 }
 
 /** A thing that failed. `err` is folded in as a bounded `error` field. */
-export function logError(
-  evt: string,
-  err: unknown,
-  fields: LogFields = {},
-): void {
+export function logError(evt: string, err: unknown, fields: LogFields = {}): void {
   emit((line) => console.error(line), evt, { ...fields, error: describe(err) });
 }
 
 /** A thing that failed but was handled — a swallowed warm, a best-effort read
  *  that fell back. Loud enough to find, quiet enough not to page anyone. */
-export function logWarning(
-  evt: string,
-  err: unknown,
-  fields: LogFields = {},
-): void {
+export function logWarning(evt: string, err: unknown, fields: LogFields = {}): void {
   emit((line) => console.warn(line), evt, { ...fields, error: describe(err) });
 }

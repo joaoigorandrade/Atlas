@@ -1,0 +1,7 @@
+.next
+node_modules
+.claude
+scratch
+package-lock.json
+tsconfig.tsbuildinfo
+*.dc.html

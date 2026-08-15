@@ -5,10 +5,7 @@ import {
   type StreamFrame,
   type StreamShape,
 } from "@/lib/server/stream";
-import {
-  CONSUME_SECTION_SHAPE,
-  MODEL_BEAT_SHAPE,
-} from "@/lib/server/generate/shapes";
+import { CONSUME_SECTION_SHAPE, MODEL_BEAT_SHAPE } from "@/lib/server/generate/shapes";
 
 // The assembler is what lets a streamed generation share a cache row with a
 // single-shot one. Two properties matter and nothing else does: a complete set
@@ -20,7 +17,11 @@ import {
 const CONSUME: StreamShape = { chunks: { min: 4, max: 6 } };
 
 const chunkFrames = (n: number): StreamFrame[] =>
-  Array.from({ length: n }, (_, i) => ({ p: "chunks", i, v: { id: `c${i + 1}` } }));
+  Array.from({ length: n }, (_, i) => ({
+    p: "chunks",
+    i,
+    v: { id: `c${i + 1}` },
+  }));
 
 describe("framesToPayload", () => {
   // Token-by-token redraws are rendered, never validated. If one could be
@@ -58,7 +59,9 @@ describe("framesToPayload", () => {
       { p: "chunks", i: 2, v: "c" },
       { p: "chunks", i: 1, v: "b" },
     ];
-    expect(framesToPayload(shuffled, CONSUME)).toEqual({ chunks: ["a", "b", "c", "d"] });
+    expect(framesToPayload(shuffled, CONSUME)).toEqual({
+      chunks: ["a", "b", "c", "d"],
+    });
   });
 
   it("replaces a re-sent slot instead of appending it — the Consume alt pass", () => {
@@ -102,7 +105,9 @@ describe("framesToPayload", () => {
       { p: "diagnostic", i: 1, v: "q2" },
       { p: "diagnostic", i: 2, v: "q3" },
     ];
-    expect(framesToPayload([{ p: "graph", v: { nodes: [] } }, ...diagnostic], shape)).toEqual({
+    expect(
+      framesToPayload([{ p: "graph", v: { nodes: [] } }, ...diagnostic], shape),
+    ).toEqual({
       graph: { nodes: [] },
       diagnostic: ["q1", "q2", "q3"],
     });
@@ -118,7 +123,9 @@ describe("payloadToFrames", () => {
   });
 
   it("replays a consume payload as one frame per section", () => {
-    const payload = { chunks: [{ id: "c1" }, { id: "c2" }, { id: "c3" }, { id: "c4" }] };
+    const payload = {
+      chunks: [{ id: "c1" }, { id: "c2" }, { id: "c3" }, { id: "c4" }],
+    };
     const frames = payloadToFrames(payload, CONSUME);
     expect(frames).toHaveLength(4);
     expect(frames[2]).toEqual({ p: "chunks", i: 2, v: { id: "c3" } });
@@ -130,7 +137,15 @@ describe("prompt shapes", () => {
   // generation time, on the model's reply, with nothing in the type system or
   // the test suite between the two. These are that guard.
   it("asks for every section field the validator requires", () => {
-    for (const field of ["kicker", "body", "example", "takeaway", "cite", "figure", "ask"])
+    for (const field of [
+      "kicker",
+      "body",
+      "example",
+      "takeaway",
+      "cite",
+      "figure",
+      "ask",
+    ])
       expect(CONSUME_SECTION_SHAPE).toContain(`"${field}"`);
   });
 
@@ -143,6 +158,7 @@ describe("prompt shapes", () => {
   });
 
   it("asks for every model-view beat field the validator requires", () => {
-    for (const field of ["label", "text"]) expect(MODEL_BEAT_SHAPE).toContain(`"${field}"`);
+    for (const field of ["label", "text"])
+      expect(MODEL_BEAT_SHAPE).toContain(`"${field}"`);
   });
 });

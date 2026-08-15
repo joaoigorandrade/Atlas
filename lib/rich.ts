@@ -77,8 +77,7 @@ export function tokenizeRich(text: string | undefined | null): RichToken[] {
  */
 export function spokenText(text: string | undefined | null): string {
   let out = "";
-  for (const token of tokenizeRich(text))
-    if (token.kind !== "fence") out += token.text;
+  for (const token of tokenizeRich(text)) if (token.kind !== "fence") out += token.text;
   return out;
 }
 

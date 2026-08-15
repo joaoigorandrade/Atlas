@@ -28,7 +28,6 @@ import {
   type DiagnosticQuestion,
   type ElaborationContent,
   type FeynmanBeat,
-  type ForecastTone,
   type GoalKind,
   type MapNode,
   type RetainContent,
@@ -162,7 +161,7 @@ export type Language = "en" | "pt-BR";
  *  match. */
 function languageNote(language: Language | undefined): string {
   return language === "pt-BR"
-    ? "\n\nOUTPUT LANGUAGE: Brazilian Portuguese (pt-BR). Every natural-language string value you return must be written in Portuguese — including any label, tag, title or example text shown in the JSON template above. Translate those; never copy their English wording. Keep only JSON field names and enum values (e.g. \"correct\", \"mastered\", \"conceptual\", \"list-like\") exactly as specified in English."
+    ? '\n\nOUTPUT LANGUAGE: Brazilian Portuguese (pt-BR). Every natural-language string value you return must be written in Portuguese — including any label, tag, title or example text shown in the JSON template above. Translate those; never copy their English wording. Keep only JSON field names and enum values (e.g. "correct", "mastered", "conceptual", "list-like") exactly as specified in English.'
     : "";
 }
 
@@ -208,11 +207,17 @@ function interestNote(interests: string): string {
  * re-teach it. `later` is a fence: name it in one clause if the connection is
  * genuinely load-bearing, never explain it.
  */
-function boundaryNote(params: { priorLabels?: string[]; laterLabels?: string[] }): string {
+function boundaryNote(params: {
+  priorLabels?: string[];
+  laterLabels?: string[];
+}): string {
   const prior = (params.priorLabels ?? []).filter(Boolean);
   const later = (params.laterLabels ?? []).filter(Boolean);
   if (!prior.length && !later.length) return "";
-  const lines = ["", "THE MAP AROUND THIS CONCEPT — the learner is working through a whole map, and every other concept on it has its own pass. Stay inside this one:"];
+  const lines = [
+    "",
+    "THE MAP AROUND THIS CONCEPT — the learner is working through a whole map, and every other concept on it has its own pass. Stay inside this one:",
+  ];
   if (prior.length)
     lines.push(
       `- Already taught, earlier on the map: ${prior.join(", ")}. Assume all of it and build on it — refer to it by name, never re-explain or re-derive it. A recap of one of those is material the learner has already read.`,
@@ -354,8 +359,12 @@ export function validateGraphPart(
   const edges: ConceptEdge[] = [];
   for (const [i, v] of arr(root.edges, "edges", nodes.length - 1, 80).entries()) {
     const e = arr(v, `edges[${i}]`, 2, 3);
-    const from = str(e[0], `edges[${i}][0]`).toLowerCase().replace(/[^a-z0-9-]/g, "-");
-    const to = str(e[1], `edges[${i}][1]`).toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    const from = str(e[0], `edges[${i}][0]`)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-");
+    const to = str(e[1], `edges[${i}][1]`)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-");
     if (!seen.has(from) || !seen.has(to) || from === to) continue; // drop, don't fail
     edges.push([from, to]);
   }
@@ -391,8 +400,11 @@ export function validateDiagnosticQuestion(
   nodeIds: Set<string>,
 ): RawDiagnostic {
   const d = obj(raw, "payload");
-  const nodeId = str(d.nodeId, "nodeId").toLowerCase().replace(/[^a-z0-9-]/g, "-");
-  if (!nodeIds.has(nodeId)) fail(`nodeId "${nodeId}" is not one of the offered candidates`);
+  const nodeId = str(d.nodeId, "nodeId")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-");
+  if (!nodeIds.has(nodeId))
+    fail(`nodeId "${nodeId}" is not one of the offered candidates`);
   const opts = arr(d.opts, "opts", 4, 4).map((o, j) => ({
     label: str(o, `opts[${j}]`),
   }));
@@ -480,7 +492,8 @@ ${sizeRule({
   unit: "concepts",
   min: ask[0],
   max: ask[1],
-  atMin: "a topic that is one technique or one mechanism, where a handful of concepts genuinely is the whole of it",
+  atMin:
+    "a topic that is one technique or one mechanism, where a handful of concepts genuinely is the whole of it",
   atMax: "a broad field with several separate branches a learner must cross",
 })}
 The map must read left-to-right from true foundations to the topic's capstone ideas. Every node is a CONCEPT the learner can be taught and then tested on — never a chapter heading or a container: no "Introduction", "Overview", "Fundamentals", "Advanced Topics", "Applications", "Conclusion".`;
@@ -521,7 +534,9 @@ export async function generateMap(
   params: MapParams,
 ): Promise<CurriculumMapPayload | { scopes: ScopeOffer[] }> {
   const { language = "en" } = params;
-  const bounds = mapNodeBounds(params.goal === "pareto" ? params.paretoPct ?? PARETO_DEFAULT : undefined);
+  const bounds = mapNodeBounds(
+    params.goal === "pareto" ? (params.paretoPct ?? PARETO_DEFAULT) : undefined,
+  );
   const raw = await generateJson<
     | { scopes: ScopeOffer[] }
     | {
@@ -599,7 +614,9 @@ export function validateMapConcept(
  */
 export async function* generateMapStream(params: MapParams): AsyncGenerator<StreamFrame> {
   const { language = "en" } = params;
-  const bounds = mapNodeBounds(params.goal === "pareto" ? params.paretoPct ?? PARETO_DEFAULT : undefined);
+  const bounds = mapNodeBounds(
+    params.goal === "pareto" ? (params.paretoPct ?? PARETO_DEFAULT) : undefined,
+  );
   let yielded = 0;
   try {
     const seen = new Set<string>();
@@ -719,7 +736,9 @@ export interface SummaryParams {
 export function validateSummary(raw: unknown): string {
   const summary = str(obj(raw, "payload").summary, "summary");
   if (summary.length > SUMMARY_MAX)
-    fail(`summary must be ONE sentence of at most ~22 words (got ${summary.length} characters)`);
+    fail(
+      `summary must be ONE sentence of at most ~22 words (got ${summary.length} characters)`,
+    );
   return summary;
 }
 
@@ -910,9 +929,12 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
 
 export function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
-  return arr(root.chunks, "chunks", CONSUME_SECTION_BOUNDS.min, CONSUME_SECTION_BOUNDS.max).map(
-    validateConsumeSection,
-  );
+  return arr(
+    root.chunks,
+    "chunks",
+    CONSUME_SECTION_BOUNDS.min,
+    CONSUME_SECTION_BOUNDS.max,
+  ).map(validateConsumeSection);
 }
 
 function consumeContext(params: {
@@ -1082,12 +1104,9 @@ function draftConsumeModelBeat(raw: unknown): ConsumeModelBeat | null {
 
 export function validateConsumeModel(raw: unknown): ConsumeModelBeat[] {
   const root = obj(raw, "payload");
-  return arr(
-    root.beats,
-    "beats",
-    MODEL_BEAT_BOUNDS.min,
-    MODEL_BEAT_BOUNDS.max,
-  ).map(validateConsumeModelBeat);
+  return arr(root.beats, "beats", MODEL_BEAT_BOUNDS.min, MODEL_BEAT_BOUNDS.max).map(
+    validateConsumeModelBeat,
+  );
 }
 
 export interface ModelParams {
@@ -1105,7 +1124,16 @@ export interface ModelParams {
 
 /** The shared framing of both model-view prompts. */
 function modelContext(params: ModelParams): string {
-  const { topic, nodeLabel, lens, kicker, body, takeaway, interests, language = "en" } = params;
+  const {
+    topic,
+    nodeLabel,
+    lens,
+    kicker,
+    body,
+    takeaway,
+    interests,
+    language = "en",
+  } = params;
   // The learner tapped a control in THEIR language — quoting the English one
   // back at the model while `languageNote` asks for Portuguese output describes
   // a button that isn't on their screen.
@@ -1519,10 +1547,7 @@ export function validateFeynmanBeat(nodeId: string) {
   return (raw: unknown, i: number): FeynmanBeat => {
     const b = obj(raw, `beats[${i}]`);
     const mustConvey = arr(b.mustConvey, `beats[${i}].mustConvey`, 1, 4).map((m, j) =>
-      rejectEcho(
-        str(m, `beats[${i}].mustConvey[${j}]`),
-        `beats[${i}].mustConvey[${j}]`,
-      ),
+      rejectEcho(str(m, `beats[${i}].mustConvey[${j}]`), `beats[${i}].mustConvey[${j}]`),
     );
     const fix = obj(b.fix, `beats[${i}].fix`);
     const fixReplies = arr(fix.replies, `beats[${i}].fix.replies`, 2, 3).map((r, j) => {
@@ -1540,7 +1565,10 @@ export function validateFeynmanBeat(nodeId: string) {
       id: `ft-${nodeId}-${i + 1}`,
       subPoint: str(b.subPoint, `beats[${i}].subPoint`),
       mustConvey,
-      fix: { probe: str(fix.probe, `beats[${i}].fix.probe`), replies: fixReplies },
+      fix: {
+        probe: str(fix.probe, `beats[${i}].fix.probe`),
+        replies: fixReplies,
+      },
       gap: {
         id: `gap-ft-${nodeId}-${i + 1}`,
         label: str(b.gapLabel, `beats[${i}].gapLabel`),
@@ -1556,7 +1584,9 @@ export function validateFeynman(nodeId: string) {
   const beat = validateFeynmanBeat(nodeId);
   return (raw: unknown): FeynmanBeat[] => {
     const root = obj(raw, "payload");
-    return arr(root.beats, "beats", FEYNMAN_BEAT_BOUNDS.min, FEYNMAN_BEAT_BOUNDS.max).map(beat);
+    return arr(root.beats, "beats", FEYNMAN_BEAT_BOUNDS.min, FEYNMAN_BEAT_BOUNDS.max).map(
+      beat,
+    );
   };
 }
 
@@ -1694,21 +1724,35 @@ function validateConnect(
 ) {
   return (raw: unknown): ElaborationContent => {
     const root = obj(raw, "payload");
-    const encoding = oneOf(root.encoding, ["conceptual", "list-like"] as const, "encoding");
+    const encoding = oneOf(
+      root.encoding,
+      ["conceptual", "list-like"] as const,
+      "encoding",
+    );
     const byId = new Map(pool.map((p) => [p.id, p.label]));
     const seen = new Set<string>();
     const cands = arr(root.cands, "cands", Math.min(2, pool.length), CONNECT_SLOTS.length)
       .map((v, i) => {
         const c = obj(v, `cands[${i}]`);
-        const id = str(c.id, `cands[${i}].id`).toLowerCase().replace(/[^a-z0-9-]/g, "-");
+        const id = str(c.id, `cands[${i}].id`)
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, "-");
         if (!byId.has(id) || seen.has(id)) return null;
         seen.add(id);
         const [x, y] = CONNECT_SLOTS[seen.size - 1];
-        return { id, label: byId.get(id)!, x, y, rel: str(c.rel, `cands[${i}].rel`) };
+        return {
+          id,
+          label: byId.get(id)!,
+          x,
+          y,
+          rel: str(c.rel, `cands[${i}].rel`),
+        };
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
     if (cands.length < Math.min(2, pool.length))
-      fail(`cands must include at least ${Math.min(2, pool.length)} ids from the provided list`);
+      fail(
+        `cands must include at least ${Math.min(2, pool.length)} ids from the provided list`,
+      );
     const base: ElaborationContent = {
       centerId: nodeId,
       centerLabel: nodeLabel,
@@ -1724,16 +1768,19 @@ function validateConnect(
       base.items = arr(root.items, "items (required for list-like)", 3, 30).map((s, i) =>
         str(s, `items[${i}]`),
       );
-      base.mnemonics = arr(root.mnemonics, "mnemonics (required for list-like)", 1, 3).map(
-        (v, i) => {
-          const m = obj(v, `mnemonics[${i}]`);
-          return {
-            kind: str(m.kind, `mnemonics[${i}].kind`),
-            title: str(m.title, `mnemonics[${i}].title`),
-            body: str(m.body, `mnemonics[${i}].body`),
-          };
-        },
-      );
+      base.mnemonics = arr(
+        root.mnemonics,
+        "mnemonics (required for list-like)",
+        1,
+        3,
+      ).map((v, i) => {
+        const m = obj(v, `mnemonics[${i}]`);
+        return {
+          kind: str(m.kind, `mnemonics[${i}].kind`),
+          title: str(m.title, `mnemonics[${i}].title`),
+          body: str(m.body, `mnemonics[${i}].body`),
+        };
+      });
     }
     return base;
   };
@@ -1824,7 +1871,10 @@ export function validateCrucible(
         ),
       };
     });
-    if (!transfer.some((t) => t.verdict === "red") || !transfer.some((t) => t.verdict === "good"))
+    if (
+      !transfer.some((t) => t.verdict === "red") ||
+      !transfer.some((t) => t.verdict === "good")
+    )
       fail("transfer needs at least one good and one red row");
     // "Drawn from your map" must be true: keep only draws that name real
     // mastered nodes; an interest or invented label is dropped (#15).
@@ -1833,7 +1883,13 @@ export function validateCrucible(
     const draws =
       masteredLabels.length === 0
         ? rawDraws // nothing to validate against on a fresh map
-        : [...new Set(rawDraws.map((d) => owned.get(d.toLowerCase())).filter((d): d is string => !!d))];
+        : [
+            ...new Set(
+              rawDraws
+                .map((d) => owned.get(d.toLowerCase()))
+                .filter((d): d is string => !!d),
+            ),
+          ];
     if (draws.length < 1)
       fail(
         `draws must name concepts from the learner's map (${masteredLabels.join(", ")}) — never interests or invented labels`,
@@ -1920,8 +1976,14 @@ export const RETAIN_CARD_BOUNDS = { min: 3, max: 8 } as const;
  *  rotation, clamped into `RETAIN_CARD_BOUNDS`. A three-node rotation asking
  *  for six cards got six — four of them second and third cuts at the same fact,
  *  which is exactly what a review queue must not be made of. */
-export function retainCardBounds(nodeCount: number): { min: number; max: number } {
-  const target = Math.max(RETAIN_CARD_BOUNDS.min, Math.min(RETAIN_CARD_BOUNDS.max, nodeCount));
+export function retainCardBounds(nodeCount: number): {
+  min: number;
+  max: number;
+} {
+  const target = Math.max(
+    RETAIN_CARD_BOUNDS.min,
+    Math.min(RETAIN_CARD_BOUNDS.max, nodeCount),
+  );
   return {
     min: Math.max(RETAIN_CARD_BOUNDS.min, target - 1),
     max: Math.min(RETAIN_CARD_BOUNDS.max, target + 1),
@@ -1957,7 +2019,9 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
       RETAIN_CARD_BOUNDS.max,
     ).map((v, i) => {
       const c = obj(v, `cards[${i}]`);
-      const node = str(c.node, `cards[${i}].node`).toLowerCase().replace(/[^a-z0-9-]/g, "-");
+      const node = str(c.node, `cards[${i}].node`)
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-");
       if (!nodeIds.has(node)) fail(`cards[${i}].node "${node}" is not a learned node id`);
       const type = oneOf(c.type, CARD_TYPES, `cards[${i}].type`);
       const hasCloze = Array.isArray(c.cloze) && typeof c.answer === "string";
@@ -2151,7 +2215,10 @@ Then the full object described above (it repeats the verdict and adds the rest).
   // frame for the same slot replaces the earlier one, here and in the client.
   yield {
     p: "judgement",
-    v: await generateJson(messages, spec.full, { label: spec.label, role: "judge" }),
+    v: await generateJson(messages, spec.full, {
+      label: spec.label,
+      role: "judge",
+    }),
   };
 }
 
@@ -2237,10 +2304,10 @@ function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
         )}. If this answer is another instance of one of those, say so — name the pattern ("this is the same swap you made on X") instead of catching it cold again, and return that misconception's label back VERBATIM in the "misconception" field so it counts as the same pattern rather than a new one. If it isn't, don't mention them at all.\n`
       : "";
   return [
-      JUDGE_SYSTEM,
-      {
-        role: "user",
-        content: `Concept: "${nodeLabel}" (topic: ${topic}).
+    JUDGE_SYSTEM,
+    {
+      role: "user",
+      content: `Concept: "${nodeLabel}" (topic: ${topic}).
 The tutor asked: "${question}"
 A fully correct answer would convey: "${reference}"
 ${historyBlock}${misconceptionBlock}${recurringBlock}This is attempt ${attempt ?? 1} on this step. Do not repeat a hint already given above — advance it.
@@ -2254,7 +2321,7 @@ Classify and respond contingently:
 - "lost": empty, "I don't know", or entirely off-track → drop the Socratic act and teach the answer directly and completely.
 
 Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner", "misconception": "on \"near\"/\"wrong\" only: the wrong idea itself in 3-8 words, phrased to still read out of context weeks later (e.g. \"treats scaling as rotation\") — omit otherwise"}${languageNote(language)}`,
-      },
+    },
   ];
 }
 
@@ -2319,10 +2386,7 @@ interface JudgeFeynmanParams {
 function feynmanJudgeMessages(params: JudgeFeynmanParams): ChatMessage[] {
   const { topic, nodeLabel, rubric, explanation, language = "en" } = params;
   const rows = rubric
-    .map(
-      (r, i) =>
-        `${i}. ${r.subPoint} — must convey: ${r.mustConvey.join("; ")}`,
-    )
+    .map((r, i) => `${i}. ${r.subPoint} — must convey: ${r.mustConvey.join("; ")}`)
     .join("\n");
   return [
     JUDGE_SYSTEM,
@@ -2410,7 +2474,10 @@ export async function judgeFeynman(
   return generateJson(
     feynmanJudgeMessages(params),
     validateFeynmanJudgement(params.rubric.length),
-    { label: "judge-feynman", role: "judge" },
+    {
+      label: "judge-feynman",
+      role: "judge",
+    },
   );
 }
 
@@ -2447,10 +2514,10 @@ interface JudgeCrucibleParams {
 function crucibleJudgeMessages(params: JudgeCrucibleParams): ChatMessage[] {
   const { topic, nodeLabel, problem, hint, attempt, language = "en" } = params;
   return [
-      JUDGE_SYSTEM,
-      {
-        role: "user",
-        content: `Concept under test: "${nodeLabel}" (topic: ${topic}).
+    JUDGE_SYSTEM,
+    {
+      role: "user",
+      content: `Concept under test: "${nodeLabel}" (topic: ${topic}).
 Transfer problem posed: """${problem}"""
 (The intended reframe: ${hint})
 The learner's actual attempt: """${attempt}"""
@@ -2467,29 +2534,29 @@ Return JSON:
   "gapReason": "why it split out, phrased to the learner, quoting their error",   // partial only
   "reExplain": "a 30-second Socratic re-explanation aimed straight at that gap, ending with one question"   // partial only
 }${languageNote(language)}`,
-      },
+    },
   ];
 }
 
 const validateCrucibleJudgement = (raw: unknown): CrucibleJudgement => {
-      const root = obj(raw, "payload");
-      const outcome = oneOf(root.outcome, ["pass", "partial"] as const, "outcome");
-      const transfer = arr(root.transfer, "transfer", 3, 3).map((v, i) => {
-        const t = obj(v, `transfer[${i}]`);
-        return {
-          verdict: oneOf(t.verdict, ["good", "red"] as const, `transfer[${i}].verdict`),
-          text: str(t.text, `transfer[${i}].text`),
-        };
-      });
-      if (outcome === "partial" && !transfer.some((t) => t.verdict === "red"))
-        fail('a "partial" outcome needs at least one red transfer row');
-      const out: CrucibleJudgement = { outcome, transfer };
-      if (outcome === "partial") {
-        out.gapLabel = str(root.gapLabel, "gapLabel (required for partial)");
-        out.gapReason = str(root.gapReason, "gapReason (required for partial)");
-        out.reExplain = str(root.reExplain, "reExplain (required for partial)");
-      }
-      return out;
+  const root = obj(raw, "payload");
+  const outcome = oneOf(root.outcome, ["pass", "partial"] as const, "outcome");
+  const transfer = arr(root.transfer, "transfer", 3, 3).map((v, i) => {
+    const t = obj(v, `transfer[${i}]`);
+    return {
+      verdict: oneOf(t.verdict, ["good", "red"] as const, `transfer[${i}].verdict`),
+      text: str(t.text, `transfer[${i}].text`),
+    };
+  });
+  if (outcome === "partial" && !transfer.some((t) => t.verdict === "red"))
+    fail('a "partial" outcome needs at least one red transfer row');
+  const out: CrucibleJudgement = { outcome, transfer };
+  if (outcome === "partial") {
+    out.gapLabel = str(root.gapLabel, "gapLabel (required for partial)");
+    out.gapReason = str(root.gapReason, "gapReason (required for partial)");
+    out.reExplain = str(root.reExplain, "reExplain (required for partial)");
+  }
+  return out;
 };
 
 export async function judgeCrucible(
@@ -2510,7 +2577,11 @@ export function judgeCrucibleStream(
   return judgeStream<CrucibleJudgement>(crucibleJudgeMessages(params), {
     firstShape: `{"outcome": "pass" | "partial"}`,
     first: (raw) => ({
-      outcome: oneOf(obj(raw, "verdict").outcome, ["pass", "partial"] as const, "outcome"),
+      outcome: oneOf(
+        obj(raw, "verdict").outcome,
+        ["pass", "partial"] as const,
+        "outcome",
+      ),
     }),
     full: validateCrucibleJudgement,
     label: "judge-crucible",
@@ -2551,10 +2622,10 @@ interface JudgeChoiceParams {
 function choiceJudgeMessages(params: JudgeChoiceParams): ChatMessage[] {
   const { topic, nodeLabel, question, options, answer, language = "en" } = params;
   return [
-      JUDGE_SYSTEM,
-      {
-        role: "user",
-        content: `Topic: ${topic}${nodeLabel ? ` · concept: "${nodeLabel}"` : ""}.
+    JUDGE_SYSTEM,
+    {
+      role: "user",
+      content: `Topic: ${topic}${nodeLabel ? ` · concept: "${nodeLabel}"` : ""}.
 The learner was asked: "${question}"
 They answered in their own words: """${answer}"""
 
@@ -2564,17 +2635,19 @@ ${options.map((o, i) => `${i}. ${o}`).join("\n")}
 Pick the candidate that matches what they ACTUALLY said, not what they should have said. Empty, vague, evasive or off-topic answers map to the weakest / least-correct candidate — never a generous one.
 
 Return JSON: {"index": <number>, "response": "one sentence to the learner naming what their answer showed, quoting their words"}${languageNote(language)}`,
-      },
+    },
   ];
 }
 
-export async function judgeChoice(
-  params: JudgeChoiceParams,
-): Promise<ChoiceJudgement> {
-  return generateJson(choiceJudgeMessages(params), validateChoice(params.options.length), {
-    label: "judge-choice",
-    role: "judge",
-  });
+export async function judgeChoice(params: JudgeChoiceParams): Promise<ChoiceJudgement> {
+  return generateJson(
+    choiceJudgeMessages(params),
+    validateChoice(params.options.length),
+    {
+      label: "judge-choice",
+      role: "judge",
+    },
+  );
 }
 
 export function judgeChoiceStream(
@@ -2587,7 +2660,12 @@ export function judgeChoiceStream(
     // rejects an empty `response`, so the verdict-only object would fail.
     first: (raw) => {
       const index = obj(raw, "verdict").index;
-      if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= count)
+      if (
+        typeof index !== "number" ||
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= count
+      )
         fail(`index must be an integer 0-${count - 1}`);
       return { index: index as number };
     },

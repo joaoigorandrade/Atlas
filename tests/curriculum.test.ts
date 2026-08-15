@@ -80,7 +80,12 @@ describe("applyDiagnosticEffect", () => {
     ["a", "b"],
     ["b", "c"],
   ];
-  const states: StateMap = { a: "unknown", b: "unknown", c: "unknown", d: "unknown" };
+  const states: StateMap = {
+    a: "unknown",
+    b: "unknown",
+    c: "unknown",
+    d: "unknown",
+  };
 
   it("prunes the whole prerequisite chain on a correct answer", () => {
     expect(applyDiagnosticEffect(states, "mastered", "c", edges)).toEqual({
@@ -129,7 +134,13 @@ const beats: FeynmanBeat[] = [0, 1].map((i) => ({
       { label: "wrong", correct: false, response: "no" },
     ],
   },
-  gap: { id: `gap-b${i + 1}`, label: `gap ${i}`, reason: "why", dx: 0, dy: 100 },
+  gap: {
+    id: `gap-b${i + 1}`,
+    label: `gap ${i}`,
+    reason: "why",
+    dx: 0,
+    dy: 100,
+  },
 }));
 
 const crucibleContent: CrucibleContent = {
@@ -171,7 +182,12 @@ describe("socraticReducer", () => {
     const s = socraticStart("n", steps);
     const next = socraticReducer(
       s,
-      { type: "judged", answer: "scalar mult rotates", quality: "wrong", response: "caught: it scales" },
+      {
+        type: "judged",
+        answer: "scalar mult rotates",
+        quality: "wrong",
+        response: "caught: it scales",
+      },
       steps,
     );
     expect(next.step).toBe(0);
@@ -183,7 +199,12 @@ describe("socraticReducer", () => {
     const s = socraticStart("n", steps);
     const next = socraticReducer(
       s,
-      { type: "judged", answer: "it scales the vector", quality: "correct", response: "right" },
+      {
+        type: "judged",
+        answer: "it scales the vector",
+        quality: "correct",
+        response: "right",
+      },
       steps,
     );
     expect(next.step).toBe(1);
@@ -192,11 +213,19 @@ describe("socraticReducer", () => {
   it("'answer' posts the answer at once, and the verdict fills that same bubble", () => {
     const s = socraticStart("n", steps);
     const sent = socraticReducer(s, { type: "answer", text: "it scales it" }, steps);
-    expect(sent.log.at(-2)).toMatchObject({ role: "learner", text: "it scales it" });
+    expect(sent.log.at(-2)).toMatchObject({
+      role: "learner",
+      text: "it scales it",
+    });
     expect(sent.log.at(-1)).toMatchObject({ role: "ai", pending: true });
     const judged = socraticReducer(
       sent,
-      { type: "judged", answer: "it scales it", quality: "correct", response: "right" },
+      {
+        type: "judged",
+        answer: "it scales it",
+        quality: "correct",
+        response: "right",
+      },
       steps,
     );
     // One learner line, not two — and the pending bubble became the response.
@@ -242,7 +271,12 @@ describe("socraticReducer", () => {
     expect(s.resolutions).toEqual(["told"]);
     s = socraticReducer(
       s,
-      { type: "judged", answer: "no idea", quality: "lost", response: "here's the answer" },
+      {
+        type: "judged",
+        answer: "no idea",
+        quality: "lost",
+        response: "here's the answer",
+      },
       steps,
     );
     expect(s.resolutions).toEqual(["told", "told"]);
@@ -334,7 +368,9 @@ describe("socraticReducer adaptive length", () => {
     }
     expect(s.total).toBe(3);
     // The whole written pass landing must not stretch the plan back out to 4.
-    expect(socraticReducer(s, { type: "hydrate", total: four.length }, four).total).toBe(3);
+    expect(socraticReducer(s, { type: "hydrate", total: four.length }, four).total).toBe(
+      3,
+    );
   });
 });
 
@@ -462,9 +498,7 @@ describe("socraticReducer against a growing step list", () => {
     const arrived = steps.slice(0, 1);
     let s = socraticStart("n", arrived, steps.length);
     s = socraticReducer(s, { type: "reply", index: 0 }, arrived);
-    expect(() =>
-      socraticReducer(s, { type: "reply", index: 0 }, arrived),
-    ).not.toThrow();
+    expect(() => socraticReducer(s, { type: "reply", index: 0 }, arrived)).not.toThrow();
     expect(socraticReducer(s, { type: "tell" }, arrived)).toEqual(s);
   });
 
@@ -561,7 +595,13 @@ describe("feynmanReducer", () => {
   it("the student's reaction streams into the open report", () => {
     let s = feynmanReducer(
       feynmanStart("n"),
-      { type: "taught", text: "t", verdicts: { b1: "good", b2: "good" }, response: "", pending: true },
+      {
+        type: "taught",
+        text: "t",
+        verdicts: { b1: "good", b2: "good" },
+        response: "",
+        pending: true,
+      },
       beats,
     );
     s = feynmanReducer(s, { type: "stream", text: "so you mean", pending: true }, beats);
@@ -578,7 +618,13 @@ describe("feynmanReducer", () => {
     // the retry a silent no-op and left the pass unsaveable.
     let s = feynmanReducer(
       feynmanStart("n"),
-      { type: "taught", text: "t", verdicts: { b1: "good", b2: "good" }, response: "", pending: true },
+      {
+        type: "taught",
+        text: "t",
+        verdicts: { b1: "good", b2: "good" },
+        response: "",
+        pending: true,
+      },
       beats,
     );
     s = { ...s, pending: false };
@@ -590,7 +636,13 @@ describe("feynmanReducer", () => {
   it("a late frame from a pass the learner reset is dropped", () => {
     let s = feynmanReducer(
       feynmanStart("n"),
-      { type: "taught", text: "t", verdicts: { b1: "good", b2: "good" }, response: "", pending: true },
+      {
+        type: "taught",
+        text: "t",
+        verdicts: { b1: "good", b2: "good" },
+        response: "",
+        pending: true,
+      },
       beats,
     );
     s = feynmanReducer(s, { type: "teachAgain" }, beats);
@@ -601,7 +653,12 @@ describe("feynmanReducer", () => {
   it("a correct fix flips the verdict to good", () => {
     let s = feynmanReducer(
       feynmanStart("n"),
-      { type: "taught", text: "t", verdicts: { b1: "confused", b2: "good" }, response: "r" },
+      {
+        type: "taught",
+        text: "t",
+        verdicts: { b1: "confused", b2: "good" },
+        response: "r",
+      },
       beats,
     );
     s = feynmanReducer(s, { type: "openFix", beatId: "b1" }, beats);
@@ -612,7 +669,12 @@ describe("feynmanReducer", () => {
   it("teaching it again keeps the last pass's verdicts for the delta", () => {
     let s = feynmanReducer(
       feynmanStart("n"),
-      { type: "taught", text: "t", verdicts: { b1: "skipped", b2: "good" }, response: "r" },
+      {
+        type: "taught",
+        text: "t",
+        verdicts: { b1: "skipped", b2: "good" },
+        response: "r",
+      },
       beats,
     );
     s = feynmanReducer(s, { type: "teachAgain" }, beats);
@@ -644,7 +706,12 @@ describe("feynmanGaps", () => {
   it("falls back to the written reason when nothing was quotable", () => {
     const s = feynmanReducer(
       feynmanStart("n"),
-      { type: "taught", text: "t", verdicts: { b1: "skipped", b2: "good" }, response: "r" },
+      {
+        type: "taught",
+        text: "t",
+        verdicts: { b1: "skipped", b2: "good" },
+        response: "r",
+      },
       beats,
     );
     expect(feynmanGaps(s, beats)[0].reason).toBe("why");
@@ -657,12 +724,20 @@ describe("crucibleReducer", () => {
   it("judged result sets outcome and attempt-grounded transfer (#27)", () => {
     let s = crucibleStart("n1");
     s = crucibleReducer(s, { type: "confidence", level: 2 }, crucibleContent);
-    s = crucibleReducer(s, { type: "attempt", value: "my real attempt" }, crucibleContent);
+    s = crucibleReducer(
+      s,
+      { type: "attempt", value: "my real attempt" },
+      crucibleContent,
+    );
     const rows = [
       { verdict: "good" as const, text: "x" },
       { verdict: "red" as const, text: "y" },
     ];
-    s = crucibleReducer(s, { type: "result", outcome: "partial", transfer: rows }, crucibleContent);
+    s = crucibleReducer(
+      s,
+      { type: "result", outcome: "partial", transfer: rows },
+      crucibleContent,
+    );
     expect(s.submitted).toBe(true);
     expect(s.outcome).toBe("partial");
     expect(s.transfer).toEqual(rows);
@@ -686,7 +761,11 @@ describe("crucibleReducer", () => {
     s = crucibleReducer(s, { type: "attempt", value: "attempt" }, crucibleContent);
     s = crucibleReducer(
       s,
-      { type: "result", outcome: "partial", transfer: [{ verdict: "red", text: "t" }] },
+      {
+        type: "result",
+        outcome: "partial",
+        transfer: [{ verdict: "red", text: "t" }],
+      },
       crucibleContent,
     );
     s = crucibleReducer(s, { type: "retry" }, crucibleContent);

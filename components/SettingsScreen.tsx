@@ -42,8 +42,7 @@ const STRINGS = {
     dictationOff: "Dictation off — typing only",
     readAloudOn: "Read aloud on — Consume sections can be spoken",
     readAloudOff: "Read aloud off — the reading stays silent",
-    dictationUnsupported:
-      "This browser can’t dictate — Chrome, Edge and Safari can.",
+    dictationUnsupported: "This browser can’t dictate — Chrome, Edge and Safari can.",
     readAloudUnsupported:
       "No voice is configured on this server, so nothing can be read aloud.",
     yourData: "Your data",
@@ -81,8 +80,7 @@ const STRINGS = {
     dictationOff: "Ditado desligado — só digitação",
     readAloudOn: "Leitura em voz alta ligada — as seções do Consumir podem ser ouvidas",
     readAloudOff: "Leitura em voz alta desligada — a leitura fica em silêncio",
-    dictationUnsupported:
-      "Este navegador não faz ditado — Chrome, Edge e Safari fazem.",
+    dictationUnsupported: "Este navegador não faz ditado — Chrome, Edge e Safari fazem.",
     readAloudUnsupported:
       "Nenhuma voz está configurada neste servidor, então nada pode ser lido em voz alta.",
     yourData: "Seus dados",
@@ -209,8 +207,7 @@ function Section({
   return (
     <div style={{ marginBottom: 30 }}>
       <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-        {label}{" "}
-        {hint && <span style={{ color: color.inkGhost }}>— {hint}</span>}
+        {label} {hint && <span style={{ color: color.inkGhost }}>— {hint}</span>}
       </div>
       {children}
     </div>
@@ -242,7 +239,11 @@ export default function SettingsScreen({
   return (
     <Sheet
       presence={presence}
-      style={{ overflowY: "auto", flexDirection: "row", justifyContent: "center" }}
+      style={{
+        overflowY: "auto",
+        flexDirection: "row",
+        justifyContent: "center",
+      }}
     >
       <div
         style={{
@@ -425,9 +426,7 @@ export default function SettingsScreen({
                 width: 34,
                 height: 20,
                 borderRadius: 11,
-                background: adherence.reminderOn
-                  ? color.accent
-                  : "rgba(44,40,35,0.14)",
+                background: adherence.reminderOn ? color.accent : "rgba(44,40,35,0.14)",
                 position: "relative",
                 flex: "0 0 auto",
                 transition: transition("background"),

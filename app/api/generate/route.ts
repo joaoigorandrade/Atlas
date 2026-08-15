@@ -8,9 +8,10 @@
 // Only a genuine miss reaches OpenRouter.
 //
 // Protection (#18): requires a signed-in Supabase session, caps every input
-// length (in lib/server/job.ts), and logs every call that actually generates to
-// the generation_log table. There is no per-user quota and no spend ceiling —
-// generation is unmetered, and generation_log is pure observability.
+// length (in lib/server/job.ts), logs every call that actually generates to the
+// generation_log table, and declines with a 429 once a learner has started
+// GENERATION_DAILY_QUOTA jobs in a UTC day (Phase 0.6). A cache hit is free and
+// is answered before the quota is consulted.
 
 import { after, NextResponse } from "next/server";
 import {
@@ -36,6 +37,7 @@ import {
   ndjsonStream,
   payloadToFrames,
 } from "@/lib/server/stream";
+import { overQuota } from "@/lib/server/quota";
 import { createClient } from "@/lib/supabase/server";
 
 // Content generation is a real LLM round-trip — allow it time.
@@ -46,7 +48,7 @@ type SupabaseLike = Awaited<ReturnType<typeof createClient>>;
 /**
  * Record the job's model calls in `generation_log`.
  *
- * Nothing here can decline a job: generation is unmetered. The rows are written
+ * Nothing here can decline a job — `overQuota` already did. The rows are written
  * before the work runs so a generation that fails upstream still shows up in
  * the spend picture — one row per model call the job may make, all sharing a
  * `job_id` so calls can still be grouped back into the surface that caused
@@ -65,8 +67,7 @@ async function logGenerationCalls(
     })),
   );
   // Non-fatal (the table may lag a migration) but loudly logged.
-  if (error)
-    logError("generation_log_insert_failed", error, { req: opts.requestId });
+  if (error) logError("generation_log_insert_failed", error, { req: opts.requestId });
 }
 
 /** Same error → response mapping used by the plain path and the "peek the
@@ -75,11 +76,7 @@ async function logGenerationCalls(
  *  `apiErrorFrom` classifies: a `BadRequest` becomes a 400 `invalid`, an
  *  `OpenRouterError` keeps its own status, anything else is a 502 `upstream`.
  *  The upstream body never travels — only the code does. */
-function errorResponse(
-  err: unknown,
-  prefetch: boolean,
-  requestId: string,
-): NextResponse {
+function errorResponse(err: unknown, prefetch: boolean, requestId: string): NextResponse {
   // A failed warm is silent — nobody is looking at it.
   if (prefetch) return new NextResponse(null, { status: 204 });
   return apiErrorFrom(err, { requestId });
@@ -145,6 +142,20 @@ export async function POST(request: Request) {
     }
   }
 
+  // Everything from here on costs money, so this is where the day's ceiling
+  // applies — after the free cache hit, before the first model call.
+  if (await overQuota(supabase, requestId)) {
+    logEvent("generate_quota_exceeded", {
+      user: userId,
+      kind: job.kind,
+      req: requestId,
+    });
+    // A background warm is nobody's click: decline it silently, exactly as a
+    // failed warm is declined, rather than surfacing a 429 no one asked for.
+    if (prefetch) return new NextResponse(null, { status: 204 });
+    return apiError("rate_limit", { requestId });
+  }
+
   // Accounting in one place — the background warm in startCurriculumWarm goes
   // through the same helper, so every model call this server makes lands in the
   // log whether a learner asked for it or the warm did.
@@ -171,8 +182,7 @@ export async function POST(request: Request) {
     startCurriculumWarm(supabase, graph, body, userId);
   };
 
-  if (streaming)
-    return streamGeneration(job, userId, prefetch, onPayload, requestId);
+  if (streaming) return streamGeneration(job, userId, prefetch, onPayload, requestId);
 
   try {
     const payload = await job.run();
@@ -311,11 +321,11 @@ function streamGeneration(
       // change now. `ndjsonStream` writes a terminal `__error` frame instead,
       // which is what lets the client stop treating a truncated stream as a
       // finished one. Nothing gets cached either way, so a retry regenerates.
-      logError(
-        phase === "first" ? "generate_failed" : "generate_stream_failed",
-        err,
-        { user: userId, kind: job.kind, req: requestId },
-      );
+      logError(phase === "first" ? "generate_failed" : "generate_stream_failed", err, {
+        user: userId,
+        kind: job.kind,
+        req: requestId,
+      });
     },
     errorResponse: (err) => errorResponse(err, prefetch, requestId),
   });

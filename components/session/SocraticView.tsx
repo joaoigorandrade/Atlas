@@ -25,8 +25,7 @@ const STRINGS = {
     back: "← Map",
     sessionLabel: "Session · Socratic",
     scaffolding: "Scaffolding",
-    breadcrumbLead:
-      "Construct the idea · I catch wrong turns, I don’t smooth them over",
+    breadcrumbLead: "Construct the idea · I catch wrong turns, I don’t smooth them over",
     judgeFailed: "That answer didn’t get graded — nothing was lost.",
     judgeRetry: "Grade it again",
     doneGap: "Sub-point rebuilt — this gap can close.",
@@ -51,8 +50,7 @@ const STRINGS = {
     judgeRetry: "Avaliar de novo",
     sessionLabel: "Sessão · Socrático",
     scaffolding: "Apoio",
-    breadcrumbLead:
-      "Construa a ideia · eu flagro raciocínios errados, não deixo passar",
+    breadcrumbLead: "Construa a ideia · eu flagro raciocínios errados, não deixo passar",
     doneGap: "Subponto reconstruído — essa lacuna pode se fechar.",
     doneUnderstood: "Compreensão estabelecida — você reconstruiu isso sozinho.",
     doneAssisted: "Compreensão construída — com uma ajuda pelo caminho.",
@@ -64,7 +62,8 @@ const STRINGS = {
     yourAnswer: "Sua resposta — com suas próprias palavras",
     placeholderJudging: "Lendo sua resposta…",
     placeholderWriting: "Escrevendo a próxima pergunta…",
-    placeholderAnswer: "Digite o que você pensa — raciocínios errados são flagrados, não julgados",
+    placeholderAnswer:
+      "Digite o que você pensa — raciocínios errados são flagrados, não julgados",
     send: "Enviar",
     stuck: "Estou travado · mais ajuda",
     tellMe: "Só me conte",
@@ -380,8 +379,7 @@ export default function SocraticView({
                         padding: "12px 17px",
                         background:
                           busy || !draft.trim() ? "rgba(44,40,35,0.07)" : color.accent,
-                        color:
-                          busy || !draft.trim() ? color.inkGhost : color.accentInk,
+                        color: busy || !draft.trim() ? color.inkGhost : color.accentInk,
                         border: "none",
                         borderRadius: 10,
                         fontSize: 14,
@@ -514,7 +512,13 @@ function Turn({
 }) {
   if (turn.role === "learner") {
     return (
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 18,
+        }}
+      >
         <div
           style={{
             maxWidth: "82%",

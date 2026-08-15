@@ -6,7 +6,7 @@ Atlas is **not** a linear course. It is a **living knowledge map** you act upon:
 
 - **The map is home base.** Every subject is a directed graph of concept **nodes** connected by prerequisite **edges**, laid out foundations-to-frontier.
 - **The phases are actions on a node**, not screens you walk through once. You always return to the map.
-- **Everything reads and writes node state.** A Socratic session, a failed card, a botched application problem — all update the same mastery state and can spawn new nodes. That write-back is what makes the app a *spiral* instead of a checklist.
+- **Everything reads and writes node state.** A Socratic session, a failed card, a botched application problem — all update the same mastery state and can spawn new nodes. That write-back is what makes the app a _spiral_ instead of a checklist.
 
 The three top-level surfaces are **Map** (the whole subject as a living graph — your home), **Session** (where learning happens, one node at a time), and **Review** (retention, surfaced daily). A thin **Analytics/Calibration** layer sits under all three, and an **Adherence** system (streaks, momentum, honest queue) wraps the whole experience.
 
@@ -16,14 +16,14 @@ The complete product specification lives in [`docs/SPEC.md`](docs/SPEC.md).
 
 Every node is always in exactly one state, shown by color everywhere it appears:
 
-| State | Meaning | Visual |
-|---|---|---|
-| **Unknown** | Not yet assessed or learned | Grey, dim |
-| **Frontier** | Prerequisites met — ready to learn now (the ZPD) | Glowing / pulsing |
-| **Learning** | In progress this session | Blue |
-| **Shaky** | Learned but failing reviews or applications | Amber |
-| **Mastered** | Understood + retained + *applied* in novel context | Green |
-| **Gap** | A sub-concept spawned from a detected failure | Red, attached under its parent |
+| State        | Meaning                                            | Visual                         |
+| ------------ | -------------------------------------------------- | ------------------------------ |
+| **Unknown**  | Not yet assessed or learned                        | Grey, dim                      |
+| **Frontier** | Prerequisites met — ready to learn now (the ZPD)   | Glowing / pulsing              |
+| **Learning** | In progress this session                           | Blue                           |
+| **Shaky**    | Learned but failing reviews or applications        | Amber                          |
+| **Mastered** | Understood + retained + _applied_ in novel context | Green                          |
+| **Gap**      | A sub-concept spawned from a detected failure      | Red, attached under its parent |
 
 Mastery is only awarded when a concept has been **understood, retained, and successfully transferred** — not on recall alone.
 

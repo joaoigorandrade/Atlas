@@ -154,11 +154,9 @@ export async function synthesize(
     // An aborted fetch is a timeout, not a failure of the provider — the
     // distinction drives whether the learner is offered a retry.
     const timedOut = err instanceof Error && err.name === "TimeoutError";
-    throw new AtlasError(
-      timedOut ? "timeout" : "upstream",
-      describe(err),
-      { cause: err },
-    );
+    throw new AtlasError(timedOut ? "timeout" : "upstream", describe(err), {
+      cause: err,
+    });
   }
 
   if (!res.ok) {

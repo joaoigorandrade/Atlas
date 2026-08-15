@@ -114,7 +114,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
     const supabase = createClient();
 
     if (mode === "signin") {
-      supabase.auth
+      void supabase.auth
         .signInWithPassword({ email: address, password })
         .then(({ error }) => {
           if (error) {
@@ -126,7 +126,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
           }
         });
     } else {
-      supabase.auth
+      void supabase.auth
         .signUp({
           email: address,
           password,
@@ -178,9 +178,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
           animation: "fadeUp 0.5s both",
         }}
       >
-        <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>
-          {t.kicker}
-        </div>
+        <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>{t.kicker}</div>
         <h1
           style={{
             fontFamily: font.serif,
@@ -210,9 +208,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
               lineHeight: 1.5,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              {t.confirmEmailTitle}
-            </div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>{t.confirmEmailTitle}</div>
             {t.confirmEmailBody(email.trim())}
           </div>
         ) : (
@@ -255,9 +251,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                 }}
                 placeholder={t.passwordPlaceholder}
                 type="password"
-                autoComplete={
-                  mode === "signin" ? "current-password" : "new-password"
-                }
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 style={inputStyle}
               />
             </div>

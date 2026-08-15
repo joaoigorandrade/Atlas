@@ -154,9 +154,7 @@ export default function CalibrationView({
           {t.analyticsCalibration}
         </span>
         <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 13, color: color.inkFaint }}>
-          {t.headerTagline}
-        </div>
+        <div style={{ fontSize: 13, color: color.inkFaint }}>{t.headerTagline}</div>
       </div>
 
       {/* Body — scrolls; curve on the left, readout on the right */}
@@ -214,9 +212,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
         boxShadow: "0 4px 18px rgba(44,40,35,0.05)",
       }}
     >
-      <div style={{ ...kicker(10, "0.14em"), marginBottom: 4 }}>
-        {t.calibrationCurve}
-      </div>
+      <div style={{ ...kicker(10, "0.14em"), marginBottom: 4 }}>{t.calibrationCurve}</div>
       <div
         style={{
           fontFamily: font.serif,
@@ -228,10 +224,19 @@ function CurveCard({ items }: { items: CalibItem[] }) {
         {t.curveSubtitle}
       </div>
 
-      <svg viewBox="0 0 470 440" style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg
+        viewBox="0 0 470 440"
+        style={{ width: "100%", height: "auto", display: "block" }}
+      >
         {/* Overconfident (below diagonal) / underconfident (above) regions */}
-        <polygon points={`${X0},${YB} ${X1},${YB} ${X1},${YT}`} fill="rgba(189,112,56,0.07)" />
-        <polygon points={`${X0},${YB} ${X0},${YT} ${X1},${YT}`} fill="rgba(91,127,191,0.07)" />
+        <polygon
+          points={`${X0},${YB} ${X1},${YB} ${X1},${YT}`}
+          fill="rgba(189,112,56,0.07)"
+        />
+        <polygon
+          points={`${X0},${YB} ${X0},${YT} ${X1},${YT}`}
+          fill="rgba(91,127,191,0.07)"
+        />
         {grid.map((g, i) => (
           <line
             key={i}
@@ -253,10 +258,24 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           strokeWidth={1.5}
           strokeDasharray="5 5"
         />
-        <text x={126} y={70} fontFamily={font.mono} fontSize={9.5} fill={STATE_COLOR.learning} letterSpacing="0.06em">
+        <text
+          x={126}
+          y={70}
+          fontFamily={font.mono}
+          fontSize={9.5}
+          fill={STATE_COLOR.learning}
+          letterSpacing="0.06em"
+        >
           {t.underconfident}
         </text>
-        <text x={300} y={386} fontFamily={font.mono} fontSize={9.5} fill={OVER} letterSpacing="0.06em">
+        <text
+          x={300}
+          y={386}
+          fontFamily={font.mono}
+          fontSize={9.5}
+          fill={OVER}
+          letterSpacing="0.06em"
+        >
           {t.overconfident}
         </text>
         {/* Your tendency */}
@@ -281,9 +300,22 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           const cy = py(d.real);
           return (
             <g key={d.id}>
-              <circle cx={cx} cy={cy} r={6.5} fill={CALIB_COLOR[d.verdict]} stroke={color.card} strokeWidth={2} />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={6.5}
+                fill={CALIB_COLOR[d.verdict]}
+                stroke={color.card}
+                strokeWidth={2}
+              />
               {Math.abs(d.diff) >= 20 && (
-                <text x={cx + 11} y={cy + 4} fontFamily={font.mono} fontSize={10} fill={color.inkMuted}>
+                <text
+                  x={cx + 11}
+                  y={cy + 4}
+                  fontFamily={font.mono}
+                  fontSize={10}
+                  fill={color.inkMuted}
+                >
                   {d.label}
                 </text>
               )}
@@ -291,21 +323,70 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           );
         })}
         {/* Axes */}
-        <line x1={60} y1={26} x2={60} y2={400} stroke="rgba(44,40,35,0.28)" strokeWidth={1.5} />
-        <line x1={60} y1={400} x2={438} y2={400} stroke="rgba(44,40,35,0.28)" strokeWidth={1.5} />
-        <text x={60} y={418} fontFamily={font.mono} fontSize={10} fill={color.inkGhost} textAnchor="middle">
+        <line
+          x1={60}
+          y1={26}
+          x2={60}
+          y2={400}
+          stroke="rgba(44,40,35,0.28)"
+          strokeWidth={1.5}
+        />
+        <line
+          x1={60}
+          y1={400}
+          x2={438}
+          y2={400}
+          stroke="rgba(44,40,35,0.28)"
+          strokeWidth={1.5}
+        />
+        <text
+          x={60}
+          y={418}
+          fontFamily={font.mono}
+          fontSize={10}
+          fill={color.inkGhost}
+          textAnchor="middle"
+        >
           0
         </text>
-        <text x={438} y={418} fontFamily={font.mono} fontSize={10} fill={color.inkGhost} textAnchor="middle">
+        <text
+          x={438}
+          y={418}
+          fontFamily={font.mono}
+          fontSize={10}
+          fill={color.inkGhost}
+          textAnchor="middle"
+        >
           100
         </text>
-        <text x={249} y={432} fontFamily={font.mono} fontSize={10.5} fill={color.inkMuted} textAnchor="middle">
+        <text
+          x={249}
+          y={432}
+          fontFamily={font.mono}
+          fontSize={10.5}
+          fill={color.inkMuted}
+          textAnchor="middle"
+        >
           {t.predictedConfidence}
         </text>
-        <text x={48} y={400} fontFamily={font.mono} fontSize={10} fill={color.inkGhost} textAnchor="end">
+        <text
+          x={48}
+          y={400}
+          fontFamily={font.mono}
+          fontSize={10}
+          fill={color.inkGhost}
+          textAnchor="end"
+        >
           0
         </text>
-        <text x={48} y={30} fontFamily={font.mono} fontSize={10} fill={color.inkGhost} textAnchor="end">
+        <text
+          x={48}
+          y={30}
+          fontFamily={font.mono}
+          fontSize={10}
+          fill={color.inkGhost}
+          textAnchor="end"
+        >
           100
         </text>
         <text
@@ -336,7 +417,13 @@ function CurveCard({ items }: { items: CalibItem[] }) {
         <LegendDot color={STATE_COLOR.mastered} label={t.legendCalibrated} />
         <LegendDot color={STATE_COLOR.learning} label={t.legendUnderconfident} />
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ width: 16, height: 0, borderTop: `2.5px solid ${CALIB_TREND_COLOR}` }} />
+          <span
+            style={{
+              width: 16,
+              height: 0,
+              borderTop: `2.5px solid ${CALIB_TREND_COLOR}`,
+            }}
+          />
           {t.yourTendency}
         </span>
       </div>
@@ -420,7 +507,13 @@ function Readout({
             padding: "17px 19px",
           }}
         >
-          <div style={{ ...kicker(9.5, "0.1em"), color: STATE_COLOR.learning, marginBottom: 8 }}>
+          <div
+            style={{
+              ...kicker(9.5, "0.1em"),
+              color: STATE_COLOR.learning,
+              marginBottom: 8,
+            }}
+          >
             {t.otherDirection}
           </div>
           <div style={{ fontSize: 13.5, color: color.inkSoft, lineHeight: 1.55 }}>
@@ -436,9 +529,7 @@ function Readout({
             padding: "17px 19px",
           }}
         >
-          <div style={{ ...kicker(9.5, "0.1em"), marginBottom: 10 }}>
-            {t.captured}
-          </div>
+          <div style={{ ...kicker(9.5, "0.1em"), marginBottom: 10 }}>{t.captured}</div>
           <div
             style={{
               display: "flex",
@@ -546,15 +637,7 @@ function CalibRow({
   );
 }
 
-function Bar({
-  label,
-  pct,
-  fill,
-}: {
-  label: string;
-  pct: number;
-  fill: string;
-}) {
+function Bar({ label, pct, fill }: { label: string; pct: number; fill: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
       <span
@@ -578,7 +661,14 @@ function Bar({
           overflow: "hidden",
         }}
       >
-        <div style={{ width: `${pct}%`, height: "100%", background: fill, borderRadius: 3 }} />
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: fill,
+            borderRadius: 3,
+          }}
+        />
       </div>
       <span
         style={{

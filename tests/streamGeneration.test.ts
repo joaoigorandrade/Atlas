@@ -14,7 +14,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const DELAY_MS = 40;
 
 const graphObj = {
-  nodes: Array.from({ length: 12 }, (_, i) => ({ id: `n${i}`, label: `Concept ${i}` })),
+  nodes: Array.from({ length: 12 }, (_, i) => ({
+    id: `n${i}`,
+    label: `Concept ${i}`,
+  })),
   edges: Array.from({ length: 11 }, (_, i) => [`n${i}`, `n${i + 1}`]),
 };
 
@@ -47,14 +50,31 @@ const diagnosticQuestionObj = {
 };
 
 const socraticStep = (i: number) => ({
-  move: ["Clarify", "Challenge the assumption", "Probe the reasoning", "Probe the implications"][i],
+  move: [
+    "Clarify",
+    "Challenge the assumption",
+    "Probe the reasoning",
+    "Probe the implications",
+  ][i],
   prompt: `Probe ${i + 1}`,
   // Concrete answers, not descriptions of answers: `rejectEcho` fails any
   // label that quotes the prompt template back, and it is right to.
   replies: [
-    { label: "One binding owns the value at a time", quality: "correct", response: "yes" },
-    { label: "Every binding gets its own copy", quality: "wrong", response: "caught" },
-    { label: "Something about scope ending", quality: "near", response: "hint" },
+    {
+      label: "One binding owns the value at a time",
+      quality: "correct",
+      response: "yes",
+    },
+    {
+      label: "Every binding gets its own copy",
+      quality: "wrong",
+      response: "caught",
+    },
+    {
+      label: "Something about scope ending",
+      quality: "near",
+      response: "hint",
+    },
   ],
   hint: "a nudge",
   tell: "the direct instruction",
@@ -107,7 +127,8 @@ const passageObjs = [
 
 /** Which sequence of top-level objects a given prompt is asking for. */
 function objectsFor(prompt: string): unknown[] {
-  if (prompt.includes("Socratic questioning session")) return [0, 1, 2, 3].map(socraticStep);
+  if (prompt.includes("Socratic questioning session"))
+    return [0, 1, 2, 3].map(socraticStep);
   if (prompt.includes("Feynman teach-back")) return [0, 1, 2, 3].map(feynmanBeat);
   // Only the streamed map prompt asks for concepts in prerequisite order; the
   // single-shot one asks for one wrapping {nodes, edges} object.
@@ -138,19 +159,23 @@ beforeAll(async () => {
       const wrapped = isJudge(prompt)
         ? { quality: "near", response: "the retried critique" }
         : isPassage(prompt)
-        ? { answer: ["the retried answer"] }
-        : prompt.includes("Socratic")
-        ? { steps: objects }
-        : prompt.includes("Feynman")
-          ? { beats: objects }
-          : prompt.includes("prerequisite concept map")
-            ? (tooBroad ? scopeObj : graphObj)
-            : prompt.includes("Write ONE placement question")
-              ? diagnosticQuestionObj
-              : objects[0];
+          ? { answer: ["the retried answer"] }
+          : prompt.includes("Socratic")
+            ? { steps: objects }
+            : prompt.includes("Feynman")
+              ? { beats: objects }
+              : prompt.includes("prerequisite concept map")
+                ? tooBroad
+                  ? scopeObj
+                  : graphObj
+                : prompt.includes("Write ONE placement question")
+                  ? diagnosticQuestionObj
+                  : objects[0];
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
-        JSON.stringify({ choices: [{ message: { content: JSON.stringify(wrapped) } }] }),
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(wrapped) } }],
+        }),
       );
       return;
     }
@@ -164,9 +189,7 @@ beforeAll(async () => {
           ? objects.slice(0, 1)
           : objects;
     const delta = (content: string) =>
-      res.write(
-        `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`,
-      );
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
     for (const obj of written) {
       const text = JSON.stringify(obj);
       if (!splitDeltas) {
@@ -226,7 +249,8 @@ describe("curriculum map + adaptive placement, split prompts", () => {
   });
 
   it("asks one objective placement question at the requested difficulty", async () => {
-    const { generateMap, generateDiagnosticQuestion } = await import("@/lib/server/generate");
+    const { generateMap, generateDiagnosticQuestion } =
+      await import("@/lib/server/generate");
     const map = await generateMap({ topic: "Rust", goal: "mastery" });
     if ("scopes" in map) throw new Error("expected a map, not scope offers");
 
@@ -271,7 +295,12 @@ describe("curriculum map + adaptive placement, split prompts", () => {
     expect(nodes[0].at).toBeLessThan(nodes[11].at / 2);
 
     // Layout is the server's, and a node arrives already placed.
-    const first = nodes[0].v as { id: string; x: number; g: number; prereqs: string[] };
+    const first = nodes[0].v as {
+      id: string;
+      x: number;
+      g: number;
+      prereqs: string[];
+    };
     expect(first.id).toBe("n0");
     expect(first.g).toBe(1);
     expect(typeof first.x).toBe("number");
@@ -286,7 +315,11 @@ describe("curriculum map + adaptive placement, split prompts", () => {
     const { framesToPayload } = await import("@/lib/server/stream");
     const { resolveJob } = await import("@/lib/server/job");
 
-    const shape = resolveJob({ kind: "curriculum", topic: "Rust", goal: "mastery" }).shape!;
+    const shape = resolveJob({
+      kind: "curriculum",
+      topic: "Rust",
+      goal: "mastery",
+    }).shape!;
     const frames = await drain(generateMapStream({ topic: "Rust", goal: "mastery" }));
     const assembled = framesToPayload(
       frames.map(({ p, i, v }) => (i === undefined ? { p, v } : { p, i, v })),
@@ -300,7 +333,9 @@ describe("curriculum map + adaptive placement, split prompts", () => {
     const { generateMapStream } = await import("@/lib/server/generate");
     tooBroad = true;
     try {
-      const frames = await drain(generateMapStream({ topic: "Science", goal: "mastery" }));
+      const frames = await drain(
+        generateMapStream({ topic: "Science", goal: "mastery" }),
+      );
       expect(frames.map((f) => f.p)).toEqual(["scopes", "scopes"]);
       expect((frames[0].v as { label: string }).label).toBe("Ownership And Borrowing");
     } finally {
@@ -327,7 +362,11 @@ describe("curriculum map + adaptive placement, split prompts", () => {
     breakStream = true;
     try {
       const frames = await drain(
-        generateSocraticStream({ topic: "Rust", nodeLabel: "Ownership", interests: "" }),
+        generateSocraticStream({
+          topic: "Rust",
+          nodeLabel: "Ownership",
+          interests: "",
+        }),
       );
       // The learner still gets a complete pass — it just arrives all at once,
       // from the retried path, instead of item by item.
@@ -346,7 +385,11 @@ describe("curriculum map + adaptive placement, split prompts", () => {
     emptyStream = true;
     try {
       const frames = await drain(
-        generateSocraticStream({ topic: "Rust", nodeLabel: "Ownership", interests: "" }),
+        generateSocraticStream({
+          topic: "Rust",
+          nodeLabel: "Ownership",
+          interests: "",
+        }),
       );
       expect(frames).toHaveLength(4);
     } finally {
@@ -369,7 +412,10 @@ describe("curriculum map + adaptive placement, split prompts", () => {
     expect(frames.every((f) => f.p === "judgement")).toBe(true);
     // Frame 1 unblocks the screen; frame 2 fills in the wording.
     expect(frames[0].v).toEqual({ quality: "near" });
-    expect(frames[1].v).toEqual({ quality: "near", response: "the streamed critique" });
+    expect(frames[1].v).toEqual({
+      quality: "near",
+      response: "the streamed critique",
+    });
     expect(frames[0].at).toBeLessThan(frames[1].at);
   });
 
@@ -389,7 +435,10 @@ describe("curriculum map + adaptive placement, split prompts", () => {
       // The verdict streamed; the critique came off the retried single-shot
       // path, which is the corrective retry the judge is not allowed to lose.
       expect(frames).toHaveLength(2);
-      expect(frames[1].v).toEqual({ quality: "near", response: "the retried critique" });
+      expect(frames[1].v).toEqual({
+        quality: "near",
+        response: "the retried critique",
+      });
     } finally {
       truncateJudge = false;
     }
@@ -398,7 +447,11 @@ describe("curriculum map + adaptive placement, split prompts", () => {
   it("ships the first Socratic probe before the last is written", async () => {
     const { generateSocraticStream } = await import("@/lib/server/generate");
     const frames = await drain(
-      generateSocraticStream({ topic: "Rust", nodeLabel: "Ownership", interests: "" }),
+      generateSocraticStream({
+        topic: "Rust",
+        nodeLabel: "Ownership",
+        interests: "",
+      }),
     );
     expect(frames).toHaveLength(4);
     expect(frames.every((f) => f.p === "steps")).toBe(true);
@@ -422,7 +475,9 @@ describe("curriculum map + adaptive placement, split prompts", () => {
 
     // Ids and gap offsets are assigned server-side per index, so a beat
     // validated alone is identical to one validated inside an array.
-    const beats = frames.map((f) => f.v as { id: string; gap: { dx: number; dy: number } });
+    const beats = frames.map(
+      (f) => f.v as { id: string; gap: { dx: number; dy: number } },
+    );
     expect(beats.map((b) => b.id)).toEqual([
       "ft-ownership-1",
       "ft-ownership-2",
@@ -440,7 +495,8 @@ describe("passage answers", () => {
     topic: "Rust",
     nodeLabel: "Ownership",
     kicker: "3 · Where it breaks",
-    section: "A value has exactly one owner. When the owner goes out of scope, the value is dropped.",
+    section:
+      "A value has exactly one owner. When the owner goes out of scope, the value is dropped.",
     selection: "the value is dropped",
     question: "Dropped where — does it go on a free list?",
   };
@@ -471,7 +527,8 @@ describe("passage answers", () => {
       expect(drafts.length).toBeGreaterThan(0);
       const first = drafts.filter((f) => f.i === 0);
       expect(first[0].at).toBeLessThan(complete[0].at);
-      for (const d of first) expect(passageObjs[0].p.startsWith(d.v as string)).toBe(true);
+      for (const d of first)
+        expect(passageObjs[0].p.startsWith(d.v as string)).toBe(true);
 
       // …and the assembled payload is still only the complete paragraphs.
       expect(

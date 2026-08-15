@@ -124,15 +124,10 @@ export function intervalLabels(
 }
 
 /** The retention-health forecast, read from the real card table. */
-export function forecastRows(
-  cards: StoredCard[],
-  now: Date = new Date(),
-): ForecastRow[] {
+export function forecastRows(cards: StoredCard[], now: Date = new Date()): ForecastRow[] {
   const due = cards.filter((c) => isDue(c, now)).length;
   const week = cards.filter(
-    (c) =>
-      !isDue(c, now) &&
-      Date.parse(c.fsrs.due) <= now.getTime() + 7 * 86_400_000,
+    (c) => !isDue(c, now) && Date.parse(c.fsrs.due) <= now.getTime() + 7 * 86_400_000,
   ).length;
   const solid = cards.filter(
     (c) => Date.parse(c.fsrs.due) > now.getTime() + 30 * 86_400_000,

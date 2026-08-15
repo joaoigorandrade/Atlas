@@ -6,10 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "eval": "RUN_EVAL=1 vitest run tests/judge.eval.test.ts"
+    "eval": "RUN_EVAL=1 vitest run tests/judge.eval.test.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "size": "node scripts/size-budget.mjs",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
@@ -24,7 +28,12 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.1",
+    "prettier": "^3.9.6",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.10"
   }
 }

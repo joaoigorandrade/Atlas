@@ -107,11 +107,7 @@ export function createWarmQueue(): WarmQueue {
     }
   }
 
-  function run<T>(
-    key: string,
-    task: () => Promise<T>,
-    foreground = false,
-  ): Promise<T> {
+  function run<T>(key: string, task: () => Promise<T>, foreground = false): Promise<T> {
     // A foreground call is a learner waiting on a screen, so it starts even
     // while the background queue is held — being offline is a reason not to
     // speculate, never a reason to refuse what was actually asked for. It fails

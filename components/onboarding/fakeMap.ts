@@ -10,13 +10,7 @@
 
 import type { ConceptEdge, ConceptNode } from "@/lib/curriculum";
 
-const COLS: string[][] = [
-  ["a1"],
-  ["b1", "b2"],
-  ["c1", "c2", "c3"],
-  ["d1", "d2"],
-  ["e1"],
-];
+const COLS: string[][] = [["a1"], ["b1", "b2"], ["c1", "c2", "c3"], ["d1", "d2"], ["e1"]];
 
 export const FAKE_MAP_NODES: ConceptNode[] = COLS.flatMap((col, d) =>
   col.map((id, i) => ({
@@ -53,10 +47,12 @@ export const FAKE_MAP_POSITIONS: Record<string, { x: number; y: number }> =
 /** Midpoint of the placeholder territory, so the building screen can center
  *  the viewport on it instead of leaving it at the default map's pan. */
 export const FAKE_MAP_CENTER = {
-  x: (Math.min(...FAKE_MAP_NODES.map((n) => n.x)) +
-    Math.max(...FAKE_MAP_NODES.map((n) => n.x))) /
+  x:
+    (Math.min(...FAKE_MAP_NODES.map((n) => n.x)) +
+      Math.max(...FAKE_MAP_NODES.map((n) => n.x))) /
     2,
-  y: (Math.min(...FAKE_MAP_NODES.map((n) => n.y)) +
-    Math.max(...FAKE_MAP_NODES.map((n) => n.y))) /
+  y:
+    (Math.min(...FAKE_MAP_NODES.map((n) => n.y)) +
+      Math.max(...FAKE_MAP_NODES.map((n) => n.y))) /
     2,
 };

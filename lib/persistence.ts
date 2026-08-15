@@ -184,10 +184,7 @@ function migrate(raw: LoadedSnapshot): RunSnapshot {
 /** A cached chunk from before the reading-first Consume rewrite: one short
  *  body string, a prediction on every chunk, verdict copy hanging off the
  *  chunk, and no example or takeaway. */
-export type LegacyConsumeChunk = Omit<
-  ConsumeChunk,
-  "body" | "example" | "takeaway"
-> & {
+export type LegacyConsumeChunk = Omit<ConsumeChunk, "body" | "example" | "takeaway"> & {
   body: string | string[];
   example?: ConsumeChunk["example"];
   takeaway?: string;
@@ -281,7 +278,9 @@ function storageError(op: string, error: { message: string }): AtlasError {
   return new AtlasError(
     offline ? "offline" : "upstream",
     `${op} failed: ${error.message}`,
-    { reason: op },
+    {
+      reason: op,
+    },
   );
 }
 
@@ -289,9 +288,7 @@ function storageError(op: string, error: { message: string }): AtlasError {
  * The run core for the most recently touched run, without the content caches.
  * This is the query the first paint waits on, so it stays small on purpose.
  */
-export async function loadRunCore(
-  supabase: SupabaseClient,
-): Promise<LoadedRun | null> {
+export async function loadRunCore(supabase: SupabaseClient): Promise<LoadedRun | null> {
   const { data, error } = await supabase
     .from("run_states")
     .select("subject, snapshot")
@@ -340,9 +337,7 @@ export interface RunSummary {
 /** Every saved run for the caller — RLS scopes it to their own rows. Powers
  *  the "Your maps" grid; the currently-open run isn't excluded, callers that
  *  already hold it live prefer their own (fresher) copy. */
-export async function listRuns(
-  supabase: SupabaseClient,
-): Promise<RunSummary[]> {
+export async function listRuns(supabase: SupabaseClient): Promise<RunSummary[]> {
   const { data, error } = await supabase
     .from("run_states")
     .select("subject, snapshot")

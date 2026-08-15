@@ -17,12 +17,7 @@ import type {
   RetainContent,
   SocraticStep,
 } from "@/lib/curriculum";
-import {
-  AtlasError,
-  codeForStatus,
-  isErrorCode,
-  toAtlasError,
-} from "@/lib/errors";
+import { AtlasError, codeForStatus, isErrorCode, toAtlasError } from "@/lib/errors";
 import type { Language } from "@/lib/i18n";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
@@ -55,9 +50,11 @@ export class WarmDeclined extends AtlasError {
  *  the technical message — for logs, never for the screen. */
 async function failure(res: Response): Promise<AtlasError> {
   const requestId = res.headers.get("x-atlas-request-id") ?? undefined;
-  const body = (await res.json().catch(() => null)) as
-    | { error?: string; code?: string; reason?: string }
-    | null;
+  const body = (await res.json().catch(() => null)) as {
+    error?: string;
+    code?: string;
+    reason?: string;
+  } | null;
   const code = isErrorCode(body?.code) ? body.code : codeForStatus(res.status);
   return new AtlasError(code, body?.error ?? `request failed (${res.status})`, {
     status: res.status,
@@ -66,10 +63,7 @@ async function failure(res: Response): Promise<AtlasError> {
   });
 }
 
-async function postOnce<T>(
-  body: Record<string, unknown>,
-  opts?: FetchOpts,
-): Promise<T> {
+async function postOnce<T>(body: Record<string, unknown>, opts?: FetchOpts): Promise<T> {
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -95,10 +89,7 @@ async function postOnce<T>(
  * they can choose than by the app spending their credit three times in silence.
  * `WarmDeclined` is not retryable, so a declined warm still returns instantly.
  */
-function post<T>(
-  body: Record<string, unknown>,
-  opts?: FetchOpts,
-): Promise<T> {
+function post<T>(body: Record<string, unknown>, opts?: FetchOpts): Promise<T> {
   return withRetry(() => postOnce<T>(body, opts), { delays: [1200] });
 }
 
@@ -252,8 +243,7 @@ export async function fetchConsume(
   params: Parameters<typeof consumeRequest>[0],
   opts?: FetchOpts,
 ): Promise<ConsumeChunk[]> {
-  return (await post<{ chunks: ConsumeChunk[] }>(consumeRequest(params), opts))
-    .chunks;
+  return (await post<{ chunks: ConsumeChunk[] }>(consumeRequest(params), opts)).chunks;
 }
 
 /** One slot of a payload, as it comes off the NDJSON wire. Mirrors
@@ -317,7 +307,9 @@ export async function fetchStream(
       // A malformed line used to throw a raw SyntaxError that travelled all the
       // way to the toast. One bad line is not a reason to discard a stream that
       // is otherwise landing — skip it and let the shape check decide.
-      logWarning("stream_line_unparsable", err, { line: trimmed.slice(0, 120) });
+      logWarning("stream_line_unparsable", err, {
+        line: trimmed.slice(0, 120),
+      });
       return;
     }
     if (frame.p === ERROR_PART) {
@@ -387,8 +379,7 @@ export async function fetchConsumeStream(
   onChunk: (chunk: ConsumeChunk, index: number) => void,
 ): Promise<ConsumeChunk[]> {
   const frames = await fetchStream(consumeRequest(params), (frame) => {
-    if (frame.p === "chunks" && "i" in frame)
-      onChunk(frame.v as ConsumeChunk, frame.i);
+    if (frame.p === "chunks" && "i" in frame) onChunk(frame.v as ConsumeChunk, frame.i);
   });
   return collectFrames<ConsumeChunk>(frames, "chunks");
 }
@@ -411,8 +402,7 @@ export async function fetchConsumeModel(
   params: Parameters<typeof modelRequest>[0],
   opts?: FetchOpts,
 ): Promise<ConsumeModelBeat[]> {
-  return (await post<{ beats: ConsumeModelBeat[] }>(modelRequest(params), opts))
-    .beats;
+  return (await post<{ beats: ConsumeModelBeat[] }>(modelRequest(params), opts)).beats;
 }
 
 /**
@@ -427,8 +417,7 @@ export async function fetchConsumeModelStream(
   onBeat: (beat: ConsumeModelBeat, index: number) => void,
 ): Promise<ConsumeModelBeat[]> {
   const frames = await fetchStream(modelRequest(params), (frame) => {
-    if (frame.p === "beats" && "i" in frame)
-      onBeat(frame.v as ConsumeModelBeat, frame.i);
+    if (frame.p === "beats" && "i" in frame) onBeat(frame.v as ConsumeModelBeat, frame.i);
   });
   return collectFrames<ConsumeModelBeat>(frames, "beats");
 }
@@ -481,8 +470,7 @@ export async function fetchSocratic(
   params: Parameters<typeof socraticRequest>[0],
   opts?: FetchOpts,
 ): Promise<SocraticStep[]> {
-  return (await post<{ steps: SocraticStep[] }>(socraticRequest(params), opts))
-    .steps;
+  return (await post<{ steps: SocraticStep[] }>(socraticRequest(params), opts)).steps;
 }
 
 /** Foreground Socratic: the tutor's first probe renders as soon as it's
@@ -492,8 +480,7 @@ export async function fetchSocraticStream(
   onStep: (step: SocraticStep, index: number) => void,
 ): Promise<SocraticStep[]> {
   const frames = await fetchStream(socraticRequest(params), (frame) => {
-    if (frame.p === "steps" && "i" in frame)
-      onStep(frame.v as SocraticStep, frame.i);
+    if (frame.p === "steps" && "i" in frame) onStep(frame.v as SocraticStep, frame.i);
   });
   return collectFrames<SocraticStep>(frames, "steps");
 }
@@ -515,8 +502,7 @@ export async function fetchFeynman(
   params: Parameters<typeof feynmanRequest>[0],
   opts?: FetchOpts,
 ): Promise<FeynmanBeat[]> {
-  return (await post<{ beats: FeynmanBeat[] }>(feynmanRequest(params), opts))
-    .beats;
+  return (await post<{ beats: FeynmanBeat[] }>(feynmanRequest(params), opts)).beats;
 }
 
 /** Foreground Feynman: the first beat opens the teach-back, the rest follow.
@@ -526,8 +512,7 @@ export async function fetchFeynmanStream(
   onBeat: (beat: FeynmanBeat, index: number) => void,
 ): Promise<FeynmanBeat[]> {
   const frames = await fetchStream(feynmanRequest(params), (frame) => {
-    if (frame.p === "beats" && "i" in frame)
-      onBeat(frame.v as FeynmanBeat, frame.i);
+    if (frame.p === "beats" && "i" in frame) onBeat(frame.v as FeynmanBeat, frame.i);
   });
   return collectFrames<FeynmanBeat>(frames, "beats");
 }
@@ -545,9 +530,8 @@ export async function fetchConnect(
   params: Parameters<typeof connectRequest>[0],
   opts?: FetchOpts,
 ): Promise<ElaborationContent> {
-  return (
-    await post<{ content: ElaborationContent }>(connectRequest(params), opts)
-  ).content;
+  return (await post<{ content: ElaborationContent }>(connectRequest(params), opts))
+    .content;
 }
 
 export const crucibleRequest = (params: {
@@ -568,9 +552,8 @@ export async function fetchCrucible(
   params: Parameters<typeof crucibleRequest>[0],
   opts?: FetchOpts,
 ): Promise<CrucibleContent> {
-  return (
-    await post<{ content: CrucibleContent }>(crucibleRequest(params), opts)
-  ).content;
+  return (await post<{ content: CrucibleContent }>(crucibleRequest(params), opts))
+    .content;
 }
 
 export const retainRequest = (params: {
@@ -585,8 +568,7 @@ export async function fetchRetain(
   params: Parameters<typeof retainRequest>[0],
   opts?: FetchOpts,
 ): Promise<RetainContent> {
-  return (await post<{ content: RetainContent }>(retainRequest(params), opts))
-    .content;
+  return (await post<{ content: RetainContent }>(retainRequest(params), opts)).content;
 }
 
 // ---- the judging loop (#25-#27) — the learner's own words, classified ------
@@ -630,8 +612,7 @@ async function judge<T>(
   });
   for (const frame of frames)
     if (frame.p === "judgement" && !frame.partial) last = frame.v as T;
-  if (!last)
-    throw new AtlasError("upstream", "the judge returned nothing");
+  if (!last) throw new AtlasError("upstream", "the judge returned nothing");
   return last;
 }
 

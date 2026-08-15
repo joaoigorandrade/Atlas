@@ -13,8 +13,7 @@
  *  flagship chat model — cheap and strong at structured JSON. */
 export const DEFAULT_MODEL = "deepseek/deepseek-chat";
 
-const BASE_URL =
-  process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
+const BASE_URL = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 
 /**
  * Nothing may run unbounded. Two separate bounds, because the two failures
@@ -117,7 +116,10 @@ async function chatOnce(
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new OpenRouterError(`OpenRouter ${res.status}: ${body.slice(0, 600)}`, res.status);
+    throw new OpenRouterError(
+      `OpenRouter ${res.status}: ${body.slice(0, 600)}`,
+      res.status,
+    );
   }
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -141,7 +143,10 @@ const RETRY_DELAYS_MS = [1000, 4000];
 async function chat(messages: ChatMessage[], role: ModelRole): Promise<ChatResult> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key)
-    throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
+    throw new OpenRouterError(
+      "OPENROUTER_API_KEY is not set — add it to .env.local",
+      500,
+    );
   let last: unknown;
   for (const model of modelChain(role)) {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
@@ -275,7 +280,10 @@ async function* chatStreamOnce(
       timedOut ??= why;
       abort.abort();
     }, ms);
-  let firstTokenTimer: ReturnType<typeof setTimeout> | null = bomb("first token", FIRST_TOKEN_MS);
+  let firstTokenTimer: ReturnType<typeof setTimeout> | null = bomb(
+    "first token",
+    FIRST_TOKEN_MS,
+  );
   const totalTimer = bomb("total", REQUEST_MS);
   const disarm = () => {
     if (firstTokenTimer) clearTimeout(firstTokenTimer);
@@ -354,7 +362,10 @@ async function* chatStreamOnce(
 /** Pull complete top-level `{...}` objects out of a growing buffer, tolerant
  *  of whitespace/newlines/commas between them and of braces inside string
  *  literals. Returns what's left over (an in-progress object, or nothing). */
-export function extractCompleteObjects(buf: string): { objects: string[]; rest: string } {
+export function extractCompleteObjects(buf: string): {
+  objects: string[];
+  rest: string;
+} {
   const objects: string[] = [];
   let depth = 0;
   let start = -1;
@@ -459,8 +470,9 @@ function closeOpenStructures(text: string): string | null {
     }
     if (!body.endsWith(":")) break;
     const cut = lastCommaOutsideString(body);
-    body = (cut === -1 ? body.slice(0, body.lastIndexOf("{") + 1) : body.slice(0, cut))
-      .replace(/\s+$/, "");
+    body = (
+      cut === -1 ? body.slice(0, body.lastIndexOf("{") + 1) : body.slice(0, cut)
+    ).replace(/\s+$/, "");
   }
   return body + closers.reverse().join("");
 }
@@ -520,7 +532,10 @@ export async function* streamJsonObjectsProgressive<T>(
 ): AsyncGenerator<StreamedJson<T>> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key)
-    throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
+    throw new OpenRouterError(
+      "OPENROUTER_API_KEY is not set — add it to .env.local",
+      500,
+    );
   const { label = "unlabeled", role = "content" } = opts;
   const model = modelChain(role)[0];
   const started = Date.now();
@@ -540,7 +555,11 @@ export async function* streamJsonObjectsProgressive<T>(
       const { objects, rest } = extractCompleteObjects(buf);
       buf = rest;
       for (const raw of objects)
-        yield { value: validate(JSON.parse(raw), index++), index: index - 1, partial: false };
+        yield {
+          value: validate(JSON.parse(raw), index++),
+          index: index - 1,
+          partial: false,
+        };
       if (!opts.partial || !buf.trim()) continue;
       const now = Date.now();
       if (now - lastPartialAt < PARTIAL_MS) continue;
@@ -563,8 +582,7 @@ export async function* streamJsonObjectsProgressive<T>(
     // caller's `catch`, which is where the retried single-shot fallback lives;
     // without it the route saw a clean, empty stream and returned a 502 while
     // the documented safety net never fired.
-    if (index === 0)
-      throw new OpenRouterError("the model streamed no JSON objects", 502);
+    if (index === 0) throw new OpenRouterError("the model streamed no JSON objects", 502);
     outcome = "ok";
   } catch (err) {
     // The object count in the log line says whether anything usable landed

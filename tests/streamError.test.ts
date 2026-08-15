@@ -6,11 +6,7 @@ import {
   type StreamFrame,
   type StreamShape,
 } from "@/lib/server/stream";
-import {
-  ERROR_PART as CLIENT_ERROR_PART,
-  collectFrames,
-  fetchStream,
-} from "@/lib/api";
+import { ERROR_PART as CLIENT_ERROR_PART, collectFrames, fetchStream } from "@/lib/api";
 import { AtlasError } from "@/lib/errors";
 
 // The terminal error frame closes the app's oldest silent failure. Once the
@@ -21,7 +17,11 @@ import { AtlasError } from "@/lib/errors";
 const CONSUME: StreamShape = { chunks: { min: 4, max: 6 } };
 
 const chunkFrames = (n: number): StreamFrame[] =>
-  Array.from({ length: n }, (_, i) => ({ p: "chunks", i, v: { id: `c${i + 1}` } }));
+  Array.from({ length: n }, (_, i) => ({
+    p: "chunks",
+    i,
+    v: { id: `c${i + 1}` },
+  }));
 
 const errorFrame: StreamFrame = {
   p: ERROR_PART,
@@ -88,8 +88,12 @@ describe("fetchStream", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ndjsonResponseOf(lines)));
     const seen: StreamFrame[] = [];
     try {
-      await expect(fetchStream({ kind: "consume" }, (f) => seen.push(f))).rejects
-        .toMatchObject({ code: "upstream", requestId: "abc123" });
+      await expect(
+        fetchStream({ kind: "consume" }, (f) => seen.push(f)),
+      ).rejects.toMatchObject({
+        code: "upstream",
+        requestId: "abc123",
+      });
       // The two sections that arrived were handed to the caller and stay on
       // screen. Throwing stops the caller treating a half pass as a whole one;
       // it does not take back what was delivered.

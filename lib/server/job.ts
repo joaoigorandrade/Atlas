@@ -53,11 +53,7 @@ import {
   type GoalKind,
 } from "@/lib/curriculum";
 
-export type GenerateKind =
-  | CacheableKind
-  | "judge"
-  | "diagnosticQuestion"
-  | "passage";
+export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion" | "passage";
 
 export interface GenerateBody {
   kind: GenerateKind;
@@ -139,8 +135,7 @@ export function badRequest(message: string): BadRequest {
   return new BadRequest(message);
 }
 
-const s = (v: unknown, fallback = ""): string =>
-  typeof v === "string" ? v : fallback;
+const s = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
 
 /**
  * The map around the concept, as the per-node prompts get it (`boundaryNote`):
@@ -150,7 +145,9 @@ const s = (v: unknown, fallback = ""): string =>
  * (`conceptBoundary`). Omitted entirely when empty so a request from before
  * this existed keys to the same row as one on a single-concept map.
  */
-const boundary = (body: GenerateBody): {
+const boundary = (
+  body: GenerateBody,
+): {
   priorLabels?: string[];
   laterLabels?: string[];
 } => {
@@ -216,14 +213,16 @@ export function resolveJob(body: GenerateBody): Job {
 
   switch (body.kind) {
     case "curriculum": {
-      const goal: GoalKind = ["exam", "project", "mastery", "pareto"].includes(s(body.goal))
+      const goal: GoalKind = ["exam", "project", "mastery", "pareto"].includes(
+        s(body.goal),
+      )
         ? (body.goal as GoalKind)
         : "mastery";
       // Only the offered shares are honored — an arbitrary number would fork
       // the shared map cache for no gain.
       const paretoPct =
         goal === "pareto"
-          ? PARETO_LEVELS.find((p) => p === body.paretoPct) ?? PARETO_DEFAULT
+          ? (PARETO_LEVELS.find((p) => p === body.paretoPct) ?? PARETO_DEFAULT)
           : undefined;
       // `interests` is deliberately absent. The map prompt never used it —
       // interests flavor analogies inside a concept, not which concepts the
@@ -247,7 +246,12 @@ export function resolveJob(body: GenerateBody): Job {
         // is the too-broad answer (#30) — a complete, cacheable payload with
         // no map in it at all.
         shape: [
-          { nodes: { min: mapNodeBounds(paretoPct).min, max: mapNodeBounds(paretoPct).max } },
+          {
+            nodes: {
+              min: mapNodeBounds(paretoPct).min,
+              max: mapNodeBounds(paretoPct).max,
+            },
+          },
           { scopes: { min: 2, max: 3 } },
         ],
       };
@@ -336,9 +340,7 @@ export function resolveJob(body: GenerateBody): Job {
       // The section's own prose, keyed on rather than merely passed: two
       // learners reading the *same* cached section share this row, and a
       // walkthrough can never be grafted onto wording it wasn't written for.
-      const sectionBody = (
-        Array.isArray(body.sectionBody) ? body.sectionBody : []
-      )
+      const sectionBody = (Array.isArray(body.sectionBody) ? body.sectionBody : [])
         .filter((p): p is string => typeof p === "string")
         .slice(0, 8)
         .map((p) => p.slice(0, CAPS.freeText));
@@ -395,7 +397,13 @@ export function resolveJob(body: GenerateBody): Job {
 
     case "socratic": {
       if (!nodeLabel) throw badRequest("nodeLabel is required");
-      const params = { topic, nodeLabel, interests, language, ...boundary(body) };
+      const params = {
+        topic,
+        nodeLabel,
+        interests,
+        language,
+        ...boundary(body),
+      };
       return {
         kind: "socratic",
         key: contentKey("socratic", params),
@@ -403,14 +411,22 @@ export function resolveJob(body: GenerateBody): Job {
         stream: () => generateSocraticStream(params),
         // Mirrors `validateSocratic`'s bound, not the core count the prompt
         // asks for — the spares are part of the written pass.
-        shape: { steps: { min: SOCRATIC_MIN_WRITTEN, max: SOCRATIC_MAX_STEPS } },
+        shape: {
+          steps: { min: SOCRATIC_MIN_WRITTEN, max: SOCRATIC_MAX_STEPS },
+        },
       };
     }
 
     case "feynman": {
-      if (!nodeId || !nodeLabel)
-        throw badRequest("nodeId and nodeLabel are required");
-      const params = { topic, nodeId, nodeLabel, interests, language, ...boundary(body) };
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      const params = {
+        topic,
+        nodeId,
+        nodeLabel,
+        interests,
+        language,
+        ...boundary(body),
+      };
       return {
         kind: "feynman",
         key: contentKey("feynman", params),
@@ -423,8 +439,7 @@ export function resolveJob(body: GenerateBody): Job {
     }
 
     case "connect": {
-      if (!nodeId || !nodeLabel)
-        throw badRequest("nodeId and nodeLabel are required");
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       const pool = Array.isArray(body.pool)
         ? body.pool
             .filter(
@@ -440,13 +455,14 @@ export function resolveJob(body: GenerateBody): Job {
       return cacheable(
         "connect",
         { topic, nodeId, nodeLabel, pool, interests, language },
-        async (p) => ({ content: await generateConnect(p) }),
+        async (p) => ({
+          content: await generateConnect(p),
+        }),
       );
     }
 
     case "crucible": {
-      if (!nodeId || !nodeLabel)
-        throw badRequest("nodeId and nodeLabel are required");
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       return cacheable(
         "crucible",
         {
@@ -483,7 +499,9 @@ export function resolveJob(body: GenerateBody): Job {
       return cacheable(
         "retain",
         { topic, budgetMin, nodes, interests, language },
-        async (p) => ({ content: await generateRetain(p) }),
+        async (p) => ({
+          content: await generateRetain(p),
+        }),
       );
     }
 
@@ -510,8 +528,7 @@ export function resolveJob(body: GenerateBody): Job {
       // on surfaces with no node (placement), so nodeLabel stays optional.
       if (body.mode === "choice") {
         const options = labels(body.options, 8);
-        if (options.length < 2)
-          throw badRequest("options must list 2+ candidates");
+        if (options.length < 2) throw badRequest("options must list 2+ candidates");
         const p = {
           topic,
           nodeLabel: nodeLabel || undefined,
@@ -537,7 +554,10 @@ export function resolveJob(body: GenerateBody): Job {
                   typeof t.text === "string",
               )
               .slice(-8)
-              .map((t) => ({ role: t.role, text: t.text.slice(0, CAPS.freeText) }))
+              .map((t) => ({
+                role: t.role,
+                text: t.text.slice(0, CAPS.freeText),
+              }))
           : undefined;
         const misconceptions = Array.isArray(body.misconceptions)
           ? body.misconceptions
@@ -563,11 +583,16 @@ export function resolveJob(body: GenerateBody): Job {
           reference: s(body.reference).slice(0, CAPS.freeText),
           answer,
           history,
-          attempt: typeof body.attempt === "number" ? Math.max(1, Math.round(body.attempt)) : undefined,
+          attempt:
+            typeof body.attempt === "number"
+              ? Math.max(1, Math.round(body.attempt))
+              : undefined,
           misconceptions,
           recurring,
           help:
-            typeof body.help === "number" ? Math.max(0, Math.min(3, Math.round(body.help))) : undefined,
+            typeof body.help === "number"
+              ? Math.max(0, Math.min(3, Math.round(body.help)))
+              : undefined,
           language,
         };
         return uncached(

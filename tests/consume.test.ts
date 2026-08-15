@@ -77,7 +77,11 @@ describe("readingPhaseIndex", () => {
 
   it("moves to Socratic once the pass is read but not handed off", () => {
     expect(
-      readingPhaseIndex("learning", false, progress({ idx: 4, total: 5, finished: true })),
+      readingPhaseIndex(
+        "learning",
+        false,
+        progress({ idx: 4, total: 5, finished: true }),
+      ),
     ).toBe(1);
   });
 

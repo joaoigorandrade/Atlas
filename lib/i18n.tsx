@@ -94,11 +94,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     [language, setLanguage, adoptLanguage, source],
   );
 
-  return (
-    <LanguageContext.Provider value={value}>
-      {children}
-    </LanguageContext.Provider>
-  );
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
 export function useLanguage(): LanguageContextValue {

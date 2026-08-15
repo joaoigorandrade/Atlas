@@ -73,9 +73,7 @@ describe("withRetry", () => {
 
   it("lets shouldRetry override the error's own verdict", async () => {
     const fn = vi.fn().mockRejectedValue(new AtlasError("upstream", "502"));
-    await expect(
-      withRetry(fn, { shouldRetry: () => false }),
-    ).rejects.toThrow();
+    await expect(withRetry(fn, { shouldRetry: () => false })).rejects.toThrow();
     expect(fn).toHaveBeenCalledTimes(1);
   });
 });

@@ -41,8 +41,7 @@ export async function POST(request: Request) {
   // An unconfigured deploy is a server fact, not a learner's mistake. The
   // client already knows read-aloud is off (NEXT_PUBLIC_TTS_ENABLED) and never
   // renders the control, so this only catches a direct call.
-  if (!ttsConfigured())
-    return apiError("notfound", { requestId, reason: "tts_off" });
+  if (!ttsConfigured()) return apiError("notfound", { requestId, reason: "tts_off" });
 
   const body = (await request.json().catch(() => null)) as {
     text?: unknown;

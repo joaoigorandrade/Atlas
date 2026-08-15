@@ -156,7 +156,10 @@ export default function MapCanvas({
       consumeProgress: consumeProgress?.[node.id],
       // Kept inside the canvas so a node near an edge doesn't push its card
       // off-screen.
-      x: Math.min(Math.max(x, CARD_HALF + 8), Math.max(box.w - CARD_HALF - 8, CARD_HALF + 8)),
+      x: Math.min(
+        Math.max(x, CARD_HALF + 8),
+        Math.max(box.w - CARD_HALF - 8, CARD_HALF + 8),
+      ),
       y,
       reach,
       above: y + reach + CARD_CLEARANCE > box.h,
@@ -238,7 +241,9 @@ export default function MapCanvas({
                   strokeWidth={hoverLit || pathLit ? 2 : 1.2}
                   strokeDasharray={dashed ? "5 6" : "0"}
                   strokeLinecap="round"
-                  style={{ transition: transition(["stroke", "stroke-width"], "fast") }}
+                  style={{
+                    transition: transition(["stroke", "stroke-width"], "fast"),
+                  }}
                 />
                 {/* Invisible hit area: hovering an edge highlights the
                     prerequisite chain of its dependent end. */}
@@ -353,9 +358,7 @@ export default function MapCanvas({
                       : onPath
                         ? "0 0 0 1px rgba(201,154,46,0.45), 0 4px 14px rgba(201,154,46,0.18)"
                         : "0 2px 7px rgba(44,40,35,0.06)",
-                  animation: isFrontier
-                    ? "pulseGlow 2.8s ease-in-out infinite"
-                    : "none",
+                  animation: isFrontier ? "pulseGlow 2.8s ease-in-out infinite" : "none",
                 }}
               >
                 {/* The status dot, and — the moment it changes to something
