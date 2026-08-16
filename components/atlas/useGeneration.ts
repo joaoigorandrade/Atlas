@@ -70,6 +70,8 @@ export function warmKindsFor(state: NodeState | undefined): WarmKind[] {
   }
 }
 
+export type Generation = ReturnType<typeof useGeneration>;
+
 export function useGeneration(opts_: {
   run: RunState;
   warm: ReturnType<typeof createWarmQueue>;

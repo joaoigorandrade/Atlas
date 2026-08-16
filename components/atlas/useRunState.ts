@@ -49,6 +49,7 @@ import {
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
 import type { Language } from "@/lib/i18n";
+import type { Screen } from "@/components/atlas/screen";
 import {
   listRuns,
   loadRunBySubject,
@@ -72,9 +73,9 @@ export function useRunState(opts: {
   supabase: SupabaseClient;
   warm: ReturnType<typeof createWarmQueue>;
   /** The run is only written while a real map is on screen — see `runActive`. */
-  screen: string;
+  screen: Screen;
   excluding: boolean;
-  setScreen: (screen: "map") => void;
+  setScreen: React.Dispatch<React.SetStateAction<Screen>>;
   showError: (
     err: unknown,
     opts?: { context?: ErrorContext; retry?: () => void },

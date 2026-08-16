@@ -1,12 +1,13 @@
 {
   "default": 400,
   "files": {
-    "components/AtlasApp.tsx": 3830,
+    "components/AtlasApp.tsx": 1937,
     "components/DashboardScreen.tsx": 693,
     "components/SettingsScreen.tsx": 491,
     "components/analytics/CalibrationView.tsx": 687,
-    "components/atlas/useGeneration.ts": 584,
-    "components/atlas/useRunState.ts": 723,
+    "components/atlas/useGeneration.ts": 586,
+    "components/atlas/useRunState.ts": 724,
+    "components/atlas/useSpiral.ts": 2154,
     "components/map/LeftRail.tsx": 452,
     "components/map/MapCanvas.tsx": 464,
     "components/map/NodeDetail.tsx": 686,
