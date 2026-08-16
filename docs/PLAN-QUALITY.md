@@ -155,49 +155,84 @@ MCP) drives — one harness, both consumers, no second setup.
 
 ## Phase 2 — Shrink the four files
 
-Every step below is behaviour-preserving and lands behind the Phase 1 e2e suite.
+**Status: landed for 2.2–2.4, partial for 2.1, skipped for 2.5** (2026-08-16).
+Every step is behaviour-preserving and was verified against the Phase 1 e2e
+suite, `tsc`, ESLint and the 322 unit tests after each split.
 
-### 2.1 `AtlasApp.tsx` — 5,084 → target ~800
+| Step                      | Before | After                       |
+| ------------------------- | ------ | --------------------------- |
+| `components/AtlasApp.tsx` | 5,042  | **4,675** (target was ~800) |
+| `lib/curriculum.ts`       | 3,044  | 10 modules, largest 473     |
+| `lib/server/generate.ts`  | 2,675  | 14 modules, largest 499     |
+| `ConsumeView.tsx`         | 2,633  | **1,222** + 7 modules       |
 
-The 118 `useCallback`s are the tell: everything is memoized by reflex, and the
-memoization is most of the volume. Split by concern into `components/atlas/`:
-`useRunSnapshot` (persistence + caches), `useCanvas` (pan/zoom/drag),
-`useWarming` (the `lib/warm.ts` orchestration), `useDiagnostic`, `useSession`
-(phase dispatch). `AtlasApp` becomes the shell that composes them.
+### 2.1 `AtlasApp.tsx` — 5,042 → 4,675 (partial)
 
-Delete on the way through: `useCallback` on anything not in a dependency array or
-a memoized child's props. Most of the 118 are pure ceremony.
+Landed:
 
-### 2.2 `lib/server/generate.ts` — 2,597 → target ~1,000
+- `components/atlas/useToast.ts` — the toast channel and `showError`, the one
+  place a caught error becomes something a learner reads.
+- `components/atlas/useCanvas.ts` — pan, zoom, node drag, `centerOn`, and the
+  view/positions state they own.
+- `components/atlas/useViewport.ts` — the responsive minimum (#8).
+- `components/atlas/exporters.ts` — data export (#32), now plain functions
+  taking data instead of three `useCallback`s closing over refs.
+- **59 of 106 `useCallback`s deleted.** They were pure ceremony: no component
+  in the repo is `React.memo`'d and none of the 59 appeared in a dependency
+  array, so the memoization bought nothing. `build` stayed wrapped —
+  `react-hooks/purity` (correctly) objects to `Date.now()` at render scope.
 
-Twelve kinds × (`validateX` + `generateX` + `xContext` + a shape const) written
-out longhand. Twelve implementations of one shape is exactly when a table earns
-its place: one `defineKind({ shape, rules, context, validate })` and each kind
-becomes ~40 lines of data instead of ~200 lines of code. The prompts stay verbatim
-— they are the product, and none of this touches them.
+**Not landed, and the honest reason:** the remaining bulk is the six phase
+handler blocks (~1,400 lines), generation plumbing (~450), persistence (~380)
+and the JSX (~470). Each reads and writes 20-40 pieces of the same shared state
+pool. Extracting them as `useRunSnapshot`/`useSession`/`useDiagnostic` requires
+deciding _which hook owns which state_ — a restructure, not a move. Threading a
+30-field context object through a hook boundary would relocate the lines without
+deleting any, and would do it under an e2e suite of seven specs that is too
+shallow to catch a subtle ordering regression. The four extractions above were
+taken because their interfaces are genuinely narrow (3-10 arguments); the rest
+needs the state-ownership decision made first.
 
-### 2.3 `ConsumeView.tsx` — 2,583 → target ~600
+### 2.2 `lib/server/generate.ts` — 2,675 → 14 modules
 
-Extract the independent sub-surfaces it has grown: figure, prediction, the
-lens/model sheet, ask-about-this, the read-aloud toolbar. Each is already
-self-contained; they are just inlined.
+Split into `lib/server/generate/<kind>.ts` (map, summary, consume, model,
+passage, socratic, feynman, connect, crucible, retain, judge, choice) over a
+shared `common.ts`, with a barrel so no import changed. Prompts are verbatim.
 
-### 2.4 `curriculum.ts` — 3,057, split not shrunk
+**Honest note:** the plan proposed collapsing twelve kinds into one
+`defineKind({ shape, rules, context, validate })` table. Reading them, the twelve
+share a shape only superficially — the validators encode genuinely different
+post-processing (graph layout, gap offsets, card bounds), the contexts are
+different prompts, and half the kinds have a streaming variant with its own
+frame protocol. A table over that would have been a speculative abstraction with
+twelve special cases inside it. The split is the real win; the line count is
+flat.
 
-Six session reducers + the replanning model + the shared vocabulary. Split into
-`lib/curriculum/{types,replan,consume,socratic,feynman,connect,crucible,retain}.ts`
-with a barrel so no import changes. **Honest note:** this one is a browsability
-win, not a size win — the logic is load-bearing and mostly earns its lines.
+### 2.3 `ConsumeView.tsx` — 2,633 → 1,222
 
-### 2.5 Inline styles — ~800 objects
+`Figure`, `SpeakerButton`, `WorkedExample`, `PassagePanel`, `SectionCheck` and
+`ModelView` moved to `components/session/consume/`, with the strings and the
+session types in `consume/shared.ts`. The remaining 1,222 lines are the reading
+column and the closing recap, which are one surface rather than several inlined
+ones — short of the ~600 target, but there is no second self-contained
+sub-surface left to lift out.
 
-Not a rewrite. Two mechanical passes:
-hoist repeated `style={{}}` literals to module-level consts (they are currently
-reallocated on every render — a correctness-adjacent perf win as well as a size
-one), and move anything that is genuinely static to a class in `globals.css`.
-No CSS-in-JS dependency; `lib/theme.ts` stays the token source of truth.
+### 2.4 `curriculum.ts` — 3,044, split not shrunk
 
----
+`lib/curriculum/{types,consume,socratic,feynman,connect,crucible,retain,
+adherence,calibration,replan}.ts` with a barrel; no import changed. As the plan
+predicted, a browsability win, not a size win.
+
+### 2.5 Inline styles — skipped, deliberately
+
+Measured before touching anything: 905 style literals, of which only 215
+occurrences (69 distinct) repeat at all. Hoisting every repeat adds 69 module
+consts to remove 215 inline objects — roughly zero net lines. The plan also
+claimed a perf win from the re-allocation, but with no `React.memo` anywhere in
+the repo, nothing compares those objects by identity: React diffs style _values_
+on host elements. So this pass would touch 215 sites across the app for no
+measured gain, which is the definition of motion. Worth doing only if a real
+render-cost regression is measured, or as part of a genuine design-token pass.
 
 ## Phase 3 — Production readiness
 

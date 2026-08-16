@@ -165,18 +165,22 @@ import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
-import MapCanvas, { CELEBRATE_MS, type ViewTransform } from "@/components/map/MapCanvas";
+import MapCanvas, { CELEBRATE_MS } from "@/components/map/MapCanvas";
 import { usePresence, useEarned } from "@/lib/motion";
+import { useToast } from "@/components/atlas/useToast";
+import { useViewport } from "@/components/atlas/useViewport";
+import { useCanvas } from "@/components/atlas/useCanvas";
+import { exportCardsCsv, exportCardsJson, exportMap } from "@/components/atlas/exporters";
 import { SHEET_EXIT_MS } from "@/components/Sheet";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar, { type Surface } from "@/components/map/TopBar";
-import Toast, { isSticky, type ToastData } from "@/components/Toast";
+import Toast from "@/components/Toast";
 import ScreenTimer from "@/components/ScreenTimer";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
 import OfflineBanner from "@/components/OfflineBanner";
-import { AtlasError, codeForStatus, isErrorCode, toAtlasError } from "@/lib/errors";
-import { ERROR_STRINGS, errorLines, type ErrorContext } from "@/lib/errorCopy";
+import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
+import { ERROR_STRINGS } from "@/lib/errorCopy";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 import { withRetry } from "@/lib/retry";
@@ -258,22 +262,6 @@ const GRADE_REAL: Record<ReviewGrade, number> = {
   good: 75,
   easy: 95,
 };
-
-interface DragState {
-  id: string;
-  startX: number;
-  startY: number;
-  originX: number;
-  originY: number;
-  moved: boolean;
-}
-
-interface PanState {
-  startX: number;
-  startY: number;
-  originX: number;
-  originY: number;
-}
 
 export default function AtlasApp({
   userEmail,
@@ -452,10 +440,7 @@ export default function AtlasApp({
    *  now has real frames to count. */
   const [buildNote, setBuildNote] = useState<string | null>(null);
   // Viewport width drives the minimum responsive pass (#8).
-  const [vw, setVw] = useState(1440);
-  const [railOpen, setRailOpen] = useState(true);
-  const [detailOpen, setDetailOpen] = useState(true);
-  const [toast, setToast] = useState<ToastData | null>(null);
+  const { vw, railOpen, setRailOpen, detailOpen, setDetailOpen } = useViewport();
   /** A reading pass whose stream died after some sections had landed. What
    *  arrived stays on screen; this is the notice pinned under it. */
   const [consumeFailed, setConsumeFailed] = useState<{
@@ -476,19 +461,6 @@ export default function AtlasApp({
   /** Re-runs the judge for a Socratic turn whose grading failed — held here so
    *  the failed bubble can offer it, not just the toast. */
   const [socraticRetry, setSocraticRetry] = useState<(() => void) | null>(null);
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
-    {},
-  );
-  const [view, setView] = useState<ViewTransform>({
-    x: 40,
-    y: 30,
-    scale: 0.72,
-  });
-
-  const viewRef = useRef(view);
-  viewRef.current = view;
-  const positionsRef = useRef(positions);
-  positionsRef.current = positions;
   const graphRef = useRef(graph);
   graphRef.current = graph;
   const formRef = useRef(form);
@@ -507,6 +479,21 @@ export default function AtlasApp({
    *  only where it is known: a build, a deliberate switch, or a restored run
    *  that carried one. */
   const [runLanguage, setRunLanguage] = useState<Language | undefined>(undefined);
+
+  const { toast, dismissToast, showToast, showError } = useToast(supabase, languageRef);
+
+  const displayRef = useRef<Record<string, NodeState>>({});
+  const {
+    view,
+    setView,
+    positions,
+    setPositions,
+    positionsRef,
+    onWheel,
+    onCanvasDown,
+    onNodeDown,
+    centerOn,
+  } = useCanvas({ setSelectedId, displayRef, showToast });
 
   // Which language wins, and whether a change is a *switch* (regenerate) or
   // merely the app working out where it is (leave everything alone).
@@ -615,168 +602,19 @@ export default function AtlasApp({
   // Gap specs queued by hesitant diagnostic answers, spawned once the map opens.
   const pendingGapsRef = useRef<Array<{ parentId: string; spec: GapSpec }>>([]);
   // Assigned in the derived section below; read by event handlers.
-  const displayRef = useRef<Record<string, NodeState>>({});
-
-  const dragRef = useRef<DragState | null>(null);
-  const panRef = useRef<PanState | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const momentumRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastSeq = useRef(0);
 
   useEffect(() => {
     const timers = timersRef.current;
     return () => {
       timers.forEach(clearTimeout);
       if (momentumRef.current) clearInterval(momentumRef.current);
-      if (toastRef.current) clearTimeout(toastRef.current);
     };
   }, []);
-
-  const dismissToast = useCallback(() => {
-    if (toastRef.current) clearTimeout(toastRef.current);
-    setToast(null);
-  }, []);
-
-  /** Post a toast. `tone` defaults to "info"; an error stays until it is
-   *  dismissed or replaced by another error. */
-  const postToast = useCallback((next: Omit<ToastData, "seq">) => {
-    // `seq` keys the toast, so a second one replays its entrance instead of
-    // swapping text inside an element that has already finished animating.
-    toastSeq.current += 1;
-    const toast: ToastData = { ...next, seq: toastSeq.current };
-    setToast((current) => {
-      // Priority: a live error is not clobbered by the ordinary chatter that
-      // follows it. Half these toasts fire from effects the failure itself
-      // set in motion — the screen falls back, the map re-plans — and the
-      // learner would watch the one message that mattered get overwritten by
-      // "Jumping ahead · …" before they had finished reading it.
-      if (current && current.tone === "error" && next.tone !== "error") return current;
-      return toast;
-    });
-    if (toastRef.current) clearTimeout(toastRef.current);
-    if (!isSticky(toast))
-      toastRef.current = setTimeout(
-        () => setToast((c) => (c?.seq === toast.seq ? null : c)),
-        next.kicker ? 3400 : 2400,
-      );
-    return toast.seq;
-  }, []);
-
-  const showToast = useCallback(
-    (message: string, kicker?: string) => {
-      postToast({ message, kicker });
-    },
-    [postToast],
-  );
-
-  // Speculation is pointless without a network, and worse than pointless: every
-  // queued warm would fail instantly, drop its key, and take the deduplication
-  // with it — so the reconnect would be followed by a stampede of duplicate
-  // generations for content that was nearly ready. Foreground clicks still go
-  // through; only the guessing stops.
-  useEffect(() => {
-    if (online) warm.resume();
-    else warm.suspend();
-  }, [online, warm]);
-
-  /**
-   * The one place a caught error becomes something a learner reads.
-   *
-   * Classify it, choose the sentence in their language, and — when the same
-   * call could plausibly work a second time — hand them a button that runs it
-   * again. The error's own `message` is upstream prose (an OpenRouter body, a
-   * PostgREST complaint) and stays in the log line, next to the request id that
-   * ties it to the server's account of the same failure.
-   *
-   * `declined` never surfaces: it is the warm queue's control flow, not a
-   * failure, and a learner has no idea a prefetch was ever attempted.
-   */
-  const showError = useCallback(
-    (err: unknown, opts: { context?: ErrorContext; retry?: () => void } = {}) => {
-      const atlas = toAtlasError(err);
-      if (atlas.code === "declined") return;
-      logWarning("client_error", atlas, {
-        context: opts.context,
-        code: atlas.code,
-        req: atlas.requestId,
-      });
-      const strings = ERROR_STRINGS[languageRef.current];
-      const lines = errorLines(
-        languageRef.current,
-        atlas.code,
-        opts.context,
-        atlas.reason,
-      );
-      // An expired access token is usually recoverable without the learner
-      // doing anything: the refresh token outlives it. Try once, silently, and
-      // only ask them to sign in if that fails too — being bounced to a login
-      // screen mid-session for a token that could have been renewed is the
-      // most annoying possible way to be correct.
-      if (atlas.code === "auth") {
-        supabase.auth
-          .refreshSession()
-          .then(({ data, error }) => {
-            if (error || !data.session) throw error ?? new Error("no session");
-            // Recovered. Re-run what failed if we can; otherwise say the action
-            // didn't complete — a silent no-op after a silent recovery leaves
-            // the learner believing something happened that didn't.
-            if (opts.retry) opts.retry();
-            else
-              postToast({
-                ...lines,
-                tone: "error",
-                dismissLabel: strings.dismiss,
-              });
-          })
-          .catch(() =>
-            postToast({
-              ...lines,
-              tone: "error",
-              dismissLabel: strings.dismiss,
-              action: {
-                label: strings.signIn,
-                onClick: () => window.location.assign("/login"),
-              },
-            }),
-          );
-        return;
-      }
-      postToast({
-        ...lines,
-        tone: "error",
-        dismissLabel: strings.dismiss,
-        action:
-          opts.retry && atlas.retryable
-            ? { label: strings.retry, onClick: opts.retry }
-            : undefined,
-      });
-    },
-    [postToast, supabase],
-  );
 
   const setShakyReason = useCallback((id: string, reason: ShakyReason) => {
     setShakyReasons((prev) => ({ ...prev, [id]: reason }));
-  }, []);
-
-  // ---- responsive minimum (#8): track the viewport, collapse rails below
-  // 1280, and gate the whole app below 768 (rendered later).
-  useEffect(() => {
-    const measure = () => {
-      const w = window.innerWidth;
-      if (w === 0) return; // hidden/backgrounded surface — keep the last real width
-      setVw(w);
-      if (w < 1280) {
-        setRailOpen(false);
-        setDetailOpen(false);
-      } else {
-        setRailOpen(true);
-        setDetailOpen(true);
-      }
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
   }, []);
 
   // ---- day rollover (#22): judge passed days whenever the calendar turns —
@@ -801,10 +639,7 @@ export default function AtlasApp({
     if (retain?.finished) setAdherence((prev) => markTodayMet(prev));
   }, [retain?.finished]);
 
-  const onToggleReminder = useCallback(
-    () => setAdherence((prev) => toggleReminder(prev)),
-    [],
-  );
+  const onToggleReminder = () => setAdherence((prev) => toggleReminder(prev));
 
   const later = useCallback((fn: () => void, ms: number) => {
     timersRef.current.push(setTimeout(fn, ms));
@@ -927,7 +762,7 @@ export default function AtlasApp({
         // caches; the next load gets another chance at the row.
         .catch((err: unknown) => logWarning("load_caches_failed", err));
     },
-    [warm, applyCaches, supabase],
+    [warm, applyCaches, supabase, setPositions],
   );
 
   useEffect(() => {
@@ -993,25 +828,22 @@ export default function AtlasApp({
 
   /** Open a map from the dashboard grid — a no-op switch for the one already
    *  live, otherwise loads it as the new live run. */
-  const switchMap = useCallback(
-    (subject: string) => {
-      if (subject === runSubject) {
-        setScreen("map");
-        return;
-      }
-      loadRunBySubject(supabase, subject)
-        .then((row) => {
-          if (row) applyRun(row);
-        })
-        .catch((err: unknown) =>
-          showError(err, {
-            context: "openMap",
-            retry: () => switchMapRef.current?.(subject),
-          }),
-        );
-    },
-    [runSubject, supabase, applyRun, showError],
-  );
+  const switchMap = (subject: string) => {
+    if (subject === runSubject) {
+      setScreen("map");
+      return;
+    }
+    loadRunBySubject(supabase, subject)
+      .then((row) => {
+        if (row) applyRun(row);
+      })
+      .catch((err: unknown) =>
+        showError(err, {
+          context: "openMap",
+          retry: () => switchMapRef.current?.(subject),
+        }),
+      );
+  };
   // The retry button on a failed open re-runs the same switch. Through a ref
   // because the callback has to reference itself, and the toast outlives the
   // render that posted it.
@@ -1145,7 +977,7 @@ export default function AtlasApp({
     retainContent,
   ]);
 
-  const signOut = useCallback(() => {
+  const signOut = () => {
     // Navigate either way: a failed sign-out still means the learner asked to
     // leave, and /login clears the client session on arrival. The unhandled
     // rejection this used to throw left them sitting on the map instead.
@@ -1155,10 +987,10 @@ export default function AtlasApp({
       .finally(() => {
         window.location.href = "/login";
       });
-  }, [supabase]);
+  };
 
   /** Delete account + all data (#33). Confirm, then the server wipes the rows. */
-  const deleteAccount = useCallback(() => {
+  const deleteAccount = () => {
     if (
       !window.confirm(
         "Delete your account and all data — map, cards, streak? This cannot be undone.",
@@ -1183,15 +1015,15 @@ export default function AtlasApp({
         window.location.href = "/login";
       })
       .catch((err: unknown) => showError(err, { context: "account" }));
-  }, [showError]);
+  };
 
   // ---- Home (dashboard) + profile navigation ---------------------------
 
-  const enterDashboard = useCallback(() => {
+  const enterDashboard = () => {
     setScreen("dashboard");
     refreshMaps();
-  }, [refreshMaps]);
-  const enterProfile = useCallback(() => setScreen("profile"), []);
+  };
+  const enterProfile = () => setScreen("profile");
   const openMap = useCallback(() => setScreen("map"), []);
   /** "+ New map" — onboarding builds a new run alongside whatever's saved. */
   const newMap = useCallback(() => setScreen("welcome"), []);
@@ -1209,134 +1041,73 @@ export default function AtlasApp({
    * Adherence is deliberately untouched: the streak is the learner's habit,
    * not the topic's, and fabricating a reset would be the dishonest read.
    */
-  const excludeTopic = useCallback(
-    (subject: string) => {
-      setExcluding(true);
-      deleteRun(supabase, subject)
-        .then(() => {
-          if (subject !== runSubject) {
-            refreshMaps();
-            showToast(`“${subject}” excluded`);
-            return;
-          }
-          // Every warmed key belongs to node ids that no longer exist.
-          warm.clear();
-          setGraph(emptyGraph());
-          setStates({});
-          setPositions({});
-          setSpawnedIds(new Set());
-          pendingGapsRef.current = [];
-          setSelectedId(null);
-          setDiagnostic([]);
-          setAnswered(0);
-          setConsume(null);
-          setLiveConsume(null);
-          setLiveModel(null);
-          setSocratic(null);
-          setLiveSocratic(null);
-          setFeynman(null);
-          setLiveFeynman(null);
-          setConnect(null);
-          setCrucible(null);
-          setRetain(null);
-          setConsumeCache({});
-          setModelCache({});
-          setSocraticCache({});
-          setFeynmanCache({});
-          setConnectCache({});
-          setCrucibleCache({});
-          setRetainContent(null);
-          setConsumeProgress({});
-          setModalityTally({});
-          setSocraticProgress({});
-          setFeynmanProgress({});
-          setConnectProgress({});
-          setMisconceptions([]);
-          setCards([]);
-          setCalibSamples([]);
-          setShakyReasons({});
-          setReviewedNodes([]);
-          setLitToday([]);
-          setMomentumPlaying(false);
-          setOutline(null);
-          setUploadNote(null);
-          setScopes(null);
-          setForm((prev) => ({ ...prev, topic: "" }));
-          const others = maps.filter((m) => m.subject !== subject);
-          if (others.length) {
-            setMaps(others);
-            setScreen("dashboard");
-            showToast(`“${subject}” excluded`);
-          } else {
-            setScreen("welcome");
-            showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
-          }
-        })
-        .catch((err: unknown) => showError(err, { context: "exclude" }))
-        .finally(() => setExcluding(false));
-    },
-    [supabase, warm, showToast, showError, refreshMaps, runSubject, maps],
-  );
+  const excludeTopic = (subject: string) => {
+    setExcluding(true);
+    deleteRun(supabase, subject)
+      .then(() => {
+        if (subject !== runSubject) {
+          refreshMaps();
+          showToast(`“${subject}” excluded`);
+          return;
+        }
+        // Every warmed key belongs to node ids that no longer exist.
+        warm.clear();
+        setGraph(emptyGraph());
+        setStates({});
+        setPositions({});
+        setSpawnedIds(new Set());
+        pendingGapsRef.current = [];
+        setSelectedId(null);
+        setDiagnostic([]);
+        setAnswered(0);
+        setConsume(null);
+        setLiveConsume(null);
+        setLiveModel(null);
+        setSocratic(null);
+        setLiveSocratic(null);
+        setFeynman(null);
+        setLiveFeynman(null);
+        setConnect(null);
+        setCrucible(null);
+        setRetain(null);
+        setConsumeCache({});
+        setModelCache({});
+        setSocraticCache({});
+        setFeynmanCache({});
+        setConnectCache({});
+        setCrucibleCache({});
+        setRetainContent(null);
+        setConsumeProgress({});
+        setModalityTally({});
+        setSocraticProgress({});
+        setFeynmanProgress({});
+        setConnectProgress({});
+        setMisconceptions([]);
+        setCards([]);
+        setCalibSamples([]);
+        setShakyReasons({});
+        setReviewedNodes([]);
+        setLitToday([]);
+        setMomentumPlaying(false);
+        setOutline(null);
+        setUploadNote(null);
+        setScopes(null);
+        setForm((prev) => ({ ...prev, topic: "" }));
+        const others = maps.filter((m) => m.subject !== subject);
+        if (others.length) {
+          setMaps(others);
+          setScreen("dashboard");
+          showToast(`“${subject}” excluded`);
+        } else {
+          setScreen("welcome");
+          showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
+        }
+      })
+      .catch((err: unknown) => showError(err, { context: "exclude" }))
+      .finally(() => setExcluding(false));
+  };
   const enterSettings = useCallback(() => setScreen("settings"), []);
   const exitSettings = useCallback(() => setScreen("map"), []);
-
-  // ---- data export (#32) ------------------------------------------------
-
-  const download = useCallback((name: string, text: string, mime: string) => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([text], { type: mime }));
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }, []);
-
-  const slugTopic = () =>
-    (formRef.current.topic.trim() || "atlas").toLowerCase().replace(/\W+/g, "-");
-
-  const exportMap = useCallback(() => {
-    download(
-      `${slugTopic()}-map.json`,
-      JSON.stringify(
-        {
-          topic: formRef.current.topic,
-          nodes: graphRef.current.nodes,
-          edges: graphRef.current.edges,
-          states: statesRef.current,
-        },
-        null,
-        2,
-      ),
-      "application/json",
-    );
-  }, [download]);
-
-  const exportCardsJson = useCallback(() => {
-    download(
-      `${slugTopic()}-cards.json`,
-      JSON.stringify(cardsRef.current, null, 2),
-      "application/json",
-    );
-  }, [download]);
-
-  const exportCardsCsv = useCallback(() => {
-    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
-    const rows = cardsRef.current.map((c) => {
-      const front = c.front ?? (c.cloze ? `${c.cloze[0]}____${c.cloze[1]}` : "");
-      return `${esc(front)},${esc(c.back)}`;
-    });
-    download(`${slugTopic()}-cards.csv`, rows.join("\n"), "text/csv");
-  }, [download]);
-
-  const centerOn = useCallback((id: string) => {
-    const pos = positionsRef.current[id];
-    if (!pos) return;
-    const scale = 0.85;
-    setView({
-      x: window.innerWidth / 2 - pos.x * scale,
-      y: window.innerHeight / 2 - pos.y * scale,
-      scale,
-    });
-  }, []);
 
   /** Merge a felt/real reading into the live calibration set (running average). */
   const recordCalib = useCallback((nodeId: string, felt: number, real: number) => {
@@ -1359,20 +1130,23 @@ export default function AtlasApp({
    * The re-plan restructure: hang a generated gap sub-node under its parent —
    * new red node, dashed edge, assemble animation. Idempotent per spec id.
    */
-  const attachGap = useCallback((parentId: string, spec: GapSpec): boolean => {
-    const parent = graphRef.current.nodes.find((n) => n.id === parentId);
-    const base = positionsRef.current[parentId];
-    if (!parent || !base) return false;
-    if (graphRef.current.nodes.some((n) => n.id === spec.id)) return false;
-    setGraph((g) => spawnGap(g, parentId, spec));
-    setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
-    setPositions((prev) => ({
-      ...prev,
-      [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy },
-    }));
-    setSpawnedIds((prev) => new Set(prev).add(spec.id));
-    return true;
-  }, []);
+  const attachGap = useCallback(
+    (parentId: string, spec: GapSpec): boolean => {
+      const parent = graphRef.current.nodes.find((n) => n.id === parentId);
+      const base = positionsRef.current[parentId];
+      if (!parent || !base) return false;
+      if (graphRef.current.nodes.some((n) => n.id === spec.id)) return false;
+      setGraph((g) => spawnGap(g, parentId, spec));
+      setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
+      setPositions((prev) => ({
+        ...prev,
+        [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy },
+      }));
+      setSpawnedIds((prev) => new Set(prev).add(spec.id));
+      return true;
+    },
+    [positionsRef, setPositions],
+  );
 
   // ---- onboarding flow -------------------------------------------------
 
@@ -1553,51 +1327,45 @@ export default function AtlasApp({
         setScreen("welcome");
         showError(err, { context: "build", retry: () => buildRef.current?.() });
       });
-  }, [later, outline, showError, showToast, warm]);
+  }, [later, outline, showError, showToast, warm, setPositions, setView]);
   // Same self-reference as `switchMapRef`: "Try again" on a failed build starts
   // the same build, with the form exactly as the learner left it.
   const buildRef = useRef(build);
   buildRef.current = build;
 
   /** A picked scope becomes the topic and builds immediately (#30). */
-  const pickScope = useCallback(
-    (label: string) => {
-      setForm((prev) => ({ ...prev, topic: label }));
-      setScopes(null);
-      // formRef updates on render; build reads the ref, so defer one tick.
-      later(() => build(), 30);
-    },
-    [build, later],
-  );
+  const pickScope = (label: string) => {
+    setForm((prev) => ({ ...prev, topic: label }));
+    setScopes(null);
+    // formRef updates on render; build reads the ref, so defer one tick.
+    later(() => build(), 30);
+  };
 
   /** Upload a syllabus/outline: extract server-side, ground the map (#30). */
-  const onOutlineFile = useCallback(
-    (file: File) => {
-      // Drop the previous outline up front: a re-upload must not ground the
-      // map in the old source while the new one is still being read.
-      setOutline(null);
-      setUploadNote(`Reading ${file.name}…`);
-      const data = new FormData();
-      data.append("file", file);
-      fetch("/api/extract", { method: "POST", body: data })
-        .then(async (res) => {
-          const json = (await res.json().catch(() => null)) as {
-            text?: string;
-            error?: string;
-          } | null;
-          if (!res.ok || !json?.text)
-            throw new Error(json?.error ?? "Couldn't read that file");
-          setOutline(json.text);
-          setUploadNote(`Grounded in ${file.name} ✓ — the map will follow its outline`);
-        })
-        .catch((err: Error) => {
-          setOutline(null);
-          setUploadNote(null);
-          showError(err, { context: "upload" });
-        });
-    },
-    [showError],
-  );
+  const onOutlineFile = (file: File) => {
+    // Drop the previous outline up front: a re-upload must not ground the
+    // map in the old source while the new one is still being read.
+    setOutline(null);
+    setUploadNote(`Reading ${file.name}…`);
+    const data = new FormData();
+    data.append("file", file);
+    fetch("/api/extract", { method: "POST", body: data })
+      .then(async (res) => {
+        const json = (await res.json().catch(() => null)) as {
+          text?: string;
+          error?: string;
+        } | null;
+        if (!res.ok || !json?.text)
+          throw new Error(json?.error ?? "Couldn't read that file");
+        setOutline(json.text);
+        setUploadNote(`Grounded in ${file.name} ✓ — the map will follow its outline`);
+      })
+      .catch((err: Error) => {
+        setOutline(null);
+        setUploadNote(null);
+        showError(err, { context: "upload" });
+      });
+  };
 
   /**
    * A diagnostic answer writes real mastery back: a correct answer prunes the
@@ -1611,99 +1379,95 @@ export default function AtlasApp({
    * pull from — the ENEM-style placement can't know question N+1 until N is
    * graded.
    */
-  const answerDiagnostic = useCallback(
-    (optionIndex: number): DiagnosticEffect => {
-      // All effects run here in the event handler, never inside a state
-      // updater — React may invoke updaters more than once (#16).
-      const idx = answeredRef.current;
-      const q = diagnosticRef.current[idx];
-      if (!q) return "shaky";
-      const buildId = buildIdRef.current;
-      const correct = optionIndex === q.correctIndex;
-      const effect = diagnosticEffect(
-        q.difficulty,
-        correct,
-        maxCorrectDifficultyRef.current,
-      );
-      if (correct) {
-        const rank = (d: DiagnosticDifficulty) => ["easy", "medium", "hard"].indexOf(d);
-        if (
-          maxCorrectDifficultyRef.current === null ||
-          rank(q.difficulty) > rank(maxCorrectDifficultyRef.current)
-        )
-          maxCorrectDifficultyRef.current = q.difficulty;
-      }
-      // Written as a value, not an updater, so the pool below can filter on the
-      // post-answer truth — the placement is the only writer on this screen.
-      const applied = applyDiagnosticEffect(
-        statesRef.current,
-        effect,
-        q.nodeId,
-        graphRef.current.edges,
-      );
-      setStates(applied);
-      if (effect === "shaky") {
-        setShakyReason(q.nodeId, "diagnostic-hesitation");
-        if (q.gap) pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
-      }
-      askedNodeIdsRef.current.push(q.nodeId);
-      // A discounted miss is noise, not a signal — it writes back like a correct
-      // answer, so it must not walk the ladder down either. Hold the level.
-      const nextDifficulty =
-        !correct && effect === "mastered"
-          ? q.difficulty
-          : stepDifficulty(q.difficulty, correct);
-      nextDifficultyRef.current = nextDifficulty;
+  const answerDiagnostic = (optionIndex: number): DiagnosticEffect => {
+    // All effects run here in the event handler, never inside a state
+    // updater — React may invoke updaters more than once (#16).
+    const idx = answeredRef.current;
+    const q = diagnosticRef.current[idx];
+    if (!q) return "shaky";
+    const buildId = buildIdRef.current;
+    const correct = optionIndex === q.correctIndex;
+    const effect = diagnosticEffect(
+      q.difficulty,
+      correct,
+      maxCorrectDifficultyRef.current,
+    );
+    if (correct) {
+      const rank = (d: DiagnosticDifficulty) => ["easy", "medium", "hard"].indexOf(d);
+      if (
+        maxCorrectDifficultyRef.current === null ||
+        rank(q.difficulty) > rank(maxCorrectDifficultyRef.current)
+      )
+        maxCorrectDifficultyRef.current = q.difficulty;
+    }
+    // Written as a value, not an updater, so the pool below can filter on the
+    // post-answer truth — the placement is the only writer on this screen.
+    const applied = applyDiagnosticEffect(
+      statesRef.current,
+      effect,
+      q.nodeId,
+      graphRef.current.edges,
+    );
+    setStates(applied);
+    if (effect === "shaky") {
+      setShakyReason(q.nodeId, "diagnostic-hesitation");
+      if (q.gap) pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });
+    }
+    askedNodeIdsRef.current.push(q.nodeId);
+    // A discounted miss is noise, not a signal — it writes back like a correct
+    // answer, so it must not walk the ladder down either. Hold the level.
+    const nextDifficulty =
+      !correct && effect === "mastered"
+        ? q.difficulty
+        : stepDifficulty(q.difficulty, correct);
+    nextDifficultyRef.current = nextDifficulty;
 
-      const next = idx + 1;
-      const maxG = Math.max(1, ...graphRef.current.nodes.map((n) => n.g));
-      setReveal(Math.ceil((Math.min(next, DIAGNOSTIC_COUNT) / DIAGNOSTIC_COUNT) * maxG));
-      setAnswered(next);
-      if (next >= DIAGNOSTIC_COUNT) return effect;
+    const next = idx + 1;
+    const maxG = Math.max(1, ...graphRef.current.nodes.map((n) => n.g));
+    setReveal(Math.ceil((Math.min(next, DIAGNOSTIC_COUNT) / DIAGNOSTIC_COUNT) * maxG));
+    setAnswered(next);
+    if (next >= DIAGNOSTIC_COUNT) return effect;
 
-      // Already-asked nodes are out, and so is everything the answers above
-      // already pruned: re-probing settled territory spends one of five
-      // questions to learn nothing, and a miss there would undo a prune.
-      const pool = graphRef.current.nodes
-        .filter(
-          (n) => !askedNodeIdsRef.current.includes(n.id) && applied[n.id] !== "mastered",
-        )
-        .map((n) => ({ id: n.id, label: n.label }));
-      // Nothing left worth probing — the placement has already learned all it
-      // can. End it here instead of posting a request the server would reject.
-      if (pool.length === 0) {
-        setAnswered(DIAGNOSTIC_COUNT);
-        return effect;
-      }
-
-      fetchDiagnosticQuestion({
-        topic: formRef.current.topic,
-        goal: formRef.current.goal,
-        interests: formRef.current.interests,
-        language: languageRef.current,
-        pool,
-        difficulty: nextDifficulty,
-      })
-        .then((question) => {
-          // A question written for a map the learner has already left behind
-          // must not land on the one that replaced it.
-          if (buildIdRef.current === buildId)
-            setDiagnostic((prev) => [...prev, question]);
-        })
-        .catch((err: unknown) => {
-          // The writer stumbled mid-placement: stop asking and let what's
-          // already known stand rather than leaving the panel waiting forever.
-          if (buildIdRef.current !== buildId) return;
-          setAnswered(DIAGNOSTIC_COUNT);
-          // …and say so. Ending placement early in silence looks like the app
-          // decided it had learned enough about them, which is a different and
-          // much more confusing thing than "that step didn't work".
-          showError(err, { context: "placement" });
-        });
+    // Already-asked nodes are out, and so is everything the answers above
+    // already pruned: re-probing settled territory spends one of five
+    // questions to learn nothing, and a miss there would undo a prune.
+    const pool = graphRef.current.nodes
+      .filter(
+        (n) => !askedNodeIdsRef.current.includes(n.id) && applied[n.id] !== "mastered",
+      )
+      .map((n) => ({ id: n.id, label: n.label }));
+    // Nothing left worth probing — the placement has already learned all it
+    // can. End it here instead of posting a request the server would reject.
+    if (pool.length === 0) {
+      setAnswered(DIAGNOSTIC_COUNT);
       return effect;
-    },
-    [setShakyReason, showError],
-  );
+    }
+
+    fetchDiagnosticQuestion({
+      topic: formRef.current.topic,
+      goal: formRef.current.goal,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      pool,
+      difficulty: nextDifficulty,
+    })
+      .then((question) => {
+        // A question written for a map the learner has already left behind
+        // must not land on the one that replaced it.
+        if (buildIdRef.current === buildId) setDiagnostic((prev) => [...prev, question]);
+      })
+      .catch((err: unknown) => {
+        // The writer stumbled mid-placement: stop asking and let what's
+        // already known stand rather than leaving the panel waiting forever.
+        if (buildIdRef.current !== buildId) return;
+        setAnswered(DIAGNOSTIC_COUNT);
+        // …and say so. Ending placement early in silence looks like the app
+        // decided it had learned enough about them, which is a different and
+        // much more confusing thing than "that step didn't work".
+        showError(err, { context: "placement" });
+      });
+    return effect;
+  };
 
   /**
    * The node the "Start here →" / "Jump to frontier" affordances target:
@@ -1714,7 +1478,7 @@ export default function AtlasApp({
     return plan[0]?.node.id ?? null;
   }, [form.goal]);
 
-  const startMap = useCallback(() => {
+  const startMap = () => {
     setScreen("map");
     const target = frontierTargetId();
     if (target) {
@@ -1737,87 +1501,7 @@ export default function AtlasApp({
         BUILD_MS + i * 1100,
       );
     });
-  }, [attachGap, centerOn, frontierTargetId, later, showToast]);
-
-  // ---- canvas interactions ---------------------------------------------
-
-  const onWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.08 : 0.926;
-    const current = viewRef.current;
-    const nextScale = Math.min(1.7, Math.max(0.4, current.scale * factor));
-    const mx = e.clientX;
-    const my = e.clientY;
-    setView({
-      x: mx - (mx - current.x) * (nextScale / current.scale),
-      y: my - (my - current.y) * (nextScale / current.scale),
-      scale: nextScale,
-    });
-  }, []);
-
-  const onCanvasDown = useCallback((e: React.MouseEvent) => {
-    panRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      originX: viewRef.current.x,
-      originY: viewRef.current.y,
-    };
-    setSelectedId(null);
-  }, []);
-
-  const onNodeDown = useCallback((e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const pos = positionsRef.current[id];
-    dragRef.current = {
-      id,
-      startX: e.clientX,
-      startY: e.clientY,
-      originX: pos.x,
-      originY: pos.y,
-      moved: false,
-    };
-  }, []);
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const drag = dragRef.current;
-      if (drag) {
-        const scale = viewRef.current.scale;
-        const dx = (e.clientX - drag.startX) / scale;
-        const dy = (e.clientY - drag.startY) / scale;
-        if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
-        setPositions((prev) => ({
-          ...prev,
-          [drag.id]: { x: drag.originX + dx, y: drag.originY + dy },
-        }));
-        return;
-      }
-      const pan = panRef.current;
-      if (pan) {
-        setView((prev) => ({
-          ...prev,
-          x: pan.originX + (e.clientX - pan.startX),
-          y: pan.originY + (e.clientY - pan.startY),
-        }));
-      }
-    };
-    const onUp = () => {
-      const drag = dragRef.current;
-      if (drag && !drag.moved) {
-        setSelectedId(drag.id);
-        if (displayRef.current[drag.id] === "unknown")
-          showToast("Locked — learn the highlighted path first");
-      }
-      dragRef.current = null;
-      panRef.current = null;
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [showToast]);
+  };
 
   // ---- generation plumbing ---------------------------------------------
 
@@ -2080,18 +1764,17 @@ export default function AtlasApp({
   const modelKey = (nodeId: string, chunkId: string, lens: AltKey) =>
     `model:${nodeId}:${chunkId}:${lens}`;
 
-  const loadModel = useCallback(
-    async (node: ConceptNode, chunk: ConsumeChunk, lens: AltKey, prefetch = false) => {
-      const beats = await fetchConsumeModel(
-        modelParams(node, chunk, lens),
-        opts(prefetch),
-      );
-      const key = modelKey(node.id, chunk.id, lens);
-      setModelCache((prev) => (prev[key] ? prev : { ...prev, [key]: beats }));
-      return beats;
-    },
-    [modelParams],
-  );
+  const loadModel = async (
+    node: ConceptNode,
+    chunk: ConsumeChunk,
+    lens: AltKey,
+    prefetch = false,
+  ) => {
+    const beats = await fetchConsumeModel(modelParams(node, chunk, lens), opts(prefetch));
+    const key = modelKey(node.id, chunk.id, lens);
+    setModelCache((prev) => (prev[key] ? prev : { ...prev, [key]: beats }));
+    return beats;
+  };
 
   const loadSocratic = useCallback(
     async (node: ConceptNode, prefetch = false) => {
@@ -2188,35 +1871,32 @@ export default function AtlasApp({
   );
 
   /** Take a batch-cache hit straight into memory — no model, no waiting. */
-  const applyWarmHit = useCallback(
-    (kind: WarmKind, nodeId: string, payload: unknown) => {
-      const p = payload as Record<string, unknown>;
-      const put = <T,>(
-        set: React.Dispatch<React.SetStateAction<Record<string, T>>>,
-        value: T | undefined,
-      ) => {
-        if (value === undefined) return;
-        set((prev) => (prev[nodeId] ? prev : { ...prev, [nodeId]: value }));
-      };
-      switch (kind) {
-        case "summary":
-          // Not a per-node cache but the node itself — see `applySummary`.
-          if (typeof p.summary === "string") applySummary(nodeId, p.summary);
-          return;
-        case "consume":
-          return put(setConsumeCache, p.chunks as ConsumeChunk[] | undefined);
-        case "socratic":
-          return put(setSocraticCache, p.steps as SocraticStep[] | undefined);
-        case "feynman":
-          return put(setFeynmanCache, p.beats as FeynmanBeat[] | undefined);
-        case "connect":
-          return put(setConnectCache, p.content as ElaborationContent | undefined);
-        case "crucible":
-          return put(setCrucibleCache, p.content as CrucibleContent | undefined);
-      }
-    },
-    [applySummary],
-  );
+  const applyWarmHit = (kind: WarmKind, nodeId: string, payload: unknown) => {
+    const p = payload as Record<string, unknown>;
+    const put = <T,>(
+      set: React.Dispatch<React.SetStateAction<Record<string, T>>>,
+      value: T | undefined,
+    ) => {
+      if (value === undefined) return;
+      set((prev) => (prev[nodeId] ? prev : { ...prev, [nodeId]: value }));
+    };
+    switch (kind) {
+      case "summary":
+        // Not a per-node cache but the node itself — see `applySummary`.
+        if (typeof p.summary === "string") applySummary(nodeId, p.summary);
+        return;
+      case "consume":
+        return put(setConsumeCache, p.chunks as ConsumeChunk[] | undefined);
+      case "socratic":
+        return put(setSocraticCache, p.steps as SocraticStep[] | undefined);
+      case "feynman":
+        return put(setFeynmanCache, p.beats as FeynmanBeat[] | undefined);
+      case "connect":
+        return put(setConnectCache, p.content as ElaborationContent | undefined);
+      case "crucible":
+        return put(setCrucibleCache, p.content as CrucibleContent | undefined);
+    }
+  };
 
   /** Queue one surface for background generation. Silent either way. */
   const warmOne = useCallback(
@@ -2259,21 +1939,18 @@ export default function AtlasApp({
    * extra — `warm.warm` dedupes by key, so the click joins this request
    * instead of making a second one — and buys back that settle.
    */
-  const hoverNode = useCallback(
-    (id: string | null) => {
-      setHoverId(id);
-      if (!id) return;
-      const node = graphRef.current.nodes.find((n) => n.id === id);
-      if (!node) return;
-      // The hover card says what the concept is, same as the rail — so a node
-      // still missing its sentence starts writing one on the hover rather than
-      // on the click that may not come for another half second.
-      if (!node.summary) warmOne("summary", node);
-      const kind = warmKindsFor(displayRef.current[id])[0];
-      if (kind) warmOne(kind, node);
-    },
-    [warmOne],
-  );
+  const hoverNode = (id: string | null) => {
+    setHoverId(id);
+    if (!id) return;
+    const node = graphRef.current.nodes.find((n) => n.id === id);
+    if (!node) return;
+    // The hover card says what the concept is, same as the rail — so a node
+    // still missing its sentence starts writing one on the hover rather than
+    // on the click that may not come for another half second.
+    if (!node.summary) warmOne("summary", node);
+    const kind = warmKindsFor(displayRef.current[id])[0];
+    if (kind) warmOne(kind, node);
+  };
 
   // ---- map actions ------------------------------------------------------
 
@@ -2384,17 +2061,17 @@ export default function AtlasApp({
 
   /** The end-of-section comprehension check — a wrong pick is kept (so the
    *  miss can be named) and simply replaced by the next attempt. */
-  const consumeCheck = useCallback((chunkId: string, oi: number, correct: boolean) => {
+  const consumeCheck = (chunkId: string, oi: number, correct: boolean) => {
     setConsume((prev) =>
       prev ? { ...prev, checks: { ...prev.checks, [chunkId]: { oi, correct } } } : prev,
     );
-  }, []);
+  };
 
-  const consumeContinue = useCallback((chunkIndex: number) => {
+  const consumeContinue = (chunkIndex: number) => {
     setConsume((prev) =>
       prev ? { ...prev, idx: Math.max(prev.idx, chunkIndex + 1) } : prev,
     );
-  }, []);
+  };
 
   /**
    * Open a lens over a section of the reading.
@@ -2416,88 +2093,84 @@ export default function AtlasApp({
    * rather than the twenty it would take to pre-generate every lens of every
    * section.
    */
-  const consumeOpenModel = useCallback(
-    (chunk: ConsumeChunk, lens: AltKey) => {
-      const nodeId = consumeRef.current?.nodeId;
-      const node = graphRef.current.nodes.find((n) => n.id === nodeId);
-      if (!nodeId || !node) return;
-      setModalityTally((prev) => ({ ...prev, [lens]: (prev[lens] ?? 0) + 1 }));
-      setConsume((prev) =>
-        prev
-          ? {
-              ...prev,
-              model: { chunkId: chunk.id, lens },
-              variant: { ...prev.variant, [chunk.id]: lens },
-            }
-          : prev,
-      );
+  const consumeOpenModel = (chunk: ConsumeChunk, lens: AltKey) => {
+    const nodeId = consumeRef.current?.nodeId;
+    const node = graphRef.current.nodes.find((n) => n.id === nodeId);
+    if (!nodeId || !node) return;
+    setModalityTally((prev) => ({ ...prev, [lens]: (prev[lens] ?? 0) + 1 }));
+    setConsume((prev) =>
+      prev
+        ? {
+            ...prev,
+            model: { chunkId: chunk.id, lens },
+            variant: { ...prev.variant, [chunk.id]: lens },
+          }
+        : prev,
+    );
 
-      const chunks = consumeChunksRef.current;
-      const next = chunks[chunks.findIndex((c) => c.id === chunk.id) + 1];
-      if (next) {
-        const nextKey = modelKey(nodeId, next.id, lens);
-        if (!modelCacheRef.current[nextKey])
-          warm.warm(nextKey, () => loadModel(node, next, lens, true));
-      }
+    const chunks = consumeChunksRef.current;
+    const next = chunks[chunks.findIndex((c) => c.id === chunk.id) + 1];
+    if (next) {
+      const nextKey = modelKey(nodeId, next.id, lens);
+      if (!modelCacheRef.current[nextKey])
+        warm.warm(nextKey, () => loadModel(node, next, lens, true));
+    }
 
-      const key = modelKey(nodeId, chunk.id, lens);
-      if (modelCacheRef.current[key]) return;
+    const key = modelKey(nodeId, chunk.id, lens);
+    if (modelCacheRef.current[key]) return;
 
-      const settle = (beats?: ConsumeModelBeat[]) => {
-        if (beats)
-          setModelCache((prev) => (prev[key] ? prev : { ...prev, [key]: beats }));
-        setLiveModel((prev) => (prev?.key === key ? { ...prev, done: true } : prev));
-      };
-      const failed = (err: unknown) => {
-        settle();
-        showError(err, {
-          context: "content",
-          retry: () => consumeOpenModelRef.current?.(chunk, lens),
+    const settle = (beats?: ConsumeModelBeat[]) => {
+      if (beats) setModelCache((prev) => (prev[key] ? prev : { ...prev, [key]: beats }));
+      setLiveModel((prev) => (prev?.key === key ? { ...prev, done: true } : prev));
+    };
+    const failed = (err: unknown) => {
+      settle();
+      showError(err, {
+        context: "content",
+        retry: () => consumeOpenModelRef.current?.(chunk, lens),
+      });
+    };
+
+    const stream = () =>
+      fetchConsumeModelStream(modelParams(node, chunk, lens), (beat, index) => {
+        setLiveModel((prev) => {
+          if (!prev || prev.key !== key) return prev;
+          const beats = [...prev.beats];
+          beats[index] = beat;
+          // Frames address slots, so a gap is possible until the one before
+          // it lands; rendering a hole would put `undefined` on screen.
+          return { key, beats: beats.filter((b) => b !== undefined) };
         });
-      };
+      })
+        .then((beats) => settle(beats))
+        .catch(failed);
 
-      const stream = () =>
-        fetchConsumeModelStream(modelParams(node, chunk, lens), (beat, index) => {
-          setLiveModel((prev) => {
-            if (!prev || prev.key !== key) return prev;
-            const beats = [...prev.beats];
-            beats[index] = beat;
-            // Frames address slots, so a gap is possible until the one before
-            // it lands; rendering a hole would put `undefined` on screen.
-            return { key, beats: beats.filter((b) => b !== undefined) };
-          });
-        })
-          .then((beats) => settle(beats))
-          .catch(failed);
-
-      setLiveModel({ key, beats: [] });
-      // A warm is already writing exactly this view — join it. The queue hands
-      // back the one in-flight promise, so clicking through early costs the
-      // remainder of a request already running, never a second generation.
-      // If that warm turns out to have failed — including the silent decline a
-      // background request gets instead of an error — this is a foreground
-      // open now, so it retries properly rather than reporting the warm's fate.
-      if (warm.has(key)) {
-        warm
-          .run(key, () => loadModel(node, chunk, lens), true)
-          .then((beats) => settle(beats))
-          .catch(() => stream());
-        return;
-      }
-      void stream();
-    },
-    [loadModel, modelParams, showError, warm],
-  );
+    setLiveModel({ key, beats: [] });
+    // A warm is already writing exactly this view — join it. The queue hands
+    // back the one in-flight promise, so clicking through early costs the
+    // remainder of a request already running, never a second generation.
+    // If that warm turns out to have failed — including the silent decline a
+    // background request gets instead of an error — this is a foreground
+    // open now, so it retries properly rather than reporting the warm's fate.
+    if (warm.has(key)) {
+      warm
+        .run(key, () => loadModel(node, chunk, lens), true)
+        .then((beats) => settle(beats))
+        .catch(() => stream());
+      return;
+    }
+    void stream();
+  };
   const consumeOpenModelRef = useRef(consumeOpenModel);
   consumeOpenModelRef.current = consumeOpenModel;
 
   /** Close the open view. The lens stays recorded on the section — that is the
    *  adaptive-modality signal, and what the missing-prerequisite flag counts. */
-  const consumeCloseModel = useCallback(() => {
+  const consumeCloseModel = () => {
     setConsume((prev) => (prev ? { ...prev, model: null } : prev));
-  }, []);
+  };
 
-  const consumeToggleTerm = useCallback((key: string) => {
+  const consumeToggleTerm = (key: string) => {
     setConsume((prev) =>
       prev
         ? {
@@ -2511,13 +2184,13 @@ export default function AtlasApp({
           }
         : prev,
     );
-  }, []);
+  };
 
   // ---- ask about this (the passage aside) --------------------------------
 
   /** Open the ask panel on a section. `selection` is the highlighted text, or
    *  "" when asked from the keyboard path (the question is the whole section). */
-  const consumeOpenPassage = useCallback((chunkId: string, selection: string) => {
+  const consumeOpenPassage = (chunkId: string, selection: string) => {
     setConsume((prev) =>
       prev
         ? {
@@ -2532,11 +2205,11 @@ export default function AtlasApp({
           }
         : prev,
     );
-  }, []);
+  };
 
-  const consumeClosePassage = useCallback(() => {
+  const consumeClosePassage = () => {
     setConsume((prev) => (prev ? { ...prev, passage: null } : prev));
-  }, []);
+  };
 
   /**
    * Ask it — the learner's own question about the passage they highlighted,
@@ -2547,7 +2220,7 @@ export default function AtlasApp({
    * generator needs something to be *about*, and "this whole section" is the
    * truthful answer there rather than an arbitrary sentence from it.
    */
-  const consumeAskPassage = useCallback((question: string) => {
+  const consumeAskPassage = (question: string) => {
     const live = consumeRef.current;
     const ask = live?.passage;
     if (!live || !ask || ask.status !== "composing") return;
@@ -2599,11 +2272,11 @@ export default function AtlasApp({
     )
       .then((parts) => patch((a) => ({ ...a, parts, status: "done" })))
       .catch(() => patch((a) => ({ ...a, status: "error" })));
-  }, []);
+  };
 
   /** "Skip — I know this" on one section — collapses it to its takeaway,
    *  short of bailing on the whole node the way header's "I know this" does. */
-  const consumeToggleCollapse = useCallback((chunkId: string) => {
+  const consumeToggleCollapse = (chunkId: string) => {
     setConsume((prev) =>
       prev
         ? {
@@ -2615,7 +2288,7 @@ export default function AtlasApp({
           }
         : prev,
     );
-  }, []);
+  };
 
   /**
    * Mirror the live session into the persisted per-node progress.
@@ -2679,7 +2352,7 @@ export default function AtlasApp({
    * keeps that honest about *which* phase is actually current, so a part-read
    * node doesn't get Socratic ticked off along with it.
    */
-  const exitConsume = useCallback(() => {
+  const exitConsume = () => {
     const s = consumeRef.current;
     if (s && (s.idx >= 1 || s.finished)) {
       setStates((prev) =>
@@ -2689,7 +2362,7 @@ export default function AtlasApp({
       );
     }
     setScreen("map");
-  }, []);
+  };
 
   // ---- Socratic (Phase 3a) ---------------------------------------------
 
@@ -2818,171 +2491,162 @@ export default function AtlasApp({
    *  live one still streaming in behind it. Without this fallback every
    *  Socratic control (send, "I'm stuck", "Just tell me") is a silent no-op
    *  for as long as the pass is still generating. */
-  const socraticStepsFor = useCallback((nodeId: string): SocraticStep[] | undefined => {
+  const socraticStepsFor = (nodeId: string): SocraticStep[] | undefined => {
     const cached = socraticCacheRef.current[nodeId];
     if (cached?.length) return cached;
     const live = liveSocraticRef.current;
     return live?.nodeId === nodeId ? live.steps : undefined;
-  }, []);
+  };
 
-  const dispatchSocratic = useCallback(
-    (action: SocraticAction) => {
-      // A caught wrong turn is filed run-wide before it scrolls out of the
-      // transcript: this pass is discarded when it ends, the roll-up isn't.
-      // Outside the updater below on purpose — that one has to stay pure.
-      const live = socraticRef.current;
-      const picked =
-        action.type === "reply" && live
-          ? socraticStepsFor(live.nodeId)?.[live.step]?.replies[action.index]
-          : undefined;
-      if (live && picked?.quality === "wrong" && !live.ruledOut.includes(picked.label)) {
-        const label =
-          graphRef.current.nodes.find((n) => n.id === live.nodeId)?.label ?? "";
-        setMisconceptions((list) => recordMisconception(list, picked.label, label));
-      }
-      setSocratic((prev) => {
-        if (!prev) return prev;
-        const steps = socraticStepsFor(prev.nodeId);
-        if (!steps?.length) return prev;
-        // Whether this pass earned its ending (and any prerequisite-gap flag)
-        // is settled once, at completion, in `advanceFromSocratic` (#C) — not
-        // mid-dialogue here.
-        return socraticReducer(prev, action, steps, languageRef.current);
-      });
-    },
-    [socraticStepsFor],
-  );
+  const dispatchSocratic = (action: SocraticAction) => {
+    // A caught wrong turn is filed run-wide before it scrolls out of the
+    // transcript: this pass is discarded when it ends, the roll-up isn't.
+    // Outside the updater below on purpose — that one has to stay pure.
+    const live = socraticRef.current;
+    const picked =
+      action.type === "reply" && live
+        ? socraticStepsFor(live.nodeId)?.[live.step]?.replies[action.index]
+        : undefined;
+    if (live && picked?.quality === "wrong" && !live.ruledOut.includes(picked.label)) {
+      const label = graphRef.current.nodes.find((n) => n.id === live.nodeId)?.label ?? "";
+      setMisconceptions((list) => recordMisconception(list, picked.label, label));
+    }
+    setSocratic((prev) => {
+      if (!prev) return prev;
+      const steps = socraticStepsFor(prev.nodeId);
+      if (!steps?.length) return prev;
+      // Whether this pass earned its ending (and any prerequisite-gap flag)
+      // is settled once, at completion, in `advanceFromSocratic` (#C) — not
+      // mid-dialogue here.
+      return socraticReducer(prev, action, steps, languageRef.current);
+    });
+  };
 
   /** File a misconception the judge named into the run-wide roll-up. Once per
    *  judgement: the verdict frame files it, and the full judgement only fills
    *  in if the verdict never arrived on its own. */
-  const fileMisconception = useCallback((label: string, nodeLabel: string) => {
+  const fileMisconception = (label: string, nodeLabel: string) => {
     setMisconceptions((list) => recordMisconception(list, label, nodeLabel));
-  }, []);
+  };
 
   /**
    * The live judging loop (#25): the learner's own typed answer goes to the
    * server judge; the classified verdict drives the same contingent rules the
    * scripted replies used — correct advances, near hints, wrong gets caught.
    */
-  const socraticAnswer = useCallback(
-    (text: string) => {
-      const session = socraticRef.current;
-      if (!session || judgingRef.current) return;
-      const steps = socraticStepsFor(session.nodeId);
-      const step = steps?.[session.step];
-      const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
-      if (!step || !node) return;
-      setJudging(true);
-      const apply = (action: SocraticAction) =>
-        setSocratic((prev) =>
-          prev ? socraticReducer(prev, action, steps, languageRef.current) : prev,
-        );
-      // The turns since this step opened — the tutor's actual last question
-      // (which may be a reframe, not the opening prompt) plus enough history
-      // that a repeated hint or a misgraded reframe doesn't happen twice (#A).
-      let openIdx = 0;
-      for (let i = session.log.length - 1; i >= 0; i--) {
-        if (session.log[i].role === "ai" && session.log[i].move) {
-          openIdx = i;
-          break;
-        }
+  const socraticAnswer = (text: string) => {
+    const session = socraticRef.current;
+    if (!session || judgingRef.current) return;
+    const steps = socraticStepsFor(session.nodeId);
+    const step = steps?.[session.step];
+    const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
+    if (!step || !node) return;
+    setJudging(true);
+    const apply = (action: SocraticAction) =>
+      setSocratic((prev) =>
+        prev ? socraticReducer(prev, action, steps, languageRef.current) : prev,
+      );
+    // The turns since this step opened — the tutor's actual last question
+    // (which may be a reframe, not the opening prompt) plus enough history
+    // that a repeated hint or a misgraded reframe doesn't happen twice (#A).
+    let openIdx = 0;
+    for (let i = session.log.length - 1; i >= 0; i--) {
+      if (session.log[i].role === "ai" && session.log[i].move) {
+        openIdx = i;
+        break;
       }
-      const sinceStepOpen = session.log.slice(openIdx);
-      const lastAiTurn = [...session.log].reverse().find((t) => t.role === "ai");
-      const attempt = sinceStepOpen.filter((t) => t.role === "learner").length + 1;
-      // The answer lands in the transcript on send, with the tutor's bubble
-      // already writing beside it. Verdict-first: the classification arrives
-      // about a second in and moves the tutor on; the wording fills that
-      // same bubble when it lands.
-      apply({ type: "answer", text });
-      setSocraticRetry(null);
-      // Wrapped so the retry can re-run *just the judge*: the learner's answer
-      // is already in the transcript, and sending it twice would put it there
-      // twice. `retryJudge` re-opens the bubble this fills.
-      const runJudge = (): Promise<void> => {
-        let applied = false;
-        return fetchJudgeSocratic(
-          {
-            topic: formRef.current.topic,
-            nodeLabel: node.label,
-            question: lastAiTurn?.text ?? step.prompt,
-            reference: step.tell,
+    }
+    const sinceStepOpen = session.log.slice(openIdx);
+    const lastAiTurn = [...session.log].reverse().find((t) => t.role === "ai");
+    const attempt = sinceStepOpen.filter((t) => t.role === "learner").length + 1;
+    // The answer lands in the transcript on send, with the tutor's bubble
+    // already writing beside it. Verdict-first: the classification arrives
+    // about a second in and moves the tutor on; the wording fills that
+    // same bubble when it lands.
+    apply({ type: "answer", text });
+    setSocraticRetry(null);
+    // Wrapped so the retry can re-run *just the judge*: the learner's answer
+    // is already in the transcript, and sending it twice would put it there
+    // twice. `retryJudge` re-opens the bubble this fills.
+    const runJudge = (): Promise<void> => {
+      let applied = false;
+      return fetchJudgeSocratic(
+        {
+          topic: formRef.current.topic,
+          nodeLabel: node.label,
+          question: lastAiTurn?.text ?? step.prompt,
+          reference: step.tell,
+          answer: text,
+          history: sinceStepOpen.map((t) => ({ role: t.role, text: t.text })),
+          attempt,
+          misconceptions: step.replies
+            .filter((r) => r.quality !== "correct")
+            .map((r) => ({ label: r.label, quality: r.quality })),
+          // …and what this learner keeps getting wrong everywhere else, so a
+          // repeat is named as a repeat instead of caught cold again.
+          recurring: recurringMisconceptions(misconceptionsRef.current),
+          help: session.help,
+          language: languageRef.current,
+        },
+        (partial) => {
+          if (!partial.quality) return;
+          // The input stays gated until the wording lands — a second answer
+          // racing the first would break "at most one pending turn", and the
+          // learner is reading the verdict anyway.
+          applied = true;
+          if (partial.misconception) fileMisconception(partial.misconception, node.label);
+          apply({
+            type: "judged",
             answer: text,
-            history: sinceStepOpen.map((t) => ({ role: t.role, text: t.text })),
-            attempt,
-            misconceptions: step.replies
-              .filter((r) => r.quality !== "correct")
-              .map((r) => ({ label: r.label, quality: r.quality })),
-            // …and what this learner keeps getting wrong everywhere else, so a
-            // repeat is named as a repeat instead of caught cold again.
-            recurring: recurringMisconceptions(misconceptionsRef.current),
-            help: session.help,
-            language: languageRef.current,
-          },
-          (partial) => {
-            if (!partial.quality) return;
-            // The input stays gated until the wording lands — a second answer
-            // racing the first would break "at most one pending turn", and the
-            // learner is reading the verdict anyway.
-            applied = true;
-            if (partial.misconception)
-              fileMisconception(partial.misconception, node.label);
-            apply({
-              type: "judged",
-              answer: text,
-              quality: partial.quality,
-              response: partial.response ?? "",
-              pending: !partial.response,
-            });
-          },
-          // …and the wording types itself into that bubble as it is written.
-          (draft) => {
-            if (draft.response)
-              apply({ type: "stream", text: draft.response, pending: true });
-          },
-        )
-          .then((j) => {
-            if (!applied && j.misconception)
-              fileMisconception(j.misconception, node.label);
-            apply(
-              applied
-                ? { type: "stream", text: j.response }
-                : {
-                    type: "judged",
-                    answer: text,
-                    quality: j.quality,
-                    response: j.response,
-                  },
-            );
-          })
-          .catch((err: unknown) => {
-            // Don't strand the open bubble on its dots — but don't fill it with
-            // the failure either. Writing `err.message` in here was the tutor
-            // saying "OpenRouter 502" to a learner mid-question; the turn is
-            // marked failed instead and the view offers the retry.
-            apply({ type: "judgeFailed" });
-            const again = () => {
-              if (judgingRef.current) return;
-              setSocraticRetry(null);
-              setJudging(true);
-              apply({ type: "retryJudge" });
-              void runJudge();
-            };
-            // Offered in two places on purpose: the toast is where the learner is
-            // looking the moment it fails, and the bubble is where they look when
-            // they come back to the screen a minute later.
-            setSocraticRetry(() => again);
-            showError(err, { context: "judge", retry: again });
-          })
-          .finally(() => setJudging(false));
-      };
-      void runJudge();
-    },
-    [fileMisconception, showError, socraticStepsFor],
-  );
+            quality: partial.quality,
+            response: partial.response ?? "",
+            pending: !partial.response,
+          });
+        },
+        // …and the wording types itself into that bubble as it is written.
+        (draft) => {
+          if (draft.response)
+            apply({ type: "stream", text: draft.response, pending: true });
+        },
+      )
+        .then((j) => {
+          if (!applied && j.misconception) fileMisconception(j.misconception, node.label);
+          apply(
+            applied
+              ? { type: "stream", text: j.response }
+              : {
+                  type: "judged",
+                  answer: text,
+                  quality: j.quality,
+                  response: j.response,
+                },
+          );
+        })
+        .catch((err: unknown) => {
+          // Don't strand the open bubble on its dots — but don't fill it with
+          // the failure either. Writing `err.message` in here was the tutor
+          // saying "OpenRouter 502" to a learner mid-question; the turn is
+          // marked failed instead and the view offers the retry.
+          apply({ type: "judgeFailed" });
+          const again = () => {
+            if (judgingRef.current) return;
+            setSocraticRetry(null);
+            setJudging(true);
+            apply({ type: "retryJudge" });
+            void runJudge();
+          };
+          // Offered in two places on purpose: the toast is where the learner is
+          // looking the moment it fails, and the bubble is where they look when
+          // they come back to the screen a minute later.
+          setSocraticRetry(() => again);
+          showError(err, { context: "judge", retry: again });
+        })
+        .finally(() => setJudging(false));
+    };
+    void runJudge();
+  };
 
-  const exitSocratic = useCallback(() => {
+  const exitSocratic = () => {
     setScreen("map");
     const nodeId = socratic?.nodeId;
     if (nodeId) {
@@ -2990,7 +2654,7 @@ export default function AtlasApp({
       later(() => centerOn(nodeId), 30);
     }
     setSocratic(null);
-  }, [centerOn, later, socratic]);
+  };
 
   // ---- Feynman (Phase 3b) ----------------------------------------------
 
@@ -3092,17 +2756,14 @@ export default function AtlasApp({
     return live?.nodeId === nodeId ? live.beats : undefined;
   }, []);
 
-  const dispatchFeynman = useCallback(
-    (action: FeynmanAction) => {
-      setFeynman((prev) => {
-        if (!prev) return prev;
-        const beats = feynmanBeatsFor(prev.nodeId);
-        if (!beats?.length) return prev;
-        return feynmanReducer(prev, action, beats);
-      });
-    },
-    [feynmanBeatsFor],
-  );
+  const dispatchFeynman = (action: FeynmanAction) => {
+    setFeynman((prev) => {
+      if (!prev) return prev;
+      const beats = feynmanBeatsFor(prev.nodeId);
+      if (!beats?.length) return prev;
+      return feynmanReducer(prev, action, beats);
+    });
+  };
 
   /**
    * Real teach-back diffing (#26): the learner's whole explanation is diffed
@@ -3110,115 +2771,112 @@ export default function AtlasApp({
    * from their words, and a sub-point they never mentioned is a finding, not
    * an unanswered prompt.
    */
-  const feynmanTeach = useCallback(
-    (text: string) => {
-      const session = feynmanRef.current;
-      if (!session || judgingRef.current) return;
-      const beats = feynmanBeatsFor(session.nodeId);
-      const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
-      if (!beats?.length || !node) return;
-      setJudging(true);
-      // Verdicts-first, as in Socratic: the diff lands early and the Gap
-      // Report opens; the student's actual words fill in behind it.
-      let applied = false;
-      const apply = (action: FeynmanAction) =>
-        setFeynman((prev) => (prev ? feynmanReducer(prev, action, beats) : prev));
-      /** Rows come back by rubric index; the session keys verdicts by beat id. */
-      const byBeat = (rows: FeynmanJudgement["verdicts"]) => {
-        const verdicts: Record<string, TeachVerdict> = {};
-        const quotes: Record<string, string> = {};
-        for (const row of rows) {
-          const beat = beats[row.i];
-          if (!beat) continue;
-          verdicts[beat.id] = row.verdict;
-          if (row.quote) quotes[beat.id] = row.quote;
-        }
-        return { verdicts, quotes };
-      };
-      // A confusion caught here is the richest one the app sees — the learner
-      // said it unprompted, in their own words. Filed once per judgement, on
-      // whichever frame carried the verdicts first.
-      let filed = false;
-      const fileCaught = (rows: FeynmanJudgement["verdicts"]) => {
-        if (filed) return;
-        filed = true;
-        for (const row of rows)
-          if (row.verdict === "confused" && row.quote)
-            fileMisconception(row.quote, node.label);
-      };
-      fetchJudgeFeynman(
-        {
-          topic: formRef.current.topic,
-          nodeLabel: node.label,
-          rubric: beats.map((b) => ({
-            subPoint: b.subPoint,
-            mustConvey: b.mustConvey,
-          })),
-          answer: text,
-          language: languageRef.current,
-        },
-        (partial) => {
-          if (!partial.verdicts?.length) return;
-          applied = true;
-          fileCaught(partial.verdicts);
-          apply({
-            type: "taught",
-            text,
-            ...byBeat(partial.verdicts),
-            response: "",
-            pending: true,
-          });
-        },
-        // …and the student's reaction types itself in as it is written.
-        (draft) => {
-          if (draft.response)
-            apply({ type: "stream", text: draft.response, pending: true });
-        },
-      )
-        .then((j) => {
-          fileCaught(j.verdicts);
-          apply(
-            applied
-              ? { type: "stream", text: j.response }
-              : {
-                  type: "taught",
-                  text,
-                  ...byBeat(j.verdicts),
-                  jargon: j.jargon,
-                  response: j.response,
-                },
-          );
-          // The jargon list only arrives with the full judgement, so a session
-          // that opened on the verdict frame picks it up here.
-          if (applied && j.jargon.length)
-            setFeynman((prev) =>
-              prev?.nodeId === session.nodeId ? { ...prev, jargon: j.jargon } : prev,
-            );
-        })
-        .catch((err: unknown) => {
-          // Settle the session before surfacing the failure. `pending` is what
-          // the mirror effect below waits on, so a reaction that stopped
-          // mid-write used to leave the pass permanently unsaveable: the Gap
-          // Report was on screen, the verdicts were real, and stepping back to
-          // the map threw away a teach-back the learner had already given.
+  const feynmanTeach = (text: string) => {
+    const session = feynmanRef.current;
+    if (!session || judgingRef.current) return;
+    const beats = feynmanBeatsFor(session.nodeId);
+    const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
+    if (!beats?.length || !node) return;
+    setJudging(true);
+    // Verdicts-first, as in Socratic: the diff lands early and the Gap
+    // Report opens; the student's actual words fill in behind it.
+    let applied = false;
+    const apply = (action: FeynmanAction) =>
+      setFeynman((prev) => (prev ? feynmanReducer(prev, action, beats) : prev));
+    /** Rows come back by rubric index; the session keys verdicts by beat id. */
+    const byBeat = (rows: FeynmanJudgement["verdicts"]) => {
+      const verdicts: Record<string, TeachVerdict> = {};
+      const quotes: Record<string, string> = {};
+      for (const row of rows) {
+        const beat = beats[row.i];
+        if (!beat) continue;
+        verdicts[beat.id] = row.verdict;
+        if (row.quote) quotes[beat.id] = row.quote;
+      }
+      return { verdicts, quotes };
+    };
+    // A confusion caught here is the richest one the app sees — the learner
+    // said it unprompted, in their own words. Filed once per judgement, on
+    // whichever frame carried the verdicts first.
+    let filed = false;
+    const fileCaught = (rows: FeynmanJudgement["verdicts"]) => {
+      if (filed) return;
+      filed = true;
+      for (const row of rows)
+        if (row.verdict === "confused" && row.quote)
+          fileMisconception(row.quote, node.label);
+    };
+    fetchJudgeFeynman(
+      {
+        topic: formRef.current.topic,
+        nodeLabel: node.label,
+        rubric: beats.map((b) => ({
+          subPoint: b.subPoint,
+          mustConvey: b.mustConvey,
+        })),
+        answer: text,
+        language: languageRef.current,
+      },
+      (partial) => {
+        if (!partial.verdicts?.length) return;
+        applied = true;
+        fileCaught(partial.verdicts);
+        apply({
+          type: "taught",
+          text,
+          ...byBeat(partial.verdicts),
+          response: "",
+          pending: true,
+        });
+      },
+      // …and the student's reaction types itself in as it is written.
+      (draft) => {
+        if (draft.response)
+          apply({ type: "stream", text: draft.response, pending: true });
+      },
+    )
+      .then((j) => {
+        fileCaught(j.verdicts);
+        apply(
+          applied
+            ? { type: "stream", text: j.response }
+            : {
+                type: "taught",
+                text,
+                ...byBeat(j.verdicts),
+                jargon: j.jargon,
+                response: j.response,
+              },
+        );
+        // The jargon list only arrives with the full judgement, so a session
+        // that opened on the verdict frame picks it up here.
+        if (applied && j.jargon.length)
           setFeynman((prev) =>
-            prev?.nodeId === session.nodeId && prev.pending
-              ? { ...prev, pending: false }
-              : prev,
+            prev?.nodeId === session.nodeId ? { ...prev, jargon: j.jargon } : prev,
           );
-          showError(err, {
-            context: "judge",
-            retry: () => feynmanTeachRef.current?.(text),
-          });
-        })
-        .finally(() => setJudging(false));
-    },
-    [feynmanBeatsFor, fileMisconception, showError],
-  );
+      })
+      .catch((err: unknown) => {
+        // Settle the session before surfacing the failure. `pending` is what
+        // the mirror effect below waits on, so a reaction that stopped
+        // mid-write used to leave the pass permanently unsaveable: the Gap
+        // Report was on screen, the verdicts were real, and stepping back to
+        // the map threw away a teach-back the learner had already given.
+        setFeynman((prev) =>
+          prev?.nodeId === session.nodeId && prev.pending
+            ? { ...prev, pending: false }
+            : prev,
+        );
+        showError(err, {
+          context: "judge",
+          retry: () => feynmanTeachRef.current?.(text),
+        });
+      })
+      .finally(() => setJudging(false));
+  };
   const feynmanTeachRef = useRef(feynmanTeach);
   feynmanTeachRef.current = feynmanTeach;
 
-  const exitFeynman = useCallback(() => {
+  const exitFeynman = () => {
     setScreen("map");
     const nodeId = feynman?.nodeId;
     if (nodeId) {
@@ -3226,7 +2884,7 @@ export default function AtlasApp({
       later(() => centerOn(nodeId), 30);
     }
     setFeynman(null);
-  }, [centerOn, later, feynman]);
+  };
 
   // ---- Connect (Phase 4 · Elaboration) ---------------------------------
 
@@ -3280,16 +2938,16 @@ export default function AtlasApp({
     [connectParams, generate, loadConnect, showToast, warmOne],
   );
 
-  const dispatchConnect = useCallback((action: ConnectAction) => {
+  const dispatchConnect = (action: ConnectAction) => {
     setConnect((prev) => {
       if (!prev) return prev;
       const content = connectCacheRef.current[prev.nodeId];
       if (!content) return prev;
       return connectReducer(prev, action, content);
     });
-  }, []);
+  };
 
-  const exitConnect = useCallback(() => {
+  const exitConnect = () => {
     setScreen("map");
     const nodeId = connect?.nodeId;
     if (nodeId) {
@@ -3299,7 +2957,7 @@ export default function AtlasApp({
       later(() => centerOn(nodeId), 30);
     }
     setConnect(null);
-  }, [centerOn, later, connect]);
+  };
 
   /**
    * The write-back — Feynman's connective tissue. Every unresolved gap becomes
@@ -3307,7 +2965,7 @@ export default function AtlasApp({
    * then the phase hands straight off to Connect. The node stays Learning —
    * mastery waits for the Crucible.
    */
-  const advanceFromFeynman = useCallback(() => {
+  const advanceFromFeynman = () => {
     if (!feynman) return;
     const node = graphRef.current.nodes.find((n) => n.id === feynman.nodeId);
     const beats = feynmanBeatsFor(feynman.nodeId) ?? [];
@@ -3330,14 +2988,14 @@ export default function AtlasApp({
     } else {
       setScreen("map");
     }
-  }, [attachGap, enterConnect, feynman, feynmanBeatsFor, showToast]);
+  };
 
   /**
    * Understood and connected: the learner made real links (each drafted a card
    * for Retain), so Connect (Phase 4) is complete. The node moves Learning →
    * Shaky — its next phase is the Crucible, where transfer is proven.
    */
-  const advanceFromConnect = useCallback(() => {
+  const advanceFromConnect = () => {
     if (!connect) return;
     const node = graphRef.current.nodes.find((n) => n.id === connect.nodeId);
     const content = connectCacheRef.current[connect.nodeId];
@@ -3398,7 +3056,7 @@ export default function AtlasApp({
         `${drafted.length} card${drafted.length === 1 ? "" : "s"} drafted for Review · now prove it transfers — the Crucible.`,
       );
     }
-  }, [centerOn, connect, later, setShakyReason, showToast]);
+  };
 
   // ---- Crucible (Phase 5 · application / transfer) ---------------------
 
@@ -3430,14 +3088,14 @@ export default function AtlasApp({
   );
   enterCrucibleRef.current = enterCrucible;
 
-  const dispatchCrucible = useCallback((action: CrucibleAction) => {
+  const dispatchCrucible = (action: CrucibleAction) => {
     setCrucible((prev) => {
       if (!prev) return prev;
       const content = crucibleCacheRef.current[prev.nodeId];
       if (!content) return prev;
       return crucibleReducer(prev, action, content);
     });
-  }, []);
+  };
 
   /**
    * Submitting an attempt. An empty workspace isn't diagnostic — nudge instead.
@@ -3445,7 +3103,7 @@ export default function AtlasApp({
    * Gap node under the parent and flips the parent Shaky. The stated
    * confidence, held against the outcome, becomes a live calibration reading.
    */
-  const crucibleSubmit = useCallback(() => {
+  const crucibleSubmit = () => {
     const cur = crucibleRef.current;
     if (!cur || cur.submitted || judgingRef.current) return;
     if (!cur.attempt.trim()) {
@@ -3525,7 +3183,7 @@ export default function AtlasApp({
         }),
       )
       .finally(() => setJudging(false));
-  }, [attachGap, recordCalib, setShakyReason, showError, showToast]);
+  };
   const crucibleSubmitRef = useRef(crucibleSubmit);
   crucibleSubmitRef.current = crucibleSubmit;
 
@@ -3534,7 +3192,7 @@ export default function AtlasApp({
    * was never taught in, so the first-attempt gap resolves — it leaves the
    * map — and the node lifts Shaky → Mastered, the only path to green.
    */
-  const advanceFromCrucible = useCallback(() => {
+  const advanceFromCrucible = () => {
     const cur = crucibleRef.current;
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
@@ -3570,9 +3228,9 @@ export default function AtlasApp({
       setAdherence((prev) => markTodayMet(prev));
       showToast(`Transfer confirmed · ${node.label} is Mastered — it now feeds Review`);
     }
-  }, [centerOn, later, showToast]);
+  };
 
-  const exitCrucible = useCallback(() => {
+  const exitCrucible = () => {
     setScreen("map");
     const nodeId = crucibleRef.current?.nodeId;
     if (nodeId) {
@@ -3580,7 +3238,7 @@ export default function AtlasApp({
       later(() => centerOn(nodeId), 30);
     }
     setCrucible(null);
-  }, [centerOn, later]);
+  };
 
   // ---- Retain (Phase 6 · Review queue / FSRS) --------------------------
 
@@ -3689,26 +3347,26 @@ export default function AtlasApp({
     );
   }, [generate, retainPlan, showToast]);
 
-  const retainConfidence = useCallback((level: ReviewConfidence) => {
+  const retainConfidence = (level: ReviewConfidence) => {
     setRetain((prev) => {
       if (!prev || !retainContentRef.current) return prev;
       return retainReducer(prev, { type: "confidence", level }, retainContentRef.current);
     });
-  }, []);
+  };
 
-  const retainToggleAside = useCallback(() => {
+  const retainToggleAside = () => {
     setRetain((prev) => {
       if (!prev || !retainContentRef.current) return prev;
       return retainReducer(prev, { type: "toggleAside" }, retainContentRef.current);
     });
-  }, []);
+  };
 
-  const retainContinue = useCallback(() => {
+  const retainContinue = () => {
     setRetain((prev) => {
       if (!prev || !retainContentRef.current) return prev;
       return retainReducer(prev, { type: "continue" }, retainContentRef.current);
     });
-  }, []);
+  };
 
   /**
    * Grade a card — feeds FSRS and advances. "Again" is the alive-loop: the
@@ -3716,39 +3374,36 @@ export default function AtlasApp({
    * failure re-enters Phase 1. The pre-flip confidence tap, held against the
    * grade, becomes a live calibration reading.
    */
-  const retainGrade = useCallback(
-    (grade: ReviewGrade) => {
-      const cur = retainRef.current;
-      const content = retainContentRef.current;
-      if (!cur || !content) return;
-      const card = reviewCard(cur, content);
-      setRetain(retainReducer(cur, { type: "grade", grade }, content));
-      // Real FSRS (#21): the scheduler computes the card's next due date.
-      setCards((prev) =>
-        prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
+  const retainGrade = (grade: ReviewGrade) => {
+    const cur = retainRef.current;
+    const content = retainContentRef.current;
+    if (!cur || !content) return;
+    const card = reviewCard(cur, content);
+    setRetain(retainReducer(cur, { type: "grade", grade }, content));
+    // Real FSRS (#21): the scheduler computes the card's next due date.
+    setCards((prev) =>
+      prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
+    );
+    // Real review history — what finally earns "Retained ✓" (#13).
+    if (grade === "good" || grade === "easy")
+      setReviewedNodes((prev) =>
+        prev.includes(card.node) ? prev : [...prev, card.node],
       );
-      // Real review history — what finally earns "Retained ✓" (#13).
-      if (grade === "good" || grade === "easy")
-        setReviewedNodes((prev) =>
-          prev.includes(card.node) ? prev : [...prev, card.node],
-        );
-      if (cur.conf !== null)
-        recordCalib(card.node, REVIEW_FELT[cur.conf], GRADE_REAL[grade]);
-      if (grade === "again" && card.fails) {
-        setStates((prev) =>
-          prev[card.node] === "shaky" ? prev : { ...prev, [card.node]: "shaky" },
-        );
-        setShakyReason(card.node, "review-miss");
-        showToast(
-          `“${graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? "This node"}” flagged Shaky — retention failure re-enters the loop`,
-          "Map updated",
-        );
-      }
-    },
-    [recordCalib, setShakyReason, showToast],
-  );
+    if (cur.conf !== null)
+      recordCalib(card.node, REVIEW_FELT[cur.conf], GRADE_REAL[grade]);
+    if (grade === "again" && card.fails) {
+      setStates((prev) =>
+        prev[card.node] === "shaky" ? prev : { ...prev, [card.node]: "shaky" },
+      );
+      setShakyReason(card.node, "review-miss");
+      showToast(
+        `“${graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? "This node"}” flagged Shaky — retention failure re-enters the loop`,
+        "Map updated",
+      );
+    }
+  };
 
-  const retainReteach = useCallback(() => {
+  const retainReteach = () => {
     const cur = retainRef.current;
     const content = retainContentRef.current;
     if (!cur || !content) return;
@@ -3767,18 +3422,18 @@ export default function AtlasApp({
     } else {
       setScreen("map");
     }
-  }, [enterSession, later, showToast]);
+  };
 
-  const exitReview = useCallback(() => {
+  const exitReview = () => {
     setScreen("map");
     setRetain(null);
-  }, []);
+  };
 
   // ---- Calibration (§12 · Metacognition) -------------------------------
 
   /** Open the Calibration surface — an Analytics-layer screen, reached from the
    *  left rail. It reads the live confidence-vs-performance readings. */
-  const enterCalib = useCallback(() => setScreen("calibration"), []);
+  const enterCalib = () => setScreen("calibration");
 
   const exitCalib = useCallback(() => setScreen("map"), []);
 
@@ -3786,38 +3441,38 @@ export default function AtlasApp({
    * The calibration payoff: tapping an overconfident node drops straight into
    * its Crucible to close the real gap.
    */
-  const closeCalibGap = useCallback(
-    (nodeId: string) => {
-      const node = graphRef.current.nodes.find((n) => n.id === nodeId);
-      if (!node) return;
-      setSelectedId(nodeId);
-      enterCrucible(node);
-    },
-    [enterCrucible],
-  );
+  const closeCalibGap = (nodeId: string) => {
+    const node = graphRef.current.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    setSelectedId(nodeId);
+    enterCrucible(node);
+  };
 
   /** Remove a resolved gap node and every trace of it from the run state. */
-  const removeGapNode = useCallback((gapId: string) => {
-    setGraph((g) => removeNode(g, gapId));
-    setPositions((prev) => {
-      if (!prev[gapId]) return prev;
-      const nextPos = { ...prev };
-      delete nextPos[gapId];
-      return nextPos;
-    });
-    setSpawnedIds((prev) => {
-      if (!prev.has(gapId)) return prev;
-      const nextIds = new Set(prev);
-      nextIds.delete(gapId);
-      return nextIds;
-    });
-    setStates((prev) => {
-      if (!(gapId in prev)) return prev;
-      const nextStates = { ...prev };
-      delete nextStates[gapId];
-      return nextStates;
-    });
-  }, []);
+  const removeGapNode = useCallback(
+    (gapId: string) => {
+      setGraph((g) => removeNode(g, gapId));
+      setPositions((prev) => {
+        if (!prev[gapId]) return prev;
+        const nextPos = { ...prev };
+        delete nextPos[gapId];
+        return nextPos;
+      });
+      setSpawnedIds((prev) => {
+        if (!prev.has(gapId)) return prev;
+        const nextIds = new Set(prev);
+        nextIds.delete(gapId);
+        return nextIds;
+      });
+      setStates((prev) => {
+        if (!(gapId in prev)) return prev;
+        const nextStates = { ...prev };
+        delete nextStates[gapId];
+        return nextStates;
+      });
+    },
+    [setPositions],
+  );
 
   /**
    * The pass is done — but "done" isn't automatically "understood" (#C). A
@@ -3827,7 +3482,7 @@ export default function AtlasApp({
    * "lost") twice or more — the node stays in Learning and a real gap gets
    * attached under it instead of a promise the old toast never kept.
    */
-  const advanceFromSocratic = useCallback(() => {
+  const advanceFromSocratic = () => {
     const session = socratic;
     const node = graphRef.current.nodes.find((n) => n.id === session?.nodeId);
     setSocratic(null);
@@ -3894,7 +3549,7 @@ export default function AtlasApp({
       return;
     }
     enterFeynman(node);
-  }, [attachGap, enterFeynman, enterSession, removeGapNode, showToast, socratic]);
+  };
 
   // ---- Consume → Socratic hand-off -------------------------------------
 
@@ -3906,29 +3561,29 @@ export default function AtlasApp({
    * next phase starts taking it back: the takeaways collected, the terms met,
    * the opening guess and how it landed. The hand-off is the recap's CTA.
    */
-  const finishConsume = useCallback(() => {
+  const finishConsume = () => {
     setConsume((prev) => (prev ? { ...prev, finished: true, recap: true } : prev));
-  }, []);
+  };
 
   /** The recap's CTA — the actual hand-off into Socratic (Phase 3a). */
-  const beginSocraticFromConsume = useCallback(() => {
+  const beginSocraticFromConsume = () => {
     const nodeId = consumeRef.current?.nodeId;
     setConsume(null);
     if (!nodeId) return;
     const node = graphRef.current.nodes.find((n) => n.id === nodeId);
     if (node) enterSocratic(node);
-  }, [enterSocratic]);
+  };
 
-  const consumeSkipCrucible = useCallback(() => {
+  const consumeSkipCrucible = () => {
     const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
     setConsume(null);
     if (node) enterCrucible(node);
     else setScreen("map");
-  }, [consume, enterCrucible]);
+  };
 
   /** "Review prerequisite" — routes to the weakest direct prereq (shaky over
    *  merely learning) via the same session each state opens from the map. */
-  const consumeRoutePrereq = useCallback(() => {
+  const consumeRoutePrereq = () => {
     const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
     setConsume(null);
     const prereqs = node ? prereqNodesOf(node.id) : [];
@@ -3941,157 +3596,132 @@ export default function AtlasApp({
     }
     if (statesRef.current[weakest.id] === "shaky") enterCrucible(weakest);
     else enterFeynman(weakest);
-  }, [consume, enterCrucible, enterFeynman, prereqNodesOf]);
+  };
 
-  const onNodeDoubleClick = useCallback(
-    (id: string) => {
-      const node = graphRef.current.nodes.find((n) => n.id === id);
-      if (!node) return;
-      const state = displayRef.current[id];
-      if (state === "frontier") enterSession(node);
-      else if (state === "unknown") {
-        setSelectedId(id);
-        showToast("Locked — learn the highlighted path first");
-      } else setSelectedId(id);
-    },
-    [enterSession, showToast],
-  );
+  const onNodeDoubleClick = (id: string) => {
+    const node = graphRef.current.nodes.find((n) => n.id === id);
+    if (!node) return;
+    const state = displayRef.current[id];
+    if (state === "frontier") enterSession(node);
+    else if (state === "unknown") {
+      setSelectedId(id);
+      showToast("Locked — learn the highlighted path first");
+    } else setSelectedId(id);
+  };
 
-  const onPrimaryAction = useCallback(
-    (node: ConceptNode, displayState: NodeState) => {
-      switch (displayState) {
-        case "frontier":
-          enterSession(node);
-          break;
-        case "learning": {
-          // A node that went Learning on a part-read reading pass resumes it
-          // — the map's own CTA says "Resume reading", and sending them to
-          // Feynman instead would be teaching back something half-read.
-          const progress = consumeProgressRef.current[node.id];
-          if (progress && !progress.finished) enterSession(node);
-          else enterFeynman(node);
-          break;
-        }
-        case "shaky":
-          enterCrucible(node);
-          break;
-        case "mastered":
-          enterReview();
-          break;
-        case "gap":
-          // The targeted Socratic micro-pass the spec promises (#12) —
-          // completing it removes the gap node from the map.
-          enterSocratic(node);
-          break;
-        default:
-          showToast("Clear its prerequisites first");
+  const onPrimaryAction = (node: ConceptNode, displayState: NodeState) => {
+    switch (displayState) {
+      case "frontier":
+        enterSession(node);
+        break;
+      case "learning": {
+        // A node that went Learning on a part-read reading pass resumes it
+        // — the map's own CTA says "Resume reading", and sending them to
+        // Feynman instead would be teaching back something half-read.
+        const progress = consumeProgressRef.current[node.id];
+        if (progress && !progress.finished) enterSession(node);
+        else enterFeynman(node);
+        break;
       }
-    },
-    [enterCrucible, enterFeynman, enterReview, enterSession, enterSocratic, showToast],
-  );
+      case "shaky":
+        enterCrucible(node);
+        break;
+      case "mastered":
+        enterReview();
+        break;
+      case "gap":
+        // The targeted Socratic micro-pass the spec promises (#12) —
+        // completing it removes the gap node from the map.
+        enterSocratic(node);
+        break;
+      default:
+        showToast("Clear its prerequisites first");
+    }
+  };
 
   /**
    * The aggressive faster lever: prune a frontier node the learner already
    * owns. Mastery is written back, so the frontier re-derives past it and
    * the pace math immediately eases.
    */
-  const skipKnown = useCallback(
-    (node: ConceptNode) => {
-      setStates((prev) => ({ ...prev, [node.id]: "mastered" }));
-      showToast(
-        `${node.label} pruned — diagnosed known. The frontier moved past it.`,
-        "Map updated",
+  const skipKnown = (node: ConceptNode) => {
+    setStates((prev) => ({ ...prev, [node.id]: "mastered" }));
+    showToast(
+      `${node.label} pruned — diagnosed known. The frontier moved past it.`,
+      "Map updated",
+    );
+  };
+
+  const onPhaseAction = (node: ConceptNode, displayState: NodeState, idx: number) => {
+    // The same index NodeDetail draws, reading progress included — a row
+    // that shows as current has to behave as current.
+    const current = readingPhaseIndex(
+      displayState,
+      reviewedNodes.includes(node.id),
+      consumeProgressRef.current[node.id],
+    );
+    if (current < 0) return;
+    const phase = PHASES[idx];
+    if (phase === "Consume") {
+      // Re-reading is a first-class action, and on a part-read node it is
+      // the resume. Neither used to open anything: Consume fell through to
+      // a "re-doing…" toast.
+      enterSession(node);
+      return;
+    }
+    if (phase === "Socratic") {
+      enterSocratic(node);
+      return;
+    }
+    if (phase === "Feynman") {
+      enterFeynman(node);
+      return;
+    }
+    if (phase === "Connect") {
+      enterConnect(node);
+      return;
+    }
+    if (phase === "Crucible") {
+      enterCrucible(node);
+      return;
+    }
+    if (idx === current) {
+      onPrimaryAction(node, displayState);
+    } else if (idx < current) {
+      // Secondary action: any completed phase stays open for a re-do.
+      if (phase === "Retained") enterReview();
+      else showToast(`Re-doing ${phase} · ${node.label} — the spiral stays open`);
+    } else {
+      // The learner jumped the recommended step — allowed, already nudged.
+      setStates((prev) =>
+        prev[node.id] === "unknown" ? { ...prev, [node.id]: "learning" } : prev,
       );
-    },
-    [showToast],
-  );
+      showToast(`Jumping ahead · ${node.label} → ${phase}`);
+    }
+  };
 
-  const onPhaseAction = useCallback(
-    (node: ConceptNode, displayState: NodeState, idx: number) => {
-      // The same index NodeDetail draws, reading progress included — a row
-      // that shows as current has to behave as current.
-      const current = readingPhaseIndex(
-        displayState,
-        reviewedNodes.includes(node.id),
-        consumeProgressRef.current[node.id],
-      );
-      if (current < 0) return;
-      const phase = PHASES[idx];
-      if (phase === "Consume") {
-        // Re-reading is a first-class action, and on a part-read node it is
-        // the resume. Neither used to open anything: Consume fell through to
-        // a "re-doing…" toast.
-        enterSession(node);
-        return;
-      }
-      if (phase === "Socratic") {
-        enterSocratic(node);
-        return;
-      }
-      if (phase === "Feynman") {
-        enterFeynman(node);
-        return;
-      }
-      if (phase === "Connect") {
-        enterConnect(node);
-        return;
-      }
-      if (phase === "Crucible") {
-        enterCrucible(node);
-        return;
-      }
-      if (idx === current) {
-        onPrimaryAction(node, displayState);
-      } else if (idx < current) {
-        // Secondary action: any completed phase stays open for a re-do.
-        if (phase === "Retained") enterReview();
-        else showToast(`Re-doing ${phase} · ${node.label} — the spiral stays open`);
-      } else {
-        // The learner jumped the recommended step — allowed, already nudged.
-        setStates((prev) =>
-          prev[node.id] === "unknown" ? { ...prev, [node.id]: "learning" } : prev,
-        );
-        showToast(`Jumping ahead · ${node.label} → ${phase}`);
-      }
-    },
-    [
-      enterConnect,
-      enterCrucible,
-      enterFeynman,
-      enterReview,
-      enterSession,
-      enterSocratic,
-      onPrimaryAction,
-      reviewedNodes,
-      showToast,
-    ],
-  );
+  const onSurface = (surface: Surface) => {
+    if (surface === "map") return;
+    if (surface === "review") {
+      enterReview();
+      return;
+    }
+    const node = graphRef.current.nodes.find((n) => n.id === selectedId);
+    const state = node ? displayRef.current[node.id] : undefined;
+    if (node && state === "frontier") enterSession(node);
+    else if (node && state === "learning") enterFeynman(node);
+    else if (node && state === "shaky") enterCrucible(node);
+    else showToast("Session · double-click a glowing frontier node to begin");
+  };
 
-  const onSurface = useCallback(
-    (surface: Surface) => {
-      if (surface === "map") return;
-      if (surface === "review") {
-        enterReview();
-        return;
-      }
-      const node = graphRef.current.nodes.find((n) => n.id === selectedId);
-      const state = node ? displayRef.current[node.id] : undefined;
-      if (node && state === "frontier") enterSession(node);
-      else if (node && state === "learning") enterFeynman(node);
-      else if (node && state === "shaky") enterCrucible(node);
-      else showToast("Session · double-click a glowing frontier node to begin");
-    },
-    [enterCrucible, enterFeynman, enterReview, enterSession, selectedId, showToast],
-  );
-
-  const jumpFrontier = useCallback(() => {
+  const jumpFrontier = () => {
     const target = frontierTargetId();
     if (!target) return;
     setSelectedId(target);
     centerOn(target);
-  }, [centerOn, frontierTargetId]);
+  };
 
-  const toggleMomentum = useCallback(() => {
+  const toggleMomentum = () => {
     if (momentumPlaying) {
       if (momentumRef.current) clearInterval(momentumRef.current);
       setMomentumPlaying(false);
@@ -4111,7 +3741,7 @@ export default function AtlasApp({
         return next;
       });
     }, 1000);
-  }, [momentumPlaying]);
+  };
 
   // ---- derived ----------------------------------------------------------
 
@@ -4807,9 +4437,13 @@ export default function AtlasApp({
           adherence={adherence}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onToggleReminder={onToggleReminder}
-          onExportMap={exportMap}
-          onExportCardsJson={exportCardsJson}
-          onExportCardsCsv={exportCardsCsv}
+          onExportMap={() =>
+            exportMap(formRef.current.topic, graphRef.current, statesRef.current)
+          }
+          onExportCardsJson={() =>
+            exportCardsJson(formRef.current.topic, cardsRef.current)
+          }
+          onExportCardsCsv={() => exportCardsCsv(formRef.current.topic, cardsRef.current)}
           onDeleteAccount={deleteAccount}
           onExit={exitSettings}
         />
