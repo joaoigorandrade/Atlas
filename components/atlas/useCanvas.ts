@@ -32,18 +32,20 @@ export function useCanvas(opts: {
   /** Displayed (not stored) node states, for the locked-node nudge. */
   displayRef: React.RefObject<Record<string, NodeState>>;
   showToast: (message: string, kicker?: string) => void;
+  /** Node positions live on the run — they are persisted, and a drag is an
+   *  edit to the saved map, not to a view-local copy. The canvas moves them;
+   *  it does not own them. */
+  positionsRef: React.RefObject<Record<string, { x: number; y: number }>>;
+  setPositions: React.Dispatch<
+    React.SetStateAction<Record<string, { x: number; y: number }>>
+  >;
 }) {
-  const { setSelectedId, displayRef, showToast } = opts;
+  const { setSelectedId, displayRef, showToast, positionsRef, setPositions } = opts;
 
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
-    {},
-  );
   const [view, setView] = useState<ViewTransform>({ x: 40, y: 30, scale: 0.72 });
 
   const viewRef = useRef(view);
   viewRef.current = view;
-  const positionsRef = useRef(positions);
-  positionsRef.current = positions;
   const dragRef = useRef<DragState | null>(null);
   const panRef = useRef<PanState | null>(null);
 
@@ -74,18 +76,21 @@ export function useCanvas(opts: {
     [setSelectedId],
   );
 
-  const onNodeDown = useCallback((e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const pos = positionsRef.current[id];
-    dragRef.current = {
-      id,
-      startX: e.clientX,
-      startY: e.clientY,
-      originX: pos.x,
-      originY: pos.y,
-      moved: false,
-    };
-  }, []);
+  const onNodeDown = useCallback(
+    (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      const pos = positionsRef.current[id];
+      dragRef.current = {
+        id,
+        startX: e.clientX,
+        startY: e.clientY,
+        originX: pos.x,
+        originY: pos.y,
+        moved: false,
+      };
+    },
+    [positionsRef],
+  );
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -126,27 +131,27 @@ export function useCanvas(opts: {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [showToast, setSelectedId, displayRef]);
+  }, [showToast, setSelectedId, displayRef, setPositions]);
 
   /** Put a node in the middle of the screen at a readable zoom. */
-  const centerOn = useCallback((id: string) => {
-    const pos = positionsRef.current[id];
-    if (!pos) return;
-    const scale = 0.85;
-    setView({
-      x: window.innerWidth / 2 - pos.x * scale,
-      y: window.innerHeight / 2 - pos.y * scale,
-      scale,
-    });
-  }, []);
+  const centerOn = useCallback(
+    (id: string) => {
+      const pos = positionsRef.current[id];
+      if (!pos) return;
+      const scale = 0.85;
+      setView({
+        x: window.innerWidth / 2 - pos.x * scale,
+        y: window.innerHeight / 2 - pos.y * scale,
+        scale,
+      });
+    },
+    [positionsRef],
+  );
 
   return {
     view,
     setView,
     viewRef,
-    positions,
-    setPositions,
-    positionsRef,
     onWheel,
     onCanvasDown,
     onNodeDown,

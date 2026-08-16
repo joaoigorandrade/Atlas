@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  DEFAULT_FORM,
   PHASES,
   applyDiagnosticEffect,
   calibItems,
@@ -20,7 +19,6 @@ import {
   feynmanGaps,
   feynmanReducer,
   feynmanStart,
-  freshAdherence,
   graphFromMapNodes,
   emptyConsumeProgress,
   preferredModality,
@@ -46,20 +44,14 @@ import {
   socraticReducer,
   socraticStart,
   SOCRATIC_STEPS,
-  spawnGap,
   toggleReminder,
   unmetPathOf,
-  type AdherenceState,
   type AltKey,
-  type CalibSample,
-  type ConceptGraph,
   type ConceptNode,
   type ConnectAction,
-  type ConnectSession,
   type ConsumeChunk,
   type ConsumeModelBeat,
   type ConsumeProgress,
-  type ModalityTally,
   type CrucibleAction,
   type CrucibleContent,
   type DiagnosticDifficulty,
@@ -68,18 +60,12 @@ import {
   type ElaborationContent,
   type FeynmanAction,
   type FeynmanBeat,
-  type FeynmanSession,
   type TeachVerdict,
   type GapSpec,
   type NodeState,
-  type OnboardingForm,
-  type RetainContent,
   type ReviewConfidence,
   type ReviewGrade,
-  type ShakyReason,
-  type MisconceptionRecord,
   type SocraticAction,
-  type SocraticSession,
   type SocraticStep,
   type StateMap,
   type ProgressState,
@@ -126,19 +112,7 @@ import { type Language, languageAction, useLanguage } from "@/lib/i18n";
 import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
-import {
-  deleteRun,
-  listRuns,
-  loadRunBySubject,
-  loadRunCaches,
-  loadRunCore,
-  saveRun,
-  saveRunCaches,
-  type LoadedRun,
-  type RunCaches,
-  type RunSnapshot,
-  type RunSummary,
-} from "@/lib/persistence";
+import { deleteRun, type LoadedRun } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import {
@@ -166,6 +140,7 @@ import { useToast } from "@/components/atlas/useToast";
 import { useViewport } from "@/components/atlas/useViewport";
 import { useCanvas } from "@/components/atlas/useCanvas";
 import { useSessionState } from "@/components/atlas/useSessionState";
+import { useRunState } from "@/components/atlas/useRunState";
 import { exportCardsCsv, exportCardsJson, exportMap } from "@/components/atlas/exporters";
 import { SHEET_EXIT_MS } from "@/components/Sheet";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -179,7 +154,6 @@ import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
-import { withRetry } from "@/lib/retry";
 
 /** Screens that render as a full-screen `Sheet` over the map. */
 const SHEET_SCREENS = new Set<Screen>([
@@ -313,79 +287,12 @@ export default function AtlasApp({
     consumeChunksRef,
     reset: resetSessions,
   } = useSessionState();
-  // False until the saved run's CORE (graph, states, positions) has been
-  // fetched — nothing renders before then, so a resumed run never flashes the
-  // welcome screen. The generated content arrives separately, behind the map.
-  const [hydrated, setHydrated] = useState(false);
-  // False only while a saved run's caches are still in flight. The caches
-  // writer is gated on it: without the gate its 4s debounce could fire before
-  // (or instead of, on a failed load) the background read landed, upserting an
-  // empty `caches` object over every rubric, chunk and elaboration the row
-  // held. A run with nothing to load — a map built this session — starts true.
-  const [cachesLoaded, setCachesLoaded] = useState(true);
   const [screen, setScreen] = useState<Screen>("welcome");
-  const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
   const [answered, setAnswered] = useState(0);
   const [reveal, setReveal] = useState(0);
-  // The graph itself is state: it arrives generated from the AI during
-  // onboarding, and Phase 1 (Plan) restructures it live afterwards.
-  const [graph, setGraph] = useState<ConceptGraph>(emptyGraph);
-  const [spawnedIds, setSpawnedIds] = useState<Set<string>>(() => new Set());
-  // Nodes whose missing sentence could not be written. A node's summary
-  // normally arrives with the map; the ones that didn't (a run built before
-  // summaries, or a sentence the generation dropped) are backfilled, and the
-  // rail shows the shape of the sentence while that lands. This is what stops
-  // that from being forever: a node in here has been tried and failed, so the
-  // rail falls back to its state copy instead of shimmering at nothing.
-  const [summaryFailed, setSummaryFailed] = useState<Record<string, true>>({});
-  const [states, setStates] = useState<StateMap>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // The generated placement diagnostic — arrives with the graph.
   const [diagnostic, setDiagnostic] = useState<DiagnosticQuestion[]>([]);
-  // Model views (a lens opened over one section of the reading), keyed by
-  // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
-  // one lens on the section that didn't land, not twenty across the pass.
-  const [modelCache, setModelCache] = useState<Record<string, ConsumeModelBeat[]>>({});
-  // Where the learner got to in each node's reading pass, persisted (§6). The
-  // live `consume` session above is this plus the transient UI bits; this is
-  // what a refresh, a re-entry, the map and the phase spiral all read.
-  const [consumeProgress, setConsumeProgress] = useState<Record<string, ConsumeProgress>>(
-    {},
-  );
-  // Which lens this learner keeps opening, run-wide — the evidence behind
-  // the adaptive-modality default.
-  const [modalityTally, setModalityTally] = useState<ModalityTally>({});
-  // …and the unfinished ones, per node, persisted so re-entering a pass lands
-  // back on the probe the learner stopped at with the transcript intact.
-  const [socraticProgress, setSocraticProgress] = useState<
-    Record<string, SocraticSession>
-  >({});
-  /** What this learner keeps getting wrong, across nodes and across sessions.
-   *  The pass state above is discarded the moment a pass finishes; this is the
-   *  part worth keeping, and the judge reads it back on every answer. */
-  const [misconceptions, setMisconceptions] = useState<MisconceptionRecord[]>([]);
-  // …and the unfinished teach-backs, per node, persisted for the same reason
-  // Socratic's are: a Gap Report is somewhere to come back to, not something
-  // to re-earn by teaching the whole concept again.
-  const [feynmanProgress, setFeynmanProgress] = useState<Record<string, FeynmanSession>>(
-    {},
-  );
-  // …and the unfinished ones, per node, for the same reason Socratic's and
-  // Feynman's are kept: links the learner wrote in their own words are work,
-  // not something to re-earn because they stepped back to the map.
-  const [connectProgress, setConnectProgress] = useState<Record<string, ConnectSession>>(
-    {},
-  );
-  // Per-node generated content, cached for the run so re-entering a phase
-  // doesn't re-bill a generation. Retain is global (one queue per day).
-  const [consumeCache, setConsumeCache] = useState<Record<string, ConsumeChunk[]>>({});
-  const [socraticCache, setSocraticCache] = useState<Record<string, SocraticStep[]>>({});
-  const [feynmanCache, setFeynmanCache] = useState<Record<string, FeynmanBeat[]>>({});
-  const [connectCache, setConnectCache] = useState<Record<string, ElaborationContent>>(
-    {},
-  );
-  const [crucibleCache, setCrucibleCache] = useState<Record<string, CrucibleContent>>({});
-  const [retainContent, setRetainContent] = useState<RetainContent | null>(null);
   // The "AI is writing this" overlay, or null.
   const [loading, setLoading] = useState<{
     phase: string;
@@ -398,19 +305,6 @@ export default function AtlasApp({
   const [query, setQuery] = useState("");
   const [momentumPlaying, setMomentumPlaying] = useState(false);
   const [momentumWeek, setMomentumWeek] = useState(0);
-  // §13 Adherence — starts honest: no fabricated streak, one freeze banked.
-  const [adherence, setAdherence] = useState<AdherenceState>(freshAdherence);
-  // Labels of nodes that reached Mastered this session run.
-  const [litToday, setLitToday] = useState<string[]>([]);
-  // §12 Calibration — live confidence-vs-performance readings, captured from
-  // the Crucible's confidence gate and Review's pre-flip taps. Starts empty.
-  const [calibSamples, setCalibSamples] = useState<CalibSample[]>([]);
-  // How each Shaky node got that way — the honest confidence line (#14).
-  const [shakyReasons, setShakyReasons] = useState<Record<string, ShakyReason>>({});
-  // Nodes with at least one review graded good+ — gates "Retained ✓" (#13).
-  const [reviewedNodes, setReviewedNodes] = useState<string[]>([]);
-  // The persisted FSRS card store (#21) — the review queue's single source.
-  const [cards, setCards] = useState<StoredCard[]>([]);
   // A server judge round-trip is in flight (#25-#27) — views disable inputs.
   const [judging, setJudging] = useState(false);
   // A dashboard topic exclusion is in flight. State rather than a ref on
@@ -434,24 +328,10 @@ export default function AtlasApp({
     nodeId: string;
     retry: () => void;
   } | null>(null);
-  /**
-   * True once a debounced write has failed every attempt it was given.
-   *
-   * This is the most damaging failure in the app and it used to be a
-   * `console.warn`: the learner keeps working, the map keeps updating, and none
-   * of it is being persisted. It gets a quiet, permanent chip rather than a
-   * toast — a toast that fired every 1.2s would be unusable, and the next
-   * debounce tick is already a retry.
-   */
-  const [saveFailed, setSaveFailed] = useState(false);
   const online = useOnline();
   /** Re-runs the judge for a Socratic turn whose grading failed — held here so
    *  the failed bubble can offer it, not just the toast. */
   const [socraticRetry, setSocraticRetry] = useState<(() => void) | null>(null);
-  const graphRef = useRef(graph);
-  graphRef.current = graph;
-  const formRef = useRef(form);
-  formRef.current = form;
   const languageRef = useRef(language);
   languageRef.current = language;
   // Generated content carries the language of the prompt that wrote it and
@@ -459,28 +339,187 @@ export default function AtlasApp({
   // surface — otherwise the learner keeps reading the old language back out
   // of memory (and out of the saved snapshot) forever.
   const contentLanguageRef = useRef(language);
-  /** The language this run's content is actually written in, as opposed to the
-   *  one the UI happens to be showing. Undefined when genuinely unknown — a
-   *  pre-v9 snapshot never recorded it, and guessing from the reader's device
-   *  would freeze the wrong answer on exactly the maps that need fixing. Set
-   *  only where it is known: a build, a deliberate switch, or a restored run
-   *  that carried one. */
-  const [runLanguage, setRunLanguage] = useState<Language | undefined>(undefined);
 
   const { toast, dismissToast, showToast, showError } = useToast(supabase, languageRef);
 
-  const displayRef = useRef<Record<string, NodeState>>({});
+  const diagnosticRef = useRef(diagnostic);
+  diagnosticRef.current = diagnostic;
+  const answeredRef = useRef(answered);
+  answeredRef.current = answered;
+  // Adaptive placement state: which concepts have already been asked (never
+  // repeat one), the difficulty the next question should be pitched at, and
+  // the hardest level answered correctly so far — the evidence the "luck"
+  // read in `diagnosticEffect` leans on.
+  const askedNodeIdsRef = useRef<string[]>([]);
+  /** Which build the arriving map frames belong to. A learner who re-submits
+   *  (or picks a scope) starts a second stream while the first is still
+   *  writing; without this token its concepts would land on top of the new map. */
+  const buildIdRef = useRef(0);
+  const nextDifficultyRef = useRef<DiagnosticDifficulty>("medium");
+  const maxCorrectDifficultyRef = useRef<DiagnosticDifficulty | null>(null);
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
+  const judgingRef = useRef(judging);
+  judgingRef.current = judging;
+  // Gap specs queued by hesitant diagnostic answers, spawned once the map opens.
+  const pendingGapsRef = useRef<Array<{ parentId: string; spec: GapSpec }>>([]);
+  // Assigned in the derived section below; read by event handlers.
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const momentumRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach(clearTimeout);
+      if (momentumRef.current) clearInterval(momentumRef.current);
+    };
+  }, []);
+
+  const later = useCallback((fn: () => void, ms: number) => {
+    timersRef.current.push(setTimeout(fn, ms));
+  }, []);
+
+  /** The onboarding/selection state a run switch has to clear — neither run
+   *  state nor session state, so `useRunState` is handed it rather than
+   *  reaching for it. */
+  const resetTransient = useCallback(() => {
+    setSelectedId(null);
+    setDiagnostic([]);
+    setAnswered(0);
+    pendingGapsRef.current = [];
+    setMomentumPlaying(false);
+    setOutline(null);
+    setUploadNote(null);
+    setScopes(null);
+  }, []);
+
+  // The run: the persisted map, its progress, its cached content, and the
+  // loaders and debounced writers that keep all three on the server.
   const {
-    view,
-    setView,
+    form,
+    setForm,
+    graph,
+    setGraph,
+    graphRef,
+    spawnedIds,
+    setSpawnedIds,
+    summaryFailed,
+    setSummaryFailed,
+    states,
+    setStates,
+    statesRef,
     positions,
     setPositions,
     positionsRef,
-    onWheel,
-    onCanvasDown,
-    onNodeDown,
-    centerOn,
-  } = useCanvas({ setSelectedId, displayRef, showToast });
+    runLanguage,
+    setRunLanguage,
+    consumeCache,
+    setConsumeCache,
+    consumeCacheRef,
+    modelCache,
+    setModelCache,
+    modelCacheRef,
+    socraticCache,
+    setSocraticCache,
+    socraticCacheRef,
+    feynmanCache,
+    setFeynmanCache,
+    feynmanCacheRef,
+    connectCache,
+    setConnectCache,
+    connectCacheRef,
+    crucibleCache,
+    setCrucibleCache,
+    crucibleCacheRef,
+    retainContent,
+    setRetainContent,
+    retainContentRef,
+    consumeProgress,
+    setConsumeProgress,
+    consumeProgressRef,
+    setModalityTally,
+    modalityTallyRef,
+    setSocraticProgress,
+    socraticProgressRef,
+    setFeynmanProgress,
+    feynmanProgressRef,
+    setConnectProgress,
+    connectProgressRef,
+    setMisconceptions,
+    misconceptionsRef,
+    adherence,
+    setAdherence,
+    litToday,
+    setLitToday,
+    calibSamples,
+    setCalibSamples,
+    shakyReasons,
+    setShakyReasons,
+    reviewedNodes,
+    setReviewedNodes,
+    cards,
+    setCards,
+    cardsRef,
+    formRef,
+    hydrated,
+    setCachesLoaded,
+    saveFailed,
+    runSubject,
+    maps,
+    setMaps,
+    mapsFailed,
+    refreshMaps,
+    switchMap,
+    setShakyReason,
+    recordCalib,
+    attachGap,
+    removeGapNode,
+    clearRun,
+    clearCaches,
+  } = useRunState({
+    supabase,
+    warm,
+    screen,
+    excluding,
+    setScreen,
+    showError,
+    resetSessions,
+    resetTransient,
+    initialRun,
+  });
+
+  // ---- day rollover (#22): judge passed days whenever the calendar turns —
+  // on load (after hydration applies it too) and once a minute while open.
+  useEffect(() => {
+    const tick = () => {
+      setAdherence((prev) =>
+        prev.lastDay && prev.lastDay !== localDay() ? rolloverAdherence(prev) : prev,
+      );
+    };
+    const id = setInterval(tick, 60_000);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", tick);
+    };
+  }, [setAdherence]);
+
+  // Clearing the daily queue is the honest "done for today" — it marks the day
+  // met, so the streak ticks forward and the flame reads lit everywhere.
+  useEffect(() => {
+    if (retain?.finished) setAdherence((prev) => markTodayMet(prev));
+  }, [retain?.finished, setAdherence]);
+
+  const onToggleReminder = () => setAdherence((prev) => toggleReminder(prev));
+
+  const displayRef = useRef<Record<string, NodeState>>({});
+  const { view, setView, onWheel, onCanvasDown, onNodeDown, centerOn } = useCanvas({
+    setSelectedId,
+    displayRef,
+    showToast,
+    positionsRef,
+    setPositions,
+  });
 
   // Which language wins, and whether a change is a *switch* (regenerate) or
   // merely the app working out where it is (leave everything alone).
@@ -510,304 +549,17 @@ export default function AtlasApp({
     // the run's language is known — whatever it was before.
     setRunLanguage(language);
     warm.clear();
-    setConsumeCache({});
-    setModelCache({});
-    setSocraticCache({});
-    setFeynmanCache({});
-    setConnectCache({});
-    setCrucibleCache({});
-    setRetainContent(null);
-  }, [language, settled, explicit, runLanguage, adoptLanguage, warm]);
-  const diagnosticRef = useRef(diagnostic);
-  diagnosticRef.current = diagnostic;
-  const answeredRef = useRef(answered);
-  answeredRef.current = answered;
-  // Adaptive placement state: which concepts have already been asked (never
-  // repeat one), the difficulty the next question should be pitched at, and
-  // the hardest level answered correctly so far — the evidence the "luck"
-  // read in `diagnosticEffect` leans on.
-  const askedNodeIdsRef = useRef<string[]>([]);
-  /** Which build the arriving map frames belong to. A learner who re-submits
-   *  (or picks a scope) starts a second stream while the first is still
-   *  writing; without this token its concepts would land on top of the new map. */
-  const buildIdRef = useRef(0);
-  const nextDifficultyRef = useRef<DiagnosticDifficulty>("medium");
-  const maxCorrectDifficultyRef = useRef<DiagnosticDifficulty | null>(null);
-  const statesRef = useRef(states);
-  statesRef.current = states;
-  const feynmanProgressRef = useRef(feynmanProgress);
-  feynmanProgressRef.current = feynmanProgress;
-  const connectProgressRef = useRef(connectProgress);
-  connectProgressRef.current = connectProgress;
-  const consumeCacheRef = useRef(consumeCache);
-  consumeCacheRef.current = consumeCache;
-  const modelCacheRef = useRef(modelCache);
-  modelCacheRef.current = modelCache;
-  const consumeProgressRef = useRef(consumeProgress);
-  consumeProgressRef.current = consumeProgress;
-  const modalityTallyRef = useRef(modalityTally);
-  modalityTallyRef.current = modalityTally;
-  const socraticCacheRef = useRef(socraticCache);
-  socraticCacheRef.current = socraticCache;
-  const socraticProgressRef = useRef(socraticProgress);
-  socraticProgressRef.current = socraticProgress;
-  const misconceptionsRef = useRef(misconceptions);
-  misconceptionsRef.current = misconceptions;
-  const feynmanCacheRef = useRef(feynmanCache);
-  feynmanCacheRef.current = feynmanCache;
-  const connectCacheRef = useRef(connectCache);
-  connectCacheRef.current = connectCache;
-  const crucibleCacheRef = useRef(crucibleCache);
-  crucibleCacheRef.current = crucibleCache;
-  const retainContentRef = useRef(retainContent);
-  retainContentRef.current = retainContent;
-  const loadingRef = useRef(loading);
-  loadingRef.current = loading;
-  const cardsRef = useRef(cards);
-  cardsRef.current = cards;
-  const judgingRef = useRef(judging);
-  judgingRef.current = judging;
-  // Gap specs queued by hesitant diagnostic answers, spawned once the map opens.
-  const pendingGapsRef = useRef<Array<{ parentId: string; spec: GapSpec }>>([]);
-  // Assigned in the derived section below; read by event handlers.
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const momentumRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const timers = timersRef.current;
-    return () => {
-      timers.forEach(clearTimeout);
-      if (momentumRef.current) clearInterval(momentumRef.current);
-    };
-  }, []);
-
-  const setShakyReason = useCallback((id: string, reason: ShakyReason) => {
-    setShakyReasons((prev) => ({ ...prev, [id]: reason }));
-  }, []);
-
-  // ---- day rollover (#22): judge passed days whenever the calendar turns —
-  // on load (after hydration applies it too) and once a minute while open.
-  useEffect(() => {
-    const tick = () => {
-      setAdherence((prev) =>
-        prev.lastDay && prev.lastDay !== localDay() ? rolloverAdherence(prev) : prev,
-      );
-    };
-    const id = setInterval(tick, 60_000);
-    window.addEventListener("focus", tick);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", tick);
-    };
-  }, []);
-
-  // Clearing the daily queue is the honest "done for today" — it marks the day
-  // met, so the streak ticks forward and the flame reads lit everywhere.
-  useEffect(() => {
-    if (retain?.finished) setAdherence((prev) => markTodayMet(prev));
-  }, [retain?.finished]);
-
-  const onToggleReminder = () => setAdherence((prev) => toggleReminder(prev));
-
-  const later = useCallback((fn: () => void, ms: number) => {
-    timersRef.current.push(setTimeout(fn, ms));
-  }, []);
-
-  // ---- persistence (§17) -----------------------------------------------
-  // One coarse snapshot per (user, subject) in Supabase `run_states`.
-  // Load once on mount; a saved run resumes straight onto the map.
-
-  /** Apply loaded content without clobbering anything generated since: a
-   *  cache entry already in memory is the fresher one. */
-  const applyCaches = useCallback((c: RunCaches) => {
-    const merge =
-      <T,>(loaded: Record<string, T>) =>
-      (prev: Record<string, T>): Record<string, T> => ({ ...loaded, ...prev });
-    setConsumeCache(merge(c.consume));
-    setModelCache(merge(c.models));
-    setSocraticCache(merge(c.socratic));
-    setFeynmanCache(merge(c.feynman));
-    setConnectCache(merge(c.connect));
-    setCrucibleCache(merge(c.crucible));
-    setRetainContent((prev) => prev ?? c.retain);
-  }, []);
-
-  /**
-   * Apply a loaded run as the live one, dropping any other run's in-progress
-   * session state first — this is also what "switch map" from the dashboard
-   * grid runs, not just the initial mount hydrate.
-   */
-  const applyRun = useCallback(
-    (row: LoadedRun) => {
-      warm.clear();
-      setSelectedId(null);
-      setDiagnostic([]);
-      setAnswered(0);
-      resetSessions();
-      setConsumeCache({});
-      setModelCache({});
-      setSocraticCache({});
-      setFeynmanCache({});
-      setConnectCache({});
-      setCrucibleCache({});
-      setRetainContent(null);
-      setConsumeProgress({});
-      setModalityTally({});
-      setSocraticProgress({});
-      setFeynmanProgress({});
-      setConnectProgress({});
-      setMisconceptions([]);
-      pendingGapsRef.current = [];
-      setMomentumPlaying(false);
-      setOutline(null);
-      setUploadNote(null);
-      setScopes(null);
-
-      const s = row.snapshot;
-      // The run's language wins over the device's. UI language is detected
-      // per-browser (`navigator.language`), so the same pt-BR map opened on an
-      // en-US machine used to present as English to everything downstream —
-      // most audibly read-aloud, which picked the English voice and model for
-      // Portuguese prose and paid for a second cache key to do it. Adopting is
-      // also the cheap direction: the alternative, regenerating the whole run
-      // into the device's language, throws away content the learner owns.
-      //
-      // Recorded, not applied: the effect above owns which language wins, and
-      // it waits for detection to settle before deciding. Applying it here
-      // would race that — this runs during hydration, before the detected
-      // language has even landed.
-      setRunLanguage(s.language);
-      setForm(s.form);
-      setGraph(s.graph);
-      setStates(s.states);
-      setPositions(s.positions);
-      setSpawnedIds(new Set(s.spawnedIds));
-      // Judge every day that passed while the tab was closed (#22) —
-      // a new calendar day also clears yesterday's litToday list.
-      const rolled = rolloverAdherence(s.adherence);
-      setAdherence(rolled);
-      setLitToday(rolled.lastDay === s.adherence.lastDay ? s.litToday : []);
-      setCalibSamples(s.calibSamples);
-      setShakyReasons(s.shakyReasons);
-      setReviewedNodes(s.reviewedNodes);
-      setCards(s.cards);
-      setConsumeProgress(s.consumeProgress);
-      setModalityTally(s.modalityTally);
-      setSocraticProgress(s.socraticProgress);
-      setFeynmanProgress(s.feynmanProgress);
-      setConnectProgress(s.connectProgress);
-      setMisconceptions(s.misconceptions);
-      setScreen("map");
-      // A pre-v3 row still carries its caches inline; take them and skip
-      // the second query.
-      if (row.inlineCaches) {
-        applyCaches(row.inlineCaches);
-        return;
-      }
-      setCachesLoaded(false);
-      withRetry(() => loadRunCaches(supabase, row.subject))
-        .then((c) => {
-          applyCaches(c);
-          setCachesLoaded(true);
-        })
-        // Genuinely non-fatal for *reading*: the map is already drawn and every
-        // phase regenerates (the shared `content_cache` still has them, so it
-        // is a round-trip, not a re-generation). Logged so a persistent failure
-        // is findable, not toasted — nothing the learner can do about it.
-        //
-        // `cachesLoaded` deliberately stays false: we know this row holds
-        // content we failed to read, and writing what we have over it would
-        // turn a failed read into permanent data loss. This run stops saving
-        // caches; the next load gets another chance at the row.
-        .catch((err: unknown) => logWarning("load_caches_failed", err));
-    },
-    [warm, applyCaches, supabase, setPositions, resetSessions],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    const hydrate = (row: LoadedRun | null) => {
-      if (cancelled) return;
-      if (row) applyRun(row);
-      setHydrated(true);
-    };
-
-    // The server already read the core and shipped it with the HTML, so the
-    // map draws on the first commit instead of after a round-trip.
-    if (initialRun !== undefined) {
-      hydrate(initialRun);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // Two loads, deliberately: the core is what the map draws, so it is the
-    // only thing the first paint waits on. The generated content — by far the
-    // larger half — streams in behind an already-interactive map.
-    loadRunCore(supabase)
-      .then(hydrate)
-      .catch((err: unknown) => {
-        // A failed load must not brick the app — start fresh and say so.
-        if (cancelled) return;
-        setHydrated(true);
-        showError(err, { context: "load" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase, showError, applyRun, initialRun]);
-
-  const runActive =
-    hydrated &&
-    !excluding &&
-    graph.nodes.length > 0 &&
-    screen !== "welcome" &&
-    screen !== "building" &&
-    screen !== "diagnostic";
-  const runSubject = form.topic.trim() || "Untitled";
-
-  /** Every saved map, for the dashboard's "Your maps" grid. Refreshed each
-   *  time the dashboard is entered, so a newly built or excluded map is never
-   *  more than one nav away from correct. */
-  const [maps, setMaps] = useState<RunSummary[]>([]);
-  /** Set when the grid is empty because the query failed, not because there
-   *  are no maps — two states that looked identical before. */
-  const [mapsFailed, setMapsFailed] = useState(false);
-  const refreshMaps = useCallback(() => {
-    listRuns(supabase)
-      .then((rows) => {
-        setMaps(rows);
-        setMapsFailed(false);
-      })
-      .catch((err: unknown) => {
-        logWarning("list_runs_failed", err);
-        setMapsFailed(true);
-      });
-  }, [supabase]);
-
-  /** Open a map from the dashboard grid — a no-op switch for the one already
-   *  live, otherwise loads it as the new live run. */
-  const switchMap = (subject: string) => {
-    if (subject === runSubject) {
-      setScreen("map");
-      return;
-    }
-    loadRunBySubject(supabase, subject)
-      .then((row) => {
-        if (row) applyRun(row);
-      })
-      .catch((err: unknown) =>
-        showError(err, {
-          context: "openMap",
-          retry: () => switchMapRef.current?.(subject),
-        }),
-      );
-  };
-  // The retry button on a failed open re-runs the same switch. Through a ref
-  // because the callback has to reference itself, and the toast outlives the
-  // render that posted it.
-  const switchMapRef = useRef(switchMap);
-  switchMapRef.current = switchMap;
+    clearCaches();
+  }, [
+    language,
+    settled,
+    explicit,
+    runLanguage,
+    adoptLanguage,
+    warm,
+    clearCaches,
+    setRunLanguage,
+  ]);
 
   // The live session is the source of truth while it's open; this mirrors it
   // into the persisted per-node record. A finished pass drops out — coming
@@ -825,7 +577,7 @@ export default function AtlasApp({
       }
       return { ...prev, [nodeId]: socratic };
     });
-  }, [socratic]);
+  }, [socratic, setSocraticProgress]);
 
   // Same mirror for the teach-back. A pass mid-judgement is skipped — what's
   // saved stays the last complete state — and a finished one drops out in
@@ -834,107 +586,7 @@ export default function AtlasApp({
     if (!feynman || feynman.pending) return;
     const { nodeId } = feynman;
     setFeynmanProgress((prev) => ({ ...prev, [nodeId]: feynman }));
-  }, [feynman]);
-
-  // Write-through, debounced, in two halves (see lib/persistence.ts).
-  //
-  // The core: small and touched constantly — a node drag alone rewrites
-  // `positions` — so it saves on a short debounce.
-  useEffect(() => {
-    if (!runActive) return;
-    const snapshot: RunSnapshot = {
-      v: 9,
-      form,
-      // The run's own language, not the reader's — see `RunSnapshot.language`.
-      language: runLanguage,
-      graph,
-      spawnedIds: [...spawnedIds],
-      states,
-      positions,
-      adherence,
-      calibSamples,
-      litToday,
-      shakyReasons,
-      reviewedNodes,
-      cards,
-      consumeProgress,
-      modalityTally,
-      socraticProgress,
-      feynmanProgress,
-      connectProgress,
-      misconceptions,
-    };
-    const timer = setTimeout(() => {
-      withRetry(() => saveRun(supabase, runSubject, snapshot))
-        .then(() => setSaveFailed(false))
-        .catch((err: unknown) => {
-          logWarning("save_run_failed", err);
-          setSaveFailed(true);
-        });
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [
-    runActive,
-    runSubject,
-    supabase,
-    form,
-    runLanguage,
-    graph,
-    spawnedIds,
-    states,
-    positions,
-    adherence,
-    calibSamples,
-    litToday,
-    shakyReasons,
-    reviewedNodes,
-    cards,
-    consumeProgress,
-    modalityTally,
-    socraticProgress,
-    feynmanProgress,
-    connectProgress,
-    misconceptions,
-  ]);
-
-  // The content: large, but only ever changes when a generation lands. Its own
-  // effect on a long debounce, so dragging a node no longer re-uploads every
-  // chunk the run has ever generated.
-  useEffect(() => {
-    if (!runActive || !cachesLoaded) return;
-    const caches: RunCaches = {
-      consume: consumeCache,
-      models: modelCache,
-      socratic: socraticCache,
-      feynman: feynmanCache,
-      connect: connectCache,
-      crucible: crucibleCache,
-      retain: retainContent,
-    };
-    const timer = setTimeout(() => {
-      withRetry(() => saveRunCaches(supabase, runSubject, caches))
-        .then(() => setSaveFailed(false))
-        .catch((err: unknown) => {
-          // The caches are re-generatable and the core write is the one that
-          // matters, so this shares the chip rather than earning its own.
-          logWarning("save_caches_failed", err);
-          setSaveFailed(true);
-        });
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [
-    runActive,
-    cachesLoaded,
-    runSubject,
-    supabase,
-    consumeCache,
-    modelCache,
-    socraticCache,
-    feynmanCache,
-    connectCache,
-    crucibleCache,
-    retainContent,
-  ]);
+  }, [feynman, setFeynmanProgress]);
 
   const signOut = () => {
     // Navigate either way: a failed sign-out still means the learner asked to
@@ -1021,27 +673,8 @@ export default function AtlasApp({
         setAnswered(0);
         setConsume(null);
         setLiveConsume(null);
-        setLiveModel(null);
-        setSocratic(null);
-        setLiveSocratic(null);
-        setFeynman(null);
-        setLiveFeynman(null);
-        setConnect(null);
-        setCrucible(null);
-        setRetain(null);
-        setConsumeCache({});
-        setModelCache({});
-        setSocraticCache({});
-        setFeynmanCache({});
-        setConnectCache({});
-        setCrucibleCache({});
-        setRetainContent(null);
-        setConsumeProgress({});
-        setModalityTally({});
-        setSocraticProgress({});
-        setFeynmanProgress({});
-        setConnectProgress({});
-        setMisconceptions([]);
+        resetSessions();
+        clearRun();
         setCards([]);
         setCalibSamples([]);
         setShakyReasons({});
@@ -1067,45 +700,6 @@ export default function AtlasApp({
   };
   const enterSettings = useCallback(() => setScreen("settings"), []);
   const exitSettings = useCallback(() => setScreen("map"), []);
-
-  /** Merge a felt/real reading into the live calibration set (running average). */
-  const recordCalib = useCallback((nodeId: string, felt: number, real: number) => {
-    setCalibSamples((prev) => {
-      const existing = prev.find((s) => s.id === nodeId);
-      if (!existing) return [...prev, { id: nodeId, felt, real }];
-      return prev.map((s) =>
-        s.id === nodeId
-          ? {
-              id: nodeId,
-              felt: Math.round((s.felt + felt) / 2),
-              real: Math.round((s.real + real) / 2),
-            }
-          : s,
-      );
-    });
-  }, []);
-
-  /**
-   * The re-plan restructure: hang a generated gap sub-node under its parent —
-   * new red node, dashed edge, assemble animation. Idempotent per spec id.
-   */
-  const attachGap = useCallback(
-    (parentId: string, spec: GapSpec): boolean => {
-      const parent = graphRef.current.nodes.find((n) => n.id === parentId);
-      const base = positionsRef.current[parentId];
-      if (!parent || !base) return false;
-      if (graphRef.current.nodes.some((n) => n.id === spec.id)) return false;
-      setGraph((g) => spawnGap(g, parentId, spec));
-      setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
-      setPositions((prev) => ({
-        ...prev,
-        [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy },
-      }));
-      setSpawnedIds((prev) => new Set(prev).add(spec.id));
-      return true;
-    },
-    [positionsRef, setPositions],
-  );
 
   // ---- onboarding flow -------------------------------------------------
 
@@ -1166,27 +760,11 @@ export default function AtlasApp({
     pendingGapsRef.current = [];
     setLiveConsume(null);
     setLiveModel(null);
-    setConsumeCache({});
-    setModelCache({});
-    setSocraticCache({});
-    setFeynmanCache({});
-    setConnectCache({});
-    setCrucibleCache({});
-    setRetainContent(null);
+    // `clearRun` covers the unfinished teach-backs too: missed here and in
+    // `excludeTopic`, they used to survive into the new run's snapshot —
+    // persisted under the new subject, keyed by node ids that no longer exist.
+    clearRun();
     setCachesLoaded(true);
-    setConsumeProgress({});
-    setModalityTally({});
-    setSocraticProgress({});
-    // Missed here and in `excludeTopic`, the unfinished teach-backs of the map
-    // being replaced survived into the new run's snapshot — persisted under the
-    // new subject, keyed by node ids that no longer exist.
-    setFeynmanProgress({});
-    setConnectProgress({});
-    setMisconceptions([]);
-    setCalibSamples([]);
-    setShakyReasons({});
-    setReviewedNodes([]);
-    setCards([]);
     // A new map invalidates every warmed key — the node ids are about to
     // mean something else.
     warm.clear();
@@ -1296,6 +874,13 @@ export default function AtlasApp({
     setView,
     setLiveConsume,
     setLiveModel,
+    formRef,
+    clearRun,
+    setCachesLoaded,
+    setGraph,
+    setRunLanguage,
+    setSpawnedIds,
+    setStates,
   ]);
   // Same self-reference as `switchMapRef`: "Try again" on a failed build starts
   // the same build, with the form exactly as the learner left it.
@@ -1445,7 +1030,7 @@ export default function AtlasApp({
   const frontierTargetId = useCallback(() => {
     const plan = orderedFrontier(displayRef.current, graphRef.current, form.goal);
     return plan[0]?.node.id ?? null;
-  }, [form.goal]);
+  }, [form.goal, graphRef]);
 
   const startMap = () => {
     setScreen("map");
@@ -1529,13 +1114,16 @@ export default function AtlasApp({
   generateRef.current = generate;
 
   /** Direct (solid-edge) prerequisite nodes of a node. */
-  const prereqNodesOf = useCallback((nodeId: string): ConceptNode[] => {
-    const g = graphRef.current;
-    return g.edges
-      .filter(([, to, dashed]) => to === nodeId && !dashed)
-      .map(([from]) => g.nodes.find((n) => n.id === from))
-      .filter((n): n is ConceptNode => !!n);
-  }, []);
+  const prereqNodesOf = useCallback(
+    (nodeId: string): ConceptNode[] => {
+      const g = graphRef.current;
+      return g.edges
+        .filter(([, to, dashed]) => to === nodeId && !dashed)
+        .map(([from]) => g.nodes.find((n) => n.id === from))
+        .filter((n): n is ConceptNode => !!n);
+    },
+    [graphRef],
+  );
 
   /** Direct (solid-edge) prerequisite labels of a node — grounds the prompts. */
   const prereqLabelsOf = useCallback(
@@ -1552,7 +1140,7 @@ export default function AtlasApp({
    */
   const boundaryOf = useCallback(
     (nodeId: string) => conceptBoundary(graphRef.current, nodeId),
-    [],
+    [graphRef],
   );
 
   /** Labels the learner has actually learned — context for transfer problems. */
@@ -1561,7 +1149,7 @@ export default function AtlasApp({
     return g.nodes
       .filter((n) => !n.gap && statesRef.current[n.id] === "mastered")
       .map((n) => n.label);
-  }, []);
+  }, [graphRef, statesRef]);
 
   // ---- one source of truth per generation -------------------------------
   // Each surface's inputs are built in exactly one place, so a background warm
@@ -1578,7 +1166,7 @@ export default function AtlasApp({
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [prereqLabelsOf, boundaryOf],
+    [prereqLabelsOf, boundaryOf, formRef],
   );
 
   /** The backfilled sentence for a node that arrived without one. Deliberately
@@ -1592,7 +1180,7 @@ export default function AtlasApp({
       prereqLabels: prereqLabelsOf(node.id),
       language: languageRef.current,
     }),
-    [prereqLabelsOf],
+    [prereqLabelsOf, formRef],
   );
 
   /**
@@ -1614,7 +1202,7 @@ export default function AtlasApp({
       interests: formRef.current.interests,
       language: languageRef.current,
     }),
-    [],
+    [formRef],
   );
 
   const socraticParams = useCallback(
@@ -1625,7 +1213,7 @@ export default function AtlasApp({
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [boundaryOf],
+    [boundaryOf, formRef],
   );
 
   const feynmanParams = useCallback(
@@ -1637,7 +1225,7 @@ export default function AtlasApp({
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [boundaryOf],
+    [boundaryOf, formRef],
   );
 
   /**
@@ -1645,17 +1233,20 @@ export default function AtlasApp({
    * which is why it must be derived the same way for a warm and for the real
    * entry.
    */
-  const connectParams = useCallback((node: ConceptNode) => {
-    const pool = connectPool(graphRef.current.nodes, statesRef.current, node.id);
-    return {
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      pool,
-      interests: formRef.current.interests,
-      language: languageRef.current,
-    };
-  }, []);
+  const connectParams = useCallback(
+    (node: ConceptNode) => {
+      const pool = connectPool(graphRef.current.nodes, statesRef.current, node.id);
+      return {
+        topic: formRef.current.topic,
+        nodeId: node.id,
+        nodeLabel: node.label,
+        pool,
+        interests: formRef.current.interests,
+        language: languageRef.current,
+      };
+    },
+    [formRef, graphRef, statesRef],
+  );
 
   const crucibleParams = useCallback(
     (node: ConceptNode) => ({
@@ -1667,7 +1258,7 @@ export default function AtlasApp({
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [learnedLabels, boundaryOf],
+    [learnedLabels, boundaryOf, formRef],
   );
 
   /** Warm-queue / in-memory cache address for one node's surface. */
@@ -1683,20 +1274,23 @@ export default function AtlasApp({
    * and the node is never summary-less again. Never overwrites one the node
    * already has — a map's own sentence outranks a backfill.
    */
-  const applySummary = useCallback((nodeId: string, summary: string) => {
-    const text = summary.trim();
-    if (!text) return;
-    setGraph((g) =>
-      g.nodes.some((n) => n.id === nodeId && !n.summary)
-        ? {
-            ...g,
-            nodes: g.nodes.map((n) =>
-              n.id === nodeId && !n.summary ? { ...n, summary: text } : n,
-            ),
-          }
-        : g,
-    );
-  }, []);
+  const applySummary = useCallback(
+    (nodeId: string, summary: string) => {
+      const text = summary.trim();
+      if (!text) return;
+      setGraph((g) =>
+        g.nodes.some((n) => n.id === nodeId && !n.summary)
+          ? {
+              ...g,
+              nodes: g.nodes.map((n) =>
+                n.id === nodeId && !n.summary ? { ...n, summary: text } : n,
+              ),
+            }
+          : g,
+      );
+    },
+    [setGraph],
+  );
 
   const loadSummary = useCallback(
     async (node: ConceptNode, prefetch = false) => {
@@ -1717,7 +1311,7 @@ export default function AtlasApp({
         throw err;
       }
     },
-    [summaryParams, applySummary],
+    [summaryParams, applySummary, setSummaryFailed],
   );
 
   const loadConsume = useCallback(
@@ -1726,7 +1320,7 @@ export default function AtlasApp({
       setConsumeCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: chunks }));
       return chunks;
     },
-    [consumeParams],
+    [consumeParams, setConsumeCache],
   );
 
   /** A model view's address, in the warm queue and in `modelCache` alike. */
@@ -1751,7 +1345,7 @@ export default function AtlasApp({
       setSocraticCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: steps }));
       return steps;
     },
-    [socraticParams],
+    [socraticParams, setSocraticCache],
   );
 
   const loadFeynman = useCallback(
@@ -1760,7 +1354,7 @@ export default function AtlasApp({
       setFeynmanCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: beats }));
       return beats;
     },
-    [feynmanParams],
+    [feynmanParams, setFeynmanCache],
   );
 
   const loadConnect = useCallback(
@@ -1769,7 +1363,7 @@ export default function AtlasApp({
       setConnectCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
       return content;
     },
-    [connectParams],
+    [connectParams, setConnectCache],
   );
 
   const loadCrucible = useCallback(
@@ -1780,28 +1374,38 @@ export default function AtlasApp({
       );
       return content;
     },
-    [crucibleParams],
+    [crucibleParams, setCrucibleCache],
   );
 
   /** Already in memory? Then the screen opens with no request at all. */
-  const isCached = useCallback((kind: WarmKind, nodeId: string): boolean => {
-    switch (kind) {
-      case "summary":
-        // The node's own sentence *is* the cache — once it's on the graph
-        // there is nothing left to want.
-        return !!graphRef.current.nodes.find((n) => n.id === nodeId)?.summary;
-      case "consume":
-        return !!consumeCacheRef.current[nodeId];
-      case "socratic":
-        return !!socraticCacheRef.current[nodeId];
-      case "feynman":
-        return !!feynmanCacheRef.current[nodeId];
-      case "connect":
-        return !!connectCacheRef.current[nodeId];
-      case "crucible":
-        return !!crucibleCacheRef.current[nodeId];
-    }
-  }, []);
+  const isCached = useCallback(
+    (kind: WarmKind, nodeId: string): boolean => {
+      switch (kind) {
+        case "summary":
+          // The node's own sentence *is* the cache — once it's on the graph
+          // there is nothing left to want.
+          return !!graphRef.current.nodes.find((n) => n.id === nodeId)?.summary;
+        case "consume":
+          return !!consumeCacheRef.current[nodeId];
+        case "socratic":
+          return !!socraticCacheRef.current[nodeId];
+        case "feynman":
+          return !!feynmanCacheRef.current[nodeId];
+        case "connect":
+          return !!connectCacheRef.current[nodeId];
+        case "crucible":
+          return !!crucibleCacheRef.current[nodeId];
+      }
+    },
+    [
+      connectCacheRef,
+      consumeCacheRef,
+      crucibleCacheRef,
+      feynmanCacheRef,
+      graphRef,
+      socraticCacheRef,
+    ],
+  );
 
   /** The request body `/api/content` batches to answer "is this already
    *  generated?" — the same body the real call posts. */
@@ -2028,6 +1632,10 @@ export default function AtlasApp({
       warmOne,
       setConsume,
       setLiveConsume,
+      consumeCacheRef,
+      consumeProgressRef,
+      modalityTallyRef,
+      setConsumeCache,
     ],
   );
   // Retry for a reading pass that stopped halfway: reopening the node is the
@@ -2320,6 +1928,8 @@ export default function AtlasApp({
     consume?.termsSeen,
     consume?.finished,
     liveConsumeRef,
+    consumeCacheRef,
+    setConsumeProgress,
   ]);
 
   /**
@@ -2470,6 +2080,11 @@ export default function AtlasApp({
       warmOne,
       setLiveSocratic,
       setSocratic,
+      setConsumeProgress,
+      setSocraticCache,
+      setStates,
+      socraticCacheRef,
+      socraticProgressRef,
     ],
   );
   const enterSocraticRef = useRef(enterSocratic);
@@ -2737,6 +2352,10 @@ export default function AtlasApp({
       warmOne,
       setFeynman,
       setLiveFeynman,
+      feynmanCacheRef,
+      feynmanProgressRef,
+      setFeynmanCache,
+      setStates,
     ],
   );
   const enterFeynmanRef = useRef(enterFeynman);
@@ -2753,7 +2372,7 @@ export default function AtlasApp({
       const live = liveFeynmanRef.current;
       return live?.nodeId === nodeId ? live.beats : undefined;
     },
-    [liveFeynmanRef],
+    [liveFeynmanRef, feynmanCacheRef],
   );
 
   const dispatchFeynman = (action: FeynmanAction) => {
@@ -2935,7 +2554,17 @@ export default function AtlasApp({
         open,
       );
     },
-    [connectParams, generate, loadConnect, showToast, warmOne, setConnect],
+    [
+      connectParams,
+      generate,
+      loadConnect,
+      showToast,
+      warmOne,
+      setConnect,
+      connectCacheRef,
+      connectProgressRef,
+      setStates,
+    ],
   );
 
   const dispatchConnect = (action: ConnectAction) => {
@@ -3084,7 +2713,7 @@ export default function AtlasApp({
         open,
       );
     },
-    [generate, loadCrucible, setCrucible],
+    [generate, loadCrucible, setCrucible, crucibleCacheRef],
   );
   enterCrucibleRef.current = enterCrucible;
 
@@ -3274,7 +2903,7 @@ export default function AtlasApp({
         language: languageRef.current,
       },
     };
-  }, []);
+  }, [cardsRef, formRef, graphRef, statesRef]);
 
   /** Draft the day's new cards ahead of the click. The result is discarded —
    *  its point is filling the shared cache so opening Review is a lookup. */
@@ -3345,7 +2974,7 @@ export default function AtlasApp({
         openFrom(all);
       },
     );
-  }, [generate, retainPlan, showToast, setRetain]);
+  }, [generate, retainPlan, showToast, setRetain, cardsRef, setCards, setRetainContent]);
 
   const retainConfidence = (level: ReviewConfidence) => {
     setRetain((prev) => {
@@ -3447,32 +3076,6 @@ export default function AtlasApp({
     setSelectedId(nodeId);
     enterCrucible(node);
   };
-
-  /** Remove a resolved gap node and every trace of it from the run state. */
-  const removeGapNode = useCallback(
-    (gapId: string) => {
-      setGraph((g) => removeNode(g, gapId));
-      setPositions((prev) => {
-        if (!prev[gapId]) return prev;
-        const nextPos = { ...prev };
-        delete nextPos[gapId];
-        return nextPos;
-      });
-      setSpawnedIds((prev) => {
-        if (!prev.has(gapId)) return prev;
-        const nextIds = new Set(prev);
-        nextIds.delete(gapId);
-        return nextIds;
-      });
-      setStates((prev) => {
-        if (!(gapId in prev)) return prev;
-        const nextStates = { ...prev };
-        delete nextStates[gapId];
-        return nextStates;
-      });
-    },
-    [setPositions],
-  );
 
   /**
    * The pass is done — but "done" isn't automatically "understood" (#C). A

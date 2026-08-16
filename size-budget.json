@@ -1,10 +1,11 @@
 {
   "default": 400,
   "files": {
-    "components/AtlasApp.tsx": 4676,
+    "components/AtlasApp.tsx": 4279,
     "components/DashboardScreen.tsx": 693,
     "components/SettingsScreen.tsx": 491,
     "components/analytics/CalibrationView.tsx": 687,
+    "components/atlas/useRunState.ts": 723,
     "components/map/LeftRail.tsx": 452,
     "components/map/MapCanvas.tsx": 464,
     "components/map/NodeDetail.tsx": 686,
