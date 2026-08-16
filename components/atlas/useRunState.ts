@@ -336,6 +336,7 @@ export function useRunState(opts: {
     setShakyReasons({});
     setReviewedNodes([]);
     setCards([]);
+    setLitToday([]);
     setSummaryFailed({});
   }, [clearCaches]);
 

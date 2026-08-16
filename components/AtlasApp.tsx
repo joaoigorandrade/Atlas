@@ -2,33 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  calibItems,
   calibOverCount,
-  daysUntil,
-  displayStates,
-  emptyGraph,
   DIAGNOSTIC_COUNT,
-  GOALS,
   localDay,
   markTodayMet,
   orderedFrontier,
-  paceStatus,
   reviewCard,
   rolloverAdherence,
   toggleReminder,
-  unmetPathOf,
   type GapSpec,
   type NodeState,
-  type StateMap,
-  type ProgressState,
 } from "@/lib/curriculum";
-import { dueCards } from "@/lib/fsrs";
 import { createWarmQueue } from "@/lib/warm";
 import { type Language, languageAction, useLanguage } from "@/lib/i18n";
 import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
-import { deleteRun, type LoadedRun } from "@/lib/persistence";
+import type { LoadedRun } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import {
@@ -38,7 +28,7 @@ import {
 } from "@/components/onboarding/fakeMap";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
-import ProfileScreen, { type ProfileStat } from "@/components/ProfileScreen";
+import ProfileScreen from "@/components/ProfileScreen";
 import SettingsScreen from "@/components/SettingsScreen";
 import ConsumeView from "@/components/session/ConsumeView";
 import SocraticView from "@/components/session/SocraticView";
@@ -49,8 +39,7 @@ import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
-import MapCanvas, { CELEBRATE_MS } from "@/components/map/MapCanvas";
-import { usePresence, useEarned } from "@/lib/motion";
+import MapCanvas from "@/components/map/MapCanvas";
 import { useToast } from "@/components/atlas/useToast";
 import { useViewport } from "@/components/atlas/useViewport";
 import { useCanvas } from "@/components/atlas/useCanvas";
@@ -60,9 +49,10 @@ import { useGeneration, warmKindsFor } from "@/components/atlas/useGeneration";
 import { useSpiral } from "@/components/atlas/useSpiral";
 import { useOnboarding } from "@/components/atlas/useOnboarding";
 import { useWarming } from "@/components/atlas/useWarming";
-import { SHEET_SCREENS, type Screen } from "@/components/atlas/screen";
+import { useDerived } from "@/components/atlas/useDerived";
+import { useNavigation } from "@/components/atlas/useNavigation";
+import type { Screen } from "@/components/atlas/screen";
 import { exportCardsCsv, exportCardsJson, exportMap } from "@/components/atlas/exporters";
-import { SHEET_EXIT_MS } from "@/components/Sheet";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar from "@/components/map/TopBar";
 import Toast from "@/components/Toast";
@@ -70,15 +60,9 @@ import ScreenTimer from "@/components/ScreenTimer";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
 import OfflineBanner from "@/components/OfflineBanner";
-import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
-
-/** The state changes worth marking on the map. Reaching the frontier isn't one
- *  — that's derived, and it's the map telling you where to go, not a result. */
-const isEarned = (next: ProgressState) =>
-  next === "mastered" || next === "gap" || next === "shaky";
 
 export default function AtlasApp({
   userEmail,
@@ -105,18 +89,11 @@ export default function AtlasApp({
   const sessions = useSessionState();
   const {
     consume,
-    setConsume,
-    liveConsume,
-    setLiveConsume,
-    liveModel,
     socratic,
-    liveSocratic,
     feynman,
-    liveFeynman,
     connect,
     crucible,
     retain,
-    consumeChunksRef,
     reset: resetSessions,
   } = sessions;
   const [screen, setScreen] = useState<Screen>("welcome");
@@ -220,25 +197,16 @@ export default function AtlasApp({
     form,
     setForm,
     graph,
-    setGraph,
     graphRef,
     spawnedIds,
-    setSpawnedIds,
     summaryFailed,
-    states,
-    setStates,
     statesRef,
     positions,
     setPositions,
     positionsRef,
     runLanguage,
     setRunLanguage,
-    consumeCache,
-    modelCache,
-    socraticCache,
     feynmanCache,
-    connectCache,
-    crucibleCache,
     retainContent,
     consumeProgress,
     setSocraticProgress,
@@ -246,26 +214,16 @@ export default function AtlasApp({
     adherence,
     setAdherence,
     litToday,
-    setLitToday,
-    calibSamples,
-    setCalibSamples,
     shakyReasons,
-    setShakyReasons,
     reviewedNodes,
-    setReviewedNodes,
-    cards,
-    setCards,
     cardsRef,
     formRef,
     hydrated,
     saveFailed,
     runSubject,
-    maps,
-    setMaps,
     mapsFailed,
     refreshMaps,
     switchMap,
-    clearRun,
     clearCaches,
   } = run;
 
@@ -369,118 +327,27 @@ export default function AtlasApp({
     setFeynmanProgress((prev) => ({ ...prev, [nodeId]: feynman }));
   }, [feynman, setFeynmanProgress]);
 
-  const signOut = () => {
-    // Navigate either way: a failed sign-out still means the learner asked to
-    // leave, and /login clears the client session on arrival. The unhandled
-    // rejection this used to throw left them sitting on the map instead.
-    supabase.auth
-      .signOut()
-      .catch((err: unknown) => logWarning("sign_out_failed", err))
-      .finally(() => {
-        window.location.href = "/login";
-      });
-  };
-
-  /** Delete account + all data (#33). Confirm, then the server wipes the rows. */
-  const deleteAccount = () => {
-    if (
-      !window.confirm(
-        "Delete your account and all data — map, cards, streak? This cannot be undone.",
-      )
-    )
-      return;
-    fetch("/api/account/delete", { method: "POST" })
-      .then(async (r) => {
-        if (!r.ok) {
-          const body = (await r.json().catch(() => null)) as {
-            code?: string;
-          } | null;
-          throw new AtlasError(
-            isErrorCode(body?.code) ? body.code : codeForStatus(r.status),
-            `account delete failed (${r.status})`,
-            {
-              status: r.status,
-              requestId: r.headers.get("x-atlas-request-id") ?? undefined,
-            },
-          );
-        }
-        window.location.href = "/login";
-      })
-      .catch((err: unknown) => showError(err, { context: "account" }));
-  };
-
-  // ---- Home (dashboard) + profile navigation ---------------------------
-
-  const enterDashboard = () => {
-    setScreen("dashboard");
-    refreshMaps();
-  };
-  const enterProfile = () => setScreen("profile");
-  const openMap = useCallback(() => setScreen("map"), []);
-  /** "+ New map" — onboarding builds a new run alongside whatever's saved. */
-  const newMap = useCallback(() => setScreen("welcome"), []);
-
-  /**
-   * "Exclude this topic" on a dashboard map card (confirmed there first): the
-   * saved run is deleted outright. Excluding the live map also clears it from
-   * memory — graph, mastery states, cards, calibration, every generated cache
-   * — and returns to the dashboard with whatever maps remain; onboarding only
-   * shows up if that was the learner's last map. Excluding any other map just
-   * drops its row and refreshes the grid.
-   *
-   * `excluding` gates `runActive`, so the debounced writers are already off by
-   * the time the delete lands; nothing can re-upsert the row behind it.
-   * Adherence is deliberately untouched: the streak is the learner's habit,
-   * not the topic's, and fabricating a reset would be the dishonest read.
-   */
-  const excludeTopic = (subject: string) => {
-    setExcluding(true);
-    deleteRun(supabase, subject)
-      .then(() => {
-        if (subject !== runSubject) {
-          refreshMaps();
-          showToast(`“${subject}” excluded`);
-          return;
-        }
-        // Every warmed key belongs to node ids that no longer exist.
-        warm.clear();
-        setGraph(emptyGraph());
-        setStates({});
-        setPositions({});
-        setSpawnedIds(new Set());
-        pendingGapsRef.current = [];
-        setSelectedId(null);
-        setDiagnostic([]);
-        setAnswered(0);
-        setConsume(null);
-        setLiveConsume(null);
-        resetSessions();
-        clearRun();
-        setCards([]);
-        setCalibSamples([]);
-        setShakyReasons({});
-        setReviewedNodes([]);
-        setLitToday([]);
-        setMomentumPlaying(false);
-        setOutline(null);
-        setUploadNote(null);
-        setScopes(null);
-        setForm((prev) => ({ ...prev, topic: "" }));
-        const others = maps.filter((m) => m.subject !== subject);
-        if (others.length) {
-          setMaps(others);
-          setScreen("dashboard");
-          showToast(`“${subject}” excluded`);
-        } else {
-          setScreen("welcome");
-          showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
-        }
-      })
-      .catch((err: unknown) => showError(err, { context: "exclude" }))
-      .finally(() => setExcluding(false));
-  };
-  const enterSettings = useCallback(() => setScreen("settings"), []);
-  const exitSettings = useCallback(() => setScreen("map"), []);
+  // Getting around outside a session, plus the two account actions.
+  const {
+    signOut,
+    deleteAccount,
+    enterDashboard,
+    enterProfile,
+    openMap,
+    newMap,
+    excludeTopic,
+    enterSettings,
+    exitSettings,
+  } = useNavigation({
+    run,
+    sessions,
+    toast: toastChannel,
+    warm,
+    supabase,
+    setScreen,
+    setExcluding,
+    resetTransient,
+  });
 
   /**
    * The node the "Start here →" / "Jump to frontier" affordances target:
@@ -505,11 +372,6 @@ export default function AtlasApp({
     onOutlineFile,
     answerDiagnostic,
     startMap,
-    setDiagnostic,
-    setAnswered,
-    setOutline,
-    setUploadNote,
-    setScopes,
     reset: resetOnboarding,
   } = useOnboarding({
     run,
@@ -632,96 +494,60 @@ export default function AtlasApp({
     frontierTargetId,
   });
 
-  // ---- derived ----------------------------------------------------------
-
-  const isMap = screen === "map";
-  // The full-screen surfaces. They animate out, which means the screen they
-  // belong to has to outlive `screen` moving on — `sheetScreen` lags behind for
-  // exactly the length of the leave. Their session state is not torn down on
-  // exit (`exitConsume` and friends only set the screen), so the outgoing view
-  // still has everything it needs to draw those last frames.
-  const onSheet = SHEET_SCREENS.has(screen);
-  const sheet = usePresence(onSheet, SHEET_EXIT_MS);
-  const lastSheet = useRef<Screen | null>(null);
-  if (onSheet) lastSheet.current = screen;
-  const sheetScreen = onSheet ? screen : lastSheet.current;
-  // …and stops lagging once the leave is over. `sheetScreen` alone never goes
-  // back to null, so rendering off it left the last sheet mounted for the rest
-  // of the run: `sheetOut` fills to opacity 0, but an inset-0 element at
-  // z-index 30 still swallows every click meant for the map behind it. The
-  // `onSheet ||` covers the entry frame, where `mounted` is still catching up
-  // in an effect and the map would otherwise flash through.
-  const openSheet = onSheet || sheet.mounted ? sheetScreen : null;
-  // The canvas backs onboarding + the map, but Consume is a full surface.
-  // Kept mounted underneath a sheet as well, so a session genuinely rises off
-  // the map and settles back onto it instead of onto blank paper. The canvas is
-  // inert behind an opaque surface — it re-renders only when the graph or the
-  // mastery states move, which during a session is a handful of times.
-  const showCanvas =
-    screen === "building" || screen === "diagnostic" || screen === "map" || sheet.mounted;
-  // Before the real map exists, assemble a placeholder territory instead of
-  // an empty canvas — swapped for the real graph the instant it streams in.
-  const usingFakeMap = screen === "building" && graph.nodes.length === 0;
-
-  // What the canvas shows: the live state map, masked during onboarding
-  // (generations beyond the diagnostic reveal stay hidden) and during the
-  // momentum replay (states that lit after the replay week stay hidden).
-  const visibleStates = useMemo<StateMap>(
-    () =>
-      Object.fromEntries(
-        graph.nodes.map((n) => [
-          n.id,
-          (!isMap && n.g > reveal) || (momentumPlaying && n.week > momentumWeek)
-            ? "unknown"
-            : states[n.id],
-        ]),
-      ),
-    [graph, isMap, reveal, momentumPlaying, momentumWeek, states],
-  );
-  // Concepts the learner just moved. Tracked against stored progress rather
-  // than `display`, which is masked during onboarding and by the replay, and
-  // released only once the map is actually on screen — the state is usually
-  // written mid-session, several seconds before there is anything to see it.
-  // The momentum replay steps whole weeks at a time and is never a moment.
-  const earnedNodes = useEarned(states, isEarned, {
-    visible: isMap,
-    enabled: !momentumPlaying,
-    ms: CELEBRATE_MS,
+  // Everything the render reads but nothing owns.
+  const {
+    isMap,
+    sheet,
+    sheetScreen,
+    openSheet,
+    showCanvas,
+    usingFakeMap,
+    earnedNodes,
+    display,
+    masteredCount,
+    masteryPct,
+    selectedNode,
+    selectedDisplayState,
+    lockedPath,
+    allFrontier,
+    nextUp,
+    pace,
+    calib,
+    consumeChunks,
+    consumeStreaming,
+    modelBeats,
+    modelStreaming,
+    socraticSteps,
+    feynmanBeats,
+    connectContent,
+    crucibleContent,
+    displayName,
+    initials,
+    greeting,
+    dateLabel,
+    queue,
+    frontierTotal,
+    frontierConcept,
+    subject,
+    goalLabel,
+    mapCards,
+    interests,
+    profileStats,
+    reviewSummary,
+  } = useDerived({
+    run,
+    sessions,
+    screen,
+    userEmail,
+    selectedId,
+    reveal,
+    momentumPlaying,
+    momentumWeek,
+    displayRef,
+    modelKey,
+    runSubject,
   });
 
-  const display = useMemo(
-    () => displayStates(visibleStates, graph),
-    [visibleStates, graph],
-  );
-  displayRef.current = display;
-
-  const masteredCount = graph.nodes.filter((n) => states[n.id] === "mastered").length;
-  const masteryPct = graph.nodes.length
-    ? Math.round((masteredCount / graph.nodes.length) * 100)
-    : 0;
-
-  const selectedNode = graph.nodes.find((n) => n.id === selectedId) ?? null;
-  const selectedDisplayState: NodeState | null = selectedNode
-    ? display[selectedNode.id]
-    : null;
-
-  // "Learn these first": a selected locked node highlights its unlearned
-  // prerequisite chain on the canvas.
-  const lockedPath = useMemo(
-    () =>
-      isMap && selectedId && display[selectedId] === "unknown"
-        ? unmetPathOf(selectedId, states, graph)
-        : null,
-    [isMap, selectedId, display, states, graph],
-  );
-
-  // The plan, continuously re-derived: the frontier ordered to the goal…
-  const allFrontier = useMemo(
-    () => orderedFrontier(display, graph, form.goal),
-    [display, graph, form.goal],
-  );
-  // Only the top 3 are worth naming in the UI ("next up")…
-  const nextUp = useMemo(() => allFrontier.slice(0, 3), [allFrontier]);
   // The warm pass: what to have generated before the learner asks for it.
   useWarming({
     run,
@@ -732,139 +558,6 @@ export default function AtlasApp({
     isMap,
     warmRetain,
   });
-
-  // …and the pace check against the real deadline (#23) — an exam goal
-  // without a date gets no fabricated countdown.
-  const pace = useMemo(
-    () =>
-      // A date that has already passed is not a deadline — it would divide the
-      // remaining territory by a floor of one day and demand a fabricated
-      // 12-hour pace. No countdown beats a wrong one (#23).
-      form.goal === "exam" && daysUntil(form.examDate) > 0
-        ? paceStatus(states, graph, form.target, daysUntil(form.examDate))
-        : null,
-    [form.goal, form.examDate, form.target, states, graph],
-  );
-
-  // The live calibration readings, resolved against the node labels — read by
-  // the Calibration surface and the left-rail "N over" alert.
-  const calib = useMemo(
-    () =>
-      calibItems(calibSamples, (id) => graph.nodes.find((n) => n.id === id)?.label ?? id),
-    [calibSamples, graph],
-  );
-
-  const consumeChunks = consume
-    ? (consumeCache[consume.nodeId] ??
-      (liveConsume?.nodeId === consume.nodeId ? liveConsume.chunks : undefined))
-    : undefined;
-  // True while the open session's pass is still being written — gates the
-  // "Continue"/"Finish" affordance on the deepest streamed-in section so it
-  // never reaches for a section that hasn't arrived yet.
-  const consumeStreaming = !!consume && !consumeCache[consume.nodeId];
-  consumeChunksRef.current = consumeChunks ?? [];
-  // The open model view, if any: committed beats, else the ones streaming in.
-  const openModelKey =
-    consume && consume.model
-      ? modelKey(consume.nodeId, consume.model.chunkId, consume.model.lens)
-      : null;
-  const modelBeats = openModelKey
-    ? (modelCache[openModelKey] ??
-      (liveModel?.key === openModelKey ? liveModel.beats : undefined))
-    : undefined;
-  // Beats are still on the way unless the view is committed, or what streamed
-  // in is all there is ever going to be.
-  const modelStreaming =
-    !!openModelKey &&
-    !modelCache[openModelKey] &&
-    !(liveModel?.key === openModelKey && liveModel.done);
-  // Same fallback as Consume: the committed pass if it exists, otherwise
-  // whatever has streamed in for this node so far.
-  const socraticSteps = socratic
-    ? (socraticCache[socratic.nodeId] ??
-      (liveSocratic?.nodeId === socratic.nodeId ? liveSocratic.steps : undefined))
-    : undefined;
-  const feynmanBeats = feynman
-    ? (feynmanCache[feynman.nodeId] ??
-      (liveFeynman?.nodeId === feynman.nodeId ? liveFeynman.beats : undefined))
-    : undefined;
-  const connectContent = connect ? connectCache[connect.nodeId] : undefined;
-  const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
-
-  // ---- Home (dashboard) + profile derived ------------------------------
-
-  // The account, read into an avatar initial and a friendly display name —
-  // honest, derived from the email, never a fabricated identity.
-  const emailLocal = (userEmail.split("@")[0] ?? "").replace(/[._-]+/g, " ").trim();
-  const nameParts = emailLocal.split(/\s+/).filter(Boolean);
-  const displayName =
-    nameParts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") || "there";
-  const initials =
-    (nameParts.length >= 2
-      ? nameParts[0][0] + nameParts[1][0]
-      : emailLocal.slice(0, 2)
-    ).toUpperCase() || "A";
-
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const dateLabel = new Date()
-    .toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    })
-    .toUpperCase();
-
-  // The honest queue chip, read from the real card store (#21): cards
-  // actually due now, in minutes.
-  const dueNow = useMemo(() => dueCards(cards).length, [cards]);
-  const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow };
-  const frontierTotal = graph.nodes.filter((n) => display[n.id] === "frontier").length;
-  const frontierConcept = nextUp[0]?.node.label ?? null;
-  const subject = form.topic.trim() || "Your map";
-  const goalLabel = GOALS.find(([g]) => g === form.goal)?.[1] ?? "General mastery";
-
-  // The dashboard's "Your maps" grid: the live run's numbers stay live (they
-  // update mid-session, before any save lands); every other saved map reads
-  // off its last-saved snapshot from `maps`.
-  const mapCards = useMemo(() => {
-    const others = maps
-      .filter((m) => m.subject !== runSubject)
-      .map((m) => {
-        const otherDisplay = displayStates(m.states, m.graph);
-        const mastered = m.graph.nodes.filter(
-          (n) => m.states[n.id] === "mastered",
-        ).length;
-        return {
-          subject: m.subject,
-          goalLabel: GOALS.find(([g]) => g === m.goal)?.[1] ?? "General mastery",
-          masteryPct: m.graph.nodes.length
-            ? Math.round((mastered / m.graph.nodes.length) * 100)
-            : 0,
-          frontierTotal: m.graph.nodes.filter((n) => otherDisplay[n.id] === "frontier")
-            .length,
-        };
-      });
-    return graph.nodes.length
-      ? [{ subject, goalLabel, masteryPct, frontierTotal }, ...others]
-      : others;
-  }, [maps, runSubject, graph, subject, goalLabel, masteryPct, frontierTotal]);
-
-  const interests = form.interests
-    .split(/[,\n]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const profileStats: ProfileStat[] = [
-    { value: `${adherence.streak}`, label: "Day streak", accent: true },
-    { value: `${masteredCount}`, label: "Concepts mastered" },
-    { value: `${frontierTotal}`, label: "On the frontier" },
-    { value: `${masteryPct}%`, label: "Map mastered" },
-  ];
-  const reviewSummary = adherence.metToday
-    ? "Today's queue is clear — new cards surface as memories fade"
-    : `${queue.cards} card${queue.cards === 1 ? "" : "s"} due today · ~${queue.minutes} min budget`;
 
   // Hold the paper blank until the saved-run fetch settles — a resumed run
   // must open on the map, never flash the welcome screen first. The mark is
