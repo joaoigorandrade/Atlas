@@ -158,7 +158,7 @@ export default function ConnectView({
   const cy = content.center.y;
 
   return (
-    <Sheet presence={presence}>
+    <Sheet presence={presence} data-testid="phase-connect" aria-label="Connect — {title}">
       {/* Header — ← Map · Session · Connect · title · phase breadcrumb */}
       <div
         style={{

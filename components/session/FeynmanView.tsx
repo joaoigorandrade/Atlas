@@ -234,7 +234,7 @@ export default function FeynmanView({
   const breadcrumb = PHASES.slice(0, 6).join(" → ");
 
   return (
-    <Sheet presence={presence}>
+    <Sheet presence={presence} data-testid="phase-feynman" aria-label="Feynman — {title}">
       {/* Header — ← Map · Session · Feynman · title · the student persona */}
       <div
         style={{

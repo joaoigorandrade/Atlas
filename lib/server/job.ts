@@ -37,7 +37,12 @@ import {
   type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
-import type { StreamFrame, StreamShapes } from "@/lib/server/stream";
+import {
+  payloadToFrames,
+  type StreamFrame,
+  type StreamShapes,
+} from "@/lib/server/stream";
+import { FIXTURES, fixturePayload } from "@/lib/server/fixtures";
 import {
   ALT_KEYS,
   DIAGNOSTIC_DIFFICULTIES,
@@ -192,6 +197,36 @@ export interface Job {
  * Throws BadRequest for anything malformed; the caller maps that to a 400.
  */
 export function resolveJob(body: GenerateBody): Job {
+  const job = buildJob(body);
+  return FIXTURES ? asFixture(job, body) : job;
+}
+
+/**
+ * The same job, answered from `lib/server/fixtures.ts` instead of OpenRouter
+ * (docs/PLAN-QUALITY.md §1.1). Deliberately narrow: normalization, the caps and
+ * the BadRequest checks all still run — `buildJob` has already done them — so a
+ * fixture run exercises the real request contract, not a bypass of it.
+ *
+ * `key` is dropped on purpose. A fixture must never be written into
+ * `content_cache`, where a live deploy could later read it as real content.
+ */
+function asFixture(job: Job, body: GenerateBody): Job {
+  const payload = fixturePayload(job.kind, body);
+  if (!payload) return job;
+  const shape = job.shape;
+  return {
+    ...job,
+    key: null,
+    run: async () => payload,
+    stream: shape
+      ? async function* () {
+          for (const frame of payloadToFrames(payload, shape)) yield frame;
+        }
+      : undefined,
+  };
+}
+
+function buildJob(body: GenerateBody): Job {
   const topic = s(body.topic).trim();
   const interests = s(body.interests).slice(0, CAPS.interests);
   const nodeId = s(body.nodeId).slice(0, CAPS.nodeLabel);

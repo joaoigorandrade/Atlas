@@ -13,6 +13,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AtlasError } from "@/lib/errors";
+import { FIXTURES } from "@/lib/fixtureMode";
 import type {
   AdherenceState,
   CalibSample,
@@ -284,11 +285,44 @@ function storageError(op: string, error: { message: string }): AtlasError {
   );
 }
 
+// ---- fixture mode (docs/PLAN-QUALITY.md §1.1-1.2) --------------------------
+//
+// Under ATLAS_FIXTURES=1 there is no Supabase to talk to, so every read and
+// write below is answered by `/api/test/seed` — the same in-memory store a
+// test seeds a run into. The branch sits in this file rather than in a fake
+// Supabase client because this is the whole query surface: seven functions,
+// one table, no joins.
+
+const SEED_URL = "/api/test/seed";
+
+interface SeededRow {
+  subject: string;
+  snapshot: unknown;
+  caches: unknown;
+}
+
+async function seedRead(subject?: string): Promise<SeededRow[]> {
+  const url = subject ? `${SEED_URL}?subject=${encodeURIComponent(subject)}` : SEED_URL;
+  const res = await fetch(url);
+  if (!res.ok) throw storageError("load", { message: `seed route ${res.status}` });
+  return ((await res.json()) as { runs?: SeededRow[] }).runs ?? [];
+}
+
+async function seedWrite(body: Record<string, unknown>): Promise<void> {
+  const res = await fetch(SEED_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw storageError("save", { message: `seed route ${res.status}` });
+}
+
 /**
  * The run core for the most recently touched run, without the content caches.
  * This is the query the first paint waits on, so it stays small on purpose.
  */
 export async function loadRunCore(supabase: SupabaseClient): Promise<LoadedRun | null> {
+  if (FIXTURES) return toLoadedRun((await seedRead())[0] ?? null);
   const { data, error } = await supabase
     .from("run_states")
     .select("subject, snapshot")
@@ -304,6 +338,7 @@ export async function loadRunBySubject(
   supabase: SupabaseClient,
   subject: string,
 ): Promise<LoadedRun | null> {
+  if (FIXTURES) return toLoadedRun((await seedRead(subject))[0] ?? null);
   const { data, error } = await supabase
     .from("run_states")
     .select("subject, snapshot")
@@ -338,19 +373,26 @@ export interface RunSummary {
  *  the "Your maps" grid; the currently-open run isn't excluded, callers that
  *  already hold it live prefer their own (fresher) copy. */
 export async function listRuns(supabase: SupabaseClient): Promise<RunSummary[]> {
+  if (FIXTURES) return summaries(await seedRead());
   const { data, error } = await supabase
     .from("run_states")
     .select("subject, snapshot")
     .order("updated_at", { ascending: false });
   if (error) throw storageError("list", error);
-  return (data ?? []).flatMap((row) => {
+  return summaries(data ?? []);
+}
+
+/** Rows → cards. Shared with the fixture path, so the grid is derived the same
+ *  way whichever store answered. */
+function summaries(rows: Array<{ subject: string; snapshot: unknown }>): RunSummary[] {
+  return rows.flatMap((row) => {
     const snapshot = row.snapshot as LoadedSnapshot | undefined;
     // Every version the loader accepts, not just the first three — a run saved
     // since v4 was silently missing from the grid.
     if (!snapshot || !SNAPSHOT_VERSIONS.includes(snapshot.v)) return [];
     return [
       {
-        subject: row.subject as string,
+        subject: row.subject,
         goal: snapshot.form.goal,
         graph: snapshot.graph,
         states: snapshot.states,
@@ -364,6 +406,8 @@ export async function loadRunCaches(
   supabase: SupabaseClient,
   subject: string,
 ): Promise<RunCaches> {
+  if (FIXTURES)
+    return normalizeCaches((await seedRead(subject))[0]?.caches as Partial<RunCaches>);
   const { data, error } = await supabase
     .from("run_states")
     .select("caches")
@@ -379,6 +423,7 @@ export async function saveRun(
   subject: string,
   snapshot: RunSnapshot,
 ): Promise<void> {
+  if (FIXTURES) return seedWrite({ subject, snapshot });
   const { error } = await supabase
     .from("run_states")
     .upsert({ subject, snapshot }, { onConflict: "user_id,subject" });
@@ -395,6 +440,12 @@ export async function deleteRun(
   supabase: SupabaseClient,
   subject: string,
 ): Promise<void> {
+  if (FIXTURES) {
+    await fetch(`${SEED_URL}?subject=${encodeURIComponent(subject)}`, {
+      method: "DELETE",
+    });
+    return;
+  }
   const { error } = await supabase.from("run_states").delete().eq("subject", subject);
   if (error) throw storageError("delete", error);
 }
@@ -405,6 +456,7 @@ export async function saveRunCaches(
   subject: string,
   caches: RunCaches,
 ): Promise<void> {
+  if (FIXTURES) return seedWrite({ subject, caches });
   const { error } = await supabase
     .from("run_states")
     .upsert({ subject, caches }, { onConflict: "user_id,subject" });

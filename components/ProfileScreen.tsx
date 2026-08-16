@@ -82,6 +82,7 @@ export default function ProfileScreen({
   const t = useT(STRINGS);
   return (
     <div
+      data-testid="screen-profile"
       style={{
         position: "absolute",
         inset: 0,

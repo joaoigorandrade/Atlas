@@ -160,7 +160,7 @@ export default function RetainView({
   const budget = retainBudget(session, content);
 
   return (
-    <Sheet presence={presence}>
+    <Sheet presence={presence} data-testid="phase-retain" aria-label="Retain — {title}">
       {/* Header — ← Map · Retain · Review · honest queue chip */}
       <div
         style={{

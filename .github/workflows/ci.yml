@@ -8,9 +8,8 @@
 #   test:coverage vitest + the coverage floor on lib/** (vitest.config.ts)
 #   size          scripts/size-budget.mjs — the ratchet on file length
 #   build         next build
-#
-# e2e joins this list in Phase 1, once fixture mode makes the app drivable
-# without a live OpenRouter call.
+#   e2e           playwright — the app driven end to end in fixture mode
+#                 (ATLAS_FIXTURES=1), so it costs no OpenRouter call
 #
 # Live-model evals (npm run eval) are intentionally NOT run here — they cost
 # money and need a key.
@@ -35,10 +34,37 @@ jobs:
       SUPABASE_URL: https://placeholder.supabase.co
       SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run ${{ matrix.check }}
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    env:
+      # Fixture mode (docs/AGENT-TESTING.md): every generation is answered from
+      # lib/server/fixtures.ts, so this job needs no OpenRouter key and no
+      # Supabase project — the placeholders below are only there because the
+      # browser client is still constructed.
+      ATLAS_FIXTURES: "1"
+      SUPABASE_URL: https://placeholder.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

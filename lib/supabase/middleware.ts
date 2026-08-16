@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { FIXTURES } from "@/lib/fixtureMode";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/config";
 
 /**
@@ -8,6 +9,10 @@ import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/config";
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+
+  // Fixture mode: nobody to ask, and nowhere to bounce to — /login would be a
+  // dead end with no Supabase behind it (docs/PLAN-QUALITY.md §1.1).
+  if (FIXTURES) return supabaseResponse;
 
   const supabase = createServerClient(supabaseUrl(), supabasePublishableKey(), {
     cookies: {

@@ -39,6 +39,9 @@ export default function BuildingOverlay({ note }: { note?: string | null }) {
   }, [t.body.length]);
   return (
     <div
+      data-testid="screen-building"
+      role="status"
+      aria-live="polite"
       style={{
         position: "absolute",
         inset: 0,
