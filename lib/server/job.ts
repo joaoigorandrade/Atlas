@@ -7,6 +7,7 @@
 // happens before the key is derived, so a request and its capped twin share a
 // cache entry instead of generating twice.
 
+import type { Language } from "@/lib/i18n";
 import {
   generateConnect,
   generateConsume,
@@ -34,7 +35,6 @@ import {
   judgeSocratic,
   judgeSocraticStream,
   mapNodeBounds,
-  type Language,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import {
