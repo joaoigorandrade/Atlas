@@ -155,43 +155,72 @@ MCP) drives — one harness, both consumers, no second setup.
 
 ## Phase 2 — Shrink the four files
 
-**Status: landed for 2.2–2.4, partial for 2.1, skipped for 2.5** (2026-08-16).
-Every step is behaviour-preserving and was verified against the Phase 1 e2e
-suite, `tsc`, ESLint and the 322 unit tests after each split.
+**Status: landed for 2.1–2.4, skipped for 2.5** (2026-08-16). Every step is
+behaviour-preserving and was verified against the Phase 1 e2e suite, `tsc`,
+ESLint and the 322 unit tests after each split.
 
-| Step                      | Before | After                       |
-| ------------------------- | ------ | --------------------------- |
-| `components/AtlasApp.tsx` | 5,042  | **4,675** (target was ~800) |
-| `lib/curriculum.ts`       | 3,044  | 10 modules, largest 473     |
-| `lib/server/generate.ts`  | 2,675  | 14 modules, largest 499     |
-| `ConsumeView.tsx`         | 2,633  | **1,222** + 7 modules       |
+| Step                      | Before | After                                       |
+| ------------------------- | ------ | ------------------------------------------- |
+| `components/AtlasApp.tsx` | 5,042  | **1,160** — 11 hooks in `components/atlas/` |
+| `lib/curriculum.ts`       | 3,044  | 10 modules, largest 473                     |
+| `lib/server/generate.ts`  | 2,675  | 14 modules, largest 499                     |
+| `ConsumeView.tsx`         | 2,633  | **1,226** + 7 modules                       |
 
-### 2.1 `AtlasApp.tsx` — 5,042 → 4,675 (partial)
+### 2.1 `AtlasApp.tsx` — 5,042 → 1,160
 
-Landed:
+The blocker was never the mechanics; it was that nothing said which hook owned
+which state. That decision, made:
 
-- `components/atlas/useToast.ts` — the toast channel and `showError`, the one
-  place a caught error becomes something a learner reads.
-- `components/atlas/useCanvas.ts` — pan, zoom, node drag, `centerOn`, and the
-  view/positions state they own.
-- `components/atlas/useViewport.ts` — the responsive minimum (#8).
-- `components/atlas/exporters.ts` — data export (#32), now plain functions
-  taking data instead of three `useCallback`s closing over refs.
-- **59 of 106 `useCallback`s deleted.** They were pure ceremony: no component
-  in the repo is `React.memo`'d and none of the 59 appeared in a dependency
-  array, so the memoization bought nothing. `build` stayed wrapped —
-  `react-hooks/purity` (correctly) objects to `Date.now()` at render scope.
+| Module            | Owns                                                                                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useRunState`     | everything persisted — graph, mastery states, node positions, per-phase progress, the FSRS card store, the cached generations — plus the loader, the two debounced writers, the saved-maps grid, and the mutators the phases reach for |
+| `useSessionState` | the transient half: what is open now and what is still streaming for it                                                                                                                                                                |
+| `useGeneration`   | `generate` (the one seam every foreground generation goes through) and one builder per kind for the request inputs                                                                                                                     |
+| `useSpiral`       | the six phases as one state machine — enter, run, advance, exit                                                                                                                                                                        |
+| `useOnboarding`   | the only flow that _creates_ a run: build, stream, place                                                                                                                                                                               |
+| `useWarming`      | the two speculative passes                                                                                                                                                                                                             |
+| `useDerived`      | the view model — everything the render reads and nothing owns                                                                                                                                                                          |
+| `useNavigation`   | moving around outside a session, plus the two account actions                                                                                                                                                                          |
+| `useCanvas`       | pan, zoom, drag — it _moves_ node positions, the run owns them                                                                                                                                                                         |
+| `useToast`        | the toast channel and `showError`                                                                                                                                                                                                      |
+| `useViewport`     | the responsive minimum (#8)                                                                                                                                                                                                            |
 
-**Not landed, and the honest reason:** the remaining bulk is the six phase
-handler blocks (~1,400 lines), generation plumbing (~450), persistence (~380)
-and the JSX (~470). Each reads and writes 20-40 pieces of the same shared state
-pool. Extracting them as `useRunSnapshot`/`useSession`/`useDiagnostic` requires
-deciding _which hook owns which state_ — a restructure, not a move. Threading a
-30-field context object through a hook boundary would relocate the lines without
-deleting any, and would do it under an e2e suite of seven specs that is too
-shallow to catch a subtle ordering regression. The four extractions above were
-taken because their interfaces are genuinely narrow (3-10 arguments); the rest
-needs the state-ownership decision made first.
+What is left in `AtlasApp` is 65 lines of imports, 623 of state and hook
+composition, and 473 of render — the shell the plan asked for.
+
+Three findings worth keeping:
+
+- **The six phases are one machine, not six.** Feynman's advance opens Connect,
+  Connect's opens the Crucible, a failed Crucible re-plans the map and routes
+  back into Socratic. The old code already routed those forward references
+  through refs (`enterCrucibleRef` exists because `enterConnect` is written
+  above `enterCrucible`). Split per phase, every transition would cross a hook
+  boundary through _another_ ref — more indirection than the version being
+  replaced. So `useSpiral` is one 2,153-line module, and that is the right
+  answer rather than a concession.
+- **One genuine cycle.** `useRunState.applyRun` must clear onboarding's state,
+  but onboarding needs the run. Resolved through a ref box assigned after both
+  mount — the same pattern the file already used for `switchMapRef`.
+- **Anything a hook returns and a dependency array names must be stable.** The
+  first extraction shipped a `reset` that was a fresh identity each render;
+  `applyRun` depended on it, the mount hydrate depended on `applyRun`, and the
+  app re-hydrated on every render. The e2e suite caught it — 11 of 13 specs
+  failed — which is exactly why the suite was written first.
+
+**Duplication removed on the way through**, not merely relocated: `excludeTopic`
+used to re-spell `clearRun` by hand, which is what the old comment ("Missed here
+and in `excludeTopic`, the unfinished teach-backs … survived into the new run's
+snapshot") was apologising for. `59 of 106 useCallback`s are gone — no component
+in the repo is `React.memo`'d and none of the 59 appeared in a dependency array,
+so they bought nothing.
+
+**The prerequisite that made it safe.** Before any of this, six e2e specs
+(`tests/e2e/progression.spec.ts`) were added that drive a phase to _completion_
+and assert what it changed — node state, spawned gaps, calibration readings, the
+card store, the persisted snapshot — rather than only that its material
+rendered. Writing them turned up two real testability gaps: the Consume recap
+was a full-screen surface with no testid at all, and the phase
+advance/submit/grade controls had no stable selectors.
 
 ### 2.2 `lib/server/generate.ts` — 2,675 → 14 modules
 
@@ -208,7 +237,7 @@ frame protocol. A table over that would have been a speculative abstraction with
 twelve special cases inside it. The split is the real win; the line count is
 flat.
 
-### 2.3 `ConsumeView.tsx` — 2,633 → 1,222
+### 2.3 `ConsumeView.tsx` — 2,633 → 1,226
 
 `Figure`, `SpeakerButton`, `WorkedExample`, `PassagePanel`, `SectionCheck` and
 `ModelView` moved to `components/session/consume/`, with the strings and the
@@ -257,9 +286,11 @@ render-cost regression is measured, or as part of a genuine design-token pass.
 | 2 — The four files | Behaviour-preserving, verified by Phase 1, ratcheted by Phase 0.2            |
 | 3 — Production     | Independent of the refactor; 0.6 can jump the queue if spend is a live worry |
 
-Expected outcome: ~37k → ~26k LOC, with the four monoliths under a ratcheting
-budget, six required CI checks, and an app an agent can drive deterministically
-in under a second per step.
+Outcome as measured on 2026-08-16: the four monoliths are 43 modules, the
+largest of which (`useSpiral`, 2,153) is a single state machine rather than a
+component doing eleven jobs. Seven required CI checks, a ratcheting per-file
+budget, and 13 e2e specs an agent can drive deterministically — the six
+progression ones assert what a phase _changed_, not merely that it rendered.
 
 ## Deliberately skipped
 

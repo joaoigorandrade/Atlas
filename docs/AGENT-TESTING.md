@@ -67,20 +67,42 @@ await openPhase(page, "core-rule", 4); // 4 = Crucible
 Applied to navigation landmarks and interactive controls only — not to every
 div. Prefer these over text: the app is bilingual and the copy moves.
 
-| Selector                                                                         | What it addresses                                                                                                                            |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[data-testid=app]`                                                              | The app root. **Read the state off it, don't guess:**                                                                                        |
-| → `data-screen`                                                                  | `welcome` · `building` · `diagnostic` · `map` · `dashboard` · `profile`                                                                      |
-| → `data-sheet`                                                                   | the open full-screen surface, or `none`                                                                                                      |
-| → `data-hydrated`                                                                | `1` once the persisted run has been applied                                                                                                  |
-| `screen-welcome` · `screen-building` · `screen-diagnostic`                       | onboarding surfaces                                                                                                                          |
-| `screen-dashboard` · `screen-profile` · `screen-settings` · `screen-calibration` | the rest                                                                                                                                     |
-| `map-canvas`                                                                     | the map itself (`role="application"`)                                                                                                        |
-| `node-<id>`                                                                      | one concept chip. `data-state` carries its display state                                                                                     |
-| `panel-node`                                                                     | the node detail rail. `data-node` carries the selected id                                                                                    |
-| `phase-<name>`                                                                   | an open phase surface: `consume` `socratic` `feynman` `connect` `crucible` `retain`                                                          |
-| `action-<verb>`                                                                  | a control: `build` `take-placement` `answer-<i>` `next` `start` `primary` `phase-<i>` `skip-confirm` `skip-cancel` `submit` `confidence-<i>` |
-| `field-<name>`                                                                   | an input: `topic` `interests` `answer`                                                                                                       |
+| Selector                                                                         | What it addresses                                                                   |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `[data-testid=app]`                                                              | The app root. **Read the state off it, don't guess:**                               |
+| → `data-screen`                                                                  | `welcome` · `building` · `diagnostic` · `map` · `dashboard` · `profile`             |
+| → `data-sheet`                                                                   | the open full-screen surface, or `none`                                             |
+| → `data-hydrated`                                                                | `1` once the persisted run has been applied                                         |
+| `screen-welcome` · `screen-building` · `screen-diagnostic`                       | onboarding surfaces                                                                 |
+| `screen-dashboard` · `screen-profile` · `screen-settings` · `screen-calibration` | the rest                                                                            |
+| `map-canvas`                                                                     | the map itself (`role="application"`)                                               |
+| `node-<id>`                                                                      | one concept chip. `data-state` carries its display state                            |
+| `panel-node`                                                                     | the node detail rail. `data-node` carries the selected id                           |
+| `phase-<name>`                                                                   | an open phase surface: `consume` `socratic` `feynman` `connect` `crucible` `retain` |
+| `phase-consume-recap`                                                            | the closing recap — a separate full-screen surface that replaces the reading        |
+| `action-<verb>`                                                                  | a control (see below)                                                               |
+| `field-<name>`                                                                   | an input: `topic` `interests` `answer`                                              |
+
+`action-<verb>` in full:
+
+| Where      | Controls                                                                    |
+| ---------- | --------------------------------------------------------------------------- |
+| onboarding | `build` · `goal-<key>` · `take-placement` · `answer-<i>` · `next` · `start` |
+| map        | `primary` · `phase-<i>` · `skip-confirm` · `skip-cancel`                    |
+| Consume    | `check-<i>` · `continue` · `finish` · `begin-socratic`                      |
+| Socratic   | `submit`                                                                    |
+| Feynman    | `begin` · `next` · `submit` · `advance`                                     |
+| Crucible   | `confidence-<i>` · `submit` · `finish`                                      |
+| Retain     | `confidence-<i>` · `grade-<again\|hard\|good\|easy>` · `continue`           |
+
+Two things that catch people out:
+
+- **A section check only mounts once the end of its section is on screen** (an
+  IntersectionObserver, `components/session/consume/SectionCheck.tsx`).
+  Playwright cannot auto-scroll to an element that does not exist yet — scroll
+  the reading first. `scrollToCheck` in `tests/e2e/progression.spec.ts` does it.
+- **An answered check stays on screen, disabled.** Target
+  `[data-testid="action-check-1"]:not([disabled])`, not `.last()`.
 
 The screen graph, in the order a run walks it:
 
@@ -116,3 +138,17 @@ whole suite takes ~40s rather than ~2 minutes.
    3 Connect · 4 Crucible · 5 Retained. It clears the skip nudge for you.
 3. Assert on structure and behaviour. If a control has no testid, add one in the
    same change rather than reaching for a CSS path or a copy string.
+4. Asserting on the **persisted** snapshot? Wait for the change, not for the
+   snapshot: a seeded row is already on disk when the spec starts, so "a
+   snapshot exists" is true immediately and hands you the seed instead of what
+   the app just wrote. `persisted(page, predicate)` in
+   `tests/e2e/progression.spec.ts` is the pattern.
+
+### Two kinds of spec
+
+`consume.spec.ts` and friends open a surface and assert its material rendered —
+cheap, and enough to catch a broken render path. `progression.spec.ts` drives a
+phase to completion and asserts what it _changed_: the node's state, the gaps it
+spawned, the calibration reading it recorded, the cards it wrote, the snapshot
+it persisted. That second kind is the one that catches a refactor of the phase
+machine, so a change to `components/atlas/useSpiral.ts` should run it.
