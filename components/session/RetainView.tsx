@@ -590,6 +590,7 @@ function ActiveCard({
                   <button
                     className="at-press"
                     key={label}
+                    data-testid={`action-confidence-${i}`}
                     onClick={() => onConfidence(i as ReviewConfidence)}
                     style={{
                       flex: 1,
@@ -686,6 +687,7 @@ function ActiveCard({
               <button
                 className="at-press"
                 key={g.key}
+                data-testid={`action-grade-${g.key}`}
                 onClick={() => onGrade(g.key)}
                 style={{
                   flex: 1,
@@ -839,6 +841,7 @@ function ActiveCard({
             </button>
             <button
               className="at-press"
+              data-testid="action-continue"
               onClick={onContinue}
               style={{
                 padding: "13px 20px",

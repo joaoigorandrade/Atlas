@@ -100,6 +100,7 @@ export function SectionCheck({
                 <button
                   className="at-press"
                   key={o.label}
+                  data-testid={`action-check-${oi}`}
                   onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
                   disabled={passed}
                   style={{

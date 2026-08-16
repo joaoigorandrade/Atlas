@@ -253,6 +253,8 @@ export default function ConsumeView({
     return (
       <Sheet
         presence={presence}
+        data-testid="phase-consume-recap"
+        aria-label={`Consume recap — ${title}`}
         style={{
           overflowY: "auto",
         }}
@@ -387,6 +389,7 @@ export default function ConsumeView({
           >
             <button
               className="at-press"
+              data-testid="action-begin-socratic"
               onClick={onBeginSocratic}
               style={{
                 padding: "14px 24px",
@@ -1082,6 +1085,7 @@ export default function ConsumeView({
                     <div style={{ marginTop: 30 }}>
                       <button
                         className="at-press"
+                        data-testid={isLast ? "action-finish" : "action-continue"}
                         onClick={() => (isLast ? onFinish() : onContinue(i))}
                         style={
                           isLast

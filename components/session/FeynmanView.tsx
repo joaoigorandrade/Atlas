@@ -418,6 +418,7 @@ function Prompt({
         </div>
         <button
           className="at-press"
+          data-testid="action-begin"
           onClick={onBegin}
           style={{
             display: "inline-flex",
@@ -639,6 +640,7 @@ function TeachPage({
           </div>
 
           <textarea
+            data-testid="field-answer"
             value={current}
             disabled={judging}
             onChange={(e) => onChangeAnswer(beat.id, e.target.value)}
@@ -718,6 +720,7 @@ function TeachPage({
             blocked={judging || (last && (!ready || answered === 0))}
             judging={judging}
             preparing={last && !judging && !ready}
+            data-testid={last ? "action-submit" : "action-next"}
             onClick={() => (last ? onSend() : go(at + 1))}
           />
         </div>
@@ -734,17 +737,20 @@ function Advance({
   judging,
   preparing,
   onClick,
+  "data-testid": testId,
 }: {
   label: string;
   blocked: boolean;
   judging: boolean;
   preparing: boolean;
   onClick: () => void;
+  "data-testid"?: string;
 }) {
   const t = useT(STRINGS);
   return (
     <button
       className="at-press"
+      data-testid={testId}
       onClick={onClick}
       disabled={blocked}
       style={{
@@ -1138,6 +1144,7 @@ function GapReport({
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button
             className="at-press"
+            data-testid="action-advance"
             onClick={onAdvance}
             style={{
               width: "100%",
