@@ -62,7 +62,6 @@ import {
   type ModalityTally,
   type CrucibleAction,
   type CrucibleContent,
-  type CrucibleSession,
   type DiagnosticDifficulty,
   type DiagnosticEffect,
   type DiagnosticQuestion,
@@ -75,7 +74,6 @@ import {
   type NodeState,
   type OnboardingForm,
   type RetainContent,
-  type RetainSession,
   type ReviewConfidence,
   type ReviewGrade,
   type ShakyReason,
@@ -153,10 +151,7 @@ import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
 import ProfileScreen, { type ProfileStat } from "@/components/ProfileScreen";
 import SettingsScreen from "@/components/SettingsScreen";
-import ConsumeView, {
-  type ConsumeSession,
-  type PassageAsk,
-} from "@/components/session/ConsumeView";
+import ConsumeView, { type PassageAsk } from "@/components/session/ConsumeView";
 import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
@@ -170,6 +165,7 @@ import { usePresence, useEarned } from "@/lib/motion";
 import { useToast } from "@/components/atlas/useToast";
 import { useViewport } from "@/components/atlas/useViewport";
 import { useCanvas } from "@/components/atlas/useCanvas";
+import { useSessionState } from "@/components/atlas/useSessionState";
 import { exportCardsCsv, exportCardsJson, exportMap } from "@/components/atlas/exporters";
 import { SHEET_EXIT_MS } from "@/components/Sheet";
 import NodeDetail from "@/components/map/NodeDetail";
@@ -284,6 +280,39 @@ export default function AtlasApp({
   // A foreground click on something already warming joins that request rather
   // than starting a second one.
   const warm = useMemo(() => createWarmQueue(), []);
+  // The live phase sessions and the streams feeding them.
+  const {
+    consume,
+    setConsume,
+    consumeRef,
+    liveConsume,
+    setLiveConsume,
+    liveConsumeRef,
+    liveModel,
+    setLiveModel,
+    socratic,
+    setSocratic,
+    socraticRef,
+    liveSocratic,
+    setLiveSocratic,
+    liveSocraticRef,
+    feynman,
+    setFeynman,
+    feynmanRef,
+    liveFeynman,
+    setLiveFeynman,
+    liveFeynmanRef,
+    connect,
+    setConnect,
+    crucible,
+    setCrucible,
+    crucibleRef,
+    retain,
+    setRetain,
+    retainRef,
+    consumeChunksRef,
+    reset: resetSessions,
+  } = useSessionState();
   // False until the saved run's CORE (graph, states, positions) has been
   // fetched — nothing renders before then, so a resumed run never flashes the
   // welcome screen. The generated content arrives separately, behind the map.
@@ -313,30 +342,10 @@ export default function AtlasApp({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // The generated placement diagnostic — arrives with the graph.
   const [diagnostic, setDiagnostic] = useState<DiagnosticQuestion[]>([]);
-  // The active Consume (Learn) session, or null when not in one.
-  const [consume, setConsume] = useState<ConsumeSession | null>(null);
-  // Sections of the *current* node's reading pass as they stream in, before
-  // the full pass is validated and committed to `consumeCache` below. Kept
-  // separate so a partial pass never looks like a cached, instantly-reopenable
-  // one to the warm/dedup logic.
-  const [liveConsume, setLiveConsume] = useState<{
-    nodeId: string;
-    chunks: ConsumeChunk[];
-  } | null>(null);
   // Model views (a lens opened over one section of the reading), keyed by
   // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
   // one lens on the section that didn't land, not twenty across the pass.
   const [modelCache, setModelCache] = useState<Record<string, ConsumeModelBeat[]>>({});
-  // …and the beats of the view currently open, as they stream in. Same
-  // arrangement as `liveConsume`: a half-arrived view must never look cached.
-  const [liveModel, setLiveModel] = useState<{
-    key: string;
-    beats: ConsumeModelBeat[];
-    /** Nothing more is coming — the stream finished, or it failed part-way and
-     *  what landed is all there is. Without it a view that died mid-stream
-     *  would show "still writing…" for as long as the learner left it open. */
-    done?: boolean;
-  } | null>(null);
   // Where the learner got to in each node's reading pass, persisted (§6). The
   // live `consume` session above is this plus the transient UI bits; this is
   // what a refresh, a re-entry, the map and the phase spiral all read.
@@ -346,8 +355,6 @@ export default function AtlasApp({
   // Which lens this learner keeps opening, run-wide — the evidence behind
   // the adaptive-modality default.
   const [modalityTally, setModalityTally] = useState<ModalityTally>({});
-  // The active Socratic (Phase 3a) session, or null.
-  const [socratic, setSocratic] = useState<SocraticSession | null>(null);
   // …and the unfinished ones, per node, persisted so re-entering a pass lands
   // back on the probe the learner stopped at with the transcript intact.
   const [socraticProgress, setSocraticProgress] = useState<
@@ -357,38 +364,18 @@ export default function AtlasApp({
    *  The pass state above is discarded the moment a pass finishes; this is the
    *  part worth keeping, and the judge reads it back on every answer. */
   const [misconceptions, setMisconceptions] = useState<MisconceptionRecord[]>([]);
-  // Steps of the *current* node's questioning pass as they stream in — same
-  // arrangement as `liveConsume`: held apart from `socraticCache` so a
-  // half-arrived pass is never mistaken for a cached, reopenable one.
-  const [liveSocratic, setLiveSocratic] = useState<{
-    nodeId: string;
-    steps: SocraticStep[];
-  } | null>(null);
   // …and the unfinished teach-backs, per node, persisted for the same reason
   // Socratic's are: a Gap Report is somewhere to come back to, not something
   // to re-earn by teaching the whole concept again.
   const [feynmanProgress, setFeynmanProgress] = useState<Record<string, FeynmanSession>>(
     {},
   );
-  // The active Feynman (Phase 3b) teach-back session, or null.
-  const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
-  // …and the same for the teach-back's beats.
-  const [liveFeynman, setLiveFeynman] = useState<{
-    nodeId: string;
-    beats: FeynmanBeat[];
-  } | null>(null);
-  // The active Connect (Phase 4 · Elaboration) session, or null.
-  const [connect, setConnect] = useState<ConnectSession | null>(null);
   // …and the unfinished ones, per node, for the same reason Socratic's and
   // Feynman's are kept: links the learner wrote in their own words are work,
   // not something to re-earn because they stepped back to the map.
   const [connectProgress, setConnectProgress] = useState<Record<string, ConnectSession>>(
     {},
   );
-  // The active Crucible (Phase 5 · application/transfer) session, or null.
-  const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
-  // The active Retain (Phase 6 · Review queue) session, or null.
-  const [retain, setRetain] = useState<RetainSession | null>(null);
   // Per-node generated content, cached for the run so re-entering a phase
   // doesn't re-bill a generation. Retain is global (one queue per day).
   const [consumeCache, setConsumeCache] = useState<Record<string, ConsumeChunk[]>>({});
@@ -548,45 +535,26 @@ export default function AtlasApp({
   const maxCorrectDifficultyRef = useRef<DiagnosticDifficulty | null>(null);
   const statesRef = useRef(states);
   statesRef.current = states;
-  const crucibleRef = useRef(crucible);
-  crucibleRef.current = crucible;
-  const retainRef = useRef(retain);
-  retainRef.current = retain;
-  const socraticRef = useRef(socratic);
-  socraticRef.current = socratic;
-  const feynmanRef = useRef(feynman);
-  feynmanRef.current = feynman;
   const feynmanProgressRef = useRef(feynmanProgress);
   feynmanProgressRef.current = feynmanProgress;
   const connectProgressRef = useRef(connectProgress);
   connectProgressRef.current = connectProgress;
-  const consumeRef = useRef(consume);
-  consumeRef.current = consume;
-  /** The reading pass on screen — committed sections, or the streaming ones
-   *  standing in for them. Assigned once `consumeChunks` is derived, below. */
-  const consumeChunksRef = useRef<ConsumeChunk[]>([]);
   const consumeCacheRef = useRef(consumeCache);
   consumeCacheRef.current = consumeCache;
   const modelCacheRef = useRef(modelCache);
   modelCacheRef.current = modelCache;
-  const liveConsumeRef = useRef(liveConsume);
-  liveConsumeRef.current = liveConsume;
   const consumeProgressRef = useRef(consumeProgress);
   consumeProgressRef.current = consumeProgress;
   const modalityTallyRef = useRef(modalityTally);
   modalityTallyRef.current = modalityTally;
   const socraticCacheRef = useRef(socraticCache);
   socraticCacheRef.current = socraticCache;
-  const liveSocraticRef = useRef(liveSocratic);
-  liveSocraticRef.current = liveSocratic;
   const socraticProgressRef = useRef(socraticProgress);
   socraticProgressRef.current = socraticProgress;
   const misconceptionsRef = useRef(misconceptions);
   misconceptionsRef.current = misconceptions;
   const feynmanCacheRef = useRef(feynmanCache);
   feynmanCacheRef.current = feynmanCache;
-  const liveFeynmanRef = useRef(liveFeynman);
-  liveFeynmanRef.current = liveFeynman;
   const connectCacheRef = useRef(connectCache);
   connectCacheRef.current = connectCache;
   const crucibleCacheRef = useRef(crucibleCache);
@@ -675,16 +643,7 @@ export default function AtlasApp({
       setSelectedId(null);
       setDiagnostic([]);
       setAnswered(0);
-      setConsume(null);
-      setLiveConsume(null);
-      setLiveModel(null);
-      setSocratic(null);
-      setLiveSocratic(null);
-      setFeynman(null);
-      setLiveFeynman(null);
-      setConnect(null);
-      setCrucible(null);
-      setRetain(null);
+      resetSessions();
       setConsumeCache({});
       setModelCache({});
       setSocraticCache({});
@@ -762,7 +721,7 @@ export default function AtlasApp({
         // caches; the next load gets another chance at the row.
         .catch((err: unknown) => logWarning("load_caches_failed", err));
     },
-    [warm, applyCaches, supabase, setPositions],
+    [warm, applyCaches, supabase, setPositions, resetSessions],
   );
 
   useEffect(() => {
@@ -1327,7 +1286,17 @@ export default function AtlasApp({
         setScreen("welcome");
         showError(err, { context: "build", retry: () => buildRef.current?.() });
       });
-  }, [later, outline, showError, showToast, warm, setPositions, setView]);
+  }, [
+    later,
+    outline,
+    showError,
+    showToast,
+    warm,
+    setPositions,
+    setView,
+    setLiveConsume,
+    setLiveModel,
+  ]);
   // Same self-reference as `switchMapRef`: "Try again" on a failed build starts
   // the same build, with the form exactly as the learner left it.
   const buildRef = useRef(build);
@@ -2050,7 +2019,16 @@ export default function AtlasApp({
           });
         });
     },
-    [consumeParams, generate, loadConsume, showError, warm, warmOne],
+    [
+      consumeParams,
+      generate,
+      loadConsume,
+      showError,
+      warm,
+      warmOne,
+      setConsume,
+      setLiveConsume,
+    ],
   );
   // Retry for a reading pass that stopped halfway: reopening the node is the
   // retry, since nothing incomplete was ever cached.
@@ -2341,6 +2319,7 @@ export default function AtlasApp({
     consume?.checks,
     consume?.termsSeen,
     consume?.finished,
+    liveConsumeRef,
   ]);
 
   /**
@@ -2482,7 +2461,16 @@ export default function AtlasApp({
           });
         });
     },
-    [generate, loadSocratic, socraticParams, showError, warm, warmOne],
+    [
+      generate,
+      loadSocratic,
+      socraticParams,
+      showError,
+      warm,
+      warmOne,
+      setLiveSocratic,
+      setSocratic,
+    ],
   );
   const enterSocraticRef = useRef(enterSocratic);
   enterSocraticRef.current = enterSocratic;
@@ -2740,7 +2728,16 @@ export default function AtlasApp({
           });
         });
     },
-    [feynmanParams, generate, loadFeynman, showError, warm, warmOne],
+    [
+      feynmanParams,
+      generate,
+      loadFeynman,
+      showError,
+      warm,
+      warmOne,
+      setFeynman,
+      setLiveFeynman,
+    ],
   );
   const enterFeynmanRef = useRef(enterFeynman);
   enterFeynmanRef.current = enterFeynman;
@@ -2749,12 +2746,15 @@ export default function AtlasApp({
    *  so far — the same fallback `feynmanBeats` renders from. Without it every
    *  dispatch is a no-op on the cold path, and the learner's first click after
    *  the opening prompt does nothing until the last row lands. */
-  const feynmanBeatsFor = useCallback((nodeId: string): FeynmanBeat[] | undefined => {
-    const cached = feynmanCacheRef.current[nodeId];
-    if (cached?.length) return cached;
-    const live = liveFeynmanRef.current;
-    return live?.nodeId === nodeId ? live.beats : undefined;
-  }, []);
+  const feynmanBeatsFor = useCallback(
+    (nodeId: string): FeynmanBeat[] | undefined => {
+      const cached = feynmanCacheRef.current[nodeId];
+      if (cached?.length) return cached;
+      const live = liveFeynmanRef.current;
+      return live?.nodeId === nodeId ? live.beats : undefined;
+    },
+    [liveFeynmanRef],
+  );
 
   const dispatchFeynman = (action: FeynmanAction) => {
     setFeynman((prev) => {
@@ -2935,7 +2935,7 @@ export default function AtlasApp({
         open,
       );
     },
-    [connectParams, generate, loadConnect, showToast, warmOne],
+    [connectParams, generate, loadConnect, showToast, warmOne, setConnect],
   );
 
   const dispatchConnect = (action: ConnectAction) => {
@@ -3084,7 +3084,7 @@ export default function AtlasApp({
         open,
       );
     },
-    [generate, loadCrucible],
+    [generate, loadCrucible, setCrucible],
   );
   enterCrucibleRef.current = enterCrucible;
 
@@ -3345,7 +3345,7 @@ export default function AtlasApp({
         openFrom(all);
       },
     );
-  }, [generate, retainPlan, showToast]);
+  }, [generate, retainPlan, showToast, setRetain]);
 
   const retainConfidence = (level: ReviewConfidence) => {
     setRetain((prev) => {
