@@ -282,6 +282,7 @@ export default function CrucibleView({
                   }}
                 >
                   <textarea
+                    data-testid="field-answer"
                     value={session.attempt}
                     onChange={(e) => onAttempt(e.target.value)}
                     placeholder={problem.placeholder}
@@ -321,6 +322,7 @@ export default function CrucibleView({
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <button
                       className="at-press"
+                      data-testid="action-submit"
                       onClick={onSubmit}
                       disabled={judging}
                       style={{
@@ -774,6 +776,7 @@ function Diagnostic({
           </div>
           <button
             className="at-press"
+            data-testid="action-finish"
             onClick={onFinish}
             style={{
               padding: "15px 26px",

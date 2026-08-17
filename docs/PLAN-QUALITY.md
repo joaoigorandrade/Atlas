@@ -155,49 +155,113 @@ MCP) drives — one harness, both consumers, no second setup.
 
 ## Phase 2 — Shrink the four files
 
-Every step below is behaviour-preserving and lands behind the Phase 1 e2e suite.
+**Status: landed for 2.1–2.4, skipped for 2.5** (2026-08-16). Every step is
+behaviour-preserving and was verified against the Phase 1 e2e suite, `tsc`,
+ESLint and the 322 unit tests after each split.
 
-### 2.1 `AtlasApp.tsx` — 5,084 → target ~800
+| Step                      | Before | After                                       |
+| ------------------------- | ------ | ------------------------------------------- |
+| `components/AtlasApp.tsx` | 5,042  | **1,160** — 11 hooks in `components/atlas/` |
+| `lib/curriculum.ts`       | 3,044  | 10 modules, largest 473                     |
+| `lib/server/generate.ts`  | 2,675  | 14 modules, largest 499                     |
+| `ConsumeView.tsx`         | 2,633  | **1,226** + 7 modules                       |
 
-The 118 `useCallback`s are the tell: everything is memoized by reflex, and the
-memoization is most of the volume. Split by concern into `components/atlas/`:
-`useRunSnapshot` (persistence + caches), `useCanvas` (pan/zoom/drag),
-`useWarming` (the `lib/warm.ts` orchestration), `useDiagnostic`, `useSession`
-(phase dispatch). `AtlasApp` becomes the shell that composes them.
+### 2.1 `AtlasApp.tsx` — 5,042 → 1,160
 
-Delete on the way through: `useCallback` on anything not in a dependency array or
-a memoized child's props. Most of the 118 are pure ceremony.
+The blocker was never the mechanics; it was that nothing said which hook owned
+which state. That decision, made:
 
-### 2.2 `lib/server/generate.ts` — 2,597 → target ~1,000
+| Module            | Owns                                                                                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useRunState`     | everything persisted — graph, mastery states, node positions, per-phase progress, the FSRS card store, the cached generations — plus the loader, the two debounced writers, the saved-maps grid, and the mutators the phases reach for |
+| `useSessionState` | the transient half: what is open now and what is still streaming for it                                                                                                                                                                |
+| `useGeneration`   | `generate` (the one seam every foreground generation goes through) and one builder per kind for the request inputs                                                                                                                     |
+| `useSpiral`       | the six phases as one state machine — enter, run, advance, exit                                                                                                                                                                        |
+| `useOnboarding`   | the only flow that _creates_ a run: build, stream, place                                                                                                                                                                               |
+| `useWarming`      | the two speculative passes                                                                                                                                                                                                             |
+| `useDerived`      | the view model — everything the render reads and nothing owns                                                                                                                                                                          |
+| `useNavigation`   | moving around outside a session, plus the two account actions                                                                                                                                                                          |
+| `useCanvas`       | pan, zoom, drag — it _moves_ node positions, the run owns them                                                                                                                                                                         |
+| `useToast`        | the toast channel and `showError`                                                                                                                                                                                                      |
+| `useViewport`     | the responsive minimum (#8)                                                                                                                                                                                                            |
 
-Twelve kinds × (`validateX` + `generateX` + `xContext` + a shape const) written
-out longhand. Twelve implementations of one shape is exactly when a table earns
-its place: one `defineKind({ shape, rules, context, validate })` and each kind
-becomes ~40 lines of data instead of ~200 lines of code. The prompts stay verbatim
-— they are the product, and none of this touches them.
+What is left in `AtlasApp` is 65 lines of imports, 623 of state and hook
+composition, and 473 of render — the shell the plan asked for.
 
-### 2.3 `ConsumeView.tsx` — 2,583 → target ~600
+Three findings worth keeping:
 
-Extract the independent sub-surfaces it has grown: figure, prediction, the
-lens/model sheet, ask-about-this, the read-aloud toolbar. Each is already
-self-contained; they are just inlined.
+- **The six phases are one machine, not six.** Feynman's advance opens Connect,
+  Connect's opens the Crucible, a failed Crucible re-plans the map and routes
+  back into Socratic. The old code already routed those forward references
+  through refs (`enterCrucibleRef` exists because `enterConnect` is written
+  above `enterCrucible`). Split per phase, every transition would cross a hook
+  boundary through _another_ ref — more indirection than the version being
+  replaced. So `useSpiral` is one 2,153-line module, and that is the right
+  answer rather than a concession.
+- **One genuine cycle.** `useRunState.applyRun` must clear onboarding's state,
+  but onboarding needs the run. Resolved through a ref box assigned after both
+  mount — the same pattern the file already used for `switchMapRef`.
+- **Anything a hook returns and a dependency array names must be stable.** The
+  first extraction shipped a `reset` that was a fresh identity each render;
+  `applyRun` depended on it, the mount hydrate depended on `applyRun`, and the
+  app re-hydrated on every render. The e2e suite caught it — 11 of 13 specs
+  failed — which is exactly why the suite was written first.
 
-### 2.4 `curriculum.ts` — 3,057, split not shrunk
+**Duplication removed on the way through**, not merely relocated: `excludeTopic`
+used to re-spell `clearRun` by hand, which is what the old comment ("Missed here
+and in `excludeTopic`, the unfinished teach-backs … survived into the new run's
+snapshot") was apologising for. `59 of 106 useCallback`s are gone — no component
+in the repo is `React.memo`'d and none of the 59 appeared in a dependency array,
+so they bought nothing.
 
-Six session reducers + the replanning model + the shared vocabulary. Split into
-`lib/curriculum/{types,replan,consume,socratic,feynman,connect,crucible,retain}.ts`
-with a barrel so no import changes. **Honest note:** this one is a browsability
-win, not a size win — the logic is load-bearing and mostly earns its lines.
+**The prerequisite that made it safe.** Before any of this, six e2e specs
+(`tests/e2e/progression.spec.ts`) were added that drive a phase to _completion_
+and assert what it changed — node state, spawned gaps, calibration readings, the
+card store, the persisted snapshot — rather than only that its material
+rendered. Writing them turned up two real testability gaps: the Consume recap
+was a full-screen surface with no testid at all, and the phase
+advance/submit/grade controls had no stable selectors.
 
-### 2.5 Inline styles — ~800 objects
+### 2.2 `lib/server/generate.ts` — 2,675 → 14 modules
 
-Not a rewrite. Two mechanical passes:
-hoist repeated `style={{}}` literals to module-level consts (they are currently
-reallocated on every render — a correctness-adjacent perf win as well as a size
-one), and move anything that is genuinely static to a class in `globals.css`.
-No CSS-in-JS dependency; `lib/theme.ts` stays the token source of truth.
+Split into `lib/server/generate/<kind>.ts` (map, summary, consume, model,
+passage, socratic, feynman, connect, crucible, retain, judge, choice) over a
+shared `common.ts`, with a barrel so no import changed. Prompts are verbatim.
 
----
+**Honest note:** the plan proposed collapsing twelve kinds into one
+`defineKind({ shape, rules, context, validate })` table. Reading them, the twelve
+share a shape only superficially — the validators encode genuinely different
+post-processing (graph layout, gap offsets, card bounds), the contexts are
+different prompts, and half the kinds have a streaming variant with its own
+frame protocol. A table over that would have been a speculative abstraction with
+twelve special cases inside it. The split is the real win; the line count is
+flat.
+
+### 2.3 `ConsumeView.tsx` — 2,633 → 1,226
+
+`Figure`, `SpeakerButton`, `WorkedExample`, `PassagePanel`, `SectionCheck` and
+`ModelView` moved to `components/session/consume/`, with the strings and the
+session types in `consume/shared.ts`. The remaining 1,222 lines are the reading
+column and the closing recap, which are one surface rather than several inlined
+ones — short of the ~600 target, but there is no second self-contained
+sub-surface left to lift out.
+
+### 2.4 `curriculum.ts` — 3,044, split not shrunk
+
+`lib/curriculum/{types,consume,socratic,feynman,connect,crucible,retain,
+adherence,calibration,replan}.ts` with a barrel; no import changed. As the plan
+predicted, a browsability win, not a size win.
+
+### 2.5 Inline styles — skipped, deliberately
+
+Measured before touching anything: 905 style literals, of which only 215
+occurrences (69 distinct) repeat at all. Hoisting every repeat adds 69 module
+consts to remove 215 inline objects — roughly zero net lines. The plan also
+claimed a perf win from the re-allocation, but with no `React.memo` anywhere in
+the repo, nothing compares those objects by identity: React diffs style _values_
+on host elements. So this pass would touch 215 sites across the app for no
+measured gain, which is the definition of motion. Worth doing only if a real
+render-cost regression is measured, or as part of a genuine design-token pass.
 
 ## Phase 3 — Production readiness
 
@@ -222,9 +286,11 @@ No CSS-in-JS dependency; `lib/theme.ts` stays the token source of truth.
 | 2 — The four files | Behaviour-preserving, verified by Phase 1, ratcheted by Phase 0.2            |
 | 3 — Production     | Independent of the refactor; 0.6 can jump the queue if spend is a live worry |
 
-Expected outcome: ~37k → ~26k LOC, with the four monoliths under a ratcheting
-budget, six required CI checks, and an app an agent can drive deterministically
-in under a second per step.
+Outcome as measured on 2026-08-16: the four monoliths are 43 modules, the
+largest of which (`useSpiral`, 2,153) is a single state machine rather than a
+component doing eleven jobs. Seven required CI checks, a ratcheting per-file
+budget, and 13 e2e specs an agent can drive deterministically — the six
+progression ones assert what a phase _changed_, not merely that it rendered.
 
 ## Deliberately skipped
 
