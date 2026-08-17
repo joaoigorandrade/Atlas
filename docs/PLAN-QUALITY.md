@@ -265,15 +265,46 @@ render-cost regression is measured, or as part of a genuine design-token pass.
 
 ## Phase 3 — Production readiness
 
-- **Quota + spend ceiling** on generation (Phase 0.6 — listed there because it
-  is the gate, but it is really a production item and the highest-risk one open).
-- **`/api/health`** — one route, checks Supabase reachability. Vercel and any
-  uptime check need a target.
-- **Error budget visibility** — `lib/log.ts` already emits structured events;
-  point them somewhere queryable rather than at stdout.
-- **`README.md` + `AGENTS.md` reconciliation** — `AGENTS.md` is 16.6K and is the
-  stated source of truth; it needs the fixture mode, testid vocabulary, and the
-  new gates or the next agent works from a stale map.
+**Status: landed** (2026-08-17).
+
+- **Quota + spend ceiling.** The daily quota landed with Phase 0.6; the second
+  half — the ceiling on the _bill_ — is now `generationBlocked` in
+  `lib/server/quota.ts`, reading the `generation_calls_this_month()` function
+  that had existed unused since the `job_id` migration. `GENERATION_MONTHLY_CALLS`
+  (default 20,000) caps model calls across every learner per calendar month.
+  Both counts are read in one `Promise.all`, both fail open, and the month
+  outranks the day in the log because it is true for everyone rather than for
+  one learner.
+
+  One gap the daily quota structurally could not close: the server-side frontier
+  warm runs in `after()`, after the response, spending ~6 calls that no
+  learner's quota is charged for. It is now gated on the monthly ceiling
+  (`daily: 0`, since it is the server's speculation and not anyone's click).
+
+- **`/api/health`** — `{ ok, supabase, ms }`, 503 when Supabase is unreachable,
+  public because an uptime checker has no session. The probe is an anonymous
+  `select` on `run_states`: RLS answers it with zero rows and no error, so an
+  error means genuinely unreachable. OpenRouter is deliberately _not_ probed —
+  a probe there costs a model call per check, and `generate_failed` already
+  says it.
+
+- **Error budget visibility** — every line `lib/log.ts` writes now carries
+  `lvl` alongside `evt`, so severity is _in_ the payload rather than only in
+  which console stream it went to. That is what makes `lvl:"error"` a query in
+  Vercel's runtime logs and in any drain attached to them.
+
+  **No vendor and no logging table, deliberately.** The platform already stores
+  and indexes these lines; adding Sentry/Axiom/a `log` table would be a second
+  store to keep alive, to pay for, and to keep in step with the shape. The one
+  real gap left is that _client_ lines go to the browser console and nowhere
+  else — worth an ingest endpoint only when a bug actually needs one.
+
+- **`README.md` + `AGENTS.md` reconciliation** — `AGENTS.md` gained fixture
+  mode, the testid vocabulary, the seven gates, the `components/atlas/` hook
+  ownership table, the `lib/curriculum/` and `lib/server/generate/` splits, the
+  two ceilings, and a Logs section. `README.md`'s structure block described the
+  app as it was before Phase 2 and before the session phases existed; both now
+  match the tree.
 
 ---
 

@@ -10,8 +10,9 @@
 // Protection (#18): requires a signed-in Supabase session, caps every input
 // length (in lib/server/job.ts), logs every call that actually generates to the
 // generation_log table, and declines with a 429 once a learner has started
-// GENERATION_DAILY_QUOTA jobs in a UTC day (Phase 0.6). A cache hit is free and
-// is answered before the quota is consulted.
+// GENERATION_DAILY_QUOTA jobs in a UTC day (Phase 0.6) or this deployment has
+// made GENERATION_MONTHLY_CALLS model calls in the month (Phase 3). A cache hit
+// is free and is answered before either ceiling is consulted.
 
 import { after, NextResponse } from "next/server";
 import {
@@ -37,7 +38,7 @@ import {
   ndjsonStream,
   payloadToFrames,
 } from "@/lib/server/stream";
-import { overQuota } from "@/lib/server/quota";
+import { generationBlocked } from "@/lib/server/quota";
 import { createClient } from "@/lib/supabase/server";
 
 // Content generation is a real LLM round-trip — allow it time.
@@ -48,7 +49,7 @@ type SupabaseLike = Awaited<ReturnType<typeof createClient>>;
 /**
  * Record the job's model calls in `generation_log`.
  *
- * Nothing here can decline a job — `overQuota` already did. The rows are written
+ * Nothing here can decline a job — `generationBlocked` already did. The rows are written
  * before the work runs so a generation that fails upstream still shows up in
  * the spend picture — one row per model call the job may make, all sharing a
  * `job_id` so calls can still be grouped back into the surface that caused
@@ -144,10 +145,12 @@ export async function POST(request: Request) {
 
   // Everything from here on costs money, so this is where the day's ceiling
   // applies — after the free cache hit, before the first model call.
-  if (await overQuota(supabase, requestId)) {
+  const blocked = await generationBlocked(supabase, requestId);
+  if (blocked) {
     logEvent("generate_quota_exceeded", {
       user: userId,
       kind: job.kind,
+      limit: blocked,
       req: requestId,
     });
     // A background warm is nobody's click: decline it silently, exactly as a
@@ -252,6 +255,14 @@ function startCurriculumWarm(
       .filter((label): label is string => !!label);
 
   after(async () => {
+    // The warm is real spend — six calls at the default depth — and it runs
+    // after the response, where nothing else would stop it. The month's
+    // ceiling is checked once for the whole pass; the learner's own daily
+    // quota is not, because this is the server's speculation, not their click.
+    if ((await generationBlocked(supabase, undefined, { daily: 0 })) !== null) {
+      logEvent("curriculum_warm_skipped", { user: userId, reason: "ceiling" });
+      return;
+    }
     for (const node of frontier) {
       for (const kind of ["consume", "socratic"] as const) {
         try {
