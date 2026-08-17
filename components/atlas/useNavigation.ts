@@ -11,6 +11,8 @@ import { deleteRun } from "@/lib/persistence";
 import { emptyGraph } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import { logWarning } from "@/lib/log";
+import { useLanguage } from "@/lib/i18n";
+import { TOAST_STRINGS } from "@/lib/toastCopy";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Screen } from "@/components/atlas/screen";
 import type { ToastChannel } from "@/components/atlas/useToast";
@@ -44,6 +46,8 @@ export function useNavigation(deps: {
     resetTransient,
   } = deps;
   const { showToast, showError } = toast;
+  const { language } = useLanguage();
+  const tc = () => TOAST_STRINGS[language];
   const {
     maps,
     setMaps,
@@ -73,9 +77,7 @@ export function useNavigation(deps: {
   /** Delete account + all data (#33). Confirm, then the server wipes the rows. */
   const deleteAccount = () => {
     if (
-      !window.confirm(
-        "Delete your account and all data — map, cards, streak? This cannot be undone.",
-      )
+      !window.confirm(tc().deleteAccount)
     )
       return;
     fetch("/api/account/delete", { method: "POST" })
@@ -128,7 +130,7 @@ export function useNavigation(deps: {
       .then(() => {
         if (subject !== runSubject) {
           refreshMaps();
-          showToast(`“${subject}” excluded`);
+          showToast(tc().excluded(subject));
           return;
         }
         // Every warmed key belongs to node ids that no longer exist.
@@ -149,10 +151,10 @@ export function useNavigation(deps: {
         if (others.length) {
           setMaps(others);
           setScreen("dashboard");
-          showToast(`“${subject}” excluded`);
+          showToast(tc().excluded(subject));
         } else {
           setScreen("welcome");
-          showToast(`Name a topic to build your next map.`, `“${subject}” excluded`);
+          showToast(tc().nameTopicNext, tc().excluded(subject));
         }
       })
       .catch((err: unknown) => showError(err, { context: "exclude" }))

@@ -61,6 +61,25 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
 import OfflineBanner from "@/components/OfflineBanner";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
+
+const STRINGS = {
+  en: {
+    yourTopic: "Your topic",
+    hidePlan: "⟨ Hide plan",
+    showPlan: "Plan ⟩",
+    hideNode: "Hide node ⟩",
+    showNode: "⟨ Node",
+    thisNode: "This node",
+  },
+  "pt-BR": {
+    yourTopic: "Seu tema",
+    hidePlan: "⟨ Ocultar plano",
+    showPlan: "Plano ⟩",
+    hideNode: "Ocultar nó ⟩",
+    showNode: "⟨ Nó",
+    thisNode: "Este nó",
+  },
+} as const;
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 
@@ -646,6 +665,7 @@ export default function AtlasApp({
   }
   const narrow = vw < 1280;
   const errorStrings = ERROR_STRINGS[language];
+  const t = STRINGS[language];
 
   /**
    * Wrap one session sheet so a throw inside it costs that sheet and nothing
@@ -769,7 +789,7 @@ export default function AtlasApp({
           />
           {(!narrow || railOpen) && (
             <LeftRail
-              subject={form.topic.trim() || "Your topic"}
+              subject={form.topic.trim() || t.yourTopic}
               goal={form.goal}
               pace={pace}
               nextUp={nextUp}
@@ -834,7 +854,7 @@ export default function AtlasApp({
                   boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
                 }}
               >
-                {railOpen ? "⟨ Hide plan" : "Plan ⟩"}
+                {railOpen ? t.hidePlan : t.showPlan}
               </button>
               {selectedNode && (
                 <button
@@ -855,7 +875,7 @@ export default function AtlasApp({
                     boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
                   }}
                 >
-                  {detailOpen ? "Hide node ⟩" : "⟨ Node"}
+                  {detailOpen ? t.hideNode : t.showNode}
                 </button>
               )}
             </>
@@ -1077,7 +1097,7 @@ export default function AtlasApp({
             session={retain}
             nodeLabel={
               graph.nodes.find((n) => n.id === reviewCard(retain, retainContent).node)
-                ?.label ?? "This node"
+                ?.label ?? t.thisNode
             }
             litNodes={masteredCount}
             adherence={adherence}

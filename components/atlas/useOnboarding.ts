@@ -30,6 +30,7 @@ import { FAKE_MAP_CENTER } from "@/components/onboarding/fakeMap";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
+import { TOAST_STRINGS } from "@/lib/toastCopy";
 import type { ToastChannel } from "@/components/atlas/useToast";
 import type { RunState } from "@/components/atlas/useRunState";
 import type { SessionState } from "@/components/atlas/useSessionState";
@@ -75,6 +76,7 @@ export function useOnboarding(deps: {
     frontierTargetId,
   } = deps;
   const { showToast, showError } = toast;
+  const tc = useCallback(() => TOAST_STRINGS[languageRef.current], [languageRef]);
   const {
     formRef,
     graphRef,
@@ -144,7 +146,7 @@ export function useOnboarding(deps: {
   const build = useCallback(() => {
     const topic = formRef.current.topic.trim();
     if (!topic) {
-      showToast("Name a topic first — the map is generated from it");
+      showToast(tc().nameTopicFirst);
       return;
     }
     const buildId = ++buildIdRef.current;
@@ -288,6 +290,7 @@ export function useOnboarding(deps: {
     outline,
     showError,
     showToast,
+    tc,
     warm,
     setPositions,
     setView,
@@ -322,7 +325,7 @@ export function useOnboarding(deps: {
     // Drop the previous outline up front: a re-upload must not ground the
     // map in the old source while the new one is still being read.
     setOutline(null);
-    setUploadNote(`Reading ${file.name}…`);
+    setUploadNote(tc().readingFile(file.name));
     const data = new FormData();
     data.append("file", file);
     fetch("/api/extract", { method: "POST", body: data })
@@ -332,9 +335,9 @@ export function useOnboarding(deps: {
           error?: string;
         } | null;
         if (!res.ok || !json?.text)
-          throw new Error(json?.error ?? "Couldn't read that file");
+          throw new Error(json?.error ?? tc().unreadableFile);
         setOutline(json.text);
-        setUploadNote(`Grounded in ${file.name} ✓ — the map will follow its outline`);
+        setUploadNote(tc().groundedIn(file.name));
       })
       .catch((err: Error) => {
         setOutline(null);
@@ -465,10 +468,7 @@ export function useOnboarding(deps: {
         () => {
           const parent = graphRef.current.nodes.find((n) => n.id === parentId);
           if (parent && attachGap(parentId, spec))
-            showToast(
-              `Added ${spec.label} under ${parent.label} — ${spec.reason}`,
-              "Map updated",
-            );
+            showToast(tc().gapAdded(spec.label, parent.label, spec.reason), tc().mapUpdated);
         },
         BUILD_MS + i * 1100,
       );

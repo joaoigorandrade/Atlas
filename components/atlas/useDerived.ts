@@ -9,12 +9,12 @@
 
 import { useMemo, useRef } from "react";
 import {
-  GOALS,
   calibItems,
   daysUntil,
   displayStates,
   orderedFrontier,
   paceStatus,
+  goals,
   unmetPathOf,
   type AltKey,
   type NodeState,
@@ -22,6 +22,7 @@ import {
   type StateMap,
 } from "@/lib/curriculum";
 import { dueCards } from "@/lib/fsrs";
+import { useLanguage, useT } from "@/lib/i18n";
 import { useEarned, usePresence } from "@/lib/motion";
 import { CELEBRATE_MS } from "@/components/map/MapCanvas";
 import { SHEET_EXIT_MS } from "@/components/Sheet";
@@ -29,6 +30,39 @@ import type { ProfileStat } from "@/components/ProfileScreen";
 import { SHEET_SCREENS, type Screen } from "@/components/atlas/screen";
 import type { RunState } from "@/components/atlas/useRunState";
 import type { SessionState } from "@/components/atlas/useSessionState";
+
+const STRINGS = {
+  en: {
+    morning: "Good morning",
+    afternoon: "Good afternoon",
+    evening: "Good evening",
+    there: "there",
+    yourMap: "Your map",
+    generalMastery: "General mastery",
+    dayStreak: "Day streak",
+    conceptsMastered: "Concepts mastered",
+    onTheFrontier: "On the frontier",
+    mapMastered: "Map mastered",
+    queueClear: "Today's queue is clear — new cards surface as memories fade",
+    queueDue: (cards: number, minutes: number) =>
+      `${cards} card${cards === 1 ? "" : "s"} due today · ~${minutes} min budget`,
+  },
+  "pt-BR": {
+    morning: "Bom dia",
+    afternoon: "Boa tarde",
+    evening: "Boa noite",
+    there: "por aí",
+    yourMap: "Seu mapa",
+    generalMastery: "Domínio geral",
+    dayStreak: "Dias seguidos",
+    conceptsMastered: "Conceitos dominados",
+    onTheFrontier: "Na fronteira",
+    mapMastered: "Do mapa dominado",
+    queueClear: "A fila de hoje está zerada — novos cards aparecem conforme a memória enfraquece",
+    queueDue: (cards: number, minutes: number) =>
+      `${cards} card${cards === 1 ? "" : "s"} para hoje · ~${minutes} min de orçamento`,
+  },
+} as const;
 
 /** The state changes worth marking on the map. Reaching the frontier isn't one
  *  — that's derived, and it's the map telling you where to go, not a result. */
@@ -67,6 +101,8 @@ export function useDerived(deps: {
     modelKey,
     runSubject,
   } = deps;
+  const t = useT(STRINGS);
+  const { language } = useLanguage();
   const {
     form,
     graph,
@@ -250,7 +286,7 @@ export function useDerived(deps: {
   const emailLocal = (userEmail.split("@")[0] ?? "").replace(/[._-]+/g, " ").trim();
   const nameParts = emailLocal.split(/\s+/).filter(Boolean);
   const displayName =
-    nameParts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") || "there";
+    nameParts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") || t.there;
   const initials =
     (nameParts.length >= 2
       ? nameParts[0][0] + nameParts[1][0]
@@ -258,10 +294,9 @@ export function useDerived(deps: {
     ).toUpperCase() || "A";
 
   const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const greeting = hour < 12 ? t.morning : hour < 18 ? t.afternoon : t.evening;
   const dateLabel = new Date()
-    .toLocaleDateString(undefined, {
+    .toLocaleDateString(language, {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -274,8 +309,10 @@ export function useDerived(deps: {
   const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow };
   const frontierTotal = graph.nodes.filter((n) => display[n.id] === "frontier").length;
   const frontierConcept = nextUp[0]?.node.label ?? null;
-  const subject = form.topic.trim() || "Your map";
-  const goalLabel = GOALS.find(([g]) => g === form.goal)?.[1] ?? "General mastery";
+  const subject = form.topic.trim() || t.yourMap;
+  const goalOptions = goals(language);
+  const goalLabel =
+    goalOptions.find(([g]) => g === form.goal)?.[1] ?? t.generalMastery;
 
   // The dashboard's "Your maps" grid: the live run's numbers stay live (they
   // update mid-session, before any save lands); every other saved map reads
@@ -290,7 +327,7 @@ export function useDerived(deps: {
         ).length;
         return {
           subject: m.subject,
-          goalLabel: GOALS.find(([g]) => g === m.goal)?.[1] ?? "General mastery",
+          goalLabel: goalOptions.find(([g]) => g === m.goal)?.[1] ?? t.generalMastery,
           masteryPct: m.graph.nodes.length
             ? Math.round((mastered / m.graph.nodes.length) * 100)
             : 0,
@@ -301,7 +338,17 @@ export function useDerived(deps: {
     return graph.nodes.length
       ? [{ subject, goalLabel, masteryPct, frontierTotal }, ...others]
       : others;
-  }, [maps, runSubject, graph, subject, goalLabel, masteryPct, frontierTotal]);
+  }, [
+    maps,
+    runSubject,
+    graph,
+    subject,
+    goalLabel,
+    goalOptions,
+    masteryPct,
+    frontierTotal,
+    t,
+  ]);
 
   const interests = form.interests
     .split(/[,\n]/)
@@ -309,14 +356,14 @@ export function useDerived(deps: {
     .filter(Boolean);
 
   const profileStats: ProfileStat[] = [
-    { value: `${adherence.streak}`, label: "Day streak", accent: true },
-    { value: `${masteredCount}`, label: "Concepts mastered" },
-    { value: `${frontierTotal}`, label: "On the frontier" },
-    { value: `${masteryPct}%`, label: "Map mastered" },
+    { value: `${adherence.streak}`, label: t.dayStreak, accent: true },
+    { value: `${masteredCount}`, label: t.conceptsMastered },
+    { value: `${frontierTotal}`, label: t.onTheFrontier },
+    { value: `${masteryPct}%`, label: t.mapMastered },
   ];
   const reviewSummary = adherence.metToday
-    ? "Today's queue is clear — new cards surface as memories fade"
-    : `${queue.cards} card${queue.cards === 1 ? "" : "s"} due today · ~${queue.minutes} min budget`;
+    ? t.queueClear
+    : t.queueDue(queue.cards, queue.minutes);
 
   return {
     isMap,

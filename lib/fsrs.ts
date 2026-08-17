@@ -19,6 +19,30 @@ import type {
   ReviewCardType,
   ReviewGrade,
 } from "@/lib/curriculum";
+import type { Language } from "@/lib/i18n";
+
+/** The forecast's own copy — three fixed rows, so it lives here rather than in
+ *  a component: `retainContentFromStore` builds them before any render. */
+const FORECAST_STRINGS = {
+  en: {
+    dueNow: "Due now",
+    thisWeek: "Coming up this week",
+    rockSolid: "Rock-solid",
+    cards: (n: number) => `${n} card${n === 1 ? "" : "s"}`,
+    minutes: (n: number) => `~${n} min`,
+    onSchedule: "recall lifting as scheduled",
+    farOut: "next lift 30 d+ out",
+  },
+  "pt-BR": {
+    dueNow: "Para agora",
+    thisWeek: "Chegando esta semana",
+    rockSolid: "Consolidado",
+    cards: (n: number) => `${n} card${n === 1 ? "" : "s"}`,
+    minutes: (n: number) => `~${n} min`,
+    onSchedule: "a lembrança sobe conforme o previsto",
+    farOut: "próxima revisão em 30 d+",
+  },
+} as const;
 
 /** ts-fsrs card state with dates as ISO strings — JSON-snapshot safe. */
 export type StoredFsrsState = Omit<FsrsCard, "due" | "last_review"> & {
@@ -124,7 +148,12 @@ export function intervalLabels(
 }
 
 /** The retention-health forecast, read from the real card table. */
-export function forecastRows(cards: StoredCard[], now: Date = new Date()): ForecastRow[] {
+export function forecastRows(
+  cards: StoredCard[],
+  now: Date = new Date(),
+  lang: Language = "en",
+): ForecastRow[] {
+  const t = FORECAST_STRINGS[lang];
   const due = cards.filter((c) => isDue(c, now)).length;
   const week = cards.filter(
     (c) => !isDue(c, now) && Date.parse(c.fsrs.due) <= now.getTime() + 7 * 86_400_000,
@@ -134,21 +163,21 @@ export function forecastRows(cards: StoredCard[], now: Date = new Date()): Forec
   ).length;
   return [
     {
-      label: "Due now",
-      count: `${due} card${due === 1 ? "" : "s"}`,
-      sub: `~${Math.ceil(due * CARD_MINUTES)} min`,
+      label: t.dueNow,
+      count: t.cards(due),
+      sub: t.minutes(Math.ceil(due * CARD_MINUTES)),
       tone: "due",
     },
     {
-      label: "Coming up this week",
-      count: `${week} card${week === 1 ? "" : "s"}`,
-      sub: "recall lifting as scheduled",
+      label: t.thisWeek,
+      count: t.cards(week),
+      sub: t.onSchedule,
       tone: "soft",
     },
     {
-      label: "Rock-solid",
-      count: `${solid} card${solid === 1 ? "" : "s"}`,
-      sub: "next lift 30 d+ out",
+      label: t.rockSolid,
+      count: t.cards(solid),
+      sub: t.farOut,
       tone: "solid",
     },
   ];
@@ -164,6 +193,7 @@ export function retainContentFromStore(
   cards: StoredCard[],
   budgetMin: number,
   now: Date = new Date(),
+  lang: Language = "en",
 ): RetainContent {
   const due = dueCards(cards, now);
   const budgeted = due.slice(0, Math.max(1, Math.floor(budgetMin / CARD_MINUTES)));
@@ -180,5 +210,5 @@ export function retainContentFromStore(
     fails: true,
     reExplain: c.reExplain,
   }));
-  return { budgetMin, forecast: forecastRows(cards, now), cards: deck };
+  return { budgetMin, forecast: forecastRows(cards, now, lang), cards: deck };
 }

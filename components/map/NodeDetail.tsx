@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   PHASES,
-  PHASE_SKIP_NUDGE,
   STATE_COLOR,
+  phaseSkipNudge,
   readingPhaseIndex,
   readingProgress,
   shakyLine,
@@ -557,7 +557,7 @@ function NodeDetailBody({
                   marginBottom: 11,
                 }}
               >
-                {PHASE_SKIP_NUDGE[PHASES[currentPhase]]}
+                {phaseSkipNudge(PHASES[currentPhase], language)}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button

@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  CONFIDENCE_LEVELS,
   CRUCIBLE_COLOR,
   STATE_COLOR,
   TRANSFER_COLOR,
   crucibleCalib,
   crucibleCurrentRung,
   crucibleProblem,
+  confidenceLevels,
   type ConfidenceLevel,
   type CrucibleContent,
   type CrucibleSession,
@@ -386,6 +386,7 @@ function ConfidenceGate({
   onConfidence: (level: ConfidenceLevel) => void;
 }) {
   const t = useT(STRINGS);
+  const { language } = useLanguage();
   return (
     <div
       style={{
@@ -421,7 +422,7 @@ function ConfidenceGate({
         {t.confidenceBody}
       </div>
       <div style={{ display: "flex", gap: 10 }}>
-        {CONFIDENCE_LEVELS.map((label, i) => {
+        {confidenceLevels(language).map((label, i) => {
           const active = session.conf === i;
           return (
             <button
@@ -808,8 +809,10 @@ function Sidebar({
   session: CrucibleSession;
 }) {
   const t = useT(STRINGS);
+  const { language } = useLanguage();
   const current = crucibleCurrentRung(session);
-  const confLabel = session.conf != null ? CONFIDENCE_LEVELS[session.conf] : "—";
+  const confLabel =
+    session.conf != null ? confidenceLevels(language)[session.conf] : "—";
   return (
     <div>
       {/* Difficulty ladder */}

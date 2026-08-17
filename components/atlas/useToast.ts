@@ -71,9 +71,16 @@ export function useToast(
 
   const showToast = useCallback(
     (message: string, kicker?: string) => {
-      postToast({ message, kicker });
+      // The dismiss control is a11y text, so it needs the language too — an
+      // error toast already carries it, and an ordinary one used to fall back
+      // to the English default in `Toast`.
+      postToast({
+        message,
+        kicker,
+        dismissLabel: ERROR_STRINGS[languageRef.current].dismiss,
+      });
     },
-    [postToast],
+    [postToast, languageRef],
   );
 
   /**
