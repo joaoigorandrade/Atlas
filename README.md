@@ -36,7 +36,7 @@ Mastery is only awarded when a concept has been **understood, retained, and succ
 3. **Placement diagnostic** — three adaptive questions; the map colors live as branches prune and the frontier lights up.
 4. **The Map (home)** — pan/zoom/drag canvas, glowing frontier, prerequisite-chain highlighting on hover, node detail rail with the phase spiral, search, momentum replay, streak and honest review queue in the top bar.
 
-The session phases (Consume, Socratic, Feynman, Connect, Crucible, Retain) are the next milestones — see the spec for how each reads and writes node state.
+**The session phases** (spec §3–8) — Consume, Socratic, Feynman, Connect, Crucible, Retain — each generated per node, each writing back to the same mastery state, with calibration and adherence layered over all of them.
 
 ## Getting started
 
@@ -45,26 +45,45 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-Other commands:
+Copy `.env.example` to `.env.local` first — `OPENROUTER_API_KEY` and the
+Supabase keys are what make content and accounts work.
+
+Other commands (every one of them a required CI check):
 
 ```bash
 npm run build      # production build
-npm run start      # serve the production build
 npm run typecheck  # tsc --noEmit
+npm run lint       # eslint — real-bug rules only
+npm run format     # prettier --write .  (format:check to verify)
+npm test           # vitest
+npm run size       # per-file line ratchet (size-budget.json)
+npm run e2e        # playwright, against fixture mode
 ```
+
+**Fixture mode** (`ATLAS_FIXTURES=1 npm run dev`) answers every generation from
+typed fixtures instead of OpenRouter — deterministic, instant, free. It is how
+the app is tested and how an agent should drive it; see
+[`docs/AGENT-TESTING.md`](docs/AGENT-TESTING.md).
 
 ## Project structure
 
 ```
 app/                 Next.js App Router (layout, fonts, global keyframes)
+  api/generate/      The single content-generation endpoint (auth, quota, cache, stream)
+  api/health/        Liveness probe for uptime checks
 components/
-  AtlasApp.tsx       Top-level client state machine (welcome → building → diagnostic → map)
+  AtlasApp.tsx       The shell — composes the hooks below and renders
+  atlas/             Where the state lives: useRunState, useSpiral, useGeneration, …
   onboarding/        Welcome, Building overlay, Diagnostic panel
   map/               Map canvas, top bar, left rail, node detail rail
+  session/           The six phase surfaces
 lib/
-  curriculum.ts      Concept graph, mastery-state vocabulary, diagnostic script
+  curriculum/        Concept graph, mastery-state vocabulary, session reducers, re-planning
+  server/            OpenRouter client, per-kind generators, caches, quota
   theme.ts           Design tokens (colors, fonts) from the design file
 docs/SPEC.md         The complete final-product specification
+docs/AGENT-TESTING.md  How to drive the app in a browser
+docs/PLAN-QUALITY.md   The size/quality/testability plan and what landed
 ```
 
 ## Tech

@@ -25,10 +25,21 @@ npm run lint           # eslint — real-bug rules only, no style
 npm run format         # prettier --write .  (format:check to verify)
 npm test               # vitest (test:coverage adds the lib/** floor)
 npm run size           # file-length ratchet — see below
+npm run e2e            # playwright, on fixture mode — see docs/AGENT-TESTING.md
 ```
 
 Every one of those is a required CI check (`.github/workflows/ci.yml`), one
 status check per gate.
+
+**Fixture mode.** `ATLAS_FIXTURES=1 npm run dev` answers every generation from
+`lib/server/fixtures.ts` instead of OpenRouter — deterministic, instant, free —
+and stands in for Supabase auth and persistence. It is the only way to drive
+the app past onboarding without spending money and waiting on a model, so it is
+what Playwright and any browser-driving agent run against.
+`POST /api/test/seed` (fixture mode only) lands the app directly on a given run
+state. Controls carry `data-testid`s in a fixed vocabulary
+(`screen-*`, `node-*`, `phase-*`, `action-*`). **`docs/AGENT-TESTING.md` is the
+full map — read it before driving the app in a browser.**
 
 **The size ratchet.** `size-budget.json` holds a line ceiling per file: 400 by
 default, an explicit entry for the files already over it. CI fails when a file
@@ -40,14 +51,16 @@ ceilings never rise. Adding a genuinely new large file means editing
 ## Layout
 
 - `app/` — App Router shell only (layout, fonts, global keyframes). Pages stay thin; screens live in `components/`.
-- `components/AtlasApp.tsx` — the single client-side state machine (screen, form, selection, canvas view). All cross-screen state lives here.
-- `components/onboarding/`, `components/map/` — presentational screens; they receive state + callbacks as props and hold no app state.
-- `lib/curriculum.ts` — the mastery-state vocabulary, session engines (pure reducers), and the re-planning model (gap spawning, goal ordering, pace math). Types and logic only — no domain data lives here.
+- `components/AtlasApp.tsx` — the shell: it composes the hooks in `components/atlas/` and renders. It holds no logic of its own.
+- `components/atlas/` — where the cross-screen state actually lives, one hook per owner: `useRunState` (everything persisted — graph, mastery states, positions, cards, cached generations), `useSessionState` (what is open and what is streaming), `useGeneration` (the one seam every foreground generation goes through), `useSpiral` (the six phases as **one** state machine — they transition into each other, so splitting per phase would push every transition through another ref), `useOnboarding`, `useWarming`, `useDerived` (the view model), `useNavigation`, `useCanvas`, `useToast`, `useViewport`. Anything a hook returns that a dependency array names **must be stable** — an unstable identity here re-hydrates the whole app every render.
+- `components/onboarding/`, `components/map/`, `components/session/` — presentational screens; they receive state + callbacks as props and hold no app state.
+- `lib/curriculum/` (barrel at `lib/curriculum.ts`'s old import path, `@/lib/curriculum`) — the mastery-state vocabulary, session engines (pure reducers), and the re-planning model (gap spawning, goal ordering, pace math), split per phase plus `types`, `adherence`, `calibration`, `replan`. Types and logic only — no domain data lives here.
 - `lib/theme.ts` — design tokens. Never hard-code a color/font that has a token.
 - `lib/speech.ts` — the voice seam: dictation, read-aloud, the device-level `atlas.voice` preference. No component touches a speech API directly. The two halves run on two engines. **Dictation** is browser-native `SpeechRecognition` — no key, no cost, and the only thing that gives the live as-you-talk transcript. **Read-aloud** is a hosted engine behind `/api/speech` (`lib/server/tts.ts`, Speechify), because the browser's own voices are a per-OS lottery and report no word timing; the hosted one returns per-word timestamps, which is what the read-along highlight and the progress ring are built on. There is deliberately **no `speechSynthesis` fallback** — without `SPEECHIFY_API_KEY` the control simply isn't offered (`NEXT_PUBLIC_TTS_ENABLED`), so voice quality never depends on the browser.
 - `lib/rich.ts` — the markdown walk `components/Rich.tsx` renders, as a pure function. Read-aloud speaks `spokenText()` and gets character offsets back, so the string the engine says and the string the reader sees must be the same one; `Rich` takes a `speak` range and marks the word being spoken.
-- `lib/server/` — the OpenRouter client (`openrouter.ts`) and the per-kind content generators (`generate.ts`: prompts, validators, layout/ids/offsets post-processing). Server-only; the API key never reaches the browser.
+- `lib/server/` — the OpenRouter client (`openrouter.ts`) and the per-kind content generators, one file per kind in `generate/` (prompts, validators, layout/ids/offsets post-processing) over a shared `common.ts`, behind a barrel at `@/lib/server/generate`. Server-only; the API key never reaches the browser.
 - `app/api/generate/route.ts` — the single generation endpoint the client posts to; `lib/api.ts` is its typed client wrapper.
+- `app/api/health/route.ts` — public liveness probe: `{ ok, supabase, ms }`, 503 when Supabase is unreachable. Point uptime checks here. It deliberately does not probe OpenRouter — that would cost a model call per check.
 - `app/api/speech/route.ts` — read-aloud synthesis: auth-gated, one plain segment in, base64 audio + per-word marks out. Clips are cached in `speech_cache` (`lib/server/speechCache.ts`) and shared across users, so a section is billed once however many learners read it — deliberately its own table, since `content_cache`'s version moves whenever a _prompt_ does and audio for unchanged prose must not be re-billed for that.
 
 ## AI content generation
@@ -187,15 +200,38 @@ kind, where latency is dominated by sequential output decoding:
 groups them into _jobs_ (the surfaces a learner asked for). A job that fans out
 declares `Job.cost`, which is how many rows it writes.
 
-A learner is capped at `GENERATION_DAILY_QUOTA` distinct jobs per UTC day
-(default 60), counted off that table by the `generation_jobs_today()` RPC and
-enforced in `lib/server/quota.ts` — after the free cache hit, before the first
-model call. Over the cap, `/api/generate` answers 429 `rate_limit`; a
-background warm is declined silently with a 204 instead. The check **fails
-open**: if the count is unavailable the request proceeds, because 429-ing every
-learner over a broken meter is the worse failure. Still missing: a global
-monthly spend ceiling (`generation_calls_this_month()` exists and is unused)
-and any `max_tokens` on model calls.
+Two ceilings sit on that table, both in `lib/server/quota.ts`
+(`generationBlocked`), both checked in `/api/generate` after the free cache hit
+and before the first model call:
+
+- **`GENERATION_DAILY_QUOTA`** (default 60) — distinct jobs one learner may
+  start per UTC day, via `generation_jobs_today()`. Fairness.
+- **`GENERATION_MONTHLY_CALLS`** (default 20,000) — model calls this deployment
+  may make in a calendar month across every learner, via
+  `generation_calls_this_month()`. The bill. It also gates the server-side
+  frontier warm, which spends after the response where nothing else would stop
+  it.
+
+Over either, `/api/generate` answers 429 `rate_limit`; a background warm is
+declined silently with a 204 instead. Both **fail open**: if a count is
+unavailable the request proceeds, because 429-ing every learner over a broken
+meter is the worse failure. Still missing: any `max_tokens` on model calls.
+
+## Logs
+
+`lib/log.ts` is the only way anything writes a log line, on the server and in
+the browser: one JSON object per line, `{ lvl, evt, ...fields }`, with error
+bodies truncated at 600 chars and a `req` request id that also travels back to
+the client on the `x-atlas-request-id` header. That is what makes "it failed" a
+grep, not an investigation.
+
+Server lines land in Vercel's runtime logs and in any drain attached to them —
+`lvl:"error"` is an error-budget query, `evt:"generate_quota_exceeded"` is the
+spend picture, `req` joins a learner's report to the exact request. No
+telemetry vendor and no logging table: the platform already stores and queries
+these, and a second store would be a second thing to keep alive. Never
+`console.log` directly, and never log a raw upstream body — `describe()` bounds
+it.
 
 ## Auth & persistence (Supabase)
 
