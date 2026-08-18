@@ -30,7 +30,6 @@ import { FAKE_MAP_CENTER } from "@/components/onboarding/fakeMap";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
-import { TOAST_STRINGS } from "@/lib/toastCopy";
 import type { ToastChannel } from "@/components/atlas/useToast";
 import type { RunState } from "@/components/atlas/useRunState";
 import type { SessionState } from "@/components/atlas/useSessionState";
@@ -75,8 +74,7 @@ export function useOnboarding(deps: {
     pendingGapsRef,
     frontierTargetId,
   } = deps;
-  const { showToast, showError } = toast;
-  const tc = useCallback(() => TOAST_STRINGS[languageRef.current], [languageRef]);
+  const { showToast, showError, tc } = toast;
   const {
     formRef,
     graphRef,
@@ -334,8 +332,7 @@ export function useOnboarding(deps: {
           text?: string;
           error?: string;
         } | null;
-        if (!res.ok || !json?.text)
-          throw new Error(json?.error ?? tc().unreadableFile);
+        if (!res.ok || !json?.text) throw new Error(json?.error ?? tc().unreadableFile);
         setOutline(json.text);
         setUploadNote(tc().groundedIn(file.name));
       })
@@ -468,7 +465,10 @@ export function useOnboarding(deps: {
         () => {
           const parent = graphRef.current.nodes.find((n) => n.id === parentId);
           if (parent && attachGap(parentId, spec))
-            showToast(tc().gapAdded(spec.label, parent.label, spec.reason), tc().mapUpdated);
+            showToast(
+              tc().gapAdded(spec.label, parent.label, spec.reason),
+              tc().mapUpdated,
+            );
         },
         BUILD_MS + i * 1100,
       );

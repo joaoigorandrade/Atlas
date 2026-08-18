@@ -62,24 +62,7 @@ import { ErrorState } from "@/components/ErrorState";
 import OfflineBanner from "@/components/OfflineBanner";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
 
-const STRINGS = {
-  en: {
-    yourTopic: "Your topic",
-    hidePlan: "⟨ Hide plan",
-    showPlan: "Plan ⟩",
-    hideNode: "Hide node ⟩",
-    showNode: "⟨ Node",
-    thisNode: "This node",
-  },
-  "pt-BR": {
-    yourTopic: "Seu tema",
-    hidePlan: "⟨ Ocultar plano",
-    showPlan: "Plano ⟩",
-    hideNode: "Ocultar nó ⟩",
-    showNode: "⟨ Nó",
-    thisNode: "Este nó",
-  },
-} as const;
+import RailToggle from "@/components/map/RailToggle";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 
@@ -665,7 +648,6 @@ export default function AtlasApp({
   }
   const narrow = vw < 1280;
   const errorStrings = ERROR_STRINGS[language];
-  const t = STRINGS[language];
 
   /**
    * Wrap one session sheet so a throw inside it costs that sheet and nothing
@@ -789,7 +771,7 @@ export default function AtlasApp({
           />
           {(!narrow || railOpen) && (
             <LeftRail
-              subject={form.topic.trim() || t.yourTopic}
+              subject={subject}
               goal={form.goal}
               pace={pace}
               nextUp={nextUp}
@@ -836,47 +818,17 @@ export default function AtlasApp({
           {narrow && (
             // Collapsed-rail toggles for laptop-narrow widths (#8).
             <>
-              <button
-                className="at-press"
-                onClick={() => setRailOpen((v) => !v)}
-                style={{
-                  position: "absolute",
-                  top: 70,
-                  left: railOpen ? 274 : 12,
-                  zIndex: 16,
-                  padding: "8px 11px",
-                  background: color.card,
-                  border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 9,
-                  fontSize: 12.5,
-                  color: color.inkMuted,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
-                }}
-              >
-                {railOpen ? t.hidePlan : t.showPlan}
-              </button>
+              <RailToggle
+                side="plan"
+                open={railOpen}
+                onToggle={() => setRailOpen((v) => !v)}
+              />
               {selectedNode && (
-                <button
-                  className="at-press"
-                  onClick={() => setDetailOpen((v) => !v)}
-                  style={{
-                    position: "absolute",
-                    top: 70,
-                    right: detailOpen ? 368 : 12,
-                    zIndex: 16,
-                    padding: "8px 11px",
-                    background: color.card,
-                    border: `1px solid ${color.hairlineStrong}`,
-                    borderRadius: 9,
-                    fontSize: 12.5,
-                    color: color.inkMuted,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
-                  }}
-                >
-                  {detailOpen ? t.hideNode : t.showNode}
-                </button>
+                <RailToggle
+                  side="node"
+                  open={detailOpen}
+                  onToggle={() => setDetailOpen((v) => !v)}
+                />
               )}
             </>
           )}
@@ -1097,7 +1049,7 @@ export default function AtlasApp({
             session={retain}
             nodeLabel={
               graph.nodes.find((n) => n.id === reviewCard(retain, retainContent).node)
-                ?.label ?? t.thisNode
+                ?.label
             }
             litNodes={masteredCount}
             adherence={adherence}

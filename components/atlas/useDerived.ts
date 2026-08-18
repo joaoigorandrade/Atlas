@@ -23,6 +23,7 @@ import {
 } from "@/lib/curriculum";
 import { dueCards } from "@/lib/fsrs";
 import { useLanguage, useT } from "@/lib/i18n";
+import { STRINGS } from "@/components/atlas/dashboardCopy";
 import { useEarned, usePresence } from "@/lib/motion";
 import { CELEBRATE_MS } from "@/components/map/MapCanvas";
 import { SHEET_EXIT_MS } from "@/components/Sheet";
@@ -30,39 +31,6 @@ import type { ProfileStat } from "@/components/ProfileScreen";
 import { SHEET_SCREENS, type Screen } from "@/components/atlas/screen";
 import type { RunState } from "@/components/atlas/useRunState";
 import type { SessionState } from "@/components/atlas/useSessionState";
-
-const STRINGS = {
-  en: {
-    morning: "Good morning",
-    afternoon: "Good afternoon",
-    evening: "Good evening",
-    there: "there",
-    yourMap: "Your map",
-    generalMastery: "General mastery",
-    dayStreak: "Day streak",
-    conceptsMastered: "Concepts mastered",
-    onTheFrontier: "On the frontier",
-    mapMastered: "Map mastered",
-    queueClear: "Today's queue is clear — new cards surface as memories fade",
-    queueDue: (cards: number, minutes: number) =>
-      `${cards} card${cards === 1 ? "" : "s"} due today · ~${minutes} min budget`,
-  },
-  "pt-BR": {
-    morning: "Bom dia",
-    afternoon: "Boa tarde",
-    evening: "Boa noite",
-    there: "por aí",
-    yourMap: "Seu mapa",
-    generalMastery: "Domínio geral",
-    dayStreak: "Dias seguidos",
-    conceptsMastered: "Conceitos dominados",
-    onTheFrontier: "Na fronteira",
-    mapMastered: "Do mapa dominado",
-    queueClear: "A fila de hoje está zerada — novos cards aparecem conforme a memória enfraquece",
-    queueDue: (cards: number, minutes: number) =>
-      `${cards} card${cards === 1 ? "" : "s"} para hoje · ~${minutes} min de orçamento`,
-  },
-} as const;
 
 /** The state changes worth marking on the map. Reaching the frontier isn't one
  *  — that's derived, and it's the map telling you where to go, not a result. */
@@ -311,8 +279,7 @@ export function useDerived(deps: {
   const frontierConcept = nextUp[0]?.node.label ?? null;
   const subject = form.topic.trim() || t.yourMap;
   const goalOptions = goals(language);
-  const goalLabel =
-    goalOptions.find(([g]) => g === form.goal)?.[1] ?? t.generalMastery;
+  const goalLabel = goalOptions.find(([g]) => g === form.goal)?.[1] ?? t.generalMastery;
 
   // The dashboard's "Your maps" grid: the live run's numbers stay live (they
   // update mid-session, before any save lands); every other saved map reads

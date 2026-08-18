@@ -2,6 +2,9 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TOAST_STRINGS } from "@/lib/toastCopy";
+import { STRINGS as DASHBOARD_STRINGS } from "@/components/atlas/dashboardCopy";
+import { STRINGS as RETAIN_STRINGS } from "@/components/session/retainCopy";
+import { STRINGS as CRUCIBLE_STRINGS } from "@/components/session/crucibleCopy";
 
 // The bug this file exists to catch: a lang-aware helper (`confidenceLevels`,
 // `reviewAside`, `goals`, …) exists and is *ignored* at the call site, which
@@ -53,5 +56,37 @@ describe("i18n coverage", () => {
       (k) => typeof en[k] === "string" && en[k] === pt[k],
     );
     expect(same).toEqual([]);
+  });
+
+  // The copy tables that live outside their component. Every entry is either a
+  // string or a builder; a builder that drops its argument is a line that will
+  // render with a hole in it, and nothing else would catch that.
+  it.each([
+    ["toast", TOAST_STRINGS],
+    ["dashboard", DASHBOARD_STRINGS],
+    ["retain", RETAIN_STRINGS],
+    ["crucible", CRUCIBLE_STRINGS],
+  ])("builds every %s line in both languages", (_name, table) => {
+    for (const lang of ["en", "pt-BR"] as const) {
+      const entries = table[lang] as Record<string, unknown>;
+      for (const [key, value] of Object.entries(entries)) {
+        if (typeof value === "string") {
+          expect(value, key).not.toBe("");
+          continue;
+        }
+        // A few entries are ready-made JSX (a bolded state name inside a
+        // sentence) rather than builders — nothing to call.
+        if (typeof value === "object") {
+          expect(value, key).toBeTruthy();
+          continue;
+        }
+        expect(typeof value, key).toBe("function");
+        const fn = value as (...args: unknown[]) => unknown;
+        // Arity-sized filler: strings interpolate, numbers exercise the
+        // plural branches these builders carry.
+        const out = fn(...Array.from({ length: fn.length }, () => 1));
+        expect(out, key).toBeTruthy();
+      }
+    }
   });
 });

@@ -63,7 +63,6 @@ import {
   retainContentFromStore,
   type StoredCard,
 } from "@/lib/fsrs";
-import { TOAST_STRINGS } from "@/lib/toastCopy";
 import {
   fetchConsumeModelStream,
   fetchConsumeStream,
@@ -152,10 +151,7 @@ export function useSpiral(deps: {
     momentumRef,
     frontierTargetId,
   } = deps;
-  const { showToast, showError } = toast;
-  // Read at fire time, not render time: every toast and overlay line below
-  // comes out of a callback, and the language can change between the two.
-  const tc = useCallback(() => TOAST_STRINGS[languageRef.current], [languageRef]);
+  const { showToast, showError, tc } = toast;
   const {
     graphRef,
     formRef,

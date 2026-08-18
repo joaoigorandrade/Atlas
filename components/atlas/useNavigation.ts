@@ -11,8 +11,6 @@ import { deleteRun } from "@/lib/persistence";
 import { emptyGraph } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import { logWarning } from "@/lib/log";
-import { useLanguage } from "@/lib/i18n";
-import { TOAST_STRINGS } from "@/lib/toastCopy";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Screen } from "@/components/atlas/screen";
 import type { ToastChannel } from "@/components/atlas/useToast";
@@ -45,9 +43,7 @@ export function useNavigation(deps: {
     setExcluding,
     resetTransient,
   } = deps;
-  const { showToast, showError } = toast;
-  const { language } = useLanguage();
-  const tc = () => TOAST_STRINGS[language];
+  const { showToast, showError, tc } = toast;
   const {
     maps,
     setMaps,
@@ -76,10 +72,7 @@ export function useNavigation(deps: {
 
   /** Delete account + all data (#33). Confirm, then the server wipes the rows. */
   const deleteAccount = () => {
-    if (
-      !window.confirm(tc().deleteAccount)
-    )
-      return;
+    if (!window.confirm(tc().deleteAccount)) return;
     fetch("/api/account/delete", { method: "POST" })
       .then(async (r) => {
         if (!r.ok) {
