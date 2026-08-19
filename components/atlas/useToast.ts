@@ -12,12 +12,16 @@ import { toAtlasError } from "@/lib/errors";
 import { ERROR_STRINGS, errorLines, type ErrorContext } from "@/lib/errorCopy";
 import { logWarning } from "@/lib/log";
 import type { Language } from "@/lib/i18n";
+import { TOAST_STRINGS } from "@/lib/toastCopy";
 
 export interface ToastChannel {
   toast: ToastData | null;
   dismissToast: () => void;
   postToast: (next: Omit<ToastData, "seq">) => number;
   showToast: (message: string, kicker?: string) => void;
+  /** The hook-side copy table in the live language. It rides the channel so
+   *  the hooks that post toasts don't each have to hold a language ref. */
+  tc: () => (typeof TOAST_STRINGS)["en"];
   showError: (
     err: unknown,
     opts?: { context?: ErrorContext; retry?: () => void },
@@ -71,9 +75,16 @@ export function useToast(
 
   const showToast = useCallback(
     (message: string, kicker?: string) => {
-      postToast({ message, kicker });
+      // The dismiss control is a11y text, so it needs the language too — an
+      // error toast already carries it, and an ordinary one used to fall back
+      // to the English default in `Toast`.
+      postToast({
+        message,
+        kicker,
+        dismissLabel: ERROR_STRINGS[languageRef.current].dismiss,
+      });
     },
-    [postToast],
+    [postToast, languageRef],
   );
 
   /**
@@ -151,5 +162,7 @@ export function useToast(
     [postToast, supabase, languageRef],
   );
 
-  return { toast, dismissToast, postToast, showToast, showError };
+  const tc = useCallback(() => TOAST_STRINGS[languageRef.current], [languageRef]);
+
+  return { toast, dismissToast, postToast, showToast, showError, tc };
 }

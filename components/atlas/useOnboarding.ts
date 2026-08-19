@@ -74,7 +74,7 @@ export function useOnboarding(deps: {
     pendingGapsRef,
     frontierTargetId,
   } = deps;
-  const { showToast, showError } = toast;
+  const { showToast, showError, tc } = toast;
   const {
     formRef,
     graphRef,
@@ -144,7 +144,7 @@ export function useOnboarding(deps: {
   const build = useCallback(() => {
     const topic = formRef.current.topic.trim();
     if (!topic) {
-      showToast("Name a topic first — the map is generated from it");
+      showToast(tc().nameTopicFirst);
       return;
     }
     const buildId = ++buildIdRef.current;
@@ -288,6 +288,7 @@ export function useOnboarding(deps: {
     outline,
     showError,
     showToast,
+    tc,
     warm,
     setPositions,
     setView,
@@ -322,7 +323,7 @@ export function useOnboarding(deps: {
     // Drop the previous outline up front: a re-upload must not ground the
     // map in the old source while the new one is still being read.
     setOutline(null);
-    setUploadNote(`Reading ${file.name}…`);
+    setUploadNote(tc().readingFile(file.name));
     const data = new FormData();
     data.append("file", file);
     fetch("/api/extract", { method: "POST", body: data })
@@ -331,10 +332,9 @@ export function useOnboarding(deps: {
           text?: string;
           error?: string;
         } | null;
-        if (!res.ok || !json?.text)
-          throw new Error(json?.error ?? "Couldn't read that file");
+        if (!res.ok || !json?.text) throw new Error(json?.error ?? tc().unreadableFile);
         setOutline(json.text);
-        setUploadNote(`Grounded in ${file.name} ✓ — the map will follow its outline`);
+        setUploadNote(tc().groundedIn(file.name));
       })
       .catch((err: Error) => {
         setOutline(null);
@@ -466,8 +466,8 @@ export function useOnboarding(deps: {
           const parent = graphRef.current.nodes.find((n) => n.id === parentId);
           if (parent && attachGap(parentId, spec))
             showToast(
-              `Added ${spec.label} under ${parent.label} — ${spec.reason}`,
-              "Map updated",
+              tc().gapAdded(spec.label, parent.label, spec.reason),
+              tc().mapUpdated,
             );
         },
         BUILD_MS + i * 1100,

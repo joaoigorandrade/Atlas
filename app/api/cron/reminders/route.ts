@@ -16,6 +16,7 @@ import { logError, logEvent } from "@/lib/log";
 import { apiError, newRequestId, withRequestId } from "@/lib/server/apiError";
 import { supabaseUrl } from "@/lib/supabase/config";
 import { localDay, type AdherenceState } from "@/lib/curriculum";
+import type { Language } from "@/lib/i18n";
 
 export const maxDuration = 60;
 
@@ -24,16 +25,31 @@ export const maxDuration = 60;
  *  a healthy cron. */
 type SendOutcome = "sent" | "noop" | "failed";
 
+const REMINDER_STRINGS = {
+  en: {
+    subject: "Your Atlas queue is ready",
+    streak: (n: number) => `A few minutes keeps your ${n}-day streak alive.`,
+    start: "A few minutes today starts the streak.",
+    open: "Open Atlas",
+  },
+  "pt-BR": {
+    subject: "Sua fila do Atlas está pronta",
+    streak: (n: number) =>
+      `Alguns minutos mantêm viva sua sequência de ${n} dia${n === 1 ? "" : "s"}.`,
+    start: "Alguns minutos hoje começam a sequência.",
+    open: "Abrir o Atlas",
+  },
+} as const;
+
 async function sendReminder(
   email: string,
   adherence: AdherenceState,
   maySend: boolean,
+  lang: Language = "en",
 ): Promise<SendOutcome> {
+  const t = REMINDER_STRINGS[lang];
   const streak = adherence.streak;
-  const line =
-    streak > 0
-      ? `A few minutes keeps your ${streak}-day streak alive.`
-      : "A few minutes today starts the streak.";
+  const line = streak > 0 ? t.streak(streak) : t.start;
   const key = process.env.RESEND_API_KEY;
   if (!key || !maySend) {
     logEvent("reminder_noop", { email, line, maySend });
@@ -49,8 +65,8 @@ async function sendReminder(
       body: JSON.stringify({
         from: process.env.REMINDER_FROM || "Atlas <onboarding@resend.dev>",
         to: email,
-        subject: "Your Atlas queue is ready",
-        text: `${line}\n\nOpen Atlas: ${process.env.APP_URL || "https://atlas.local"}`,
+        subject: t.subject,
+        text: `${line}\n\n${t.open}: ${process.env.APP_URL || "https://atlas.local"}`,
       }),
     });
     // A 4xx from Resend is a failure that never throws — counting it as sent is
@@ -104,7 +120,11 @@ export async function GET(request: Request) {
   let failed = 0;
   let noop = 0;
   for (const row of data ?? []) {
-    const adherence = (row.snapshot as { adherence?: AdherenceState })?.adherence;
+    const snapshot = row.snapshot as {
+      adherence?: AdherenceState;
+      language?: Language;
+    } | null;
+    const adherence = snapshot?.adherence;
     if (!adherence?.reminderOn) continue;
     const metToday = adherence.lastDay === today && adherence.metToday;
     if (metToday) continue;
@@ -112,7 +132,8 @@ export async function GET(request: Request) {
     const { data: u } = await admin.auth.admin.getUserById(row.user_id);
     const email = u?.user?.email;
     if (!email) continue;
-    const outcome = await sendReminder(email, adherence, maySend);
+    // The reminder speaks the language the learner's own map is written in.
+    const outcome = await sendReminder(email, adherence, maySend, snapshot?.language);
     if (outcome === "sent") sent += 1;
     else if (outcome === "failed") failed += 1;
     else noop += 1;

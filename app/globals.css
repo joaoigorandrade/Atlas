@@ -423,6 +423,59 @@ textarea {
   }
 }
 
+/* Retain's deck vocabulary. A review card is a physical object: it is dealt off
+   a stack, it turns over on its own axis, and it is tossed aside once graded.
+   Everything here is scoped to that one surface — the flip is the only place in
+   the app allowed a 3D transform. */
+@keyframes dealIn {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.955) rotate(-1.4deg);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes cardToss {
+  from {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(64px) rotate(3.5deg);
+  }
+}
+
+/* The cloze blank filling in as the card turns: the word arrives *into* the
+   underline rather than fading on top of it. */
+@keyframes clozeReveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* The queue rail's current segment, keeping time with the card on screen. */
+@keyframes railPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

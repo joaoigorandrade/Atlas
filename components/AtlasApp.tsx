@@ -61,6 +61,8 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
 import OfflineBanner from "@/components/OfflineBanner";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
+
+import RailToggle from "@/components/map/RailToggle";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 
@@ -769,7 +771,7 @@ export default function AtlasApp({
           />
           {(!narrow || railOpen) && (
             <LeftRail
-              subject={form.topic.trim() || "Your topic"}
+              subject={subject}
               goal={form.goal}
               pace={pace}
               nextUp={nextUp}
@@ -816,47 +818,17 @@ export default function AtlasApp({
           {narrow && (
             // Collapsed-rail toggles for laptop-narrow widths (#8).
             <>
-              <button
-                className="at-press"
-                onClick={() => setRailOpen((v) => !v)}
-                style={{
-                  position: "absolute",
-                  top: 70,
-                  left: railOpen ? 274 : 12,
-                  zIndex: 16,
-                  padding: "8px 11px",
-                  background: color.card,
-                  border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 9,
-                  fontSize: 12.5,
-                  color: color.inkMuted,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
-                }}
-              >
-                {railOpen ? "⟨ Hide plan" : "Plan ⟩"}
-              </button>
+              <RailToggle
+                side="plan"
+                open={railOpen}
+                onToggle={() => setRailOpen((v) => !v)}
+              />
               {selectedNode && (
-                <button
-                  className="at-press"
-                  onClick={() => setDetailOpen((v) => !v)}
-                  style={{
-                    position: "absolute",
-                    top: 70,
-                    right: detailOpen ? 368 : 12,
-                    zIndex: 16,
-                    padding: "8px 11px",
-                    background: color.card,
-                    border: `1px solid ${color.hairlineStrong}`,
-                    borderRadius: 9,
-                    fontSize: 12.5,
-                    color: color.inkMuted,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
-                  }}
-                >
-                  {detailOpen ? "Hide node ⟩" : "⟨ Node"}
-                </button>
+                <RailToggle
+                  side="node"
+                  open={detailOpen}
+                  onToggle={() => setDetailOpen((v) => !v)}
+                />
               )}
             </>
           )}
@@ -1077,7 +1049,7 @@ export default function AtlasApp({
             session={retain}
             nodeLabel={
               graph.nodes.find((n) => n.id === reviewCard(retain, retainContent).node)
-                ?.label ?? "This node"
+                ?.label
             }
             litNodes={masteredCount}
             adherence={adherence}

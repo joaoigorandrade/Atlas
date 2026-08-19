@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { NodeState } from "@/lib/curriculum";
+import { useLanguage } from "@/lib/i18n";
+import { TOAST_STRINGS } from "@/lib/toastCopy";
 
 interface DragState {
   id: string;
@@ -41,6 +43,7 @@ export function useCanvas(opts: {
   >;
 }) {
   const { setSelectedId, displayRef, showToast, positionsRef, setPositions } = opts;
+  const { language } = useLanguage();
 
   const [view, setView] = useState<ViewTransform>({ x: 40, y: 30, scale: 0.72 });
 
@@ -120,7 +123,7 @@ export function useCanvas(opts: {
       if (drag && !drag.moved) {
         setSelectedId(drag.id);
         if (displayRef.current[drag.id] === "unknown")
-          showToast("Locked — learn the highlighted path first");
+          showToast(TOAST_STRINGS[language].locked);
       }
       dragRef.current = null;
       panRef.current = null;
@@ -131,7 +134,7 @@ export function useCanvas(opts: {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [showToast, setSelectedId, displayRef, setPositions]);
+  }, [showToast, setSelectedId, displayRef, setPositions, language]);
 
   /** Put a node in the middle of the screen at a readable zoom. */
   const centerOn = useCallback(

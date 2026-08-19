@@ -10,7 +10,13 @@
 // knows the language and the context (`lib/errorCopy.ts`).
 
 import type { ReactNode } from "react";
+import { useT } from "@/lib/i18n";
 import { color, font, kicker as kickerStyle, motion } from "@/lib/theme";
+
+const STRINGS = {
+  en: { tryAgain: "Try again" },
+  "pt-BR": { tryAgain: "Tentar de novo" },
+} as const;
 
 /**
  * The full panel — a mono kicker, the sentence, and the way out. Used by the
@@ -39,6 +45,7 @@ export function ErrorState({
   /** Sits inside a sheet rather than filling the screen. */
   compact?: boolean;
 }): ReactNode {
+  const t = useT(STRINGS);
   return (
     <div
       role="alert"
@@ -81,7 +88,7 @@ export function ErrorState({
         <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
           {onRetry && (
             <button className="at-press" onClick={onRetry} style={primaryButton}>
-              {retryLabel ?? "Try again"}
+              {retryLabel ?? t.tryAgain}
             </button>
           )}
           {secondary && (
@@ -113,6 +120,7 @@ export function InlineError({
   retryLabel?: string;
   onRetry?: () => void;
 }): ReactNode {
+  const t = useT(STRINGS);
   return (
     <div
       role="alert"
@@ -148,7 +156,7 @@ export function InlineError({
             cursor: "pointer",
           }}
         >
-          {retryLabel ?? "Try again"}
+          {retryLabel ?? t.tryAgain}
         </button>
       )}
     </div>

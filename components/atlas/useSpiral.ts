@@ -151,7 +151,7 @@ export function useSpiral(deps: {
     momentumRef,
     frontierTargetId,
   } = deps;
-  const { showToast, showError } = toast;
+  const { showToast, showError, tc } = toast;
   const {
     graphRef,
     formRef,
@@ -288,8 +288,8 @@ export function useSpiral(deps: {
       if (warm.has(key)) {
         generate(
           key,
-          "Session · Consume",
-          `Writing your reading pass on ${node.label}…`,
+          tc().kickerConsume,
+          tc().writingReading(node.label),
           () => loadConsume(node),
           open,
         );
@@ -338,6 +338,7 @@ export function useSpiral(deps: {
         });
     },
     [
+      tc,
       consumeParams,
       generate,
       loadConsume,
@@ -726,8 +727,8 @@ export function useSpiral(deps: {
       if (warm.has(key)) {
         generate(
           key,
-          "Session · Socratic",
-          `Preparing the questions that build ${node.label}…`,
+          tc().kickerSocratic,
+          tc().preparingQuestions(node.label),
           () => loadSocratic(node),
           (steps) => open(steps),
         );
@@ -791,6 +792,7 @@ export function useSpiral(deps: {
         });
     },
     [
+      tc,
       generate,
       loadSocratic,
       socraticParams,
@@ -1016,8 +1018,8 @@ export function useSpiral(deps: {
       if (warm.has(key)) {
         generate(
           key,
-          "Session · Feynman",
-          `Waking the naive student for ${node.label}…`,
+          tc().kickerFeynman,
+          tc().wakingStudent(node.label),
           () => loadFeynman(node),
           open,
         );
@@ -1067,6 +1069,7 @@ export function useSpiral(deps: {
         });
     },
     [
+      tc,
       feynmanParams,
       generate,
       loadFeynman,
@@ -1248,9 +1251,7 @@ export function useSpiral(deps: {
       // Nothing touched yet means nothing true to wire into: skip the phase
       // rather than ask the learner to link concepts they have never met.
       if (connectParams(node).pool.length === 0) {
-        showToast(
-          `Nothing on your map to wire ${node.label} into yet — straight to the Crucible.`,
-        );
+        showToast(tc().nothingToWire(node.label));
         enterCrucibleRef.current(node);
         return;
       }
@@ -1275,13 +1276,14 @@ export function useSpiral(deps: {
       }
       generate(
         warmKey("connect", node.id),
-        "Session · Connect",
-        `Finding what ${node.label} wires into…`,
+        tc().kickerConnect,
+        tc().findingWires(node.label),
         () => loadConnect(node),
         open,
       );
     },
     [
+      tc,
       connectParams,
       generate,
       loadConnect,
@@ -1340,10 +1342,7 @@ export function useSpiral(deps: {
     if (node) {
       enterConnect(node);
       if (specs.length)
-        showToast(
-          `Attached ${specs.length} gap${specs.length === 1 ? "" : "s"} under ${node.label} — now wire it into what you already know.`,
-          "Map updated",
-        );
+        showToast(tc().gapsAttached(specs.length, node.label), tc().mapUpdated);
     } else {
       setScreen("map");
     }
@@ -1411,9 +1410,7 @@ export function useSpiral(deps: {
     if (node) {
       setSelectedId(node.id);
       later(() => centerOn(node.id), 30);
-      showToast(
-        `${drafted.length} card${drafted.length === 1 ? "" : "s"} drafted for Review · now prove it transfers — the Crucible.`,
-      );
+      showToast(tc().cardsDrafted(drafted.length));
     }
   };
 
@@ -1437,13 +1434,14 @@ export function useSpiral(deps: {
       }
       generate(
         warmKey("crucible", node.id),
-        "Session · Crucible",
-        `Forging a problem ${node.label} was never taught in…`,
+        tc().kickerCrucible,
+        tc().forgingProblem(node.label),
         () => loadCrucible(node),
         open,
       );
     },
     [
+      tc,
       generate,
       loadCrucible,
       setCrucible,
@@ -1474,7 +1472,7 @@ export function useSpiral(deps: {
     const cur = crucibleRef.current;
     if (!cur || cur.submitted || judgingRef.current) return;
     if (!cur.attempt.trim()) {
-      showToast("Put something in the workspace — even a wrong attempt is diagnostic");
+      showToast(tc().workspaceEmpty);
       return;
     }
     const content = crucibleCacheRef.current[cur.nodeId];
@@ -1538,10 +1536,7 @@ export function useSpiral(deps: {
         setStates((prev) => ({ ...prev, [node.id]: "shaky" }));
         setShakyReason(node.id, "crucible-fail");
         if (attachGap(node.id, gap))
-          showToast(
-            `Transfer broke on “${gap.label}” — written back as a red gap under ${node.label}`,
-            "Map updated",
-          );
+          showToast(tc().transferBroke(gap.label, node.label), tc().mapUpdated);
       })
       .catch((err: unknown) =>
         showError(err, {
@@ -1593,7 +1588,7 @@ export function useSpiral(deps: {
       // Adherence: a node just went green — the day's winnable end.
       setLitToday((prev) => (prev.includes(node.label) ? prev : [...prev, node.label]));
       setAdherence((prev) => markTodayMet(prev));
-      showToast(`Transfer confirmed · ${node.label} is Mastered — it now feeds Review`);
+      showToast(tc().transferConfirmed(node.label));
     }
   };
 
@@ -1662,19 +1657,17 @@ export function useSpiral(deps: {
     // intervals on the grade buttons, forecast from actual due dates.
     const openFrom = (store: StoredCard[]) => {
       if (dueCards(store).length === 0) {
-        showToast(
-          "Queue clear — nothing due right now. Cards resurface as memories fade.",
-        );
+        showToast(tc().queueClear);
         return;
       }
-      setRetainContent(retainContentFromStore(store, budgetMin));
+      setRetainContent(
+        retainContentFromStore(store, budgetMin, new Date(), languageRef.current),
+      );
       setRetain(retainStart());
       setScreen("review");
     };
     if (touched.length === 0) {
-      showToast(
-        "Nothing to review yet — learn your first concept and cards draft themselves",
-      );
+      showToast(tc().nothingToReview);
       return;
     }
     // First review of a node: generate its atomic cards once, then they live
@@ -1685,8 +1678,8 @@ export function useSpiral(deps: {
     }
     generate(
       key,
-      "Retain · Review",
-      "Drafting cards from what you've learned…",
+      tc().kickerRetain,
+      tc().draftingCards,
       () => fetchRetain(params),
       (content) => {
         const now = new Date();
@@ -1713,6 +1706,8 @@ export function useSpiral(deps: {
       },
     );
   }, [
+    languageRef,
+    tc,
     generate,
     retainPlan,
     showToast,
@@ -1773,8 +1768,10 @@ export function useSpiral(deps: {
       );
       setShakyReason(card.node, "review-miss");
       showToast(
-        `“${graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? "This node"}” flagged Shaky — retention failure re-enters the loop`,
-        "Map updated",
+        tc().cardFlaggedShaky(
+          graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? tc().thisNode,
+        ),
+        tc().mapUpdated,
       );
     }
   };
@@ -1788,13 +1785,7 @@ export function useSpiral(deps: {
     setRetain(null);
     if (node) {
       enterSession(node);
-      later(
-        () =>
-          showToast(
-            `Re-entering the loop · ${node.label} — retention failure routes back to Consume`,
-          ),
-        420,
-      );
+      later(() => showToast(tc().reEnteringLoop(node.label)), 420);
     } else {
       setScreen("map");
     }
@@ -1846,14 +1837,11 @@ export function useSpiral(deps: {
         removeGapNode(node.id);
         setScreen("map");
         setSelectedId(null);
-        showToast(`Gap closed · ${node.label} resolved and off the map`, "Map updated");
+        showToast(tc().gapClosed(node.label), tc().mapUpdated);
       } else {
         setScreen("map");
         setSelectedId(node.id);
-        showToast(
-          `Still leaning on being told — ${node.label} stays flagged until it's reconstructed unaided.`,
-          "Gap not closed",
-        );
+        showToast(tc().stillLeaning(node.label), tc().gapNotClosed);
       }
       return;
     }
@@ -1868,8 +1856,8 @@ export function useSpiral(deps: {
       // richer framing than "foundations" later.
       const spec: GapSpec = {
         id: `gap-soc-${node.id}`,
-        label: `${node.label} — foundations`,
-        reason: "Leaned on being told outright more than once in the Socratic pass",
+        label: tc().socraticGapLabel(node.label),
+        reason: tc().socraticGapReason,
         dx: -140,
         dy: 150,
       };
@@ -1891,10 +1879,7 @@ export function useSpiral(deps: {
           prev[node.id] ? { ...prev, [node.id]: reread } : prev,
         );
       }
-      showToast(
-        `Leaning on "Just tell me" — back through the reading on ${node.label} before the questions come again.`,
-        "Re-read this first",
-      );
+      showToast(tc().leaningOnTold(node.label), tc().reReadFirst);
       enterSession(node);
       return;
     }
@@ -1955,7 +1940,7 @@ export function useSpiral(deps: {
     if (state === "frontier") enterSession(node);
     else if (state === "unknown") {
       setSelectedId(id);
-      showToast("Locked — learn the highlighted path first");
+      showToast(tc().locked);
     } else setSelectedId(id);
   };
 
@@ -1985,7 +1970,7 @@ export function useSpiral(deps: {
         enterSocratic(node);
         break;
       default:
-        showToast("Clear its prerequisites first");
+        showToast(tc().clearPrereqs);
     }
   };
 
@@ -1996,10 +1981,7 @@ export function useSpiral(deps: {
    */
   const skipKnown = (node: ConceptNode) => {
     setStates((prev) => ({ ...prev, [node.id]: "mastered" }));
-    showToast(
-      `${node.label} pruned — diagnosed known. The frontier moved past it.`,
-      "Map updated",
-    );
+    showToast(tc().pruned(node.label), tc().mapUpdated);
   };
 
   const onPhaseAction = (node: ConceptNode, displayState: NodeState, idx: number) => {
@@ -2040,13 +2022,13 @@ export function useSpiral(deps: {
     } else if (idx < current) {
       // Secondary action: any completed phase stays open for a re-do.
       if (phase === "Retained") enterReview();
-      else showToast(`Re-doing ${phase} · ${node.label} — the spiral stays open`);
+      else showToast(tc().redoing(phase, node.label));
     } else {
       // The learner jumped the recommended step — allowed, already nudged.
       setStates((prev) =>
         prev[node.id] === "unknown" ? { ...prev, [node.id]: "learning" } : prev,
       );
-      showToast(`Jumping ahead · ${node.label} → ${phase}`);
+      showToast(tc().jumpingAhead(phase, node.label));
     }
   };
 
@@ -2061,7 +2043,7 @@ export function useSpiral(deps: {
     if (node && state === "frontier") enterSession(node);
     else if (node && state === "learning") enterFeynman(node);
     else if (node && state === "shaky") enterCrucible(node);
-    else showToast("Session · double-click a glowing frontier node to begin");
+    else showToast(tc().sessionHint);
   };
 
   const jumpFrontier = () => {
