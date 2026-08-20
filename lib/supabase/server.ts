@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { FIXTURES, fixtureSupabase } from "@/lib/server/fixtures";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/config";
 
@@ -10,6 +10,12 @@ export async function createClient() {
   // answered by a stand-in signed-in learner (docs/PLAN-QUALITY.md §1.1).
   if (FIXTURES)
     return fixtureSupabase() as unknown as ReturnType<typeof createServerClient>;
+
+  // Native clients (ios/) hold a bearer token, not a cookie jar. One branch,
+  // no route change: the token authenticates the caller *and* rides along on
+  // every PostgREST request so RLS still sees the learner, not the anon role.
+  const bearer = (await headers()).get("authorization");
+  if (bearer?.startsWith("Bearer ")) return bearerClient(bearer);
 
   const cookieStore = await cookies();
 
@@ -30,4 +36,19 @@ export async function createClient() {
       },
     },
   });
+}
+
+/** A client authenticated by `Authorization: Bearer <access_token>`. */
+function bearerClient(bearer: string) {
+  const client = createServerClient(supabaseUrl(), supabasePublishableKey(), {
+    global: { headers: { Authorization: bearer } },
+    // No cookie jar on this path — the token is the whole session, and
+    // `getClaims()` below is handed it directly instead of reading storage.
+    cookies: { getAll: () => [], setAll: () => {} },
+  });
+  const token = bearer.slice("Bearer ".length);
+  const getClaims = client.auth.getClaims.bind(client.auth);
+  client.auth.getClaims = ((jwt?: string, options?: Parameters<typeof getClaims>[1]) =>
+    getClaims(jwt ?? token, options)) as typeof client.auth.getClaims;
+  return client;
 }

@@ -34,3 +34,13 @@ next-env.d.ts
 
 .claude
 .vercel
+
+# Swift / Xcode
+ios/**/.build/
+ios/**/*.xcuserdatad
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/.tuist/
+ios/Derived/
+ios/.build/
+ios/**/.swiftpm/
