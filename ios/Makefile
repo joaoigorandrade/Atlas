@@ -11,13 +11,19 @@ APP := com.joaoigor.atlas
 generate:
 	./generate.sh --no-open
 
-## build: swift build (host, no Xcode) — the gate for a push
-build:
-	cd AtlasKit && swift build
+# AtlasKit depends on two iOS-only packages (Navigation, Networking), so the
+# old host-macOS `swift build` / `swift test` no longer resolve — both gates run
+# against the simulator. `build` needs no device; `test` uses whichever
+# simulator is booted, so boot one (or `make run`) first.
+BOOTED = $(shell xcrun simctl list devices booted | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}' | head -1)
 
-## test: swift test (host, no simulator) — the other gate
+## build: build AtlasKit for the simulator — the gate for a push
+build:
+	cd AtlasKit && xcodebuild -scheme AtlasKit -destination 'generic/platform=iOS Simulator' build
+
+## test: run AtlasKit's tests on the booted simulator — the other gate
 test:
-	cd AtlasKit && swift test
+	cd AtlasKit && xcodebuild -scheme AtlasKit -destination 'platform=iOS Simulator,id=$(BOOTED)' test
 
 ## run: build the app and launch it on the simulator (DEVICE=<udid> to pick one)
 run: generate

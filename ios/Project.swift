@@ -14,7 +14,7 @@ let project = Project(
             destinations: .iOS,
             product: .app,
             bundleId: "com.joaoigor.atlas",
-            deploymentTargets: .iOS("17.0"),
+            deploymentTargets: .iOS("26.0"),
             infoPlist: .extendingDefault(with: [
                 "UILaunchScreen": ["UIColorName": ""],
                 "CFBundleDisplayName": "Atlas",

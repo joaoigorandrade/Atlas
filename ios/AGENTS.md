@@ -7,22 +7,28 @@ the build order and the screen inventory.
 
 ## Stack
 
-- Swift 6, SwiftUI, iOS 17+. Strict concurrency on.
-- No third-party dependency. Not one. `URLSession` streams NDJSON, `Observation`
-  holds state, `Codable` decodes payloads, `Canvas` draws the map. Anything a
-  package would add here, the platform already ships.
+- Swift 6, SwiftUI, iOS 26+. Strict concurrency on.
+- **Two dependencies, both first-party.** `Navigation` (routes, navigators, the
+  tab shell) and `Networking` (typed requests, the `URLSession` client). Both
+  declare `.iOS(.v26)` and nothing else, which is what sets the floor above —
+  and what took the host-macOS build away.
+- Nothing else. `Observation` holds state, `Codable` decodes payloads, `Canvas`
+  draws the map, `Speech`/`AVFoundation` carry voice. Anything else a package
+  would add here, the platform already ships.
 - All source lives in the `AtlasKit` package; the Xcode target is an entry point.
 
 ## Commands
 
 ```bash
-cd ios/AtlasKit
-swift build        # must pass before pushing
-swift test         # must pass before pushing — runs on the host, no simulator
+cd ios
+make build         # must pass before pushing — xcodebuild, generic simulator
+make test          # must pass before pushing — needs a booted simulator
 ```
 
-Both run without Xcode, which is the point: they belong in CI next to the web
-app's gates.
+Neither needs the Xcode *project*, but both need Xcode's toolchain: `swift build`
+and `swift test` on the host stopped resolving the moment the two iOS-only
+packages came in. `make test` runs against whichever simulator is booted, so
+boot one (or run `make run`) first.
 
 The Xcode project is generated, never committed — `Project.swift` is the only
 description of the app target:
@@ -34,8 +40,8 @@ make run           # generate, build, install and launch on the simulator
 make open          # generate and open the workspace in Xcode
 ```
 
-`make build` and `make test` are the two `swift` commands above; `make clean`
-drops everything generated.
+`make clean` drops everything generated, the resolved package checkouts
+included.
 
 `generate.sh` exists because Tuist forwards only `TUIST_`-prefixed variables
 into a manifest, so it lifts `ATLAS_BASE_URL`, `SUPABASE_URL` and
@@ -62,22 +68,64 @@ every line of the app is in `AtlasKit`.
   has at most one `Dock`; the tab bar is Início · Mapa · Revisão · Perfil and
   Session is never a tab.
 
+## Layout
+
+```
+Sources/AtlasKit/
+  App/        the shell — RootView, AtlasTab (the four tabs), AtlasRoute
+              (everything that is pushed or presented), LaunchViewModel
+  Core/       Theme, Components, Speech, Support (ErrorCopy and two one-liners)
+  Domain/     the vocabulary and the pure functions — Concept, Diagnostic,
+              Calibration, Retain, PhaseContent. No I/O, no SwiftUI state.
+  Data/       AtlasAPI + AtlasEndpoint + NDJSONStream, AtlasAuth + SessionStore,
+              AtlasStore + Defaults, Fixtures
+  Features/   one folder per surface, each holding its view(s) and view model:
+              Auth, Onboarding, Home, Map, Review, Profile,
+              Session/{Consume,Socratic,Feynman,Connect,Crucible}
+```
+
 ## Composition
 
 - A screen composes `Components.swift` — `TopBar`, `Card`, `CTAButton`,
-  `GhostButton`, `Dock`, `Chip`, `Kicker`, `SegmentBar`. It does not re-declare a
-  padding, a radius or a border that one of those already carries. Something the
-  design repeats on a third screen becomes a component there.
+  `GhostButton`, `Dock`, `Chip`, `Kicker`, `SegmentBar`, `BackButton`, `Avatar`.
+  It does not re-declare a padding, a radius or a border that one of those
+  already carries. Something the design repeats on a third screen becomes a
+  component there.
 - No `ViewModifier` with one call site, no protocol with one conformer, no
   generic wrapper for a view used once.
-- One screen per file, named for the screen. A screen file that passes ~250 lines
-  is a screen that is doing state's job.
+- One screen per file, named for the screen, beside the view model it renders.
+
+## MVVM
+
+- **Every screen has a view model**, `@Observable @MainActor final class
+  <Screen>ViewModel`, in the same folder as its view. It owns the screen's own
+  state, the async work, and every derived string or colour the screen shows.
+- **A view holds no `@State` a view model could hold** and computes nothing in
+  `body` that a stored property could carry. Segment rails, greetings, queue
+  minutes and error sentences are prepared in the model, not mapped per redraw.
+- **A view model is built once**, in `.task`, never in `body` or a `@State`
+  default that re-runs on every parent update — the phase models mark the node
+  Learning and start generations on the way in.
+- A view model writes to `AtlasStore` and reads `AtlasAPI`; it never reaches for
+  a navigator. Navigation is the view's job.
+
+## Navigation
+
+- `AtlasTab` is the tab bar (Início · Mapa · Revisão · Perfil) — `NavigationTabView`
+  renders it and gives each tab its own `Navigator`, so a stack survives a trip
+  through another tab. Session is never a tab.
+- `AtlasRoute` is every other destination. A screen asks the navigator
+  (`@EnvironmentObject var navigator: AtlasNavigator`) for one — `navigate(to:)`
+  to push, `openSheet(_:)` for the node drawer, `pop()`/`popToRoot()` to leave.
+  No `NavigationLink`, no per-screen `sheet(item:)`, no `@Environment(\.dismiss)`.
+- A pushed session hides the tab bar; it does not cover the screen. `navigate`
+  dismisses the drawer on the way, which is why there is no `onDismiss` dance.
 
 ## State
 
 - `AtlasStore` is the one owner of everything persisted — graph, mastery states,
-  cached generations. A screen reads it from `@Environment` and writes back
-  through it; it never keeps a second copy of a node's state.
+  cached generations. A view model reads it and writes back through it; nothing
+  keeps a second copy of a node's state.
 - **`frontier` is derived, never stored.** Ask `store.display`, which runs
   `displayStates`. Nothing writes `.frontier` into a `StateMap` and nothing
   stores a locked flag.
@@ -89,7 +137,18 @@ every line of the app is in `AtlasKit`.
 ## Networking
 
 - **`AtlasAPI` is the only place in the app that makes an HTTP request.** A new
-  content kind is a method there, never a `URLSession` call in a view.
+  content kind is a method there, never a `URLSession` call in a view or a view
+  model.
+- Requests are `HTTPRequestData` values built in `AtlasEndpoint` — a path, a
+  method, headers and a body, nothing else. There is no request type per call.
+- Unary requests run through `Networking`'s `URLSessionNetworkClient`, with
+  `successStatusCodes: 0..<600` on purpose: a 4xx body carries the `code` a
+  screen speaks and the header carries the request id a log needs, and
+  `NetworkError.httpError` drops both. `AtlasAPI.send` is where a status becomes
+  an `AtlasError`.
+- Streamed kinds go through `NDJSONStream`, which builds the same request value
+  and reads `URLSession.bytes` — the package client buffers whole responses,
+  which is exactly wrong for a screen that should paint on its first frame.
 - Streamed kinds render frames as they land. A frame with `partial: true` is a
   redraw: show it, never assemble it, never treat it as the answer — a complete
   frame for the same slot always follows. A frame named `__error` means the
@@ -123,7 +182,7 @@ built by concatenation.
 
 ## Verifying a change
 
-`swift build` and `swift test` pass, then run it: the iOS simulator against
+`make build` and `make test` pass, then run it: the iOS simulator against
 `ATLAS_FIXTURES=1 npm run dev` on the host, and click the real flow through to
 the screen you changed. A screenshot of the screen next to its artboard is what
 "matches the design" means.

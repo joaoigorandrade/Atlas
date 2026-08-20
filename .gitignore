@@ -44,3 +44,4 @@ ios/.tuist/
 ios/Derived/
 ios/.build/
 ios/**/.swiftpm/
+ios/.package.resolved

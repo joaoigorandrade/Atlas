@@ -51,7 +51,7 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 @MainActor
 @Test func aTapThenAGradeIsOneCalibrationReading() {
     let owner = store()
-    let review = Review(deck: [ScheduledCard(card())], store: owner)
+    let review = ReviewViewModel(store: owner, deck: [ScheduledCard(card())])
 
     // Nothing is graded before the card is flipped.
     review.grade(.good)
@@ -70,7 +70,7 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 @MainActor
 @Test func aMissReEntersTheSpiralAndComesBackOnce() {
     let owner = store()
-    let review = Review(deck: [ScheduledCard(card())], store: owner)
+    let review = ReviewViewModel(store: owner, deck: [ScheduledCard(card())])
     review.tap(.solid)
     review.grade(.again)
 
@@ -91,7 +91,7 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 @MainActor
 @Test func onlyARealReviewEarnsRetained() {
     let owner = store()
-    let review = Review(deck: [ScheduledCard(card())], store: owner)
+    let review = ReviewViewModel(store: owner, deck: [ScheduledCard(card())])
     review.tap(.solid)
     review.grade(.good)
 

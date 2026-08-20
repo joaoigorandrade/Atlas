@@ -24,21 +24,21 @@ import Testing
 
 /// A pass on "Regra da cadeia", plus the store it writes to — the writes are
 /// the whole point of these tests, so both come back.
-@MainActor private func session(_ states: StateMap = [:]) -> (Session, AtlasStore) {
+@MainActor private func session(_ states: StateMap = [:]) -> (SessionViewModel, AtlasStore) {
     let store = store(states)
-    return (Session(node: store.graph.nodes[1], store: store), store)
+    return (SessionViewModel(node: store.graph.nodes[1], store: store), store)
 }
 
 @MainActor
 @Test func openingAPassMarksTheNodeLearningAndNothingElse() {
     let owned = store(["cadeia": .mastered])
-    _ = Session(node: owned.graph.nodes[1], store: owned)
+    _ = SessionViewModel(node: owned.graph.nodes[1], store: owned)
     // A node already past Learning is left where it is — arriving is evidence
     // of work, not a reason to walk mastery backwards.
     #expect(owned.states["cadeia"] == .mastered)
 
     let fresh = store(["lat": .mastered])
-    _ = Session(node: fresh.graph.nodes[1], store: fresh)
+    _ = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
     #expect(fresh.states["cadeia"] == .learning)
 }
 
