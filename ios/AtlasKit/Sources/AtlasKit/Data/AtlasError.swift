@@ -57,7 +57,7 @@ extension AtlasError {
 
 /// Minimal JSON value — generated payloads are heterogeneous and only the screen
 /// that renders one knows its shape.
-public enum JSONValue: Codable, Sendable {
+public enum JSONValue: Codable, Sendable, Equatable {
     case string(String), number(Double), bool(Bool), null
     case array([JSONValue]), object([String: JSONValue])
 
@@ -96,6 +96,19 @@ public enum JSONValue: Codable, Sendable {
     /// Decode a frame's value into the concrete shape the screen renders.
     public func decode<T: Decodable>(_ type: T.Type = T.self) throws -> T {
         try JSONDecoder().decode(T.self, from: try JSONEncoder().encode(self))
+    }
+
+    /// The inverse, for values that travel *inside* another payload rather than
+    /// as their own request body — a run snapshot is one object whose keys this
+    /// client only partly owns, so its halves are assembled as JSON.
+    public init<T: Encodable>(encoding value: T) throws {
+        self = try JSONDecoder().decode(JSONValue.self, from: try JSONEncoder().encode(value))
+    }
+
+    /// The object's fields, or nil for every other kind of value.
+    var fields: [String: JSONValue]? {
+        guard case .object(let fields) = self else { return nil }
+        return fields
     }
 }
 

@@ -28,7 +28,7 @@ final class CrucibleViewModel {
     var node: ConceptNode { session.node }
     var problem: CrucibleProblem? { content?.problems[safe: rung] }
     var canSubmit: Bool { !judging && !work.trimmed.isEmpty }
-    var waitingCopy: String { message.isEmpty ? "Escrevendo um problema novo…" : message }
+    var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo um problema novo…") : message }
     /// A confirmed transfer ends the pass; so does running out of rungs.
     var isSettled: Bool { judgement?.passed == true || rung >= (content?.problems.count ?? 0) - 1 }
     var reExplanation: String { judgement?.reExplain ?? content?.reExplain ?? "" }
@@ -41,7 +41,7 @@ final class CrucibleViewModel {
         do {
             content = try await api.crucible(context)
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "escrever seu problema")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever seu problema"))
         }
     }
 
@@ -60,7 +60,7 @@ final class CrucibleViewModel {
             session.settleCrucible(verdict, gap: content.gap)
             judgement = verdict
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "avaliar sua tentativa")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "avaliar sua tentativa"))
         }
     }
 

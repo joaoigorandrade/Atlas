@@ -22,6 +22,14 @@ final class LaunchViewModel {
         restored = true
     }
 
+    /// A run left the store — signing out, or "Novo mapa" — so the shell is
+    /// about to show onboarding again. It has to be a *fresh* machine: the one
+    /// that built the last map is parked on its placement screen and still
+    /// holds that map's form, graph and pending gaps.
+    func restartOnboarding(_ store: AtlasStore) {
+        onboarding = OnboardingViewModel(store: store)
+    }
+
     /// The confirmation link lands on the web app, which redirects back with
     /// `?error=` when it is spent — the same codes `/login` reads.
     func arrived(from url: URL) {
@@ -29,9 +37,9 @@ final class LaunchViewModel {
             .queryItems?.first { $0.name == "error" }?.value
         switch error {
         case "link", "expired":
-            notice = "Esse link de confirmação expirou ou já foi usado — entre novamente abaixo."
+            notice = String(localized: "Esse link de confirmação expirou ou já foi usado — entre novamente abaixo.")
         case "unavailable":
-            notice = "Não conseguimos verificar esse link agora — não há nada de errado com sua conta. Tente o link de novo, ou entre abaixo."
+            notice = String(localized: "Não conseguimos verificar esse link agora — não há nada de errado com sua conta. Tente o link de novo, ou entre abaixo.")
         default: break
         }
     }

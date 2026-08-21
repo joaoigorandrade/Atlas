@@ -24,7 +24,7 @@ public struct HomeView: View {
     private func content(_ model: HomeViewModel) -> some View {
         VStack(spacing: 0) {
             TopBar {
-                Text("Atlas").font(.atlas(.serif, 19, weight: .semibold)).foregroundStyle(Palette.ink)
+                Text(verbatim: "Atlas").font(.atlas(.serif, 19, weight: .semibold)).foregroundStyle(Palette.ink)
             } trailing: {
                 HStack(spacing: 12) {
                     if model.streak > 0 {
@@ -38,7 +38,7 @@ public struct HomeView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Kicker(model.today)
+                    Kicker(verbatim: model.today)
                     Text(model.greeting)
                         .font(.atlas(.serif, 30))
                         .foregroundStyle(Palette.ink)
@@ -54,7 +54,10 @@ public struct HomeView: View {
                     if model.hasRun {
                         Text("Seus mapas").font(.atlas(.serif, 21)).foregroundStyle(Palette.ink)
                             .padding(.top, 32)
-                        mapCard(model).padding(.top, 14)
+                        ForEach(model.maps) { map in
+                            mapCard(map, model).padding(.top, 14)
+                        }
+                        newMapButton(model).padding(.top, 14)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -88,12 +91,14 @@ public struct HomeView: View {
     }
 
     /// Both cards are the same block — kicker, headline, one sentence, one link.
-    private func summary(kicker: String, kickerTint: Color, headline: String,
-                         note: String, action: String, actionTint: Color) -> some View {
+    private func summary(kicker: LocalizedStringKey, kickerTint: Color, headline: String,
+                         note: String, action: LocalizedStringKey, actionTint: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Kicker(kicker, tint: kickerTint)
-            Text(headline).font(.atlas(.serif, 26)).foregroundStyle(Palette.ink)
-            Text(note).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted)
+            // Headline and note carry the frontier node's own label and summary
+            // when it has one, so they are rendered as written.
+            Text(verbatim: headline).font(.atlas(.serif, 26)).foregroundStyle(Palette.ink)
+            Text(verbatim: note).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted)
             Text(action)
                 .font(.atlas(.sans, 13.5, weight: .semibold))
                 .foregroundStyle(actionTint)
@@ -104,30 +109,47 @@ public struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// ponytail: one card, because the app holds one run. The design's list and
-    /// its "+ Novo mapa" need several `run_states` rows, which is the same
-    /// change that makes any of this survive a relaunch.
-    private func mapCard(_ model: HomeViewModel) -> some View {
-        Card(border: NodeState.frontier.color.opacity(0.35)) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Kicker(model.goal)
-                    Spacer(minLength: 0)
-                    Chip("Em andamento", tint: Palette.accent, background: Palette.accentBg)
-                }
-                Text(model.subject).font(.atlas(.serif, 19)).foregroundStyle(Palette.ink)
-                ProgressView(value: model.mastered).tint(Palette.accent)
-                HStack {
-                    Text(model.mastered.formatted(.percent.precision(.fractionLength(0))) + " dominado")
-                    Spacer()
-                    Text("\(model.frontier.count) na fronteira")
-                }
-                .font(.atlas(.sans, 12.5))
-                .foregroundStyle(Palette.inkFaint)
+    /// One saved run. Tapping the open one goes to its map; tapping any other
+    /// switches the whole store onto it first, which is a round trip, so the
+    /// tab change waits for it.
+    private func mapCard(_ map: RunSnapshot, _ model: HomeViewModel) -> some View {
+        let open = model.isOpen(map)
+        return Button {
+            Task {
+                await model.open(map)
+                tabs.switchTab(to: .map)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 18)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Card(border: NodeState.frontier.color.opacity(open ? 0.35 : 0.16)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Kicker(map.goal.label)
+                        Spacer(minLength: 0)
+                        Chip(model.status(map),
+                             tint: open ? Palette.accent : Palette.inkFaint,
+                             background: open ? Palette.accentBg : Palette.chipBg)
+                    }
+                    Text(verbatim: map.subject).font(.atlas(.serif, 19)).foregroundStyle(Palette.ink)
+                    ProgressView(value: map.mastered).tint(Palette.accent)
+                    HStack {
+                        Text("\(map.mastered.formatted(.percent.precision(.fractionLength(0)))) dominado")
+                        Spacer()
+                        Text("\(model.frontierCount(map)) na fronteira")
+                    }
+                    .font(.atlas(.sans, 12.5))
+                    .foregroundStyle(Palette.inkFaint)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
+        .buttonStyle(.plain)
+    }
+
+    /// Clearing the run is what shows onboarding, so there is nowhere to
+    /// navigate to — the shell swaps itself out from under this screen.
+    private func newMapButton(_ model: HomeViewModel) -> some View {
+        GhostButton("+ Novo mapa") { Task { await model.newMap() } }
     }
 }

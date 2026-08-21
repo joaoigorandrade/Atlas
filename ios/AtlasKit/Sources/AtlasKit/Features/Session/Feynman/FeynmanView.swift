@@ -27,7 +27,7 @@ struct FeynmanView: View {
         VStack(spacing: 0) {
             PhaseBar(.feynman, title: model.node.label, back: { navigator.pop() }) {
                 if !model.beats.isEmpty {
-                    Text("\(model.index + 1) / \(model.beats.count)")
+                    Text(verbatim: "\(model.index + 1) / \(model.beats.count)")
                         .font(.atlas(.mono, 10.5))
                         .tracking(1)
                         .foregroundStyle(Phase.feynman.tint)
@@ -39,7 +39,7 @@ struct FeynmanView: View {
             } else if let beat = model.beat {
                 teach(beat, model)
             } else {
-                Waiting(model.waitingCopy, spinning: model.message.isEmpty)
+                Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
     }
@@ -65,11 +65,12 @@ struct FeynmanView: View {
                     Card {
                         VStack(alignment: .leading, spacing: 0) {
                             Kicker("Tópico \(model.index + 1)", tint: Palette.inkGhost)
-                            Text(beat.subPoint)
+                            Text(verbatim: beat.subPoint)
                                 .font(.atlas(.serif, 21))
                                 .foregroundStyle(Palette.ink)
                                 .padding(.top, 8)
-                            AnswerEditor(text: model.binding(for: beat), placeholder: "Ensine com suas palavras…",
+                            AnswerEditor(text: model.binding(for: beat),
+                                         placeholder: String(localized: "Ensine com suas palavras…"),
                                          tint: Phase.feynman.tint)
                                 .padding(.top, 14)
                         }
@@ -78,7 +79,7 @@ struct FeynmanView: View {
                     .padding(.top, 16)
 
                     if !model.message.isEmpty {
-                        Text(model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk).padding(.top, 14)
+                        Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk).padding(.top, 14)
                     }
                 }
                 .padding(.horizontal, Metrics.gutter)
@@ -113,7 +114,7 @@ struct FeynmanView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker("Relatório de lacunas", tint: Phase.feynman.tint, size: 11)
-                    Text(judgement.response)
+                    Text(verbatim: judgement.response)
                         .font(.atlas(.serif, 17))
                         .lineSpacing(4)
                         .foregroundStyle(Palette.ink)
@@ -123,11 +124,11 @@ struct FeynmanView: View {
                         HStack(alignment: .top, spacing: 11) {
                             Circle().fill(color(row.verdict)).frame(width: 8, height: 8).padding(.top, 6)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(model.subPoint(at: row.i))
+                                Text(verbatim: model.subPoint(at: row.i))
                                     .font(.atlas(.serif, 15.5))
                                     .foregroundStyle(Palette.ink)
                                 if let quote = row.quote {
-                                    Text("“\(quote)”").font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                                    Text(verbatim: "“\(quote)”").font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
                                 }
                             }
                         }

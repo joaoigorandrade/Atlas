@@ -49,7 +49,7 @@ struct ConsumeView: View {
                 .id(chunk.id)
                 dock(model)
             } else {
-                Waiting(model.waitingCopy, spinning: model.message.isEmpty)
+                Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
         .sheet(item: $model.lens) { key in
@@ -76,9 +76,9 @@ struct ConsumeView: View {
     @ViewBuilder
     private func section(_ chunk: ConsumeChunk, _ model: ConsumeViewModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Kicker(chunk.kicker)
+            Kicker(verbatim: chunk.kicker)
             ForEach(Array(chunk.body.enumerated()), id: \.offset) { _, paragraph in
-                Text(paragraph)
+                Text(verbatim: paragraph)
                     .font(.atlas(.serif, 17.5))
                     .lineSpacing(6)
                     .foregroundStyle(Palette.ink)
@@ -89,23 +89,23 @@ struct ConsumeView: View {
                 FigureView(figure)
                     .padding(.top, 20)
                 if let caption = chunk.diagram {
-                    Text(caption).font(.atlas(.mono, 10.5)).foregroundStyle(Palette.inkFaint).padding(.top, 8)
+                    Text(verbatim: caption).font(.atlas(.mono, 10.5)).foregroundStyle(Palette.inkFaint).padding(.top, 8)
                 }
             }
 
             if let example = chunk.example {
                 Kicker("Exemplo").padding(.top, 22)
-                Text(example.title).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink).padding(.top, 8)
+                Text(verbatim: example.title).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink).padding(.top, 8)
                 ForEach(Array(example.steps.enumerated()), id: \.offset) { step, text in
                     HStack(alignment: .top, spacing: 10) {
-                        Text("\(step + 1)").font(.atlas(.mono, 11)).foregroundStyle(Palette.inkFaint)
-                        Text(text).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
+                        Text(verbatim: "\(step + 1)").font(.atlas(.mono, 11)).foregroundStyle(Palette.inkFaint)
+                        Text(verbatim: text).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
                     }
                     .padding(.top, 8)
                 }
             }
 
-            Text(chunk.takeaway)
+            Text(verbatim: chunk.takeaway)
                 .font(.atlas(.serif, 16))
                 .foregroundStyle(Palette.ink)
                 .padding(14)
@@ -143,10 +143,10 @@ struct ConsumeView: View {
     private func check(_ check: ConsumePrediction, _ model: ConsumeViewModel) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Kicker("Checagem", tint: Palette.accent)
-            Text(check.q).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+            Text(verbatim: check.q).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
             ForEach(Array(check.opts.enumerated()), id: \.offset) { option, opt in
                 Button { model.pick(option) } label: {
-                    Text(opt.label)
+                    Text(verbatim: opt.label)
                         .font(.atlas(.sans, 14.5))
                         .foregroundStyle(Palette.ink)
                         .frame(maxWidth: .infinity, minHeight: Metrics.tap, alignment: .leading)
@@ -160,7 +160,7 @@ struct ConsumeView: View {
                 .disabled(model.picked != nil)
             }
             if model.picked != nil {
-                Text(model.passed ? check.right : check.wrong)
+                Text(verbatim: model.passed ? check.right : check.wrong)
                     .font(.atlas(.sans, 13.5))
                     .foregroundStyle(model.passed ? Palette.accent : Palette.amberInk)
             }

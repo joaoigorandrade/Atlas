@@ -14,9 +14,9 @@ public struct MapView: View {
     public var body: some View {
         VStack(spacing: 0) {
             TopBar {
-                Text("Atlas").font(.atlas(.serif, 19, weight: .semibold)).foregroundStyle(Palette.ink)
+                Text(verbatim: "Atlas").font(.atlas(.serif, 19, weight: .semibold)).foregroundStyle(Palette.ink)
             } trailing: {
-                Chip("\(store.frontier.count)", dot: NodeState.frontier.color,
+                Chip(verbatim: "\(store.frontier.count)", dot: NodeState.frontier.color,
                      tint: Palette.amberInk, background: Palette.amberBg)
             }
 
@@ -87,7 +87,7 @@ public struct MapView: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 Kicker("Assunto")
-                Text(store.subject).font(.atlas(.serif, 21)).foregroundStyle(Palette.ink)
+                Text(verbatim: store.subject).font(.atlas(.serif, 21)).foregroundStyle(Palette.ink)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -95,7 +95,7 @@ public struct MapView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Território dominado").font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
                     Spacer()
-                    Text(store.mastered.formatted(.percent.precision(.fractionLength(0))))
+                    Text(verbatim: store.mastered.formatted(.percent.precision(.fractionLength(0))))
                         .font(.atlas(.serif, 21)).foregroundStyle(Palette.accent)
                 }
                 ProgressView(value: store.mastered).tint(Palette.accent)
@@ -107,9 +107,9 @@ public struct MapView: View {
                     Button { open(next) } label: {
                         HStack(spacing: 10) {
                             Circle().fill(NodeState.frontier.color).frame(width: 8, height: 8)
-                            Text(next.label).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.ink).lineLimit(1)
+                            Text(verbatim: next.label).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.ink).lineLimit(1)
                             Spacer(minLength: 0)
-                            Text("+\(store.frontier.count)").font(.atlas(.mono, 10)).foregroundStyle(Palette.inkFaint)
+                            Text(verbatim: "+\(store.frontier.count)").font(.atlas(.mono, 10)).foregroundStyle(Palette.inkFaint)
                         }
                         .padding(.horizontal, 13)
                         .frame(minHeight: 48)

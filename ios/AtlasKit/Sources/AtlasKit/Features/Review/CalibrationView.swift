@@ -114,7 +114,7 @@ struct CalibrationView: View {
         }
         if let worst = model.worst {
             let at = point(worst.felt, worst.real)
-            context.draw(Text(worst.label).font(.atlas(.serif, 10.5)).foregroundStyle(Palette.inkMuted),
+            context.draw(Text(verbatim: worst.label).font(.atlas(.serif, 10.5)).foregroundStyle(Palette.inkMuted),
                          at: CGPoint(x: at.x, y: min(at.y + 18, plot.maxY)))
         }
     }
@@ -124,7 +124,7 @@ struct CalibrationView: View {
     private func row(_ item: CalibItem, _ model: CalibrationViewModel) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Kicker(item.verdict.label, tint: item.verdict.tint, size: 10)
-            Text(item.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+            Text(verbatim: item.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
             Text(model.reading(item))
                 .font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted).lineSpacing(3)
         }

@@ -14,11 +14,11 @@ struct ModelLensView: View {
                 Kicker(lens.label, tint: Palette.accent, size: 11)
                 if let model {
                     ForEach(Array(model.beats.enumerated()), id: \.offset) { _, beat in
-                        Text(beat.label).font(.atlas(.mono, 10.5)).foregroundStyle(Palette.inkFaint).padding(.top, 20)
-                        Text(beat.text).font(.atlas(.serif, 16.5)).lineSpacing(5).foregroundStyle(Palette.ink).padding(.top, 7)
+                        Text(verbatim: beat.label).font(.atlas(.mono, 10.5)).foregroundStyle(Palette.inkFaint).padding(.top, 20)
+                        Text(verbatim: beat.text).font(.atlas(.serif, 16.5)).lineSpacing(5).foregroundStyle(Palette.ink).padding(.top, 7)
                     }
                     if model.beats.isEmpty {
-                        Waiting(model.waitingCopy, spinning: model.message.isEmpty).padding(.top, 40)
+                        Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty).padding(.top, 40)
                     }
                 }
             }

@@ -36,9 +36,12 @@ public enum Palette {
     public static let hairlineStrong = Color(hex: 0x2C2823, opacity: 0.14)
 }
 
-/// The three faces. Bundle the .ttf files in the app target under the same
-/// PostScript names; `Font.custom` falls back to the system face if one is
-/// missing, which is a silent visual regression — check the render, not the build.
+/// The three faces. `serif` is the family name of the variable
+/// `App/Resources/Fonts/Newsreader.ttf` listed in `UIAppFonts` — CoreText
+/// exposes its named cuts, so `.weight()` resolves to a real one. `sans` and
+/// `mono` are still unbundled PostScript names: `Font.custom` falls back to the
+/// system face when a file is missing, which is a silent visual regression —
+/// check the render, not the build.
 public enum Face: String {
     case serif = "Newsreader"
     case sans = "InstrumentSans-Regular"

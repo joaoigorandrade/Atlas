@@ -67,7 +67,7 @@ public final class OnboardingViewModel {
     public func buildMap() {
         let topic = form.topic.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !topic.isEmpty else {
-            message = "Diga primeiro o que você quer aprender."
+            message = String(localized: "Diga primeiro o que você quer aprender.")
             return
         }
         form.topic = topic
@@ -108,7 +108,7 @@ public final class OnboardingViewModel {
                 }
             } catch {
                 stage = .welcome
-                message = ErrorCopy.sentence(for: error, doing: "montar seu mapa")
+                message = ErrorCopy.sentence(for: error, doing: String(localized: "montar seu mapa"))
                 return
             }
             guard !Task.isCancelled else { return }
@@ -123,7 +123,7 @@ public final class OnboardingViewModel {
             } catch {
                 // Placement is a nice-to-have; the map is the product. Open it,
                 // but say why the step is missing.
-                message = ErrorCopy.sentence(for: error, doing: "preparar o nivelamento")
+                message = ErrorCopy.sentence(for: error, doing: String(localized: "preparar o nivelamento"))
                 finish()
             }
         }
@@ -188,7 +188,7 @@ public final class OnboardingViewModel {
                 // already known stand — and say so, rather than looking like the
                 // app decided it had learned enough about them.
                 answered = diagnosticCount
-                message = ErrorCopy.sentence(for: error, doing: "escrever a próxima pergunta")
+                message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever a próxima pergunta"))
             }
         }
     }

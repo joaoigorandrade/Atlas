@@ -26,14 +26,17 @@ final class AuthViewModel {
         message = notice
     }
 
-    var title: String { mode == .signIn ? "Entre no seu mapa" : "Crie sua conta" }
+    var title: LocalizedStringKey { mode == .signIn ? "Entre no seu mapa" : "Crie sua conta" }
 
-    var blurb: String {
-        "Seu mapa, sequência e progresso ficam na sua conta"
-            + (mode == .signIn ? " — entre com seu e-mail e senha." : " — escolha um e-mail e senha para começar.")
+    /// Two whole sentences, never one built from halves: a clause spliced onto
+    /// a stem translates as neither language's grammar.
+    var blurb: LocalizedStringKey {
+        mode == .signIn
+            ? "Seu mapa, sequência e progresso ficam na sua conta — entre com seu e-mail e senha."
+            : "Seu mapa, sequência e progresso ficam na sua conta — escolha um e-mail e senha para começar."
     }
 
-    var actionTitle: String {
+    var actionTitle: LocalizedStringKey {
         switch (status, mode) {
         case (.working, .signIn): "Entrando…"
         case (.working, .signUp): "Criando conta…"
@@ -42,12 +45,12 @@ final class AuthViewModel {
         }
     }
 
-    var switchPrompt: String { mode == .signIn ? "Novo no Atlas? " : "Já tem uma conta? " }
-    var switchAction: String { mode == .signIn ? "Criar uma conta" : "Entrar" }
+    var switchPrompt: LocalizedStringKey { mode == .signIn ? "Novo no Atlas? " : "Já tem uma conta? " }
+    var switchAction: LocalizedStringKey { mode == .signIn ? "Criar uma conta" : "Entrar" }
     var isWorking: Bool { status == .working }
     var isConfirming: Bool { status == .sent }
     var showsMessage: Bool { !message.isEmpty && status != .sent }
-    var confirmationLine: String {
+    var confirmationLine: LocalizedStringKey {
         "Enviamos um link de confirmação para \(email.trimmed). Abra-o para ativar sua conta e depois volte para entrar."
     }
 
@@ -59,8 +62,8 @@ final class AuthViewModel {
 
     func submit() async {
         let address = email.trimmed
-        guard address.contains("@") else { return fail("Digite o e-mail da sua conta.") }
-        guard password.count >= 6 else { return fail("A senha precisa ter pelo menos 6 caracteres.") }
+        guard address.contains("@") else { return fail(String(localized: "Digite o e-mail da sua conta.")) }
+        guard password.count >= 6 else { return fail(String(localized: "A senha precisa ter pelo menos 6 caracteres.")) }
 
         status = .working
         message = ""
@@ -86,14 +89,14 @@ final class AuthViewModel {
     /// The learner reads the code, never the server's `message` (ios/AGENTS.md).
     private func sentence(for error: Error) -> String {
         switch (error as? AtlasError)?.code {
-        case "invalid_credentials", "auth": "E-mail ou senha incorretos."
-        case "email_not_confirmed": "Confirme seu e-mail pelo link que enviamos e tente de novo."
-        case "user_already_exists": "Já existe uma conta com esse e-mail — entre por ela."
-        case "weak_password": "A senha precisa ter pelo menos 6 caracteres."
-        case "validation_failed", "request": "Confira o e-mail e a senha e tente de novo."
+        case "invalid_credentials", "auth": String(localized: "E-mail ou senha incorretos.")
+        case "email_not_confirmed": String(localized: "Confirme seu e-mail pelo link que enviamos e tente de novo.")
+        case "user_already_exists": String(localized: "Já existe uma conta com esse e-mail — entre por ela.")
+        case "weak_password": String(localized: "A senha precisa ter pelo menos 6 caracteres.")
+        case "validation_failed", "request": String(localized: "Confira o e-mail e a senha e tente de novo.")
         case "over_email_send_rate_limit", "over_request_rate_limit", "rate_limit":
-            "Tentativas demais por agora. Espere um minuto e tente de novo."
-        default: "Não conseguimos falar com o servidor agora. Tente de novo."
+            String(localized: "Tentativas demais por agora. Espere um minuto e tente de novo.")
+        default: String(localized: "Não conseguimos falar com o servidor agora. Tente de novo.")
         }
     }
 }

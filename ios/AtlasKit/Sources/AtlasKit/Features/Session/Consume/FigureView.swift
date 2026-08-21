@@ -24,7 +24,7 @@ struct FigureView: View {
                 }
                 HStack(spacing: 8) {
                     ForEach(layer) { node in
-                        Text(node.label)
+                        Text(verbatim: node.label)
                             .font(.atlas(.sans, 12.5))
                             .foregroundStyle(Palette.inkSoft)
                             .multilineTextAlignment(.center)

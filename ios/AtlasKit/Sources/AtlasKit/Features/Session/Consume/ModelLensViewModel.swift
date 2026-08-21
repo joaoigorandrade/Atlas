@@ -17,14 +17,14 @@ final class ModelLensViewModel {
         self.context = context
     }
 
-    var waitingCopy: String { message.isEmpty ? "Escrevendo…" : message }
+    var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo…") : message }
 
     func load() async {
         guard let context else { return }
         do {
             for try await landed in await api.model(context) { beats = landed }
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "abrir essa visão")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "abrir essa visão"))
         }
     }
 }

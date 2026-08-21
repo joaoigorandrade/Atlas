@@ -28,7 +28,7 @@ struct SocraticView: View {
             }
 
             if model.log.isEmpty {
-                Waiting(model.waitingCopy, spinning: model.message.isEmpty)
+                Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             } else {
                 transcript(model)
             }
@@ -73,7 +73,7 @@ struct SocraticView: View {
                         working("Atlas está lendo sua resposta…")
                     }
                     if !model.message.isEmpty {
-                        Text(model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
+                        Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -86,7 +86,7 @@ struct SocraticView: View {
         }
     }
 
-    private func working(_ text: String) -> some View {
+    private func working(_ text: LocalizedStringKey) -> some View {
         HStack(spacing: 8) {
             ProgressView().tint(Palette.inkFaint).controlSize(.small)
             Text(text).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkFaint)
@@ -96,7 +96,7 @@ struct SocraticView: View {
     @ViewBuilder
     private func bubble(_ turn: SocraticViewModel.Turn) -> some View {
         if turn.learner {
-            Text(turn.text)
+            Text(verbatim: turn.text)
                 .font(.atlas(.sans, 14.5))
                 .foregroundStyle(Palette.inkSoft)
                 .padding(.horizontal, 15).padding(.vertical, 13)
@@ -108,8 +108,8 @@ struct SocraticView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 7) {
-                Kicker("Atlas", tint: tone(turn.quality), size: 9.5)
-                Text(turn.text).font(.atlas(.serif, 17)).lineSpacing(4).foregroundStyle(Palette.ink)
+                Kicker(verbatim: "Atlas", tint: tone(turn.quality), size: 9.5)
+                Text(verbatim: turn.text).font(.atlas(.serif, 17)).lineSpacing(4).foregroundStyle(Palette.ink)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

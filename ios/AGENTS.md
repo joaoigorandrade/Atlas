@@ -23,6 +23,7 @@ the build order and the screen inventory.
 cd ios
 make build         # must pass before pushing — xcodebuild, generic simulator
 make test          # must pass before pushing — needs a booted simulator
+make strings       # must pass before pushing — every line of copy in both languages
 ```
 
 Neither needs the Xcode *project*, but both need Xcode's toolchain: `swift build`
@@ -39,6 +40,11 @@ make generate      # tuist generate, with the .env.local values Tuist needs
 make run           # generate, build, install and launch on the simulator
 make open          # generate and open the workspace in Xcode
 ```
+
+`make strings` builds AtlasKit with `SWIFT_EMIT_LOC_STRINGS=YES` and holds the
+keys swiftc extracted against `App/Resources/Localizable.xcstrings` — see
+*Copy*. `make strings-update` folds new keys in so only the English is left to
+write.
 
 `make clean` drops everything generated, the resolved package checkouts
 included.
@@ -101,6 +107,8 @@ and a kind that matters more than a laptop build should stay there.
 ## Layout
 
 ```
+App/Resources/     Localizable.xcstrings (every line of copy, pt-BR → en),
+                   InfoPlist.xcstrings, the Newsreader face
 Sources/AtlasKit/
   App/        the shell — RootView, AtlasTab (the four tabs), AtlasRoute
               (everything that is pushed or presented), LaunchViewModel
@@ -108,6 +116,7 @@ Sources/AtlasKit/
   Domain/     the vocabulary and the pure functions — Concept, Diagnostic,
               Calibration, Retain, PhaseContent. No I/O, no SwiftUI state.
   Data/       AtlasAPI + AtlasEndpoint + NDJSONStream, AtlasAuth + SessionStore,
+              RunStore + RunSnapshot (the `run_states` row, shared with the web),
               OpenRouter + Prompts + Secrets (uncommitted),
               AtlasStore + Defaults, Fixtures
   Features/   one folder per surface, each holding its view(s) and view model:
@@ -172,6 +181,15 @@ needs, and what a session pushed from two tabs needs.
 - **`frontier` is derived, never stored.** Ask `store.display`, which runs
   `displayStates`. Nothing writes `.frontier` into a `StateMap` and nothing
   stores a locked flag.
+- **The run is a row, and it saves itself.** Every stored property of the run on
+  `AtlasStore` has `didSet { saveSoon() }`, so a screen persists by writing to
+  the store and never by calling a save. Adding a field to the run means adding
+  the observer *and* a line in `RunSnapshot` — a field in neither is a field
+  that vanishes on relaunch.
+- **Writes that are not the learner working hold `quiet`.** Restoring, switching
+  map and signing out all write the whole run at once, and `signOut` writes it
+  empty; without the flag that clear upserts an empty map over a real row. Any
+  new bulk write of the store belongs inside it.
 - Renderable state is `@State`/`@Observable`. Gesture, drag and timer state that
   must not trigger a redraw lives in a plain reference held by `@State`.
 - `@MainActor` on anything that touches a view. `AtlasAPI` is an actor and stays
@@ -185,9 +203,10 @@ never a hand-built `URLRequest`, never a bare `URLSession` call, and never a
 second client type per call site.
 
 - **`AtlasAPI` is the only place that talks to the web app.** A new content kind
-  is a method there, never a request in a view or a view model. `AtlasAuth` is
-  the same rule for Supabase's auth endpoints, and it holds its own client for
-  the second host — those two are the whole list.
+  is a method there, never a request in a view or a view model. `AtlasAuth` and
+  `RunStore` are the same rule for Supabase — auth over GoTrue, saved runs over
+  PostgREST — and each holds its own client for that second host. Those three
+  are the whole list.
 - Requests are `HTTPRequestData` values built in `AtlasEndpoint` — a path, a
   method, headers and a body, nothing else. There is no request type per call.
 - Unary requests run through `Networking`'s `URLSessionNetworkClient`, with
@@ -229,14 +248,73 @@ second client type per call site.
 
 ## Copy
 
-The interface is Portuguese and English, same as the web app. Write copy as
-literal `Text("…")` at the call site and let the String Catalog carry the second
-language — no hand-rolled lookup table, no key constants. Never ship a string
-built by concatenation.
+**The interface ships in pt-BR and en-US, always** — same requirement as the web
+app, different mechanism. Portuguese is the *source* language: the copy in the
+code is the Portuguese, and `App/Resources/Localizable.xcstrings` carries the
+English beside it. There is no lookup table and there are no key constants; the
+string at the call site is the key.
+
+The catalogue lives in the **app target**, not in the package, so a `Text("…")`
+anywhere in AtlasKit resolves against `Bundle.main` with no `bundle:` argument
+to remember. Nothing about localisation is declared in `Package.swift`.
+
+- **Copy is a `LocalizedStringKey` literal at the call site.** `Text("Assunto")`,
+  `Kicker("Próximo")`, `CTAButton("Voltar ao mapa")`, `Button("Dica")`,
+  `.alert("Apagar minha conta?")`, `.accessibilityLabel("Voltar")` — all of
+  those localise themselves. A component parameter that is always copy is typed
+  `LocalizedStringKey`, never `String`; passing a `String` to one is a compile
+  error, which is the point.
+- **Generated material is `verbatim:`.** A concept's label, a section's kicker,
+  a problem's tag, a formatted date, a count on its own — none of that is copy
+  and none of it belongs in the catalogue. `Text(verbatim:)`,
+  `Kicker(verbatim:)`, `Chip(verbatim:)`, `Waiting(verbatim:)`. Reach for it
+  deliberately: a bare `Text(someString)` picks the non-localising overload
+  silently, so writing `verbatim:` is how the next reader knows it was meant.
+- **A view model exposes `LocalizedStringKey`** for anything the view only
+  displays (`actionTitle`, `headline`, `reading(_:)`), and `String(localized:)`
+  for a string it also inspects — anything checked with `.isEmpty`, or where one
+  branch is copy and another is a node's own label. `ErrorCopy.sentence` is the
+  second kind, and the `doing:` fragment it takes is copy too:
+  `doing: String(localized: "montar sua revisão")`.
+- **Interpolate, never concatenate.** `"Cartão \(i) de \(n)"` becomes the key
+  `Cartão %lld de %lld` and translates as one sentence; `a + " " + b` is two
+  languages spliced in Portuguese word order. The same goes for a sentence with
+  an optional tail — write both sentences whole.
+- **Plural agreement belongs to the catalogue.** No `\(n == 1 ? "" : "s")` in
+  Swift: give the key a `plural` variation in both languages (the two don't
+  pluralise on the same rule, and English `%lld d` doesn't inflect at all).
+- **Phase names stay English in both languages** — Consume, Socratic, Feynman,
+  Connect, Crucible, Retained are product vocabulary. The prose around them is
+  translated: `Crisol · aplicação` → `Crucible · application`.
+- `Info.plist` copy — the two usage descriptions — lives in
+  `App/Resources/InfoPlist.xcstrings`, with the Portuguese in `Project.swift` as
+  its base value.
+
+**The gate is `make strings`.** The key set is not guessed from a regex:
+`SWIFT_EMIT_LOC_STRINGS=YES` makes swiftc emit one `.stringsdata` per file
+listing every literal it actually compiled as a localised string, and the script
+fails on any key with no English and on any catalogue entry the code no longer
+uses. Run `make strings-update` after adding copy, then write the English.
+
+**The interface follows the system language, and the picker on screen 13 does
+not change it.** iOS lets a learner set a language for one app (Settings ›
+Atlas › Language) and the catalogue answers to that; `AtlasAPI.deviceLanguage`
+reads `Bundle.main.preferredLocalizations`, so the prose the model writes
+defaults to the language the app is drawn in. Screen 13's *Idioma* field is the
+content override on top of that, which is what its note says.
+<!-- ponytail: no in-app UI-language switch. It would mean threading a locale
+     through every `String(localized:)` in every view model — one that is
+     forgotten renders in the wrong language with nothing to catch it. The
+     system setting is free and correct. -->
 
 ## Verifying a change
 
-`make build` and `make test` pass, then run it: the iOS simulator against
+`make build`, `make test` and `make strings` pass, then run it: the iOS simulator against
 `ATLAS_FIXTURES=1 npm run dev` on the host, and click the real flow through to
 the screen you changed. A screenshot of the screen next to its artboard is what
 "matches the design" means.
+
+A screen whose copy changed is checked in both languages — relaunch it with
+`xcrun simctl launch <udid> com.joaoigor.atlas -AppleLanguages "(en)"` and read
+it. English is usually the longer of the two; a line that only fits in
+Portuguese is not done.

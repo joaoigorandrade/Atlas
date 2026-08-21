@@ -25,7 +25,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 18) {
                         Avatar(model.email, size: 66)
-                        Text(model.email)
+                        Text(verbatim: model.email)
                             .font(.atlas(.sans, 13.5))
                             .foregroundStyle(Palette.inkMuted)
                             .lineLimit(1)
@@ -55,9 +55,9 @@ struct ProfileView: View {
         }
     }
 
-    private func stat(_ value: String, _ label: String, tint: Color = Palette.ink) -> some View {
+    private func stat(_ value: String, _ label: LocalizedStringKey, tint: Color = Palette.ink) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(value).font(.atlas(.serif, 26)).foregroundStyle(tint)
+            Text(verbatim: value).font(.atlas(.serif, 26)).foregroundStyle(tint)
             Text(label).font(.atlas(.sans, 12.5)).foregroundStyle(Palette.inkFaint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,7 +83,7 @@ struct ProfileView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8, alignment: .leading)],
                           alignment: .leading, spacing: 8) {
                     ForEach(interests, id: \.self) {
-                        Chip($0, tint: Palette.accent, background: Palette.accentBg)
+                        Chip(verbatim: $0, tint: Palette.accent, background: Palette.accentBg)
                     }
                 }
                 .padding(.top, 10)
@@ -117,7 +117,7 @@ struct ProfileView: View {
         .overlay { RoundedRectangle(cornerRadius: Metrics.cardRadius).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 
-    private func row(_ title: String, _ note: String?, tint: Color = Palette.ink) -> some View {
+    private func row(_ title: LocalizedStringKey, _ note: LocalizedStringKey?, tint: Color = Palette.ink) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.atlas(.sans, 15)).foregroundStyle(tint)

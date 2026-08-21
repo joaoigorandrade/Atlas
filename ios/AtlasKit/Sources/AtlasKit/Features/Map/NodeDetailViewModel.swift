@@ -22,14 +22,14 @@ final class NodeDetailViewModel {
     var current: Int { phaseIndex(state, reviewed: store.reviewed.contains(node.id)) }
 
     var isLocked: Bool { current < 0 }
-    var actionTitle: String { isLocked ? "Bloqueado" : "Começar · \(Phase.allCases[current].rawValue)" }
+    var actionTitle: LocalizedStringKey { isLocked ? "Bloqueado" : "Começar · \(Phase.allCases[current].rawValue)" }
     var actionTint: Color { isLocked ? Palette.inkGhost : Phase.allCases[max(0, current)].tint }
 
     var prerequisites: [(String, NodeState)] {
         store.graph.prerequisites(of: node.id).map { ($0.label, store.display[$0.id] ?? .unknown) }
     }
 
-    var headline: String {
+    var headline: LocalizedStringKey {
         switch state {
         case .frontier: "Fronteira · pronto"
         case .learning: "Aprendendo"

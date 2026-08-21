@@ -32,7 +32,7 @@ struct CrucibleView: View {
             } else if let problem = model.problem {
                 attempt(problem, model)
             } else {
-                Waiting(model.waitingCopy, spinning: model.message.isEmpty)
+                Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
     }
@@ -55,8 +55,8 @@ struct CrucibleView: View {
                         .padding(.top, 8)
 
                     VStack(alignment: .leading, spacing: 9) {
-                        Kicker(problem.tag, tint: Palette.crucibleInk)
-                        Text(problem.q).font(.atlas(.serif, 16.5)).lineSpacing(4).foregroundStyle(Palette.ink)
+                        Kicker(verbatim: problem.tag, tint: Palette.crucibleInk)
+                        Text(verbatim: problem.q).font(.atlas(.serif, 16.5)).lineSpacing(4).foregroundStyle(Palette.ink)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 18)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -65,7 +65,7 @@ struct CrucibleView: View {
                     .padding(.top, 22)
 
                     if model.hinted {
-                        Text(problem.hint)
+                        Text(verbatim: problem.hint)
                             .font(.atlas(.sans, 13.5))
                             .foregroundStyle(Palette.amberInk)
                             .padding(.horizontal, 13).padding(.vertical, 11)
@@ -79,7 +79,7 @@ struct CrucibleView: View {
                         .padding(.top, 9)
 
                     if !model.message.isEmpty {
-                        Text(model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk).padding(.top, 14)
+                        Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk).padding(.top, 14)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,7 +128,7 @@ struct CrucibleView: View {
                                 .fill(row.verdict == "good" ? NodeState.mastered.color : NodeState.gap.color)
                                 .frame(width: 8, height: 8)
                                 .padding(.top, 6)
-                            Text(row.text).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
+                            Text(verbatim: row.text).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 14)
@@ -136,7 +136,7 @@ struct CrucibleView: View {
 
                     if !judgement.passed {
                         Kicker("Em trinta segundos").padding(.top, 24)
-                        Text(model.reExplanation)
+                        Text(verbatim: model.reExplanation)
                             .font(.atlas(.serif, 16.5))
                             .lineSpacing(4)
                             .foregroundStyle(Palette.ink)

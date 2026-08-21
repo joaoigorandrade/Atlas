@@ -21,7 +21,7 @@ struct WelcomeView: View {
                     if !onboarding.scopes.isEmpty { scopeOffers.padding(.top, 20) }
                     if !onboarding.message.isEmpty { notice.padding(.top, 16) }
 
-                    field("Por que você está aprendendo isso?", "— orienta o que priorizamos") {
+                    field("Por que você está aprendendo isso?", "orienta o que priorizamos") {
                         Grid(horizontalSpacing: 9, verticalSpacing: 9) {
                             GridRow {
                                 option(.exam)
@@ -34,7 +34,7 @@ struct WelcomeView: View {
                         }
                     }
 
-                    field("Seus interesses", "— opcional") {
+                    field("Seus interesses", "opcional") {
                         TextField("ex.: xadrez, investimentos, culinária", text: $onboarding.form.interests)
                             .font(.atlas(.sans, 15))
                             .padding(.horizontal, 16)
@@ -46,7 +46,7 @@ struct WelcomeView: View {
                             }
                     }
 
-                    field("Meta diária", "— sua unidade de sequência") {
+                    field("Meta diária", "sua unidade de sequência") {
                         HStack(spacing: 9) {
                             ForEach(dailyTargets, id: \.self) { minutes in
                                 pill("\(minutes) min", on: onboarding.form.target == minutes) {
@@ -99,14 +99,14 @@ struct WelcomeView: View {
     /// The topic was a continent, not a map: pick a territory (#30).
     private var scopeOffers: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("\"\(onboarding.form.topic)\" é um continente, não um mapa. Escolha um território para começar:")
+            Text("“\(onboarding.form.topic)” é um continente, não um mapa. Escolha um território para começar:")
                 .font(.atlas(.sans, 13.5))
                 .foregroundStyle(Palette.inkMuted)
             ForEach(onboarding.scopes, id: \.label) { scope in
                 Button { onboarding.pick(scope) } label: {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(scope.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
-                        Text(scope.note).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                        Text(verbatim: scope.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+                        Text(verbatim: scope.note).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
@@ -120,7 +120,7 @@ struct WelcomeView: View {
     }
 
     private var notice: some View {
-        Text(onboarding.message)
+        Text(verbatim: onboarding.message)
             .font(.atlas(.sans, 13.5))
             .foregroundStyle(Palette.amberInk)
             .padding(.horizontal, 14).padding(.vertical, 10)
@@ -132,11 +132,11 @@ struct WelcomeView: View {
     }
 
     private func field<Content: View>(
-        _ title: String, _ hint: String, @ViewBuilder content: () -> Content
+        _ title: LocalizedStringKey, _ hint: LocalizedStringKey, @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 11) {
             (Text(title).foregroundStyle(Palette.inkSoft)
-                + Text(" \(hint)").foregroundStyle(Palette.inkGhost))
+                + Text(verbatim: " — ") + Text(hint).foregroundStyle(Palette.inkGhost))
                 .font(.atlas(.sans, 14))
             content()
         }
@@ -149,7 +149,7 @@ struct WelcomeView: View {
 
     /// The design's one selectable control: accent fill and border when on,
     /// paper and a hairline when off. Never under the tap minimum.
-    private func pill(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
+    private func pill(_ title: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.atlas(.sans, 14, weight: on ? .semibold : .regular))

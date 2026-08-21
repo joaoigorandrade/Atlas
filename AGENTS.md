@@ -56,12 +56,38 @@ ceilings never rise. Adding a genuinely new large file means editing
 - `components/onboarding/`, `components/map/`, `components/session/` — presentational screens; they receive state + callbacks as props and hold no app state.
 - `lib/curriculum/` (barrel at `lib/curriculum.ts`'s old import path, `@/lib/curriculum`) — the mastery-state vocabulary, session engines (pure reducers), and the re-planning model (gap spawning, goal ordering, pace math), split per phase plus `types`, `adherence`, `calibration`, `replan`. Types and logic only — no domain data lives here.
 - `lib/theme.ts` — design tokens. Never hard-code a color/font that has a token.
+- `lib/i18n.tsx` — the language seam. There is no catalog file on the web: each
+  component keeps its own `STRINGS = { en, "pt-BR" }` beside its markup and
+  reads it through `useT`; the context only tracks which language is active and
+  where that answer came from (`languageAction` is what keeps a device's guess
+  from overriding the language a run's content is written in). See **Both
+  languages, always** below.
 - `lib/speech.ts` — the voice seam: dictation, read-aloud, the device-level `atlas.voice` preference. No component touches a speech API directly. The two halves run on two engines. **Dictation** is browser-native `SpeechRecognition` — no key, no cost, and the only thing that gives the live as-you-talk transcript. **Read-aloud** is a hosted engine behind `/api/speech` (`lib/server/tts.ts`, Speechify), because the browser's own voices are a per-OS lottery and report no word timing; the hosted one returns per-word timestamps, which is what the read-along highlight and the progress ring are built on. There is deliberately **no `speechSynthesis` fallback** — without `SPEECHIFY_API_KEY` the control simply isn't offered (`NEXT_PUBLIC_TTS_ENABLED`), so voice quality never depends on the browser.
 - `lib/rich.ts` — the markdown walk `components/Rich.tsx` renders, as a pure function. Read-aloud speaks `spokenText()` and gets character offsets back, so the string the engine says and the string the reader sees must be the same one; `Rich` takes a `speak` range and marks the word being spoken.
 - `lib/server/` — the OpenRouter client (`openrouter.ts`) and the per-kind content generators, one file per kind in `generate/` (prompts, validators, layout/ids/offsets post-processing) over a shared `common.ts`, behind a barrel at `@/lib/server/generate`. Server-only; the API key never reaches the browser.
 - `app/api/generate/route.ts` — the single generation endpoint the client posts to; `lib/api.ts` is its typed client wrapper.
 - `app/api/health/route.ts` — public liveness probe: `{ ok, supabase, ms }`, 503 when Supabase is unreachable. Point uptime checks here. It deliberately does not probe OpenRouter — that would cost a model call per check.
 - `app/api/speech/route.ts` — read-aloud synthesis: auth-gated, one plain segment in, base64 audio + per-word marks out. Clips are cached in `speech_cache` (`lib/server/speechCache.ts`) and shared across users, so a section is billed once however many learners read it — deliberately its own table, since `content_cache`'s version moves whenever a _prompt_ does and audio for unchanged prose must not be re-billed for that.
+
+## Both languages, always
+
+**Every line of copy ships in pt-BR and en-US.** Not "eventually" — a surface
+with a Portuguese string and no English one is unfinished, on either client.
+
+- On the web that means a `STRINGS = { en: {...}, "pt-BR": {...} }` object next
+  to the component, read through `useT`. A table that lives outside its
+  component (`lib/toastCopy.ts`, `components/atlas/dashboardCopy.ts`, …) is
+  covered by `tests/i18nCoverage.test.ts`, which fails on a missing key, an
+  untranslated line that came out identical in both languages, and a builder
+  that drops its argument. Add new tables to that test.
+- Never concatenate a sentence out of a stem and a clause: the two languages
+  don't put the pieces in the same order. Write both sentences whole, and let
+  an interpolation carry only a value.
+- Phase names (Consume, Socratic, Feynman, Connect, Crucible, Retained) are
+  product vocabulary and stay English in both languages. Everything a learner
+  reads around them is translated.
+- On iOS the mechanism is different — a String Catalogue, not a lookup table —
+  and `ios/AGENTS.md` §Copy is the rule there. The requirement is the same one.
 
 ## AI content generation
 

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // What the five session phases decode off `/api/generate`. Mirrors the parts of
 // `lib/curriculum/{consume,socratic,feynman,connect,crucible}.ts` a screen
@@ -15,7 +16,7 @@ public enum AltKey: String, Codable, Sendable, CaseIterable, Identifiable {
 
     case simpler, example, analogy, deeper
 
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .simpler: "Mais simples"
         case .example: "Exemplo"

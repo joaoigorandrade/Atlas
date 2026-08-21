@@ -27,7 +27,7 @@ final class CalibrationViewModel {
 
     /// The plain-language read — the point of the surface is teaching the
     /// *feeling*, so the sentence names what the gap actually was.
-    func reading(_ item: CalibItem) -> String {
+    func reading(_ item: CalibItem) -> LocalizedStringKey {
         switch item.verdict {
         case .over:
             "Você se dá \(item.felt)% e entrega \(item.real)%. Isso é fluência, não domínio — vale um novo Crisol aqui."

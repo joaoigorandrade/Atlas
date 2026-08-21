@@ -44,7 +44,7 @@ struct PlacementView: View {
                     .font(.atlas(.sans, 14))
                     .foregroundStyle(Palette.inkMuted)
                 if !onboarding.message.isEmpty {
-                    Text(onboarding.message)
+                    Text(verbatim: onboarding.message)
                         .font(.atlas(.sans, 13.5))
                         .foregroundStyle(Palette.amberInk)
                         .padding(.top, 6)
@@ -77,7 +77,7 @@ struct PlacementView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         header(question)
-                        Text(question.q)
+                        Text(verbatim: question.q)
                             .font(.atlas(.serif, 23))
                             .foregroundStyle(Palette.ink)
                             .padding(.vertical, 14)
@@ -111,11 +111,12 @@ struct PlacementView: View {
 
     private func header(_ question: DiagnosticQuestion) -> some View {
         HStack(spacing: 10) {
-            Text(question.tag)
+            Text(verbatim: question.tag)
                 .font(.atlas(.mono, 12))
                 .foregroundStyle(Palette.amberInk)
             Spacer(minLength: 0)
-            Text(question.difficulty.label.uppercased())
+            Text(question.difficulty.label)
+                .textCase(.uppercase)
                 .font(.atlas(.mono, 10.5))
                 .tracking(0.6)
                 .foregroundStyle(Palette.inkGhost)
@@ -133,7 +134,7 @@ struct PlacementView: View {
                             .strokeBorder(tint(index, question) ?? Palette.hairlineStrong, lineWidth: 1.5)
                             .background(Circle().fill(chosen(index) ? tint(index, question) ?? .clear : .clear))
                             .frame(width: 16, height: 16)
-                        Text(option.label)
+                        Text(verbatim: option.label)
                             .font(.atlas(.sans, 15))
                             .foregroundStyle(Palette.ink)
                             .multilineTextAlignment(.leading)

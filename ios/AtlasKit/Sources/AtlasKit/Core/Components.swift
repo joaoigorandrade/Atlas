@@ -6,18 +6,24 @@ import SwiftUI
 
 /// `.kick` — the monospace uppercase kicker above almost every block.
 public struct Kicker: View {
-    private let text: String
+    private let text: Text
     private let tint: Color
     /// 10pt everywhere except the auth screens, which the design sets at 11.
     private let size: CGFloat
-    public init(_ text: String, tint: Color = Palette.inkFaint, size: CGFloat = 10) {
-        self.text = text; self.tint = tint; self.size = size
+    public init(_ key: LocalizedStringKey, tint: Color = Palette.inkFaint, size: CGFloat = 10) {
+        text = Text(key); self.tint = tint; self.size = size
+    }
+    /// A kicker over generated material — a section's own heading, a problem's
+    /// tag, a formatted date. Never copy: nothing here goes in the catalogue.
+    public init(verbatim: String, tint: Color = Palette.inkFaint, size: CGFloat = 10) {
+        text = Text(verbatim: verbatim); self.tint = tint; self.size = size
     }
     public var body: some View {
-        Text(text.uppercased())
+        text
             .font(.atlas(.mono, size))
             .tracking(size * 0.16)
             .foregroundStyle(tint)
+            .textCase(.uppercase)
     }
 }
 
@@ -60,13 +66,13 @@ public struct Card<Content: View>: View {
 
 /// `.cta` — the one primary action on a screen. Tint carries the phase colour.
 public struct CTAButton: View {
-    private let title: String
+    private let title: LocalizedStringKey
     private let tint: Color
     /// The taller 58pt variant the design uses when the CTA is the whole screen
     /// (auth), rather than one row of a dock.
     private let hero: Bool
     private let action: () -> Void
-    public init(_ title: String, tint: Color = Palette.accent, hero: Bool = false, action: @escaping () -> Void) {
+    public init(_ title: LocalizedStringKey, tint: Color = Palette.accent, hero: Bool = false, action: @escaping () -> Void) {
         self.title = title; self.tint = tint; self.hero = hero; self.action = action
     }
     public var body: some View {
@@ -83,9 +89,9 @@ public struct CTAButton: View {
 
 /// `.ghost` — the secondary, always-optional action.
 public struct GhostButton: View {
-    private let title: String
+    private let title: LocalizedStringKey
     private let action: () -> Void
-    public init(_ title: String, action: @escaping () -> Void) {
+    public init(_ title: LocalizedStringKey, action: @escaping () -> Void) {
         self.title = title; self.action = action
     }
     public var body: some View {
@@ -115,17 +121,22 @@ public struct Dock<Content: View>: View {
 
 /// `.chip` — a pill carrying a dot and a label (state, streak, deadline).
 public struct Chip: View {
-    private let text: String
+    private let text: Text
     private let dot: Color?
     private let tint: Color
     private let background: Color
-    public init(_ text: String, dot: Color? = nil, tint: Color = Palette.inkSoft, background: Color = Palette.chipBg) {
-        self.text = text; self.dot = dot; self.tint = tint; self.background = background
+    public init(_ key: LocalizedStringKey, dot: Color? = nil, tint: Color = Palette.inkSoft, background: Color = Palette.chipBg) {
+        text = Text(key); self.dot = dot; self.tint = tint; self.background = background
+    }
+    /// A chip over something the learner or the map wrote — a count, a
+    /// prerequisite's name, an interest. Never copy.
+    public init(verbatim: String, dot: Color? = nil, tint: Color = Palette.inkSoft, background: Color = Palette.chipBg) {
+        text = Text(verbatim: verbatim); self.dot = dot; self.tint = tint; self.background = background
     }
     public var body: some View {
         HStack(spacing: 6) {
             if let dot { Circle().fill(dot).frame(width: 6, height: 6) }
-            Text(text).font(.atlas(.sans, 12.5))
+            text.font(.atlas(.sans, 12.5))
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 11)
@@ -208,7 +219,7 @@ public struct AnswerEditor: View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
-                    Text(placeholder)
+                    Text(verbatim: placeholder)
                         .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkGhost)
                         .padding(.horizontal, 5)
@@ -264,15 +275,18 @@ public struct MicButton: View {
 
 /// A generation in flight, or the honest sentence about why it isn't coming.
 struct Waiting: View {
-    private let text: String
+    private let text: Text
     /// A failure is not a wait: the spinner comes off when the sentence on
     /// screen is the reason nothing is coming.
     private let spinning: Bool
-    init(_ text: String, spinning: Bool = true) { self.text = text; self.spinning = spinning }
+    init(_ key: LocalizedStringKey, spinning: Bool = true) { text = Text(key); self.spinning = spinning }
+    /// The sentence a view model already resolved — an `ErrorCopy` line, or a
+    /// wait it picked between several. Localised there, not here.
+    init(verbatim: String, spinning: Bool = true) { text = Text(verbatim: verbatim); self.spinning = spinning }
     var body: some View {
         VStack(spacing: 10) {
             if spinning { ProgressView().tint(Palette.inkFaint) }
-            Text(text).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted).multilineTextAlignment(.center)
+            text.font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, Metrics.gutter)
@@ -322,8 +336,8 @@ public struct Avatar: View {
 /// A screen that has a slot in the shell but no implementation yet.
 /// Delete each one as ios/PLAN.md's screen table is worked through.
 struct Pending: View {
-    let name: String
-    init(_ name: String) { self.name = name }
+    let name: LocalizedStringKey
+    init(_ name: LocalizedStringKey) { self.name = name }
     var body: some View {
         VStack(spacing: 8) {
             Kicker("Em construção")

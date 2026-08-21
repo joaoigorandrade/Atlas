@@ -197,7 +197,7 @@ public extension Phase {
     }
 
     /// The header kicker the design writes above the node's name.
-    var kicker: String {
+    var kicker: LocalizedStringKey {
         switch self {
         case .consume: "Consume · leitura"
         case .socratic: "Socratic · sessão"

@@ -36,6 +36,12 @@ public struct RootView: View {
         .onChange(of: store.signedIn) { _, signedIn in
             if !signedIn { tabs.resetAllTabs() }
         }
+        // The map emptying is what puts the shell back on onboarding, and both
+        // ways in there — signing out and starting a second map — need the
+        // machine rebuilt rather than the finished one re-shown.
+        .onChange(of: store.graph.nodes.isEmpty) { _, empty in
+            if empty { launch.restartOnboarding(store) }
+        }
     }
 
     /// Onboarding, in the order the design draws it: the form, the assembly

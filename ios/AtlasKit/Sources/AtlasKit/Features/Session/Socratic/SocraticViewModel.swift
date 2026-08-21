@@ -50,7 +50,7 @@ final class SocraticViewModel {
     var done: Bool { step >= total || (!writing && step >= steps.count) }
 
     var canSend: Bool { !judging && !answer.trimmed.isEmpty }
-    var waitingCopy: String { message.isEmpty ? "Escrevendo a primeira pergunta…" : message }
+    var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo a primeira pergunta…") : message }
 
     func load() async {
         do {
@@ -59,7 +59,7 @@ final class SocraticViewModel {
                 if log.isEmpty || awaiting { openStep() }
             }
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "abrir esta sessão")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "abrir esta sessão"))
         }
         writing = false
     }
@@ -94,7 +94,7 @@ final class SocraticViewModel {
             step += 1
             openStep()
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "avaliar sua resposta")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "avaliar sua resposta"))
         }
     }
 

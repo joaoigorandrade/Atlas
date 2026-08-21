@@ -44,7 +44,7 @@ final class ConsumeViewModel {
     /// The prose as it is spoken — the section on screen, nothing around it.
     var spoken: String { chunk?.body.joined(separator: " ") ?? "" }
 
-    var waitingCopy: String { message.isEmpty ? "Escrevendo sua leitura…" : message }
+    var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo sua leitura…") : message }
 
     func load() async {
         do {
@@ -53,7 +53,7 @@ final class ConsumeViewModel {
                 rebuildRail()
             }
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "escrever sua leitura")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever sua leitura"))
         }
         writing = false
     }

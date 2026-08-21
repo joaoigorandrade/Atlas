@@ -30,7 +30,7 @@ public struct ReviewView: View {
             TopBar {
                 VStack(alignment: .leading, spacing: 2) {
                     Kicker("Revisão · retenção", tint: Palette.accent, size: 9.5)
-                    Text(store.subject.isEmpty ? "Atlas" : store.subject)
+                    Text(verbatim: store.subject.isEmpty ? "Atlas" : store.subject)
                         .font(.atlas(.serif, 16)).foregroundStyle(Palette.ink).lineLimit(1)
                 }
             } trailing: {
@@ -47,7 +47,7 @@ public struct ReviewView: View {
                 deck(model, card)
                 dock(model, card)
             } else {
-                Waiting(model.waitingCopy, spinning: model.drafting)
+                Waiting(verbatim: model.waitingCopy, spinning: model.drafting)
             }
         }
     }
@@ -69,7 +69,7 @@ public struct ReviewView: View {
                     Chip(card.card.type.label, tint: card.card.type.tint,
                          background: card.card.type.tint.opacity(0.08))
                     Spacer()
-                    Text(card.card.source).font(.atlas(.mono, 11)).foregroundStyle(Palette.inkGhost)
+                    Text(verbatim: card.card.source).font(.atlas(.mono, 11)).foregroundStyle(Palette.inkGhost)
                         .lineLimit(1)
                 }
                 .padding(.top, 18)
@@ -94,7 +94,7 @@ public struct ReviewView: View {
                     .offset(y: back.0)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text(model.front(card.card))
+                Text(verbatim: model.front(card.card))
                     .font(.atlas(.serif, 22))
                     .foregroundStyle(Palette.ink)
                     .lineSpacing(6)
@@ -118,7 +118,7 @@ public struct ReviewView: View {
                     .padding(.top, 10)
                 case .reveal:
                     Divider().overlay(Palette.hairline).padding(.vertical, 18)
-                    Text(card.card.back)
+                    Text(verbatim: card.card.back)
                         .font(.atlas(.serif, 17))
                         .foregroundStyle(Palette.inkSoft)
                         .lineSpacing(5)
@@ -142,10 +142,10 @@ public struct ReviewView: View {
     private func failed(_ model: ReviewViewModel, _ card: ScheduledCard) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Kicker("De volta ao ciclo", tint: NodeState.gap.color, size: 10)
-            Text(card.card.back)
+            Text(verbatim: card.card.back)
                 .font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).lineSpacing(5)
             if let reExplain = card.card.reExplain {
-                Text(reExplain)
+                Text(verbatim: reExplain)
                     .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkSoft).lineSpacing(3)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)

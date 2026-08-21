@@ -27,13 +27,13 @@ struct NodeDetailView: View {
                         .shadow(color: model.state.color, radius: 3.5)
                     Kicker(model.headline, tint: model.state.color, size: 11)
                 }
-                Text(node.label)
+                Text(verbatim: node.label)
                     .font(.atlas(.serif, 26))
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 6)
 
                 if let summary = node.summary {
-                    Text(summary)
+                    Text(verbatim: summary)
                         .font(.atlas(.sans, 13.5))
                         .foregroundStyle(Palette.inkSoft)
                         .padding(.horizontal, 15).padding(.vertical, 13)
@@ -88,13 +88,13 @@ struct NodeDetailView: View {
         let isCurrent = index == model.current
         let tint = done ? NodeState.mastered.color : (isCurrent ? model.state.color : Palette.inkGhost)
         return HStack(spacing: 12) {
-            Text(done ? "✓" : isCurrent ? "→" : "·")
+            Text(verbatim: done ? "✓" : isCurrent ? "→" : "·")
                 .font(.atlas(.sans, 12))
                 .foregroundStyle(tint)
                 .frame(width: 24, height: 24)
                 .background(isCurrent ? model.state.color.opacity(0.14) : .clear, in: .circle)
                 .overlay { Circle().strokeBorder(done || isCurrent ? tint : Palette.hairlineStrong, lineWidth: 1) }
-            Text(phase.rawValue)
+            Text(verbatim: phase.rawValue)
                 .font(.atlas(.serif, 15, weight: isCurrent ? .semibold : .regular))
                 .foregroundStyle(done || isCurrent ? Palette.ink : Palette.inkGhost)
             Spacer(minLength: 0)
@@ -115,7 +115,7 @@ struct FlowChips: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 7, alignment: .leading)],
                   alignment: .leading, spacing: 7) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                Chip(item.0, dot: item.1.color)
+                Chip(verbatim: item.0, dot: item.1.color)
             }
         }
     }

@@ -1,11 +1,11 @@
-# Everything ios/AGENTS.md tells you to run. `build` and `test` are the host
-# gates and need no Xcode; `run` regenerates the project first because it isn't
+# Everything ios/AGENTS.md tells you to run. `build`, `test` and `strings` are
+# the gates before a push; `run` regenerates the project first because it isn't
 # committed.
 
 DEVICE ?= booted
 APP := com.joaoigor.atlas
 
-.PHONY: generate build test run open clean
+.PHONY: generate build test strings strings-update run open clean
 
 ## generate: write Atlas.xcworkspace from Project.swift
 generate:
@@ -24,6 +24,14 @@ build:
 ## test: run AtlasKit's tests on the booted simulator — the other gate
 test:
 	cd AtlasKit && xcodebuild -scheme AtlasKit -destination 'platform=iOS Simulator,id=$(BOOTED)' test
+
+## strings: every line of copy must exist in both languages — the i18n gate
+strings:
+	node scripts/strings.mjs
+
+## strings-update: fold new keys into the catalogue, then write their English
+strings-update:
+	node scripts/strings.mjs --update
 
 ## run: build the app and launch it on the simulator (DEVICE=<udid> to pick one)
 run: generate

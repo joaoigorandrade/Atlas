@@ -43,11 +43,11 @@ public final class ReviewViewModel {
     public var rail: [Color?] { deck.map { results[$0.id]?.tint } }
 
     public var waitingCopy: String {
-        if drafting { return "Escrevendo os cartões de hoje…" }
+        if drafting { return String(localized: "Escrevendo os cartões de hoje…") }
         if !message.isEmpty { return message }
         return finished
-            ? "Fila limpa por hoje. Volte amanhã — é quando essas memórias começam a desvanecer."
-            : "Nada para revisar ainda. Aprenda um conceito e ele volta aqui."
+            ? String(localized: "Fila limpa por hoje. Volte amanhã — é quando essas memórias começam a desvanecer.")
+            : String(localized: "Nada para revisar ainda. Aprenda um conceito e ele volta aqui.")
     }
 
     /// The concept a missed card belongs to — what "reensinar agora" opens.
@@ -77,7 +77,7 @@ public final class ReviewViewModel {
             store.cards.append(contentsOf: drafted.map { ScheduledCard($0) })
             reset(to: store.queue)
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "montar sua revisão")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "montar sua revisão"))
         }
     }
 
@@ -135,7 +135,7 @@ public final class ReviewViewModel {
 
     /// The failure read-back: the tap held against the miss. A "Sólido" that
     /// then missed is the overconfidence the whole surface exists to catch.
-    public var calibrationLine: String {
+    public var calibrationLine: LocalizedStringKey {
         switch confidence {
         case .solid:
             "Você tocou “Sólido” antes de virar — e errou. Esse excesso de confiança é exatamente o sinal que a Revisão existe para pegar."

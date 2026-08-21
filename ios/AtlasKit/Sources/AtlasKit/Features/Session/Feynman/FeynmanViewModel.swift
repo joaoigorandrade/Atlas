@@ -33,7 +33,7 @@ final class FeynmanViewModel {
     var isFirst: Bool { index == 0 }
     /// Nothing to judge is nothing to send — a blank teach-back is not an answer.
     var canSubmit: Bool { !judging && taught.values.contains { !$0.trimmed.isEmpty } }
-    var waitingCopy: String { message.isEmpty ? "Escrevendo os tópicos…" : message }
+    var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo os tópicos…") : message }
 
     func subPoint(at index: Int) -> String { beats[safe: index]?.subPoint ?? "" }
 
@@ -50,7 +50,7 @@ final class FeynmanViewModel {
                 rebuildRail()
             }
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "escrever os tópicos")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever os tópicos"))
         }
         writing = false
     }
@@ -89,7 +89,7 @@ final class FeynmanViewModel {
             session.writeFeynmanGaps(verdict, beats: beats)
             judgement = verdict
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "avaliar sua explicação")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "avaliar sua explicação"))
         }
     }
 

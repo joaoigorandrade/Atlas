@@ -15,7 +15,7 @@ final class ProfileViewModel {
     var masteredShare: String { store.mastered.formatted(.percent.precision(.fractionLength(0))) }
     var masteredCount: String { "\(store.masteredCount)" }
     var cardCount: String { "\(store.cards.count)" }
-    var goal: String { store.goal.label }
+    var goal: LocalizedStringKey { store.goal.label }
 
     /// The interests as the learner wrote them, split once rather than in `body`.
     var interests: [String] {
@@ -25,7 +25,7 @@ final class ProfileViewModel {
             .filter { !$0.isEmpty }
     }
 
-    var queueLine: String {
+    var queueLine: LocalizedStringKey {
         let due = store.queue.count
         return due == 0
             ? "Fila limpa hoje"

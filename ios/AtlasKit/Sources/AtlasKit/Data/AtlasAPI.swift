@@ -314,8 +314,12 @@ public actor AtlasAPI {
     /// rather than wrapped in a lock nothing contends for.
     public nonisolated(unsafe) static var language: String = deviceLanguage
 
+    /// The bundle's own language, not the device's raw locale: the interface
+    /// is localised by the String Catalogue, and iOS lets a learner set a
+    /// language for *this app* alone. Reading what the app is actually being
+    /// drawn in keeps the prose the model writes in the language on screen.
     public nonisolated static var deviceLanguage: String {
-        Locale.current.language.languageCode?.identifier == "pt" ? "pt-BR" : "en"
+        Bundle.main.preferredLocalizations.first?.hasPrefix("pt") == true ? "pt-BR" : "en"
     }
 
     /// The two languages screen 13 offers — the same pair the web app ships.

@@ -49,7 +49,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    field("Idioma", "conteúdo gerado") {
+                    field("Idioma", "conteúdo gerado, não a interface") {
                         HStack(spacing: 9) {
                             ForEach(AtlasAPI.languages, id: \.self) { code in
                                 choice(code == "pt-BR" ? "Português" : "English", on: store.language == code) {
@@ -100,7 +100,7 @@ struct SettingsView: View {
                     .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.dangerInk.opacity(0.3), lineWidth: 1) }
             }
             if !model.message.isEmpty {
-                Text(model.message).font(.atlas(.sans, 13)).foregroundStyle(Palette.dangerInk)
+                Text(verbatim: model.message).font(.atlas(.sans, 13)).foregroundStyle(Palette.dangerInk)
             }
         }
         .padding(.top, 20)
@@ -109,18 +109,18 @@ struct SettingsView: View {
 
     // MARK: - The pieces the design repeats
 
-    private func field<Content: View>(_ title: String, _ note: String,
+    private func field<Content: View>(_ title: LocalizedStringKey, _ note: LocalizedStringKey,
                                       @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 5) {
                 Text(title).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
-                Text("— \(note)").font(.atlas(.sans, 14)).foregroundStyle(Palette.inkGhost)
+                (Text(verbatim: "— ") + Text(note)).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkGhost)
             }
             content()
         }
     }
 
-    private func choice(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
+    private func choice(_ title: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.atlas(.sans, 14, weight: on ? .semibold : .regular))
@@ -134,7 +134,7 @@ struct SettingsView: View {
         }
     }
 
-    private func toggle(_ title: String, _ note: String, _ value: Binding<Bool>) -> some View {
+    private func toggle(_ title: LocalizedStringKey, _ note: LocalizedStringKey, _ value: Binding<Bool>) -> some View {
         Toggle(isOn: value) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.atlas(.sans, 14.5)).foregroundStyle(Palette.ink)
@@ -146,7 +146,7 @@ struct SettingsView: View {
         .frame(minHeight: 60)
     }
 
-    private func ghostLabel(_ title: String) -> some View {
+    private func ghostLabel(_ title: LocalizedStringKey) -> some View {
         Text(title)
             .font(.atlas(.sans, 13.5))
             .foregroundStyle(Palette.inkSoft)

@@ -7,7 +7,7 @@ import SwiftUI
 // screen 18, and feeds the same `recordCalib` the day it lands.
 
 /// One reading: stated confidence against first-try performance, both 0–100.
-public struct CalibSample: Sendable, Identifiable {
+public struct CalibSample: Codable, Sendable, Identifiable {
     public let id: String
     public var felt: Int
     public var real: Int
@@ -17,7 +17,7 @@ public struct CalibSample: Sendable, Identifiable {
 public enum CalibVerdict: Sendable {
     case over, under, ok
 
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .over: "Excesso de confiança"
         case .under: "Falta de confiança"

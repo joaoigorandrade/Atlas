@@ -22,7 +22,7 @@ final class ConnectViewModel {
     }
 
     var node: ConceptNode { session.node }
-    var waitingCopy: String { message.isEmpty ? "Procurando o que você já sabe…" : message }
+    var waitingCopy: String { message.isEmpty ? String(localized: "Procurando o que você já sabe…") : message }
 
     /// The candidate the prompt is asking about: the one being edited, else the
     /// first still unlinked.
@@ -72,7 +72,7 @@ final class ConnectViewModel {
         do {
             content = try await api.connect(context)
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "montar sua teia")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "montar sua teia"))
         }
     }
 }

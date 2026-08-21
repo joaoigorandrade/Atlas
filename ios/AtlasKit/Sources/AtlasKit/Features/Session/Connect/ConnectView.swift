@@ -36,7 +36,7 @@ struct ConnectView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Kicker("Teia de conceitos")
                         ConceptWeb(content: content, linked: model.linked).padding(.top, 10)
-                        Text(content.detectNote)
+                        Text(verbatim: content.detectNote)
                             .font(.atlas(.sans, 13))
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, 10)
@@ -51,7 +51,7 @@ struct ConnectView: View {
                     CTAButton("Seguir para o Crisol →", tint: Palette.crucibleInk) { model.advance() }
                 }
             } else {
-                Waiting(model.waitingCopy, spinning: model.message.isEmpty)
+                Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
     }
@@ -67,7 +67,8 @@ struct ConnectView: View {
                     .font(.atlas(.serif, 17))
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 9)
-                AnswerEditor(text: model.draft(candidate), placeholder: "Escreva o vínculo com suas palavras…",
+                AnswerEditor(text: model.draft(candidate),
+                             placeholder: String(localized: "Escreva o vínculo com suas palavras…"),
                              minHeight: 88, tint: Palette.connectInk)
                     .padding(.top, 14)
                 CTAButton("Confirmar vínculo", tint: Palette.connectInk) { model.confirm(candidate) }
@@ -93,7 +94,7 @@ struct ConnectView: View {
                         .foregroundStyle(Palette.inkMuted)
                 }
                 ForEach(confirmed) { candidate in
-                    Text(model.text(for: candidate))
+                    Text(verbatim: model.text(for: candidate))
                         .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.ink)
                         .padding(.horizontal, 15).padding(.vertical, 13)
@@ -136,14 +137,14 @@ private struct ConceptWeb: View {
                 context.fill(Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius,
                                                     width: radius * 2, height: radius * 2)),
                              with: .color(on ? Palette.connectInk : Palette.card))
-                context.draw(Text(candidate.label).font(.atlas(.serif, 11))
+                context.draw(Text(verbatim: candidate.label).font(.atlas(.serif, 11))
                     .foregroundStyle(on ? Palette.accentInk : Palette.inkMuted), at: point)
             }
             let radius: CGFloat = 30 * scale + 10
             context.fill(Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius,
                                                 width: radius * 2, height: radius * 2)),
                          with: .color(Palette.connectBg))
-            context.draw(Text(content.centerLabel).font(.atlas(.serif, 12)).foregroundStyle(Palette.ink), at: centre)
+            context.draw(Text(verbatim: content.centerLabel).font(.atlas(.serif, 12)).foregroundStyle(Palette.ink), at: centre)
         }
         .frame(height: 190)
         .padding(8)

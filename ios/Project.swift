@@ -7,8 +7,12 @@ import ProjectDescription
 // an environment lift.
 // ponytail: one constant, no remote config and no per-build lookup. A second
 // environment (staging) is what would earn one back.
+// pt-BR is the source language: the copy in the code *is* the Portuguese, and
+// `App/Resources/Localizable.xcstrings` carries the English beside it. Both
+// regions are declared so the catalogue compiles an `en.lproj` as well.
 let project = Project(
     name: "Atlas",
+    options: .options(developmentRegion: "pt-BR"),
     packages: [.local(path: "AtlasKit")],
     targets: [
         .target(
@@ -27,8 +31,14 @@ let project = Project(
                 // Screen 4 — the confirmation link comes back into the app.
                 "CFBundleURLTypes": [["CFBundleURLSchemes": ["atlas"]]],
                 "ATLAS_BASE_URL": "https://atlas-tan-two.vercel.app",
+                // The serif in `Face.serif`. One variable file: CoreText
+                // exposes its named instances (Medium, SemiBold, …), so
+                // `Font.custom("Newsreader", …).weight(…)` picks a real cut
+                // instead of a synthetic one.
+                "UIAppFonts": ["Newsreader.ttf"],
             ]),
             sources: ["App/Sources/**"],
+            resources: ["App/Resources/**"],
             dependencies: [.package(product: "AtlasKit")]
         ),
     ]

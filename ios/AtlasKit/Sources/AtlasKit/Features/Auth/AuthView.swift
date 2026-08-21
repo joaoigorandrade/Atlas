@@ -34,7 +34,7 @@ public struct AuthView: View {
                 if model.isConfirming { confirmation(model) } else { form(model) }
 
                 if model.showsMessage {
-                    Text(model.message)
+                    Text(verbatim: model.message)
                         .font(.atlas(.sans, 13.5))
                         .foregroundStyle(Palette.amberInk)
                         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -109,7 +109,7 @@ public struct AuthView: View {
 
 /// The design's field: a shadowed card holding one serif 20pt line, 52pt tall.
 private struct AuthField<Accessory: View>: View {
-    let placeholder: String
+    let placeholder: LocalizedStringKey
     @Binding var text: String
     var secure: Bool = false
     @ViewBuilder var accessory: () -> Accessory
@@ -139,7 +139,7 @@ private struct AuthField<Accessory: View>: View {
 }
 
 extension AuthField where Accessory == EmptyView {
-    init(placeholder: String, text: Binding<String>, secure: Bool = false) {
+    init(placeholder: LocalizedStringKey, text: Binding<String>, secure: Bool = false) {
         self.init(placeholder: placeholder, text: text, secure: secure) { EmptyView() }
     }
 }

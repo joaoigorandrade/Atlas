@@ -7,10 +7,10 @@ import SwiftUI
 
 /// The three card kinds — review isn't only fill-in-the-blank. Colours echo the
 /// phase that drafts each one (recall = learning, why = Connect, apply = Crisol).
-public enum ReviewCardType: String, Decodable, Sendable {
+public enum ReviewCardType: String, Codable, Sendable {
     case recall, why, apply
 
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .recall: "Recordar"
         case .why: "Explicar por quê"
@@ -33,7 +33,7 @@ public enum ReviewGrade: String, CaseIterable, Sendable, Identifiable {
     case again, hard, good, easy
     public var id: String { rawValue }
 
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .again: "De novo"
         case .hard: "Difícil"
@@ -68,7 +68,7 @@ public enum ReviewConfidence: Int, CaseIterable, Sendable, Identifiable {
     case blank, shaky, solid
     public var id: Int { rawValue }
 
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .blank: "Em branco"
         case .shaky: "Instável"
@@ -88,7 +88,7 @@ public enum ReviewConfidence: Int, CaseIterable, Sendable, Identifiable {
 
 /// One card the `retain` kind drafted: atomic, one fact. Cloze cards carry the
 /// two halves around the blank, the others a plain `front`.
-public struct ReviewCard: Decodable, Sendable, Identifiable {
+public struct ReviewCard: Codable, Sendable, Identifiable {
     public let id: String
     public let type: ReviewCardType
     /// Which pass auto-generated it — the provenance line ("de Connect").
@@ -115,7 +115,7 @@ public struct RetainContent: Decodable, Sendable {
 /// ponytail: SM-2, not FSRS — same four grades, same monotonic intervals, and
 /// the honest label on each button. Port real FSRS when the two clients have to
 /// agree on a due date card for card.
-public struct ScheduledCard: Sendable, Identifiable {
+public struct ScheduledCard: Codable, Sendable, Identifiable {
     public let card: ReviewCard
     public var due: Date
     /// Days until the next review; 0 for a card that is new or relearning.
@@ -156,12 +156,11 @@ public struct ScheduledCard: Sendable, Identifiable {
     }
 
     /// The interval each grade would schedule, for the button that offers it.
-    func label(for grade: ReviewGrade, now: Date = .now) -> String {
+    func label(for grade: ReviewGrade, now: Date = .now) -> LocalizedStringKey {
         let days = graded(grade, now: now).due.timeIntervalSince(now) / 86_400
         if days < 1 { return "<1 d" }
         if days < 30 { return "\(Int(days.rounded())) d" }
-        let months = Int((days / 30).rounded())
-        return months == 1 ? "1 mês" : "\(months) meses"
+        return "\(Int((days / 30).rounded())) meses"
     }
 }
 

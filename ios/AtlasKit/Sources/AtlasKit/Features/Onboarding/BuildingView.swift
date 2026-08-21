@@ -23,7 +23,7 @@ struct BuildingView: View {
                     .progressViewStyle(.linear)
                     .tint(Palette.accent)
                     .frame(maxWidth: 260)
-                Text(count)
+                Text(verbatim: count)
                     .font(.atlas(.mono, 11))
                     .tracking(0.9)
                     .foregroundStyle(Palette.inkGhost)
@@ -37,9 +37,13 @@ struct BuildingView: View {
         .background(Palette.paper)
     }
 
+    /// Plural agreement belongs to the catalogue, not to an inline ternary —
+    /// the two languages don't pluralise on the same rule.
     private var count: String {
         let placed = onboarding.graph.nodes.count
-        return placed == 0 ? "lendo o tema…" : "\(placed) conceito\(placed == 1 ? "" : "s") posicionado\(placed == 1 ? "" : "s")"
+        return placed == 0
+            ? String(localized: "lendo o tema…")
+            : String(localized: "\(placed) conceitos posicionados")
     }
 }
 

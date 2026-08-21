@@ -6,7 +6,7 @@ import SwiftUI
 public enum AtlasTab: String, TabRoute, CaseIterable {
     case home, map, review, profile
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .home: "Início"
         case .map: "Mapa"

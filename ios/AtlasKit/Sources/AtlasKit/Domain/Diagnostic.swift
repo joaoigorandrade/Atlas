@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // The onboarding form and the placement ladder — a mirror of the diagnostic
 // half of `lib/curriculum/calibration.ts`. Logic only: what a graded answer
@@ -8,7 +9,7 @@ public enum GoalKind: String, Codable, Sendable, CaseIterable {
     case exam, project, mastery, pareto
 
     /// The design draws these as a 2×2 grid, so the labels are the short ones.
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .exam: "Passar na prova"
         case .pareto: "Top 20%"
@@ -37,7 +38,7 @@ public let dailyTargets = [10, 15, 20, 30]
 public enum DiagnosticDifficulty: String, Codable, Sendable, CaseIterable {
     case easy, medium, hard
 
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .easy: "Fácil"
         case .medium: "Média"

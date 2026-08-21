@@ -18,12 +18,15 @@ public extension String {
 /// Something true about the failure, in the learner's language. The upstream
 /// `message` is for logs and never reaches the screen (ios/AGENTS.md).
 public enum ErrorCopy {
+    /// `what` is copy too: the caller hands in an already-localised fragment,
+    /// so each sentence is one catalogue entry with one `%@` in it rather than
+    /// two languages spliced together.
     public static func sentence(for error: Error, doing what: String) -> String {
         switch (error as? AtlasError)?.code {
-        case "auth": "Sua sessão expirou — entre de novo para \(what)."
-        case "rate_limit": "Você pediu bastante coisa em pouco tempo. Espere um instante e tente de novo."
-        case "request": "Não conseguimos \(what) com esse pedido. Tente descrever o tema de outro jeito."
-        default: "Não conseguimos \(what) agora. Tente de novo em instantes."
+        case "auth": String(localized: "Sua sessão expirou — entre de novo para \(what).")
+        case "rate_limit": String(localized: "Você pediu bastante coisa em pouco tempo. Espere um instante e tente de novo.")
+        case "request": String(localized: "Não conseguimos \(what) com esse pedido. Tente descrever o tema de outro jeito.")
+        default: String(localized: "Não conseguimos \(what) agora. Tente de novo em instantes.")
         }
     }
 }

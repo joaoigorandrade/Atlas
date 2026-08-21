@@ -55,7 +55,7 @@ final class SettingsViewModel {
             store.signOut()
             deleted = true
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: "apagar sua conta")
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "apagar sua conta"))
         }
     }
 }
