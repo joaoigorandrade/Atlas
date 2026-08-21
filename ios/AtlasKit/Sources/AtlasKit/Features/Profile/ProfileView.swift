@@ -33,6 +33,7 @@ struct ProfileView: View {
                     }
 
                     stats(model).padding(.top, 28)
+                        .animation(Motion.reward, value: model.masteredShare)
                     profile(model).padding(.top, 28)
                     rows(model).padding(.top, 14)
                 }
@@ -58,6 +59,7 @@ struct ProfileView: View {
     private func stat(_ value: String, _ label: LocalizedStringKey, tint: Color = Palette.ink) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(verbatim: value).font(.atlas(.serif, 26)).foregroundStyle(tint)
+                .contentTransition(.numericText())
             Text(label).font(.atlas(.sans, 12.5)).foregroundStyle(Palette.inkFaint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -112,7 +114,7 @@ struct ProfileView: View {
                 row("Sair", nil, tint: NodeState.gap.color)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
         .background(Palette.card, in: .rect(cornerRadius: Metrics.cardRadius))
         .overlay { RoundedRectangle(cornerRadius: Metrics.cardRadius).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }

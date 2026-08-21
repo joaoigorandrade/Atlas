@@ -36,11 +36,14 @@ struct ConnectView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Kicker("Teia de conceitos")
                         ConceptWeb(content: content, linked: model.linked).padding(.top, 10)
+                            .animation(Motion.standard, value: model.linked)
                         Text(verbatim: content.detectNote)
                             .font(.atlas(.sans, 13))
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, 10)
                         prompt(content, model).padding(.top, 20)
+                            .id(model.candidate?.id)
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
                         cards(model).padding(.top, 20)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -54,6 +57,10 @@ struct ConnectView: View {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
+        // A confirmed link lights its edge on the web and drops a card below —
+        // the two have to happen together or the cause is lost.
+        .animation(Motion.standard, value: model.linked)
+        .sensoryFeedback(.success, trigger: model.linked.count)
     }
 
     // MARK: - The linking prompt
@@ -101,6 +108,7 @@ struct ConnectView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Palette.card, in: .rect(cornerRadius: 12))
                         .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
             .padding(.top, 18)

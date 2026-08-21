@@ -55,13 +55,12 @@ struct MapBackdrop: View {
     var opacity: Double = 0.55
 
     var body: some View {
+        // Derived once per redraw, not once per drawn frame: the map is
+        // animating in behind screens 6 and 7 while it streams.
+        let shown = displayStates(states, graph)
         GeometryReader { geo in
             Canvas { context, size in
-                drawGraph(
-                    &context, graph, displayStates(states, graph),
-                    .fitting(graph, in: size, inset: 60),
-                    labels: false
-                )
+                drawGraph(&context, graph, shown, .fitting(graph, in: size, inset: 60), labels: false)
             }
             .opacity(opacity)
             .animation(Motion.enter, value: graph.nodes.count)

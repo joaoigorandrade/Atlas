@@ -57,6 +57,10 @@ struct SocraticView: View {
             .frame(minHeight: 36)
             .background(Palette.chipBg, in: .capsule)
         }
+        .pressable()
+        // The dial is the learner asking for more or less: the bars grow into
+        // the new level rather than snapping to it.
+        .animation(Motion.snap, value: model.help)
         .accessibilityLabel("Nível de apoio")
     }
 
@@ -65,12 +69,18 @@ struct SocraticView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Kicker("Você chegou aqui pelo Consume", size: 10.5)
-                    ForEach(model.log) { turn in bubble(turn).id(turn.id) }
+                    ForEach(model.log) { turn in
+                        bubble(turn).id(turn.id)
+                            // A turn arriving is the whole surface: it comes in
+                            // from the side it was written on.
+                            .transition(.move(edge: turn.learner ? .trailing : .leading)
+                                .combined(with: .opacity))
+                    }
                     if model.awaiting && !model.done {
-                        working("Escrevendo a próxima pergunta…")
+                        working("Escrevendo a próxima pergunta…").transition(.opacity)
                     }
                     if model.judging {
-                        working("Atlas está lendo sua resposta…")
+                        working("Atlas está lendo sua resposta…").transition(.opacity)
                     }
                     if !model.message.isEmpty {
                         Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
@@ -80,9 +90,13 @@ struct SocraticView: View {
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.vertical, 20)
             }
+            .animation(Motion.standard, value: model.log.count)
+            .animation(Motion.snap, value: model.judging)
+            .animation(Motion.snap, value: model.awaiting)
             .onChange(of: model.log.count) { _, _ in
                 withAnimation(Motion.standard) { scroll.scrollTo(model.log.last?.id, anchor: .bottom) }
             }
+            .sensoryFeedback(.impact(weight: .light), trigger: model.log.count)
         }
     }
 
@@ -147,8 +161,11 @@ struct SocraticView: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Palette.accentInk)
                         .frame(width: 52, height: 52)
+                        .background(Phase.socratic.tint, in: .rect(cornerRadius: 13))
                 }
-                .background(Phase.socratic.tint, in: .rect(cornerRadius: 13))
+                .pressable()
+                .opacity(model.canSend ? 1 : 0.5)
+                .animation(Motion.snap, value: model.canSend)
                 .accessibilityLabel("Enviar resposta")
                 .disabled(!model.canSend)
             }

@@ -18,8 +18,14 @@ struct WelcomeView: View {
                         .padding(.bottom, 28)
 
                     topicField
-                    if !onboarding.scopes.isEmpty { scopeOffers.padding(.top, 20) }
-                    if !onboarding.message.isEmpty { notice.padding(.top, 16) }
+                    if !onboarding.scopes.isEmpty {
+                        scopeOffers.padding(.top, 20)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                    if !onboarding.message.isEmpty {
+                        notice.padding(.top, 16)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
 
                     field("Por que você está aprendendo isso?", "orienta o que priorizamos") {
                         Grid(horizontalSpacing: 9, verticalSpacing: 9) {
@@ -74,6 +80,10 @@ struct WelcomeView: View {
             }
         }
         .background(Palette.paper)
+        // Both of these are answers to the topic field — a scope fork or an
+        // honest failure — and both appear directly under it.
+        .animation(Motion.standard, value: onboarding.scopes.count)
+        .animation(Motion.standard, value: onboarding.message)
     }
 
     // MARK: - Pieces
@@ -115,6 +125,7 @@ struct WelcomeView: View {
                         RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
                     }
                 }
+                .pressable()
             }
         }
     }
@@ -158,11 +169,13 @@ struct WelcomeView: View {
                 .minimumScaleFactor(0.85)
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity, minHeight: 48)
+                .background(on ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 11))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(on ? Palette.accent : Palette.hairlineStrong, lineWidth: 1)
+                }
         }
-        .background(on ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 11))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11)
-                .strokeBorder(on ? Palette.accent : Palette.hairlineStrong, lineWidth: 1)
-        }
+        .pressable()
+        .animation(Motion.snap, value: on)
     }
 }

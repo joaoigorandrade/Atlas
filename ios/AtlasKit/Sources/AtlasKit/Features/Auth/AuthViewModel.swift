@@ -7,8 +7,8 @@ import SwiftUI
 @Observable
 @MainActor
 final class AuthViewModel {
-    enum Mode { case signIn, signUp }
-    enum Status { case idle, working, sent }
+    enum Mode: Equatable { case signIn, signUp }
+    enum Status: Equatable { case idle, working, sent }
 
     private(set) var mode: Mode = .signIn
     private(set) var status: Status = .idle

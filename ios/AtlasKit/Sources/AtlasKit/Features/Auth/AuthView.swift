@@ -31,7 +31,11 @@ public struct AuthView: View {
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.top, 12)
 
-                if model.isConfirming { confirmation(model) } else { form(model) }
+                if model.isConfirming {
+                    confirmation(model).transition(.opacity.combined(with: .move(edge: .bottom)))
+                } else {
+                    form(model).transition(.opacity)
+                }
 
                 if model.showsMessage {
                     Text(verbatim: model.message)
@@ -45,11 +49,17 @@ public struct AuthView: View {
                                 .strokeBorder(Palette.amberInk.opacity(0.2), lineWidth: 1)
                         }
                         .padding(.top, 16)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             .padding(.horizontal, Metrics.gutter)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // Entrar ⇄ Criar conta is one screen changing its mind, and the failure
+        // sentence lands under the form rather than replacing it.
+        .animation(Motion.standard, value: model.mode)
+        .animation(Motion.standard, value: model.status)
+        .animation(Motion.standard, value: model.message)
     }
 
     // MARK: - The form (screens 1, 2, 4)
@@ -70,7 +80,9 @@ public struct AuthView: View {
                     Image(systemName: model.revealPassword ? "eye.slash" : "eye")
                         .foregroundStyle(Palette.inkGhost)
                         .frame(width: Metrics.tap, height: Metrics.tap)
+                        .contentTransition(.symbolEffect(.replace))
                 }
+                .pressable()
                 .accessibilityLabel(model.revealPassword ? "Ocultar senha" : "Mostrar senha")
             }
             .onSubmit { Task { await model.submit() } }
@@ -85,6 +97,7 @@ public struct AuthView: View {
                     .font(.atlas(.sans, 14))
                     .frame(maxWidth: .infinity, minHeight: Metrics.tap)
             }
+            .pressable()
         }
         .padding(.top, 32)
     }

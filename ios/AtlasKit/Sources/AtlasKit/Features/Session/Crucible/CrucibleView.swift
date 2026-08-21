@@ -29,12 +29,20 @@ struct CrucibleView: View {
 
             if let judgement = model.judgement {
                 diagnostic(judgement, model)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             } else if let problem = model.problem {
                 attempt(problem, model)
+                    .transition(.opacity)
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
+        // The verdict is the one moment in the spiral that changes the map's
+        // colour — it earns the slow curve, and the haptic that goes with it.
+        .animation(Motion.enter, value: model.judgement?.passed)
+        .animation(Motion.standard, value: model.rung)
+        .sensoryFeedback(model.judgement?.passed == true ? .success : .warning,
+                         trigger: model.judgement?.passed)
     }
 
     // MARK: - The attempt
@@ -72,6 +80,7 @@ struct CrucibleView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Palette.amberBg, in: .rect(cornerRadius: 10))
                             .padding(.top, 12)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
                     Kicker("Seu trabalho").padding(.top, 22)
@@ -101,6 +110,8 @@ struct CrucibleView: View {
                         .padding(.horizontal, 16)
                         .frame(minHeight: Metrics.cta)
                         .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                        .pressable()
+                        .animation(Motion.standard, value: model.hinted)
                 }
             }
         }

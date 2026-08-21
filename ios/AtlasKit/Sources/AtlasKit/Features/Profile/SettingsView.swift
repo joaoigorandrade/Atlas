@@ -89,8 +89,8 @@ struct SettingsView: View {
     private func data(_ model: SettingsViewModel) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Kicker("Seus dados").padding(.bottom, 3)
-            ShareLink(item: model.exportedMap()) { ghostLabel("Exportar mapa (JSON)") }
-            ShareLink(item: model.exportedCards()) { ghostLabel("Exportar cartões (CSV)") }
+            ShareLink(item: model.exportedMap) { ghostLabel("Exportar mapa (JSON)") }
+            ShareLink(item: model.exportedCards) { ghostLabel("Exportar cartões (CSV)") }
             Button { model.askToDelete() } label: {
                 Text("Apagar minha conta")
                     .font(.atlas(.sans, 13.5, weight: .semibold))
@@ -99,12 +99,15 @@ struct SettingsView: View {
                     .background(Palette.dangerBg, in: .rect(cornerRadius: 12))
                     .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.dangerInk.opacity(0.3), lineWidth: 1) }
             }
+            .pressable()
             if !model.message.isEmpty {
                 Text(verbatim: model.message).font(.atlas(.sans, 13)).foregroundStyle(Palette.dangerInk)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(.top, 20)
         .overlay(alignment: .top) { Divider().overlay(Palette.hairline) }
+        .animation(Motion.standard, value: model.message)
     }
 
     // MARK: - The pieces the design repeats
@@ -126,12 +129,14 @@ struct SettingsView: View {
                 .font(.atlas(.sans, 14, weight: on ? .semibold : .regular))
                 .foregroundStyle(on ? Palette.accent : Palette.inkSoft)
                 .frame(maxWidth: .infinity, minHeight: 48)
+                .background(on ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 11))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(on ? Palette.accent : Palette.hairlineStrong, lineWidth: 1)
+                }
         }
-        .background(on ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 11))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11)
-                .strokeBorder(on ? Palette.accent : Palette.hairlineStrong, lineWidth: 1)
-        }
+        .pressable()
+        .animation(Motion.snap, value: on)
     }
 
     private func toggle(_ title: LocalizedStringKey, _ note: LocalizedStringKey, _ value: Binding<Bool>) -> some View {

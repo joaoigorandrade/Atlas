@@ -149,17 +149,21 @@ public actor OpenRouter {
         var buffer = ""
         var index = 0
         var lastPartial = Date.distantPast
+        // One decoder for the whole stream. Every SSE line decodes an envelope
+        // and every closing brace decodes an object — building a `JSONDecoder`
+        // for each was the per-token cost of this loop.
+        let decoder = JSONDecoder()
         for try await line in bytes.lines {
             if Date().timeIntervalSince(started) > Self.requestSeconds {
                 throw AtlasError(code: "upstream", message: "OpenRouter exceeded the total timeout")
             }
-            guard let delta = Self.delta(from: line) else { continue }
+            guard let delta = Self.delta(from: line, decoder) else { continue }
             buffer += delta
 
             let (complete, rest) = Self.extractCompleteObjects(buffer)
             buffer = rest
             for object in complete {
-                guard let value = try? JSONDecoder().decode(JSONValue.self, from: Data(object.utf8)) else { continue }
+                guard let value = try? decoder.decode(JSONValue.self, from: Data(object.utf8)) else { continue }
                 emit(Streamed(value: value, index: index, partial: false))
                 index += 1
             }
@@ -180,7 +184,7 @@ public actor OpenRouter {
     }
 
     /// One SSE line to its content delta, or nil for keep-alives and `[DONE]`.
-    private static func delta(from line: String) -> String? {
+    private static func delta(from line: String, _ decoder: JSONDecoder) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("data:") else { return nil }
         let payload = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
@@ -193,7 +197,7 @@ public actor OpenRouter {
             let choices: [Choice]?
         }
         // A malformed frame (rare keep-alive/comment) is skipped, not fatal.
-        return try? JSONDecoder().decode(Event.self, from: Data(payload.utf8))
+        return try? decoder.decode(Event.self, from: Data(payload.utf8))
             .choices?.first?.delta?.content
     }
 
@@ -366,8 +370,12 @@ public actor OpenRouter {
         return body + String(closers.reversed())
     }
 
+    /// Two full reversals of the buffer per call was the old shape of this; the
+    /// suffix is all that ever changes.
     private static func trimTrailingSpace(_ text: String) -> String {
-        String(text.reversed().drop(while: { $0.isWhitespace }).reversed())
+        var body = text
+        while let last = body.last, last.isWhitespace { body.removeLast() }
+        return body
     }
 
     /// The last comma that isn't inside a string literal.

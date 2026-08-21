@@ -16,7 +16,14 @@ struct SessionView: View {
         Group {
             if let session {
                 phase(session)
-                    .animation(Motion.standard, value: session.phase)
+                    // The spiral only ever moves forward: each phase arrives
+                    // from the right over the one it replaces.
+                    .id(session.phase)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    .animation(Motion.enter, value: session.phase)
                     // Past the Crucible there is no next phase — the pass is
                     // over and the map takes the screen back.
                     .onChange(of: session.finished) { _, over in if over { navigator.pop() } }

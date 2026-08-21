@@ -63,9 +63,15 @@ public enum Motion {
     /// Reward moments only — a concept going green, a streak lighting.
     public static let deliberate = 0.62
 
+    /// The same curve as `standard`, at the `fast` step — a control answering
+    /// a tap, not a screen changing.
+    public static let snap = Animation.timingCurve(0.4, 0, 0.2, 1, duration: fast)
     public static let standard = Animation.timingCurve(0.4, 0, 0.2, 1, duration: base)
     public static let enter = Animation.timingCurve(0.2, 0.8, 0.3, 1, duration: slow)
     public static let spring = Animation.timingCurve(0.34, 1.56, 0.64, 1, duration: deliberate)
+    /// A reward that fills rather than snaps — a mastery bar, a share of the
+    /// map going up. Same duration as `spring`, without the overshoot.
+    public static let reward = Animation.timingCurve(0.4, 0, 0.2, 1, duration: deliberate)
 }
 
 /// Layout constants the design fixes across every screen.

@@ -46,7 +46,9 @@ public final class OnboardingViewModel {
     private let store: AtlasStore
     private var build: Task<Void, Never>?
     private var pendingGaps: [(parent: String, spec: GapSpec)] = []
-    private var asked: [String] = []
+    /// A set, not a list: the pool filter below asks it once per node on the
+    /// map, after every answer.
+    private var asked: Set<String> = []
     private var nextDifficulty: DiagnosticDifficulty = .medium
     private var maxCorrect: DiagnosticDifficulty?
 
@@ -160,7 +162,7 @@ public final class OnboardingViewModel {
         if effect == .shaky, let gap = question.gap {
             pendingGaps.append((question.nodeId, gap))
         }
-        asked.append(question.nodeId)
+        asked.insert(question.nodeId)
         // A discounted miss is noise, not a signal — it must not walk the ladder
         // down either. Hold the level.
         nextDifficulty = !correct && effect == .mastered

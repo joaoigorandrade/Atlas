@@ -47,11 +47,19 @@ struct ConsumeView: View {
                         .padding(.bottom, 28)
                 }
                 .id(chunk.id)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)
+                ))
                 dock(model)
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
+        // A section is a page turn, and the check's verdict lands under it.
+        .animation(Motion.standard, value: model.index)
+        .animation(Motion.snap, value: model.picked)
+        .sensoryFeedback(.selection, trigger: model.picked)
         .sheet(item: $model.lens) { key in
             ModelLensView(lens: key, context: model.lensContext(key))
                 .presentationDetents([.medium, .large])
@@ -64,8 +72,12 @@ struct ConsumeView: View {
             Image(systemName: model.speaker.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
                 .font(.system(size: 17))
                 .foregroundStyle(model.speaker.speaking ? Palette.accent : Palette.inkMuted)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.variableColor.iterative, isActive: model.speaker.speaking)
                 .frame(width: Metrics.tap, height: Metrics.tap)
         }
+        .pressable()
+        .animation(Motion.snap, value: model.speaker.speaking)
         .accessibilityLabel("Ouvir esta seção")
         .disabled(model.chunk == nil)
         .opacity(model.speaker.loading ? 0.4 : 1)
@@ -125,6 +137,7 @@ struct ConsumeView: View {
                             .background(Palette.card, in: .rect(cornerRadius: 8))
                             .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                     }
+                    .pressable()
                 }
             }
             .padding(.top, 10)
@@ -157,12 +170,14 @@ struct ConsumeView: View {
                                 .strokeBorder(mark(option, check, model) ?? Palette.hairlineStrong, lineWidth: 1)
                         }
                 }
+                .pressable()
                 .disabled(model.picked != nil)
             }
             if model.picked != nil {
                 Text(verbatim: model.passed ? check.right : check.wrong)
                     .font(.atlas(.sans, 13.5))
                     .foregroundStyle(model.passed ? Palette.accent : Palette.amberInk)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(16)

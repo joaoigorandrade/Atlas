@@ -18,12 +18,16 @@ public struct MapView: View {
             } trailing: {
                 Chip(verbatim: "\(store.frontier.count)", dot: NodeState.frontier.color,
                      tint: Palette.amberInk, background: Palette.amberBg)
+                    .contentTransition(.numericText())
             }
 
             canvasLayer
             sheet
         }
         .background(Palette.paper)
+        // A pass ending changes the map underneath this screen: the frontier
+        // count moves, the sheet's next node changes, the mastery bar fills.
+        .animation(Motion.standard, value: store.frontier.count)
         // The drawer closing takes the highlight with it.
         .onChange(of: navigator.activeSheet) { _, sheet in
             if sheet == nil { model.select(nil) }
@@ -55,6 +59,7 @@ public struct MapView: View {
             .onTapGesture { point in
                 if let node = model.node(store.graph, at: point) { open(node) }
             }
+            .sensoryFeedback(.selection, trigger: model.selection?.id)
             .onAppear { model.fit(store.graph, in: geo.size) }
             .onChange(of: geo.size) { _, size in model.resize(size) }
         }
@@ -66,7 +71,9 @@ public struct MapView: View {
     @ViewBuilder
     private var frontierButton: some View {
         if let target = store.frontier.first {
-            Button { model.jump(to: target) } label: {
+            Button {
+                model.jump(to: target)
+            } label: {
                 HStack(spacing: 8) {
                     Circle().fill(NodeState.frontier.color).frame(width: 8, height: 8)
                         .shadow(color: NodeState.frontier.color, radius: 3)
@@ -78,6 +85,10 @@ public struct MapView: View {
                 .overlay { Capsule().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                 .shadow(color: Palette.ink.opacity(0.10), radius: 10, y: 6)
             }
+            .pressable()
+            // It appears the moment a frontier exists and goes when the map is
+            // finished — both are worth a beat.
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
         }
     }
 
@@ -97,6 +108,7 @@ public struct MapView: View {
                     Spacer()
                     Text(verbatim: store.mastered.formatted(.percent.precision(.fractionLength(0))))
                         .font(.atlas(.serif, 21)).foregroundStyle(Palette.accent)
+                        .contentTransition(.numericText())
                 }
                 ProgressView(value: store.mastered).tint(Palette.accent)
             }
@@ -116,9 +128,12 @@ public struct MapView: View {
                         .background(Palette.card, in: .rect(cornerRadius: 11))
                         .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                     }
+                    .pressable()
                 }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(Motion.reward, value: store.mastered)
         .padding(.horizontal, Metrics.gutter)
         .padding(.top, 12)
         .padding(.bottom, 16)

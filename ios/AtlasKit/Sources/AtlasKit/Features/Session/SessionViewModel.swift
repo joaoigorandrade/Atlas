@@ -38,10 +38,13 @@ public final class SessionViewModel: Identifiable {
     /// ones own — so a pass stays inside its own concept instead of
     /// re-teaching a prerequisite or spoiling the next node.
     public var context: [String: JSONValue] {
+        // One index for both walks: each of these used to scan every node per
+        // edge, and every phase asks for a context.
+        let byId = store.graph.byId
         let prereqs = store.graph.prerequisites(of: node.id).map(\.label)
         let later = store.graph.edges
             .filter { $0.from == node.id && !$0.dashed }
-            .compactMap { edge in store.graph.nodes.first { $0.id == edge.to }?.label }
+            .compactMap { byId[$0.to]?.label }
         return [
             "topic": .string(store.subject),
             "nodeId": .string(node.id),

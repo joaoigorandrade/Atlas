@@ -22,8 +22,11 @@ struct NDJSONStreamer: Sendable {
                     let urlRequest = try request.makeURLRequest(baseURL: baseURL)
                     let (bytes, response) = try await session.bytes(for: urlRequest)
                     try check(response)
+                    // One decoder for the whole stream: a long generation is
+                    // thousands of lines, and each one was building its own.
+                    let decoder = JSONDecoder()
                     for try await line in bytes.lines where !line.isEmpty {
-                        let frame = try JSONDecoder().decode(StreamFrame.self, from: Data(line.utf8))
+                        let frame = try decoder.decode(StreamFrame.self, from: Data(line.utf8))
                         guard frame.p != StreamFrame.errorPart else {
                             throw AtlasError(code: "upstream", message: "stream died mid-flight", status: 200)
                         }

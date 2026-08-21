@@ -4,6 +4,24 @@ import SwiftUI
 /// A screen composes these; it does not re-declare a padding, a radius or a
 /// border that one of them already carries.
 
+/// The press feedback every button in the app wears. One style rather than a
+/// `scaleEffect` per call site: a tap that doesn't answer reads as a dropped
+/// tap, and the design has no second opinion about how hard it answers.
+public struct Pressable: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.86 : 1)
+            .animation(.timingCurve(0.4, 0, 0.2, 1, duration: Motion.instant), value: configuration.isPressed)
+    }
+}
+
+public extension View {
+    /// Shorthand, so a screen never spells the style out.
+    func pressable() -> some View { buttonStyle(Pressable()) }
+}
+
 /// `.kick` — the monospace uppercase kicker above almost every block.
 public struct Kicker: View {
     private let text: Text
@@ -76,14 +94,20 @@ public struct CTAButton: View {
         self.title = title; self.tint = tint; self.hero = hero; self.action = action
     }
     public var body: some View {
+        // Fill and shadow live inside the label so the whole pill answers a
+        // press, not just the words on it.
         Button(action: action) {
             Text(title)
                 .font(.atlas(.sans, hero ? 16 : 15, weight: .semibold))
                 .foregroundStyle(Palette.accentInk)
                 .frame(maxWidth: .infinity, minHeight: hero ? Metrics.ctaHero : Metrics.cta)
+                .background(tint, in: .rect(cornerRadius: hero ? 13 : 12))
+                .shadow(color: tint.opacity(0.26), radius: 11, y: 8)
         }
-        .background(tint, in: .rect(cornerRadius: hero ? 13 : 12))
-        .shadow(color: tint.opacity(0.26), radius: 11, y: 8)
+        .pressable()
+        // The phase colour is the CTA's whole job — it must not cut between
+        // two phases, and neither must the disabled dimming above it.
+        .animation(Motion.standard, value: tint)
     }
 }
 
@@ -100,8 +124,9 @@ public struct GhostButton: View {
                 .font(.atlas(.sans, 13.5))
                 .foregroundStyle(Palette.inkMuted)
                 .frame(maxWidth: .infinity, minHeight: 48)
+                .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
         }
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .pressable()
     }
 }
 
@@ -160,6 +185,9 @@ public struct SegmentBar: View {
                 Capsule().fill(fill ?? Palette.hairlineStrong).frame(height: height)
             }
         }
+        // The rail is the only thing on screen that says "you moved" — a
+        // segment lighting is worth the quarter second.
+        .animation(Motion.standard, value: fills)
     }
 }
 
@@ -239,8 +267,10 @@ public struct AnswerEditor: View {
                 }
                 .padding(.top, 6)
                 .overlay(alignment: .top) { Divider().overlay(Palette.hairline) }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(Motion.snap, value: store.dictationOn)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(Palette.card, in: .rect(cornerRadius: 12))
@@ -267,8 +297,16 @@ public struct MicButton: View {
             Image(systemName: dictation.listening ? "mic.fill" : "mic")
                 .font(.system(size: 17))
                 .foregroundStyle(dictation.listening ? tint : Palette.inkMuted)
+                // The mic is the one control whose *state* the learner has to
+                // read from across the room: it swaps glyph and then breathes
+                // for as long as it is listening.
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.variableColor.iterative, isActive: dictation.listening)
                 .frame(width: Metrics.tap, height: Metrics.tap)
         }
+        .pressable()
+        .animation(Motion.snap, value: dictation.listening)
+        .sensoryFeedback(.selection, trigger: dictation.listening)
         .accessibilityLabel(dictation.listening ? "Parar de ditar" : "Ditar resposta")
     }
 }
@@ -290,6 +328,7 @@ struct Waiting: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, Metrics.gutter)
+        .transition(.opacity)
     }
 }
 
@@ -305,6 +344,7 @@ public struct BackButton: View {
                 .foregroundStyle(Palette.inkMuted)
                 .frame(width: Metrics.tap, height: Metrics.tap)
         }
+        .pressable()
         .accessibilityLabel("Voltar")
     }
 }

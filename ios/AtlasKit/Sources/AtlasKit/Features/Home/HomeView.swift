@@ -30,6 +30,10 @@ public struct HomeView: View {
                     if model.streak > 0 {
                         Chip("\(model.streak) dias", dot: NodeState.frontier.color,
                              tint: Palette.amberInk, background: Palette.amberBg)
+                            // A day landing on the streak is a reward moment,
+                            // and the design's one springy token pays for it.
+                            .contentTransition(.numericText())
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                     Button { tabs.switchTab(to: .profile) } label: { Avatar(model.email) }
                         .accessibilityLabel("Abrir o perfil")
@@ -50,12 +54,16 @@ public struct HomeView: View {
 
                     reviewCard(model).padding(.top, 26)
                     frontierCard(model).padding(.top, 14)
+                        .animation(Motion.standard, value: model.frontierHeadline)
 
                     if model.hasRun {
                         Text("Seus mapas").font(.atlas(.serif, 21)).foregroundStyle(Palette.ink)
                             .padding(.top, 32)
                         ForEach(model.maps) { map in
                             mapCard(map, model).padding(.top, 14)
+                                // Switching maps re-sorts this list; the cards
+                                // slide rather than teleport past each other.
+                                .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                         newMapButton(model).padding(.top, 14)
                     }
@@ -64,6 +72,10 @@ public struct HomeView: View {
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 26)
                 .padding(.bottom, 24)
+                // The streak is the one reward beat on this screen; the map
+                // list only ever needs to not jump.
+                .animation(Motion.spring, value: model.streak)
+                .animation(Motion.standard, value: model.maps.map(\.subject))
             }
         }
     }
@@ -76,7 +88,7 @@ public struct HomeView: View {
                         action: model.reviewAction, actionTint: Palette.accent)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
     }
 
     private func frontierCard(_ model: HomeViewModel) -> some View {
@@ -87,7 +99,7 @@ public struct HomeView: View {
                         action: "Abrir o mapa →", actionTint: Palette.amberInk)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
     }
 
     /// Both cards are the same block — kicker, headline, one sentence, one link.
@@ -131,6 +143,7 @@ public struct HomeView: View {
                     }
                     Text(verbatim: map.subject).font(.atlas(.serif, 19)).foregroundStyle(Palette.ink)
                     ProgressView(value: map.mastered).tint(Palette.accent)
+                        .animation(Motion.reward, value: map.mastered)
                     HStack {
                         Text("\(map.mastered.formatted(.percent.precision(.fractionLength(0)))) dominado")
                         Spacer()
@@ -144,7 +157,7 @@ public struct HomeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
     }
 
     /// Clearing the run is what shows onboarding, so there is nowhere to

@@ -11,8 +11,8 @@ public final class AtlasStore {
     // Every stored property below is the run, and every one of them saves on
     // change — see `saveSoon`. `subject` is half the row's primary key, so
     // changing it is what starts a second map rather than overwriting the first.
-    public var graph: ConceptGraph { didSet { saveSoon() } }
-    public var states: StateMap { didSet { saveSoon() } }
+    public var graph: ConceptGraph { didSet { rederive(); saveSoon() } }
+    public var states: StateMap { didSet { rederive(); saveSoon() } }
     public var subject: String { didSet { saveSoon() } }
     /// What the learner said they care about, from onboarding. Every generated
     /// kind keys on it, so it travels with the run rather than the screen.
@@ -92,25 +92,34 @@ public final class AtlasStore {
         self.subject = subject
         // The stored preference is the one the model is told, from launch.
         AtlasAPI.language = language
+        rederive()
     }
 
     /// What each node displays as, frontier included. The only way a surface
     /// asks about a node's state.
-    public var display: [String: NodeState] { displayStates(states, graph) }
-
-    public var frontier: [ConceptNode] {
-        let shown = display
-        return graph.nodes.filter { shown[$0.id] == .frontier }
-    }
+    ///
+    /// Stored, not computed: `displayStates` walks every edge and every node,
+    /// and a single `body` reads this — directly or through `frontier` — half a
+    /// dozen times. Deriving on write costs one pass per change instead of one
+    /// per read, and `@Observable` tracks a stored property the same way.
+    public private(set) var display: [String: NodeState] = [:]
+    public private(set) var frontier: [ConceptNode] = []
+    public private(set) var masteredCount: Int = 0
 
     /// Share of the map learned at least once — the "território dominado" figure.
     public var mastered: Double {
-        guard !graph.nodes.isEmpty else { return 0 }
-        return Double(masteredCount) / Double(graph.nodes.count)
+        graph.nodes.isEmpty ? 0 : Double(masteredCount) / Double(graph.nodes.count)
     }
 
-    public var masteredCount: Int {
-        graph.nodes.filter { (states[$0.id] ?? .unknown) == .mastered }.count
+    /// The one place the three readings above are produced, in one pass over
+    /// the map. Called from every write that can move them.
+    private func rederive() {
+        let shown = displayStates(states, graph)
+        display = shown
+        frontier = graph.nodes.filter { shown[$0.id] == .frontier }
+        masteredCount = graph.nodes.reduce(into: 0) { count, node in
+            if (states[node.id] ?? .unknown) == .mastered { count += 1 }
+        }
     }
 }
 

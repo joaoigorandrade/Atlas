@@ -31,17 +31,24 @@ struct FeynmanView: View {
                         .font(.atlas(.mono, 10.5))
                         .tracking(1)
                         .foregroundStyle(Phase.feynman.tint)
+                        .contentTransition(.numericText())
                 }
             }
 
             if let judgement = model.judgement {
                 report(judgement, model)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             } else if let beat = model.beat {
                 teach(beat, model)
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
             }
         }
+        // Walking the rail is a step sideways; the Gap Report is the payoff and
+        // rises over the whole thing.
+        .animation(Motion.standard, value: model.index)
+        .animation(Motion.enter, value: model.judgement != nil)
+        .sensoryFeedback(.success, trigger: model.judgement != nil)
     }
 
     // MARK: - Teaching
@@ -77,6 +84,11 @@ struct FeynmanView: View {
                         .padding(20)
                     }
                     .padding(.top, 16)
+                    .id(beat.id)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
 
                     if !model.message.isEmpty {
                         Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk).padding(.top, 14)

@@ -20,13 +20,18 @@ public struct RootView: View {
                 // or the app flashes the login screen at a signed-in learner.
                 Color.clear
             } else if let onboarding = launch.onboarding, store.signedIn, store.graph.nodes.isEmpty {
-                flow(onboarding)
+                flow(onboarding).transition(.opacity)
             } else if store.signedIn {
-                shell
+                shell.transition(.opacity)
             } else {
-                AuthView(notice: launch.notice)
+                AuthView(notice: launch.notice).transition(.opacity)
             }
         }
+        // Signing in, finishing onboarding and signing out all swap the whole
+        // app underneath the learner. A cut there reads as a relaunch.
+        .animation(Motion.enter, value: launch.restored)
+        .animation(Motion.enter, value: store.signedIn)
+        .animation(Motion.enter, value: store.graph.nodes.isEmpty)
         .background(Palette.paper)
         .environment(store)
         .task { await launch.restore(store) }
@@ -49,11 +54,17 @@ public struct RootView: View {
     /// none of these three is a place you go back to.
     @ViewBuilder
     private func flow(_ onboarding: OnboardingViewModel) -> some View {
-        switch onboarding.stage {
-        case .welcome: WelcomeView(onboarding: onboarding)
-        case .building: BuildingView(onboarding: onboarding)
-        case .placement: PlacementView(onboarding: onboarding)
+        Group {
+            switch onboarding.stage {
+            case .welcome: WelcomeView(onboarding: onboarding)
+            case .building: BuildingView(onboarding: onboarding)
+            case .placement: PlacementView(onboarding: onboarding)
+            }
         }
+        // Three beats of one arrival, not three screens: they cross-fade in
+        // place over the map assembling behind them.
+        .transition(.opacity)
+        .animation(Motion.enter, value: onboarding.stage)
     }
 
     private var shell: some View {

@@ -50,6 +50,11 @@ public struct ReviewView: View {
                 Waiting(verbatim: model.waitingCopy, spinning: model.drafting)
             }
         }
+        // The deck moving on is the screen's one motion: the answered card
+        // leaves left, the next one arrives from the right.
+        .animation(Motion.standard, value: model.index)
+        .animation(Motion.standard, value: model.hasCard)
+        .sensoryFeedback(.selection, trigger: model.stage)
     }
 
     // MARK: - The deck
@@ -75,6 +80,11 @@ public struct ReviewView: View {
                 .padding(.top, 18)
 
                 face(model, card).padding(.top, 12)
+                    .id(card.id)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
             }
             .padding(.horizontal, Metrics.gutter)
             .padding(.top, 16)
@@ -110,9 +120,10 @@ public struct ReviewView: View {
                                     .font(.atlas(.sans, 13.5))
                                     .foregroundStyle(Palette.inkSoft)
                                     .frame(maxWidth: .infinity, minHeight: 48)
+                                    .background(Palette.card, in: .rect(cornerRadius: 11))
+                                    .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                             }
-                            .background(Palette.card, in: .rect(cornerRadius: 11))
-                            .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                            .pressable()
                         }
                     }
                     .padding(.top, 10)
@@ -123,8 +134,10 @@ public struct ReviewView: View {
                         .foregroundStyle(Palette.inkSoft)
                         .lineSpacing(5)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 case .failed:
                     failed(model, card).padding(.top, 18)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             .padding(.horizontal, 24)
@@ -181,9 +194,10 @@ public struct ReviewView: View {
                                 }
                                 .foregroundStyle(grade.tint)
                                 .frame(maxWidth: .infinity, minHeight: Metrics.cta)
+                                .background(Palette.card, in: .rect(cornerRadius: 11))
+                                .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(grade.tint, lineWidth: 1) }
                             }
-                            .background(Palette.card, in: .rect(cornerRadius: 11))
-                            .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(grade.tint, lineWidth: 1) }
+                            .pressable()
                         }
                     }
                 }

@@ -20,12 +20,14 @@ struct PlacementView: View {
             }
 
             if onboarding.takingPlacement && !onboarding.placementDone {
-                questions
+                questions.transition(.opacity)
             } else {
-                fork
+                fork.transition(.opacity)
             }
         }
         .background(Palette.paper)
+        .animation(Motion.enter, value: onboarding.takingPlacement)
+        .animation(Motion.enter, value: onboarding.placementDone)
     }
 
     // MARK: - Screen 7, and the same shape when the placement ends
@@ -82,7 +84,10 @@ struct PlacementView: View {
                             .foregroundStyle(Palette.ink)
                             .padding(.vertical, 14)
                         options(question)
-                        if let verdict = onboarding.verdict { self.verdict(verdict).padding(.top, 22) }
+                        if let verdict = onboarding.verdict {
+                            self.verdict(verdict).padding(.top, 22)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Metrics.gutter)
@@ -105,8 +110,14 @@ struct PlacementView: View {
                         onboarding.next()
                     }
                 }
+                .transition(.move(edge: .bottom))
             }
         }
+        // Grading is the beat of this screen: the marks land, the verdict slides
+        // in under them, and the dock arrives to move on.
+        .animation(Motion.standard, value: onboarding.verdict?.picked)
+        .animation(Motion.standard, value: onboarding.answered)
+        .sensoryFeedback(.selection, trigger: onboarding.verdict?.picked)
     }
 
     private func header(_ question: DiagnosticQuestion) -> some View {
@@ -142,14 +153,15 @@ struct PlacementView: View {
                     }
                     .padding(.horizontal, 16).padding(.vertical, 12)
                     .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                }
-                .background(fill(index, question), in: .rect(cornerRadius: 11))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 11)
-                        .strokeBorder(tint(index, question) ?? Palette.hairlineStrong, lineWidth: 1)
+                    .background(fill(index, question), in: .rect(cornerRadius: 11))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 11)
+                            .strokeBorder(tint(index, question) ?? Palette.hairlineStrong, lineWidth: 1)
+                    }
                 }
                 // Once answered, the options that carried no verdict step back.
                 .opacity(onboarding.verdict == nil || tint(index, question) != nil ? 1 : 0.5)
+                .pressable()
                 .disabled(onboarding.verdict != nil)
             }
         }

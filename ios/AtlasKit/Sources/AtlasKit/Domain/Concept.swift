@@ -225,10 +225,20 @@ public func phaseIndex(_ state: NodeState, reviewed: Bool = false) -> Int {
 }
 
 public extension ConceptGraph {
+    /// Nodes by id. Every lookup below goes through it rather than scanning.
+    var byId: [String: ConceptNode] {
+        Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
     /// The solid prerequisites of a node, in edge order. Dashed edges hang gap
     /// nodes off a parent and are never prerequisites.
+    ///
+    /// The index is built once rather than scanning `nodes` per edge: a session
+    /// asks for this on every context it builds, over a map that can be
+    /// hundreds of concepts long.
     func prerequisites(of id: String) -> [ConceptNode] {
-        edges.filter { $0.to == id && !$0.dashed }
-            .compactMap { edge in nodes.first { $0.id == edge.from } }
+        let wanted = edges.compactMap { $0.to == id && !$0.dashed ? $0.from : nil }
+        guard !wanted.isEmpty else { return [] }
+        return wanted.compactMap { byId[$0] }
     }
 }
