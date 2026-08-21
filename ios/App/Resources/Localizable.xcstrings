@@ -1729,6 +1729,17 @@
         }
       }
     },
+    "Fazer %@ primeiro" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do %@ first"
+          }
+        }
+      }
+    },
     "Feynman · ensine de volta" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1879,6 +1890,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Go to the frontier"
+          }
+        }
+      }
+    },
+    "Isso ainda não está na sua rotação de revisão — quer adicionar?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This isn't in your review rotation yet — want to?"
           }
         }
       }
@@ -2543,6 +2565,17 @@
         }
       }
     },
+    "Pular para %@ →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip to %@ →"
+          }
+        }
+      }
+    },
     "Quase lá" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2594,6 +2627,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reteach now"
+          }
+        }
+      }
+    },
+    "refazer" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "redo"
           }
         }
       }
@@ -3100,6 +3144,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "See your map →"
+          }
+        }
+      }
+    },
+    "Você ainda não aplicou isso em um contexto novo — quer tentar?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't applied this in a novel context yet — want to?"
+          }
+        }
+      }
+    },
+    "Você ainda não ensinou isso de volta — quer tentar?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't taught this back yet — want to?"
+          }
+        }
+      }
+    },
+    "Você ainda não leu isso — quer ler?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't read this yet — want to?"
+          }
+        }
+      }
+    },
+    "Você ainda não ligou isso ao seu mapa — quer tentar?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't linked this into your map yet — want to?"
+          }
+        }
+      }
+    },
+    "Você ainda não raciocinou sobre isso — quer tentar?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't reasoned this out yet — want to?"
           }
         }
       }

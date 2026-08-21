@@ -1,14 +1,13 @@
 import Observation
 import SwiftUI
 
-/// Screen 14's state: the sections that have landed, which one is being read,
-/// and whether its check has been passed. The view renders this and nothing
-/// else — including the segment rail, whose colours are prepared here so `body`
-/// isn't mapping an array every redraw.
+/// Screen 14's state: which section is being read and whether its check has
+/// been passed. The sections themselves are not state here — they live in the
+/// run's warm cache, which is what lets a pass written before this screen
+/// opened arrive with no wait at all.
 @Observable
 @MainActor
 final class ConsumeViewModel {
-    private(set) var chunks: [ConsumeChunk] = []
     /// The stream is still going — the last section on screen isn't the last one.
     private(set) var writing = true
     private(set) var index = 0
@@ -28,6 +27,10 @@ final class ConsumeViewModel {
     }
 
     var node: ConceptNode { session.node }
+    /// The pass itself lives in the run's warm cache, not here: a section
+    /// written before this screen opened is already in it, and one still being
+    /// written lands in it as it arrives. Either way this redraws.
+    var chunks: [ConsumeChunk] { session.store.chunks(node) }
     var chunk: ConsumeChunk? { chunks[safe: index] }
     var next: ConsumeChunk? { chunks[safe: index + 1] }
 
@@ -38,21 +41,20 @@ final class ConsumeViewModel {
         return check.opts[safe: picked]?.correct == true
     }
 
-    /// One colour per landed section, prepared outside the layout pass.
-    private(set) var rail: [Color?] = []
+    /// One colour per landed section.
+    var rail: [Color?] {
+        chunks.indices.map { $0 < index ? Palette.accent : ($0 == index ? NodeState.frontier.color : nil) }
+    }
 
     /// The prose as it is spoken — the section on screen, nothing around it.
     var spoken: String { chunk?.body.joined(separator: " ") ?? "" }
 
     var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo sua leitura…") : message }
 
+    /// Joins the warm when there is one, runs the pass when there isn't —
+    /// `AtlasStore.consume` is the same call either way.
     func load() async {
-        do {
-            for try await landed in await api.consume(session.context) {
-                chunks = landed
-                rebuildRail()
-            }
-        } catch {
+        if let error = await session.store.consume(node) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever sua leitura"))
         }
         writing = false
@@ -68,7 +70,6 @@ final class ConsumeViewModel {
         withAnimation(Motion.standard) {
             index += 1
             picked = nil
-            rebuildRail()
         }
     }
 
@@ -94,11 +95,5 @@ final class ConsumeViewModel {
         context["sectionBody"] = .array(chunk.body.map { .string($0) })
         context["takeaway"] = .string(chunk.takeaway)
         return context
-    }
-
-    private func rebuildRail() {
-        rail = chunks.indices.map {
-            $0 < index ? Palette.accent : ($0 == index ? NodeState.frontier.color : nil)
-        }
     }
 }

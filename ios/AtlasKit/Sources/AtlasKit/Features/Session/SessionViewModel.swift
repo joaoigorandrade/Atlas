@@ -11,11 +11,13 @@ import SwiftUI
 @MainActor
 public final class SessionViewModel: Identifiable {
     public let node: ConceptNode
-    public private(set) var phase: Phase
+    public private(set) var phase: Phase { didSet { warmNext() } }
     /// Set when the last phase hands back — the map takes the screen again.
     public private(set) var finished = false
 
-    private let store: AtlasStore
+    /// The run itself: the phases read their content off it and write their
+    /// mastery back through it.
+    public let store: AtlasStore
 
     public nonisolated var id: String { node.id }
 
@@ -31,47 +33,31 @@ public final class SessionViewModel: Identifiable {
         let state = store.states[node.id] ?? .unknown
         if state == .unknown { store.states[node.id] = .learning }
         store.markActiveToday()
+        warmNext()
     }
 
-    /// The context every kind on this node shares. `priorLabels`/`laterLabels`
-    /// are the boundary — what earlier passes already taught and what later
-    /// ones own — so a pass stays inside its own concept instead of
-    /// re-teaching a prerequisite or spoiling the next node.
-    public var context: [String: JSONValue] {
-        // One index for both walks: each of these used to scan every node per
-        // edge, and every phase asks for a context.
-        let byId = store.graph.byId
-        let prereqs = store.graph.prerequisites(of: node.id).map(\.label)
-        let later = store.graph.edges
-            .filter { $0.from == node.id && !$0.dashed }
-            .compactMap { byId[$0.to]?.label }
-        return [
-            "topic": .string(store.subject),
-            "nodeId": .string(node.id),
-            "nodeLabel": .string(node.label),
-            "interests": .string(store.interests),
-            "language": .string(AtlasAPI.language),
-            "prereqLabels": .array(prereqs.map { .string($0) }),
-            "priorLabels": .array(prereqs.map { .string($0) }),
-            "laterLabels": .array(later.map { .string($0) }),
-        ]
+    /// Speculate one phase ahead. A learner reading a pass is exactly when the
+    /// next one should be written — so by the time they tap Continue the
+    /// content is a state change rather than a round trip.
+    private func warmNext() {
+        guard let kind = phase.next?.kind else { return }
+        store.warmUp(kind, for: node)
     }
+
+    /// The context every kind on this node shares. Built by the store, never
+    /// here: a warm and the click after it address the same content only if
+    /// exactly one function decides the inputs.
+    public var context: [String: JSONValue] { store.context(for: node) }
 
     /// Nodes the learner already owns — what Connect may wire into and what a
     /// Crucible problem may interleave. Mirrors `CONNECT_POOL_STATES`.
-    public var learnedElsewhere: [ConceptNode] {
-        store.graph.nodes.filter { $0.id != node.id && (store.states[$0.id] ?? .unknown).isLearned }
-    }
+    public var learnedElsewhere: [ConceptNode] { store.learned(besides: node) }
 
     /// The next phase in the spiral. Past the Crucible there is no next: the
     /// pass is over and the map takes the screen back.
     public func advance() {
-        let order = Phase.allCases
-        guard let index = order.firstIndex(of: phase), index + 1 < order.count - 1 else {
-            finished = true
-            return
-        }
-        phase = order[index + 1]
+        guard let next = phase.next else { return finished = true }
+        phase = next
     }
 
     /// Connect closes: the concept is understood and wired, but nothing has

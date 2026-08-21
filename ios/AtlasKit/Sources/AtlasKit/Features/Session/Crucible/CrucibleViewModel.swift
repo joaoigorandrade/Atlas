@@ -8,7 +8,6 @@ import SwiftUI
 @Observable
 @MainActor
 final class CrucibleViewModel {
-    private(set) var content: CrucibleContent?
     /// [0] the novel transfer, [1] the scaffolded re-attempt.
     private(set) var rung = 0
     private(set) var hinted = false
@@ -26,6 +25,9 @@ final class CrucibleViewModel {
     }
 
     var node: ConceptNode { session.node }
+    /// The ladder lives in the run's warm cache — written while the learner was
+    /// still wiring the concept in, when Connect warmed it.
+    var content: CrucibleContent? { session.store.problems(node) }
     var problem: CrucibleProblem? { content?.problems[safe: rung] }
     var canSubmit: Bool { !judging && !work.trimmed.isEmpty }
     var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo um problema novo…") : message }
@@ -36,11 +38,7 @@ final class CrucibleViewModel {
     func showHint() { hinted = true }
 
     func load() async {
-        var context = session.context
-        context["masteredLabels"] = .array(session.learnedElsewhere.map { .string($0.label) })
-        do {
-            content = try await api.crucible(context)
-        } catch {
+        if let error = await session.store.crucible(node) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever seu problema"))
         }
     }

@@ -117,3 +117,14 @@ import Testing
     )
     #expect(figureLayers(chain) == ["a": 0, "b": 1])
 }
+
+@MainActor
+@Test func aRedoOpensTheRequestedPhaseAndRunsForwardFromThere() {
+    let owned = store(["cadeia": .mastered])
+    let redo = SessionViewModel(node: owned.graph.nodes[1], store: owned, phase: .feynman)
+    #expect(redo.phase == .feynman)
+    redo.advance()
+    #expect(redo.phase == .connect)
+    // Redoing an earlier phase doesn't walk the node's mastery backwards.
+    #expect(owned.states["cadeia"] == .mastered)
+}

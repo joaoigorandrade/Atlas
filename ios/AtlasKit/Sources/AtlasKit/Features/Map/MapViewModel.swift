@@ -28,14 +28,26 @@ final class MapViewModel {
 
     func fit(_ graph: ConceptGraph, in size: CGSize) {
         canvas = size
+        moved = false
         transform = .fitting(graph, in: size)
     }
 
-    func resize(_ size: CGSize) { canvas = size }
+    /// A size arriving after the first layout — or a map swapped in underneath
+    /// — re-fits, but only while the map is still where `fit` put it: once the
+    /// learner has moved it, where the map sits is their answer, not ours.
+    func resize(_ graph: ConceptGraph, in size: CGSize) {
+        canvas = size
+        guard !moved else { return }
+        fit(graph, in: size)
+    }
+
+    /// Whether the learner has put the map somewhere themselves.
+    private var moved = false
 
     /// A gesture ends by folding its delta into the settled transform — never
     /// by leaving two sources of truth for where the map is.
     func settle() {
+        moved = true
         transform = live
         pan = .zero
         zoom = 1
@@ -50,6 +62,7 @@ final class MapViewModel {
     /// Centre the frontier without changing the zoom — "onde eu vou agora",
     /// answered in place.
     func jump(to node: ConceptNode) {
+        moved = true
         withAnimation(Motion.enter) { transform = live.centred(on: node, in: canvas) }
         pan = .zero
         zoom = 1

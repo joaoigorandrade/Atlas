@@ -7,7 +7,6 @@ import SwiftUI
 @Observable
 @MainActor
 final class FeynmanViewModel {
-    private(set) var beats: [FeynmanBeat] = []
     private(set) var writing = true
     private(set) var index = 0
     /// What was taught per beat, by beat id — the learner's own words, kept
@@ -16,8 +15,6 @@ final class FeynmanViewModel {
     private(set) var judging = false
     private(set) var judgement: FeynmanJudgement?
     private(set) var message = ""
-    /// One colour per beat, prepared outside the layout pass.
-    private(set) var rail: [Color?] = []
 
     private let session: SessionViewModel
     private let api: AtlasAPI
@@ -28,7 +25,14 @@ final class FeynmanViewModel {
     }
 
     var node: ConceptNode { session.node }
+    /// The rubric lives in the run's warm cache, written ahead of this screen
+    /// when Socratic warmed it and landing beat by beat when it didn't.
+    var beats: [FeynmanBeat] { session.store.beats(node) }
     var beat: FeynmanBeat? { beats[safe: index] }
+    /// One colour per beat.
+    var rail: [Color?] {
+        beats.indices.map { $0 < index ? NodeState.mastered.color : ($0 == index ? Phase.feynman.tint : nil) }
+    }
     var isLast: Bool { index >= beats.count - 1 }
     var isFirst: Bool { index == 0 }
     /// Nothing to judge is nothing to send — a blank teach-back is not an answer.
@@ -44,30 +48,19 @@ final class FeynmanViewModel {
     }
 
     func load() async {
-        do {
-            for try await landed in await api.feynman(session.context) {
-                beats = landed
-                rebuildRail()
-            }
-        } catch {
+        if let error = await session.store.feynman(node) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever os tópicos"))
         }
         writing = false
     }
 
     func back() {
-        withAnimation(Motion.standard) {
-            index = max(0, index - 1)
-            rebuildRail()
-        }
+        withAnimation(Motion.standard) { index = max(0, index - 1) }
     }
 
     func next() {
         guard !isLast else { return }
-        withAnimation(Motion.standard) {
-            index += 1
-            rebuildRail()
-        }
+        withAnimation(Motion.standard) { index += 1 }
     }
 
     func advance() { session.advance() }
@@ -90,12 +83,6 @@ final class FeynmanViewModel {
             judgement = verdict
         } catch {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "avaliar sua explicação"))
-        }
-    }
-
-    private func rebuildRail() {
-        rail = beats.indices.map {
-            $0 < index ? NodeState.mastered.color : ($0 == index ? Phase.feynman.tint : nil)
         }
     }
 }

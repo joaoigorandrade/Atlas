@@ -19,17 +19,26 @@ public final class Speaker {
     /// happened is the failure mode read-aloud actually has.
     public private(set) var loading = false
     private var player: AVAudioPlayer?
+    /// The synthesis in flight. Held so a second tap cancels it — a clip that
+    /// starts playing after the learner has already stopped it is the failure
+    /// this whole toggle exists to avoid.
+    private var clip: Task<Void, Never>?
 
     public init() {}
 
     public func toggle(_ text: String, api: AtlasAPI) {
         if speaking || loading { return stop() }
         loading = true
-        Task {
+        clip = Task {
             defer { loading = false }
-            guard let audio = try? await api.speech(text), let player = try? AVAudioPlayer(data: audio) else {
+            guard let audio = try? await api.speech(text), !Task.isCancelled,
+                  let player = try? AVAudioPlayer(data: audio) else {
                 return
             }
+            // Dictation leaves the shared session on `.record`, which plays this
+            // back into silence. Whoever speaks last says what the session is for.
+            try? AVAudioSession.sharedInstance().setCategory(.playback)
+            try? AVAudioSession.sharedInstance().setActive(true)
             self.player = player
             player.play()
             speaking = true
@@ -41,9 +50,12 @@ public final class Speaker {
     }
 
     public func stop() {
+        clip?.cancel()
+        clip = nil
         player?.stop()
         player = nil
         speaking = false
+        loading = false
     }
 }
 
@@ -113,6 +125,9 @@ public final class Dictation {
         task?.finish()
         task = nil
         listening = false
+        // Give the shared session back, or read-aloud on the next screen plays
+        // into a session still configured to record.
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         let said = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         transcript = ""
         if !said.isEmpty { onText(said) }

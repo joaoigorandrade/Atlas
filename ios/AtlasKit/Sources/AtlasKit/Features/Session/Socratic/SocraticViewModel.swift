@@ -16,7 +16,6 @@ final class SocraticViewModel {
         var quality: String?
     }
 
-    private(set) var steps: [SocraticStep] = []
     private(set) var writing = true
     private(set) var step = 0
     /// The scaffolding dial, least help → most. Opens mid-dial, at Hint.
@@ -40,6 +39,10 @@ final class SocraticViewModel {
     }
 
     var node: ConceptNode { session.node }
+    /// The script lives in the run's warm cache — written before this screen
+    /// opened when the pass ahead of it was warmed, and landing into it probe
+    /// by probe when it wasn't.
+    var steps: [SocraticStep] { session.store.steps(node) }
 
     /// How many probes this pass plans to run. Read off the material, not
     /// assumed: the spares are written but only a struggling learner spends one.
@@ -53,16 +56,17 @@ final class SocraticViewModel {
     var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo a primeira pergunta…") : message }
 
     func load() async {
-        do {
-            for try await landed in await api.socratic(session.context) {
-                steps = landed
-                if log.isEmpty || awaiting { openStep() }
-            }
-        } catch {
+        landed()
+        if let error = await session.store.socratic(node) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "abrir esta sessão"))
         }
         writing = false
     }
+
+    /// A probe arriving is what fills a dock that was waiting on one — the
+    /// screen calls this as the script lands, and once when it opens on a
+    /// script that was already warm.
+    func landed() { if log.isEmpty || awaiting { openStep() } }
 
     func cycleHelp() { help = (help + 1) % 4 }
 

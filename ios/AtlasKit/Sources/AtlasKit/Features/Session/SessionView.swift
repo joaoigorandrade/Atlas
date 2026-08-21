@@ -6,6 +6,8 @@ import SwiftUI
 /// is on screen, and each phase screen owns the content it renders.
 struct SessionView: View {
     let node: ConceptNode
+    /// Non-nil when the map asked for one particular phase again — a redo.
+    var phase: Phase?
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
     /// Built once, in `task`: a pass marks its node Learning on the way in, so
@@ -37,7 +39,7 @@ struct SessionView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden()
-        .task { if session == nil { session = SessionViewModel(node: node, store: store) } }
+        .task { if session == nil { session = SessionViewModel(node: node, store: store, phase: phase) } }
     }
 
     @ViewBuilder

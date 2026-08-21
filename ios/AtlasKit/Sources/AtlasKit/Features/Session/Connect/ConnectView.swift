@@ -20,7 +20,7 @@ struct ConnectView: View {
         }
         .background(Palette.paper)
         .task {
-            let model = model ?? ConnectViewModel(session: session, api: store.api)
+            let model = model ?? ConnectViewModel(session: session)
             self.model = model
             await model.load()
         }

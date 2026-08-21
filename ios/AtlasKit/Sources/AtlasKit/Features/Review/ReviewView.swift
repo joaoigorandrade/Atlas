@@ -205,7 +205,7 @@ public struct ReviewView: View {
                 CTAButton("Reensinar agora", tint: NodeState.shaky.color) {
                     guard let node = model.failedNode else { return model.advance() }
                     model.advance()
-                    navigator.navigate(to: .session(node))
+                    navigator.navigate(to: .session(node, phase: nil))
                 }
                 GhostButton("Agendar e continuar") { model.advance() }
             }

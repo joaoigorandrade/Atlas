@@ -66,6 +66,10 @@ public final class AtlasStore {
     public let api: AtlasAPI
     public let auth: AtlasAuth
     public let runs: RunStore
+    /// Generated content for the open run — what a screen reads instead of
+    /// waiting on a model. See `Warm.swift`; it is emptied when the run
+    /// changes, since every key names the run it belongs to.
+    public let warm = WarmCache()
 
     /// The row the open run was loaded from, kept so a save can hand back every
     /// key this client does not render. See `RunSnapshot`.
@@ -219,6 +223,7 @@ public extension AtlasStore {
         quiet = true
         defer { quiet = wasQuiet }
         loaded = run
+        warm.clear()
         subject = run.subject
         graph = run.graph
         states = run.states
@@ -297,6 +302,10 @@ public extension AtlasStore {
         pendingSave = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
+            // Let go of the handle before flushing: `saveNow` cancels whatever
+            // is pending, and that used to be *this* task — which cancelled the
+            // upsert it had just started and dropped the write on the floor.
+            pendingSave = nil
             await saveNow()
         }
     }
@@ -309,6 +318,7 @@ public extension AtlasStore {
     /// the run is worth more than a rebuild.
     func saveNow() async {
         pendingSave?.cancel()
+        pendingSave = nil
         guard signedIn, !subject.isEmpty, let token = session?.accessToken else { return }
         let run = currentRun
         guard (try? await runs.save(run, token: token)) != nil else { return }
@@ -355,6 +365,7 @@ public extension AtlasStore {
     /// a second map — both leave the shell with no map, which is what routes it
     /// to onboarding. Callers hold `quiet` for the duration.
     private func clearRun() {
+        warm.clear()
         graph = ConceptGraph()
         states = [:]
         subject = ""

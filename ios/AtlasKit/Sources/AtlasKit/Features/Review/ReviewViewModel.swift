@@ -67,17 +67,13 @@ public final class ReviewViewModel {
         guard !uncovered.isEmpty, !drafting else { return }
         drafting = true
         defer { drafting = false }
-        do {
-            let drafted = try await store.api.retain(
-                topic: store.subject,
-                budgetMin: store.dailyTarget,
-                nodes: uncovered.map { ($0.id, $0.label, store.states[$0.id] ?? .learning) },
-                interests: store.interests
-            )
-            store.cards.append(contentsOf: drafted.map { ScheduledCard($0) })
-            reset(to: store.queue)
-        } catch {
+        // The map warms this ahead of the tab being opened, and the draft files
+        // itself into the run either way — so this usually returns with the
+        // deck already there. See `AtlasStore.draftCards`.
+        if let error = await store.draftCards(for: uncovered) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "montar sua revisão"))
+        } else {
+            reset(to: store.queue)
         }
     }
 
@@ -113,8 +109,10 @@ public final class ReviewViewModel {
         guard grade == .again else { return advance() }
         if store.states[scheduled.card.node] == .mastered { store.states[scheduled.card.node] = .shaky }
         // A miss really does come back at the end of the deck — but only once,
-        // or a card nobody can answer is a session with no end.
-        if requeued.insert(scheduled.id).inserted { deck.append(scheduled) }
+        // or a card nobody can answer is a session with no end. It goes back
+        // *as graded*: re-answering the stale copy would schedule off the ease
+        // this miss just took away.
+        if requeued.insert(scheduled.id).inserted { deck.append(scheduled.graded(grade)) }
         stage = .failed
     }
 

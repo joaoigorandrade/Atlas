@@ -10,7 +10,7 @@ public enum AtlasRoute: ModalRoute {
     case nodeDetail(ConceptNode)
     /// One pass through the spiral. Pushed rather than covered: the phase bar
     /// already draws its own way back, and a push gets the swipe for free.
-    case session(ConceptNode)
+    case session(ConceptNode, phase: Phase?)
     case settings
     case calibration
 
@@ -20,7 +20,7 @@ public enum AtlasRoute: ModalRoute {
     public var destination: some View {
         switch self {
         case .nodeDetail(let node): NodeDetailView(node: node)
-        case .session(let node): SessionView(node: node)
+        case .session(let node, let phase): SessionView(node: node, phase: phase)
         case .settings: SettingsView()
         case .calibration: CalibrationView()
         }

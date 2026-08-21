@@ -25,9 +25,11 @@ final class NodeDetailViewModel {
     /// `phaseIndex` answers 6 for a node that has been reviewed — one past the
     /// last phase, because the spiral is *finished*, not because there is a
     /// seventh. Clamping here is what keeps that from indexing off `allCases`.
-    private var phase: Phase { Phase.allCases[min(max(0, current), Phase.allCases.count - 1)] }
-    var actionTitle: LocalizedStringKey { isLocked ? "Bloqueado" : "Começar · \(phase.rawValue)" }
-    var actionTint: Color { isLocked ? Palette.inkGhost : phase.tint }
+    var owed: Phase? {
+        isLocked ? nil : Phase.allCases[min(current, Phase.allCases.count - 1)]
+    }
+    var actionTitle: LocalizedStringKey { owed.map { "Começar · \($0.rawValue)" } ?? "Bloqueado" }
+    var actionTint: Color { owed?.tint ?? Palette.inkGhost }
 
     var prerequisites: [(String, NodeState)] {
         let shown = store.display

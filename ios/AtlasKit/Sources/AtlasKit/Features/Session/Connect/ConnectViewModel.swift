@@ -7,21 +7,21 @@ import SwiftUI
 @Observable
 @MainActor
 final class ConnectViewModel {
-    private(set) var content: ElaborationContent?
     private(set) var linked: Set<String> = []
     private(set) var message = ""
     private var drafts: [String: String] = [:]
     private var active: String?
 
     private let session: SessionViewModel
-    private let api: AtlasAPI
 
-    init(session: SessionViewModel, api: AtlasAPI) {
+    init(session: SessionViewModel) {
         self.session = session
-        self.api = api
     }
 
     var node: ConceptNode { session.node }
+    /// The web lives in the run's warm cache — drawn while the learner was
+    /// still teaching the concept back, when Feynman warmed it.
+    var content: ElaborationContent? { session.store.web(node) }
     var waitingCopy: String { message.isEmpty ? String(localized: "Procurando o que você já sabe…") : message }
 
     /// The candidate the prompt is asking about: the one being edited, else the
@@ -60,18 +60,12 @@ final class ConnectViewModel {
     }
 
     func load() async {
-        let pool = session.learnedElsewhere
-        guard !pool.isEmpty else {
-            // Nothing owned yet is nothing true to wire into: the phase has no
-            // material, so it hands the node straight on rather than asking the
-            // learner to link concepts they have never met.
-            return advance()
-        }
-        var context = session.context
-        context["pool"] = .array(pool.map { .object(["id": .string($0.id), "label": .string($0.label)]) })
-        do {
-            content = try await api.connect(context)
-        } catch {
+        // Nothing owned yet is nothing true to wire into: the phase has no
+        // material, so it hands the node straight on rather than asking the
+        // learner to link concepts they have never met. The store answers the
+        // same way — an empty pool is no generation at all.
+        guard !session.learnedElsewhere.isEmpty else { return advance() }
+        if let error = await session.store.connect(node) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "montar sua teia"))
         }
     }

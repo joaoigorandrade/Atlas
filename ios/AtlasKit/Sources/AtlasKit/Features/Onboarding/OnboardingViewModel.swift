@@ -45,6 +45,10 @@ public final class OnboardingViewModel {
 
     private let store: AtlasStore
     private var build: Task<Void, Never>?
+    /// The placement question asked for while the map was still streaming. Held
+    /// so it can be cancelled with the build — a question nobody will ever see
+    /// is a model call nobody is paying for on purpose.
+    private var pending: Task<DiagnosticQuestion, Error>?
     private var pendingGaps: [(parent: String, spec: GapSpec)] = []
     /// A set, not a list: the pool filter below asks it once per node on the
     /// map, after every answer.
@@ -75,7 +79,7 @@ public final class OnboardingViewModel {
         form.topic = topic
         // A re-submit (or a picked scope) starts a second stream: cancelling
         // the first is what stops its concepts landing on the new map.
-        build?.cancel()
+        stopBuilding()
         stage = .building
         graph = ConceptGraph()
         states = [:]
@@ -115,13 +119,13 @@ public final class OnboardingViewModel {
             }
             guard !Task.isCancelled else { return }
             // Short map, or a stream that ended before the overlap fired.
-            let pending = first ?? ask()
+            let question = first ?? ask()
             // The fork opens on its own — a learner who wants the map should not
             // wait on a test they are about to skip. The question lands behind it.
             try? await Task.sleep(for: Self.buildFloor - opened.duration(to: .now))
             stage = .placement
             do {
-                questions = [try await pending.value]
+                questions = [try await question.value]
             } catch {
                 // Placement is a nice-to-have; the map is the product. Open it,
                 // but say why the step is missing.
@@ -201,7 +205,7 @@ public final class OnboardingViewModel {
     /// Commit the run: the map, everything the placement wrote, and the gap
     /// nodes its misses split out. The one write that ends onboarding.
     public func finish() {
-        build?.cancel()
+        stopBuilding()
         var map = graph
         for gap in pendingGaps { map = spawnGap(map, parentId: gap.parent, gap.spec) }
         store.graph = map
@@ -215,9 +219,18 @@ public final class OnboardingViewModel {
     }
 
     private func ask() -> Task<DiagnosticQuestion, Error> {
-        Task { [form, difficulty = nextDifficulty, nodes = graph.nodes] in
+        pending?.cancel()
+        let task = Task { [form, difficulty = nextDifficulty, nodes = graph.nodes] in
             try await store.api.diagnosticQuestion(form, pool: nodes, difficulty: difficulty)
         }
+        pending = task
+        return task
+    }
+
+    /// The map stream and the question riding alongside it, stopped together.
+    private func stopBuilding() {
+        build?.cancel()
+        pending?.cancel()
     }
 
 }

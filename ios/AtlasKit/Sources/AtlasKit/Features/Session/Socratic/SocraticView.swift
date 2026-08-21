@@ -26,6 +26,10 @@ struct SocraticView: View {
             PhaseBar(.socratic, title: model.node.label, back: { navigator.pop() }) {
                 helpDial(model)
             }
+            // The script lands probe by probe into the run's warm cache, which
+            // is observed rather than returned — this is where a dock waiting
+            // on the next one finds out it has been written.
+            .onChange(of: model.steps.count) { _, _ in model.landed() }
 
             if model.log.isEmpty {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)

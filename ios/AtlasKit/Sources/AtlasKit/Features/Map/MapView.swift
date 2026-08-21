@@ -32,6 +32,18 @@ public struct MapView: View {
         .onChange(of: navigator.activeSheet) { _, sheet in
             if sheet == nil { model.select(nil) }
         }
+        // Screens 14 and 19 are the two a learner reaches from here, and both
+        // would otherwise open on a model. The frontier's reading pass is
+        // written while they are still looking at the map, and the day's cards
+        // are drafted the same way — see `Warm.swift`.
+        //
+        // ponytail: the two nodes at the head of the frontier rather than all
+        // of them. There is no concurrency cap under this, so this list is the
+        // cap; widen it when a warm is cheaper than a wait.
+        .task(id: store.frontier.prefix(2).map(\.id).joined()) {
+            for node in store.frontier.prefix(2) { store.warmUp("consume", for: node) }
+            store.warmRetain()
+        }
     }
 
     private func open(_ node: ConceptNode) {
@@ -61,7 +73,11 @@ public struct MapView: View {
             }
             .sensoryFeedback(.selection, trigger: model.selection?.id)
             .onAppear { model.fit(store.graph, in: geo.size) }
-            .onChange(of: geo.size) { _, size in model.resize(size) }
+            .onChange(of: geo.size) { _, size in model.resize(store.graph, in: size) }
+            // Another map opened underneath this screen — "Seus mapas" switches
+            // the run without leaving the tab, and the old fit points at
+            // coordinates the new graph has no nodes near.
+            .onChange(of: store.subject) { _, _ in model.fit(store.graph, in: geo.size) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()

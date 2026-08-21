@@ -183,6 +183,19 @@ public enum Phase: String, CaseIterable, Sendable, Identifiable {
 }
 
 public extension Phase {
+    /// The generated kind this phase renders — what has to be ready before it
+    /// opens. Retido reads review cards, which are drafted per node rather
+    /// than per phase, so it names none.
+    var kind: String? { self == .retained ? nil : rawValue.lowercased() }
+
+    /// The next phase of the spiral, or nil at the end of it. Retido is not a
+    /// phase a pass walks into — a review is its own screen — so the Crisol is
+    /// where the spiral stops, exactly as `advance()` reads it.
+    var next: Phase? {
+        guard let index = Phase.allCases.firstIndex(of: self), index + 1 < Phase.allCases.count - 1 else { return nil }
+        return Phase.allCases[index + 1]
+    }
+
     /// The phase colour, carried by the CTA's tint and the header kicker and
     /// nothing else. Socratic and Feynman share one — they are the same half of
     /// the spiral, and the design draws them in the same blue.
@@ -205,6 +218,20 @@ public extension Phase {
         case .connect: "Connect · elaboração"
         case .crucible: "Crisol · aplicação"
         case .retained: "Retido · revisão"
+        }
+    }
+
+    /// The gentle push back when a learner taps a phase ahead of the one they
+    /// are owed. Mirrors `PHASE_SKIP_NUDGE_PT` in `lib/curriculum/types.ts` —
+    /// it names the phase they'd be skipping, not the one they tapped.
+    var skipNudge: LocalizedStringKey {
+        switch self {
+        case .consume: "Você ainda não leu isso — quer ler?"
+        case .socratic: "Você ainda não raciocinou sobre isso — quer tentar?"
+        case .feynman: "Você ainda não ensinou isso de volta — quer tentar?"
+        case .connect: "Você ainda não ligou isso ao seu mapa — quer tentar?"
+        case .crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?"
+        case .retained: "Isso ainda não está na sua rotação de revisão — quer adicionar?"
         }
     }
 }
@@ -239,6 +266,9 @@ public extension ConceptGraph {
     func prerequisites(of id: String) -> [ConceptNode] {
         let wanted = edges.compactMap { $0.to == id && !$0.dashed ? $0.from : nil }
         guard !wanted.isEmpty else { return [] }
-        return wanted.compactMap { byId[$0] }
+        // Bound to a `let` on purpose: `byId` is computed, so reading it inside
+        // the closure built the whole index once per prerequisite.
+        let index = byId
+        return wanted.compactMap { index[$0] }
     }
 }

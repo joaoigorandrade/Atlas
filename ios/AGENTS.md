@@ -118,7 +118,7 @@ Sources/AtlasKit/
   Data/       AtlasAPI + AtlasEndpoint + NDJSONStream, AtlasAuth + SessionStore,
               RunStore + RunSnapshot (the `run_states` row, shared with the web),
               OpenRouter + Prompts + Secrets (uncommitted),
-              AtlasStore + Defaults, Fixtures
+              AtlasStore + Defaults, Warm (the generation cache), Fixtures
   Features/   one folder per surface, each holding its view(s) and view model:
               Auth, Onboarding, Home, Map, Review, Profile,
               Session/{Consume,Socratic,Feynman,Connect,Crucible}
@@ -176,7 +176,7 @@ needs, and what a session pushed from two tabs needs.
 ## State
 
 - `AtlasStore` is the one owner of everything persisted — graph, mastery states,
-  cached generations. A view model reads it and writes back through it; nothing
+  cached generations (`store.warm`, see "Never make a screen wait on a model"). A view model reads it and writes back through it; nothing
   keeps a second copy of a node's state.
 - **`frontier` is derived, never stored.** Ask `store.display`, which runs
   `displayStates`. Nothing writes `.frontier` into a `StateMap` and nothing
@@ -194,6 +194,34 @@ needs, and what a session pushed from two tabs needs.
   must not trigger a redraw lives in a plain reference held by `@State`.
 - `@MainActor` on anything that touches a view. `AtlasAPI` is an actor and stays
   off the main one.
+
+## Never make a screen wait on a model
+
+Generation is seconds; opening a screen should be milliseconds. `Warm.swift` is
+the port of the web's `lib/warm.ts`, and a new generated surface uses it rather
+than calling `AtlasAPI` from a view model.
+
+- **`store.warm` (`WarmCache`) holds every generation of the open run, by key.**
+  It is `@Observable`, so a screen reads the key it cares about and redraws as
+  it fills — whether the pass was started by that screen a moment ago or by a
+  warm five minutes before it. A view model owns *no* copy of generated
+  content; `ConsumeViewModel.chunks` is a read of the cache, not a stored array.
+- **One generation per key.** `fill` registers its task before it suspends, so a
+  warm and the click that beats it to the punch share one task — clicking
+  through early costs the remainder of a request already running, never a second
+  generation. A pass that fails, or lands empty, leaves nothing behind: the next
+  caller retries and surfaces the error instead of inheriting it.
+- **The builders in `Warm.swift` are the only place a kind is asked for.** A warm
+  and the click after it address the same content only if one function decides
+  the inputs — the boundary, the Connect pool, the language. Compute a pool
+  twice and you pay for the generation twice. That is also why the pool is part
+  of the key: `key(kind, node, inputs)`.
+- **Who warms what.** The map warms the head of the frontier's reading pass and
+  drafts the day's review cards; the node drawer warms whatever phase the node
+  is owed; a session warms one phase ahead (`SessionViewModel.warmNext`), so
+  Consume writes Socratic, Socratic writes Feynman, and so on to the Crisol.
+- The cache is emptied whenever the run changes (`open`, `clearRun`) — every key
+  names the run and the language it belongs to, and nothing survives a sign-out.
 
 ## Networking
 
