@@ -99,7 +99,8 @@ destination without a selected node, so every phase is pushed from the map.
 1. **Shell + tokens** (done): package, tokens, mastery vocabulary, tab shell,
    Início as the reference screen, one test on frontier derivation.
 2. **Auth** (screens 1–4) + the bearer change on the server (done): GoTrue over
-   REST, the session in the keychain, refreshed at launch.
+   REST with the key in `Secrets.swift`, the session in the keychain, refreshed
+   at launch.
 3. **Map + node detail** (9, 10) against fixture mode (done): `Canvas` draws
    edges and nodes off `ConceptNode.x/y`, `MapTransform` owns pan/zoom so the
    drawing and the tap hit-test agree, and `ATLAS_FIXTURES=1` boots the demo run

@@ -83,6 +83,16 @@ public enum JSONValue: Codable, Sendable {
         }
     }
 
+    /// Stamp an `id` on an object that has none. The server assigns list-item
+    /// ids after validating (`c1`, `s1`, …) because the model is never asked
+    /// for one; a device-side generation has to do the same before the screen's
+    /// `Identifiable` types can decode it.
+    func withId(_ id: String) -> JSONValue {
+        guard case .object(var fields) = self, fields["id"] == nil else { return self }
+        fields["id"] = .string(id)
+        return .object(fields)
+    }
+
     /// Decode a frame's value into the concrete shape the screen renders.
     public func decode<T: Decodable>(_ type: T.Type = T.self) throws -> T {
         try JSONDecoder().decode(T.self, from: try JSONEncoder().encode(self))

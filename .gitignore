@@ -45,3 +45,6 @@ ios/Derived/
 ios/.build/
 ios/**/.swiftpm/
 ios/.package.resolved
+
+# Dev-phase credentials in the iOS source (see Secrets.example.swift.txt).
+ios/AtlasKit/Sources/AtlasKit/Data/Secrets.swift

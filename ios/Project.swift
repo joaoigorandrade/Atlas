@@ -1,10 +1,12 @@
 import ProjectDescription
 
-// The three values the app launches with are baked into Info.plist from the
-// environment Tuist forwards into this manifest; `generate.sh` fills that from
-// the .env.local the web app already keeps them in.
-// ponytail: none of the three change per build, so a fetched remote config
-// would be machinery for nothing.
+// The app talks to the deployed web app and to nothing else — auth included
+// (`/api/auth`), so no Supabase key ships with it either. A phone is not on the
+// developer's machine's network, and a build that points at a laptop is a build
+// that works for exactly one person, so the host is a constant here rather than
+// an environment lift.
+// ponytail: one constant, no remote config and no per-build lookup. A second
+// environment (staging) is what would earn one back.
 let project = Project(
     name: "Atlas",
     packages: [.local(path: "AtlasKit")],
@@ -22,13 +24,9 @@ let project = Project(
                 // kills the app the first time it is pressed.
                 "NSMicrophoneUsageDescription": "Para responder falando, em vez de digitar.",
                 "NSSpeechRecognitionUsageDescription": "Para transcrever o que você fala nas respostas.",
-                // The dev server is plain http on the host.
-                "NSAppTransportSecurity": ["NSAllowsLocalNetworking": true],
                 // Screen 4 — the confirmation link comes back into the app.
                 "CFBundleURLTypes": [["CFBundleURLSchemes": ["atlas"]]],
-                "ATLAS_BASE_URL": .string(Environment.atlasBaseUrl.getString(default: "http://localhost:3000")),
-                "SUPABASE_URL": .string(Environment.supabaseUrl.getString(default: "")),
-                "SUPABASE_PUBLISHABLE_KEY": .string(Environment.supabasePublishableKey.getString(default: "")),
+                "ATLAS_BASE_URL": "https://atlas-tan-two.vercel.app",
             ]),
             sources: ["App/Sources/**"],
             dependencies: [.package(product: "AtlasKit")]

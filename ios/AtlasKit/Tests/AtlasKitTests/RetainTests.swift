@@ -10,7 +10,7 @@ import Testing
 @MainActor private func store(_ states: StateMap = ["lat": .mastered]) -> AtlasStore {
     AtlasStore(
         api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!),
-        auth: AtlasAuth(baseURL: URL(string: "https://supabase.test")!, apiKey: "anon"),
+        auth: AtlasAuth(),
         graph: ConceptGraph(nodes: [ConceptNode(id: "lat", label: "Limites laterais")]),
         states: states,
         subject: "Cálculo I"

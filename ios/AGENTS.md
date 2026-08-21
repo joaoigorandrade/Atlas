@@ -43,12 +43,42 @@ make open          # generate and open the workspace in Xcode
 `make clean` drops everything generated, the resolved package checkouts
 included.
 
-`generate.sh` exists because Tuist forwards only `TUIST_`-prefixed variables
-into a manifest, so it lifts `ATLAS_BASE_URL`, `SUPABASE_URL` and
-`SUPABASE_PUBLISHABLE_KEY` out of the web app's `.env.local` rather than asking
-for a second dotfile. They are baked into `Info.plist`; `App/Sources/AtlasApp.swift`
-reads them back and builds the store, and that is all the app target contains —
-every line of the app is in `AtlasKit`.
+`ATLAS_BASE_URL` in `Project.swift` is baked into `Info.plist`;
+`App/Sources/AtlasApp.swift` reads it back and builds the store, and that is all
+the app target contains — every line of the app is in `AtlasKit`.
+
+**It is the deployed web app, never a local one.** A simulator can reach a dev
+server on the host, but a phone can't, so a build pointed at `localhost` is a
+build that works on exactly one machine. Test against the deployment; if you
+have to try a server change first, deploy a preview and edit the constant for
+that run only. `Info.plist` carries the host and nothing else — the Supabase URL
+and its publishable key moved into `Secrets.swift` with the rest, so a generated
+project holds no credential.
+
+## Where a call goes (development phase)
+
+The app holds its own credentials — `Secrets.swift`, which is **not committed**
+(copy `Secrets.example.swift.txt` and fill it from the web app's `.env.local`).
+The repo is public and the OpenRouter key is a spend credential: it must never
+be committed, and it is extractable from any build that leaves this machine.
+
+Three destinations, on purpose:
+
+- **Supabase, directly** — auth (`AtlasAuth` → GoTrue). The publishable key is
+  a client key and RLS is the access control.
+- **OpenRouter, directly** — the kinds listed in `Prompts.streamed`. Their
+  prompts are *copied* from `lib/server/generate/*.ts`, not rewritten: change a
+  prompt on the server and it has to be re-copied here, or the app quietly
+  teaches something else. `OpenRouter.swift` is a port of the transport half of
+  `lib/server/openrouter.ts` — same request, same deadlines, same streaming-JSON
+  scanning, pinned by `OpenRouterTests.swift`.
+- **The web app** — everything not yet ported. `Prompts.streamed` returning nil
+  is what routes a kind to `/api/generate`, so an unported kind keeps working
+  and porting one is a single `case`.
+
+What the device path deliberately does not have: the fallback model chain, the
+shared `content_cache`, the quota, and the spend log. Those are the server's,
+and a kind that matters more than a laptop build should stay there.
 
 ## The design is the source of truth
 
@@ -78,6 +108,7 @@ Sources/AtlasKit/
   Domain/     the vocabulary and the pure functions — Concept, Diagnostic,
               Calibration, Retain, PhaseContent. No I/O, no SwiftUI state.
   Data/       AtlasAPI + AtlasEndpoint + NDJSONStream, AtlasAuth + SessionStore,
+              OpenRouter + Prompts + Secrets (uncommitted),
               AtlasStore + Defaults, Fixtures
   Features/   one folder per surface, each holding its view(s) and view model:
               Auth, Onboarding, Home, Map, Review, Profile,
@@ -111,15 +142,27 @@ Sources/AtlasKit/
 
 ## Navigation
 
-- `AtlasTab` is the tab bar (Início · Mapa · Revisão · Perfil) — `NavigationTabView`
-  renders it and gives each tab its own `Navigator`, so a stack survives a trip
-  through another tab. Session is never a tab.
-- `AtlasRoute` is every other destination. A screen asks the navigator
-  (`@EnvironmentObject var navigator: AtlasNavigator`) for one — `navigate(to:)`
-  to push, `openSheet(_:)` for the node drawer, `pop()`/`popToRoot()` to leave.
-  No `NavigationLink`, no per-screen `sheet(item:)`, no `@Environment(\.dismiss)`.
+**The `Navigation` package owns every push, present and tab switch.** SwiftUI's
+own navigation is not an alternative here: a screen that reaches for
+`NavigationStack`, `NavigationLink`, `sheet(item:)` or `@Environment(\.dismiss)`
+has taken a stack the shell can no longer reset — which is what signing out
+needs, and what a session pushed from two tabs needs.
+
+- `AtlasTab` is the tab bar (Início · Mapa · Revisão · Perfil). `NavigationTabView`
+  renders it from `AtlasTabNavigator` and gives each tab its own `Navigator`, so
+  a stack survives a trip through another tab. Session is never a tab.
+- `AtlasRoute` is every other destination — a `Routable` enum, one case per
+  screen, so a destination is named rather than built at the call site. A new
+  screen is a case there and a line in its `destination`, never a link.
+- A screen asks the navigator it is given (`@EnvironmentObject var navigator:
+  AtlasNavigator`, `AtlasTabNavigator` for a tab change) — `navigate(to:)` to
+  push, `openSheet(_:)` for the node drawer, `pop()`/`popToRoot()`/
+  `dismissSheet()` to leave.
 - A pushed session hides the tab bar; it does not cover the screen. `navigate`
   dismisses the drawer on the way, which is why there is no `onDismiss` dance.
+- The one `onOpenURL` (`RootView`) is the email confirmation link, which is a
+  notice and not a place. A link that names a screen goes through the package's
+  `DeepLinkHandler` into an `AtlasRoute`, never through a second `onOpenURL`.
 
 ## State
 
@@ -136,9 +179,15 @@ Sources/AtlasKit/
 
 ## Networking
 
-- **`AtlasAPI` is the only place in the app that makes an HTTP request.** A new
-  content kind is a method there, never a `URLSession` call in a view or a view
-  model.
+**The `Networking` package owns every request the app makes.** A request is an
+`HTTPRequestData` value and it goes out through a `URLSessionNetworkClient` —
+never a hand-built `URLRequest`, never a bare `URLSession` call, and never a
+second client type per call site.
+
+- **`AtlasAPI` is the only place that talks to the web app.** A new content kind
+  is a method there, never a request in a view or a view model. `AtlasAuth` is
+  the same rule for Supabase's auth endpoints, and it holds its own client for
+  the second host — those two are the whole list.
 - Requests are `HTTPRequestData` values built in `AtlasEndpoint` — a path, a
   method, headers and a body, nothing else. There is no request type per call.
 - Unary requests run through `Networking`'s `URLSessionNetworkClient`, with
@@ -146,9 +195,12 @@ Sources/AtlasKit/
   screen speaks and the header carries the request id a log needs, and
   `NetworkError.httpError` drops both. `AtlasAPI.send` is where a status becomes
   an `AtlasError`.
-- Streamed kinds go through `NDJSONStream`, which builds the same request value
-  and reads `URLSession.bytes` — the package client buffers whole responses,
-  which is exactly wrong for a screen that should paint on its first frame.
+- Streaming is the one thing the client does not do: `NetworkClient` buffers a
+  whole response, which is exactly wrong for a screen that should paint on its
+  first frame. So `NDJSONStream` still builds the package's request value and
+  only takes over the reading, through `URLSession.bytes`. That split is the
+  rule — a streamed endpoint keeps `HTTPRequestData`; it does not get its own
+  request shape.
 - Streamed kinds render frames as they land. A frame with `partial: true` is a
   redraw: show it, never assemble it, never treat it as the answer — a complete
   frame for the same slot always follows. A frame named `__error` means the
@@ -158,9 +210,11 @@ Sources/AtlasKit/
 - Errors surface as `AtlasError` with a `code`. The screen says something true
   about the code in the learner's language — the `message` is for logs and never
   appears on screen.
-- The client never holds the OpenRouter key, never talks to a model directly, and
-  never re-implements a prompt. If a screen needs content, some kind on
-  `/api/generate` produces it.
+- `OpenRouter.swift` is the single sanctioned exception, and only because it is a
+  port of a server file that must stay diffable against it (see *Where a call
+  goes*). It is a vendor transport, not app networking: nothing else in the app
+  builds a `URLRequest`, and no view or view model ever reaches it — a screen
+  asks `AtlasAPI` for content and does not know which destination answered.
 
 ## Touch, safety, accessibility
 

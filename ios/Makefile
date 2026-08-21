@@ -7,9 +7,9 @@ APP := com.joaoigor.atlas
 
 .PHONY: generate build test run open clean
 
-## generate: write Atlas.xcworkspace from Project.swift and .env.local
+## generate: write Atlas.xcworkspace from Project.swift
 generate:
-	./generate.sh --no-open
+	tuist generate --no-open
 
 # AtlasKit depends on two iOS-only packages (Navigation, Networking), so the
 # old host-macOS `swift build` / `swift test` no longer resolve — both gates run
@@ -37,7 +37,7 @@ run: generate
 
 ## open: generate, then open the workspace in Xcode
 open:
-	./generate.sh
+	tuist generate
 
 ## clean: drop everything generated
 clean:

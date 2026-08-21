@@ -17,10 +17,9 @@ public struct AuthSession: Codable, Sendable {
 /// `AtlasAPI` still owns every *content* request — this owns the token it sends.
 public actor AtlasAuth {
     private let client: URLSessionNetworkClient
-    private let apiKey: String
+    private let apiKey = Secrets.supabasePublishableKey
 
-    public init(baseURL: URL, apiKey: String, session: URLSession = .shared) {
-        self.apiKey = apiKey
+    public init(baseURL: URL = Secrets.supabaseURL, session: URLSession = .shared) {
         // Same reason as `AtlasAPI`: GoTrue puts its own `error_code` in the
         // body of a 4xx, and that code is what a screen speaks.
         client = URLSessionNetworkClient(
