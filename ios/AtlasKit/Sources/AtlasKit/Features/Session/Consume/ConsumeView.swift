@@ -60,8 +60,8 @@ struct ConsumeView: View {
         .animation(Motion.standard, value: model.index)
         .animation(Motion.snap, value: model.picked)
         .sensoryFeedback(.selection, trigger: model.picked)
-        .sheet(item: $model.lens) { key in
-            ModelLensView(lens: key, context: model.lensContext(key))
+        .sheet(item: $model.lens) { open in
+            ModelLensView(node: model.node, open: open)
                 .presentationDetents([.medium, .large])
                 .environment(store)
         }

@@ -160,10 +160,20 @@ public extension AtlasStore {
         "\(kind)|\(subject)|\(node.id)|\(language)|\(inputs)"
     }
 
+    /// Where one lens over one section lives. Both are in the key: the same
+    /// lens over the next section is different content, and the lens already
+    /// opened over *this* one is content that already exists.
+    func modelKey(_ node: ConceptNode, _ chunk: ConsumeChunk, _ lens: AltKey) -> String {
+        key("model", node, "\(chunk.id)|\(lens.rawValue)")
+    }
+
     /// What has landed for each kind — the whole reason a phase can open
     /// without a spinner, and what a screen redraws from while one is landing.
     /// Each reader is the twin of the filler below it: same key, same inputs.
     func chunks(_ node: ConceptNode) -> [ConsumeChunk] { warm.content(key("consume", node)) ?? [] }
+    func modelBeats(_ node: ConceptNode, _ chunk: ConsumeChunk, _ lens: AltKey) -> [ConsumeModelBeat] {
+        warm.content(modelKey(node, chunk, lens)) ?? []
+    }
     func steps(_ node: ConceptNode) -> [SocraticStep] { warm.content(key("socratic", node)) ?? [] }
     func beats(_ node: ConceptNode) -> [FeynmanBeat] { warm.content(key("feynman", node)) ?? [] }
     func web(_ node: ConceptNode) -> ElaborationContent? {
@@ -177,6 +187,24 @@ public extension AtlasStore {
     func consume(_ node: ConceptNode) async -> Error? {
         let (api, context) = (api, context(for: node))
         return await warm.fill(key("consume", node), live: { await api.consume(context) })
+    }
+
+    /// One lens over one section — the beats of the model view. The section's
+    /// own prose travels in the context, so the walkthrough is about what is on
+    /// screen rather than about the concept in general.
+    ///
+    /// Cached like every other kind, which is what makes reopening a lens a
+    /// read: closing the sheet and tapping the same control again used to pay
+    /// for a second pass and rewrite the view in front of the learner.
+    @discardableResult
+    func model(_ node: ConceptNode, _ chunk: ConsumeChunk, _ lens: AltKey) async -> Error? {
+        var context = context(for: node)
+        context["lens"] = .string(lens.rawValue)
+        context["kicker"] = .string(chunk.kicker)
+        context["sectionBody"] = .array(chunk.body.map { .string($0) })
+        context["takeaway"] = .string(chunk.takeaway)
+        let (api, sent) = (api, context)
+        return await warm.fill(modelKey(node, chunk, lens), live: { await api.model(sent) })
     }
 
     @discardableResult

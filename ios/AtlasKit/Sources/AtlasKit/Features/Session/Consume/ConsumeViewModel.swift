@@ -1,6 +1,15 @@
 import Observation
 import SwiftUI
 
+/// A lens, and the section it was opened over. The pair is what addresses the
+/// beats — the same lens over the next section is a different view — so it
+/// travels as one rather than being looked up again by the sheet.
+struct OpenLens: Identifiable {
+    let chunk: ConsumeChunk
+    let lens: AltKey
+    var id: String { "\(chunk.id)|\(lens.rawValue)" }
+}
+
 /// Screen 14's state: which section is being read and whether its check has
 /// been passed. The sections themselves are not state here — they live in the
 /// run's warm cache, which is what lets a pass written before this screen
@@ -15,7 +24,7 @@ final class ConsumeViewModel {
     private(set) var picked: Int?
     private(set) var message = ""
     /// Which lens is open over the prose, if any. Bound by the sheet.
-    var lens: AltKey?
+    var lens: OpenLens?
     let speaker = Speaker()
 
     private let session: SessionViewModel
@@ -74,7 +83,10 @@ final class ConsumeViewModel {
     }
 
     /// The lens opens over the prose; the section behind it is never swapped.
-    func open(_ lens: AltKey) { self.lens = lens }
+    func open(_ lens: AltKey) {
+        guard let chunk else { return }
+        self.lens = OpenLens(chunk: chunk, lens: lens)
+    }
 
     func toggleReadAloud() { speaker.toggle(spoken, api: api) }
 
@@ -83,17 +95,5 @@ final class ConsumeViewModel {
         guard passed else { return }
         speaker.stop()
         session.advance()
-    }
-
-    /// The lens context: the section on screen, so the model view walks *this*
-    /// material rather than the concept in general.
-    func lensContext(_ lens: AltKey) -> [String: JSONValue]? {
-        guard let chunk else { return nil }
-        var context = session.context
-        context["lens"] = .string(lens.rawValue)
-        context["kicker"] = .string(chunk.kicker)
-        context["sectionBody"] = .array(chunk.body.map { .string($0) })
-        context["takeaway"] = .string(chunk.takeaway)
-        return context
     }
 }

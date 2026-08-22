@@ -47,6 +47,47 @@ private func twoParts(_ starts: Starts) -> @Sendable () async -> AsyncThrowingSt
     #expect(await starts.count == 1)
 }
 
+/// A section, decoded the way one actually arrives — the shape has no
+/// initialiser of its own.
+private func section(_ id: String) throws -> ConsumeChunk {
+    let json = """
+    {"id":"\(id)","kicker":"1 · O que é","body":["A prosa desta seção."],
+     "takeaway":"A frase para levar."}
+    """
+    return try JSONDecoder().decode(ConsumeChunk.self, from: Data(json.utf8))
+}
+
+@MainActor
+@Test func aLensIsKeptForTheNextOpenRatherThanWrittenAgain() async throws {
+    let store = AtlasStore(
+        api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!),
+        auth: AtlasAuth(),
+        graph: ConceptGraph(nodes: [ConceptNode(id: "cadeia", label: "Regra da cadeia")]),
+        subject: "Cálculo I"
+    )
+    let node = store.graph.nodes[0]
+    let first = try section("c1")
+    let second = try section("c2")
+
+    // The section and the lens both address the beats: the same lens over the
+    // next section is a different view, and so is another lens over this one.
+    #expect(store.modelKey(node, first, .simpler) != store.modelKey(node, second, .simpler))
+    #expect(store.modelKey(node, first, .simpler) != store.modelKey(node, first, .analogy))
+
+    await store.warm.fill(store.modelKey(node, first, .simpler), live: {
+        AsyncThrowingStream { continuation in
+            continuation.yield([ConsumeModelBeat(label: "Passo 1", text: "Mais devagar.")])
+            continuation.finish()
+        }
+    } as @Sendable () async -> AsyncThrowingStream<[ConsumeModelBeat], Error>)
+
+    // Closing the sheet and tapping the same control again is a read — that is
+    // what stops the view being rewritten in front of the learner…
+    #expect(store.modelBeats(node, first, .simpler).count == 1)
+    // …and nothing written for one section is ever served for another.
+    #expect(store.modelBeats(node, second, .simpler).isEmpty)
+}
+
 @MainActor
 @Test func aFailedPassLeavesNothingBehind() async {
     let cache = WarmCache()

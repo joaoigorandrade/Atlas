@@ -6,24 +6,29 @@ import SwiftUI
 @Observable
 @MainActor
 final class ModelLensViewModel {
-    private(set) var beats: [ConsumeModelBeat] = []
     private(set) var message = ""
 
-    private let api: AtlasAPI
-    private let context: [String: JSONValue]?
+    private let store: AtlasStore
+    private let node: ConceptNode
+    private let chunk: ConsumeChunk
+    private let lens: AltKey
 
-    init(api: AtlasAPI, context: [String: JSONValue]?) {
-        self.api = api
-        self.context = context
+    init(store: AtlasStore, node: ConceptNode, chunk: ConsumeChunk, lens: AltKey) {
+        self.store = store
+        self.node = node
+        self.chunk = chunk
+        self.lens = lens
     }
+
+    /// The beats live in the run's warm cache, not here — which is what makes
+    /// reopening a lens a read rather than a second pass, and what lets a view
+    /// still being written land in the sheet as it arrives.
+    var beats: [ConsumeModelBeat] { store.modelBeats(node, chunk, lens) }
 
     var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo…") : message }
 
     func load() async {
-        guard let context else { return }
-        do {
-            for try await landed in await api.model(context) { beats = landed }
-        } catch {
+        if let error = await store.model(node, chunk, lens) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "abrir essa visão"))
         }
     }

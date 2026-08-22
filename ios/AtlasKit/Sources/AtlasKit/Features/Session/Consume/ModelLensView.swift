@@ -1,17 +1,17 @@
 import SwiftUI
 
-/// The lens sheet. It owns nothing but its own beats — the section it is about
-/// was chosen by `ConsumeViewModel` and travels in as a context.
+/// The lens sheet. It owns nothing at all — the section it is about was chosen
+/// by `ConsumeViewModel`, and the beats belong to the run's warm cache.
 struct ModelLensView: View {
-    let lens: AltKey
-    let context: [String: JSONValue]?
+    let node: ConceptNode
+    let open: OpenLens
     @Environment(AtlasStore.self) private var store
     @State private var model: ModelLensViewModel?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Kicker(lens.label, tint: Palette.accent, size: 11)
+                Kicker(open.lens.label, tint: Palette.accent, size: 11)
                 if let model {
                     ForEach(Array(model.beats.enumerated()), id: \.offset) { _, beat in
                         Text(verbatim: beat.label).font(.atlas(.mono, 10.5)).foregroundStyle(Palette.inkFaint).padding(.top, 20)
@@ -28,7 +28,9 @@ struct ModelLensView: View {
         }
         .background(Palette.cardAlt)
         .task {
-            let model = model ?? ModelLensViewModel(api: store.api, context: context)
+            let model = model ?? ModelLensViewModel(
+                store: store, node: node, chunk: open.chunk, lens: open.lens
+            )
             self.model = model
             await model.load()
         }
