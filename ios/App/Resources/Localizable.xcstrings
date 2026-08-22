@@ -1366,6 +1366,16 @@
         }
       }
     },
+    "Entendido" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Understood"
+          }
+        }
+      }
+    },
     "Entrando…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2653,6 +2663,16 @@
         }
       }
     },
+    "Responda com o que você acabou de ler — isso libera a próxima seção." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer from what you just read — this unlocks the next section."
+          }
+        }
+      }
+    },
     "Responda com suas palavras…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3012,6 +3032,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Too many attempts for now. Wait a minute and try again."
+          }
+        }
+      }
+    },
+    "Tente outra" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try another"
           }
         }
       }
