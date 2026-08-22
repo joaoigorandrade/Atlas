@@ -11,7 +11,7 @@ import SwiftUI
 @MainActor
 public final class SessionViewModel: Identifiable {
     public let node: ConceptNode
-    public private(set) var phase: Phase { didSet { warmNext() } }
+    public private(set) var phase: Phase { didSet { warmNext(); handOff() } }
     /// Set when the last phase hands back — the map takes the screen again.
     public private(set) var finished = false
 
@@ -26,14 +26,26 @@ public final class SessionViewModel: Identifiable {
     public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil) {
         self.node = node
         self.store = store
-        let owed = phaseIndex(store.display[node.id] ?? .unknown)
+        // What the node is owed, reading included: a pass left part-way through
+        // reopens on the reading, not on the phase its state alone implies.
+        let owed = readingPhaseIndex(
+            store.display[node.id] ?? .unknown,
+            reviewed: store.reviewed.contains(node.id),
+            progress: store.consumeProgress[node.id]
+        )
         self.phase = phase ?? Phase.allCases[max(0, min(owed, Phase.allCases.count - 2))]
         // Arriving is the evidence: a node being worked is Learning, whatever
         // else happens on the screen. Anything already past that is left alone.
+        //
+        // The reading is the one exception. Opening it and stepping back after
+        // a section is not work the map should claim, so Consume writes the
+        // state itself once the learner reads past the first section — which is
+        // exactly where `exitConsume` writes it on the web.
         let state = store.states[node.id] ?? .unknown
-        if state == .unknown { store.states[node.id] = .learning }
+        if state == .unknown, self.phase != .consume { store.states[node.id] = .learning }
         store.markActiveToday()
         warmNext()
+        handOff()
     }
 
     /// Speculate one phase ahead. A learner reading a pass is exactly when the
@@ -42,6 +54,17 @@ public final class SessionViewModel: Identifiable {
     private func warmNext() {
         guard let kind = phase.next?.kind else { return }
         store.warmUp(kind, for: node)
+    }
+
+    /// Opening Socratic is what makes a finished reading a *handed-off* one.
+    /// Without it, a pass read to the end and left for the map is
+    /// indistinguishable from one that went on to be questioned — see
+    /// `readingPhaseIndex`. Mirrors the same write in `enterSocratic`.
+    private func handOff() {
+        guard phase == .socratic, var progress = store.consumeProgress[node.id],
+              !progress.handedOff else { return }
+        progress.handedOff = true
+        store.consumeProgress[node.id] = progress
     }
 
     /// The context every kind on this node shares. Built by the store, never

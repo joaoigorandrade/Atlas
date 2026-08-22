@@ -171,7 +171,7 @@ struct ConsumeView: View {
                         }
                 }
                 .pressable()
-                .disabled(model.picked != nil)
+                .disabled(model.passed)
             }
             if model.picked != nil {
                 Text(verbatim: model.passed ? check.right : check.wrong)
@@ -186,12 +186,13 @@ struct ConsumeView: View {
         .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.accent.opacity(0.18), lineWidth: 1) }
     }
 
-    /// Green marks the answer once one is picked, amber the miss that was
-    /// picked. An option nobody chose says nothing.
+    /// Green marks the answer once it is found, amber the miss that was picked.
+    /// A miss doesn't give the answer away — the section is still open, and the
+    /// next tap is the retry.
     private func mark(_ option: Int, _ check: ConsumePrediction, _ model: ConsumeViewModel) -> Color? {
-        guard model.picked != nil else { return nil }
-        if check.opts[safe: option]?.correct == true { return Palette.accent }
-        return model.picked == option ? Palette.amberInk : nil
+        guard let picked = model.picked else { return nil }
+        if model.passed { return check.opts[safe: option]?.correct == true ? Palette.accent : nil }
+        return picked == option ? Palette.amberInk : nil
     }
 
     // MARK: - The dock

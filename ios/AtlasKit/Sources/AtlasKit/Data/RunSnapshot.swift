@@ -3,13 +3,13 @@ import Foundation
 /// One row of `run_states` — a whole run, as the app reads and writes it.
 ///
 /// **The web app owns this format.** `lib/persistence.ts` defines `RunSnapshot`
-/// at v9 and writes far more of it than this client has screens for: reading
-/// positions, unfinished Socratic and Feynman passes, the run-wide misconception
-/// roll-up. So the decode here is partial on purpose, and the encode is a
-/// *merge* — every key this file does not name is carried back exactly as it
-/// arrived. Without that, opening the app on a phone would silently discard a
-/// week of work done in the browser, because the browser rebuilds the whole
-/// snapshot literal on every save and cannot preserve what it never loaded.
+/// at v9 and writes far more of it than this client has screens for: unfinished
+/// Socratic, Feynman and Connect passes, the run-wide misconception roll-up. So
+/// the decode here is partial on purpose, and the encode is a *merge* — every
+/// key this file does not name is carried back exactly as it arrived. Without
+/// that, opening the app on a phone would silently discard a week of work done
+/// in the browser, because the browser rebuilds the whole snapshot literal on
+/// every save and cannot preserve what it never loaded.
 ///
 /// ponytail: partial, not a port. The one field that genuinely cannot be shared
 /// is the card queue — the web schedules with FSRS and this client with SM-2
@@ -31,6 +31,10 @@ public struct RunSnapshot: Sendable, Identifiable {
     public var calib: [CalibSample] = []
     public var reviewed: Set<String> = []
     public var cards: [ScheduledCard] = []
+    /// Where the learner got to in each node's reading pass. Shared with the
+    /// web in full — the keys only its screens fill in ride through inside each
+    /// record (`ConsumeProgress.extras`).
+    public var consumeProgress: [String: ConsumeProgress] = [:]
 
     /// The web's `form` and `adherence` objects, held whole. This client owns
     /// four keys of the first and one of the second; the exam date, the banked
@@ -70,11 +74,13 @@ public extension RunSnapshot {
         calib = Self.read(row, "calibSamples") ?? []
         reviewed = Set(Self.read(row, "reviewedNodes") ?? [String]())
         cards = Self.read(row, "iosCards") ?? []
+        consumeProgress = (row["consumeProgress"]?.fields ?? [:])
+            .compactMapValues(ConsumeProgress.init(json:))
         // Everything this client renders is now held as itself; the rest stays
         // as JSON so the merge below can hand it straight back.
         extras = row
         for key in ["v", "form", "adherence", "graph", "states", "language",
-                    "calibSamples", "reviewedNodes", "iosCards"] {
+                    "calibSamples", "reviewedNodes", "iosCards", "consumeProgress"] {
             extras[key] = nil
         }
     }
@@ -88,6 +94,7 @@ public extension RunSnapshot {
         row["calibSamples"] = (try? JSONValue(encoding: calib)) ?? .array([])
         row["reviewedNodes"] = .array(reviewed.sorted().map(JSONValue.string))
         row["iosCards"] = (try? JSONValue(encoding: cards)) ?? .array([])
+        row["consumeProgress"] = .object(consumeProgress.mapValues(\.json))
         if let language { row["language"] = .string(language) }
 
         var form = self.form
@@ -144,5 +151,42 @@ public extension RunSnapshot {
             whole[key] = whole[key] ?? fallback
         }
         return whole
+    }
+}
+
+// MARK: - The reading position on the wire
+
+extension ConsumeProgress {
+    /// One node's record, as the row holds it. Nil for a value that is not an
+    /// object at all — a record this client cannot read is left where it is
+    /// rather than guessed at.
+    init?(json: JSONValue) {
+        guard let row = json.fields else { return nil }
+        self.init()
+        if case .number(let value)? = row["idx"] { idx = Int(value) }
+        if case .number(let value)? = row["total"] { total = Int(value) }
+        if case .bool(let value)? = row["finished"] { finished = value }
+        if case .bool(let value)? = row["handedOff"] { handedOff = value }
+        checks = (try? row["checks"]?.decode([String: ConsumeCheck].self)) ?? [:]
+        extras = row
+        for key in ["idx", "total", "finished", "handedOff", "checks"] { extras[key] = nil }
+    }
+
+    /// The record to write back: this client's reading over the one it read.
+    var json: JSONValue {
+        var row = extras
+        row["idx"] = .number(Double(idx))
+        row["total"] = .number(Double(total))
+        row["finished"] = .bool(finished)
+        row["handedOff"] = .bool(handedOff)
+        row["checks"] = (try? JSONValue(encoding: checks)) ?? .object([:])
+        // `enterSession` spreads these three straight into its live session, so
+        // a record written here without them reopens the browser's reading on
+        // `undefined` — the same reason `positions` and `litToday` are filled
+        // in above.
+        row["variant"] = row["variant"] ?? .object([:])
+        row["collapsed"] = row["collapsed"] ?? .object([:])
+        row["termsSeen"] = row["termsSeen"] ?? .array([])
+        return .object(row)
     }
 }

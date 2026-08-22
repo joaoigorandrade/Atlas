@@ -30,9 +30,21 @@ private func webRow() -> JSONValue {
         "calibSamples": .array([.object(["id": .string("a"), "felt": .number(4), "real": .number(2)])]),
         "reviewedNodes": .array([.string("a")]),
         "adherence": .object(["streak": .number(6), "lastDay": .string("2026-08-20")]),
+        // A reading pass the browser left part-way through. Both clients read
+        // and write this one; the three keys inside it that only the browser
+        // fills in are carried the same way the row's own are.
+        "consumeProgress": .object(["a": .object([
+            "idx": .number(2),
+            "total": .number(5),
+            "finished": .bool(false),
+            "handedOff": .bool(false),
+            "checks": .object(["c1": .object(["oi": .number(1), "correct": .bool(true)])]),
+            "variant": .object(["c1": .string("analogy")]),
+            "collapsed": .object(["c1": .bool(true)]),
+            "termsSeen": .array([.string("c1:limite")]),
+        ])]),
         // The keys this client has no screen for. Losing any of them is a week
         // of browser work gone the first time the app is opened on a phone.
-        "consumeProgress": .object(["a": .object(["chunk": .number(3)])]),
         "misconceptions": .array([.string("confunde taxa com total")]),
         "positions": .object(["a": .object(["x": .number(12), "y": .number(40)])]),
     ])
@@ -50,6 +62,12 @@ private func webRow() -> JSONValue {
     #expect(run.language == "pt-BR")
     #expect(run.calib.first?.felt == 4)
     #expect(run.reviewed == ["a"])
+    // Where the browser's reading stopped — what the phone resumes on, and what
+    // keeps the spiral from drawing Consume and Socratic as done.
+    #expect(run.consumeProgress["a"]?.idx == 2)
+    #expect(run.consumeProgress["a"]?.total == 5)
+    #expect(run.consumeProgress["a"]?.finished == false)
+    #expect(run.consumeProgress["a"]?.checks["c1"] == ConsumeCheck(oi: 1, correct: true))
     // Derived the same way the open run derives them, so a dashboard card and
     // the map itself can never disagree.
     #expect(run.mastered == 0.5)
@@ -60,6 +78,7 @@ private func webRow() -> JSONValue {
     var run = try #require(RunSnapshot(subject: "Cálculo", snapshot: webRow()))
     run.states["b"] = .learning
     run.interests = "corrida"
+    run.consumeProgress["a"]?.idx = 3
 
     let saved = try #require(run.snapshot.fields)
 
@@ -67,8 +86,17 @@ private func webRow() -> JSONValue {
     #expect(try #require(saved["states"]).decode(StateMap.self)["b"] == .learning)
     #expect(saved["form"]?.fields?["interests"] == .string("corrida"))
 
+    // The reading position is shared, so it is written rather than carried —
+    // but the keys inside the record that only the browser fills in survive it,
+    // and `enterSession` spreads all three straight into its live session.
+    let reading = try #require(saved["consumeProgress"]?.fields?["a"]?.fields)
+    #expect(reading["idx"] == .number(3))
+    #expect(reading["variant"] == .object(["c1": .string("analogy")]))
+    #expect(reading["collapsed"] == .object(["c1": .bool(true)]))
+    #expect(reading["termsSeen"] == .array([.string("c1:limite")]))
+    #expect(reading["checks"] == .object(["c1": .object(["oi": .number(1), "correct": .bool(true)])]))
+
     // Everything else is handed back exactly as it arrived.
-    #expect(saved["consumeProgress"] == webRow().fields?["consumeProgress"])
     #expect(saved["misconceptions"] == webRow().fields?["misconceptions"])
     #expect(saved["positions"] == webRow().fields?["positions"])
     // Including inside the two objects this client only partly owns.
@@ -81,8 +109,21 @@ private func webRow() -> JSONValue {
     // No row to merge onto — the first save of a run built in onboarding.
     var run = RunSnapshot(subject: "Álgebra")
     run.graph = ConceptGraph(nodes: [ConceptNode(id: "a", label: "Vetor", gap: true)])
+    var progress = ConsumeProgress()
+    progress.idx = 1
+    progress.total = 4
+    run.consumeProgress = ["a": progress]
 
     let saved = try #require(run.snapshot.fields)
+
+    // A reading recorded on the phone has to be one the browser can reopen:
+    // `enterSession` spreads these three into its session with no fallback.
+    let reading = try #require(saved["consumeProgress"]?.fields?["a"]?.fields)
+    #expect(reading["idx"] == .number(1))
+    #expect(reading["variant"] == .object([:]))
+    #expect(reading["collapsed"] == .object([:]))
+    #expect(reading["termsSeen"] == .array([]))
+    #expect(reading["checks"] == .object([:]))
 
     // `useRunState` assigns these straight into state with no fallback of its
     // own, so a missing one is a crash in the browser rather than a default.

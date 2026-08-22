@@ -50,3 +50,29 @@ import Testing
     #expect(phaseIndex(.mastered, reviewed: true) == 6)
     #expect(phaseIndex(.unknown) == -1)
 }
+
+/// The correction the spiral cannot be drawn without. A node goes Learning the
+/// moment a reading pass is left part-way through, and the state alone maps
+/// that to phase 2 — ticking Consume *and* Socratic off on the strength of two
+/// sections read. Mirrors `readingPhaseIndex` in `lib/curriculum/calibration.ts`.
+@Test func theReadingRecordGetsTheLastWordOnWhichPhaseIsCurrent() {
+    var progress = ConsumeProgress()
+    progress.idx = 1
+    progress.total = 5
+    // Still reading: Consume is current, nothing behind it is done.
+    #expect(readingPhaseIndex(.learning, progress: progress) == 0)
+
+    progress.finished = true
+    // Read to the end and left for the map: a finished reading, and no more.
+    #expect(readingPhaseIndex(.learning, progress: progress) == 1)
+
+    progress.handedOff = true
+    // Socratic was actually opened — now the state-derived answer is honest.
+    #expect(readingPhaseIndex(.learning, progress: progress) == 2)
+
+    // No record, and every state but Learning: the state has the only word.
+    #expect(readingPhaseIndex(.learning, progress: nil) == 2)
+    #expect(readingPhaseIndex(.frontier, progress: progress) == 0)
+    #expect(readingPhaseIndex(.shaky, progress: progress) == 4)
+    #expect(readingPhaseIndex(.mastered, reviewed: true, progress: progress) == 6)
+}

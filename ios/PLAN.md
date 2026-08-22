@@ -120,13 +120,17 @@ destination without a selected node, so every phase is pushed from the map.
    touches the map itself. The chain is pushed from the map's node sheet and
    runs Consume → Socratic → Feynman → Connect → Crisol, each phase's CTA
    handing to the next; the back arrow returns to the map at any point.
-   Consume streams section by section and its check gates Continue; Socratic
-   judges the learner's own words and only a correct or a told answer closes a
-   probe; Feynman judges the whole teach-back at once and hangs a gap under
-   every rubric row it can't find; Connect leaves the node Shaky; the Crucible
-   is the only path to green, and its failure is the only path to a spawned
-   gap. Read-aloud (`/api/speech`) and dictation (`SFSpeechRecognizer`) are in
-   `Speech.swift` — no dependency for either.
+   Consume streams section by section and its check gates Continue, and where
+   the learner got to belongs to the run rather than to the screen
+   (`ConsumeProgress`, per node, written on every move): stepping back to the
+   map resumes the reading instead of restarting it, and the spiral keeps
+   drawing Consume as current until it is actually read (`readingPhaseIndex`).
+   Socratic judges the learner's own words and only a correct or a told answer
+   closes a probe; Feynman judges the whole teach-back at once and hangs a gap
+   under every rubric row it can't find; Connect leaves the node Shaky; the
+   Crucible is the only path to green, and its failure is the only path to a
+   spawned gap. Read-aloud (`/api/speech`) and dictation (`SFSpeechRecognizer`)
+   are in `Speech.swift` — no dependency for either.
 6. **Retain + calibration** (19, 20), then **Início/Perfil/Configurações**
    (11–13) (done): `Review` is the pass over the day's deck — it owns the
    scheduler write, the review history that finally earns Retido (`phaseIndex`

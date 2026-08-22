@@ -32,14 +32,68 @@ import Testing
 @MainActor
 @Test func openingAPassMarksTheNodeLearningAndNothingElse() {
     let owned = store(["cadeia": .mastered])
-    _ = SessionViewModel(node: owned.graph.nodes[1], store: owned)
+    _ = SessionViewModel(node: owned.graph.nodes[1], store: owned, phase: .socratic)
     // A node already past Learning is left where it is — arriving is evidence
     // of work, not a reason to walk mastery backwards.
     #expect(owned.states["cadeia"] == .mastered)
 
     let fresh = store(["lat": .mastered])
-    _ = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
+    _ = SessionViewModel(node: fresh.graph.nodes[1], store: fresh, phase: .socratic)
     #expect(fresh.states["cadeia"] == .learning)
+}
+
+/// The reading is the one phase that does not claim the node on arrival:
+/// opening it and stepping straight back is not work, and a node marked
+/// Learning for it reads as "Consume and Socratic are done".
+@MainActor
+@Test func openingTheReadingAndLeavingClaimsNothing() {
+    let (pass, store) = session(["lat": .mastered])
+    #expect(pass.phase == .consume)
+    #expect(store.states["cadeia"] == nil)
+    #expect(store.display["cadeia"] == .frontier)
+}
+
+@MainActor
+@Test func aPartReadPassIsKeptAndLeavesTheSpiralOnTheReading() {
+    let (pass, store) = session(["lat": .mastered])
+    let reading = ConsumeViewModel(session: pass, api: store.api)
+    reading.advance()
+
+    // Reading past the first section is real progress: the node is Learning,
+    // and where the learner got to is on the run rather than on the screen
+    // that is about to go away.
+    #expect(store.states["cadeia"] == .learning)
+    #expect(store.consumeProgress["cadeia"]?.idx == 1)
+    #expect(store.consumeProgress["cadeia"]?.finished == false)
+    #expect(store.consumeProgress["cadeia"]?.handedOff == false)
+
+    // The regression this pins: Learning alone maps to phase 2, which draws
+    // Consume *and* Socratic as done on a pass the learner is still inside.
+    let drawer = NodeDetailViewModel(node: store.graph.nodes[1], store: store)
+    #expect(drawer.current == 0)
+    #expect(drawer.owed == .consume)
+}
+
+@MainActor
+@Test func aReadingResumesWhereItStoppedAndHandsOffOnlyWhenSocraticOpens() {
+    let (pass, store) = session(["lat": .mastered])
+    let reading = ConsumeViewModel(session: pass, api: store.api)
+    reading.advance()
+    reading.advance()
+
+    // Coming back is a new screen on the same node; the position is the run's.
+    let again = SessionViewModel(node: store.graph.nodes[1], store: store)
+    #expect(again.phase == .consume)
+    let resumed = ConsumeViewModel(session: again, api: store.api)
+    #expect(resumed.index == 2)
+
+    resumed.finish()
+    #expect(store.consumeProgress["cadeia"]?.finished == true)
+    // Reaching the end is a finished *reading*; opening Socratic is what makes
+    // it a handed-off one, and only then is Consume actually behind the learner.
+    #expect(again.phase == .socratic)
+    #expect(store.consumeProgress["cadeia"]?.handedOff == true)
+    #expect(NodeDetailViewModel(node: store.graph.nodes[1], store: store).current == 2)
 }
 
 @MainActor

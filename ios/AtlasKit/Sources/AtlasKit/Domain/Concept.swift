@@ -239,8 +239,10 @@ public extension Phase {
 /// Which phase a node is on, `-1` for locked. Mirrors `phaseIndex` in
 /// `lib/curriculum/calibration.ts`: mastered alone doesn't grant Retained, a
 /// real review does.
-/// ponytail: no `readingPhaseIndex` correction — that needs `ConsumeProgress`,
-/// which arrives with Consume in phase 5. Add the two guards there.
+///
+/// This is the state-only answer. Anything that draws the spiral, or decides
+/// which phase a node is owed, asks `readingPhaseIndex` instead — a node can
+/// be Learning with its reading still open, and the state alone cannot say so.
 public func phaseIndex(_ state: NodeState, reviewed: Bool = false) -> Int {
     switch state {
     case .frontier: 0
@@ -249,6 +251,74 @@ public func phaseIndex(_ state: NodeState, reviewed: Bool = false) -> Int {
     case .mastered: reviewed ? 6 : 5
     default: -1
     }
+}
+
+/// `phaseIndex`, corrected by what the learner has actually read.
+///
+/// A node goes Learning as soon as a reading pass is left part-way through, and
+/// the state alone maps that to phase 2 — which ticks off Consume *and*
+/// Socratic on the strength of two sections read. The reading record gets the
+/// last word where it has one, exactly as `readingPhaseIndex` does on the web:
+///
+///   still reading            → Consume is the current phase
+///   read it, never went on   → Socratic is
+///   anything else            → the state-derived answer stands
+public func readingPhaseIndex(
+    _ state: NodeState, reviewed: Bool = false, progress: ConsumeProgress?
+) -> Int {
+    if state == .learning, let progress {
+        if !progress.finished { return 0 }
+        if !progress.handedOff { return 1 }
+    }
+    return phaseIndex(state, reviewed: reviewed)
+}
+
+// MARK: - Where the reading got to
+
+/// One section's comprehension check, as answered: the option picked and
+/// whether it was the right one. Kept rather than held for the screen — a check
+/// already passed stays passed when the learner comes back, or resuming would
+/// re-gate a section they demonstrably read.
+public struct ConsumeCheck: Codable, Sendable, Equatable {
+    public var oi: Int
+    public var correct: Bool
+
+    public init(oi: Int, correct: Bool) {
+        self.oi = oi
+        self.correct = correct
+    }
+}
+
+/// Where the learner got to in one node's reading pass — the persisted half of
+/// screen 14, mirroring `ConsumeProgress` in `lib/curriculum/consume.ts`.
+///
+/// The reading is the longest surface in the app: eight to fifteen minutes.
+/// Losing your place in it because you stepped back to the map is the
+/// difference between a document and somewhere you can leave. It is also what
+/// keeps the spiral honest — see `readingPhaseIndex`.
+///
+/// The web writes three more keys here that this client has no screen for (the
+/// lens opened per section, the sections collapsed to their takeaway, the terms
+/// expanded). They ride through untouched, the same way `RunSnapshot` carries
+/// the row's other keys: a phone must never be what discards a browser's work.
+public struct ConsumeProgress: Sendable, Equatable {
+    /// Deepest section revealed so far.
+    public var idx = 0
+    /// Sections in the pass as last seen. With `idx`, the honest "3 of 5" — a
+    /// pass still streaming when the learner left has a smaller total than the
+    /// finished one, so it is stored rather than assumed.
+    public var total = 0
+    /// The last section was reached at least once.
+    public var finished = false
+    /// Socratic was actually opened on this node. A finished reading the
+    /// learner walked away from is still only a finished *reading*.
+    public var handedOff = false
+    /// The end-of-section checks, keyed by chunk id.
+    public var checks: [String: ConsumeCheck] = [:]
+    /// Every other key of the record, exactly as it arrived. See the note above.
+    var extras: [String: JSONValue] = [:]
+
+    public init() {}
 }
 
 public extension ConceptGraph {

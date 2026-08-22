@@ -27,6 +27,12 @@ public final class AtlasStore {
     /// Nodes with a real review behind them — what earns Retido, since being
     /// Mastered alone doesn't (`phaseIndex`).
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
+    /// Where the learner got to in each node's reading pass, keyed by node.
+    /// Written by screen 14 as it is read rather than on the way out — a closed
+    /// app is a way out too — and read back by the spiral, which is what stops
+    /// a part-read node from showing Consume and Socratic as done
+    /// (`readingPhaseIndex`).
+    public var consumeProgress: [String: ConsumeProgress] = [:] { didSet { saveSoon() } }
 
     /// Every saved run, freshest first — what "Seus mapas" lists. The open one
     /// is in here too, a debounce behind; `maps` answers that one from live
@@ -233,6 +239,7 @@ public extension AtlasStore {
         cards = run.cards
         calib = run.calib
         reviewed = run.reviewed
+        consumeProgress = run.consumeProgress
         // Only when the row records one: a pre-v9 run's content language is
         // genuinely unknown, and the device preference is the honest fallback.
         if let language = run.language { self.language = language }
@@ -289,6 +296,7 @@ public extension AtlasStore {
         run.calib = calib
         run.reviewed = reviewed
         run.cards = cards
+        run.consumeProgress = consumeProgress
         return run
     }
 
@@ -373,6 +381,7 @@ public extension AtlasStore {
         cards = []
         calib = []
         reviewed = []
+        consumeProgress = [:]
     }
 
     /// `ATLAS_FIXTURES=1` boots straight into a demo run: the map and the node

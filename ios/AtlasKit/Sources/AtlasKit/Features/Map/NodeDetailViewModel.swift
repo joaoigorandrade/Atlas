@@ -19,7 +19,17 @@ final class NodeDetailViewModel {
 
     /// A real review behind the node is what completes the spiral — being
     /// Mastered alone leaves Retido still owed.
-    var current: Int { phaseIndex(state, reviewed: store.reviewed.contains(node.id)) }
+    ///
+    /// The reading gets the last word where it has one: a node left part-way
+    /// through its pass is Learning, and the state alone would tick Consume
+    /// *and* Socratic off on the strength of two sections read.
+    var current: Int {
+        readingPhaseIndex(
+            state,
+            reviewed: store.reviewed.contains(node.id),
+            progress: store.consumeProgress[node.id]
+        )
+    }
 
     var isLocked: Bool { current < 0 }
     /// `phaseIndex` answers 6 for a node that has been reviewed — one past the
