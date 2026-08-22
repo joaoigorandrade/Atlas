@@ -33,6 +33,11 @@ public struct RootView: View {
         .animation(Motion.enter, value: store.signedIn)
         .animation(Motion.enter, value: store.graph.nodes.isEmpty)
         .background(Palette.paper)
+        // `Palette` is one light set of hexes — the design has no dark face. In
+        // dark mode every control that falls back to a system colour (a field's
+        // text and placeholder, a caret, a sheet's chrome) turns light against
+        // it, so the scheme is pinned rather than left to the device.
+        .preferredColorScheme(.light)
         .environment(store)
         .task { await launch.restore(store) }
         .onOpenURL { launch.arrived(from: $0) }

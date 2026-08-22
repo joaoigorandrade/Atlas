@@ -151,6 +151,10 @@ struct SocraticView: View {
                     Kicker("Sua resposta", tint: Palette.inkGhost)
                     TextField("Responda com suas palavras…", text: $model.answer, axis: .vertical)
                         .font(.atlas(.serif, 15))
+                        // Without this the typed answer takes the environment's
+                        // label colour, which goes white in dark mode — invisible
+                        // on the always-light `Palette.card`.
+                        .foregroundStyle(Palette.ink)
                         .lineLimit(1...4)
                         .padding(.horizontal, 15).padding(.vertical, 14)
                         .background(Palette.card, in: .rect(cornerRadius: 13))

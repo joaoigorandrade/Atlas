@@ -43,6 +43,7 @@ struct WelcomeView: View {
                     field("Seus interesses", "opcional") {
                         TextField("ex.: xadrez, investimentos, culinária", text: $onboarding.form.interests)
                             .font(.atlas(.sans, 15))
+                            .foregroundStyle(Palette.ink)
                             .padding(.horizontal, 16)
                             .frame(minHeight: 50)
                             .background(Palette.card, in: .rect(cornerRadius: 11))
