@@ -30,16 +30,26 @@ import Testing
 }
 
 @MainActor
-@Test func openingAPassMarksTheNodeLearningAndNothingElse() {
+@Test func openingAPassMarksTheNodeLearningExceptOnTheReading() {
     let owned = store(["cadeia": .mastered])
     _ = SessionViewModel(node: owned.graph.nodes[1], store: owned)
     // A node already past Learning is left where it is — arriving is evidence
     // of work, not a reason to walk mastery backwards.
     #expect(owned.states["cadeia"] == .mastered)
 
+    // Every phase entered deliberately writes Learning on arrival.
+    let questioned = store(["lat": .mastered])
+    _ = SessionViewModel(node: questioned.graph.nodes[1], store: questioned, phase: .socratic)
+    #expect(questioned.states["cadeia"] == .learning)
+
+    // The reading is the exception: opening it and backing out of the first
+    // section is not work, and marking it Learning is what used to tick both
+    // Consume and Socratic off a node nobody had read. `AtlasStore.record`
+    // writes it once a second section is actually reached — see `ConsumeTests`.
     let fresh = store(["lat": .mastered])
-    _ = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
-    #expect(fresh.states["cadeia"] == .learning)
+    let pass = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
+    #expect(pass.phase == .consume)
+    #expect(fresh.states["cadeia"] == nil)
 }
 
 @MainActor

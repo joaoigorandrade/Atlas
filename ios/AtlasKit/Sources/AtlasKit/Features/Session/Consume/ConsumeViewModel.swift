@@ -5,14 +5,19 @@ import SwiftUI
 /// been passed. The sections themselves are not state here — they live in the
 /// run's warm cache, which is what lets a pass written before this screen
 /// opened arrive with no wait at all.
+///
+/// Where the learner *got to* is not state here either: it is the run's, held
+/// as a `ConsumeProgress` and written back on every change, so a pass survives
+/// the back button, the swipe and the app being killed — and comes back on the
+/// section it stopped at, with the check it already answered still answered.
 @Observable
 @MainActor
 final class ConsumeViewModel {
     /// The stream is still going — the last section on screen isn't the last one.
     private(set) var writing = true
-    private(set) var index = 0
-    /// The check's picked option for the section on screen — reset per section.
-    private(set) var picked: Int?
+    /// The learner's place in the pass, as the run holds it. Every read below is
+    /// a read of this, and every write goes straight back to the store.
+    private(set) var progress: ConsumeProgress
     private(set) var message = ""
     /// Which lens is open over the prose, if any. Bound by the sheet.
     var lens: AltKey?
@@ -24,6 +29,8 @@ final class ConsumeViewModel {
     init(session: SessionViewModel, api: AtlasAPI) {
         self.session = session
         self.api = api
+        // A node opened again resumes: the stored progress *is* the session.
+        progress = session.store.consumeProgress[session.node.id] ?? ConsumeProgress()
     }
 
     var node: ConceptNode { session.node }
@@ -31,8 +38,14 @@ final class ConsumeViewModel {
     /// written before this screen opened is already in it, and one still being
     /// written lands in it as it arrives. Either way this redraws.
     var chunks: [ConsumeChunk] { session.store.chunks(node) }
+    var index: Int { progress.idx }
     var chunk: ConsumeChunk? { chunks[safe: index] }
     var next: ConsumeChunk? { chunks[safe: index + 1] }
+
+    /// The check's picked option for the section on screen. Read off the run
+    /// rather than held for the session — a check already passed has to stay
+    /// passed, or coming back would re-gate a section the learner read.
+    var picked: Int? { chunk.flatMap { progress.checks[$0.id]?.oi } }
 
     /// A section closes on its check: getting it right is what earns Continue.
     var passed: Bool {
@@ -58,18 +71,25 @@ final class ConsumeViewModel {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever sua leitura"))
         }
         writing = false
+        // The stream is done, so the section count is final — record it, or the
+        // map would go on quoting the partial one the last tap happened to see.
+        record()
     }
 
     func pick(_ option: Int) {
-        guard picked == nil else { return }
-        picked = option
+        guard let chunk, progress.checks[chunk.id] == nil else { return }
+        progress.checks[chunk.id] = ConsumeProgress.Check(
+            oi: option,
+            correct: chunk.check?.opts[safe: option]?.correct == true
+        )
+        record()
     }
 
     func advance() {
         speaker.stop()
         withAnimation(Motion.standard) {
-            index += 1
-            picked = nil
+            progress.idx += 1
+            record()
         }
     }
 
@@ -79,10 +99,24 @@ final class ConsumeViewModel {
     func toggleReadAloud() { speaker.toggle(spoken, api: api) }
 
     /// Handing to the next phase is the only thing this screen writes.
+    /// The reading is finished here rather than on the last section's Continue:
+    /// reaching the end and walking back to the map is a pass left open, and the
+    /// map says so. `handedOff` is Socratic's to write — see `SessionViewModel`.
     func finish() {
         guard passed else { return }
         speaker.stop()
+        progress.finished = true
+        record()
         session.advance()
+    }
+
+    /// Mirror the pass into the run. Every write above ends here, so leaving is
+    /// never what saves — see `AtlasStore.record`.
+    private func record() {
+        // A pass still streaming has fewer sections in hand than it will end up
+        // with; never let a mid-stream count shrink a known total.
+        progress.total = max(chunks.count, progress.total)
+        session.store.record(progress, reading: node)
     }
 
     /// The lens context: the section on screen, so the model view walks *this*

@@ -17,9 +17,26 @@ final class NodeDetailViewModel {
 
     var state: NodeState { store.display[node.id] ?? .unknown }
 
+    /// Where the learner got to in this node's reading pass, if they opened one.
+    private var progress: ConsumeProgress? { store.consumeProgress[node.id] }
+
     /// A real review behind the node is what completes the spiral — being
-    /// Mastered alone leaves Retido still owed.
-    var current: Int { phaseIndex(state, reviewed: store.reviewed.contains(node.id)) }
+    /// Mastered alone leaves Retido still owed. The reading record gets the last
+    /// word where it has one: a pass left part-way through is still on Consume,
+    /// whatever the mastery state alone would say.
+    var current: Int {
+        readingPhaseIndex(state, reviewed: store.reviewed.contains(node.id), progress: progress)
+    }
+
+    /// "3 de 5 lidas", drawn on the Consume row — the one place "you're
+    /// part-way through this" belongs. Nil unless there is a real, unfinished
+    /// pass behind the node.
+    var reading: LocalizedStringKey? {
+        guard let progress, progress.unfinished else { return nil }
+        let (read, total) = progress.reading
+        let line: LocalizedStringKey = "\(read) de \(total) lidas"
+        return line
+    }
 
     var isLocked: Bool { current < 0 }
     /// `phaseIndex` answers 6 for a node that has been reviewed — one past the
@@ -28,7 +45,12 @@ final class NodeDetailViewModel {
     var owed: Phase? {
         isLocked ? nil : Phase.allCases[min(current, Phase.allCases.count - 1)]
     }
-    var actionTitle: LocalizedStringKey { owed.map { "Começar · \($0.rawValue)" } ?? "Bloqueado" }
+    /// A part-read node's primary action is to get back into the reading, not
+    /// to start something new.
+    var actionTitle: LocalizedStringKey {
+        if reading != nil { return "Retomar a leitura" }
+        return owed.map { "Começar · \($0.rawValue)" } ?? "Bloqueado"
+    }
     var actionTint: Color { owed?.tint ?? Palette.inkGhost }
 
     var prerequisites: [(String, NodeState)] {

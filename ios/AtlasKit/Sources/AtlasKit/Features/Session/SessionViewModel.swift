@@ -11,7 +11,7 @@ import SwiftUI
 @MainActor
 public final class SessionViewModel: Identifiable {
     public let node: ConceptNode
-    public private(set) var phase: Phase { didSet { warmNext() } }
+    public private(set) var phase: Phase { didSet { entered(phase) } }
     /// Set when the last phase hands back — the map takes the screen again.
     public private(set) var finished = false
 
@@ -26,13 +26,36 @@ public final class SessionViewModel: Identifiable {
     public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil) {
         self.node = node
         self.store = store
-        let owed = phaseIndex(store.display[node.id] ?? .unknown)
+        // What the node is owed, corrected by what was actually read: a reading
+        // left part-way through opens back on the reading, not three phases
+        // past it.
+        let owed = readingPhaseIndex(
+            store.display[node.id] ?? .unknown,
+            reviewed: store.reviewed.contains(node.id),
+            progress: store.consumeProgress[node.id]
+        )
         self.phase = phase ?? Phase.allCases[max(0, min(owed, Phase.allCases.count - 2))]
         // Arriving is the evidence: a node being worked is Learning, whatever
         // else happens on the screen. Anything already past that is left alone.
+        //
+        // The reading is the exception, and it is where the web draws the line
+        // too: opening a pass and backing out of its first section is not work,
+        // and writing Learning for it is what used to tick Consume *and*
+        // Socratic off a node nobody had read. `AtlasStore.record` writes it
+        // the moment the second section is actually reached.
         let state = store.states[node.id] ?? .unknown
-        if state == .unknown { store.states[node.id] = .learning }
+        if state == .unknown, self.phase != .consume { store.states[node.id] = .learning }
         store.markActiveToday()
+        entered(self.phase)
+    }
+
+    /// What arriving at a phase writes and warms. Called from `init` as well,
+    /// where a `didSet` doesn't fire.
+    private func entered(_ phase: Phase) {
+        // The reading handed off. Without this, a pass read to the end and then
+        // left for the map is indistinguishable from one that went on to be
+        // questioned — see `readingPhaseIndex`.
+        if phase == .socratic { store.handOff(node.id) }
         warmNext()
     }
 

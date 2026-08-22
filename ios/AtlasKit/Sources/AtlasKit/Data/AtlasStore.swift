@@ -27,6 +27,11 @@ public final class AtlasStore {
     /// Nodes with a real review behind them — what earns Retido, since being
     /// Mastered alone doesn't (`phaseIndex`).
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
+    /// Where the learner got to in each node's reading pass. The reading is the
+    /// longest surface in the app, and losing your place in it on the way back
+    /// to the map is the difference between a document and somewhere you can
+    /// leave. Shared with the web — same key, same records.
+    public var consumeProgress: [String: ConsumeProgress] = [:] { didSet { saveSoon() } }
 
     /// Every saved run, freshest first — what "Seus mapas" lists. The open one
     /// is in here too, a debounce behind; `maps` answers that one from live
@@ -175,6 +180,41 @@ public extension AtlasStore {
     }
 }
 
+// MARK: - Consume (screen 14)
+
+public extension AtlasStore {
+    /// Mirror a live reading pass into the run.
+    ///
+    /// Written on every change rather than on the way out, because "on the way
+    /// out" is not the only way a reading ends — the back button, the swipe and
+    /// the app being killed all end one too, and losing ten minutes of reading
+    /// to any of them was the thing worth fixing. The web does it in an effect
+    /// for the same reason.
+    ///
+    /// Reading past the first section is also real progress, and it used to
+    /// leave no trace: the node stayed Frontier and the map said the learner
+    /// had never opened it. It goes Learning here — `readingPhaseIndex` is what
+    /// keeps that honest about *which* phase is current, so a part-read node
+    /// doesn't get Socratic ticked off along with it.
+    func record(_ progress: ConsumeProgress, reading node: ConceptNode) {
+        // An identical write is a save nobody asked for: opening a lens or
+        // scrolling changes the screen, not the progress.
+        guard consumeProgress[node.id] != progress else { return }
+        consumeProgress[node.id] = progress
+        guard progress.idx >= 1 || progress.finished else { return }
+        if (states[node.id] ?? .unknown) == .unknown { states[node.id] = .learning }
+    }
+
+    /// The reading handed off to the questioning pass. Without this, a pass read
+    /// to the end and then left for the map is indistinguishable from one that
+    /// went on to be questioned — see `readingPhaseIndex`.
+    func handOff(_ id: String) {
+        guard var progress = consumeProgress[id], !progress.handedOff else { return }
+        progress.handedOff = true
+        consumeProgress[id] = progress
+    }
+}
+
 // MARK: - Session
 
 public extension AtlasStore {
@@ -233,6 +273,7 @@ public extension AtlasStore {
         cards = run.cards
         calib = run.calib
         reviewed = run.reviewed
+        consumeProgress = run.consumeProgress
         // Only when the row records one: a pre-v9 run's content language is
         // genuinely unknown, and the device preference is the honest fallback.
         if let language = run.language { self.language = language }
@@ -289,6 +330,7 @@ public extension AtlasStore {
         run.calib = calib
         run.reviewed = reviewed
         run.cards = cards
+        run.consumeProgress = consumeProgress
         return run
     }
 
@@ -373,6 +415,7 @@ public extension AtlasStore {
         cards = []
         calib = []
         reviewed = []
+        consumeProgress = [:]
     }
 
     /// `ATLAS_FIXTURES=1` boots straight into a demo run: the map and the node

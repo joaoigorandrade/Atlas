@@ -3,7 +3,7 @@ import Foundation
 /// One row of `run_states` — a whole run, as the app reads and writes it.
 ///
 /// **The web app owns this format.** `lib/persistence.ts` defines `RunSnapshot`
-/// at v9 and writes far more of it than this client has screens for: reading
+/// at v9 and writes far more of it than this client has screens for: node
 /// positions, unfinished Socratic and Feynman passes, the run-wide misconception
 /// roll-up. So the decode here is partial on purpose, and the encode is a
 /// *merge* — every key this file does not name is carried back exactly as it
@@ -31,6 +31,10 @@ public struct RunSnapshot: Sendable, Identifiable {
     public var calib: [CalibSample] = []
     public var reviewed: Set<String> = []
     public var cards: [ScheduledCard] = []
+    /// Where the learner got to in each node's reading pass. Shared with the
+    /// web whole — the keys only its screens fill in ride along inside each
+    /// record, the same way this row's do (`ConsumeProgress`).
+    public var consumeProgress: [String: ConsumeProgress] = [:]
 
     /// The web's `form` and `adherence` objects, held whole. This client owns
     /// four keys of the first and one of the second; the exam date, the banked
@@ -70,11 +74,12 @@ public extension RunSnapshot {
         calib = Self.read(row, "calibSamples") ?? []
         reviewed = Set(Self.read(row, "reviewedNodes") ?? [String]())
         cards = Self.read(row, "iosCards") ?? []
+        consumeProgress = Self.read(row, "consumeProgress") ?? [:]
         // Everything this client renders is now held as itself; the rest stays
         // as JSON so the merge below can hand it straight back.
         extras = row
         for key in ["v", "form", "adherence", "graph", "states", "language",
-                    "calibSamples", "reviewedNodes", "iosCards"] {
+                    "calibSamples", "reviewedNodes", "iosCards", "consumeProgress"] {
             extras[key] = nil
         }
     }
@@ -88,6 +93,7 @@ public extension RunSnapshot {
         row["calibSamples"] = (try? JSONValue(encoding: calib)) ?? .array([])
         row["reviewedNodes"] = .array(reviewed.sorted().map(JSONValue.string))
         row["iosCards"] = (try? JSONValue(encoding: cards)) ?? .array([])
+        row["consumeProgress"] = (try? JSONValue(encoding: consumeProgress)) ?? .object([:])
         if let language { row["language"] = .string(language) }
 
         var form = self.form

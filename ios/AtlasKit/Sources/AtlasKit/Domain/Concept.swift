@@ -239,8 +239,6 @@ public extension Phase {
 /// Which phase a node is on, `-1` for locked. Mirrors `phaseIndex` in
 /// `lib/curriculum/calibration.ts`: mastered alone doesn't grant Retained, a
 /// real review does.
-/// ponytail: no `readingPhaseIndex` correction — that needs `ConsumeProgress`,
-/// which arrives with Consume in phase 5. Add the two guards there.
 public func phaseIndex(_ state: NodeState, reviewed: Bool = false) -> Int {
     switch state {
     case .frontier: 0
@@ -249,6 +247,30 @@ public func phaseIndex(_ state: NodeState, reviewed: Bool = false) -> Int {
     case .mastered: reviewed ? 6 : 5
     default: -1
     }
+}
+
+/// `phaseIndex`, corrected by what the learner has actually read. Mirrors
+/// `readingPhaseIndex` in `lib/curriculum/calibration.ts`.
+///
+/// A node goes Learning the moment a reading pass is left part-way through, and
+/// that progress is real — the map should show it. But the state alone maps to
+/// phase 2 (Feynman), which would tick off both Consume *and* Socratic on the
+/// strength of two sections read.
+///
+/// So the reading record gets the last word where it has one:
+///   still reading            → Consume is the current phase
+///   read it, never went on   → Socratic is
+///   anything else            → the state-derived answer stands
+public func readingPhaseIndex(
+    _ state: NodeState,
+    reviewed: Bool = false,
+    progress: ConsumeProgress?
+) -> Int {
+    if state == .learning, let progress {
+        if !progress.finished { return 0 }
+        if !progress.handedOff { return 1 }
+    }
+    return phaseIndex(state, reviewed: reviewed)
 }
 
 public extension ConceptGraph {

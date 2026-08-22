@@ -179,6 +179,17 @@
         }
       }
     },
+    "%lld de %lld lidas" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of %lld read"
+          }
+        }
+      }
+    },
     "%lld dias" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2671,6 +2682,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Retained · review"
+          }
+        }
+      }
+    },
+    "Retomar a leitura" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume reading"
           }
         }
       }

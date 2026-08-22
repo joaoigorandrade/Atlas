@@ -30,9 +30,22 @@ private func webRow() -> JSONValue {
         "calibSamples": .array([.object(["id": .string("a"), "felt": .number(4), "real": .number(2)])]),
         "reviewedNodes": .array([.string("a")]),
         "adherence": .object(["streak": .number(6), "lastDay": .string("2026-08-20")]),
+        // A reading pass left part-way through. Half of this record is the
+        // phone's now; the other half is surfaces only the browser has.
+        "consumeProgress": .object([
+            "a": .object([
+                "idx": .number(2),
+                "total": .number(5),
+                "finished": .bool(false),
+                "handedOff": .bool(false),
+                "checks": .object(["c1": .object(["oi": .number(1), "correct": .bool(true)])]),
+                "variant": .object(["c1": .string("analogy")]),
+                "collapsed": .object(["c1": .bool(true)]),
+                "termsSeen": .array([.string("c1:limite")]),
+            ]),
+        ]),
         // The keys this client has no screen for. Losing any of them is a week
         // of browser work gone the first time the app is opened on a phone.
-        "consumeProgress": .object(["a": .object(["chunk": .number(3)])]),
         "misconceptions": .array([.string("confunde taxa com total")]),
         "positions": .object(["a": .object(["x": .number(12), "y": .number(40)])]),
     ])
@@ -50,6 +63,12 @@ private func webRow() -> JSONValue {
     #expect(run.language == "pt-BR")
     #expect(run.calib.first?.felt == 4)
     #expect(run.reviewed == ["a"])
+    // The learner's place in the reading is shared whole: the map on the phone
+    // opens back on the section the browser left off at.
+    #expect(run.consumeProgress["a"]?.idx == 2)
+    #expect(run.consumeProgress["a"]?.total == 5)
+    #expect(run.consumeProgress["a"]?.finished == false)
+    #expect(run.consumeProgress["a"]?.checks["c1"] == ConsumeProgress.Check(oi: 1, correct: true))
     // Derived the same way the open run derives them, so a dashboard card and
     // the map itself can never disagree.
     #expect(run.mastered == 0.5)
@@ -68,13 +87,20 @@ private func webRow() -> JSONValue {
     #expect(saved["form"]?.fields?["interests"] == .string("corrida"))
 
     // Everything else is handed back exactly as it arrived.
-    #expect(saved["consumeProgress"] == webRow().fields?["consumeProgress"])
     #expect(saved["misconceptions"] == webRow().fields?["misconceptions"])
     #expect(saved["positions"] == webRow().fields?["positions"])
     // Including inside the two objects this client only partly owns.
     #expect(saved["form"]?.fields?["examDate"] == .string("2026-11-03"))
     #expect(saved["form"]?.fields?["paretoPct"] == .number(35))
     #expect(saved["adherence"]?.fields?["streak"] == .number(6))
+    // Including inside a reading record: the collapsed sections, the lens the
+    // learner reached for and the terms they expanded are browser surfaces, and
+    // the phone hands all three back rather than writing over them.
+    let reading = try #require(saved["consumeProgress"]?.fields?["a"]?.fields)
+    #expect(reading["idx"] == .number(2))
+    #expect(reading["variant"] == .object(["c1": .string("analogy")]))
+    #expect(reading["collapsed"] == .object(["c1": .bool(true)]))
+    #expect(reading["termsSeen"] == .array([.string("c1:limite")]))
 }
 
 @Test func aMapBuiltOnThePhoneCarriesEveryKeyTheBrowserReadsUnguarded() throws {
@@ -91,6 +117,7 @@ private func webRow() -> JSONValue {
     #expect(saved["positions"] == .object([:]))
     #expect(saved["litToday"] == .array([]))
     #expect(saved["spawnedIds"] == .array([.string("a")]))
+    #expect(saved["consumeProgress"] == .object([:]))
     #expect(saved["v"] == .number(9))
 }
 

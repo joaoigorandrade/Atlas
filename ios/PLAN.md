@@ -120,7 +120,12 @@ destination without a selected node, so every phase is pushed from the map.
    touches the map itself. The chain is pushed from the map's node sheet and
    runs Consume → Socratic → Feynman → Connect → Crisol, each phase's CTA
    handing to the next; the back arrow returns to the map at any point.
-   Consume streams section by section and its check gates Continue; Socratic
+   Consume streams section by section and its check gates Continue, and it
+   holds its place: the run carries a `ConsumeProgress` per node — the web's
+   own record, same key, same shape — written on every turn of a section, so
+   leaving mid-reading comes back on the section it stopped at with its check
+   still answered, and `readingPhaseIndex` keeps the drawer from ticking off
+   phases nobody has done. Socratic
    judges the learner's own words and only a correct or a told answer closes a
    probe; Feynman judges the whole teach-back at once and hangs a gap under
    every rubric row it can't find; Connect leaves the node Shaky; the Crucible

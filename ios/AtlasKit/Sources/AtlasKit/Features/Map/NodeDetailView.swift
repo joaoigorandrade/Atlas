@@ -112,7 +112,11 @@ struct NodeDetailView: View {
                 .font(.atlas(.serif, 15, weight: isCurrent ? .semibold : .regular))
                 .foregroundStyle(done || isCurrent ? Palette.ink : Palette.inkGhost)
             Spacer(minLength: 0)
-            if isCurrent {
+            // How far into the reading, on the reading's own row — it stands in
+            // for the "próximo" chip there, exactly as the web draws it.
+            if index == 0, let reading = model.reading {
+                Kicker(reading, tint: Palette.inkMuted)
+            } else if isCurrent {
                 Kicker("próximo", tint: model.state.color)
             } else if done {
                 Kicker("refazer", tint: NodeState.mastered.color)
