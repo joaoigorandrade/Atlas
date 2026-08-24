@@ -23,8 +23,16 @@ const update = process.argv.includes("--update");
 
 execFileSync(
   "xcodebuild",
-  ["-scheme", "AtlasKit", "-destination", "generic/platform=iOS Simulator",
-   "-derivedDataPath", DERIVED, "SWIFT_EMIT_LOC_STRINGS=YES", "build"],
+  [
+    "-scheme",
+    "AtlasKit",
+    "-destination",
+    "generic/platform=iOS Simulator",
+    "-derivedDataPath",
+    DERIVED,
+    "SWIFT_EMIT_LOC_STRINGS=YES",
+    "build",
+  ],
   { cwd: join(ios, "AtlasKit"), stdio: ["ignore", "ignore", "inherit"] },
 );
 
@@ -38,7 +46,9 @@ function stringsdata(dir, out = []) {
 }
 
 const inCode = new Map(); // key -> source file that uses it
-for (const path of stringsdata(join(DERIVED, "Build/Intermediates.noindex/AtlasKit.build"))) {
+for (const path of stringsdata(
+  join(DERIVED, "Build/Intermediates.noindex/AtlasKit.build"),
+)) {
   const data = JSON.parse(readFileSync(path, "utf8"));
   const source = (data.source ?? "").split("Sources/AtlasKit/").pop();
   for (const table of Object.values(data.tables ?? {}))
@@ -64,19 +74,32 @@ const stale = Object.keys(strings).filter((key) => !inCode.has(key));
 
 if (update) {
   for (const key of untranslated)
-    strings[key] ??= { localizations: { en: { stringUnit: { state: "new", value: "" } } } };
+    strings[key] ??= {
+      localizations: { en: { stringUnit: { state: "new", value: "" } } },
+    };
   for (const key of stale) delete strings[key];
-  const ordered = Object.fromEntries(Object.keys(strings).sort().map((k) => [k, strings[k]]));
-  writeFileSync(CATALOG, `${JSON.stringify({ ...catalog, strings: ordered }, null, 2)}\n`);
+  const ordered = Object.fromEntries(
+    Object.keys(strings)
+      .sort()
+      .map((k) => [k, strings[k]]),
+  );
+  writeFileSync(
+    CATALOG,
+    `${JSON.stringify({ ...catalog, strings: ordered }, null, 2)}\n`,
+  );
 }
 
-for (const key of untranslated) console.error(`no English: ${JSON.stringify(key)} (${inCode.get(key)})`);
-for (const key of stale) console.error(`not in the code any more: ${JSON.stringify(key)}`);
+for (const key of untranslated)
+  console.error(`no English: ${JSON.stringify(key)} (${inCode.get(key)})`);
+for (const key of stale)
+  console.error(`not in the code any more: ${JSON.stringify(key)}`);
 
 if (untranslated.length || stale.length) {
   console.error(
     `\n${inCode.size} keys in the code, ${untranslated.length} without English, ${stale.length} stale.` +
-    (update ? "\nCatalogue updated — write the English for the new keys." : "\nRun `make strings-update`, then write the English."),
+      (update
+        ? "\nCatalogue updated — write the English for the new keys."
+        : "\nRun `make strings-update`, then write the English."),
   );
   process.exit(1);
 }

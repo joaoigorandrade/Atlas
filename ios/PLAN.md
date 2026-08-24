@@ -71,25 +71,25 @@ which is what the design's copy already says.
 
 Twenty artboards, in the order they should be built. Each row is one screen file.
 
-| # | Screen | Mobile shape the design fixes |
-|---|--------|-------------------------------|
-| 1–4 | Entrar · Criar conta · Confirme seu e-mail · Link expirado | serif 20pt fields on a shadowed card, 52pt tap height; errors sit *below* the form, never in an alert |
-| 5 | Boas-vindas | goal grid 2×2, daily-target row, CTA in a dock |
-| 6 | Montando | the map assembling behind a centred progress line |
-| 7 | Direto ou perguntas | full-screen fork over the faded new map |
-| 8 | Nivelamento | segment bar, one adaptive question, feedback inline under the options |
-| 9 | Mapa | canvas + persistent bottom sheet (subject, % dominado, próximo) + tab bar |
-| 10 | Detalhe do nó | the desktop's 356pt drawer as a tall bottom sheet: state, summary, phase spiral, prereq chips, dock |
-| 11 | Início | today's review card + frontier card + map list |
-| 12 | Perfil | 2×2 stat grid, learning profile, settings rows |
-| 13 | Configurações | goal, daily target, language, voice toggles, data export |
-| 14 | Consume | section progress rail, prose, figure, lens chips, check block |
-| 15 | Socratic | chat transcript, answer dock with mic |
-| 16 | Feynman | beat rail, one prompt card, prev/next dock |
-| 17 | Connect | concept web SVG, link prompt, drafted cards |
-| 18 | Crisol | problem block, work area, submit + hint dock |
-| 19 | Revisão | card deck with stacked backs, self-rating before flip, four-grade dock |
-| 20 | Calibração | calibration curve, then the reading *below* it (the 268pt rail becomes a header icon) |
+| #   | Screen                                                     | Mobile shape the design fixes                                                                         |
+| --- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1–4 | Entrar · Criar conta · Confirme seu e-mail · Link expirado | serif 20pt fields on a shadowed card, 52pt tap height; errors sit _below_ the form, never in an alert |
+| 5   | Boas-vindas                                                | goal grid 2×2, daily-target row, CTA in a dock                                                        |
+| 6   | Montando                                                   | the map assembling behind a centred progress line                                                     |
+| 7   | Direto ou perguntas                                        | full-screen fork over the faded new map                                                               |
+| 8   | Nivelamento                                                | segment bar, one adaptive question, feedback inline under the options                                 |
+| 9   | Mapa                                                       | canvas + persistent bottom sheet (subject, % dominado, próximo) + tab bar                             |
+| 10  | Detalhe do nó                                              | the desktop's 356pt drawer as a tall bottom sheet: state, summary, phase spiral, prereq chips, dock   |
+| 11  | Início                                                     | today's review card + frontier card + map list                                                        |
+| 12  | Perfil                                                     | 2×2 stat grid, learning profile, settings rows                                                        |
+| 13  | Configurações                                              | goal, daily target, language, voice toggles, data export                                              |
+| 14  | Consume                                                    | section progress rail, prose, figure, lens chips, check block                                         |
+| 15  | Socratic                                                   | chat transcript, answer dock with mic                                                                 |
+| 16  | Feynman                                                    | beat rail, one prompt card, prev/next dock                                                            |
+| 17  | Connect                                                    | concept web SVG, link prompt, drafted cards                                                           |
+| 18  | Crisol                                                     | problem block, work area, submit + hint dock                                                          |
+| 19  | Revisão                                                    | card deck with stacked backs, self-rating before flip, four-grade dock                                |
+| 20  | Calibração                                                 | calibration curve, then the reading _below_ it (the 268pt rail becomes a header icon)                 |
 
 Tabs are **Início · Mapa · Revisão · Perfil**. Session is not a tab — it is not a
 destination without a selected node, so every phase is pushed from the map.
@@ -132,7 +132,7 @@ destination without a selected node, so every phase is pushed from the map.
    scheduler write, the review history that finally earns Retido (`phaseIndex`
    now reads `store.reviewed`), the calibration reading a tap-then-grade pair
    makes, and the Shaky flag a miss hangs on the node. `retain` is a card
-   *factory*: it is asked once about nodes with no cards, and `ScheduledCard`
+   _factory_: it is asked once about nodes with no cards, and `ScheduledCard`
    schedules them locally from then on. Screen 20 plots those readings —
    confidence across, delivery up, everything under the diagonal is bravado.
    Início is the day's two decisions (what is due, what the frontier is),
