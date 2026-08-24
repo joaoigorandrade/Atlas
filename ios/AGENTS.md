@@ -26,7 +26,7 @@ make test          # must pass before pushing — needs a booted simulator
 make strings       # must pass before pushing — every line of copy in both languages
 ```
 
-Neither needs the Xcode *project*, but both need Xcode's toolchain: `swift build`
+Neither needs the Xcode _project_, but both need Xcode's toolchain: `swift build`
 and `swift test` on the host stopped resolving the moment the two iOS-only
 packages came in. `make test` runs against whichever simulator is booted, so
 boot one (or run `make run`) first.
@@ -43,7 +43,7 @@ make open          # generate and open the workspace in Xcode
 
 `make strings` builds AtlasKit with `SWIFT_EMIT_LOC_STRINGS=YES` and holds the
 keys swiftc extracted against `App/Resources/Localizable.xcstrings` — see
-*Copy*. `make strings-update` folds new keys in so only the English is left to
+_Copy_. `make strings-update` folds new keys in so only the English is left to
 write.
 
 `make clean` drops everything generated, the resolved package checkouts
@@ -73,7 +73,7 @@ Three destinations, on purpose:
 - **Supabase, directly** — auth (`AtlasAuth` → GoTrue). The publishable key is
   a client key and RLS is the access control.
 - **OpenRouter, directly** — the kinds listed in `Prompts.streamed`. Their
-  prompts are *copied* from `lib/server/generate/*.ts`, not rewritten: change a
+  prompts are _copied_ from `lib/server/generate/*.ts`, not rewritten: change a
   prompt on the server and it has to be re-copied here, or the app quietly
   teaches something else. `OpenRouter.swift` is a port of the transport half of
   `lib/server/openrouter.ts` — same request, same deadlines, same streaming-JSON
@@ -138,7 +138,7 @@ Sources/AtlasKit/
 ## MVVM
 
 - **Every screen has a view model**, `@Observable @MainActor final class
-  <Screen>ViewModel`, in the same folder as its view. It owns the screen's own
+<Screen>ViewModel`, in the same folder as its view. It owns the screen's own
   state, the async work, and every derived string or colour the screen shows.
 - **A view holds no `@State` a view model could hold** and computes nothing in
   `body` that a stored property could carry. Segment rails, greetings, queue
@@ -164,7 +164,7 @@ needs, and what a session pushed from two tabs needs.
   screen, so a destination is named rather than built at the call site. A new
   screen is a case there and a line in its `destination`, never a link.
 - A screen asks the navigator it is given (`@EnvironmentObject var navigator:
-  AtlasNavigator`, `AtlasTabNavigator` for a tab change) — `navigate(to:)` to
+AtlasNavigator`, `AtlasTabNavigator` for a tab change) — `navigate(to:)` to
   push, `openSheet(_:)` for the node drawer, `pop()`/`popToRoot()`/
   `dismissSheet()` to leave.
 - A pushed session hides the tab bar; it does not cover the screen. `navigate`
@@ -184,7 +184,7 @@ needs, and what a session pushed from two tabs needs.
 - **The run is a row, and it saves itself.** Every stored property of the run on
   `AtlasStore` has `didSet { saveSoon() }`, so a screen persists by writing to
   the store and never by calling a save. Adding a field to the run means adding
-  the observer *and* a line in `RunSnapshot` — a field in neither is a field
+  the observer _and_ a line in `RunSnapshot` — a field in neither is a field
   that vanishes on relaunch.
 - **Writes that are not the learner working hold `quiet`.** Restoring, switching
   map and signing out all write the whole run at once, and `signOut` writes it
@@ -204,7 +204,7 @@ than calling `AtlasAPI` from a view model.
 - **`store.warm` (`WarmCache`) holds every generation of the open run, by key.**
   It is `@Observable`, so a screen reads the key it cares about and redraws as
   it fills — whether the pass was started by that screen a moment ago or by a
-  warm five minutes before it. A view model owns *no* copy of generated
+  warm five minutes before it. A view model owns _no_ copy of generated
   content; `ConsumeViewModel.chunks` is a read of the cache, not a stored array.
 - **One generation per key.** `fill` registers its task before it suspends, so a
   warm and the click that beats it to the punch share one task — clicking
@@ -258,8 +258,8 @@ second client type per call site.
   about the code in the learner's language — the `message` is for logs and never
   appears on screen.
 - `OpenRouter.swift` is the single sanctioned exception, and only because it is a
-  port of a server file that must stay diffable against it (see *Where a call
-  goes*). It is a vendor transport, not app networking: nothing else in the app
+  port of a server file that must stay diffable against it (see _Where a call
+  goes_). It is a vendor transport, not app networking: nothing else in the app
   builds a `URLRequest`, and no view or view model ever reaches it — a screen
   asks `AtlasAPI` for content and does not know which destination answered.
 
@@ -277,7 +277,7 @@ second client type per call site.
 ## Copy
 
 **The interface ships in pt-BR and en-US, always** — same requirement as the web
-app, different mechanism. Portuguese is the *source* language: the copy in the
+app, different mechanism. Portuguese is the _source_ language: the copy in the
 code is the Portuguese, and `App/Resources/Localizable.xcstrings` carries the
 English beside it. There is no lookup table and there are no key constants; the
 string at the call site is the key.
@@ -328,7 +328,7 @@ uses. Run `make strings-update` after adding copy, then write the English.
 not change it.** iOS lets a learner set a language for one app (Settings ›
 Atlas › Language) and the catalogue answers to that; `AtlasAPI.deviceLanguage`
 reads `Bundle.main.preferredLocalizations`, so the prose the model writes
-defaults to the language the app is drawn in. Screen 13's *Idioma* field is the
+defaults to the language the app is drawn in. Screen 13's _Idioma_ field is the
 content override on top of that, which is what its note says.
 <!-- ponytail: no in-app UI-language switch. It would mean threading a locale
      through every `String(localized:)` in every view model — one that is

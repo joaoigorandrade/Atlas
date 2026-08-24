@@ -1,6 +1,14 @@
 import Observation
 import SwiftUI
 
+/// A graded pick on a section's check. The attempt is part of it so that a
+/// second miss is a second event — a haptic keyed on right-or-wrong alone stays
+/// silent when the learner misses twice in a row.
+struct CheckGrade: Equatable {
+    let correct: Bool
+    let attempt: Int
+}
+
 /// Screen 14's state: which section is being read and whether its check has
 /// been passed. The sections themselves are not state here — they live in the
 /// run's warm cache, which is what lets a pass written before this screen
@@ -13,6 +21,14 @@ final class ConsumeViewModel {
     private(set) var index = 0
     /// The check's picked option for the section on screen — reset per section.
     private(set) var picked: Int?
+    /// The wrong picks already spent on this section's check. A miss is a
+    /// re-read, not a dead end: the option it names stays marked so it can't be
+    /// picked twice, and every other one stays live.
+    private(set) var missed: Set<Int> = []
+    /// How the last pick was graded, or nil while the check is unanswered. The
+    /// band under the options and the haptic both read this — deriving either
+    /// from `picked` buzzes on a section turn, which is not an answer.
+    private(set) var grade: CheckGrade?
     private(set) var message = ""
     /// Which lens is open over the prose, if any. Bound by the sheet.
     var lens: AltKey?
@@ -61,8 +77,11 @@ final class ConsumeViewModel {
     }
 
     func pick(_ option: Int) {
-        guard picked == nil else { return }
+        guard !passed, !missed.contains(option), let check = chunk?.check else { return }
         picked = option
+        let correct = check.opts[safe: option]?.correct == true
+        if !correct { missed.insert(option) }
+        grade = CheckGrade(correct: correct, attempt: (grade?.attempt ?? 0) + 1)
     }
 
     func advance() {
@@ -70,6 +89,8 @@ final class ConsumeViewModel {
         withAnimation(Motion.standard) {
             index += 1
             picked = nil
+            missed = []
+            grade = nil
         }
     }
 

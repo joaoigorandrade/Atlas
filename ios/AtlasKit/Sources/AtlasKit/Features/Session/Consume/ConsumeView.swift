@@ -58,8 +58,14 @@ struct ConsumeView: View {
         }
         // A section is a page turn, and the check's verdict lands under it.
         .animation(Motion.standard, value: model.index)
-        .animation(Motion.snap, value: model.picked)
-        .sensoryFeedback(.selection, trigger: model.picked)
+        .animation(Motion.standard, value: model.picked)
+        .animation(Motion.standard, value: model.missed)
+        // A right answer and a miss are different events, and the wrist is the
+        // one place the learner reads them without looking.
+        .sensoryFeedback(trigger: model.grade) { _, new in
+            guard let new else { return nil }
+            return new.correct ? SensoryFeedback.success : SensoryFeedback.warning
+        }
         .sheet(item: $model.lens) { key in
             ModelLensView(lens: key, context: model.lensContext(key))
                 .presentationDetents([.medium, .large])
@@ -154,44 +160,95 @@ struct ConsumeView: View {
     }
 
     private func check(_ check: ConsumePrediction, _ model: ConsumeViewModel) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Kicker("Checagem", tint: Palette.accent)
-            Text(verbatim: check.q).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
-            ForEach(Array(check.opts.enumerated()), id: \.offset) { option, opt in
-                Button { model.pick(option) } label: {
-                    Text(verbatim: opt.label)
-                        .font(.atlas(.sans, 14.5))
-                        .foregroundStyle(Palette.ink)
-                        .frame(maxWidth: .infinity, minHeight: Metrics.tap, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .background(Palette.card, in: .rect(cornerRadius: 10))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10)
-                                .strokeBorder(mark(option, check, model) ?? Palette.hairlineStrong, lineWidth: 1)
-                        }
+        VStack(alignment: .leading, spacing: 0) {
+            // The card says which of its two jobs it is doing: it is in the way
+            // until the answer is found, and a receipt after.
+            HStack(spacing: 6) {
+                Kicker("Checagem", tint: model.passed ? Palette.accent : Palette.inkMuted)
+                Spacer(minLength: 0)
+                if model.passed {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.accent)
+                    Kicker("Entendido", tint: Palette.accent)
                 }
-                .pressable()
-                .disabled(model.picked != nil)
             }
-            if model.picked != nil {
-                Text(verbatim: model.passed ? check.right : check.wrong)
-                    .font(.atlas(.sans, 13.5))
-                    .foregroundStyle(model.passed ? Palette.accent : Palette.amberInk)
+
+            Text(verbatim: check.q)
+                .font(.atlas(.serif, 17.5))
+                .lineSpacing(4)
+                .foregroundStyle(Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+
+            // Why the check is in the way at all. It goes once it has been
+            // answered — by then the band under the options is the thing to read.
+            if model.grade == nil {
+                Text("Responda com o que você acabou de ler — isso libera a próxima seção.")
+                    .font(.atlas(.sans, 12.5))
+                    .lineSpacing(2)
+                    .foregroundStyle(Palette.inkFaint)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
+            }
+
+            VStack(spacing: 9) {
+                ForEach(Array(check.opts.enumerated()), id: \.offset) { option, opt in
+                    ChoiceRow(opt.label,
+                              mark: mark(option, check, model),
+                              chosen: model.picked == option,
+                              enabled: !model.passed && !model.missed.contains(option)) {
+                        model.pick(option)
+                    }
+                }
+            }
+            .padding(.top, 14)
+
+            if let grade = model.grade {
+                self.verdict(grade.correct, check)
+                    .padding(.top, 14)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.accentBg, in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.accent.opacity(0.18), lineWidth: 1) }
+        .background(Palette.accentBg, in: .rect(cornerRadius: Metrics.cardRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: Metrics.cardRadius)
+                .strokeBorder(border(model), lineWidth: 1)
+        }
     }
 
-    /// Green marks the answer once one is picked, amber the miss that was
-    /// picked. An option nobody chose says nothing.
-    private func mark(_ option: Int, _ check: ConsumePrediction, _ model: ConsumeViewModel) -> Color? {
-        guard model.picked != nil else { return nil }
-        if check.opts[safe: option]?.correct == true { return Palette.accent }
-        return model.picked == option ? Palette.amberInk : nil
+    /// The verdict, as a rule down the side rather than a paragraph of coloured
+    /// text: three lines of solid green read as an alert, not as an answer.
+    private func verdict(_ correct: Bool, _ check: ConsumePrediction) -> some View {
+        let tint = correct ? Palette.accent : Palette.amberInk
+        return VStack(alignment: .leading, spacing: 5) {
+            Kicker(correct ? "Correto" : "Tente outra", tint: tint)
+            Text(verbatim: correct ? check.right : check.wrong)
+                .font(.atlas(.sans, 13.5))
+                .lineSpacing(3)
+                .foregroundStyle(Palette.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 13)
+        .overlay(alignment: .leading) { Capsule().fill(tint).frame(width: 3) }
+    }
+
+    /// Green marks the answer once it is found, amber every miss already spent.
+    /// An option nobody has touched says nothing.
+    private func mark(_ option: Int, _ check: ConsumePrediction, _ model: ConsumeViewModel) -> ChoiceMark {
+        if model.missed.contains(option) { return .wrong }
+        guard model.passed else { return .unmarked }
+        return check.opts[safe: option]?.correct == true ? .right : .unmarked
+    }
+
+    /// The card's own edge answers too — it is the only part of the check still
+    /// visible once the options have scrolled under the dock.
+    private func border(_ model: ConsumeViewModel) -> Color {
+        guard let grade = model.grade else { return Palette.accent.opacity(0.18) }
+        return grade.correct ? Palette.accent.opacity(0.38) : Palette.amberInk.opacity(0.32)
     }
 
     // MARK: - The dock

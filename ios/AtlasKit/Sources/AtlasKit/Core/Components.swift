@@ -171,6 +171,118 @@ public struct Chip: View {
     }
 }
 
+/// How one answer was graded, once a question has been answered. `unmarked` is
+/// every option before a verdict lands — and every option nobody chose after
+/// it, because an option nobody picked says nothing.
+public enum ChoiceMark: Equatable {
+    case unmarked, right, wrong
+
+    /// Green for the answer, amber for a miss that was picked. Nil is the
+    /// hairline every ungraded option keeps.
+    var tint: Color? {
+        switch self {
+        case .unmarked: return nil
+        case .right: return Palette.accent
+        case .wrong: return Palette.amberInk
+        }
+    }
+
+    var fill: Color {
+        switch self {
+        case .unmarked: return Palette.card
+        case .right: return Palette.successBg
+        case .wrong: return Palette.amberBg
+        }
+    }
+
+    var symbol: String? {
+        switch self {
+        case .unmarked: return nil
+        case .right: return "checkmark"
+        case .wrong: return "xmark"
+        }
+    }
+}
+
+/// One option of a closed question. Every pick-an-answer surface wears this —
+/// the placement's questions and Consume's section check are the same control,
+/// and a second hand-written pill is how the two drift a padding apart.
+///
+/// The disc carries three things at once: whether this is the option the
+/// learner picked (it fills), how it was graded (it tints, and takes a glyph),
+/// and whether the question still takes a tap (what it marked never dims).
+public struct ChoiceRow: View {
+    private let label: String
+    private let mark: ChoiceMark
+    /// Picked by the learner, as opposed to merely revealed as the answer.
+    private let chosen: Bool
+    /// Still takes a tap.
+    private let enabled: Bool
+    private let action: () -> Void
+
+    public init(_ label: String, mark: ChoiceMark = .unmarked, chosen: Bool = false,
+                enabled: Bool = true, action: @escaping () -> Void) {
+        self.label = label
+        self.mark = mark
+        self.chosen = chosen
+        self.enabled = enabled
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                disc
+                Text(verbatim: label)
+                    .font(.atlas(.sans, 15))
+                    .lineSpacing(3)
+                    .foregroundStyle(Palette.ink)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            // A wrapped option is the common case, not the exception: the
+            // padding has to hold on three lines, which is what a bare
+            // `minHeight` was never going to do.
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+            .frame(maxWidth: .infinity, minHeight: Metrics.tap, alignment: .leading)
+            .background(mark.fill, in: .rect(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(mark.tint ?? Palette.hairlineStrong,
+                                  lineWidth: mark == .unmarked ? 1 : 1.5)
+            }
+        }
+        .pressable()
+        .disabled(!enabled)
+        // Settled, and this one carried no verdict: it steps back rather than
+        // vanishing — the learner still reads what they didn't pick.
+        .opacity(!enabled && mark == .unmarked ? 0.45 : 1)
+        .animation(Motion.standard, value: mark)
+        .animation(Motion.standard, value: enabled)
+        .accessibilityAddTraits(chosen ? [.isSelected] : [])
+    }
+
+    private var disc: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(mark.tint ?? Palette.hairlineStrong, lineWidth: 1.5)
+                .background(Circle().fill(chosen ? (mark.tint ?? Color.clear) : Color.clear))
+            if let symbol = mark.symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(chosen ? Palette.accentInk : (mark.tint ?? Palette.inkFaint))
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .frame(width: 18, height: 18)
+        // The disc sits on the first line of a label that wraps, not halfway
+        // down the block.
+        .padding(.top, 2)
+    }
+}
+
 /// The segmented progress rail — diagnostic questions, Consume sections,
 /// Feynman beats, a Retain deck. `fills` is one colour per segment, nil for spent.
 public struct SegmentBar: View {
