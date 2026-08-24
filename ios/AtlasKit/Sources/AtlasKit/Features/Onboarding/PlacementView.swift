@@ -139,45 +139,22 @@ struct PlacementView: View {
     private func options(_ question: DiagnosticQuestion) -> some View {
         VStack(spacing: 10) {
             ForEach(Array(question.opts.enumerated()), id: \.offset) { index, option in
-                Button { onboarding.answer(index) } label: {
-                    HStack(spacing: 12) {
-                        Circle()
-                            .strokeBorder(tint(index, question) ?? Palette.hairlineStrong, lineWidth: 1.5)
-                            .background(Circle().fill(chosen(index) ? tint(index, question) ?? .clear : .clear))
-                            .frame(width: 16, height: 16)
-                        Text(verbatim: option.label)
-                            .font(.atlas(.sans, 15))
-                            .foregroundStyle(Palette.ink)
-                            .multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 12)
-                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                    .background(fill(index, question), in: .rect(cornerRadius: 11))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 11)
-                            .strokeBorder(tint(index, question) ?? Palette.hairlineStrong, lineWidth: 1)
-                    }
+                ChoiceRow(option.label,
+                          mark: mark(index, question),
+                          chosen: chosen(index),
+                          enabled: onboarding.verdict == nil) {
+                    onboarding.answer(index)
                 }
-                // Once answered, the options that carried no verdict step back.
-                .opacity(onboarding.verdict == nil || tint(index, question) != nil ? 1 : 0.5)
-                .pressable()
-                .disabled(onboarding.verdict != nil)
             }
         }
     }
 
     /// Green marks the answer, amber the miss that was picked. Everything else
     /// keeps its hairline — an option nobody chose says nothing.
-    private func tint(_ index: Int, _ question: DiagnosticQuestion) -> Color? {
-        guard onboarding.verdict != nil else { return nil }
-        if index == question.correctIndex { return Palette.accent }
-        return chosen(index) ? Palette.amberInk : nil
-    }
-
-    private func fill(_ index: Int, _ question: DiagnosticQuestion) -> Color {
-        guard let tint = tint(index, question) else { return Palette.card }
-        return tint == Palette.accent ? Palette.successBg : Palette.amberBg
+    private func mark(_ index: Int, _ question: DiagnosticQuestion) -> ChoiceMark {
+        guard onboarding.verdict != nil else { return .unmarked }
+        if index == question.correctIndex { return .right }
+        return chosen(index) ? .wrong : .unmarked
     }
 
     private func chosen(_ index: Int) -> Bool { onboarding.verdict?.picked == index }
