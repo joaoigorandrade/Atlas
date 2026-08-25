@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadRunCore } from "@/lib/persistence";
+import { loadRunCore, migrateConsume } from "@/lib/persistence";
 import { languageAction } from "@/lib/i18n";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -50,6 +50,46 @@ describe("run snapshot: content language", () => {
     const run = await loadRunCore(clientReturning({ ...core, v: 8 }));
     expect(run?.snapshot.v).toBe(9);
     expect(run?.snapshot.language).toBeUndefined();
+  });
+});
+
+// ---- the other client's keys ------------------------------------------------
+
+describe("run snapshot: another client's keys", () => {
+  // The bug this exists to prevent: `useRunState` spreads the loaded snapshot
+  // under the literal it saves, which is the only thing carrying the iOS
+  // client's `iosCards` (an SM-2 queue; this one schedules with FSRS) back out.
+  // A `migrate` that built a literal instead of spreading would delete the
+  // phone's review queue the first time the run was opened in a browser.
+  it("keeps a key this app has no field for", async () => {
+    const run = await loadRunCore(
+      clientReturning({ ...core, v: 9, iosCards: [{ id: "c1" }] }),
+    );
+    expect((run?.snapshot as unknown as { iosCards: unknown }).iosCards).toEqual([
+      { id: "c1" },
+    ]);
+  });
+
+  // The other half: the pre-v3 inline caches have their own column now, and
+  // must not ride back into the snapshot one.
+  it("drops a pre-v3 row's inline caches", async () => {
+    const run = await loadRunCore(clientReturning({ ...core, v: 2, caches: {} }));
+    expect(run?.snapshot).not.toHaveProperty("caches");
+    expect(run?.inlineCaches).not.toBeNull();
+  });
+});
+
+describe("run caches: a section written on the phone", () => {
+  // The iOS client generates on-device, so its sections never pass through
+  // `validateConsumeSection` — the server-side step that gives these two their
+  // empty defaults. `ConsumeView` maps over `terms` without a guard, so a
+  // reading pass written on a phone used to crash the browser that opened it.
+  it("renders even without the fields the server would have defaulted", () => {
+    const [chunk] = migrateConsume({
+      lat: [{ id: "c1", kicker: "1", body: "…", takeaway: "…" }],
+    } as never).lat;
+    expect(chunk.terms).toEqual([]);
+    expect(chunk.ask).toBe("");
   });
 });
 

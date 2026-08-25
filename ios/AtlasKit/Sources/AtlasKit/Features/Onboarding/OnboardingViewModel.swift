@@ -210,7 +210,10 @@ public final class OnboardingViewModel {
         for gap in pendingGaps { map = spawnGap(map, parentId: gap.parent, gap.spec) }
         store.graph = map
         store.states = states
-        store.subject = form.topic
+        // Trimmed, because `subject` is half the row's primary key and the web
+        // app writes `form.topic.trim()`: a topic typed with a stray space here
+        // would open a second row the browser never joins.
+        store.subject = form.topic.trimmingCharacters(in: .whitespacesAndNewlines)
         store.interests = form.interests
         // What the run is for, and how long a day is, outlive onboarding —
         // screens 12 and 13 read them, and screen 13 is where they change.

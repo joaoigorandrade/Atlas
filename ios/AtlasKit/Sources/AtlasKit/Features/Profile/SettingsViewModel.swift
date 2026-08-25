@@ -8,6 +8,9 @@ import SwiftUI
 @MainActor
 final class SettingsViewModel {
     private(set) var confirmingDelete = false
+    /// Set the moment the language changes — the interface is still drawn in
+    /// the old one until the process restarts.
+    private(set) var restarting = false
     private(set) var message = ""
     /// The two exports, produced once when the screen opens rather than every
     /// time `body` runs — `ShareLink` takes a value, and encoding the whole
@@ -25,6 +28,30 @@ final class SettingsViewModel {
 
     func askToDelete() { confirmingDelete = true }
     func cancelDelete() { confirmingDelete = false }
+
+    /// The interface language is read out of `AppleLanguages` once, at launch,
+    /// so a switch here is only half done until the app is started again.
+    /// Picking the language already on screen changes nothing and asks nothing.
+    func choose(language: String) {
+        guard language != store.language else { return }
+        store.language = language
+        restarting = true
+    }
+
+    var isRestarting: Binding<Bool> {
+        Binding(get: { self.restarting }, set: { self.restarting = $0 })
+    }
+
+    /// Flush first: the run saves on a two-second debounce, and the language is
+    /// part of the row.
+    /// ponytail: `exit(0)` is the only way to end the process from inside the
+    /// app, and it looks like a crash to iOS. Fine for a deliberate tap behind
+    /// an alert; if this ever ships to the App Store, drop the button and let
+    /// the learner reopen the app themselves.
+    func restart() async {
+        await store.saveNow()
+        exit(0)
+    }
 
     var isConfirmingDelete: Binding<Bool> {
         Binding(get: { self.confirmingDelete }, set: { self.confirmingDelete = $0 })

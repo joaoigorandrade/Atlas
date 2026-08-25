@@ -26,7 +26,7 @@ public actor RunStore {
     /// version for is skipped rather than guessed at — one unreadable run must
     /// not take the dashboard down with it.
     public func list(token: String) async throws -> [RunSnapshot] {
-        struct Row: Decodable { let subject: String; let snapshot: JSONValue }
+        struct Row: Decodable { let subject: String; let snapshot: JSONValue; let caches: JSONValue? }
         let response = try await send(RunEndpoint.list(apiKey: apiKey, token: token))
         let rows: [Row]
         do {
@@ -34,12 +34,19 @@ public actor RunStore {
         } catch {
             throw AtlasError(code: "upstream", message: "could not decode runs: \(error)")
         }
-        return rows.compactMap { RunSnapshot(subject: $0.subject, snapshot: $0.snapshot) }
+        return rows.compactMap {
+            RunSnapshot(subject: $0.subject, snapshot: $0.snapshot, caches: $0.caches)
+        }
     }
 
-    public func save(_ run: RunSnapshot, token: String) async throws {
-        let row = JSONValue.object(["subject": .string(run.subject), "snapshot": run.snapshot])
-        _ = try await send(try RunEndpoint.save(row, apiKey: apiKey, token: token))
+    /// Upsert the run. `caches` is the generated content — by far the larger
+    /// half of the row and unchanged by anything but a generation — so it is
+    /// only sent when one has landed. A column left out of the body is a column
+    /// the upsert does not touch, which is what lets the two travel apart.
+    public func save(_ run: RunSnapshot, caches: Bool, token: String) async throws {
+        var row: [String: JSONValue] = ["subject": .string(run.subject), "snapshot": run.snapshot]
+        if caches { row["caches"] = .object(run.caches) }
+        _ = try await send(try RunEndpoint.save(.object(row), apiKey: apiKey, token: token))
     }
 
     /// Execute and classify, the one place a run request becomes an `AtlasError`.

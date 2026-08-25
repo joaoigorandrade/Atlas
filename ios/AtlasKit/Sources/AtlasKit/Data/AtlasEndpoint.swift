@@ -38,7 +38,7 @@ enum RunEndpoint {
     /// states to draw a card's mastery share, and that is most of the row.
     static func list(apiKey: String, token: String) -> HTTPRequestData {
         HTTPRequestData(path: table)
-            .query(["select": "subject,snapshot", "order": "updated_at.desc"])
+            .query(["select": "subject,snapshot,caches", "order": "updated_at.desc"])
             .header("apikey", apiKey)
             .bearer(token)
     }

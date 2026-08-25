@@ -68,6 +68,7 @@ struct WelcomeView: View {
                 .padding(.bottom, 8)
             }
             .scrollDismissesKeyboard(.interactively)
+            .dismissesKeyboardOnTap()
 
             Dock {
                 CTAButton("Montar meu mapa →", hero: true) {

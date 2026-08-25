@@ -222,6 +222,23 @@ than calling `AtlasAPI` from a view model.
   Consume writes Socratic, Socratic writes Feynman, and so on to the Crisol.
 - The cache is emptied whenever the run changes (`open`, `clearRun`) — every key
   names the run and the language it belongs to, and nothing survives a sign-out.
+- **The cache is also a column, shared with the browser.** `run_states.caches`
+  holds the run's generated content in the shape `lib/persistence.ts` writes —
+  `{ consume: { nodeId: [...] }, … }` — so a reading pass written in the browser
+  opens here without a generation, and one written here shows up there. `open`
+  seeds the cache from the row and `saveNow` merges it back, only when a
+  generation has landed (`warm.revision`): it is the large half of the row and a
+  node drag must not re-upload it.
+- **What travels is the model's own JSON, never a re-encode of what was
+  decoded.** `PhaseContent.swift` is deliberately narrower than
+  `lib/curriculum/*.ts`, so every generation is carried as a `Landed` — the
+  decoded value for the screen, the raw object for the column. Re-encoding the
+  first into the second strips the fields only the browser draws (`terms`,
+  `ask`, `encoding`). A new cached kind carries both halves or it degrades the
+  web.
+- The two buckets this client does not fill — `models` (the lens beats) and
+  `retain` — ride through the merge untouched, the same way `RunSnapshot` hands
+  back the snapshot keys it has no screen for.
 
 ## Networking
 
@@ -324,16 +341,21 @@ listing every literal it actually compiled as a localised string, and the script
 fails on any key with no English and on any catalogue entry the code no longer
 uses. Run `make strings-update` after adding copy, then write the English.
 
-**The interface follows the system language, and the picker on screen 13 does
-not change it.** iOS lets a learner set a language for one app (Settings ›
-Atlas › Language) and the catalogue answers to that; `AtlasAPI.deviceLanguage`
-reads `Bundle.main.preferredLocalizations`, so the prose the model writes
-defaults to the language the app is drawn in. Screen 13's _Idioma_ field is the
-content override on top of that, which is what its note says.
-<!-- ponytail: no in-app UI-language switch. It would mean threading a locale
-     through every `String(localized:)` in every view model — one that is
-     forgotten renders in the wrong language with nothing to catch it. The
-     system setting is free and correct. -->
+**Screen 13's _Idioma_ picker sets both the interface and the generated
+content, and closes the app to do it.** `Defaults.language` writes the
+`AppleLanguages` key beside its own, which is what `Bundle.main` reads to pick
+an `.lproj` — one key covers every `Text` and every `String(localized:)`, with
+no locale threaded through any view model. It is read once, at launch, so
+`SettingsViewModel.choose(language:)` raises a one-button alert that flushes the
+run and calls `exit(0)`. Until the switch, the interface still follows the
+system language (Settings › Atlas › Language), and `AtlasAPI.deviceLanguage`
+reads `Bundle.main.preferredLocalizations` for the default.
+<!-- ponytail: `AppleLanguages` + a forced relaunch, not a live locale in the
+     environment. Live would mean threading a locale through every
+     `String(localized:)` in every view model — one that is forgotten renders in
+     the wrong language with nothing to catch it. `exit(0)` looks like a crash
+     to iOS; it is fine behind a deliberate tap, and is the first thing to drop
+     if this goes to the App Store. -->
 
 ## Verifying a change
 

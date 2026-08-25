@@ -14,12 +14,15 @@ struct ConsumeView: View {
     var body: some View {
         Group {
             if let model {
-                content(model)
+                content(model).transition(.arrival)
             } else {
                 Waiting("Escrevendo sua leitura…")
             }
         }
         .background(Palette.paper)
+        // The wait and the pass are one screen arriving, not two screens
+        // swapping: the shape fades out under the prose that lands over it.
+        .animation(Motion.enter, value: model == nil)
         .task {
             let model = model ?? ConsumeViewModel(session: session, api: store.api)
             self.model = model

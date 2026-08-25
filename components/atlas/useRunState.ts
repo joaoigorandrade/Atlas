@@ -311,6 +311,11 @@ export function useRunState(opts: {
    * more: the content was written in the old language and has to go, but the
    * learner's progress through it is language-independent and must not.
    */
+  /** The row this run was loaded from, spread under every save — see the save
+   *  effect. A ref because nothing renders it and it must not re-arm the
+   *  debounce. */
+  const loadedRef = useRef<Partial<RunSnapshot>>({});
+
   const clearCaches = useCallback(() => {
     setConsumeCache({});
     setModelCache({});
@@ -338,6 +343,7 @@ export function useRunState(opts: {
     setCards([]);
     setLitToday([]);
     setSummaryFailed({});
+    loadedRef.current = {};
   }, [clearCaches]);
 
   // ---- persistence (§17) -----------------------------------------------
@@ -366,6 +372,7 @@ export function useRunState(opts: {
    */
   const applyRun = useCallback(
     (row: LoadedRun) => {
+      loadedRef.current = row.snapshot;
       warm.clear();
       resetSessions();
       resetTransient();
@@ -536,6 +543,12 @@ export function useRunState(opts: {
   useEffect(() => {
     if (!runActive) return;
     const snapshot: RunSnapshot = {
+      // Under the literal, so a key this app has no field for survives the
+      // round trip: the iOS client schedules review under `iosCards`, and
+      // rebuilding the literal used to delete the phone's queue the first time
+      // the run was opened in a browser. Not a pre-v3 row's inline `caches` —
+      // `migrate` strips it, and it belongs to the other column.
+      ...loadedRef.current,
       v: 9,
       form,
       // The run's own language, not the reader's — see `RunSnapshot.language`.

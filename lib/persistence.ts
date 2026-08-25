@@ -216,6 +216,11 @@ export function migrateConsume(
             steps: [c.alt?.example ?? "See the passage above."],
           },
           takeaway: c.takeaway ?? c.alt?.simpler ?? "",
+          // The iOS client generates on-device and so never passes through
+          // `validateConsumeSection`, which is where these two get their empty
+          // defaults. `c.terms.map` on a section written there is a crash.
+          terms: c.terms ?? [],
+          ask: c.ask ?? "",
         };
       }),
     ]),

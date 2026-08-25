@@ -13,18 +13,23 @@ private actor Starts {
 }
 
 /// A pass that lands in two parts, so a joiner can be caught mid-stream.
-private func twoParts(_ starts: Starts) -> @Sendable () async -> AsyncThrowingStream<[String], Error> {
+private func twoParts(_ starts: Starts) -> @Sendable () async -> AsyncThrowingStream<Landed<[String]>, Error> {
     {
         await starts.tick()
         return AsyncThrowingStream { continuation in
-            continuation.yield(["one"])
+            continuation.yield(landed(["one"]))
             Task {
                 try? await Task.sleep(for: .milliseconds(30))
-                continuation.yield(["one", "two"])
+                continuation.yield(landed(["one", "two"]))
                 continuation.finish()
             }
         }
     }
+}
+
+/// A landed pass and the JSON behind it — the cache keeps both halves.
+private func landed(_ items: [String]) -> Landed<[String]> {
+    Landed(value: items, raw: .array(items.map(JSONValue.string)))
 }
 
 @MainActor
@@ -50,14 +55,16 @@ private func twoParts(_ starts: Starts) -> @Sendable () async -> AsyncThrowingSt
 @MainActor
 @Test func aFailedPassLeavesNothingBehind() async {
     let cache = WarmCache()
-    let failure = await cache.fill("connect|x", once: { throw AtlasError(code: "upstream", message: "boom") })
+    let failure = await cache.fill("connect|x", once: {
+        throw AtlasError(code: "upstream", message: "boom")
+    } as @Sendable () async throws -> Landed<String>)
     #expect(failure != nil)
 
     // Nothing cached, and nothing in flight — so the next caller runs it again
     // rather than being handed the same error a second time.
     let nothing: String? = cache.content("connect|x")
     #expect(nothing == nil)
-    #expect(await cache.fill("connect|x", once: { "a web" }) == nil)
+    #expect(await cache.fill("connect|x", once: { Landed(value: "a web", raw: .string("a web")) }) == nil)
     let landed: String? = cache.content("connect|x")
     #expect(landed == "a web")
 }
@@ -69,10 +76,10 @@ private func twoParts(_ starts: Starts) -> @Sendable () async -> AsyncThrowingSt
     // section and then throws, which is what a dropped connection looks like.
     let error = await cache.fill("consume|x", live: {
         AsyncThrowingStream { continuation in
-            continuation.yield(["one"])
+            continuation.yield(landed(["one"]))
             continuation.finish(throwing: AtlasError(code: "transport", message: "dropped"))
         }
-    } as @Sendable () async -> AsyncThrowingStream<[String], Error>)
+    } as @Sendable () async -> AsyncThrowingStream<Landed<[String]>, Error>)
     #expect(error != nil)
     let nothing: [String]? = cache.content("consume|x")
     #expect(nothing == nil)
@@ -82,6 +89,6 @@ private func twoParts(_ starts: Starts) -> @Sendable () async -> AsyncThrowingSt
     // screen.
     let empty = await cache.fill("socratic|x", live: {
         AsyncThrowingStream { $0.finish() }
-    } as @Sendable () async -> AsyncThrowingStream<[String], Error>)
+    } as @Sendable () async -> AsyncThrowingStream<Landed<[String]>, Error>)
     #expect(empty != nil)
 }

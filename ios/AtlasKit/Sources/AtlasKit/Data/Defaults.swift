@@ -11,9 +11,17 @@ enum Defaults {
         get { dailyTargets.contains(UserDefaults.standard.integer(forKey: "dailyTarget")) ? UserDefaults.standard.integer(forKey: "dailyTarget") : 15 }
         set { UserDefaults.standard.set(newValue, forKey: "dailyTarget") }
     }
+    /// Writing this also pins the *interface* to the same language:
+    /// `AppleLanguages` is what `Bundle.main` reads to pick an `.lproj`, so one
+    /// key covers every `Text` and every `String(localized:)` at once. It is
+    /// read at launch and never again, which is why screen 13 makes the learner
+    /// relaunch rather than pretending the switch took effect live.
     static var language: String {
         get { UserDefaults.standard.string(forKey: "language") ?? AtlasAPI.deviceLanguage }
-        set { UserDefaults.standard.set(newValue, forKey: "language") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "language")
+            UserDefaults.standard.set([newValue], forKey: "AppleLanguages")
+        }
     }
     static var dictationOn: Bool {
         get { UserDefaults.standard.object(forKey: "dictation") as? Bool ?? true }

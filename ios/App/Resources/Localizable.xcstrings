@@ -379,6 +379,17 @@
         }
       }
     },
+    "a interface e o conteúdo gerado" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the interface and the generated content"
+          }
+        }
+      }
+    },
     "A resposta: %@\nVamos encaixar %@ no seu mapa." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -797,6 +808,17 @@
         }
       }
     },
+    "Carregando" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading"
+          }
+        }
+      }
+    },
     "Cartão %lld de %lld" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -991,17 +1013,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Consume · reading"
-          }
-        }
-      }
-    },
-    "conteúdo gerado, não a interface" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "generated content, not the interface"
           }
         }
       }
@@ -1367,6 +1378,7 @@
       }
     },
     "Entendido" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1746,6 +1758,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Do %@ first"
+          }
+        }
+      }
+    },
+    "Fechar o Atlas" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Atlas"
           }
         }
       }
@@ -2289,6 +2312,17 @@
         }
       }
     },
+    "O idioma da interface só muda quando o app abre de novo. Vamos fechá-lo — toque no Atlas para voltar." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The interface language only changes when the app opens again. We'll close it — tap Atlas to come back."
+          }
+        }
+      }
+    },
     "O que a curva diz" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2619,6 +2653,17 @@
         }
       }
     },
+    "Reabra o Atlas" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopen Atlas"
+          }
+        }
+      }
+    },
     "Recordar" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2664,6 +2709,7 @@
       }
     },
     "Responda com o que você acabou de ler — isso libera a próxima seção." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2948,17 +2994,6 @@
         }
       }
     },
-    "Sua resposta" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your answer"
-          }
-        }
-      }
-    },
     "Sua sessão expirou — entre de novo para %@." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3037,6 +3072,7 @@
       }
     },
     "Tente outra" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

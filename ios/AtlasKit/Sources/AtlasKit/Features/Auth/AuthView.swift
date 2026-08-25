@@ -15,6 +15,7 @@ public struct AuthView: View {
             if let model { content(model) } else { Color.clear }
         }
         .background(Palette.paper)
+        .dismissesKeyboardOnTap()
         .task { if model == nil { model = AuthViewModel(store: store, notice: notice) } }
     }
 

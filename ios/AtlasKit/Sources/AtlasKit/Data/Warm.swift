@@ -26,6 +26,14 @@ public final class WarmCache {
     /// Everything generated for the open run, by key. A key present with no
     /// task behind it is a finished pass.
     public private(set) var content: [String: any Sendable] = [:]
+    /// The same content as the model wrote it, which is what `run_states.caches`
+    /// holds — see `Landed`. Shared with the browser, so it is stored whole and
+    /// never re-encoded from the decoded half above.
+    public private(set) var raw: [String: JSONValue] = [:]
+    /// Bumped on every write to `raw`. `AtlasStore` compares it against what it
+    /// last uploaded, so the (large) caches column is only sent when a
+    /// generation has actually landed — not on every node drag.
+    public private(set) var revision = 0
     /// The passes still being written. Present means "join me", which is the
     /// whole deduplication: every check below happens between two writes on
     /// the main actor, so two callers can never both start one.
@@ -45,7 +53,7 @@ public final class WarmCache {
     @discardableResult
     public func fill<T: Sendable>(
         _ key: String,
-        live: @escaping @Sendable () async -> AsyncThrowingStream<[T], Error>
+        live: @escaping @Sendable () async -> AsyncThrowingStream<Landed<[T]>, Error>
     ) async -> Error? {
         if let running = inflight[key] { return await running.value }
         if content[key] != nil { return nil }
@@ -56,8 +64,8 @@ public final class WarmCache {
             var landed: [T] = []
             do {
                 for try await items in await live() {
-                    landed = items
-                    self.content[key] = items
+                    landed = items.value
+                    self.write(key, items.value, items.raw)
                 }
                 // A pass that ended with nothing is a failure that forgot to
                 // throw; keeping it hands every later click an empty screen.
@@ -79,13 +87,14 @@ public final class WarmCache {
     @discardableResult
     public func fill<T: Sendable>(
         _ key: String,
-        once: @escaping @Sendable () async throws -> T
+        once: @escaping @Sendable () async throws -> Landed<T>
     ) async -> Error? {
         if let running = inflight[key] { return await running.value }
         if content[key] != nil { return nil }
         let task = Task<Error?, Never> {
             do {
-                self.content[key] = try await once()
+                let landed = try await once()
+                self.write(key, landed.value, landed.raw)
                 self.inflight[key] = nil
                 return nil
             } catch {
@@ -101,7 +110,28 @@ public final class WarmCache {
     /// and it writes into a dictionary nothing reads any more.
     public func clear() {
         content.removeAll()
+        raw.removeAll()
         inflight.removeAll()
+        revision += 1
+    }
+
+    /// Put a generation in both halves at once — the only place either is
+    /// written, so the decoded value and the JSON behind it can never disagree.
+    private func write(_ key: String, _ value: any Sendable, _ raw: JSONValue) {
+        content[key] = value
+        self.raw[key] = raw
+        revision += 1
+    }
+
+    /// Adopt content generated somewhere else — the run's shared cache, so a
+    /// reading pass written in the browser opens on the phone without a
+    /// generation. `revision` is deliberately *not* bumped: this is what the
+    /// row already holds, and uploading it back would be a round trip that
+    /// changes nothing.
+    func seed(_ key: String, _ value: any Sendable, _ raw: JSONValue) {
+        guard content[key] == nil, inflight[key] == nil else { return }
+        content[key] = value
+        self.raw[key] = raw
     }
 
     /// Forget everything about a failed pass, half-written content included, so
@@ -109,6 +139,7 @@ public final class WarmCache {
     @discardableResult
     private func failed(_ key: String, _ error: Error) -> Error {
         content[key] = nil
+        raw[key] = nil
         inflight[key] = nil
         return error
     }
@@ -255,6 +286,88 @@ public extension AtlasStore {
 
     /// Draft the Review queue ahead of the tap, the same way a phase is warmed.
     func warmRetain() { Task { await draftCards(for: uncovered) } }
+}
+
+// MARK: - The shared content cache
+
+/// `run_states.caches` is the browser's content column, and this client keeps
+/// its half of the run in the same shape — `{ consume: { nodeId: [...] }, … }`.
+/// A reading pass written in the browser therefore opens on the phone without a
+/// generation, and one written here shows up in the browser the same way.
+///
+/// What travels is the model's own JSON, never a re-encode of what
+/// `PhaseContent.swift` decoded: those types are deliberately narrower than
+/// `lib/curriculum/*.ts`, and re-encoding would strip a section's `terms` and
+/// `ask` the first time it was written on a phone. See `Landed`.
+@MainActor
+public extension AtlasStore {
+    /// The buckets both clients fill. `models` (the lens beats) and `retain`
+    /// are the browser's own keys: this client streams a lens per open and
+    /// turns a Retain draft into scheduled cards the moment it lands, so
+    /// neither has anything to put there. Both ride through the merge below.
+    static let cacheBuckets: Set<String> = ["consume", "socratic", "feynman", "connect", "crucible"]
+
+    /// Adopt the run's saved content. Called on `open`, once the subject, the
+    /// graph and the language a key is built from are all in place.
+    func seedWarm(_ caches: [String: JSONValue]) {
+        let byId = graph.byId
+        for (kind, bucket) in caches {
+            for (nodeId, raw) in bucket.fields ?? [:] {
+                guard let node = byId[nodeId] else { continue }
+                switch kind {
+                case "consume": seed(kind, node, raw, as: [ConsumeChunk].self)
+                case "socratic": seed(kind, node, raw, as: [SocraticStep].self)
+                case "feynman": seed(kind, node, raw, as: [FeynmanBeat].self)
+                case "connect": seed(kind, node, raw, as: ElaborationContent.self)
+                case "crucible": seed(kind, node, raw, as: CrucibleContent.self)
+                default: continue
+                }
+            }
+        }
+    }
+
+    /// The column to upsert: what the row already held, with this device's
+    /// generations written over it. A merge for the same reason `RunSnapshot`
+    /// is one — a client that rebuilt this object out of its own cache would
+    /// delete the two buckets it never fills.
+    func cachesRow(over loaded: [String: JSONValue]) -> [String: JSONValue] {
+        var caches = loaded
+        for (key, raw) in warm.raw {
+            guard let slot = Self.cacheSlot(key) else { continue }
+            var bucket = caches[slot.kind]?.fields ?? [:]
+            bucket[slot.nodeId] = raw
+            caches[slot.kind] = .object(bucket)
+        }
+        return caches
+    }
+
+    /// Which bucket a warm key belongs in — `kind|subject|nodeId|language|inputs`.
+    /// Anything else stays out of the shared column: the Retain draft's own key
+    /// has four parts, and so does a key whose subject happens to contain a
+    /// pipe, which is a run this client keeps to itself rather than files wrong.
+    static func cacheSlot(_ key: String) -> (kind: String, nodeId: String)? {
+        let parts = key.split(separator: "|", omittingEmptySubsequences: false)
+        guard parts.count == 5, cacheBuckets.contains(String(parts[0])) else { return nil }
+        return (String(parts[0]), String(parts[2]))
+    }
+
+    /// Content the browser wrote, under the key this client would have written
+    /// it under. Undecodable content is left where it is rather than dropped —
+    /// it is still the browser's to render, and this client simply regenerates.
+    private func seed<T: Decodable & Sendable>(
+        _ kind: String, _ node: ConceptNode, _ raw: JSONValue, as type: T.Type
+    ) {
+        guard let value = try? raw.decode(T.self) else { return }
+        warm.seed(key(kind, node, cacheInputs(kind, node)), value, raw)
+    }
+
+    /// The pool half of a key. Connect and Crucible are drawn from what the
+    /// learner already owns, so their content is keyed on it — while the web
+    /// keys on the node alone. Seeding under the *current* pool is what adopts
+    /// its answer: the browser would serve that content again too.
+    private func cacheInputs(_ kind: String, _ node: ConceptNode) -> String {
+        kind == "connect" || kind == "crucible" ? learned(besides: node).ids : ""
+    }
 }
 
 private extension Array where Element == ConceptNode {

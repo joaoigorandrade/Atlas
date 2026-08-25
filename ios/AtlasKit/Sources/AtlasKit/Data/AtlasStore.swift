@@ -42,8 +42,9 @@ public final class AtlasStore {
     public var dailyTarget: Int = Defaults.dailyTarget { didSet { Defaults.dailyTarget = dailyTarget; saveSoon() } }
     public var dictationOn: Bool = Defaults.dictationOn { didSet { Defaults.dictationOn = dictationOn } }
     public var readAloudOn: Bool = Defaults.readAloudOn { didSet { Defaults.readAloudOn = readAloudOn } }
-    /// The language generated content comes back in. The interface follows the
-    /// device (the String Catalog); this is the one the model is told.
+    /// The language generated content comes back in, and — through
+    /// `Defaults.language` pinning `AppleLanguages` — the one the interface is
+    /// drawn in from the next launch on.
     public var language: String = Defaults.language {
         didSet {
             AtlasAPI.language = language
@@ -79,6 +80,9 @@ public final class AtlasStore {
     /// would upsert an empty map over the row it had just read.
     private var quiet = true
     private var pendingSave: Task<Void, Never>?
+    /// The `warm.revision` last written to `run_states.caches`. What keeps the
+    /// generated content out of the upsert until a generation has landed.
+    private var savedWarm = 0
 
     /// The signed-in learner, or nil for the auth screens. Writing it is the one
     /// way the bearer token reaches `AtlasAPI` and the keychain.
@@ -236,6 +240,10 @@ public extension AtlasStore {
         // Only when the row records one: a pre-v9 run's content language is
         // genuinely unknown, and the device preference is the honest fallback.
         if let language = run.language { self.language = language }
+        // Last, because a warm key is built from the subject, the graph and the
+        // language above: this is the reading the browser already paid for.
+        seedWarm(run.caches)
+        savedWarm = warm.revision
     }
 
     /// Open another saved map. The one being left is flushed first — switching
@@ -320,8 +328,15 @@ public extension AtlasStore {
         pendingSave?.cancel()
         pendingSave = nil
         guard signedIn, !subject.isEmpty, let token = session?.accessToken else { return }
-        let run = currentRun
-        guard (try? await runs.save(run, token: token)) != nil else { return }
+        var run = currentRun
+        // The generated content only goes up when a generation has landed since
+        // the last write — it is the large half of the row, and a node drag
+        // must not re-upload every section the learner has read.
+        let revision = warm.revision
+        let sendCaches = revision != savedWarm
+        if sendCaches { run.caches = cachesRow(over: run.caches) }
+        guard (try? await runs.save(run, caches: sendCaches, token: token)) != nil else { return }
+        savedWarm = revision
         loaded = run
         if let index = library.firstIndex(where: { $0.subject == run.subject }) {
             library[index] = run

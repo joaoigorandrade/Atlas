@@ -22,7 +22,7 @@ final class ModelLensViewModel {
     func load() async {
         guard let context else { return }
         do {
-            for try await landed in await api.model(context) { beats = landed }
+            for try await landed in await api.model(context) { beats = landed.value }
         } catch {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "abrir essa visão"))
         }

@@ -12,9 +12,13 @@ struct CrucibleView: View {
 
     var body: some View {
         Group {
-            if let model { content(model) } else { Waiting("Escrevendo um problema novo…") }
+            if let model { content(model).transition(.arrival) } else { Waiting("Escrevendo um problema novo…") }
         }
         .background(Palette.paper)
+        // The wait and the pass are one screen arriving, not two screens
+        // swapping: the shape fades out under the prose that lands over it.
+        .animation(Motion.enter, value: model == nil)
+        .dismissesKeyboardOnTap()
         .task {
             let model = model ?? CrucibleViewModel(session: session, api: store.api)
             self.model = model

@@ -16,9 +16,13 @@ struct ConnectView: View {
 
     var body: some View {
         Group {
-            if let model { content(model) } else { Waiting("Procurando o que você já sabe…") }
+            if let model { content(model).transition(.arrival) } else { Waiting("Procurando o que você já sabe…") }
         }
         .background(Palette.paper)
+        // The wait and the pass are one screen arriving, not two screens
+        // swapping: the shape fades out under the prose that lands over it.
+        .animation(Motion.enter, value: model == nil)
+        .dismissesKeyboardOnTap()
         .task {
             let model = model ?? ConnectViewModel(session: session)
             self.model = model

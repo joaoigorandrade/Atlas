@@ -47,11 +47,33 @@ public actor AtlasAPI {
 
     /// Non-streamed generation. Returns the decoded payload for `kind`.
     public func generate<T: Decodable>(_ kind: String, _ context: [String: JSONValue] = [:]) async throws -> T {
+        try await decoded(kind, try await generated(kind, context))
+    }
+
+    /// The payload as it arrived. Kept unread for the kinds that go into the
+    /// shared content cache: the web renders fields this client has no property
+    /// for (`terms`, `ask`, `encoding`, …), so what is stored has to be the
+    /// model's own object and never this client's narrower re-encode of it.
+    private func generated(_ kind: String, _ context: [String: JSONValue]) async throws -> JSONValue {
         var body = context
         body["kind"] = .string(kind)
         let response = try await send(try AtlasEndpoint.generate(body, token: accessToken))
+        return try decoded(kind, JSONValue.self, from: response.data)
+    }
+
+    private nonisolated func decoded<T: Decodable>(_ kind: String, _ value: JSONValue) throws -> T {
         do {
-            return try JSONDecoder().decode(T.self, from: response.data)
+            return try value.decode(T.self)
+        } catch {
+            throw AtlasError(code: "upstream", message: "could not decode \(kind): \(error)")
+        }
+    }
+
+    private nonisolated func decoded<T: Decodable>(
+        _ kind: String, _ type: T.Type, from data: Data
+    ) throws -> T {
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
         } catch {
             throw AtlasError(code: "upstream", message: "could not decode \(kind): \(error)")
         }
@@ -191,16 +213,22 @@ public actor AtlasAPI {
     /// redraw of prose elsewhere but not something a list can hold.
     private func list<T: Decodable & Sendable>(
         _ kind: String, _ part: String, _ context: [String: JSONValue]
-    ) -> AsyncThrowingStream<[T], Error> {
+    ) -> AsyncThrowingStream<Landed<[T]>, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 var items: [T?] = []
+                var raw: [JSONValue?] = []
                 do {
                     for try await frame in stream(kind, context) {
                         guard frame.p == part, frame.partial != true, let index = frame.i else { continue }
                         items.append(contentsOf: repeatElement(nil, count: max(0, index + 1 - items.count)))
+                        raw.append(contentsOf: repeatElement(nil, count: max(0, index + 1 - raw.count)))
                         items[index] = try frame.v.decode(T.self)
-                        continuation.yield(items.compactMap { $0 })
+                        raw[index] = frame.v
+                        continuation.yield(Landed(
+                            value: items.compactMap { $0 },
+                            raw: .array(raw.compactMap { $0 })
+                        ))
                     }
                     continuation.finish()
                 } catch {
@@ -212,37 +240,45 @@ public actor AtlasAPI {
     }
 
     /// The reading pass, one section at a time.
-    public func consume(_ context: [String: JSONValue]) -> AsyncThrowingStream<[ConsumeChunk], Error> {
+    public func consume(_ context: [String: JSONValue]) -> AsyncThrowingStream<Landed<[ConsumeChunk]>, Error> {
         list("consume", "chunks", context)
     }
 
     /// One lens over one section — the model view's beats.
-    public func model(_ context: [String: JSONValue]) -> AsyncThrowingStream<[ConsumeModelBeat], Error> {
+    public func model(_ context: [String: JSONValue]) -> AsyncThrowingStream<Landed<[ConsumeModelBeat]>, Error> {
         list("model", "beats", context)
     }
 
     /// The questioning script, first probe first.
-    public func socratic(_ context: [String: JSONValue]) -> AsyncThrowingStream<[SocraticStep], Error> {
+    public func socratic(_ context: [String: JSONValue]) -> AsyncThrowingStream<Landed<[SocraticStep]>, Error> {
         list("socratic", "steps", context)
     }
 
     /// The teach-back rubric.
-    public func feynman(_ context: [String: JSONValue]) -> AsyncThrowingStream<[FeynmanBeat], Error> {
+    public func feynman(_ context: [String: JSONValue]) -> AsyncThrowingStream<Landed<[FeynmanBeat]>, Error> {
         list("feynman", "beats", context)
     }
 
     /// Connect and Crucible are the two phases the server answers whole — they
     /// are one object, not a list, so there is nothing to paint progressively.
-    private struct Wrapped<T: Decodable>: Decodable { let content: T }
-
-    public func connect(_ context: [String: JSONValue]) async throws -> ElaborationContent {
-        let wrapped: Wrapped<ElaborationContent> = try await generate("connect", context)
-        return wrapped.content
+    public func connect(_ context: [String: JSONValue]) async throws -> Landed<ElaborationContent> {
+        try await whole("connect", context)
     }
 
-    public func crucible(_ context: [String: JSONValue]) async throws -> CrucibleContent {
-        let wrapped: Wrapped<CrucibleContent> = try await generate("crucible", context)
-        return wrapped.content
+    public func crucible(_ context: [String: JSONValue]) async throws -> Landed<CrucibleContent> {
+        try await whole("crucible", context)
+    }
+
+    /// `{ content: … }` in, the content decoded *and* kept — the cache stores
+    /// the object the model wrote, which is the same one the web stores.
+    private func whole<T: Decodable & Sendable>(
+        _ kind: String, _ context: [String: JSONValue]
+    ) async throws -> Landed<T> {
+        let raw = try await generated(kind, context)
+        guard let content = raw.fields?["content"] else {
+            throw AtlasError(code: "upstream", message: "\(kind) came back without content")
+        }
+        return Landed(value: try decoded(kind, content), raw: content)
     }
 
     /// A verdict on the learner's own words. The judge streams — the verdict
@@ -270,8 +306,8 @@ public actor AtlasAPI {
     /// nodes that have none yet, and what it returns is scheduled locally from
     /// then on.
     public func retain(topic: String, budgetMin: Int, nodes: [(id: String, label: String, state: NodeState)],
-                       interests: String, language: String = AtlasAPI.language) async throws -> [ReviewCard] {
-        let wrapped: Wrapped<RetainContent> = try await generate("retain", [
+                       interests: String, language: String = AtlasAPI.language) async throws -> Landed<[ReviewCard]> {
+        let landed: Landed<RetainContent> = try await whole("retain", [
             "topic": .string(topic),
             "budgetMin": .number(Double(budgetMin)),
             "interests": .string(interests),
@@ -280,7 +316,7 @@ public actor AtlasAPI {
                 .object(["id": .string($0.id), "label": .string($0.label), "state": .string($0.state.rawValue)])
             }),
         ])
-        return wrapped.content.cards
+        return Landed(value: landed.value.cards, raw: landed.raw)
     }
 
     // MARK: - The account

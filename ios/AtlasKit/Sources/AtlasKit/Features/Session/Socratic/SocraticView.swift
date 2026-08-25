@@ -11,9 +11,13 @@ struct SocraticView: View {
 
     var body: some View {
         Group {
-            if let model { content(model) } else { Waiting("Escrevendo a primeira pergunta…") }
+            if let model { content(model).transition(.arrival) } else { Waiting("Escrevendo a primeira pergunta…") }
         }
         .background(Palette.paper)
+        // The wait and the pass are one screen arriving, not two screens
+        // swapping: the shape fades out under the prose that lands over it.
+        .animation(Motion.enter, value: model == nil)
+        .dismissesKeyboardOnTap()
         .task {
             let model = model ?? SocraticViewModel(session: session, api: store.api)
             self.model = model
@@ -106,7 +110,7 @@ struct SocraticView: View {
 
     private func working(_ text: LocalizedStringKey) -> some View {
         HStack(spacing: 8) {
-            ProgressView().tint(Palette.inkFaint).controlSize(.small)
+            AtlasPulse(size: 15)
             Text(text).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkFaint)
         }
     }
@@ -143,36 +147,42 @@ struct SocraticView: View {
         }
     }
 
+    /// One composer, not three boxes: the field carries its own mic and the
+    /// send sits beside it, so the row reads as a single control.
     private func answerDock(_ model: SocraticViewModel) -> some View {
         @Bindable var model = model
         return Dock {
-            HStack(alignment: .bottom, spacing: 10) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Kicker("Sua resposta", tint: Palette.inkGhost)
+            HStack(alignment: .bottom, spacing: 8) {
+                HStack(alignment: .bottom, spacing: 0) {
                     TextField("Responda com suas palavras…", text: $model.answer, axis: .vertical)
                         .font(.atlas(.serif, 15))
-                        .lineLimit(1...4)
-                        .padding(.horizontal, 15).padding(.vertical, 14)
-                        .background(Palette.card, in: .rect(cornerRadius: 13))
-                        .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                        .lineLimit(1...5)
+                        .padding(.leading, 18)
+                        .padding(.trailing, store.dictationOn ? 4 : 18)
+                        .padding(.vertical, 13)
+                    // Voice is a setting (screen 13); the mic only exists when
+                    // the learner asked for it, same as `AnswerEditor`.
+                    if store.dictationOn {
+                        MicButton(dictation: model.dictation, tint: Phase.socratic.tint) { model.dictated($0) }
+                            .frame(width: Metrics.tap, height: Metrics.tap)
+                            .padding(.trailing, 3)
+                    }
                 }
-                MicButton(dictation: model.dictation, tint: Phase.socratic.tint) { model.dictated($0) }
-                    .frame(width: 52, height: 52)
-                    .background(Palette.card, in: .rect(cornerRadius: 13))
-                    .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                .background(Palette.card, in: .capsule)
+                .overlay { Capsule().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                 Button { Task { await model.send() } } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Palette.accentInk)
-                        .frame(width: 52, height: 52)
-                        .background(Phase.socratic.tint, in: .rect(cornerRadius: 13))
+                        .foregroundStyle(model.canSend ? Palette.accentInk : Palette.inkGhost)
+                        .frame(width: 50, height: 50)
+                        .background(model.canSend ? Phase.socratic.tint : Palette.chipBg, in: .circle)
                 }
                 .pressable()
-                .opacity(model.canSend ? 1 : 0.5)
                 .animation(Motion.snap, value: model.canSend)
                 .accessibilityLabel("Enviar resposta")
                 .disabled(!model.canSend)
             }
+            .animation(Motion.snap, value: store.dictationOn)
         }
     }
 }

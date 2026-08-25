@@ -20,6 +20,16 @@ public struct Pressable: ButtonStyle {
 public extension View {
     /// Shorthand, so a screen never spells the style out.
     func pressable() -> some View { buttonStyle(Pressable()) }
+
+    /// Tapping the page outside a control hands the keyboard back. A plain tap
+    /// gesture, so fields and buttons still win their own taps.
+    func dismissesKeyboardOnTap() -> some View {
+        onTapGesture {
+            #if canImport(UIKit)
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            #endif
+        }
+    }
 }
 
 /// `.kick` — the monospace uppercase kicker above almost every block.
@@ -423,24 +433,123 @@ public struct MicButton: View {
     }
 }
 
+/// The app's own indeterminate wait. `ProgressView`'s spinner is the one
+/// control on these screens drawn by UIKit rather than by the design, and it
+/// reads as a system alert in the middle of paper — three ink dots lit in turn
+/// say the same thing in the app's own voice. The effect is the same one the
+/// mic wears while it listens, which is the only other "still working" beat in
+/// the app.
+public struct AtlasPulse: View {
+    private let tint: Color
+    private let size: CGFloat
+    public init(tint: Color = Palette.inkFaint, size: CGFloat = 20) {
+        self.tint = tint; self.size = size
+    }
+    public var body: some View {
+        Image(systemName: "ellipsis")
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(tint)
+            .symbolEffect(.variableColor.iterative.dimInactiveLayers, isActive: true)
+            .accessibilityLabel("Carregando")
+    }
+}
+
+/// Prose that hasn't landed yet, in the shape it will land in — the paragraph
+/// rhythm of a reading, so the screen doesn't jump from an empty box to a wall
+/// of text. A sweep crosses it about once a second; under Reduce Motion the
+/// bars simply sit there, which is still the right shape.
+public struct SkeletonLines: View {
+    /// Each line's share of the width. The defaults are one settled paragraph
+    /// and the start of a second — long, long, slightly short, long, half.
+    private let widths: [Double]
+    @State private var sweeping = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    public init(_ widths: [Double] = [1, 0.96, 0.82, 0.99, 0.55]) { self.widths = widths }
+
+    public var body: some View {
+        bars
+            .overlay { if !reduceMotion { sweep } }
+            // The sweep is painted over the whole block and then cut to the
+            // bars, so it lights the text lines and never the gaps.
+            .mask { bars }
+            .task { sweeping = true }
+            .accessibilityHidden(true)
+    }
+
+    private var bars: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            ForEach(Array(widths.enumerated()), id: \.offset) { _, width in
+                GeometryReader { geo in
+                    Capsule().fill(Palette.hairline).frame(width: geo.size.width * width)
+                }
+                .frame(height: 11)
+            }
+        }
+    }
+
+    private var sweep: some View {
+        GeometryReader { geo in
+            LinearGradient(
+                colors: [.clear, Palette.ink.opacity(0.07), .clear],
+                startPoint: .leading, endPoint: .trailing
+            )
+            .frame(width: geo.size.width * 0.45)
+            .offset(x: sweeping ? geo.size.width : -geo.size.width * 0.45)
+            .animation(.easeInOut(duration: 1.15).repeatForever(autoreverses: false), value: sweeping)
+        }
+    }
+}
+
+public extension AnyTransition {
+    /// How generated material replaces the wait that held its place: it rises
+    /// the last few points in rather than cutting over the skeleton.
+    static var arrival: AnyTransition { .opacity.combined(with: .offset(y: 10)) }
+}
+
 /// A generation in flight, or the honest sentence about why it isn't coming.
+///
+/// A wait is drawn as the thing being waited for: the paragraph shape of the
+/// prose, with the sentence about what Atlas is writing under it. A failure is
+/// only the sentence — nothing is coming, so nothing is shaped.
 struct Waiting: View {
     private let text: Text
-    /// A failure is not a wait: the spinner comes off when the sentence on
-    /// screen is the reason nothing is coming.
+    /// A failure is not a wait: the shape and the dots come off when the
+    /// sentence on screen is the reason nothing is coming.
     private let spinning: Bool
+    /// A generation that lands in a few hundred milliseconds should look
+    /// instant, not like a skeleton that flashed. Held back one beat.
+    @State private var shown = false
     init(_ key: LocalizedStringKey, spinning: Bool = true) { text = Text(key); self.spinning = spinning }
     /// The sentence a view model already resolved — an `ErrorCopy` line, or a
     /// wait it picked between several. Localised there, not here.
     init(verbatim: String, spinning: Bool = true) { text = Text(verbatim: verbatim); self.spinning = spinning }
     var body: some View {
-        VStack(spacing: 10) {
-            if spinning { ProgressView().tint(Palette.inkFaint) }
-            text.font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted).multilineTextAlignment(.center)
+        VStack(spacing: 22) {
+            if spinning {
+                SkeletonLines().padding(.top, 26)
+                HStack(spacing: 9) {
+                    AtlasPulse(size: 17)
+                    sentence
+                }
+            } else {
+                Spacer(minLength: 0)
+                sentence
+                Spacer(minLength: 0)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: spinning ? .top : .center)
         .padding(.horizontal, Metrics.gutter)
+        .opacity(shown ? 1 : 0)
+        .task {
+            try? await Task.sleep(for: .milliseconds(spinning ? 180 : 0))
+            withAnimation(Motion.standard) { shown = true }
+        }
         .transition(.opacity)
+    }
+
+    private var sentence: some View {
+        text.font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted).multilineTextAlignment(.center)
     }
 }
 

@@ -112,6 +112,25 @@ public enum JSONValue: Codable, Sendable, Equatable {
     }
 }
 
+/// A generation, decoded for the screen and kept for the cache.
+///
+/// The two travel together because they are not interchangeable: the screens
+/// decode the parts of a payload they draw (`PhaseContent.swift` is deliberately
+/// narrower than `lib/curriculum/*.ts`), while `run_states.caches` is shared
+/// with the browser and has to hold every field *it* draws. Re-encoding the
+/// decoded value into that column would quietly strip a chunk's `terms` and
+/// `ask` the first time a section was written on a phone.
+public struct Landed<T: Sendable>: Sendable {
+    public let value: T
+    /// Exactly what the model wrote — one object, or the array of them.
+    public let raw: JSONValue
+
+    public init(value: T, raw: JSONValue) {
+        self.value = value
+        self.raw = raw
+    }
+}
+
 /// One NDJSON frame from `/api/generate`: a named slot of the eventual payload,
 /// optionally indexed, optionally a partial redraw of a slot still being written.
 /// Mirrors `StreamFrame` in `lib/server/stream.ts`.

@@ -49,11 +49,11 @@ struct SettingsView: View {
                         }
                     }
 
-                    field("Idioma", "conteúdo gerado, não a interface") {
+                    field("Idioma", "a interface e o conteúdo gerado") {
                         HStack(spacing: 9) {
                             ForEach(AtlasAPI.languages, id: \.self) { code in
                                 choice(code == "pt-BR" ? "Português" : "English", on: store.language == code) {
-                                    store.language = code
+                                    model.choose(language: code)
                                 }
                             }
                         }
@@ -75,6 +75,13 @@ struct SettingsView: View {
                 .padding(.top, 24)
                 .padding(.bottom, 30)
             }
+        }
+        // One button, no cancel: the copy on screen is still in the old
+        // language, and every screen behind it would be too.
+        .alert("Reabra o Atlas", isPresented: model.isRestarting) {
+            Button("Fechar o Atlas") { Task { await model.restart() } }
+        } message: {
+            Text("O idioma da interface só muda quando o app abre de novo. Vamos fechá-lo — toque no Atlas para voltar.")
         }
         .alert("Apagar minha conta?", isPresented: model.isConfirmingDelete) {
             Button("Cancelar", role: .cancel) { model.cancelDelete() }

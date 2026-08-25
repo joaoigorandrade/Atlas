@@ -8,8 +8,9 @@ import Foundation
 /// roll-up. So the decode here is partial on purpose, and the encode is a
 /// *merge* — every key this file does not name is carried back exactly as it
 /// arrived. Without that, opening the app on a phone would silently discard a
-/// week of work done in the browser, because the browser rebuilds the whole
-/// snapshot literal on every save and cannot preserve what it never loaded.
+/// week of work done in the browser. The web merges the same way, from the
+/// other side: `useRunState` spreads the row it loaded under the literal it
+/// saves, so `iosCards` below survives a trip through a browser.
 ///
 /// ponytail: partial, not a port. The one field that genuinely cannot be shared
 /// is the card queue — the web schedules with FSRS and this client with SM-2
@@ -31,6 +32,11 @@ public struct RunSnapshot: Sendable, Identifiable {
     public var calib: [CalibSample] = []
     public var reviewed: Set<String> = []
     public var cards: [ScheduledCard] = []
+    /// The run's generated content — `run_states.caches`, a column of its own
+    /// since the browser split it out of the snapshot: large, changed only by a
+    /// generation, and not what the map draws. Held whole and merged on write;
+    /// `AtlasStore.cachesRow` decides which of its buckets this client fills.
+    public var caches: [String: JSONValue] = [:]
 
     /// The web's `form` and `adherence` objects, held whole. This client owns
     /// four keys of the first and one of the second; the exam date, the banked
@@ -54,11 +60,12 @@ public extension RunSnapshot {
 
     /// Read a row. Nil when the `snapshot` column holds something this app has
     /// no version for — a future format, or a half-written row.
-    init?(subject: String, snapshot: JSONValue) {
+    init?(subject: String, snapshot: JSONValue, caches: JSONValue? = nil) {
         guard let row = snapshot.fields,
               case .number(let version)? = row["v"], Self.versions.contains(version)
         else { return nil }
         self.init(subject: subject)
+        self.caches = caches?.fields ?? [:]
         form = row["form"]?.fields ?? [:]
         adherence = row["adherence"]?.fields ?? [:]
         graph = Self.read(row, "graph") ?? ConceptGraph()

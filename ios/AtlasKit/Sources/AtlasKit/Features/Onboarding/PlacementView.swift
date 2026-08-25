@@ -95,13 +95,7 @@ struct PlacementView: View {
             } else {
                 // Answered faster than the writer could write: the next question
                 // is real and on its way, it just isn't here yet.
-                VStack(spacing: 10) {
-                    ProgressView().tint(Palette.inkFaint)
-                    Text("Escrevendo a próxima pergunta…")
-                        .font(.atlas(.sans, 13.5))
-                        .foregroundStyle(Palette.inkMuted)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Waiting("Escrevendo a próxima pergunta…")
             }
 
             if onboarding.verdict != nil {

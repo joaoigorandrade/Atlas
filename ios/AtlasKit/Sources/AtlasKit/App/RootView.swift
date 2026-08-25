@@ -8,6 +8,8 @@ public struct RootView: View {
     @State private var launch = LaunchViewModel()
     /// One navigator per tab, so a stack survives a trip through another tab.
     @StateObject private var tabs = AtlasTabNavigator(initialTab: .home)
+    /// The splash's own arrival — the one piece of state the shell draws with.
+    @State private var settled = false
 
     public init(store: AtlasStore) {
         _store = State(initialValue: store)
@@ -16,9 +18,12 @@ public struct RootView: View {
     public var body: some View {
         Group {
             if !launch.restored {
-                // Nothing is drawn until the stored session has been picked up,
-                // or the app flashes the login screen at a signed-in learner.
-                Color.clear
+                // Nothing of the app is drawn until the stored session has been
+                // picked up, or it flashes the login screen at a signed-in
+                // learner. What is drawn is the wordmark, on the same paper the
+                // static launch screen ends on, so the hand-off is invisible and
+                // the app arrives out of it rather than after it.
+                splash.transition(.opacity)
             } else if let onboarding = launch.onboarding, store.signedIn, store.graph.nodes.isEmpty {
                 flow(onboarding).transition(.opacity)
             } else if store.signedIn {
@@ -47,6 +52,23 @@ public struct RootView: View {
         .onChange(of: store.graph.nodes.isEmpty) { _, empty in
             if empty { launch.restartOnboarding(store) }
         }
+    }
+
+    /// The first beat of every launch: the wordmark on paper, settling as the
+    /// stored session is picked up. It fades up rather than cutting in, so a
+    /// restore that finishes in a frame reads as one arrival and not a flash.
+    private var splash: some View {
+        VStack(spacing: 18) {
+            Text(verbatim: "Atlas")
+                .font(.atlas(.serif, 34, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+            AtlasPulse(tint: Palette.inkGhost, size: 16)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.paper)
+        .scaleEffect(settled ? 1 : 0.96)
+        .opacity(settled ? 1 : 0)
+        .task { withAnimation(Motion.enter) { settled = true } }
     }
 
     /// Onboarding, in the order the design draws it: the form, the assembly
