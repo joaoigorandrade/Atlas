@@ -1960,13 +1960,12 @@
         }
       }
     },
-    "Já tem uma conta? " : {
-      "extractionState" : "stale",
+    "Já tem uma conta? %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Already have an account? "
+            "value" : "Already have an account? %@"
           }
         }
       }
@@ -2301,13 +2300,12 @@
         }
       }
     },
-    "Novo no Atlas? " : {
-      "extractionState" : "stale",
+    "Novo no Atlas? %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "New to Atlas? "
+            "value" : "New to Atlas? %@"
           }
         }
       }
@@ -3210,6 +3208,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "See your map →"
+          }
+        }
+      }
+    },
+    "Você está sem conexão. Verifique e tente de novo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're offline. Check your connection and try again."
           }
         }
       }

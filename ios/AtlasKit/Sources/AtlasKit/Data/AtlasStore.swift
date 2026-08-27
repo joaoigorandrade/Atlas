@@ -33,6 +33,11 @@ public final class AtlasStore {
     /// state instead.
     public private(set) var library: [RunSnapshot] = []
 
+    /// True from the moment a session is adopted until the library it owns has
+    /// landed. `session` is what flips the shell, and `loadLibrary` suspends —
+    /// without this the shell shows onboarding for the length of that GET.
+    public internal(set) var opening = false
+
     // The four settings screen 13 owns, plus the streak the header reads.
     // UserDefaults *and* the run row: the four below belong to the open map and
     // travel with it (`RunSnapshot`), but they are also what a fresh map starts
@@ -210,6 +215,7 @@ public extension AtlasStore {
     /// first. This is the whole reason a relaunch lands on the dashboard rather
     /// than on onboarding: the map outlives the process because it is a row.
     func loadLibrary() async {
+        defer { opening = false }
         guard let token = session?.accessToken else { return }
         // ponytail: a library that won't load leaves the learner on onboarding,
         // which is wrong but recoverable — building a map with the same subject
@@ -367,6 +373,7 @@ public extension AtlasStore {
         quiet = true
         defer { quiet = false }
         pendingSave?.cancel()
+        opening = false
         session = nil
         loaded = nil
         library = []
@@ -404,6 +411,9 @@ public extension AtlasStore {
     }
 
     private func adopt(_ session: AuthSession) async {
+        // Set before `session`, cleared by `loadLibrary` — every adopt is
+        // followed by one.
+        opening = true
         self.session = session
         SessionStore.save(session)
         await api.setAccessToken(session.accessToken)

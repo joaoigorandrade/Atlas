@@ -45,7 +45,8 @@ final class AuthViewModel {
         }
     }
 
-    var switchPrompt: LocalizedStringKey { mode == .signIn ? "Novo no Atlas? " : "Já tem uma conta? " }
+    /// Only the action half: the view interpolates it into one whole sentence
+    /// (`AuthView.form`) rather than concatenating two catalogue entries.
     var switchAction: LocalizedStringKey { mode == .signIn ? "Criar uma conta" : "Entrar" }
     var isWorking: Bool { status == .working }
     var isConfirming: Bool { status == .sent }
@@ -61,6 +62,9 @@ final class AuthViewModel {
     }
 
     func submit() async {
+        // Return on the password field fires this too, and it is not disabled
+        // while the CTA is.
+        guard status != .working else { return }
         let address = email.trimmed
         guard address.contains("@") else { return fail(String(localized: "Digite o e-mail da sua conta.")) }
         guard password.count >= 6 else { return fail(String(localized: "A senha precisa ter pelo menos 6 caracteres.")) }
@@ -94,6 +98,7 @@ final class AuthViewModel {
         case "user_already_exists": String(localized: "Já existe uma conta com esse e-mail — entre por ela.")
         case "weak_password": String(localized: "A senha precisa ter pelo menos 6 caracteres.")
         case "validation_failed", "request": String(localized: "Confira o e-mail e a senha e tente de novo.")
+        case "offline": String(localized: "Você está sem conexão. Verifique e tente de novo.")
         case "over_email_send_rate_limit", "over_request_rate_limit", "rate_limit":
             String(localized: "Tentativas demais por agora. Espere um minuto e tente de novo.")
         default: String(localized: "Não conseguimos falar com o servidor agora. Tente de novo.")

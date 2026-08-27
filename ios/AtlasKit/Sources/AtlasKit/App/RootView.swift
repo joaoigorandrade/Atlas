@@ -17,12 +17,13 @@ public struct RootView: View {
 
     public var body: some View {
         Group {
-            if !launch.restored {
+            if !launch.restored || store.opening {
                 // Nothing of the app is drawn until the stored session has been
-                // picked up, or it flashes the login screen at a signed-in
-                // learner. What is drawn is the wordmark, on the same paper the
-                // static launch screen ends on, so the hand-off is invisible and
-                // the app arrives out of it rather than after it.
+                // picked up — and again while a fresh sign-in pulls its library,
+                // or the map lands on top of a flash of onboarding. What is
+                // drawn is the wordmark, on the same paper the static launch
+                // screen ends on, so the hand-off is invisible and the app
+                // arrives out of it rather than after it.
                 splash.transition(.opacity)
             } else if let onboarding = launch.onboarding, store.signedIn, store.graph.nodes.isEmpty {
                 flow(onboarding).transition(.opacity)
@@ -35,6 +36,7 @@ public struct RootView: View {
         // Signing in, finishing onboarding and signing out all swap the whole
         // app underneath the learner. A cut there reads as a relaunch.
         .animation(Motion.enter, value: launch.restored)
+        .animation(Motion.enter, value: store.opening)
         .animation(Motion.enter, value: store.signedIn)
         .animation(Motion.enter, value: store.graph.nodes.isEmpty)
         .background(Palette.paper)

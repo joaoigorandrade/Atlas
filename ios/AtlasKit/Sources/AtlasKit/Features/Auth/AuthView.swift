@@ -6,7 +6,10 @@ import SwiftUI
 public struct AuthView: View {
     @Environment(AtlasStore.self) private var store
     @State private var model: AuthViewModel?
+    @FocusState private var focus: Field?
     private let notice: String
+
+    private enum Field { case email, password }
 
     public init(notice: String = "") { self.notice = notice }
 
@@ -61,6 +64,12 @@ public struct AuthView: View {
         .animation(Motion.standard, value: model.mode)
         .animation(Motion.standard, value: model.status)
         .animation(Motion.standard, value: model.message)
+        // The sentence lands below the form with no focus change, so VoiceOver
+        // would otherwise report nothing at all after a failed Entrar.
+        .onChange(of: model.message) { _, sentence in
+            guard !sentence.isEmpty else { return }
+            AccessibilityNotification.Announcement(sentence).post()
+        }
     }
 
     // MARK: - The form (screens 1, 2, 4)
@@ -70,9 +79,14 @@ public struct AuthView: View {
         return VStack(spacing: 12) {
             AuthField(placeholder: "voce@exemplo.com", text: $model.email)
                 .autocorrectionDisabled()
-                .textContentType(.emailAddress)
+                // `.username`, not `.emailAddress`: it is what pairs the field
+                // with the password below for iCloud Keychain autofill.
+                .textContentType(.username)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
+                .focused($focus, equals: .email)
+                .submitLabel(.next)
+                .onSubmit { focus = .password }
 
             AuthField(placeholder: "Senha", text: $model.password, secure: !model.revealPassword) {
                 Button {
@@ -86,21 +100,37 @@ public struct AuthView: View {
                 .pressable()
                 .accessibilityLabel(model.revealPassword ? "Ocultar senha" : "Mostrar senha")
             }
+            // New account: let iOS offer a strong password instead of filling
+            // the saved one.
+            .textContentType(model.mode == .signUp ? .newPassword : .password)
+            .focused($focus, equals: .password)
+            .submitLabel(.go)
             .onSubmit { Task { await model.submit() } }
 
             CTAButton(model.actionTitle, hero: true) { Task { await model.submit() } }
-                .disabled(model.isWorking)
                 .opacity(model.isWorking ? 0.7 : 1)
 
             Button { model.toggleMode() } label: {
-                (Text(model.switchPrompt).foregroundStyle(Palette.inkMuted)
-                 + Text(model.switchAction).foregroundStyle(Palette.accent).underline().bold())
+                switchLine(model)
                     .font(.atlas(.sans, 14))
                     .frame(maxWidth: .infinity, minHeight: Metrics.tap)
             }
             .pressable()
         }
+        // Nothing in the form is editable while the request is in flight, not
+        // just the button.
+        .disabled(model.isWorking)
         .padding(.top, 32)
+    }
+
+    /// One catalogue sentence with the action interpolated into it — never two
+    /// entries spliced, which fixes the word order in Portuguese (ios/AGENTS.md).
+    private func switchLine(_ model: AuthViewModel) -> Text {
+        let action = Text(model.switchAction)
+            .foregroundStyle(Palette.accent).underline().bold()
+        return model.mode == .signIn
+            ? Text("Novo no Atlas? \(action)").foregroundStyle(Palette.inkMuted)
+            : Text("Já tem uma conta? \(action)").foregroundStyle(Palette.inkMuted)
     }
 
     // MARK: - Screen 3

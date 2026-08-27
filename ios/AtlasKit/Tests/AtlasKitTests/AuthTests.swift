@@ -29,3 +29,15 @@ import Testing
                             expiresAt: Date(timeIntervalSinceNow: 30), email: nil)
     #expect(stale.isExpired)
 }
+
+/// The splash covers the gap between adopting a session and the library
+/// landing. If `opening` ever survives `loadLibrary`, the shell hangs on the
+/// wordmark; if it is never set, a returning learner sees onboarding flash.
+@MainActor
+@Test func openingIsClearedOnceTheLibraryHasBeenTried() async {
+    let store = AtlasStore(api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!), auth: AtlasAuth())
+    store.opening = true
+    // No session: the load gives up immediately and must still uncover the app.
+    await store.loadLibrary()
+    #expect(!store.opening)
+}
