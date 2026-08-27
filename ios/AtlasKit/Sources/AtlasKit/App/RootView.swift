@@ -42,11 +42,16 @@ public struct RootView: View {
         .background(Palette.paper)
         .environment(store)
         .task { await launch.restore(store) }
-        .onOpenURL { launch.arrived(from: $0) }
+        .onOpenURL { url in Task { await launch.arrived(from: url, into: store) } }
         // Signing out takes the map with it; the stacks that were drawn over it
         // must not survive into the next learner's session.
         .onChange(of: store.signedIn) { _, signedIn in
-            if !signedIn { tabs.resetAllTabs() }
+            if !signedIn {
+                tabs.resetAllTabs()
+                // The auth screen is about to be rebuilt: it must not open
+                // carrying the notice from a link this learner already dealt with.
+                launch.clearNotice()
+            }
         }
         // The map emptying is what puts the shell back on onboarding, and both
         // ways in there — signing out and starting a second map — need the

@@ -59,12 +59,18 @@ enum RunEndpoint {
 /// Supabase auth over its REST API. No SDK: three endpoints, one decode.
 enum GoTrueEndpoint {
     static func token(
-        _ path: String, grant: String?, _ body: [String: String], apiKey: String
+        _ path: String, grant: String?, redirect: String? = nil,
+        _ body: [String: String], apiKey: String
     ) throws -> HTTPRequestData {
         var request = try HTTPRequestData(path: path, method: .post)
             .jsonBody(body)
             .header("apikey", apiKey)
-        if let grant { request = request.query(["grant_type": grant]) }
+        var query: [String: String] = [:]
+        if let grant { query["grant_type"] = grant }
+        // Where the confirmation email lands. GoTrue only honours it if the URL
+        // is allow-listed on the project.
+        if let redirect { query["redirect_to"] = redirect }
+        if !query.isEmpty { request = request.query(query) }
         return request
     }
 }

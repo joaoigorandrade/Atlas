@@ -41,3 +41,24 @@ import Testing
     await store.loadLibrary()
     #expect(!store.opening)
 }
+
+/// The confirmation link comes back as `atlas://auth/confirm`. GoTrue puts the
+/// tokens in the *fragment* and its failures there too; the web route redirects
+/// with `?error=` in the query. Reading the wrong half means a learner who just
+/// confirmed their account lands back on the sign-in form.
+@Test func confirmationCallbackIsReadFromFragmentAndQuery() {
+    let signedIn = URL(string: "atlas://auth/confirm#access_token=jwt&refresh_token=r1&expires_in=3600&type=signup")!
+    guard case .session(let session) = AtlasAuth.callback(signedIn) else {
+        return #expect(Bool(false), "tokens in the fragment are a session")
+    }
+    #expect(session.accessToken == "jwt")
+    #expect(session.refreshToken == "r1")
+    #expect(!session.isExpired)
+
+    let spent = URL(string: "atlas://auth/confirm#error=access_denied&error_code=otp_expired")!
+    #expect(AtlasAuth.callback(spent) == .failed("otp_expired"))
+    // The web `/auth/confirm` route's half.
+    #expect(AtlasAuth.callback(URL(string: "atlas://auth/confirm?error=expired")!) == .failed("expired"))
+    // Any other URL the app is opened with must not be mistaken for one.
+    #expect(AtlasAuth.callback(URL(string: "atlas://node/abc")!) == .ignored)
+}

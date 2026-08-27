@@ -366,6 +366,18 @@ public extension AtlasStore {
         return true
     }
 
+    /// A confirmation link came back into the app carrying its own session —
+    /// the learner is signed in by the tap on the link, not by the form.
+    func signIn(with session: AuthSession) async {
+        await adopt(session)
+        await loadLibrary()
+    }
+
+    /// Screen 3's "reenviar link". Throws so the screen can speak the failure.
+    func resendConfirmation(email: String) async throws {
+        try await auth.resend(email: email)
+    }
+
     func signOut() {
         // Quiet first: the clear below is nine writes, and every one of them
         // would otherwise queue a save that upserts an empty map over the row

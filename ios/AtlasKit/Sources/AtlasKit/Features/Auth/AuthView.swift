@@ -20,6 +20,9 @@ public struct AuthView: View {
         .background(Palette.paper)
         .dismissesKeyboardOnTap()
         .task { if model == nil { model = AuthViewModel(store: store, notice: notice) } }
+        // A link can come back while this screen is already on screen, and the
+        // `model == nil` guard above would swallow the sentence it arrived with.
+        .onChange(of: notice) { _, sentence in model?.arrive(sentence) }
     }
 
     private func content(_ model: AuthViewModel) -> some View {
@@ -136,16 +139,30 @@ public struct AuthView: View {
     // MARK: - Screen 3
 
     private func confirmation(_ model: AuthViewModel) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Confirme seu e-mail").font(.atlas(.sans, 15, weight: .semibold))
-            Text(model.confirmationLine).font(.atlas(.sans, 15))
-        }
-        .foregroundStyle(Palette.accent)
-        .padding(.horizontal, 20).padding(.vertical, 22)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.successBg, in: .rect(cornerRadius: 13))
-        .overlay {
-            RoundedRectangle(cornerRadius: 13).strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+        VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Confirme seu e-mail").font(.atlas(.sans, 15, weight: .semibold))
+                // One catalogue sentence with the address interpolated into it;
+                // the address itself is set in the serif so it reads as the
+                // datum it is and a typo in it is visible.
+                Text("Enviamos um link de confirmação para \(Text(verbatim: model.confirmingAddress).font(.atlas(.serif, 16))). Abra-o para ativar sua conta e depois volte para entrar.")
+                    .font(.atlas(.sans, 15))
+            }
+            .foregroundStyle(Palette.accent)
+            .padding(.horizontal, 20).padding(.vertical, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Palette.successBg, in: .rect(cornerRadius: 13))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13).strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+            }
+
+            // Without these two the screen is a trap: the form is not drawn, so
+            // nothing else on it can put the learner back on it.
+            GhostButton(model.resending ? "Reenviando…" : "Reenviar link") {
+                Task { await model.resend() }
+            }
+            .disabled(model.resending)
+            GhostButton("Já confirmei — entrar") { model.backToForm() }
         }
         .padding(.top, 32)
     }

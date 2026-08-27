@@ -30,17 +30,38 @@ final class LaunchViewModel {
         onboarding = OnboardingViewModel(store: store)
     }
 
-    /// The confirmation link lands on the web app, which redirects back with
-    /// `?error=` when it is spent — the same codes `/login` reads.
-    func arrived(from url: URL) {
-        let error = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?.first { $0.name == "error" }?.value
-        switch error {
-        case "link", "expired":
-            notice = String(localized: "Esse link de confirmação expirou ou já foi usado — entre novamente abaixo.")
+    /// The confirmation link comes back into the app as `atlas://auth/confirm`
+    /// (`AtlasAuth.callbackURL`), either carrying a session in its fragment or
+    /// carrying the reason it could not be spent. The web `/auth/confirm` route
+    /// still redirects with `?error=` in the query, and that is read too.
+    func arrived(from url: URL, into store: AtlasStore) async {
+        switch AtlasAuth.callback(url) {
+        case .session(let session):
+            // The link *was* the sign-in: there is nothing left to tell them.
+            notice = ""
+            await store.signIn(with: session)
+        case .failed(let code):
+            notice = Self.notice(for: code)
+        case .ignored:
+            break
+        }
+    }
+
+    /// A notice belongs to the link that arrived, not to the device. Signing out
+    /// later must not resurrect a week-old "esse link expirou".
+    func clearNotice() { notice = "" }
+
+    private static func notice(for code: String) -> String {
+        switch code {
+        case "link", "expired", "otp_expired", "access_denied":
+            return String(localized: "Esse link de confirmação expirou ou já foi usado — entre novamente abaixo.")
         case "unavailable":
-            notice = String(localized: "Não conseguimos verificar esse link agora — não há nada de errado com sua conta. Tente o link de novo, ou entre abaixo.")
-        default: break
+            return String(localized: "Não conseguimos verificar esse link agora — não há nada de errado com sua conta. Tente o link de novo, ou entre abaixo.")
+        default:
+            // A reason this build does not know is still a reason the link did
+            // not work: say the softer of the two, and leave a trace of which.
+            AtlasLog.log.warning("unknown auth callback error: \(code, privacy: .public)")
+            return String(localized: "Não conseguimos verificar esse link agora — não há nada de errado com sua conta. Tente o link de novo, ou entre abaixo.")
         }
     }
 }

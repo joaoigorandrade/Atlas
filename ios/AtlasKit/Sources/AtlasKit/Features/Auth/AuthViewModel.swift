@@ -16,6 +16,7 @@ final class AuthViewModel {
     var email = ""
     var password = ""
     var revealPassword = false
+    private(set) var resending = false
 
     private let store: AtlasStore
 
@@ -50,9 +51,39 @@ final class AuthViewModel {
     var switchAction: LocalizedStringKey { mode == .signIn ? "Criar uma conta" : "Entrar" }
     var isWorking: Bool { status == .working }
     var isConfirming: Bool { status == .sent }
-    var showsMessage: Bool { !message.isEmpty && status != .sent }
-    var confirmationLine: LocalizedStringKey {
-        "Enviamos um link de confirmação para \(email.trimmed). Abra-o para ativar sua conta e depois volte para entrar."
+    var showsMessage: Bool { !message.isEmpty }
+    /// The address the link went to, shown as data so the learner can proof-read
+    /// it — "the email never arrived" is usually a typo they can see.
+    var confirmingAddress: String { email.trimmed }
+
+    /// A notice can arrive *after* this screen was built — the app was already
+    /// open on it when the link came back. It replaces whatever was showing.
+    func arrive(_ notice: String) {
+        guard !notice.isEmpty else { return }
+        status = .idle
+        message = notice
+    }
+
+    /// Screen 3 tells the learner to come back and sign in, so it has to have a
+    /// way back to the form. Without this the screen is a dead end.
+    func backToForm() {
+        status = .idle
+        mode = .signIn
+        password = ""
+        message = ""
+    }
+
+    /// "O link nunca chegou." Same address, one more email.
+    func resend() async {
+        guard !resending else { return }
+        resending = true
+        defer { resending = false }
+        do {
+            try await store.resendConfirmation(email: confirmingAddress)
+            message = String(localized: "Enviamos outro link para esse e-mail.")
+        } catch {
+            message = sentence(for: error)
+        }
     }
 
     func toggleMode() {

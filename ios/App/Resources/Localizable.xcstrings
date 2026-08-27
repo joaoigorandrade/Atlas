@@ -1,6 +1,50 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "Enviamos outro link para esse e-mail." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We sent another link to that address."
+          }
+        }
+      }
+    },
+    "Já confirmei — entrar" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I've confirmed — sign in"
+          }
+        }
+      }
+    },
+    "Reenviando…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resending…"
+          }
+        }
+      }
+    },
+    "Reenviar link" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resend link"
+          }
+        }
+      }
+    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {

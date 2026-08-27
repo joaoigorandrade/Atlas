@@ -169,8 +169,13 @@ AtlasNavigator`, `AtlasTabNavigator` for a tab change) — `navigate(to:)` to
   `dismissSheet()` to leave.
 - A pushed session hides the tab bar; it does not cover the screen. `navigate`
   dismisses the drawer on the way, which is why there is no `onDismiss` dance.
-- The one `onOpenURL` (`RootView`) is the email confirmation link, which is a
-  notice and not a place. A link that names a screen goes through the package's
+- The one `onOpenURL` (`RootView`) is the email confirmation link. It carries
+  either the session it just minted (tokens in the URL *fragment*) or the reason
+  it could not be spent — `AtlasAuth.callback` reads both. Sign-up sends
+  `redirect_to=atlas://auth/confirm` (`AtlasAuth.callbackURL`), so **that URL has
+  to stay allow-listed in the Supabase project's Authentication → URL
+  Configuration**; unlisted, GoTrue silently falls back to the web Site URL and
+  the link opens Safari instead of the app. It is a notice and not a place. A link that names a screen goes through the package's
   `DeepLinkHandler` into an `AtlasRoute`, never through a second `onOpenURL`.
 
 ## State

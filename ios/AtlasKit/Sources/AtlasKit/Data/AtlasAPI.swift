@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Networking
 
 /// The one seam every generation goes through. There is no second HTTP call
@@ -366,6 +367,10 @@ public actor AtlasAPI {
 /// redacts credentials, but the prose is theirs — it only ever goes to a debug
 /// console, never to a shipped build's log.
 enum AtlasLog {
+    /// For the handful of places that report a state rather than a request —
+    /// an `?error=` the web started sending that this build does not know.
+    static let log = Logger(subsystem: "com.joaoigor.atlas", category: "atlas")
+
     static var logger: (any NetworkLogging)? {
         #if DEBUG
         ConsoleNetworkLogger()
