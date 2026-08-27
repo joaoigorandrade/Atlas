@@ -22,21 +22,33 @@ public actor RunStore {
         )
     }
 
-    /// Every saved run, freshest first. A row whose snapshot this app has no
+    /// Every saved run, freshest first, without its generated content — see
+    /// `caches(subject:)`. A row whose snapshot this app has no
     /// version for is skipped rather than guessed at — one unreadable run must
     /// not take the dashboard down with it.
     public func list(token: String) async throws -> [RunSnapshot] {
-        struct Row: Decodable { let subject: String; let snapshot: JSONValue; let caches: JSONValue? }
         let response = try await send(RunEndpoint.list(apiKey: apiKey, token: token))
-        let rows: [Row]
+        // Decoded row by row, not as `[Row]`: a typed array decode throws whole,
+        // so one malformed row would take every other map down with it — which
+        // is the opposite of what the line above promises.
+        let rows: [JSONValue]
         do {
-            rows = try JSONDecoder().decode([Row].self, from: response.data)
+            rows = try JSONDecoder().decode([JSONValue].self, from: response.data)
         } catch {
             throw AtlasError(code: "upstream", message: "could not decode runs: \(error)")
         }
-        return rows.compactMap {
-            RunSnapshot(subject: $0.subject, snapshot: $0.snapshot, caches: $0.caches)
+        return rows.compactMap { row in
+            guard let fields = row.fields, case .string(let subject) = fields["subject"] ?? .null else { return nil }
+            return RunSnapshot(subject: subject, snapshot: fields["snapshot"] ?? .null)
         }
+    }
+
+    /// The generated content for one run — the half `list` leaves behind. Empty
+    /// when the row has never had a generation, which is not an error.
+    public func caches(subject: String, token: String) async throws -> [String: JSONValue] {
+        let response = try await send(RunEndpoint.caches(subject: subject, apiKey: apiKey, token: token))
+        let rows = try? JSONDecoder().decode([JSONValue].self, from: response.data)
+        return rows?.first?.fields?["caches"]?.fields ?? [:]
     }
 
     /// Upsert the run. `caches` is the generated content — by far the larger

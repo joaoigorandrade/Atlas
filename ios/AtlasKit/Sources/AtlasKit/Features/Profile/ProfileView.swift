@@ -8,6 +8,7 @@ struct ProfileView: View {
     @EnvironmentObject private var navigator: AtlasNavigator
     @EnvironmentObject private var tabs: AtlasTabNavigator
     @State private var model: ProfileViewModel?
+    @State private var confirmingSignOut = false
 
     var body: some View {
         Group {
@@ -110,8 +111,14 @@ struct ProfileView: View {
                 row("Cronograma de revisão", model.queueLine)
             }
             Divider().overlay(Palette.hairline)
-            Button { model.signOut() } label: {
+            Button { confirmingSignOut = true } label: {
                 row("Sair", nil, tint: NodeState.gap.color)
+            }
+            // It sits directly under two navigation rows in the same card, and
+            // the tap is not undoable.
+            .confirmationDialog("Sair da sua conta?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
+                Button("Sair", role: .destructive) { Task { await model.signOut() } }
+                Button("Cancelar", role: .cancel) {}
             }
         }
         .buttonStyle(Pressable())

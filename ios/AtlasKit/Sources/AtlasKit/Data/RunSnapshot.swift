@@ -65,7 +65,11 @@ public extension RunSnapshot {
               case .number(let version)? = row["v"], Self.versions.contains(version)
         else { return nil }
         self.init(subject: subject)
-        self.caches = caches?.fields ?? [:]
+        // v1 and v2 carried the caches inside the snapshot; v3 moved them to a
+        // column. Reading both means an old row opens warm instead of paying
+        // for content the learner already generated — and either way the inline
+        // key stays in `extras` and rides back untouched.
+        self.caches = caches?.fields ?? row["caches"]?.fields ?? [:]
         form = row["form"]?.fields ?? [:]
         adherence = row["adherence"]?.fields ?? [:]
         graph = Self.read(row, "graph") ?? ConceptGraph()

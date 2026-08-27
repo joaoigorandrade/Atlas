@@ -15,8 +15,16 @@ final class LaunchViewModel {
     /// confirmation link that had already been spent.
     private(set) var notice = ""
 
+    /// `restoring` and not just `restored`: the flag below is only set at the
+    /// end, and two overlapping restores would send the same refresh token
+    /// twice — Supabase rotates them, so the second call is the one that gets
+    /// the learner signed out.
+    private var restoring = false
+
     func restore(_ store: AtlasStore) async {
-        guard !restored else { return }
+        guard !restored, !restoring else { return }
+        restoring = true
+        defer { restoring = false }
         await store.restore()
         onboarding = OnboardingViewModel(store: store)
         restored = true

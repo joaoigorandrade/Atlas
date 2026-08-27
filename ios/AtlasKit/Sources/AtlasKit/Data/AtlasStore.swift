@@ -33,6 +33,17 @@ public final class AtlasStore {
     /// state instead.
     public private(set) var library: [RunSnapshot] = []
 
+    /// The library could not be read. Not the same as "there are no maps": the
+    /// shell shows onboarding for an empty library, and doing that because a GET
+    /// failed puts the learner in front of the map builder — where rebuilding
+    /// the same subject upserts an empty snapshot over the row they still have.
+    public private(set) var libraryFailed = false
+
+    /// The last save did not land. The web app draws a permanent chip for this;
+    /// so does the shell now, because a session's whole work sitting unsaved
+    /// looks exactly like a saved one until the next launch.
+    public private(set) var saveFailed = false
+
     /// True from the moment a session is adopted until the library it owns has
     /// landed. `session` is what flips the shell, and `loadLibrary` suspends —
     /// without this the shell shows onboarding for the length of that GET.
@@ -43,8 +54,11 @@ public final class AtlasStore {
     // travel with it (`RunSnapshot`), but they are also what a fresh map starts
     // from, so the device keeps the last answer. The streak is the exception —
     // it is the device's alone until the web's `adherence` is ported.
-    public var goal: GoalKind = Defaults.goal { didSet { Defaults.goal = goal; saveSoon() } }
-    public var dailyTarget: Int = Defaults.dailyTarget { didSet { Defaults.dailyTarget = dailyTarget; saveSoon() } }
+    // The `quiet` guard is the same one `language` carries: what seeds a *fresh*
+    // map is the last answer the learner gave, and opening an old map is the
+    // store being filled in, not an answer.
+    public var goal: GoalKind = Defaults.goal { didSet { if !quiet { Defaults.goal = goal }; saveSoon() } }
+    public var dailyTarget: Int = Defaults.dailyTarget { didSet { if !quiet { Defaults.dailyTarget = dailyTarget }; saveSoon() } }
     public var dictationOn: Bool = Defaults.dictationOn { didSet { Defaults.dictationOn = dictationOn } }
     public var readAloudOn: Bool = Defaults.readAloudOn { didSet { Defaults.readAloudOn = readAloudOn } }
     /// The language generated content comes back in, and — through
@@ -52,12 +66,19 @@ public final class AtlasStore {
     /// drawn in from the next launch on.
     public var language: String = Defaults.language {
         didSet {
+            // Content follows the open run either way: this is what the model
+            // is asked to write in.
             AtlasAPI.language = language
-            Defaults.language = language
-            // Deliberately switching it is one of the two moments that honestly
-            // know what language a run's content is in — the other is building
-            // the map. `quiet` is what tells the two apart from a restore.
-            if !quiet { loaded?.language = language }
+            // The *interface* does not. `Defaults.language` pins
+            // `AppleLanguages`, so writing it here would redraw the whole app in
+            // the language of whichever run happened to be freshest — silently,
+            // and from the next launch on. Deliberately switching it is one of
+            // the two moments that honestly know what language a run is in — the
+            // other is building the map; `quiet` is what tells them apart.
+            if !quiet {
+                Defaults.language = language
+                loaded?.language = language
+            }
             saveSoon()
         }
     }
@@ -88,6 +109,11 @@ public final class AtlasStore {
     /// The `warm.revision` last written to `run_states.caches`. What keeps the
     /// generated content out of the upsert until a generation has landed.
     private var savedWarm = 0
+    /// True once `run_states.caches` for the open run has actually been read —
+    /// or when there is nothing to read, as for a map built on this device.
+    /// `cachesRow` merges over what was loaded, so uploading before that read
+    /// lands would delete every bucket only the browser fills.
+    private var cachesLoaded = true
 
     /// The signed-in learner, or nil for the auth screens. Writing it is the one
     /// way the bearer token reaches `AtlasAPI` and the keychain.
@@ -194,17 +220,24 @@ public extension AtlasStore {
     /// which is what keeps a signed-in learner with a saved map from seeing
     /// onboarding flash before the map lands.
     ///
-    /// ponytail: refreshed at launch only — a token that expires mid-run lands
-    /// the learner on the auth screen. Refresh on a 401 when runs outlive an hour.
+    /// The token is renewed here and, from then on, by `bearer()` — a run
+    /// outlives the hour an access token is good for, and a save that quietly
+    /// 401s all afternoon is a week of work that never left the phone.
     func restore() async {
         if Fixtures.enabled { return adoptFixtures() }
         defer { quiet = false }
         guard let stored = SessionStore.load() else { return }
         if stored.isExpired {
-            guard let renewed = try? await auth.refresh(stored.refreshToken) else {
-                return signOut()
+            do {
+                await adopt(try await auth.refresh(stored.refreshToken))
+            } catch {
+                // Only an answer from GoTrue means the credential is dead. A
+                // transport failure means the phone is on a plane — keep the
+                // refresh token and try again next launch rather than signing
+                // the learner out for being offline.
+                if (error as? AtlasError)?.status != nil { await signOut(flush: false) }
+                return
             }
-            await adopt(renewed)
         } else {
             await adopt(stored)
         }
@@ -215,15 +248,39 @@ public extension AtlasStore {
     /// first. This is the whole reason a relaunch lands on the dashboard rather
     /// than on onboarding: the map outlives the process because it is a row.
     func loadLibrary() async {
+        opening = true
         defer { opening = false }
-        guard let token = session?.accessToken else { return }
-        // ponytail: a library that won't load leaves the learner on onboarding,
-        // which is wrong but recoverable — building a map with the same subject
-        // upserts the same row. Give it the web app's "not saved" chip when
-        // this stops being the development phase.
-        guard let saved = try? await runs.list(token: token) else { return }
+        guard let token = await bearer() else { return }
+        guard let saved = try? await runs.list(token: token) else {
+            libraryFailed = true
+            return
+        }
+        libraryFailed = false
         library = saved
-        if let freshest = saved.first, graph.nodes.isEmpty { open(freshest) }
+        guard let freshest = saved.first, graph.nodes.isEmpty else { return }
+        open(freshest)
+        await hydrateCaches()
+    }
+
+    /// The open run's generated content, read on its own — `list` deliberately
+    /// leaves the column behind, since it is the large half of every row and
+    /// only the run actually on screen has any use for it.
+    private func hydrateCaches() async {
+        guard var run = loaded, let token = await bearer(),
+              let column = try? await runs.caches(subject: run.subject, token: token)
+        else { return }
+        // A v1/v2 row keeps its caches inside the snapshot, where the decode
+        // already found them; an empty column must not wipe that.
+        run.caches = column.isEmpty ? run.caches : column
+        // The learner can have switched maps during the GET.
+        guard run.subject == subject else { return }
+        loaded = run
+        cachesLoaded = true
+        // A generation that landed while this was in flight has to still go up
+        // on the next save, so only a clean warm adopts the seeded revision.
+        let dirty = warm.revision != savedWarm
+        seedWarm(run.caches)
+        if !dirty { savedWarm = warm.revision }
     }
 
     /// Point the live run at a saved one. Every write here is the store being
@@ -233,6 +290,7 @@ public extension AtlasStore {
         quiet = true
         defer { quiet = wasQuiet }
         loaded = run
+        cachesLoaded = false
         warm.clear()
         subject = run.subject
         graph = run.graph
@@ -258,6 +316,7 @@ public extension AtlasStore {
         guard run.subject != subject else { return }
         await saveNow()
         open(run)
+        await hydrateCaches()
     }
 
     /// Start a second map. Clearing the live run is the whole trigger: the shell
@@ -269,6 +328,9 @@ public extension AtlasStore {
         quiet = true
         defer { quiet = false }
         loaded = nil
+        // A map that does not exist yet has no column to merge over, so the
+        // first generation can go up as it is.
+        cachesLoaded = true
         clearRun()
     }
 
@@ -312,9 +374,16 @@ public extension AtlasStore {
     /// per button.
     private func saveSoon() {
         guard !quiet, signedIn, !subject.isEmpty else { return }
+        saveIn(2)
+    }
+
+    /// Arm the one pending write. Two seconds behind a change, fifteen behind a
+    /// failure — a phone in a tunnel must not retry every two seconds all
+    /// afternoon, and any change the learner makes supersedes the retry anyway.
+    private func saveIn(_ seconds: Int) {
         pendingSave?.cancel()
         pendingSave = Task {
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
             // Let go of the handle before flushing: `saveNow` cancels whatever
             // is pending, and that used to be *this* task — which cancelled the
@@ -327,21 +396,44 @@ public extension AtlasStore {
     /// Write now, and remember what was written so the dashboard's card for the
     /// open map stops being a debounce behind.
     ///
-    /// ponytail: a failed save is dropped and the next change retries it. The
-    /// web app draws a permanent "not saved" chip for this; add one here when
-    /// the run is worth more than a rebuild.
+    /// A failure is kept — `saveFailed` draws the chip and a retry is armed, so
+    /// a session worked through offline lands as soon as there is signal.
     func saveNow() async {
         pendingSave?.cancel()
         pendingSave = nil
-        guard signedIn, !subject.isEmpty, let token = session?.accessToken else { return }
+        guard signedIn, !subject.isEmpty, var token = await bearer() else { return }
+        // The column was never read — at open, or because that read failed. A
+        // generation waits for it rather than merging over nothing, which would
+        // drop every bucket only the browser fills.
+        if warm.revision != savedWarm, !cachesLoaded { await hydrateCaches() }
         var run = currentRun
         // The generated content only goes up when a generation has landed since
         // the last write — it is the large half of the row, and a node drag
         // must not re-upload every section the learner has read.
         let revision = warm.revision
-        let sendCaches = revision != savedWarm
+        let sendCaches = revision != savedWarm && cachesLoaded
         if sendCaches { run.caches = cachesRow(over: run.caches) }
-        guard (try? await runs.save(run, caches: sendCaches, token: token)) != nil else { return }
+        do {
+            try await runs.save(run, caches: sendCaches, token: token)
+        } catch {
+            // A 401 means the token died between the check above and the write.
+            // Renewing and trying once more is the difference between a save
+            // that lands and an afternoon of work nobody knows is unsaved.
+            guard (error as? AtlasError)?.code == "auth", let renewed = await bearer(renew: true),
+                  (try? await runs.save(run, caches: sendCaches, token: renewed)) != nil
+            else {
+                saveFailed = true
+                saveIn(15)
+                return
+            }
+            token = renewed
+        }
+        saveFailed = false
+        // The learner can have signed out — or signed in as somebody else —
+        // while that upsert was in flight. Writing this run back into `loaded`
+        // and `library` now would hand it to whoever is holding the phone next,
+        // and their first save would start from this run's row.
+        guard session?.accessToken == token else { return }
         savedWarm = revision
         loaded = run
         if let index = library.firstIndex(where: { $0.subject == run.subject }) {
@@ -378,21 +470,31 @@ public extension AtlasStore {
         try await auth.resend(email: email)
     }
 
-    func signOut() {
-        // Quiet first: the clear below is nine writes, and every one of them
+    /// `flush: false` is for the two sign-outs with nowhere to write to — the
+    /// account has just been deleted, or the stored session was rejected.
+    func signOut(flush: Bool = true) async {
+        // Flush before anything else, the way `switchTo` and `newMap` do: the
+        // card graded two seconds ago is still sitting in the debounce, and
+        // cancelling it here is what used to drop it on the floor.
+        if flush { await saveNow() }
+        // Quiet next: the clear below is nine writes, and every one of them
         // would otherwise queue a save that upserts an empty map over the row
         // this learner just spent a week filling in.
         quiet = true
         defer { quiet = false }
         pendingSave?.cancel()
         opening = false
+        libraryFailed = false
+        saveFailed = false
         session = nil
         loaded = nil
         library = []
         // The map belongs to the learner who signed in, not to the device.
         clearRun()
         SessionStore.save(nil)
-        Task { await api.setAccessToken(nil) }
+        // Awaited, not fired: a warm still in flight must not be able to send
+        // one more request bearing the token of someone who has signed out.
+        await api.setAccessToken(nil)
     }
 
     /// Put the live run back to nothing. Shared by signing out and by starting
@@ -422,10 +524,28 @@ public extension AtlasStore {
         calib = Fixtures.calib
     }
 
-    private func adopt(_ session: AuthSession) async {
+    /// The bearer for a run request, renewed when it has aged out. Every read
+    /// and write of `run_states` asks here rather than reading `session`
+    /// directly: an access token is good for an hour and a run is not.
+    ///
+    /// Nil means there is no usable credential — offline, or a refresh token
+    /// GoTrue has rejected. The caller treats that as the request failing;
+    /// signing the learner out on it would do it for a flight-mode phone too.
+    private func bearer(renew: Bool = false) async -> String? {
+        guard let session else { return nil }
+        guard renew || session.isExpired else { return session.accessToken }
+        guard let renewed = try? await auth.refresh(session.refreshToken) else { return nil }
+        await adopt(renewed, opening: false)
+        return renewed.accessToken
+    }
+
+    /// `opening: false` for a mid-session renewal: the shell reads `opening` to
+    /// hold onboarding back until a library lands, and a refresh has no library
+    /// coming after it.
+    private func adopt(_ session: AuthSession, opening: Bool = true) async {
         // Set before `session`, cleared by `loadLibrary` — every adopt is
         // followed by one.
-        opening = true
+        if opening { self.opening = true }
         self.session = session
         SessionStore.save(session)
         await api.setAccessToken(session.accessToken)

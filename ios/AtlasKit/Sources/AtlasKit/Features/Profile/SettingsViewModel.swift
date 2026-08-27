@@ -87,7 +87,8 @@ final class SettingsViewModel {
     func delete() async {
         do {
             try await store.api.deleteAccount()
-            store.signOut()
+            // Nothing to flush to: the row went with the account.
+            await store.signOut(flush: false)
         } catch {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "apagar sua conta"))
         }

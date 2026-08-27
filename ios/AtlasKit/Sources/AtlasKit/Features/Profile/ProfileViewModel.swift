@@ -32,5 +32,5 @@ final class ProfileViewModel {
             : "\(due) pendentes · ~\(Int((Double(due) * cardMinutes).rounded())) min hoje"
     }
 
-    func signOut() { store.signOut() }
+    func signOut() async { await store.signOut() }
 }

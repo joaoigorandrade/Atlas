@@ -7,25 +7,38 @@ import SwiftUI
 /// the keys in `Secrets.swift`.
 @main
 struct AtlasApp: App {
+    /// Nil is a build that was generated without `ATLAS_BASE_URL`. It is a
+    /// generation-time mistake either way, but a `fatalError` on a TestFlight
+    /// build is an unattributable crash — a screen naming the missing key is
+    /// what gets it fixed.
+    private static let baseURL = URL(string: setting("ATLAS_BASE_URL")).flatMap { $0.scheme == nil ? nil : $0 }
     private let store = AtlasStore(
-        api: AtlasAPI(baseURL: url("ATLAS_BASE_URL")),
+        api: AtlasAPI(baseURL: AtlasApp.baseURL ?? URL(string: "https://invalid.atlas.local")!),
         auth: AtlasAuth()
     )
 
     var body: some Scene {
-        WindowGroup { RootView(store: store) }
+        WindowGroup {
+            if AtlasApp.baseURL == nil { misconfigured } else { RootView(store: store) }
+        }
+    }
+
+    private var misconfigured: some View {
+        VStack(spacing: 12) {
+            Text(verbatim: "Atlas")
+                .font(.atlas(.serif, 30, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+            Text(verbatim: "ATLAS_BASE_URL is missing from Info.plist — set it in .env.local and re-run `tuist generate`.")
+                .font(.atlas(.sans, 14))
+                .foregroundStyle(Palette.inkMuted)
+                .multilineTextAlignment(.center)
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.paper)
     }
 }
 
 private func setting(_ key: String) -> String {
     Bundle.main.object(forInfoDictionaryKey: key) as? String ?? ""
-}
-
-/// A missing or malformed value is a generation-time mistake, not a runtime
-/// state to degrade into — every request the app makes needs it.
-private func url(_ key: String) -> URL {
-    guard let url = URL(string: setting(key)), url.scheme != nil else {
-        fatalError("\(key) is missing from Info.plist — set it in .env.local and re-run `tuist generate`.")
-    }
-    return url
 }

@@ -36,9 +36,32 @@ enum RunEndpoint {
     /// Every run this learner has, freshest first. The whole snapshot comes
     /// back rather than a summary — the dashboard needs the graph and the
     /// states to draw a card's mastery share, and that is most of the row.
+    ///
+    /// `caches` is deliberately *not* selected: it is the large half of the row
+    /// and only the open run ever needs it — see `caches(subject:)`, which is
+    /// the same split `lib/persistence.ts` makes between `listRuns` and its
+    /// per-subject caches read.
     static func list(apiKey: String, token: String) -> HTTPRequestData {
         HTTPRequestData(path: table)
-            .query(["select": "subject,snapshot,caches", "order": "updated_at.desc"])
+            .query([
+                "select": "subject,snapshot", "order": "updated_at.desc",
+                // ponytail: a dashboard nobody scrolls past 50 maps on. Paginate
+                // when someone has more than that.
+                "limit": "50",
+            ])
+            .header("apikey", apiKey)
+            .bearer(token)
+    }
+
+    /// The generated content for one run. Fetched on open and nowhere else.
+    static func caches(subject: String, apiKey: String, token: String) -> HTTPRequestData {
+        HTTPRequestData(path: table)
+            // Quoted: PostgREST reads a bare comma or parenthesis in a filter
+            // value as syntax, and a subject is whatever the learner typed.
+            .query([
+                "select": "caches", "limit": "1",
+                "subject": "eq.\"\(subject.replacingOccurrences(of: "\"", with: "\\\""))\"",
+            ])
             .header("apikey", apiKey)
             .bearer(token)
     }

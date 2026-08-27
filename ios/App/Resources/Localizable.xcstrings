@@ -1,50 +1,6 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
-    "Enviamos outro link para esse e-mail." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "We sent another link to that address."
-          }
-        }
-      }
-    },
-    "Já confirmei — entrar" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I've confirmed — sign in"
-          }
-        }
-      }
-    },
-    "Reenviando…" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resending…"
-          }
-        }
-      }
-    },
-    "Reenviar link" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resend link"
-          }
-        }
-      }
-    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1355,6 +1311,17 @@
         }
       }
     },
+    "Eles estão salvos — foi a conexão que falhou. Tente de novo." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They're saved — it was the connection that failed. Try again."
+          }
+        }
+      }
+    },
     "Em andamento" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1472,6 +1439,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sign in to your map"
+          }
+        }
+      }
+    },
+    "Enviamos outro link para esse e-mail." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We sent another link to that address."
           }
         }
       }
@@ -1982,6 +1960,17 @@
         }
       }
     },
+    "Já confirmei — entrar" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I've confirmed — sign in"
+          }
+        }
+      }
+    },
     "Já existe uma conta com esse e-mail — entre por ela." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2005,6 +1994,7 @@
       }
     },
     "Já tem uma conta? %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2322,6 +2312,17 @@
         }
       }
     },
+    "Não foi possível carregar seus mapas" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load your maps"
+          }
+        }
+      }
+    },
     "Nível de apoio" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2345,6 +2346,7 @@
       }
     },
     "Novo no Atlas? %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2728,6 +2730,28 @@
         }
       }
     },
+    "Reenviando…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resending…"
+          }
+        }
+      }
+    },
+    "Reenviar link" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resend link"
+          }
+        }
+      }
+    },
     "refazer" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2827,6 +2851,17 @@
         }
       }
     },
+    "Sair da sua conta?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out of your account?"
+          }
+        }
+      }
+    },
     "Salvo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2878,6 +2913,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "On to Socratic →"
+          }
+        }
+      }
+    },
+    "Sem conexão · não salvo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline · not saved"
           }
         }
       }
@@ -3091,6 +3137,17 @@
         }
       }
     },
+    "Tentar de novo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again"
+          }
+        }
+      }
+    },
     "Tentar de novo · um degrau abaixo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3256,16 +3313,6 @@
         }
       }
     },
-    "Você está sem conexão. Verifique e tente de novo." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You're offline. Check your connection and try again."
-          }
-        }
-      }
-    },
     "Você ainda não aplicou isso em um contexto novo — quer tentar?" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3369,6 +3416,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Você está sem conexão. Verifique e tente de novo." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're offline. Check your connection and try again."
           }
         }
       }
