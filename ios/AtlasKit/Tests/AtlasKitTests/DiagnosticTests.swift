@@ -79,3 +79,31 @@ import Testing
     #expect(spawnGap(once, parentId: "cadeia", spec).nodes.count == 2)
     #expect(spawnGap(graph, parentId: "sumiu", spec).nodes.count == 1)
 }
+
+/// `subject` is half the run row's primary key and the browser writes
+/// `form.topic.trim()`. The topic field is vertical, so "Done" can leave a
+/// newline in the middle of it — where a trim never reaches.
+@Test func theTopicCollapsesToWhatTheBrowserWouldHaveWritten() {
+    #expect(normalizedTopic("  Cálculo I  ") == "Cálculo I")
+    #expect(normalizedTopic("Cálculo\nI") == "Cálculo I")
+    #expect(normalizedTopic("\n\nCálculo   \n I\n") == "Cálculo I")
+    #expect(normalizedTopic("   ") == "")
+}
+
+/// `RootView` switches between onboarding and the tab shell on a *transition*
+/// of `graph.nodes.isEmpty`, so a commit that leaves it empty parks the learner
+/// on a screen where every button is a no-op — and `subject` alone is enough to
+/// upsert a junk row into "Seus mapas".
+@MainActor
+@Test func finishRefusesToCommitAMapThatNeverArrived() {
+    let store = AtlasStore(api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!), auth: AtlasAuth())
+    let onboarding = OnboardingViewModel(store: store)
+    onboarding.form.topic = "Cálculo"
+
+    onboarding.finish()
+
+    #expect(store.graph.nodes.isEmpty)
+    #expect(store.subject.isEmpty)
+    #expect(!onboarding.message.isEmpty)
+    #expect(onboarding.stage == .welcome)
+}

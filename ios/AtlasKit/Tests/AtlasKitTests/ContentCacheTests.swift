@@ -71,7 +71,42 @@ private func store() -> AtlasStore {
     // slot in the browser's shape, and its cards are already persisted as
     // `iosCards` on the snapshot.
     #expect(AtlasStore.cacheSlot("retain|Cálculo I|pt-BR|lat,der") == nil)
-    #expect(AtlasStore.cacheSlot("consume|Cálculo I|lat|pt-BR|")?.nodeId == "lat")
+    #expect(AtlasStore.cacheSlot("consume|Cálculo I|lat|pt-BR|")?.key == "lat")
     // A subject with a pipe in it would file content under the wrong node.
     #expect(AtlasStore.cacheSlot("consume|a|b|lat|pt-BR|") == nil)
+}
+
+/// The lens beats are the one bucket keyed per section rather than per node.
+/// They are shared all the same — `model:<nodeId>:<chunkId>:<lens>` is the
+/// address `useGeneration.ts` files them under.
+
+private let beatsJSON = JSONValue.array([
+    .object(["label": .string("Passo 1"), "text": .string("Comece pelo lado direito.")]),
+])
+
+@MainActor
+@Test func aLensReadInTheBrowserReopensHereWithoutAGeneration() {
+    let store = store()
+    let chunk = try! sectionJSON.decode(ConsumeChunk.self)
+    store.seedWarm(["models": .object(["model:lat:c1:analogy": beatsJSON])])
+    #expect(store.lens(node, chunk, .analogy).map(\.label) == ["Passo 1"])
+    // A different lens over the same section is a different walkthrough.
+    #expect(store.lens(node, chunk, .deeper).isEmpty)
+}
+
+@MainActor
+@Test func aLensReadHereGoesBackUnderTheBrowsersAddress() async {
+    let store = store()
+    let key = store.key("model", node, AtlasStore.lensInputs("c1", .analogy))
+    await store.warm.fill(key, live: {
+        AsyncThrowingStream { continuation in
+            continuation.yield(Landed(
+                value: try! beatsJSON.decode([ConsumeModelBeat].self), raw: beatsJSON
+            ))
+            continuation.finish()
+        }
+    } as @Sendable () async -> AsyncThrowingStream<Landed<[ConsumeModelBeat]>, Error>)
+
+    let row = store.cachesRow(over: [:])
+    #expect(row["models"]?.fields?["model:lat:c1:analogy"] == beatsJSON)
 }

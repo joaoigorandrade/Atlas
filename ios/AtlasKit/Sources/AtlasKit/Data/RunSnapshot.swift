@@ -25,6 +25,9 @@ public struct RunSnapshot: Sendable, Identifiable {
     public var interests = ""
     public var goal: GoalKind = .exam
     public var target = 15
+    public var paretoPct = paretoLevels[0]
+    /// ISO `YYYY-MM-DD`, "" when unset — the web's pace countdown reads it.
+    public var examDate = ""
     /// The language the *content* was generated in, which is a property of the
     /// run and not of the device reading it. Nil on a row written before the
     /// field existed: guessing would freeze the wrong answer permanently.
@@ -77,6 +80,8 @@ public extension RunSnapshot {
         interests = Self.read(form, "interests") ?? ""
         goal = Self.read(form, "goal") ?? .exam
         target = Self.read(form, "target") ?? 15
+        paretoPct = Self.read(form, "paretoPct") ?? paretoLevels[0]
+        examDate = Self.read(form, "examDate") ?? ""
         language = Self.read(row, "language")
         calib = Self.read(row, "calibSamples") ?? []
         reviewed = Set(Self.read(row, "reviewedNodes") ?? [String]())
@@ -106,11 +111,12 @@ public extension RunSnapshot {
         form["goal"] = .string(goal.rawValue)
         form["interests"] = .string(interests)
         form["target"] = .number(Double(target))
+        form["paretoPct"] = .number(Double(paretoPct))
         // The web reads `form.examDate` and `adherence.lastDay` on load without
         // guarding either, so a row this client wrote first has to carry both
         // objects in full — a missing key there is a crash in the browser, not
         // a default.
-        form["examDate"] = form["examDate"] ?? .string("")
+        form["examDate"] = .string(examDate)
         row["form"] = .object(form)
         row["adherence"] = .object(Self.whole(adherence))
 

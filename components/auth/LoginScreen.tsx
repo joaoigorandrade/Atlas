@@ -212,7 +212,12 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
             {t.confirmEmailBody(email.trim())}
           </div>
         ) : (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit();
+            }}
+          >
             <div
               style={{
                 background: color.card,
@@ -228,7 +233,8 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t.emailPlaceholder}
                 type="email"
-                autoComplete="email"
+                name="email"
+                autoComplete="username"
                 autoFocus
                 style={inputStyle}
               />
@@ -246,18 +252,16 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
               <input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submit();
-                }}
                 placeholder={t.passwordPlaceholder}
                 type="password"
+                name="password"
                 autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 style={inputStyle}
               />
             </div>
             <button
               className="at-press"
-              onClick={submit}
+              type="submit"
               disabled={working}
               style={{
                 width: "100%",
@@ -302,6 +306,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                   {t.newToAtlas}{" "}
                   <button
                     className="at-press"
+                    type="button"
                     onClick={() => switchMode("signup")}
                     style={linkStyle}
                   >
@@ -313,6 +318,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                   {t.alreadyHaveAccount}{" "}
                   <button
                     className="at-press"
+                    type="button"
                     onClick={() => switchMode("signin")}
                     style={linkStyle}
                   >
@@ -321,7 +327,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                 </>
               )}
             </div>
-          </>
+          </form>
         )}
 
         {shownMessage && status !== "sent" && (

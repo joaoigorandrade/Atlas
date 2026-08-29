@@ -5,6 +5,9 @@ import SwiftUI
 struct WelcomeView: View {
     @Bindable var onboarding: OnboardingViewModel
     @FocusState private var editing: Bool
+    /// At an accessibility size the labels are longer than any fixed column, so
+    /// both option groups halve their columns rather than truncate.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,21 +31,20 @@ struct WelcomeView: View {
                     }
 
                     field("Por que você está aprendendo isso?", "orienta o que priorizamos") {
-                        Grid(horizontalSpacing: 9, verticalSpacing: 9) {
-                            GridRow {
-                                option(.exam)
-                                option(.pareto)
-                            }
-                            GridRow {
-                                option(.mastery)
-                                option(.project)
-                            }
+                        LazyVGrid(columns: columns(2), spacing: 9) {
+                            ForEach([GoalKind.exam, .pareto, .mastery, .project], id: \.self, content: option)
                         }
+                        if onboarding.form.goal == .pareto { paretoRow }
+                        if onboarding.form.goal == .exam { examRow }
                     }
 
                     field("Seus interesses", "opcional") {
                         TextField("ex.: xadrez, investimentos, culinária", text: $onboarding.form.interests)
                             .font(.atlas(.sans, 15))
+                            // Same flag as the topic field: "Montar meu mapa"
+                            // sets it false, and the keyboard has to come down
+                            // whichever of the two was open.
+                            .focused($editing)
                             .padding(.horizontal, 16)
                             .frame(minHeight: 50)
                             .background(Palette.card, in: .rect(cornerRadius: 11))
@@ -53,7 +55,7 @@ struct WelcomeView: View {
                     }
 
                     field("Meta diária", "sua unidade de sequência") {
-                        HStack(spacing: 9) {
+                        LazyVGrid(columns: columns(4), spacing: 9) {
                             ForEach(dailyTargets, id: \.self) { minutes in
                                 pill("\(minutes) min", on: onboarding.form.target == minutes) {
                                     onboarding.form.target = minutes
@@ -85,6 +87,7 @@ struct WelcomeView: View {
         // honest failure — and both appear directly under it.
         .animation(Motion.standard, value: onboarding.scopes.count)
         .animation(Motion.standard, value: onboarding.message)
+        .animation(Motion.standard, value: onboarding.form.goal)
     }
 
     // MARK: - Pieces
@@ -143,6 +146,55 @@ struct WelcomeView: View {
             }
     }
 
+    /// How much of the topic a Pareto map covers — the dial the server sizes the
+    /// whole map from, and the web's `PARETO_LEVELS`.
+    private var paretoRow: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            (Text("Quanto do tema?").foregroundStyle(Palette.inkSoft)
+                + Text(verbatim: " — ")
+                + Text("a fatia de resultado real que você quer").foregroundStyle(Palette.inkGhost))
+                .font(.atlas(.sans, 14))
+            LazyVGrid(columns: columns(3), spacing: 9) {
+                ForEach(paretoLevels, id: \.self) { pct in
+                    pill("top \(pct)%", on: onboarding.form.paretoPct == pct) {
+                        onboarding.form.paretoPct = pct
+                    }
+                }
+            }
+        }
+        .padding(.top, 14)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    /// Optional on purpose: "" is what tells the pace surface to show no
+    /// countdown rather than a fabricated one, so the date only exists once the
+    /// learner picks one.
+    private var examRow: some View {
+        DatePicker(
+            "Data da prova",
+            selection: Binding(
+                get: { (try? Date(onboarding.form.examDate, strategy: isoDay)) ?? .now },
+                set: { onboarding.form.examDate = $0.formatted(isoDay) }
+            ),
+            in: Date.now...,
+            displayedComponents: .date
+        )
+        .font(.atlas(.sans, 14))
+        .foregroundStyle(Palette.inkSoft)
+        .tint(Palette.accent)
+        .padding(.top, 14)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    /// The design's column counts, halved at an accessibility size so a label
+    /// that no longer fits gets a wider cell instead of an ellipsis.
+    private func columns(_ count: Int) -> [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: 9),
+            count: typeSize.isAccessibilitySize ? max(1, count / 2) : count
+        )
+    }
+
     private func field<Content: View>(
         _ title: LocalizedStringKey, _ hint: LocalizedStringKey, @ViewBuilder content: () -> Content
     ) -> some View {
@@ -153,6 +205,10 @@ struct WelcomeView: View {
             content()
         }
         .padding(.top, 26)
+        // One group, so VoiceOver reads "Meta diária" before the four options
+        // and the selected one carries `.isSelected` inside it.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(title))
     }
 
     private func option(_ goal: GoalKind) -> some View {
@@ -166,9 +222,10 @@ struct WelcomeView: View {
             Text(title)
                 .font(.atlas(.sans, 14, weight: on ? .semibold : .regular))
                 .foregroundStyle(on ? Palette.accent : Palette.inkSoft)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .background(on ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 11))
                 .overlay {
@@ -177,6 +234,9 @@ struct WelcomeView: View {
                 }
         }
         .pressable()
+        // Colour and weight are the only visual carriers of "chosen"; this is
+        // the one that reaches VoiceOver.
+        .accessibilityAddTraits(on ? .isSelected : [])
         .animation(Motion.snap, value: on)
     }
 }

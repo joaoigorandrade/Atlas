@@ -70,7 +70,8 @@ struct ConsumeView: View {
             return new.correct ? SensoryFeedback.success : SensoryFeedback.warning
         }
         .sheet(item: $model.lens) { key in
-            ModelLensView(lens: key, context: model.lensContext(key))
+            ModelLensView(lens: key, node: model.node, chunk: model.chunk,
+                          context: model.lensContext(key))
                 .presentationDetents([.medium, .large])
                 .environment(store)
         }

@@ -4,6 +4,16 @@ import SwiftUI
 /// The count is the honest signal: concepts placed, as they land.
 struct BuildingView: View {
     let onboarding: OnboardingViewModel
+    /// The wait is real, so the copy narrates work instead of stalling on one
+    /// sentence — same four lines, same 1.4s, as `BuildingOverlay.tsx`.
+    @State private var line = 0
+
+    private let lines = [
+        String(localized: "Explorando o território…"),
+        String(localized: "Assentando as fundações…"),
+        String(localized: "Mapeando os pré-requisitos…"),
+        String(localized: "Acendendo a fronteira…"),
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,7 +21,7 @@ struct BuildingView: View {
 
             VStack(spacing: 0) {
                 Kicker("Gerando seu mapa", size: 11)
-                Text("Mapeando os pré-requisitos…")
+                Text(verbatim: lines[line])
                     .font(.atlas(.serif, 24))
                     .foregroundStyle(Palette.ink)
                     .multilineTextAlignment(.center)
@@ -33,8 +43,19 @@ struct BuildingView: View {
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 56)
+            // VoiceOver gets the count, which is the only honest signal here:
+            // the bar is indeterminate and the numeric transition is visual.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "\(lines[line]) \(count)"))
+            .accessibilityAddTraits(.updatesFrequently)
         }
         .background(Palette.paper)
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.4))
+                withAnimation(Motion.standard) { line = (line + 1) % lines.count }
+            }
+        }
     }
 
     /// Plural agreement belongs to the catalogue, not to an inline ternary —

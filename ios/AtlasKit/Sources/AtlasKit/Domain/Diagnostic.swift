@@ -12,7 +12,7 @@ public enum GoalKind: String, Codable, Sendable, CaseIterable {
     var label: LocalizedStringKey {
         switch self {
         case .exam: "Passar na prova"
-        case .pareto: "Top 20%"
+        case .pareto: "Pareto (80/20)"
         case .mastery: "Dominar tudo"
         case .project: "Construir um projeto"
         }
@@ -26,9 +26,27 @@ public struct OnboardingForm: Sendable {
     public var goal: GoalKind = .exam
     public var interests = ""
     public var target = 15
-    public var paretoPct = 20
+    public var paretoPct = paretoLevels[0]
+    /// ISO `YYYY-MM-DD` of the exam when the goal is `.exam`; "" = not set, so
+    /// the pace surface shows no countdown instead of a fabricated one.
+    public var examDate = ""
 
     public init() {}
+}
+
+/// The Pareto shares the server sizes a map from — the web's `PARETO_LEVELS`.
+public let paretoLevels = [20, 50, 80]
+
+/// How `examDate` is written and read: a bare local day, the same string the
+/// browser's `<input type="date">` produces.
+public let isoDay = Date.ISO8601FormatStyle(timeZone: .current).year().month().day()
+
+/// The topic as it may become `subject` — half the run row's primary key, and
+/// matched against `form.topic.trim()` written by the browser. A vertical
+/// `TextField` lets a stray newline into the middle of it, which a trim does not
+/// reach, so every run of whitespace collapses to one space here.
+public func normalizedTopic(_ raw: String) -> String {
+    raw.split(whereSeparator: \.isWhitespace).joined(separator: " ")
 }
 
 /// The daily-target minutes the streak is counted in. Same four as the web's

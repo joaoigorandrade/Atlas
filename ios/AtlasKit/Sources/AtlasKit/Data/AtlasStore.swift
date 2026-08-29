@@ -59,6 +59,10 @@ public final class AtlasStore {
     // store being filled in, not an answer.
     public var goal: GoalKind = Defaults.goal { didSet { if !quiet { Defaults.goal = goal }; saveSoon() } }
     public var dailyTarget: Int = Defaults.dailyTarget { didSet { if !quiet { Defaults.dailyTarget = dailyTarget }; saveSoon() } }
+    /// Two fields the phone only collects and carries: the map's Pareto share
+    /// and the exam date the web's pace screen counts down from.
+    public var paretoPct: Int = paretoLevels[0] { didSet { saveSoon() } }
+    public var examDate: String = "" { didSet { saveSoon() } }
     public var dictationOn: Bool = Defaults.dictationOn { didSet { Defaults.dictationOn = dictationOn } }
     public var readAloudOn: Bool = Defaults.readAloudOn { didSet { Defaults.readAloudOn = readAloudOn } }
     /// The language generated content comes back in, and — through
@@ -298,6 +302,8 @@ public extension AtlasStore {
         interests = run.interests
         goal = run.goal
         dailyTarget = run.target
+        paretoPct = run.paretoPct
+        examDate = run.examDate
         cards = run.cards
         calib = run.calib
         reviewed = run.reviewed
@@ -357,6 +363,8 @@ public extension AtlasStore {
         run.interests = interests
         run.goal = goal
         run.target = dailyTarget
+        run.paretoPct = paretoPct
+        run.examDate = examDate
         // Only a run this device built records a language here. A row written
         // before the field existed has genuinely never recorded one, and
         // stamping the device preference on it would freeze the wrong answer
@@ -506,6 +514,8 @@ public extension AtlasStore {
         states = [:]
         subject = ""
         interests = ""
+        paretoPct = paretoLevels[0]
+        examDate = ""
         cards = []
         calib = []
         reviewed = []

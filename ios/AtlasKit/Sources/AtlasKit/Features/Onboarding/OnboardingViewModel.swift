@@ -25,6 +25,9 @@ public final class OnboardingViewModel {
     public private(set) var scopes: [AtlasAPI.ScopeOffer] = []
     /// Honest failure copy, shown where the learner is — never an alert.
     public private(set) var message = ""
+    /// The stream died after concepts had landed: the fork keeps the partial
+    /// map and offers to build it again rather than throwing the wait away.
+    public private(set) var mapIncomplete = false
 
     /// The placement is opt-in: nothing is asked until the fork is answered.
     public private(set) var takingPlacement = false
@@ -68,10 +71,15 @@ public final class OnboardingViewModel {
     /// cold generations instead of serialising them.
     static let poolMinimum = 8
 
+    /// Fewest concepts that count as a map. Mirrors `mapNodeBounds().min` on the
+    /// server (4 is the Pareto floor): below this the stream was truncated, not
+    /// short, and committing it parks the shell on an empty map with no way out.
+    static let mapMinimum = 4
+
     // MARK: - Screen 6, the build
 
     public func buildMap() {
-        let topic = form.topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        let topic = normalizedTopic(form.topic)
         guard !topic.isEmpty else {
             message = String(localized: "Diga primeiro o que você quer aprender.")
             return
@@ -89,6 +97,7 @@ public final class OnboardingViewModel {
         answered = 0
         verdict = nil
         takingPlacement = false
+        mapIncomplete = false
         pendingGaps = []
         asked = []
         nextDifficulty = .medium
@@ -108,21 +117,39 @@ public final class OnboardingViewModel {
                         // Too broad for one map: back to the welcome screen with
                         // territories to pick from.
                         scopes = offers
+                        pending?.cancel()
                         stage = .welcome
                         return
                     }
                 }
             } catch {
-                stage = .welcome
                 message = ErrorCopy.sentence(for: error, doing: String(localized: "montar seu mapa"))
-                return
+                // A stream that died at concept 18 of 20 still left a real map:
+                // keep what landed and let the fork offer another build.
+                guard graph.nodes.count >= Self.mapMinimum else {
+                    pending?.cancel()
+                    stage = .welcome
+                    return
+                }
+                mapIncomplete = true
             }
             guard !Task.isCancelled else { return }
+            // A stream that ended clean but empty (or truncated to two or three
+            // concepts) is not a finished map, and "Seu mapa está pronto." over
+            // it is a lie the learner cannot back out of.
+            guard graph.nodes.count >= Self.mapMinimum else {
+                pending?.cancel()
+                message = String(localized: "Seu mapa não ficou pronto. Tente de novo.")
+                stage = .welcome
+                return
+            }
             // Short map, or a stream that ended before the overlap fired.
             let question = first ?? ask()
             // The fork opens on its own — a learner who wants the map should not
             // wait on a test they are about to skip. The question lands behind it.
-            try? await Task.sleep(for: Self.buildFloor - opened.duration(to: .now))
+            let left = Self.buildFloor - opened.duration(to: .now)
+            if left > .zero { try? await Task.sleep(for: left) }
+            guard !Task.isCancelled else { return }
             stage = .placement
             do {
                 questions = [try await question.value]
@@ -205,20 +232,34 @@ public final class OnboardingViewModel {
     /// Commit the run: the map, everything the placement wrote, and the gap
     /// nodes its misses split out. The one write that ends onboarding.
     public func finish() {
+        // The invariant this class claims: nothing half-built reaches the store.
+        // `RootView` switches on `graph.nodes.isEmpty` as a *transition*, so an
+        // empty commit leaves onboarding parked with every button a no-op — and
+        // `subject` alone is enough to upsert a junk row.
+        guard graph.nodes.count >= Self.mapMinimum else {
+            message = String(localized: "Seu mapa não ficou pronto. Tente de novo.")
+            stage = .welcome
+            stopBuilding()
+            return
+        }
         stopBuilding()
         var map = graph
         for gap in pendingGaps { map = spawnGap(map, parentId: gap.parent, gap.spec) }
         store.graph = map
         store.states = states
-        // Trimmed, because `subject` is half the row's primary key and the web
+        // Normalised, because `subject` is half the row's primary key and the web
         // app writes `form.topic.trim()`: a topic typed with a stray space here
         // would open a second row the browser never joins.
-        store.subject = form.topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.subject = normalizedTopic(form.topic)
         store.interests = form.interests
         // What the run is for, and how long a day is, outlive onboarding —
         // screens 12 and 13 read them, and screen 13 is where they change.
         store.goal = form.goal
         store.dailyTarget = form.target
+        // Neither has a screen on the phone yet; both are the browser's, and a
+        // row this client writes first has to carry them or they are lost.
+        store.paretoPct = form.paretoPct
+        store.examDate = form.examDate
     }
 
     private func ask() -> Task<DiagnosticQuestion, Error> {

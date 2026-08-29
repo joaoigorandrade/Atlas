@@ -4,6 +4,8 @@ import SwiftUI
 /// was chosen by `ConsumeViewModel` and travels in as a context.
 struct ModelLensView: View {
     let lens: AltKey
+    let node: ConceptNode
+    let chunk: ConsumeChunk?
     let context: [String: JSONValue]?
     @Environment(AtlasStore.self) private var store
     @State private var model: ModelLensViewModel?
@@ -28,7 +30,9 @@ struct ModelLensView: View {
         }
         .background(Palette.cardAlt)
         .task {
-            let model = model ?? ModelLensViewModel(api: store.api, context: context)
+            let model = model ?? ModelLensViewModel(
+                store: store, node: node, chunk: chunk, lens: lens, context: context
+            )
             self.model = model
             await model.load()
         }

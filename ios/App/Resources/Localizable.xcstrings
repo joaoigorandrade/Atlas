@@ -1,6 +1,105 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "Acendendo a fronteira…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lighting the frontier…"
+          }
+        }
+      }
+    },
+    "Assentando as fundações…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placing the foundations…"
+          }
+        }
+      }
+    },
+    "Explorando o território…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surveying the territory…"
+          }
+        }
+      }
+    },
+    "Seu mapa não ficou pronto. Tente de novo." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your map didn't come out right. Try again."
+          }
+        }
+      }
+    },
+    "Data da prova" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exam date"
+          }
+        }
+      }
+    },
+    "Pareto (80/20)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pareto (80/20)"
+          }
+        }
+      }
+    },
+    "Quanto do tema?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much of the topic?"
+          }
+        }
+      }
+    },
+    "a fatia de resultado real que você quer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the share of real-world results you want"
+          }
+        }
+      }
+    },
+    "top %lld%%" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "top %lld%%"
+          }
+        }
+      }
+    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3221,17 +3320,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Test my knowledge →"
-          }
-        }
-      }
-    },
-    "Top 20%" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Top 20%"
           }
         }
       }

@@ -62,6 +62,11 @@ struct PlacementView: View {
                 } else {
                     CTAButton("Testar meu conhecimento →", hero: true) { onboarding.takePlacement() }
                     GhostButton("Ir direto para o mapa") { onboarding.finish() }
+                    // The stream died with concepts already on the map: what
+                    // landed is usable, and rebuilding is the learner's call.
+                    if onboarding.mapIncomplete {
+                        GhostButton("Tentar de novo") { onboarding.buildMap() }
+                    }
                 }
             }
         }

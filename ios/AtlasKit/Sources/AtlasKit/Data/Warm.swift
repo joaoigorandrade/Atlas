@@ -244,6 +244,22 @@ public extension AtlasStore {
         return await warm.fill(key("crucible", node, pool.ids), once: { try await api.crucible(sent) })
     }
 
+    /// The beats of one lens over one section. Keyed like everything else, with
+    /// the section and the lens as the inputs — the same walkthrough reopens
+    /// instead of being written a second time.
+    func lens(_ node: ConceptNode, _ chunk: ConsumeChunk, _ lens: AltKey) -> [ConsumeModelBeat] {
+        warm.content(key("model", node, Self.lensInputs(chunk.id, lens))) ?? []
+    }
+
+    @discardableResult
+    func model(
+        _ node: ConceptNode, _ chunk: ConsumeChunk, _ lens: AltKey, context: [String: JSONValue]
+    ) async -> Error? {
+        let (api, sent) = (api, context)
+        return await warm.fill(key("model", node, Self.lensInputs(chunk.id, lens)),
+                               live: { await api.model(sent) })
+    }
+
     /// Have `kind` ready for `node` before it is asked for. Fire and forget: a
     /// warm nobody is watching that fails is retried by the click that needed it.
     func warmUp(_ kind: String, for node: ConceptNode) {
@@ -301,11 +317,18 @@ public extension AtlasStore {
 /// `ask` the first time it was written on a phone. See `Landed`.
 @MainActor
 public extension AtlasStore {
-    /// The buckets both clients fill. `models` (the lens beats) and `retain`
-    /// are the browser's own keys: this client streams a lens per open and
-    /// turns a Retain draft into scheduled cards the moment it lands, so
-    /// neither has anything to put there. Both ride through the merge below.
+    /// The buckets keyed by node id, which both clients fill. `models` is
+    /// shared too but keyed per section and lens — see `lensInputs`. `retain`
+    /// stays the browser's own: this client turns a Retain draft into scheduled
+    /// cards the moment it lands, so it has nothing to put there, and the
+    /// bucket rides through the merge below untouched.
     static let cacheBuckets: Set<String> = ["consume", "socratic", "feynman", "connect", "crucible"]
+
+    /// The lens half of a warm key, and the tail of the browser's own
+    /// `model:<nodeId>:<chunkId>:<lens>` — `useGeneration.ts`'s `modelKey`.
+    static func lensInputs(_ chunkId: String, _ lens: AltKey) -> String {
+        "\(chunkId):\(lens.rawValue)"
+    }
 
     /// Adopt the run's saved content. Called on `open`, once the subject, the
     /// graph and the language a key is built from are all in place.
@@ -313,6 +336,9 @@ public extension AtlasStore {
         let byId = graph.byId
         for (kind, bucket) in caches {
             for (nodeId, raw) in bucket.fields ?? [:] {
+                // `models` is the one bucket not keyed by node id: its key is
+                // the whole address of a lens over a section.
+                if kind == "models" { seedLens(nodeId, raw, byId); continue }
                 guard let node = byId[nodeId] else { continue }
                 switch kind {
                 case "consume": seed(kind, node, raw, as: [ConsumeChunk].self)
@@ -334,21 +360,29 @@ public extension AtlasStore {
         var caches = loaded
         for (key, raw) in warm.raw {
             guard let slot = Self.cacheSlot(key) else { continue }
-            var bucket = caches[slot.kind]?.fields ?? [:]
-            bucket[slot.nodeId] = raw
-            caches[slot.kind] = .object(bucket)
+            var bucket = caches[slot.bucket]?.fields ?? [:]
+            bucket[slot.key] = raw
+            caches[slot.bucket] = .object(bucket)
         }
         return caches
     }
 
-    /// Which bucket a warm key belongs in — `kind|subject|nodeId|language|inputs`.
+    /// Where in the column a warm key belongs — `kind|subject|nodeId|language|inputs`.
     /// Anything else stays out of the shared column: the Retain draft's own key
     /// has four parts, and so does a key whose subject happens to contain a
     /// pipe, which is a run this client keeps to itself rather than files wrong.
-    static func cacheSlot(_ key: String) -> (kind: String, nodeId: String)? {
+    static func cacheSlot(_ key: String) -> (bucket: String, key: String)? {
         let parts = key.split(separator: "|", omittingEmptySubsequences: false)
-        guard parts.count == 5, cacheBuckets.contains(String(parts[0])) else { return nil }
-        return (String(parts[0]), String(parts[2]))
+        guard parts.count == 5 else { return nil }
+        let kind = String(parts[0])
+        // A lens files under the browser's own address for it, which already
+        // carries the node — so the two clients share one walkthrough.
+        if kind == "model" {
+            guard !parts[4].isEmpty else { return nil }
+            return ("models", "model:\(parts[2]):\(parts[4])")
+        }
+        guard cacheBuckets.contains(kind) else { return nil }
+        return (kind, String(parts[2]))
     }
 
     /// Content the browser wrote, under the key this client would have written
@@ -359,6 +393,17 @@ public extension AtlasStore {
     ) {
         guard let value = try? raw.decode(T.self) else { return }
         warm.seed(key(kind, node, cacheInputs(kind, node)), value, raw)
+    }
+
+    /// A lens the browser wrote, under the key this client would have written
+    /// it under. `model:<nodeId>:<chunkId>:<lens>` in, four parts out; anything
+    /// shaped otherwise is content this client has no address for.
+    private func seedLens(_ address: String, _ raw: JSONValue, _ byId: [String: ConceptNode]) {
+        let parts = address.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 4, parts[0] == "model", let node = byId[String(parts[1])],
+              let value = try? raw.decode([ConsumeModelBeat].self)
+        else { return }
+        warm.seed(key("model", node, "\(parts[2]):\(parts[3])"), value, raw)
     }
 
     /// The pool half of a key. Connect and Crucible are drawn from what the
