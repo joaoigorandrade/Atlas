@@ -92,6 +92,7 @@ final class ConsumeViewModel {
             missed = []
             grade = nil
         }
+        note()
     }
 
     /// The lens opens over the prose; the section behind it is never swapped.
@@ -103,7 +104,18 @@ final class ConsumeViewModel {
     func finish() {
         guard passed else { return }
         speaker.stop()
+        note()
         session.advance()
+    }
+
+    /// How far the reading got, written where the map can read it: the spiral
+    /// refuses to tick Consume off a pass left part-way through, and "3 de 5"
+    /// is the same two numbers. Mirrors the web's `ConsumeProgress`.
+    private func note() {
+        session.store.note(
+            reading: node.id, idx: index, total: chunks.count,
+            finished: index >= chunks.count - 1
+        )
     }
 
     /// The lens context: the section on screen, so the model view walks *this*

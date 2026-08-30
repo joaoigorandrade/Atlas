@@ -6,7 +6,8 @@ import SwiftUI
 /// name instead of owning the `sheet`/`fullScreenCover`/`NavigationLink` that
 /// gets there.
 public enum AtlasRoute: ModalRoute {
-    /// The node drawer — a bottom sheet on mobile, sized to its own content.
+    /// The node drawer — a bottom sheet on mobile. It sets its own detents:
+    /// the spiral plus the chips is taller than a sheet at AX type sizes.
     case nodeDetail(ConceptNode)
     /// One pass through the spiral. Pushed rather than covered: the phase bar
     /// already draws its own way back, and a push gets the swipe for free.

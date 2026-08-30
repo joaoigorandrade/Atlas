@@ -70,7 +70,11 @@ private func webRow() -> JSONValue {
     // Everything else is handed back exactly as it arrived.
     #expect(saved["consumeProgress"] == webRow().fields?["consumeProgress"])
     #expect(saved["misconceptions"] == webRow().fields?["misconceptions"])
-    #expect(saved["positions"] == webRow().fields?["positions"])
+    // The browser's own layout is handed back untouched — and the node it had
+    // no entry for is seeded rather than left out, since `attachGap` refuses a
+    // parent with no position and the map dereferences every entry unguarded.
+    #expect(saved["positions"]?.fields?["a"] == webRow().fields?["positions"]?.fields?["a"])
+    #expect(saved["positions"]?.fields?["b"] == .object(["x": .number(0), "y": .number(0)]))
     // Including inside the two objects this client only partly owns.
     #expect(saved["form"]?.fields?["examDate"] == .string("2026-11-03"))
     #expect(saved["form"]?.fields?["paretoPct"] == .number(35))
@@ -80,7 +84,7 @@ private func webRow() -> JSONValue {
 @Test func aMapBuiltOnThePhoneCarriesEveryKeyTheBrowserReadsUnguarded() throws {
     // No row to merge onto — the first save of a run built in onboarding.
     var run = RunSnapshot(subject: "Álgebra")
-    run.graph = ConceptGraph(nodes: [ConceptNode(id: "a", label: "Vetor", gap: true)])
+    run.graph = ConceptGraph(nodes: [ConceptNode(id: "a", label: "Vetor", x: 4, y: 9, gap: true)])
 
     let saved = try #require(run.snapshot.fields)
 
@@ -88,10 +92,23 @@ private func webRow() -> JSONValue {
     // own, so a missing one is a crash in the browser rather than a default.
     #expect(saved["form"]?.fields?["examDate"] == .string(""))
     #expect(saved["adherence"]?.fields?["lastDay"] == .string(""))
-    #expect(saved["positions"] == .object([:]))
+    // Seeded from the graph exactly as the web seeds it at build time: an
+    // *empty* `positions` is as fatal there as a missing one.
+    #expect(saved["positions"] == .object(["a": .object(["x": .number(4), "y": .number(9)])]))
     #expect(saved["litToday"] == .array([]))
     #expect(saved["spawnedIds"] == .array([.string("a")]))
     #expect(saved["v"] == .number(9))
+}
+
+/// The browser's drags live in `positions`, not in the graph — a map untangled
+/// at a desk has to look untangled on the phone.
+@Test func aLayoutArrangedInTheBrowserIsWhatThePhoneDraws() throws {
+    let run = try #require(RunSnapshot(subject: "Cálculo", snapshot: webRow()))
+    let placed = try #require(run.graph.nodes.first { $0.id == "a" })
+    #expect(placed.x == 12 && placed.y == 40)
+    // And a node the browser never dragged keeps the coordinates it was
+    // generated with rather than collapsing to the origin.
+    #expect(run.graph.nodes.first { $0.id == "b" }?.x == 0)
 }
 
 @Test func aRowThisAppHasNoVersionForIsSkippedRatherThanGuessedAt() {

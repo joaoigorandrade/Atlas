@@ -158,13 +158,13 @@ public extension AtlasStore {
     /// own — so a pass stays inside its own concept instead of re-teaching a
     /// prerequisite or spoiling the next node.
     func context(for node: ConceptNode) -> [String: JSONValue] {
-        // One index for both walks: each of these used to scan every node per
-        // edge, and every phase asks for a context.
-        let byId = graph.byId
         let prereqs = graph.prerequisites(of: node.id).map(\.label)
-        let later = graph.edges
-            .filter { $0.from == node.id && !$0.dashed }
-            .compactMap { byId[$0.to]?.label }
+        // Not the direct neighbours: the boundary is the *transitive* ancestors
+        // against everything else on the map, which is what the server's prompt
+        // has always meant by these two — and the pass this writes lands in the
+        // shared `caches` column, so a narrow boundary here is what the browser
+        // then serves for that node too.
+        let boundary = graph.boundary(of: node.id)
         return [
             "topic": .string(subject),
             "nodeId": .string(node.id),
@@ -172,8 +172,8 @@ public extension AtlasStore {
             "interests": .string(interests),
             "language": .string(AtlasAPI.language),
             "prereqLabels": .array(prereqs.map { .string($0) }),
-            "priorLabels": .array(prereqs.map { .string($0) }),
-            "laterLabels": .array(later.map { .string($0) }),
+            "priorLabels": .array(boundary.prior.map { .string($0) }),
+            "laterLabels": .array(boundary.later.map { .string($0) }),
         ]
     }
 

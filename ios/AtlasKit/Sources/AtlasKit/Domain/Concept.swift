@@ -24,6 +24,27 @@ public enum NodeState: String, Codable, Sendable, CaseIterable {
 /// from prerequisites by `displayStates`, exactly as on the web.
 public typealias StateMap = [String: NodeState]
 
+/// How a node became Shaky. Stored per node so the drawer can say *why* rather
+/// than assuming the last thing that could have caused it. Mirrors
+/// `ShakyReason` in `lib/curriculum/types.ts`; the raw values are the row's.
+public enum ShakyReason: String, Codable, Sendable {
+    case connectComplete = "connect-complete"
+    case diagnosticHesitation = "diagnostic-hesitation"
+    case crucibleFail = "crucible-fail"
+    case reviewMiss = "review-miss"
+
+    /// `shakyLine` on the web, minus the language switch — the app is drawn in
+    /// one language at a time and `Localizable.xcstrings` is where that lives.
+    public var line: LocalizedStringKey {
+        switch self {
+        case .connectComplete: "Compreendido e conectado — agora prove que isso se transfere no Crisol."
+        case .diagnosticHesitation: "Você hesitou nisso no nivelamento — provavelmente é frágil. Uma tentativa no Crisol mostra se resiste."
+        case .crucibleFail: "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente o Crisol de novo."
+        case .reviewMiss: "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente o Crisol de novo para firmar."
+        }
+    }
+}
+
 public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
     public let id: String
     public var label: String
@@ -148,7 +169,7 @@ public struct ConceptEdge: Codable, Sendable, Hashable {
     }
 }
 
-public struct ConceptGraph: Codable, Sendable {
+public struct ConceptGraph: Codable, Sendable, Equatable {
     public var nodes: [ConceptNode]
     public var edges: [ConceptEdge]
 
@@ -172,6 +193,68 @@ public func displayStates(_ states: StateMap, _ graph: ConceptGraph) -> [String:
         out[node.id] = (state == .unknown && node.gap != true && unlocked) ? .frontier : state
     }
     return out
+}
+
+/// Frontier nodes ordered to the goal — the plan itself, mirroring
+/// `orderedFrontier` in `replan.ts`. A deadline-driven goal attacks whatever
+/// unlocks the most territory it has not learned; general mastery walks the map
+/// left to right, foundations first.
+public func orderedFrontier(
+    _ display: [String: NodeState], _ graph: ConceptGraph, _ goal: GoalKind
+) -> [ConceptNode] {
+    let lit = graph.nodes.filter { display[$0.id] == .frontier }
+    guard goal != .mastery else { return lit.sorted { $0.x < $1.x } }
+
+    // Solid edges only, exactly as `descendantsOf` reads them: a dashed edge
+    // hangs a gap off its parent and unlocks nothing.
+    var forward: [String: [String]] = [:]
+    for edge in graph.edges where !edge.dashed { forward[edge.from, default: []].append(edge.to) }
+    func unlocks(_ id: String) -> Int {
+        var seen: Set<String> = []
+        var stack = [id]
+        while let current = stack.popLast() {
+            for next in forward[current] ?? [] where seen.insert(next).inserted { stack.append(next) }
+        }
+        return seen.filter { display[$0] == .unknown || display[$0] == .frontier }.count
+    }
+
+    let leverage: [String: Int] = lit.reduce(into: [:]) { $0[$1.id] = unlocks($1.id) }
+    return lit.sorted { a, b in
+        let (left, right) = (leverage[a.id] ?? 0, leverage[b.id] ?? 0)
+        return left == right ? a.x < b.x : left > right
+    }
+}
+
+/// Where one concept's teaching ends and its neighbours' begins — the port of
+/// `conceptBoundary` in `replan.ts`.
+///
+/// A per-node generation that sees only its own label and its *direct* prereqs
+/// has no way to know that a concept two columns back already taught what it is
+/// re-deriving, or that the next node owns the extension it just wandered into:
+/// the learner reads the same material twice and meets the next concept already
+/// spoiled. `prior` is every ancestor over solid edges — what has already been
+/// taught and may be built on. `later` is every other concept on the map — what
+/// belongs to somebody else's pass.
+///
+/// Gap nodes are in neither: they are spawned per learner, and a per-learner
+/// list in the prompt would fork the shared `content_cache` row that two
+/// learners on the same topic otherwise hash to.
+public extension ConceptGraph {
+    func boundary(of id: String) -> (prior: [String], later: [String]) {
+        var ancestors: Set<String> = []
+        var queue = [id]
+        while let current = queue.first {
+            queue.removeFirst()
+            for edge in edges where !edge.dashed && edge.to == current && edge.from != id {
+                if ancestors.insert(edge.from).inserted { queue.append(edge.from) }
+            }
+        }
+        var prior: [String] = [], later: [String] = []
+        for node in nodes where node.gap != true && node.id != id {
+            if ancestors.contains(node.id) { prior.append(node.label) } else { later.append(node.label) }
+        }
+        return (prior, later)
+    }
 }
 
 /// The spiral, mirroring `PHASES` in `lib/curriculum/types.ts`. Order is the
@@ -236,11 +319,39 @@ public extension Phase {
     }
 }
 
+/// The two fields of the web's `ConsumeProgress` the spiral reads. The rest of
+/// the record belongs to the browser's reader and rides through untouched —
+/// see `AtlasStore.consumeProgress`.
+public struct ReadingProgress: Sendable {
+    public var finished: Bool
+    public var handedOff: Bool
+    public init(finished: Bool, handedOff: Bool) {
+        self.finished = finished; self.handedOff = handedOff
+    }
+}
+
+/// `phaseIndex`, corrected by what the learner actually read. Mirrors
+/// `readingPhaseIndex` in `lib/curriculum/calibration.ts`.
+///
+/// A node goes Learning the moment a session opens on it, and that is real —
+/// but the state alone maps to Feynman, which would tick off Consume *and*
+/// Socratic on the strength of having opened a screen. So the reading record
+/// gets the last word where it has one: still reading → Consume, read it and
+/// never went on → Socratic, anything else → the state-derived answer.
+public func readingPhaseIndex(
+    _ state: NodeState, reviewed: Bool = false, _ progress: ReadingProgress?
+) -> Int {
+    if state == .learning, let progress {
+        if !progress.finished { return 0 }
+        if !progress.handedOff { return 1 }
+    }
+    return phaseIndex(state, reviewed: reviewed)
+}
+
 /// Which phase a node is on, `-1` for locked. Mirrors `phaseIndex` in
 /// `lib/curriculum/calibration.ts`: mastered alone doesn't grant Retained, a
-/// real review does.
-/// ponytail: no `readingPhaseIndex` correction — that needs `ConsumeProgress`,
-/// which arrives with Consume in phase 5. Add the two guards there.
+/// real review does. Every caller goes through `readingPhaseIndex` — this is
+/// the state half of the answer, not the whole one.
 public func phaseIndex(_ state: NodeState, reviewed: Bool = false) -> Int {
     switch state {
     case .frontier: 0

@@ -29,6 +29,37 @@ struct MapTransform: Equatable {
         )
     }
 
+    /// The band a pinch may leave the fit in, matching the web's
+    /// `Math.min(1.7, Math.max(0.4, …))` (`components/atlas/useCanvas.ts:59`).
+    /// Unbounded zoom is unrecoverable: every node ends up off-screen.
+    func scaled(_ factor: CGFloat, about anchor: CGPoint, within fit: CGFloat) -> MapTransform {
+        let target = min(max(scale * factor, fit * 0.4), fit * 1.7)
+        guard scale > 0 else { return self }
+        // Anchored on the pinch centroid, like the web: whatever is under the
+        // fingers stays under the fingers.
+        let applied = target / scale
+        return MapTransform(
+            offset: CGSize(width: anchor.x - (anchor.x - offset.width) * applied,
+                           height: anchor.y - (anchor.y - offset.height) * applied),
+            scale: target
+        )
+    }
+
+    /// Keeps a corner of the graph on screen. A flick with nothing holding it
+    /// leaves the learner looking at blank paper with no way back.
+    ///
+    /// ponytail: a hard clamp, no rubber-band. Add the elastic overshoot when
+    /// the edge starts feeling like a wall rather than an end.
+    func bounded(_ bounds: CGRect, in size: CGSize, margin: CGFloat = 60) -> MapTransform {
+        guard !bounds.isNull, size.width > margin * 2, size.height > margin * 2 else { return self }
+        var held = self
+        held.offset.width = min(max(offset.width, margin - bounds.maxX * scale),
+                                size.width - margin - bounds.minX * scale)
+        held.offset.height = min(max(offset.height, margin - bounds.maxY * scale),
+                                 size.height - margin - bounds.minY * scale)
+        return held
+    }
+
     /// Puts one node in the middle of the viewport, keeping the current zoom.
     func centred(on node: ConceptNode, in size: CGSize) -> MapTransform {
         MapTransform(
@@ -38,13 +69,34 @@ struct MapTransform: Equatable {
     }
 }
 
+/// `Canvas` captures the values its renderer closes over, so SwiftUI has
+/// nothing to interpolate when the transform changes — `jump`'s animation used
+/// to snap. A `View` that is `Animatable` gives it the hook: SwiftUI walks
+/// `animatableData` and re-evaluates the body a frame at a time.
+extension MapTransform: Animatable {
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {
+        get { .init(.init(offset.width, offset.height), scale) }
+        set {
+            offset = CGSize(width: newValue.first.first, height: newValue.first.second)
+            scale = newValue.second
+        }
+    }
+}
+
+/// The widest disc the map draws — a frontier node and its halo. Shared with
+/// `nodeHit` so the glow a learner aims at is the thing they hit.
+enum NodeDisc {
+    static let radius: CGFloat = 15
+    static let halo: CGFloat = 1.7
+}
+
 /// The nearest node under a tap, or nil for empty canvas. The reach is a tap
 /// target, not the drawn radius — the design's 13pt circles are far under 44pt.
 ///
 /// One pass, no intermediate arrays: this runs on every tap over a graph that
 /// can be hundreds of nodes long.
 func nodeHit(_ graph: ConceptGraph, _ transform: MapTransform, at point: CGPoint,
-             reach: CGFloat = Metrics.tap / 2) -> ConceptNode? {
+             reach: CGFloat = max(Metrics.tap / 2, NodeDisc.radius * NodeDisc.halo)) -> ConceptNode? {
     var best: (node: ConceptNode, distance: CGFloat)?
     for node in graph.nodes {
         let at = transform.place(node)
@@ -53,6 +105,61 @@ func nodeHit(_ graph: ConceptGraph, _ transform: MapTransform, at point: CGPoint
         best = (node, distance)
     }
     return best?.node
+}
+
+/// Everything a redraw needs that the transform never changes: the edges
+/// resolved to their endpoint nodes, and the size each label shapes to. The
+/// renderer closure re-runs on every pan and pinch frame, so anything O(n) that
+/// only depends on the graph is built here instead — once per graph.
+///
+/// A class, not a struct, because the label metrics fill in lazily as labels
+/// are first drawn.
+final class PreparedGraph {
+    struct Link {
+        let a: ConceptNode
+        let b: ConceptNode
+        /// The destination id, kept so the frontier test doesn't re-read `b`.
+        let into: String
+        let dashed: Bool
+    }
+
+    let graph: ConceptGraph
+    /// Edges naming a node the graph doesn't have are dropped here rather than
+    /// looked up and skipped sixty times a second.
+    let links: [Link]
+    /// The graph's model-space box, so the pan clamp doesn't walk every node on
+    /// every frame. `.null` for an empty graph — nothing to hold on screen.
+    let bounds: CGRect
+    private var metrics: [Key: CGSize] = [:]
+
+    private struct Key: Hashable {
+        let label: String
+        let frontier: Bool
+        /// Labels use `Font.custom`, which scales — a metric measured at one
+        /// text size is wrong at the next.
+        let type: DynamicTypeSize
+    }
+
+    init(_ graph: ConceptGraph) {
+        self.graph = graph
+        bounds = graph.nodes.reduce(CGRect.null) { $0.union(CGRect(x: $1.x, y: $1.y, width: 0, height: 0)) }
+        let byId = Dictionary(graph.nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        links = graph.edges.compactMap { edge in
+            guard let a = byId[edge.from], let b = byId[edge.to] else { return nil }
+            return Link(a: a, b: b, into: edge.to, dashed: edge.dashed)
+        }
+    }
+
+    /// Core Text shaping is the expensive half of a label and depends on the
+    /// string and the point size only — never on where the map is dragged to.
+    func measure(_ label: String, frontier: Bool, _ environment: EnvironmentValues,
+                 shape: () -> CGSize) -> CGSize {
+        let key = Key(label: label, frontier: frontier, type: environment.dynamicTypeSize)
+        if let known = metrics[key] { return known }
+        let size = shape()
+        metrics[key] = size
+        return size
+    }
 }
 
 /// The map itself, drawn. A free function because onboarding paints the same
@@ -66,50 +173,68 @@ func nodeHit(_ graph: ConceptGraph, _ transform: MapTransform, at point: CGPoint
 /// the graph instead of under the next node along.
 func drawGraph(
     _ context: inout GraphicsContext,
-    _ graph: ConceptGraph,
+    _ prepared: PreparedGraph,
     _ shown: [String: NodeState],
     _ view: MapTransform,
+    viewport: CGSize,
     selected: String? = nil,
     labels: Bool = true
 ) {
-    // Edges name their endpoints by id; a linear scan per edge is O(n·e) on a
-    // canvas that redraws on every pan frame, so the index is built once.
-    let byId = Dictionary(graph.nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    for edge in graph.edges {
-        guard let a = byId[edge.from], let b = byId[edge.to] else { continue }
+    // At any real zoom most of a generated map is off-screen, and off-screen
+    // still costs a Path and a stroke. The slack covers the widest halo and a
+    // label hanging off a disc that sits just outside the frame.
+    let visible = CGRect(origin: .zero, size: viewport).insetBy(dx: -48, dy: -48)
+
+    for link in prepared.links {
+        let from = view.place(link.a), to = view.place(link.b)
+        // Padded because an axis-aligned edge has a zero-width bounding box,
+        // and an empty rect intersects nothing.
+        let bounds = CGRect(x: min(from.x, to.x), y: min(from.y, to.y),
+                            width: abs(to.x - from.x), height: abs(to.y - from.y))
+            .insetBy(dx: -2, dy: -2)
+        guard visible.intersects(bounds) else { continue }
         var path = Path()
-        path.move(to: view.place(a))
-        path.addLine(to: view.place(b))
+        path.move(to: from)
+        path.addLine(to: to)
         // The last step into a frontier node is the one the learner is about to
         // take: it gets the state colour, everything else stays hairline.
-        let intoFrontier = shown[edge.to] == .frontier
+        let intoFrontier = shown[link.into] == .frontier
         context.stroke(
             path,
             with: .color(intoFrontier
                 ? NodeState.frontier.color.opacity(0.45)
-                : Palette.ink.opacity(edge.dashed ? 0.08 : 0.13)),
+                : Palette.ink.opacity(link.dashed ? 0.08 : 0.13)),
             style: StrokeStyle(lineWidth: intoFrontier ? 1.6 : 1.1, lineCap: .round,
-                               dash: edge.dashed ? [4, 5] : [])
+                               dash: link.dashed ? [4, 5] : [])
         )
     }
 
     var pending: [(node: ConceptNode, point: CGPoint, radius: CGFloat, state: NodeState)] = []
-    for node in graph.nodes {
-        let state = shown[node.id] ?? .unknown
+    // A label may never be printed over a circle, only in the paper around one,
+    // so every drawn node reserves its own patch as it goes — out to the glow
+    // it actually drew, not to a guessed radius.
+    var taken: [CGRect] = []
+    for node in prepared.graph.nodes {
         let point = view.place(node)
+        guard visible.contains(point) else { continue }
+        let state = shown[node.id] ?? .unknown
         let isLit = state != .unknown
-        let radius: CGFloat = state == .frontier || node.id == selected ? 15 : (node.gap == true ? 11 : isLit ? 13 : 10)
+        // Deliberately screen space, unlike the web, where the node layer sits
+        // inside the scaled transform (`MapCanvas.tsx`) and discs grow with the
+        // zoom. On touch a disc is a tap target, so pinching spreads the map
+        // apart at a constant 44pt reach instead of shrinking what can be hit.
+        let radius: CGFloat = state == .frontier || node.id == selected ? NodeDisc.radius : (node.gap == true ? 11 : isLit ? 13 : 10)
         // The frontier's halo is the design's only glow — it is what makes
         // "where do I go next" readable at a glance. One soft disc and a ring,
         // not two stacked discs: two adjacent frontiers used to merge into one
         // amber cloud with no nodes visible inside it.
+        let outer = state == .frontier || node.id == selected ? radius * NodeDisc.halo : radius
         if state == .frontier {
-            let glow = radius * 1.7
-            context.fill(circle(point, glow), with: .color(state.color.opacity(0.14)))
-            context.stroke(circle(point, glow), with: .color(state.color.opacity(0.30)), lineWidth: 1.5)
+            context.fill(circle(point, outer), with: .color(state.color.opacity(0.14)))
+            context.stroke(circle(point, outer), with: .color(state.color.opacity(0.30)), lineWidth: 1.5)
         }
         if node.id == selected, state != .frontier {
-            context.stroke(circle(point, radius * 1.7), with: .color(Palette.ink.opacity(0.25)), lineWidth: 1.5)
+            context.stroke(circle(point, outer), with: .color(Palette.ink.opacity(0.25)), lineWidth: 1.5)
         }
         // A paper ring and a paper fill first: nodes that sit close together
         // still read as two, and the edges running under a pale node stop
@@ -119,6 +244,7 @@ func drawGraph(
         context.fill(circle(point, radius), with: .color(state.color.opacity(isLit ? 1 : 0.55)))
         context.stroke(circle(point, radius), with: .color(Palette.ink.opacity(isLit ? 0.10 : 0.06)), lineWidth: 1)
 
+        taken.append(CGRect(x: point.x - outer, y: point.y - outer, width: outer * 2, height: outer * 2))
         if labels, state == .frontier || state == .shaky || node.id == selected {
             pending.append((node, point, radius, state))
         }
@@ -127,20 +253,17 @@ func drawGraph(
     // Frontier first: when two labels want the same patch of canvas, the one
     // naming the next move keeps it and the other is dropped rather than
     // printed over the top of it.
-    // Seeded with every node: a label may never be printed over a circle, only
-    // in the paper around one.
-    var taken = graph.nodes.map { node -> CGRect in
-        let at = view.place(node)
-        return CGRect(x: at.x - 17, y: at.y - 17, width: 34, height: 34)
-    }
     for item in pending.sorted(by: { ($0.state == .frontier ? 0 : 1) < ($1.state == .frontier ? 0 : 1) }) {
         let isFrontier = item.state == .frontier
-        let text = Text(item.node.label).font(.atlas(.serif, isFrontier ? 14 : 12.5))
+        let text = Text(verbatim: item.node.label).font(.atlas(.serif, isFrontier ? 14 : 12.5))
             .foregroundStyle(isFrontier ? Palette.ink : Palette.inkMuted)
         let resolved = context.resolve(text)
         // One line, always: a wrapped label is twice the box to place and reads
-        // as a paragraph dropped on the map.
-        let size = resolved.measure(in: CGSize(width: 400, height: 24))
+        // as a paragraph dropped on the map. An unbounded box is what makes it
+        // one line — a fixed height clipped the serif at accessibility sizes.
+        let size = prepared.measure(item.node.label, frontier: isFrontier, context.environment) {
+            resolved.measure(in: CGSize(width: 10_000, height: 10_000))
+        }
         let below = labelBox(item.point, item.radius, size, above: false)
         let above = labelBox(item.point, item.radius, size, above: true)
         guard let box = [below, above].first(where: { box in !taken.contains { $0.intersects(box) } }) else { continue }
@@ -162,4 +285,24 @@ private func labelBox(_ point: CGPoint, _ radius: CGFloat, _ size: CGSize, above
         width: size.width,
         height: size.height
     )
+}
+
+/// The map as a view, so a transform change can be animated. Everything the
+/// renderer needs beyond the transform is fixed for the frame.
+struct GraphCanvas: View, Animatable {
+    var transform: MapTransform
+    let prepared: PreparedGraph
+    let shown: [String: NodeState]
+    let selected: String?
+
+    nonisolated var animatableData: MapTransform.AnimatableData {
+        get { transform.animatableData }
+        set { transform.animatableData = newValue }
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            drawGraph(&context, prepared, shown, transform, viewport: size, selected: selected)
+        }
+    }
 }

@@ -111,6 +111,10 @@ export const STATE_LABEL: Record<NodeState, string> = {
   gap: "Gap",
 };
 
+/** The label names the *state*; the consequence of a locked node ("Bloqueado.
+ *  Resolva os pré-requisitos…") belongs to STATE_CONFIDENCE_PT, and the iOS
+ *  node drawer says it on the CTA. Both clients read these six words — a
+ *  surface that wants different ones is drifting, not localising. */
 const STATE_LABEL_PT: Record<NodeState, string> = {
   unknown: "Desconhecido",
   frontier: "Fronteira · pronto",

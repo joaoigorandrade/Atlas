@@ -31,6 +31,9 @@ public final class OnboardingViewModel {
 
     /// The placement is opt-in: nothing is asked until the fork is answered.
     public private(set) var takingPlacement = false
+    /// The first question never arrived. The fork keeps the map and drops the
+    /// offer rather than sending the learner into a test that cannot be asked.
+    public private(set) var placementUnavailable = false
     public private(set) var questions: [DiagnosticQuestion] = []
     public private(set) var answered = 0
     /// The question just answered, held so its verdict can be read before the
@@ -52,7 +55,22 @@ public final class OnboardingViewModel {
     /// so it can be cancelled with the build — a question nobody will ever see
     /// is a model call nobody is paying for on purpose.
     private var pending: Task<DiagnosticQuestion, Error>?
+    /// The follow-up question being written while a verdict is on screen. Held
+    /// for the same reason as `pending`: "Pular" must not leave a model call
+    /// running whose result lands on a view model the shell already replaced.
+    private var followUp: Task<Void, Never>?
+    /// The placement ended early — an exhausted pool or a writer that stumbled.
+    /// Kept apart from `answered` so the rail keeps saying what the learner
+    /// actually did instead of lighting five segments after two answers.
+    private var stopped = false
     private var pendingGaps: [(parent: String, spec: GapSpec)] = []
+    /// Why the placement flipped each node Shaky. Committed with the states so
+    /// the drawer can say what the miss was, exactly as the web does.
+    private var shakyReasons: [String: ShakyReason] = [:]
+    /// The run has been handed to the store. `finish()` is reachable from more
+    /// than one dock button, and the second call must not upsert a second time
+    /// over a run the learner has already started working in.
+    private var committed = false
     /// A set, not a list: the pool filter below asks it once per node on the
     /// map, after every answer.
     private var asked: Set<String> = []
@@ -84,6 +102,15 @@ public final class OnboardingViewModel {
             message = String(localized: "Diga primeiro o que você quer aprender.")
             return
         }
+        // The subject is half the run row's primary key and `finish()` upserts
+        // on it with no loaded row behind it: building a second "Cálculo I"
+        // would replace the first one's cards, calibration and caches with
+        // empties. Caught here rather than at the commit — it is knowable
+        // before a map is paid for, and the topic field is where it is fixable.
+        guard !store.library.contains(where: { $0.subject == topic }) else {
+            message = String(localized: "Você já tem um mapa de \(topic). Abra-o em Seus mapas, ou escolha outro nome.")
+            return
+        }
         form.topic = topic
         // A re-submit (or a picked scope) starts a second stream: cancelling
         // the first is what stops its concepts landing on the new map.
@@ -97,9 +124,13 @@ public final class OnboardingViewModel {
         answered = 0
         verdict = nil
         takingPlacement = false
+        placementUnavailable = false
         mapIncomplete = false
         pendingGaps = []
+        shakyReasons = [:]
+        committed = false
         asked = []
+        stopped = false
         nextDifficulty = .medium
         maxCorrect = nil
 
@@ -154,10 +185,15 @@ public final class OnboardingViewModel {
             do {
                 questions = [try await question.value]
             } catch {
-                // Placement is a nice-to-have; the map is the product. Open it,
-                // but say why the step is missing.
+                // A skip cancels this await mid-flight. That is the learner's
+                // decision, not a failure, and must not be reported as one.
+                guard !Task.isCancelled, !(error is CancellationError) else { return }
+                // Placement is a nice-to-have; the map is the product. Stay on
+                // the fork and say why the step is missing — `finish()` here
+                // would swap the shell to the map in the same turn and the
+                // sentence would be torn down before it was ever read.
                 message = ErrorCopy.sentence(for: error, doing: String(localized: "preparar o nivelamento"))
-                finish()
+                placementUnavailable = true
             }
         }
     }
@@ -176,7 +212,51 @@ public final class OnboardingViewModel {
     public var total: Int { max(diagnosticCount, questions.count) }
     /// The question on screen, or nil while the writer is still writing it.
     public var question: DiagnosticQuestion? { verdict?.question ?? questions[safe: answered] }
-    public var placementDone: Bool { takingPlacement && answered >= total && verdict == nil }
+    public var placementDone: Bool { takingPlacement && noMoreQuestions && verdict == nil }
+    /// No further question is coming: the rail is full, the pool ran dry, or the
+    /// writer stumbled. What the dock's last CTA reads off.
+    public var noMoreQuestions: Bool { stopped || answered >= total }
+
+    // MARK: - Copy and rails the placement screen draws
+
+    public var rail: [Color?] { (0..<total).map { $0 < answered ? Palette.accent : nil } }
+    /// The rail is bare capsules; without this a VoiceOver user has no idea
+    /// where they are in the five questions.
+    public var railLabel: String {
+        String(localized: "Pergunta \(min(answered + 1, total)) de \(total)")
+    }
+
+    public var forkBody: LocalizedStringKey {
+        if placementDone {
+            return "Podamos o que você já domina e acendemos sua fronteira — os conceitos que você está pronto para aprender agora."
+        }
+        if placementUnavailable {
+            return "O nivelamento não ficou pronto desta vez. Seu mapa está — siga por ele e marque o que já sabe pelo caminho."
+        }
+        return "Quer um nivelamento rápido antes? \(diagnosticCount) perguntas adaptativas podam o que você já sabe e acendem sua fronteira real. Opcional — você pode ir direto."
+    }
+
+    public var verdictKicker: LocalizedStringKey? {
+        guard let verdict else { return nil }
+        return verdict.correct ? "Correto" : (verdict.slipped ? "Quase lá — contado como escorregão" : "Quase lá")
+    }
+
+    public var verdictTint: Color { verdict?.correct == true ? Palette.accent : Palette.amberInk }
+
+    /// The truth about what was written to the map — a discounted slip pruned
+    /// the concept rather than adding to it, and saying otherwise describes a
+    /// map the learner doesn't have.
+    public var verdictBody: LocalizedStringKey? {
+        guard let verdict else { return nil }
+        let tag = verdict.question.tag
+        // A malformed `correctIndex` is the model's mistake, not the learner's:
+        // say the rest and leave the answer out rather than trapping.
+        let answer = verdict.question.opts[safe: verdict.question.correctIndex]?.label ?? ""
+        if verdict.correct { return "\(tag) e tudo abaixo dele foi marcado como sabido." }
+        return verdict.slipped
+            ? "A resposta: \(answer)\nVocê acertou perguntas mais difíceis, então \(tag) continua marcado como sabido — nada foi adicionado ao seu mapa."
+            : "A resposta: \(answer)\nVamos encaixar \(tag) no seu mapa."
+    }
 
     /// Grade an answer and write it to the map. Every effect runs here, in the
     /// event handler, so the pool below filters on the post-answer truth.
@@ -190,8 +270,9 @@ public final class OnboardingViewModel {
             maxCorrect = question.difficulty
         }
         states = applyDiagnosticEffect(states, effect, nodeId: question.nodeId, edges: graph.edges)
-        if effect == .shaky, let gap = question.gap {
-            pendingGaps.append((question.nodeId, gap))
+        if effect == .shaky {
+            shakyReasons[question.nodeId] = .diagnosticHesitation
+            if let gap = question.gap { pendingGaps.append((question.nodeId, gap)) }
         }
         asked.insert(question.nodeId)
         // A discounted miss is noise, not a signal — it must not walk the ladder
@@ -208,10 +289,10 @@ public final class OnboardingViewModel {
         // nothing, and a miss there would undo a prune.
         let pool = graph.nodes.filter { !asked.contains($0.id) && states[$0.id] != .mastered }
         guard !pool.isEmpty else {
-            answered = diagnosticCount
+            stopped = true
             return
         }
-        Task {
+        followUp = Task {
             do {
                 questions.append(try await store.api.diagnosticQuestion(
                     form, pool: pool, difficulty: nextDifficulty
@@ -220,7 +301,8 @@ public final class OnboardingViewModel {
                 // The writer stumbled mid-placement: stop asking and let what is
                 // already known stand — and say so, rather than looking like the
                 // app decided it had learned enough about them.
-                answered = diagnosticCount
+                guard !Task.isCancelled, !(error is CancellationError) else { return }
+                stopped = true
                 message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever a próxima pergunta"))
             }
         }
@@ -232,6 +314,7 @@ public final class OnboardingViewModel {
     /// Commit the run: the map, everything the placement wrote, and the gap
     /// nodes its misses split out. The one write that ends onboarding.
     public func finish() {
+        guard !committed else { return }
         // The invariant this class claims: nothing half-built reaches the store.
         // `RootView` switches on `graph.nodes.isEmpty` as a *transition*, so an
         // empty commit leaves onboarding parked with every button a no-op — and
@@ -243,10 +326,19 @@ public final class OnboardingViewModel {
             return
         }
         stopBuilding()
+        committed = true
         var map = graph
-        for gap in pendingGaps { map = spawnGap(map, parentId: gap.parent, gap.spec) }
+        for gap in pendingGaps {
+            map = spawnGap(map, parentId: gap.parent, gap.spec)
+            // `spawnGap` writes `.gap` onto the node value, but no surface reads
+            // it there — `displayStates` starts from the state map, and a gap
+            // missing from it paints grey and reads "Bloqueado". Written before
+            // the commit below, which is the only write of `states`.
+            if map.nodes.contains(where: { $0.id == gap.spec.id }) { states[gap.spec.id] = .gap }
+        }
         store.graph = map
         store.states = states
+        store.shakyReasons = shakyReasons
         // Normalised, because `subject` is half the row's primary key and the web
         // app writes `form.topic.trim()`: a topic typed with a stray space here
         // would open a second row the browser never joins.
@@ -260,12 +352,24 @@ public final class OnboardingViewModel {
         // row this client writes first has to carry them or they are lost.
         store.paretoPct = form.paretoPct
         store.examDate = form.examDate
+        // A fresh map is generated in the interface language, so this is the one
+        // moment the run's content language is known for certain. `AtlasStore`
+        // only stamps it when nothing was loaded, which is true here by luck
+        // rather than by design — say it out loud instead.
+        store.language = AtlasAPI.language
     }
 
     private func ask() -> Task<DiagnosticQuestion, Error> {
         pending?.cancel()
-        let task = Task { [form, difficulty = nextDifficulty, nodes = graph.nodes] in
-            try await store.api.diagnosticQuestion(form, pool: nodes, difficulty: difficulty)
+        let task = Task { [form, api = store.api, difficulty = nextDifficulty, nodes = graph.nodes] in
+            let fetch = { try await api.diagnosticQuestion(form, pool: nodes, difficulty: difficulty) }
+            // Never cached — its node ids did not exist until the map above
+            // resolved — so it flakes more often than a warmed call. One retry
+            // before giving up on the learner's very first question.
+            do { return try await fetch() } catch {
+                try Task.checkCancellation()
+                return try await fetch()
+            }
         }
         pending = task
         return task
@@ -275,6 +379,7 @@ public final class OnboardingViewModel {
     private func stopBuilding() {
         build?.cancel()
         pending?.cancel()
+        followUp?.cancel()
     }
 
 }

@@ -83,6 +83,32 @@ public struct DiagnosticQuestion: Decodable, Sendable {
     public let gap: GapSpec?
 
     public struct Option: Decodable, Sendable { public let label: String }
+
+    enum CodingKeys: String, CodingKey {
+        case tag, q, note, nodeId, difficulty, opts, correctIndex, gap
+    }
+
+    /// A `correctIndex` outside `opts` grades every option wrong, so the miss
+    /// writes `.shaky` and queues a gap the learner never earned. Reject it on
+    /// decode instead: a malformed question becomes an ordinary generation
+    /// failure, which the caller already retries.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tag = try c.decode(String.self, forKey: .tag)
+        q = try c.decode(String.self, forKey: .q)
+        note = try c.decode(String.self, forKey: .note)
+        nodeId = try c.decode(String.self, forKey: .nodeId)
+        difficulty = try c.decode(DiagnosticDifficulty.self, forKey: .difficulty)
+        opts = try c.decode([Option].self, forKey: .opts)
+        correctIndex = try c.decode(Int.self, forKey: .correctIndex)
+        gap = try c.decodeIfPresent(GapSpec.self, forKey: .gap)
+        guard opts.indices.contains(correctIndex) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .correctIndex, in: c,
+                debugDescription: "correctIndex \(correctIndex) outside opts (\(opts.count))"
+            )
+        }
+    }
 }
 
 /// What a graded answer writes to the map.

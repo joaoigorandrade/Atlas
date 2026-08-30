@@ -107,7 +107,10 @@ public final class ReviewViewModel {
         // Real review history is what earns "Retido ✓" — mastered alone doesn't.
         if grade == .good || grade == .easy { store.reviewed.insert(scheduled.card.node) }
         guard grade == .again else { return advance() }
-        if store.states[scheduled.card.node] == .mastered { store.states[scheduled.card.node] = .shaky }
+        if store.states[scheduled.card.node] == .mastered {
+            store.states[scheduled.card.node] = .shaky
+            store.shakyReasons[scheduled.card.node] = .reviewMiss
+        }
         // A miss really does come back at the end of the deck — but only once,
         // or a card nobody can answer is a session with no end. It goes back
         // *as graded*: re-answering the stale copy would schedule off the ease

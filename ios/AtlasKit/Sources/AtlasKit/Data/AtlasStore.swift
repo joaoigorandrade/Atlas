@@ -18,6 +18,11 @@ public final class AtlasStore {
     /// kind keys on it, so it travels with the run rather than the screen.
     public var interests = "" { didSet { saveSoon() } }
 
+    /// Why each Shaky node is Shaky, keyed by node id — what lets the drawer
+    /// name the moment instead of guessing at the most recent one. Written
+    /// wherever `.shaky` is; shared with the browser through the run row.
+    public var shakyReasons: [String: ShakyReason] = [:] { didSet { saveSoon() } }
+
     /// Every review card ever drafted for this run, with its scheduler state.
     /// The generation is a card factory; this is the queue it feeds.
     public var cards: [ScheduledCard] = [] { didSet { saveSoon() } }
@@ -28,10 +33,16 @@ public final class AtlasStore {
     /// Mastered alone doesn't (`phaseIndex`).
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
 
+    /// The web's `consumeProgress`, held as JSON and keyed by node id. This
+    /// client reads two of its fields (`readingPhaseIndex`) and writes four;
+    /// the browser's reader owns the rest — lenses, collapses, checks — so a
+    /// record is *merged* into rather than replaced. See `note(reading:)`.
+    public var consumeProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
+
     /// Every saved run, freshest first — what "Seus mapas" lists. The open one
     /// is in here too, a debounce behind; `maps` answers that one from live
     /// state instead.
-    public private(set) var library: [RunSnapshot] = []
+    public internal(set) var library: [RunSnapshot] = []
 
     /// The library could not be read. Not the same as "there are no maps": the
     /// shell shows onboarding for an empty library, and doing that because a GET
@@ -57,7 +68,9 @@ public final class AtlasStore {
     // The `quiet` guard is the same one `language` carries: what seeds a *fresh*
     // map is the last answer the learner gave, and opening an old map is the
     // store being filled in, not an answer.
-    public var goal: GoalKind = Defaults.goal { didSet { if !quiet { Defaults.goal = goal }; saveSoon() } }
+    // The goal orders the frontier (`orderedFrontier`), so changing it changes
+    // which node the map recommends — and which one the app pays to warm.
+    public var goal: GoalKind = Defaults.goal { didSet { if !quiet { Defaults.goal = goal }; rederive(); saveSoon() } }
     public var dailyTarget: Int = Defaults.dailyTarget { didSet { if !quiet { Defaults.dailyTarget = dailyTarget }; saveSoon() } }
     /// Two fields the phone only collects and carries: the map's Pareto share
     /// and the exam date the web's pace screen counts down from.
@@ -149,7 +162,8 @@ public final class AtlasStore {
     public private(set) var frontier: [ConceptNode] = []
     public private(set) var masteredCount: Int = 0
 
-    /// Share of the map learned at least once — the "território dominado" figure.
+    /// Share of the map at `.mastered` — the "território dominado" figure.
+    /// Not "learned at least once": learning and shaky do not count, same as the web.
     public var mastered: Double {
         graph.nodes.isEmpty ? 0 : Double(masteredCount) / Double(graph.nodes.count)
     }
@@ -159,10 +173,46 @@ public final class AtlasStore {
     private func rederive() {
         let shown = displayStates(states, graph)
         display = shown
-        frontier = graph.nodes.filter { shown[$0.id] == .frontier }
+        frontier = orderedFrontier(shown, graph, goal)
         masteredCount = graph.nodes.reduce(into: 0) { count, node in
             if (states[node.id] ?? .unknown) == .mastered { count += 1 }
         }
+    }
+}
+
+// MARK: - Reading record (screen 14)
+
+public extension AtlasStore {
+    /// What the spiral needs to know about a node's reading, or nil when there
+    /// has never been one — where the state-derived phase stands, as on the web.
+    func reading(_ id: String) -> ReadingProgress? {
+        guard let record = consumeProgress[id]?.fields else { return nil }
+        func flag(_ key: String) -> Bool { if case .bool(true)? = record[key] { true } else { false } }
+        return ReadingProgress(finished: flag("finished"), handedOff: flag("handedOff"))
+    }
+
+    /// Write the fields this client owns into a node's record, leaving every
+    /// other key the browser wrote exactly where it was. Passing nil for a
+    /// field means "no news", not "false".
+    func note(
+        reading id: String, idx: Int? = nil, total: Int? = nil,
+        finished: Bool? = nil, handedOff: Bool? = nil
+    ) {
+        var record = consumeProgress[id]?.fields ?? [:]
+        if let idx { record["idx"] = .number(Double(idx)) }
+        if let total { record["total"] = .number(Double(total)) }
+        if let finished { record["finished"] = .bool(finished) }
+        if let handedOff { record["handedOff"] = .bool(handedOff) }
+        // The web assigns these straight into state, so a record this client
+        // creates has to be a whole `ConsumeProgress`.
+        for (key, fallback): (String, JSONValue) in [
+            ("idx", .number(0)), ("variant", .object([:])), ("collapsed", .object([:])),
+            ("checks", .object([:])), ("termsSeen", .array([])), ("total", .number(0)),
+            ("finished", .bool(false)), ("handedOff", .bool(false)),
+        ] {
+            record[key] = record[key] ?? fallback
+        }
+        consumeProgress[id] = .object(record)
     }
 }
 
@@ -299,6 +349,7 @@ public extension AtlasStore {
         subject = run.subject
         graph = run.graph
         states = run.states
+        shakyReasons = run.shakyReasons
         interests = run.interests
         goal = run.goal
         dailyTarget = run.target
@@ -307,6 +358,7 @@ public extension AtlasStore {
         cards = run.cards
         calib = run.calib
         reviewed = run.reviewed
+        consumeProgress = run.consumeProgress
         // Only when the row records one: a pre-v9 run's content language is
         // genuinely unknown, and the device preference is the honest fallback.
         if let language = run.language { self.language = language }
@@ -360,6 +412,7 @@ public extension AtlasStore {
         run.subject = subject
         run.graph = graph
         run.states = states
+        run.shakyReasons = shakyReasons
         run.interests = interests
         run.goal = goal
         run.target = dailyTarget
@@ -372,6 +425,7 @@ public extension AtlasStore {
         if loaded == nil { run.language = language }
         run.calib = calib
         run.reviewed = reviewed
+        run.consumeProgress = consumeProgress
         run.cards = cards
         return run
     }
@@ -512,6 +566,7 @@ public extension AtlasStore {
         warm.clear()
         graph = ConceptGraph()
         states = [:]
+        shakyReasons = [:]
         subject = ""
         interests = ""
         paretoPct = paretoLevels[0]
@@ -519,6 +574,7 @@ public extension AtlasStore {
         cards = []
         calib = []
         reviewed = []
+        consumeProgress = [:]
     }
 
     /// `ATLAS_FIXTURES=1` boots straight into a demo run: the map and the node

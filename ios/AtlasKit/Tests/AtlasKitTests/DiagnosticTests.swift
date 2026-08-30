@@ -107,3 +107,19 @@ import Testing
     #expect(!onboarding.message.isEmpty)
     #expect(onboarding.stage == .welcome)
 }
+
+/// A `correctIndex` the model malformed used to grade every option wrong, mark
+/// the concept shaky and queue a gap the learner never earned. It must fail to
+/// decode instead, so the caller's retry sees an ordinary generation failure.
+@Test func aCorrectIndexOutsideTheOptionsFailsToDecode() throws {
+    let json = { (index: Int) in Data("""
+    {"tag":"Limites","q":"?","note":"","nodeId":"lim","difficulty":"easy",
+     "opts":[{"label":"a"},{"label":"b"}],"correctIndex":\(index)}
+    """.utf8) }
+
+    let ok = try JSONDecoder().decode(DiagnosticQuestion.self, from: json(1))
+    #expect(ok.correctIndex == 1)
+    #expect(ok.gap == nil)
+    #expect(throws: (any Error).self) { try JSONDecoder().decode(DiagnosticQuestion.self, from: json(2)) }
+    #expect(throws: (any Error).self) { try JSONDecoder().decode(DiagnosticQuestion.self, from: json(-1)) }
+}

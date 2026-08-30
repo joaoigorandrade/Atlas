@@ -11,7 +11,7 @@ import SwiftUI
 @MainActor
 public final class SessionViewModel: Identifiable {
     public let node: ConceptNode
-    public private(set) var phase: Phase { didSet { warmNext() } }
+    public private(set) var phase: Phase { didSet { warmNext(); noteReading() } }
     /// Set when the last phase hands back — the map takes the screen again.
     public private(set) var finished = false
 
@@ -26,7 +26,7 @@ public final class SessionViewModel: Identifiable {
     public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil) {
         self.node = node
         self.store = store
-        let owed = phaseIndex(store.display[node.id] ?? .unknown)
+        let owed = readingPhaseIndex(store.display[node.id] ?? .unknown, store.reading(node.id))
         self.phase = phase ?? Phase.allCases[max(0, min(owed, Phase.allCases.count - 2))]
         // Arriving is the evidence: a node being worked is Learning, whatever
         // else happens on the screen. Anything already past that is left alone.
@@ -34,6 +34,19 @@ public final class SessionViewModel: Identifiable {
         if state == .unknown { store.states[node.id] = .learning }
         store.markActiveToday()
         warmNext()
+        noteReading()
+    }
+
+    /// The reading record the spiral reads back. Opening Consume is what
+    /// creates it — without that, a node marked Learning above and then left
+    /// would claim both Consume and Socratic (`readingPhaseIndex`). Reaching
+    /// Socratic is the hand-off, and the only thing that ends the reading.
+    private func noteReading() {
+        switch phase {
+        case .consume: store.note(reading: node.id)
+        case .socratic: store.note(reading: node.id, handedOff: true)
+        default: break
+        }
     }
 
     /// Speculate one phase ahead. A learner reading a pass is exactly when the
@@ -64,7 +77,10 @@ public final class SessionViewModel: Identifiable {
     /// proven it transfers. That is exactly Shaky — `connect-complete`.
     public func finishConnect() {
         let state = store.states[node.id] ?? .unknown
-        if state == .unknown || state == .learning { store.states[node.id] = .shaky }
+        if state == .unknown || state == .learning {
+            store.states[node.id] = .shaky
+            store.shakyReasons[node.id] = .connectComplete
+        }
     }
 
     /// The one path to green, and the one path to a spawned gap.
@@ -75,6 +91,7 @@ public final class SessionViewModel: Identifiable {
     public func settleCrucible(_ judgement: CrucibleJudgement, gap: GapSpec) {
         guard judgement.passed else {
             store.states[node.id] = .shaky
+            store.shakyReasons[node.id] = .crucibleFail
             let named = GapSpec(
                 id: gap.id,
                 label: judgement.gapLabel ?? gap.label,

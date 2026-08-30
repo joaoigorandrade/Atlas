@@ -1,116 +1,6 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
-    "Acendendo a fronteira…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lighting the frontier…"
-          }
-        }
-      }
-    },
-    "Assentando as fundações…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Placing the foundations…"
-          }
-        }
-      }
-    },
-    "Explorando o território…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Surveying the territory…"
-          }
-        }
-      }
-    },
-    "Seu mapa não ficou pronto. Tente de novo." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your map didn't come out right. Try again."
-          }
-        }
-      }
-    },
-    "Data da prova" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Exam date"
-          }
-        }
-      }
-    },
-    "Pareto (80/20)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pareto (80/20)"
-          }
-        }
-      }
-    },
-    "Quanto do tema?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How much of the topic?"
-          }
-        }
-      }
-    },
-    "a fatia de resultado real que você quer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "the share of real-world results you want"
-          }
-        }
-      }
-    },
-    "top %lld%%" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "top %lld%%"
-          }
-        }
-      }
-    },
-    "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” is a continent, not a map. Pick a territory to start from:"
-          }
-        }
-      }
-    },
     "%@ atravessou para um enquadramento que você nunca viu. Isso é domínio." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -222,6 +112,16 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld conceitos na fronteira" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld concepts on the frontier"
           }
         }
       }
@@ -445,50 +345,6 @@
         }
       }
     },
-    "~%lld min · no momento exato em que essas memórias estão prestes a desvanecer." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "~%lld min · at the exact moment those memories are about to fade."
-          }
-        }
-      }
-    },
-    "~%lld min restantes" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "~%lld min left"
-          }
-        }
-      }
-    },
-    "~5 minutos para um mapa aceso com uma fronteira clara" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "~5 minutes to a lit map with a clear frontier"
-          }
-        }
-      }
-    },
-    "a interface e o conteúdo gerado" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "the interface and the generated content"
-          }
-        }
-      }
-    },
     "A resposta: %@\nVamos encaixar %@ no seu mapa." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -533,28 +389,6 @@
         }
       }
     },
-    "abrir essa visão" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "open that view"
-          }
-        }
-      }
-    },
-    "abrir esta sessão" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "open this session"
-          }
-        }
-      }
-    },
     "Abrir o mapa →" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -573,6 +407,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open profile"
+          }
+        }
+      }
+    },
+    "Acendendo a fronteira…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lighting the frontier…"
           }
         }
       }
@@ -665,17 +510,6 @@
         }
       }
     },
-    "apagar sua conta" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "delete your account"
-          }
-        }
-      }
-    },
     "Apagar tudo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -705,6 +539,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Support"
+          }
+        }
+      }
+    },
+    "Aprenda isso primeiro" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Learn these first"
           }
         }
       }
@@ -742,13 +586,13 @@
         }
       }
     },
-    "as seções do Consume podem ser ouvidas" : {
-      "extractionState" : "stale",
+    "Assentando as fundações…" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Consume sections can be listened to"
+            "value" : "Placing the foundations…"
           }
         }
       }
@@ -764,17 +608,6 @@
         }
       }
     },
-    "Atlas · aprenda qualquer coisa, a fundo" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atlas · learn anything, deeply"
-          }
-        }
-      }
-    },
     "Atlas está lendo sua resposta…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -786,35 +619,13 @@
         }
       }
     },
-    "avaliar sua explicação" : {
+    "Atlas · aprenda qualquer coisa, a fundo" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "grade your explanation"
-          }
-        }
-      }
-    },
-    "avaliar sua resposta" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "grade your answer"
-          }
-        }
-      }
-    },
-    "avaliar sua tentativa" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "grade your attempt"
+            "value" : "Atlas · learn anything, deeply"
           }
         }
       }
@@ -929,17 +740,6 @@
         }
       }
     },
-    "cartões em rotação" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "cards in rotation"
-          }
-        }
-      }
-    },
     "Checagem" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -951,13 +751,12 @@
         }
       }
     },
-    "Começar · %@" : {
-      "extractionState" : "stale",
+    "Começar · Consume" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Start · %@"
+            "value" : "Begin · Consume"
           }
         }
       }
@@ -995,13 +794,12 @@
         }
       }
     },
-    "conceitos dominados" : {
-      "extractionState" : "stale",
+    "Compreendido e conectado — agora prove que isso se transfere no Crisol." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "concepts mastered"
+            "value" : "Understood and wired — now prove it transfers in the Crucible."
           }
         }
       }
@@ -1138,6 +936,16 @@
         }
       }
     },
+    "Continuar · Feynman" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue · Feynman"
+          }
+        }
+      }
+    },
     "Correto" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1145,6 +953,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Correct"
+          }
+        }
+      }
+    },
+    "Corrigir esta lacuna" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix this gap"
           }
         }
       }
@@ -1267,6 +1085,17 @@
         }
       }
     },
+    "Data da prova" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exam date"
+          }
+        }
+      }
+    },
     "De novo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1289,13 +1118,12 @@
         }
       }
     },
-    "dias de sequência" : {
-      "extractionState" : "stale",
+    "Desconhecido" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "day streak"
+            "value" : "Unknown"
           }
         }
       }
@@ -1472,6 +1300,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "English"
+          }
+        }
+      }
+    },
+    "Enquadrar o mapa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frame the map"
           }
         }
       }
@@ -1696,50 +1534,6 @@
         }
       }
     },
-    "escrever a próxima pergunta" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "write the next question"
-          }
-        }
-      }
-    },
-    "escrever os tópicos" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "write the topics"
-          }
-        }
-      }
-    },
-    "escrever seu problema" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "write your problem"
-          }
-        }
-      }
-    },
-    "escrever sua leitura" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "write your reading"
-          }
-        }
-      }
-    },
     "Espiral de fases" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1762,13 +1556,12 @@
         }
       }
     },
-    "ex.: xadrez, investimentos, culinária" : {
-      "extractionState" : "stale",
+    "Eu já sei isso — pular" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "e.g. chess, investing, cooking"
+            "value" : "I already know this — skip it"
           }
         }
       }
@@ -1806,6 +1599,17 @@
         }
       }
     },
+    "Explorando o território…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surveying the territory…"
+          }
+        }
+      }
+    },
     "Exportar cartões (CSV)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1828,39 +1632,6 @@
         }
       }
     },
-    "Faça o vínculo" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Make the link"
-          }
-        }
-      }
-    },
-    "Fácil" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Easy"
-          }
-        }
-      }
-    },
-    "fale em vez de digitar" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "speak instead of typing"
-          }
-        }
-      }
-    },
     "Falta de confiança" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1879,6 +1650,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Do %@ first"
+          }
+        }
+      }
+    },
+    "Faça o vínculo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make the link"
           }
         }
       }
@@ -1949,6 +1731,17 @@
         }
       }
     },
+    "Fácil" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easy"
+          }
+        }
+      }
+    },
     "Gerando seu mapa" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1982,17 +1775,6 @@
         }
       }
     },
-    "Início" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Home"
-          }
-        }
-      }
-    },
     "Instável" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2004,17 +1786,6 @@
         }
       }
     },
-    "Instável · revisar" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shaky · review"
-          }
-        }
-      }
-    },
     "Interesses — usados para analogias" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2022,6 +1793,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Interests — used for analogies"
+          }
+        }
+      }
+    },
+    "Início" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
           }
         }
       }
@@ -2044,6 +1826,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Go to the frontier"
+          }
+        }
+      }
+    },
+    "Ir para o mapa →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to the map →"
           }
         }
       }
@@ -2077,17 +1869,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "An account with that email already exists — sign in with it."
-          }
-        }
-      }
-    },
-    "Já sei isso — pular" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I already know this — skip"
           }
         }
       }
@@ -2132,17 +1913,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Read aloud"
-          }
-        }
-      }
-    },
-    "lendo o tema…" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "reading the topic…"
           }
         }
       }
@@ -2224,17 +1994,6 @@
         }
       }
     },
-    "Média" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Medium"
-          }
-        }
-      }
-    },
     "Mesmo conceito, um degrau abaixo — agora com o que faltou já nomeado." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2268,17 +2027,6 @@
         }
       }
     },
-    "microfone em toda caixa de resposta" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "a mic in every answer box"
-          }
-        }
-      }
-    },
     "Montar meu mapa →" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2286,39 +2034,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Build my map →"
-          }
-        }
-      }
-    },
-    "montar seu mapa" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "build your map"
-          }
-        }
-      }
-    },
-    "montar sua revisão" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "build your review"
-          }
-        }
-      }
-    },
-    "montar sua teia" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "build your web"
           }
         }
       }
@@ -2345,6 +2060,17 @@
         }
       }
     },
+    "Média" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medium"
+          }
+        }
+      }
+    },
     "Nada a recuperar agora. O próximo cartão volta assim que a memória começar a esfriar." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2363,6 +2089,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing to review yet. Learn a concept and it comes back here."
+          }
+        }
+      }
+    },
+    "Nivelamento · adaptativo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placement · adaptive"
+          }
+        }
+      }
+    },
+    "Novo no Atlas? %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New to Atlas? %@"
           }
         }
       }
@@ -2433,28 +2181,6 @@
         }
       }
     },
-    "Nivelamento · adaptativo" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Placement · adaptive"
-          }
-        }
-      }
-    },
-    "Novo no Atlas? %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New to Atlas? %@"
-          }
-        }
-      }
-    },
     "O idioma da interface só muda quando o app abre de novo. Vamos fechá-lo — toque no Atlas para voltar." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2462,6 +2188,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The interface language only changes when the app opens again. We'll close it — tap Atlas to come back."
+          }
+        }
+      }
+    },
+    "O nivelamento não ficou pronto desta vez. Seu mapa está — siga por ele e marque o que já sabe pelo caminho." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The placement didn't come through this time. Your map did — follow it and mark what you already know as you go."
           }
         }
       }
@@ -2532,24 +2268,12 @@
         }
       }
     },
-    "opcional" : {
-      "extractionState" : "stale",
+    "Originado de" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "optional"
-          }
-        }
-      }
-    },
-    "orienta o que priorizamos" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "steers what we prioritise"
+            "value" : "Spawned from"
           }
         }
       }
@@ -2576,6 +2300,17 @@
         }
       }
     },
+    "Pareto (80/20)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pareto (80/20)"
+          }
+        }
+      }
+    },
     "Parte disso atravessou, parte não. O que ficou está no seu mapa agora — em vermelho, sob o conceito." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2583,6 +2318,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Part of it carried over, part didn't. What's left is on your map now — in red, under the concept."
+          }
+        }
+      }
+    },
+    "Passagem socrática" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Socratic pass"
           }
         }
       }
@@ -2620,6 +2365,16 @@
         }
       }
     },
+    "Pergunta %lld de %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Question %lld of %lld"
+          }
+        }
+      }
+    },
     "Podamos o que você já domina e acendemos sua fronteira — os conceitos que você está pronto para aprender agora." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2653,17 +2408,6 @@
         }
       }
     },
-    "Pré-requisitos" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prerequisites"
-          }
-        }
-      }
-    },
     "Preferências e notificações" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2671,17 +2415,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preferences and notifications"
-          }
-        }
-      }
-    },
-    "preparar o nivelamento" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "prepare the placement"
           }
         }
       }
@@ -2697,6 +2430,17 @@
         }
       }
     },
+    "Pré-requisitos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prerequisites"
+          }
+        }
+      }
+    },
     "Próxima pergunta →" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2704,17 +2448,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next question →"
-          }
-        }
-      }
-    },
-    "próximo" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "next"
           }
         }
       }
@@ -2759,6 +2492,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Skip to %@ →"
+          }
+        }
+      }
+    },
+    "Quanto do tema?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much of the topic?"
           }
         }
       }
@@ -2851,17 +2595,6 @@
         }
       }
     },
-    "refazer" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "redo"
-          }
-        }
-      }
-    },
     "Relatório de lacunas" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2869,6 +2602,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gap report"
+          }
+        }
+      }
+    },
+    "Reparo direcionado" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Targeted repair"
           }
         }
       }
@@ -2906,6 +2649,26 @@
         }
       }
     },
+    "Retomar a leitura" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume reading"
+          }
+        }
+      }
+    },
+    "Revisar agora" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review now"
+          }
+        }
+      }
+    },
     "Revisão" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2913,6 +2676,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Review"
+          }
+        }
+      }
+    },
+    "Revisão de hoje" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's review"
           }
         }
       }
@@ -2928,13 +2702,24 @@
         }
       }
     },
-    "Revisão de hoje" : {
+    "SUBESTIMA" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Today's review"
+            "value" : "UNDERRATES"
+          }
+        }
+      }
+    },
+    "SUPERESTIMA" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OVERRATES"
           }
         }
       }
@@ -3071,6 +2856,17 @@
         }
       }
     },
+    "Seu mapa não ficou pronto. Tente de novo." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your map didn't come out right. Try again."
+          }
+        }
+      }
+    },
     "Seu mapa, sequência e progresso ficam na sua conta — entre com seu e-mail e senha." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3159,17 +2955,6 @@
         }
       }
     },
-    "Sólido" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Solid"
-          }
-        }
-      }
-    },
     "Sua fronteira" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3192,35 +2977,13 @@
         }
       }
     },
-    "sua unidade de sequência" : {
+    "Sólido" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "your streak unit"
-          }
-        }
-      }
-    },
-    "SUBESTIMA" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "UNDERRATES"
-          }
-        }
-      }
-    },
-    "SUPERESTIMA" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OVERRATES"
+            "value" : "Solid"
           }
         }
       }
@@ -3243,6 +3006,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Try again"
+          }
+        }
+      }
+    },
+    "Tentar de novo · Crucible" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-attempt · Crucible"
           }
         }
       }
@@ -3291,17 +3064,6 @@
         }
       }
     },
-    "território dominado" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "territory mastered"
-          }
-        }
-      }
-    },
     "Território dominado" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3324,6 +3086,17 @@
         }
       }
     },
+    "Transferência confirmada" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer confirmed"
+          }
+        }
+      }
+    },
     "Tópico %lld" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3335,13 +3108,12 @@
         }
       }
     },
-    "Transferência confirmada" : {
-      "extractionState" : "stale",
+    "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente o Crisol de novo para firmar." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transfer confirmed"
+            "value" : "A review card on this slipped — retention is softening. Try the Crucible again to firm it up."
           }
         }
       }
@@ -3364,17 +3136,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A topic, a pasted syllabus…"
-          }
-        }
-      }
-    },
-    "unidade de sequência" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "streak unit"
           }
         }
       }
@@ -3519,6 +3280,26 @@
         }
       }
     },
+    "Você hesitou nisso no nivelamento — provavelmente é frágil. Uma tentativa no Crisol mostra se resiste." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You hesitated on this in the placement — it is likely fragile. One Crucible attempt shows whether it holds."
+          }
+        }
+      }
+    },
+    "Você já tem um mapa de %@. Abra-o em Seus mapas, ou escolha outro nome." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You already have a map of %@. Open it in Your maps, or pick another name."
+          }
+        }
+      }
+    },
     "Você pediu bastante coisa em pouco tempo. Espere um instante e tente de novo." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3548,6 +3329,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You give yourself %lld%% and deliver %lld%%. That's fluency, not mastery — worth another Crucible here."
+          }
+        }
+      }
+    },
+    "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente o Crisol de novo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You feel confident here, but your last application failed. That is fluency, not mastery — try the Crucible again."
           }
         }
       }
@@ -3585,17 +3376,6 @@
         }
       }
     },
-    "voce@exemplo.com" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "you@example.com"
-          }
-        }
-      }
-    },
     "Voltar" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3625,6 +3405,423 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voice"
+          }
+        }
+      }
+    },
+    "a fatia de resultado real que você quer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the share of real-world results you want"
+          }
+        }
+      }
+    },
+    "a interface e o conteúdo gerado" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the interface and the generated content"
+          }
+        }
+      }
+    },
+    "abrir essa visão" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "open that view"
+          }
+        }
+      }
+    },
+    "abrir esta sessão" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "open this session"
+          }
+        }
+      }
+    },
+    "apagar sua conta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "delete your account"
+          }
+        }
+      }
+    },
+    "as seções do Consume podem ser ouvidas" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consume sections can be listened to"
+          }
+        }
+      }
+    },
+    "avaliar sua explicação" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grade your explanation"
+          }
+        }
+      }
+    },
+    "avaliar sua resposta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grade your answer"
+          }
+        }
+      }
+    },
+    "avaliar sua tentativa" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grade your attempt"
+          }
+        }
+      }
+    },
+    "cartões em rotação" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cards in rotation"
+          }
+        }
+      }
+    },
+    "conceitos dominados" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "concepts mastered"
+          }
+        }
+      }
+    },
+    "dias de sequência" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "day streak"
+          }
+        }
+      }
+    },
+    "escrever a próxima pergunta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "write the next question"
+          }
+        }
+      }
+    },
+    "escrever os tópicos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "write the topics"
+          }
+        }
+      }
+    },
+    "escrever seu problema" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "write your problem"
+          }
+        }
+      }
+    },
+    "escrever sua leitura" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "write your reading"
+          }
+        }
+      }
+    },
+    "ex.: xadrez, investimentos, culinária" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. chess, investing, cooking"
+          }
+        }
+      }
+    },
+    "fale em vez de digitar" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "speak instead of typing"
+          }
+        }
+      }
+    },
+    "lendo o tema…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reading the topic…"
+          }
+        }
+      }
+    },
+    "microfone em toda caixa de resposta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a mic in every answer box"
+          }
+        }
+      }
+    },
+    "montar seu mapa" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "build your map"
+          }
+        }
+      }
+    },
+    "montar sua revisão" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "build your review"
+          }
+        }
+      }
+    },
+    "montar sua teia" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "build your web"
+          }
+        }
+      }
+    },
+    "opcional" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "optional"
+          }
+        }
+      }
+    },
+    "orienta o que priorizamos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "steers what we prioritise"
+          }
+        }
+      }
+    },
+    "preparar o nivelamento" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "prepare the placement"
+          }
+        }
+      }
+    },
+    "próximo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "next"
+          }
+        }
+      }
+    },
+    "refazer" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "redo"
+          }
+        }
+      }
+    },
+    "sua unidade de sequência" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "your streak unit"
+          }
+        }
+      }
+    },
+    "território dominado" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "territory mastered"
+          }
+        }
+      }
+    },
+    "top %lld%%" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "top %lld%%"
+          }
+        }
+      }
+    },
+    "uma passagem · fecha esta lacuna" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "one pass · closes this gap"
+          }
+        }
+      }
+    },
+    "unidade de sequência" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "streak unit"
+          }
+        }
+      }
+    },
+    "voce@exemplo.com" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "you@example.com"
+          }
+        }
+      }
+    },
+    "~%lld min restantes" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "~%lld min left"
+          }
+        }
+      }
+    },
+    "~%lld min · no momento exato em que essas memórias estão prestes a desvanecer." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "~%lld min · at the exact moment those memories are about to fade."
+          }
+        }
+      }
+    },
+    "~5 minutos para um mapa aceso com uma fronteira clara" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "~5 minutes to a lit map with a clear frontier"
+          }
+        }
+      }
+    },
+    "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is a continent, not a map. Pick a territory to start from:"
           }
         }
       }

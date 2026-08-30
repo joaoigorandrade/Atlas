@@ -28,6 +28,13 @@ struct PlacementView: View {
         .background(Palette.paper)
         .animation(Motion.enter, value: onboarding.takingPlacement)
         .animation(Motion.enter, value: onboarding.placementDone)
+        // The screen changes under VoiceOver with focus wherever it was, and the
+        // failure sentence lands below the copy with no focus change — neither
+        // is reported unless it is said.
+        .onChange(of: onboarding.message) { _, sentence in
+            guard !sentence.isEmpty else { return }
+            AccessibilityNotification.Announcement(sentence).post()
+        }
     }
 
     // MARK: - Screen 7, and the same shape when the placement ends
@@ -40,17 +47,10 @@ struct PlacementView: View {
                 Text("Seu mapa está pronto.")
                     .font(.atlas(.serif, 26))
                     .foregroundStyle(Palette.ink)
-                Text(onboarding.placementDone
-                     ? "Podamos o que você já domina e acendemos sua fronteira — os conceitos que você está pronto para aprender agora."
-                     : "Quer um nivelamento rápido antes? \(diagnosticCount) perguntas adaptativas podam o que você já sabe e acendem sua fronteira real. Opcional — você pode ir direto.")
+                Text(onboarding.forkBody)
                     .font(.atlas(.sans, 14))
                     .foregroundStyle(Palette.inkMuted)
-                if !onboarding.message.isEmpty {
-                    Text(verbatim: onboarding.message)
-                        .font(.atlas(.sans, 13.5))
-                        .foregroundStyle(Palette.amberInk)
-                        .padding(.top, 6)
-                }
+                notice.padding(.top, 6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Metrics.gutter)
@@ -60,8 +60,14 @@ struct PlacementView: View {
                 if onboarding.placementDone {
                     CTAButton("Começar →", hero: true) { onboarding.finish() }
                 } else {
-                    CTAButton("Testar meu conhecimento →", hero: true) { onboarding.takePlacement() }
-                    GhostButton("Ir direto para o mapa") { onboarding.finish() }
+                    // No first question means no test to offer: the map is the
+                    // only way on, so it stops being the quiet second option.
+                    if onboarding.placementUnavailable {
+                        CTAButton("Ir para o mapa →", hero: true) { onboarding.finish() }
+                    } else {
+                        CTAButton("Testar meu conhecimento →", hero: true) { onboarding.takePlacement() }
+                        GhostButton("Ir direto para o mapa") { onboarding.finish() }
+                    }
                     // The stream died with concepts already on the map: what
                     // landed is usable, and rebuilding is the learner's call.
                     if onboarding.mapIncomplete {
@@ -70,15 +76,35 @@ struct PlacementView: View {
                 }
             }
         }
+        .onAppear { AccessibilityNotification.Announcement(String(localized: "Seu mapa está pronto.")).post() }
+    }
+
+    /// The failure sentence, wherever the learner is standing when it happens.
+    /// It used to live only in `fork`, which is hidden for the whole placement —
+    /// so a writer that stumbled at question 4 said nothing until one tap later,
+    /// underneath "Seu mapa está pronto."
+    @ViewBuilder private var notice: some View {
+        if !onboarding.message.isEmpty {
+            Text(verbatim: onboarding.message)
+                .font(.atlas(.sans, 13.5))
+                .foregroundStyle(Palette.amberInk)
+        }
     }
 
     // MARK: - Screen 8, one question at a time
 
     private var questions: some View {
         VStack(spacing: 0) {
-            SegmentBar((0..<onboarding.total).map { $0 < onboarding.answered ? Palette.accent : nil })
+            SegmentBar(onboarding.rail)
+                .accessibilityElement()
+                .accessibilityLabel(onboarding.railLabel)
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 16)
+
+            notice
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Metrics.gutter)
+                .padding(.bottom, 12)
 
             if let question = onboarding.question {
                 ScrollView {
@@ -89,8 +115,16 @@ struct PlacementView: View {
                             .foregroundStyle(Palette.ink)
                             .padding(.vertical, 14)
                         options(question)
-                        if let verdict = onboarding.verdict {
-                            self.verdict(verdict).padding(.top, 22)
+                        // What the question is actually probing — the model
+                        // writes it on every call.
+                        if !question.note.isEmpty {
+                            Text(verbatim: question.note)
+                                .font(.atlas(.sans, 13))
+                                .foregroundStyle(Palette.inkFaint)
+                                .padding(.top, 12)
+                        }
+                        if let kicker = onboarding.verdictKicker, let body = onboarding.verdictBody {
+                            verdict(kicker, body).padding(.top, 22)
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
@@ -105,7 +139,7 @@ struct PlacementView: View {
 
             if onboarding.verdict != nil {
                 Dock {
-                    CTAButton(onboarding.answered >= onboarding.total ? "Ver seu mapa →" : "Próxima pergunta →") {
+                    CTAButton(onboarding.noMoreQuestions ? "Ver seu mapa →" : "Próxima pergunta →") {
                         onboarding.next()
                     }
                 }
@@ -158,27 +192,14 @@ struct PlacementView: View {
 
     private func chosen(_ index: Int) -> Bool { onboarding.verdict?.picked == index }
 
-    /// The truth about what was written to the map — a discounted slip pruned
-    /// the concept rather than adding to it, and saying otherwise describes a
-    /// map the learner doesn't have.
-    private func verdict(_ verdict: Verdict) -> some View {
-        let tag = verdict.question.tag
-        // A malformed `correctIndex` is the model's mistake, not the learner's:
-        // say the rest and leave the answer out rather than trapping.
-        let answer = verdict.question.opts[safe: verdict.question.correctIndex]?.label ?? ""
-        return VStack(alignment: .leading, spacing: 6) {
-            Kicker(verdict.correct ? "Correto" : (verdict.slipped ? "Quase lá — contado como escorregão" : "Quase lá"),
-                   tint: verdict.correct ? Palette.accent : Palette.amberInk, size: 12)
-            Text(verdict.correct
-                 ? "\(tag) e tudo abaixo dele foi marcado como sabido."
-                 : verdict.slipped
-                    ? "A resposta: \(answer)\nVocê acertou perguntas mais difíceis, então \(tag) continua marcado como sabido — nada foi adicionado ao seu mapa."
-                    : "A resposta: \(answer)\nVamos encaixar \(tag) no seu mapa.")
+    private func verdict(_ kicker: LocalizedStringKey, _ body: LocalizedStringKey) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Kicker(kicker, tint: onboarding.verdictTint, size: 12)
+            Text(body)
                 .font(.atlas(.sans, 14))
                 .foregroundStyle(Palette.inkMuted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private typealias Verdict = OnboardingViewModel.Verdict
 }

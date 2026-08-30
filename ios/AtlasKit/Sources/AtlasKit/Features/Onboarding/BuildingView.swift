@@ -79,9 +79,11 @@ struct MapBackdrop: View {
         // Derived once per redraw, not once per drawn frame: the map is
         // animating in behind screens 6 and 7 while it streams.
         let shown = displayStates(states, graph)
+        let prepared = PreparedGraph(graph)
         GeometryReader { geo in
             Canvas { context, size in
-                drawGraph(&context, graph, shown, .fitting(graph, in: size, inset: 60), labels: false)
+                drawGraph(&context, prepared, shown, .fitting(graph, in: size, inset: 60),
+                          viewport: size, labels: false)
             }
             .opacity(opacity)
             .animation(Motion.enter, value: graph.nodes.count)
@@ -89,5 +91,8 @@ struct MapBackdrop: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        // Decorative everywhere it is used: an unlabelled canvas of the map
+        // behind the copy, which the copy already says out loud.
+        .accessibilityHidden(true)
     }
 }

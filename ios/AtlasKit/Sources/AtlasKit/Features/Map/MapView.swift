@@ -16,9 +16,14 @@ public struct MapView: View {
             TopBar {
                 Text(verbatim: "Atlas").font(.atlas(.serif, 19, weight: .semibold)).foregroundStyle(Palette.ink)
             } trailing: {
-                Chip(verbatim: "\(store.frontier.count)", dot: NodeState.frontier.color,
-                     tint: Palette.amberInk, background: Palette.amberBg)
-                    .contentTransition(.numericText())
+                // A finished map has no frontier: an amber "0" would read as
+                // work left over.
+                if store.frontier.count > 0 {
+                    Chip(verbatim: "\(store.frontier.count)", dot: NodeState.frontier.color,
+                         tint: Palette.amberInk, background: Palette.amberBg)
+                        .contentTransition(.numericText())
+                        .accessibilityLabel(Text("\(store.frontier.count) conceitos na fronteira"))
+                }
             }
 
             canvasLayer
@@ -55,23 +60,39 @@ public struct MapView: View {
 
     private var canvasLayer: some View {
         GeometryReader { geo in
-            let view = model.live
-            Canvas { context, _ in
-                drawGraph(&context, store.graph, store.display, view, selected: model.selection?.id)
-            }
+            // Keep this read inside the GeometryReader: Observation tracks per
+            // property, so a pan frame invalidates this closure only. Hoisted
+            // two lines up it would put the sheet's percentage animation and
+            // the frontier pill on the drag loop.
+            let view = model.transform
+            let prepared = model.prepared(store.graph)
+            GraphCanvas(transform: view, prepared: prepared, shown: store.display,
+                        selected: model.selection?.id)
             .contentShape(.rect)
             .gesture(
-                DragGesture()
-                    .onChanged { model.pan = $0.translation }
-                    .onEnded { _ in model.settle() }
+                // From the first pixel: the default 10pt minimum arrives as a
+                // 10pt jump on the first frame. A tap produces no drag update,
+                // so `onTapGesture` still wins short touches.
+                //
+                // Pan only, on purpose: one finger cannot mean both "move the
+                // map" and "move this node", and on a phone-sized viewport
+                // panning is the one worth having. Rearranging a map is a desk
+                // job — the browser owns the drag, and the positions it writes
+                // are folded onto the nodes on load (`RunSnapshot.init`), so
+                // this screen draws whatever layout the learner arranged there.
+                DragGesture(minimumDistance: 0)
+                    .onChanged { model.pan($0.translation) }
+                    .onEnded { _ in model.endPan() }
                     .simultaneously(with: MagnifyGesture()
-                        .onChanged { model.zoom = $0.magnification }
-                        .onEnded { _ in model.settle() })
+                        .onChanged { model.magnify($0.magnification, around: $0.startLocation) }
+                        .onEnded { _ in model.endZoom() })
             )
             .onTapGesture { point in
                 if let node = model.node(store.graph, at: point) { open(node) }
             }
-            .sensoryFeedback(.selection, trigger: model.selection?.id)
+            // Only on opening a node: closing the drawer clears the selection,
+            // and a buzz on dismiss reads as a second, phantom tap.
+            .sensoryFeedback(.selection, trigger: model.selection?.id) { _, new in new != nil }
             .onAppear { model.fit(store.graph, in: geo.size) }
             .onChange(of: geo.size) { _, size in model.resize(store.graph, in: size) }
             // Another map opened underneath this screen — "Seus mapas" switches
@@ -81,7 +102,30 @@ public struct MapView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .overlay(alignment: .bottomTrailing) { frontierButton.padding(16) }
+        .overlay(alignment: .bottomTrailing) { controls.padding(16) }
+    }
+
+    /// The two things a learner can ask of the view itself: put it back, and
+    /// take me to the next node.
+    private var controls: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            if model.moved {
+                Button { model.reframe(store.graph) } label: {
+                    Image(systemName: "arrow.down.left.and.arrow.up.right")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Palette.ink)
+                        .frame(width: Metrics.tap, height: Metrics.tap)
+                        .background(Palette.card, in: .circle)
+                        .overlay { Circle().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                        .shadow(color: Palette.ink.opacity(0.10), radius: 10, y: 6)
+                }
+                .pressable()
+                .accessibilityLabel(Text("Enquadrar o mapa"))
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
+            frontierButton
+        }
+        .animation(Motion.standard, value: model.moved)
     }
 
     @ViewBuilder
@@ -128,6 +172,11 @@ public struct MapView: View {
                 }
                 ProgressView(value: store.mastered).tint(Palette.accent)
             }
+            // The label, the figure and the bar are one reading, not three —
+            // the bar alone has no name at all.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Território dominado"))
+            .accessibilityValue(Text(verbatim: store.mastered.formatted(.percent.precision(.fractionLength(0)))))
 
             if let next = store.frontier.first {
                 VStack(alignment: .leading, spacing: 7) {

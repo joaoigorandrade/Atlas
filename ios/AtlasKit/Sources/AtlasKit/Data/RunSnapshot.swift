@@ -32,9 +32,16 @@ public struct RunSnapshot: Sendable, Identifiable {
     /// run and not of the device reading it. Nil on a row written before the
     /// field existed: guessing would freeze the wrong answer permanently.
     public var language: String?
+    /// Why each Shaky node is Shaky — the web's `shakyReasons`, which both
+    /// clients write and both read. Keyed by node id.
+    public var shakyReasons: [String: ShakyReason] = [:]
     public var calib: [CalibSample] = []
     public var reviewed: Set<String> = []
     public var cards: [ScheduledCard] = []
+    /// The browser's reading records, keyed by node id — held as JSON because
+    /// this client reads two fields of each and writes four, and the rest
+    /// (lenses, collapses, checks) belongs to a reader only the browser has.
+    public var consumeProgress: [String: JSONValue] = [:]
     /// The run's generated content — `run_states.caches`, a column of its own
     /// since the browser split it out of the snapshot: large, changed only by a
     /// generation, and not what the map draws. Held whole and merged on write;
@@ -76,6 +83,20 @@ public extension RunSnapshot {
         form = row["form"]?.fields ?? [:]
         adherence = row["adherence"]?.fields ?? [:]
         graph = Self.read(row, "graph") ?? ConceptGraph()
+        // The browser draws from `positions`, never from the graph's own
+        // coordinates: every node the learner drags at a desk moves there and
+        // nowhere else. Folding it onto the nodes on the way in is what makes
+        // the two clients draw the same map, and leaves this side with one
+        // source of position rather than two that can disagree.
+        if let positions = row["positions"]?.fields {
+            for index in graph.nodes.indices {
+                guard let point = positions[graph.nodes[index].id]?.fields,
+                      case .number(let x)? = point["x"], case .number(let y)? = point["y"]
+                else { continue }
+                graph.nodes[index].x = x
+                graph.nodes[index].y = y
+            }
+        }
         states = Self.read(row, "states") ?? [:]
         interests = Self.read(form, "interests") ?? ""
         goal = Self.read(form, "goal") ?? .exam
@@ -83,14 +104,17 @@ public extension RunSnapshot {
         paretoPct = Self.read(form, "paretoPct") ?? paretoLevels[0]
         examDate = Self.read(form, "examDate") ?? ""
         language = Self.read(row, "language")
+        shakyReasons = Self.read(row, "shakyReasons") ?? [:]
         calib = Self.read(row, "calibSamples") ?? []
         reviewed = Set(Self.read(row, "reviewedNodes") ?? [String]())
         cards = Self.read(row, "iosCards") ?? []
+        consumeProgress = row["consumeProgress"]?.fields ?? [:]
         // Everything this client renders is now held as itself; the rest stays
         // as JSON so the merge below can hand it straight back.
         extras = row
         for key in ["v", "form", "adherence", "graph", "states", "language",
-                    "calibSamples", "reviewedNodes", "iosCards"] {
+                    "shakyReasons", "calibSamples", "reviewedNodes", "iosCards",
+                    "consumeProgress"] {
             extras[key] = nil
         }
     }
@@ -101,9 +125,11 @@ public extension RunSnapshot {
         row["v"] = .number(9)
         row["graph"] = (try? JSONValue(encoding: graph)) ?? .object([:])
         row["states"] = (try? JSONValue(encoding: states)) ?? .object([:])
+        row["shakyReasons"] = (try? JSONValue(encoding: shakyReasons)) ?? .object([:])
         row["calibSamples"] = (try? JSONValue(encoding: calib)) ?? .array([])
         row["reviewedNodes"] = .array(reviewed.sorted().map(JSONValue.string))
         row["iosCards"] = (try? JSONValue(encoding: cards)) ?? .array([])
+        row["consumeProgress"] = .object(consumeProgress)
         if let language { row["language"] = .string(language) }
 
         var form = self.form
@@ -121,8 +147,15 @@ public extension RunSnapshot {
         row["adherence"] = .object(Self.whole(adherence))
 
         // Same reason: three more keys the web assigns straight into state
-        // without a fallback of its own.
-        row["positions"] = row["positions"] ?? .object([:])
+        // without a fallback of its own. An *empty* `positions` is as fatal as
+        // a missing one — the browser indexes it per node and dereferences the
+        // result unguarded (`MapCanvas.tsx:306`), and `attachGap` refuses to
+        // hang a gap off a parent that has no entry — so every node on the map
+        // gets one, seeded exactly as the web seeds it at build time.
+        let placed = row["positions"]?.fields ?? [:]
+        row["positions"] = .object(Dictionary(uniqueKeysWithValues: graph.nodes.map {
+            ($0.id, placed[$0.id] ?? .object(["x": .number($0.x), "y": .number($0.y)]))
+        }))
         row["spawnedIds"] = row["spawnedIds"] ?? .array(
             graph.nodes.filter { $0.gap == true }.map { .string($0.id) }
         )
