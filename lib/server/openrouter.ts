@@ -338,9 +338,16 @@ async function* chatStreamOnce(
         let delta: string | undefined;
         try {
           const evt = JSON.parse(data) as {
-            choices?: Array<{ delta?: { content?: string } }>;
+            choices?: Array<{ delta?: { content?: string; reasoning?: string } }>;
           };
-          delta = evt.choices?.[0]?.delta?.content;
+          const chunk = evt.choices?.[0]?.delta;
+          // A reasoning model (deepseek-v4-flash, r1, …) thinks out loud before
+          // it writes a word: the content deltas start well past FIRST_TOKEN_MS
+          // on a map-sized prompt. Reasoning is not content and is never
+          // yielded, but it is proof the model is alive — so it disarms the
+          // silence deadline and leaves REQUEST_MS as the only bound.
+          if (chunk?.reasoning) disarm();
+          delta = chunk?.content;
         } catch {
           // A malformed SSE frame (rare keep-alive/comment) — skip it.
           continue;
