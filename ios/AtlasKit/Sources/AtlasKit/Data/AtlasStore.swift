@@ -34,10 +34,29 @@ public final class AtlasStore {
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
 
     /// The web's `consumeProgress`, held as JSON and keyed by node id. This
-    /// client reads two of its fields (`readingPhaseIndex`) and writes four;
-    /// the browser's reader owns the rest — lenses, collapses, checks — so a
-    /// record is *merged* into rather than replaced. See `note(reading:)`.
+    /// client reads four of its fields (`readingPhaseIndex`, and where the
+    /// learner got to) and writes five; the browser's reader owns the rest —
+    /// lenses, collapses, terms — so a record is *merged* into rather than
+    /// replaced. See `note(reading:)`.
     public var consumeProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
+
+    /// How often each lens has been opened. SPEC §6's adaptive modality is a
+    /// tally and a marked chip, not a second content path: the way a learner
+    /// reaches for "Analogia" three sections running is the app's only evidence
+    /// of how they prefer to be taught.
+    ///
+    /// ponytail: this run only, not persisted — it is a hint on a chip, and
+    /// carrying it into `consumeProgress.variant` can wait until something
+    /// other than a border reads it.
+    public private(set) var lensPicks: [AltKey: Int] = [:]
+
+    /// The lens to mark on later sections, once one is clearly the favourite.
+    public var preferredLens: AltKey? {
+        guard let top = lensPicks.max(by: { $0.value < $1.value }), top.value >= 2 else { return nil }
+        return top.key
+    }
+
+    public func noteLens(_ lens: AltKey) { lensPicks[lens, default: 0] += 1 }
 
     /// Every saved run, freshest first — what "Seus mapas" lists. The open one
     /// is in here too, a debounce behind; `maps` answers that one from live
@@ -188,7 +207,26 @@ public extension AtlasStore {
     func reading(_ id: String) -> ReadingProgress? {
         guard let record = consumeProgress[id]?.fields else { return nil }
         func flag(_ key: String) -> Bool { if case .bool(true)? = record[key] { true } else { false } }
-        return ReadingProgress(finished: flag("finished"), handedOff: flag("handedOff"))
+        func count(_ key: String) -> Int { if case .number(let n)? = record[key] { Int(n) } else { 0 } }
+        // The browser writes `checks` as `{ chunkId: true }`, one key per
+        // section answered.
+        let passed = (record["checks"]?.fields ?? [:]).compactMap { id, value -> String? in
+            if case .bool(true) = value { id } else { nil }
+        }
+        return ReadingProgress(
+            idx: count("idx"), total: count("total"), checks: Set(passed),
+            finished: flag("finished"), handedOff: flag("handedOff")
+        )
+    }
+
+    /// The phase a session on this node would open on, and so the one worth
+    /// warming before the tap. Clamped short of `.retained`, which the Review
+    /// tab owns and the spiral shell has no screen for.
+    func owedPhase(_ node: ConceptNode) -> Phase {
+        let owed = readingPhaseIndex(
+            display[node.id] ?? .unknown, reviewed: reviewed.contains(node.id), reading(node.id)
+        )
+        return Phase.allCases[max(0, min(owed, Phase.allCases.count - 2))]
     }
 
     /// Write the fields this client owns into a node's record, leaving every
@@ -196,11 +234,21 @@ public extension AtlasStore {
     /// field means "no news", not "false".
     func note(
         reading id: String, idx: Int? = nil, total: Int? = nil,
-        finished: Bool? = nil, handedOff: Bool? = nil
+        finished: Bool? = nil, handedOff: Bool? = nil, passed chunk: String? = nil
     ) {
         var record = consumeProgress[id]?.fields ?? [:]
         if let idx { record["idx"] = .number(Double(idx)) }
-        if let total { record["total"] = .number(Double(total)) }
+        if let total {
+            // Never downwards: a pass still streaming reports fewer sections
+            // than it will end with, and a re-entry must not shrink the rail.
+            let held = if case .number(let n)? = record["total"] { Int(n) } else { 0 }
+            record["total"] = .number(Double(max(total, held)))
+        }
+        if let chunk {
+            var checks = record["checks"]?.fields ?? [:]
+            checks[chunk] = .bool(true)
+            record["checks"] = .object(checks)
+        }
         if let finished { record["finished"] = .bool(finished) }
         if let handedOff { record["handedOff"] = .bool(handedOff) }
         // The web assigns these straight into state, so a record this client

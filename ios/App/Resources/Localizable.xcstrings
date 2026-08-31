@@ -1,6 +1,116 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "Progresso" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Progress"
+          }
+        }
+      }
+    },
+    "Sua preferência" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your preference"
+          }
+        }
+      }
+    },
+    "Seção %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Section %lld"
+          }
+        }
+      }
+    },
+    "Seção %lld de %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Section %lld of %lld"
+          }
+        }
+      }
+    },
+    "Diagrama" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagram"
+          }
+        }
+      }
+    },
+    "A mesma ideia, com as palavras mais simples possíveis." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same idea, in the simplest words possible."
+          }
+        }
+      }
+    },
+    "Um caso concreto, resolvido passo a passo." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A concrete case, worked step by step."
+          }
+        }
+      }
+    },
+    "Uma comparação com algo que você já conhece." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A comparison with something you already know."
+          }
+        }
+      }
+    },
+    "O que está por trás — para quem já entendeu o básico." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What sits underneath it — for once the basics have landed."
+          }
+        }
+      }
+    },
+    "ler esta seção em voz alta" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "read this section aloud"
+          }
+        }
+      }
+    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {

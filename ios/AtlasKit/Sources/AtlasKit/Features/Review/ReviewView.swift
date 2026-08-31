@@ -204,6 +204,9 @@ public struct ReviewView: View {
             case .failed:
                 CTAButton("Reensinar agora", tint: NodeState.shaky.color) {
                     guard let node = model.failedNode else { return model.advance() }
+                    // The other two entry points warm before they push; a
+                    // session started from Review was always cold.
+                    if let kind = store.owedPhase(node).kind { store.warmUp(kind, for: node) }
                     model.advance()
                     navigator.navigate(to: .session(node, phase: nil))
                 }

@@ -34,13 +34,27 @@ struct ConsumeView: View {
     private func content(_ model: ConsumeViewModel) -> some View {
         @Bindable var model = model
         VStack(spacing: 0) {
-            PhaseBar(.consume, title: model.node.label, back: { navigator.pop() }) {
+            // The clip stops on the way out. A read-aloud parked in its own
+            // sleep otherwise keeps speaking over the map the learner just
+            // went back to.
+            PhaseBar(.consume, title: model.node.label,
+                     back: { model.stopReadAloud(); navigator.pop() }) {
                 if store.readAloudOn { speaker(model) }
             }
 
-            SegmentBar(model.rail, height: 3)
+            SegmentBar(model.rail, height: 3, value: model.railValue)
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 10)
+
+            // A read-aloud that fails in silence reads as a dead button.
+            if !model.speaker.message.isEmpty {
+                Text(verbatim: model.speaker.message)
+                    .font(.atlas(.sans, 12.5))
+                    .foregroundStyle(Palette.amberInk)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Metrics.gutter)
+                    .padding(.top, 8)
+            }
 
             if let chunk = model.chunk {
                 ScrollView {
@@ -57,21 +71,29 @@ struct ConsumeView: View {
                 dock(model)
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
+                // A pass that failed with nothing at all still gets a retry —
+                // the back arrow was the whole affordance here.
+                if !model.message.isEmpty {
+                    GhostButton("Tentar de novo") { Task { await model.load() } }
+                        .disabled(model.writing)
+                        .padding(.horizontal, Metrics.gutter)
+                        .padding(.bottom, 28)
+                }
             }
         }
         // A section is a page turn, and the check's verdict lands under it.
         .animation(Motion.standard, value: model.index)
         .animation(Motion.standard, value: model.picked)
         .animation(Motion.standard, value: model.missed)
+        .animation(Motion.standard, value: model.reachedEnd)
         // A right answer and a miss are different events, and the wrist is the
         // one place the learner reads them without looking.
         .sensoryFeedback(trigger: model.grade) { _, new in
             guard let new else { return nil }
             return new.correct ? SensoryFeedback.success : SensoryFeedback.warning
         }
-        .sheet(item: $model.lens) { key in
-            ModelLensView(lens: key, node: model.node, chunk: model.chunk,
-                          context: model.lensContext(key))
+        .sheet(item: $model.lens) { request in
+            ModelLensView(request: request, node: model.node)
                 .presentationDetents([.medium, .large])
                 .environment(store)
         }
@@ -108,11 +130,8 @@ struct ConsumeView: View {
             }
 
             if let figure = chunk.figure {
-                FigureView(figure)
+                FigureView(figure, caption: chunk.diagram)
                     .padding(.top, 20)
-                if let caption = chunk.diagram {
-                    Text(verbatim: caption).font(.atlas(.mono, 10.5)).foregroundStyle(Palette.inkFaint).padding(.top, 8)
-                }
             }
 
             if let example = chunk.example {
@@ -134,33 +153,77 @@ struct ConsumeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Palette.accentBg, in: .rect(cornerRadius: 10))
                 .padding(.top, 20)
+                // The check appears once the end of the section has been on
+                // screen — a gate answerable without scrolling past the prose
+                // no longer implies reading. Mirrors `SectionCheck`'s observer.
+                .onScrollVisibilityChange(threshold: 0.6) { shown in
+                    if shown { model.reachEnd() }
+                }
 
             Kicker("Ver de outro jeito").padding(.top, 24)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8, alignment: .leading)],
                       alignment: .leading, spacing: 8) {
                 ForEach(AltKey.allCases) { key in
+                    // The lens the learner keeps reaching for is marked from
+                    // the second time they pick it — SPEC §6's adaptive
+                    // modality, as a border rather than a second content path.
+                    let preferred = model.preferredLens == key
                     Button { model.open(key) } label: {
                         Text(key.label)
                             .font(.atlas(.mono, 12))
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(preferred ? Palette.accent : Palette.inkMuted)
                             .frame(maxWidth: .infinity, minHeight: 40)
-                            .background(Palette.card, in: .rect(cornerRadius: 8))
-                            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                            .background(preferred ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(preferred ? Palette.accent.opacity(0.4) : Palette.hairlineStrong,
+                                                  lineWidth: 1)
+                            }
                     }
                     .pressable()
+                    .accessibilityHint(preferred ? Text("Sua preferência") : Text(verbatim: ""))
                 }
             }
             .padding(.top, 10)
 
-            if let check = chunk.check { self.check(check, model).padding(.top, 24) }
+            if let check = chunk.check, model.reachedEnd {
+                self.check(check, model)
+                    .padding(.top, 24)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
             if let cite = chunk.cite {
                 Text("Leitura complementar · \(cite)")
                     .font(.atlas(.sans, 12.5))
                     .foregroundStyle(Palette.inkFaint)
                     .padding(.top, 22)
             }
+
+            // What landed stays on screen when the stream dies — but the pass
+            // is short, and the only way to ask for the rest used to be the
+            // back arrow, which threw away everything already read.
+            if model.incomplete { incomplete(model).padding(.top, 24) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The notice under the last section that landed, and the retry.
+    private func incomplete(_ model: ConsumeViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(verbatim: model.message)
+                .font(.atlas(.sans, 13.5))
+                .lineSpacing(3)
+                .foregroundStyle(Palette.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+            GhostButton("Tentar de novo") { Task { await model.load() } }
+                .disabled(model.writing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Palette.card, in: .rect(cornerRadius: Metrics.cardRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: Metrics.cardRadius)
+                .strokeBorder(Palette.amberInk.opacity(0.3), lineWidth: 1)
+        }
     }
 
     private func check(_ check: ConsumePrediction, _ model: ConsumeViewModel) -> some View {

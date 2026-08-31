@@ -87,9 +87,13 @@ public struct MapView: View {
                         .onChanged { model.magnify($0.magnification, around: $0.startLocation) }
                         .onEnded { _ in model.endZoom() })
             )
-            .onTapGesture { point in
-                if let node = model.node(store.graph, at: point) { open(node) }
-            }
+            // Simultaneous, not a separate `.onTapGesture`: the pan above
+            // recognises from the first pixel, so a tap gesture added beside it
+            // never gets the touch. A spatial tap fails the moment the finger
+            // travels, so panning still wins a real drag.
+            .simultaneousGesture(SpatialTapGesture().onEnded { tap in
+                if let node = model.node(store.graph, at: tap.location) { open(node) }
+            })
             // Only on opening a node: closing the drawer clears the selection,
             // and a buzz on dismiss reads as a second, phantom tap.
             .sensoryFeedback(.selection, trigger: model.selection?.id) { _, new in new != nil }

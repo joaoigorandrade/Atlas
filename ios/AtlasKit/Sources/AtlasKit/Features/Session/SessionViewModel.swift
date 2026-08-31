@@ -26,16 +26,24 @@ public final class SessionViewModel: Identifiable {
     public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil) {
         self.node = node
         self.store = store
-        let owed = readingPhaseIndex(store.display[node.id] ?? .unknown, store.reading(node.id))
-        self.phase = phase ?? Phase.allCases[max(0, min(owed, Phase.allCases.count - 2))]
+        // `.retained` belongs to the Review tab: this shell has no screen for
+        // it and no bar to leave one by, so a redo that asks for it is clamped
+        // to the last phase the spiral actually runs.
+        let last = Phase.allCases.count - 2
+        let asked = Phase.allCases.firstIndex(of: phase ?? store.owedPhase(node)) ?? 0
+        self.phase = Phase.allCases[max(0, min(asked, last))]
         // Arriving is the evidence: a node being worked is Learning, whatever
         // else happens on the screen. Anything already past that is left alone.
         let state = store.states[node.id] ?? .unknown
         if state == .unknown { store.states[node.id] = .learning }
-        store.markActiveToday()
         warmNext()
         noteReading()
     }
+
+    /// A day on the streak is adherence, and opening a screen is not adherence:
+    /// a learner who taps a node, sees the wrong phase and backs out has done
+    /// no work. Every phase that gets somewhere calls this.
+    public func markWorked() { store.markActiveToday() }
 
     /// The reading record the spiral reads back. Opening Consume is what
     /// creates it — without that, a node marked Learning above and then left
@@ -69,6 +77,7 @@ public final class SessionViewModel: Identifiable {
     /// The next phase in the spiral. Past the Crucible there is no next: the
     /// pass is over and the map takes the screen back.
     public func advance() {
+        markWorked()
         guard let next = phase.next else { return finished = true }
         phase = next
     }

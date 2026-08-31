@@ -13,9 +13,12 @@ import SwiftUI
 ///   punch share a single task: clicking through early costs the remainder of
 ///   a request already running, never a second generation and never a second
 ///   charge.
-/// - **Nothing incomplete is kept.** A pass that fails leaves no trace, so the
-///   click that needed it retries and surfaces the error itself instead of
-///   being handed a stale one.
+/// - **Nothing incomplete is *kept*.** A pass that fails leaves no cache entry,
+///   so the click that needed it retries and surfaces the error itself instead
+///   of being handed a stale one. What already landed does stay readable —
+///   those are the sections the learner is looking at, and taking them back
+///   mid-sentence is not a failure they caused. `incomplete` is what keeps the
+///   two apart: the prefix is on screen, the key is still cold.
 ///
 /// `content` is observed, not returned: a screen reads the key it cares about
 /// and redraws as it fills, whether the generation was started by that screen
@@ -38,11 +41,23 @@ public final class WarmCache {
     /// whole deduplication: every check below happens between two writes on
     /// the main actor, so two callers can never both start one.
     private var inflight: [String: Task<Error?, Never>] = [:]
+    /// Keys whose `content` is a usable prefix rather than a finished pass —
+    /// a stream that died after three sections, or a slot still being written.
+    /// On screen, never in `raw`, and never treated as a cache hit.
+    private var incomplete: Set<String> = []
+    /// Which run the cache is holding. `clear()` bumps it, and every write
+    /// checks it: a generation started for the previous map is deliberately
+    /// left running, so it must not be able to file its answer into this one.
+    private var generation = 0
 
     public init() {}
 
     /// What landed at `key`, if anything has.
     public func content<T: Sendable>(_ key: String) -> T? { content[key] as? T }
+
+    /// True while `key` holds a prefix rather than a whole pass — what a screen
+    /// draws its "this reading is incomplete" row from.
+    public func isIncomplete(_ key: String) -> Bool { incomplete.contains(key) }
 
     /// Run — or join — the progressive generation at `key`, writing each landed
     /// list into `content` as it arrives so a screen paints on its first item
@@ -56,7 +71,10 @@ public final class WarmCache {
         live: @escaping @Sendable () async -> AsyncThrowingStream<Landed<[T]>, Error>
     ) async -> Error? {
         if let running = inflight[key] { return await running.value }
-        if content[key] != nil { return nil }
+        // A prefix is not a hit: it is what the screen is reading while the
+        // caller runs the generation again.
+        if content[key] != nil, !incomplete.contains(key) { return nil }
+        let era = generation
         // Strong `self` on purpose: the cache is what the app reads, and a warm
         // that outlives the screen that started it is the whole point. The
         // cycle it makes with `inflight` breaks when the task lands.
@@ -64,8 +82,11 @@ public final class WarmCache {
             var landed: [T] = []
             do {
                 for try await items in await live() {
+                    // A redraw of an item still being written: painted, never
+                    // filed. `landed` deliberately does not move.
+                    if items.partial { self.draft(key, items.value, era); continue }
                     landed = items.value
-                    self.write(key, items.value, items.raw)
+                    self.write(key, items.value, items.raw, era)
                 }
                 // A pass that ended with nothing is a failure that forgot to
                 // throw; keeping it hands every later click an empty screen.
@@ -73,7 +94,7 @@ public final class WarmCache {
                     throw AtlasError(code: "upstream", message: "\(key) came back empty")
                 }
             } catch {
-                return self.failed(key, error)
+                return self.failed(key, error, keeping: landed.isEmpty ? nil : landed, era)
             }
             self.inflight[key] = nil
             return nil
@@ -90,15 +111,17 @@ public final class WarmCache {
         once: @escaping @Sendable () async throws -> Landed<T>
     ) async -> Error? {
         if let running = inflight[key] { return await running.value }
-        if content[key] != nil { return nil }
+        if content[key] != nil, !incomplete.contains(key) { return nil }
+        let era = generation
         let task = Task<Error?, Never> {
             do {
                 let landed = try await once()
-                self.write(key, landed.value, landed.raw)
+                self.write(key, landed.value, landed.raw, era)
                 self.inflight[key] = nil
                 return nil
             } catch {
-                return self.failed(key, error)
+                // One object: there is no prefix of it to keep.
+                return self.failed(key, error, keeping: nil, era)
             }
         }
         inflight[key] = task
@@ -112,15 +135,29 @@ public final class WarmCache {
         content.removeAll()
         raw.removeAll()
         inflight.removeAll()
+        incomplete.removeAll()
+        // Those still-running tasks now belong to a run nobody is looking at.
+        generation += 1
         revision += 1
     }
 
     /// Put a generation in both halves at once — the only place either is
     /// written, so the decoded value and the JSON behind it can never disagree.
-    private func write(_ key: String, _ value: any Sendable, _ raw: JSONValue) {
+    private func write(_ key: String, _ value: any Sendable, _ raw: JSONValue, _ era: Int) {
+        guard era == generation else { return }
         content[key] = value
         self.raw[key] = raw
+        incomplete.remove(key)
         revision += 1
+    }
+
+    /// A slot still being written. It redraws the screen and nothing else: it
+    /// stays out of `raw` so it is never uploaded, and the key stays incomplete
+    /// so it is never served to the next caller as a finished pass.
+    private func draft(_ key: String, _ value: any Sendable, _ era: Int) {
+        guard era == generation else { return }
+        content[key] = value
+        incomplete.insert(key)
     }
 
     /// Adopt content generated somewhere else — the run's shared cache, so a
@@ -128,19 +165,30 @@ public final class WarmCache {
     /// generation. `revision` is deliberately *not* bumped: this is what the
     /// row already holds, and uploading it back would be a round trip that
     /// changes nothing.
+    /// A whole pass from the shared row beats a prefix this device is holding,
+    /// so an incomplete key is seeded over rather than skipped.
     func seed(_ key: String, _ value: any Sendable, _ raw: JSONValue) {
-        guard content[key] == nil, inflight[key] == nil else { return }
+        guard inflight[key] == nil, content[key] == nil || incomplete.contains(key) else { return }
         content[key] = value
         self.raw[key] = raw
+        incomplete.remove(key)
     }
 
-    /// Forget everything about a failed pass, half-written content included, so
-    /// the next caller retries it instead of inheriting it.
+    /// Give up on a pass. The key goes cold either way — `raw` is cleared, so
+    /// nothing half-written is uploaded, and the next caller runs the
+    /// generation rather than inheriting this one.
+    ///
+    /// What already landed is a different question from what the cache holds:
+    /// those sections have been read, and erasing them takes the learner's
+    /// place in the pass away mid-sentence. They stay in `content`, marked
+    /// incomplete.
     @discardableResult
-    private func failed(_ key: String, _ error: Error) -> Error {
-        content[key] = nil
-        raw[key] = nil
+    private func failed(_ key: String, _ error: Error, keeping prefix: (any Sendable)?, _ era: Int) -> Error {
         inflight[key] = nil
+        guard era == generation else { return error }
+        raw[key] = nil
+        content[key] = prefix
+        if prefix == nil { incomplete.remove(key) } else { incomplete.insert(key) }
         return error
     }
 }

@@ -24,6 +24,18 @@ public enum AltKey: String, Codable, Sendable, CaseIterable, Identifiable {
         case .deeper: "Aprofundar"
         }
     }
+
+    /// What the lens promises, said before the beats land — the sheet is opened
+    /// by someone who is stuck, and a spinner over a bare title tells them
+    /// nothing about what is coming. Mirrors `lensNote`.
+    var note: LocalizedStringKey {
+        switch self {
+        case .simpler: "A mesma ideia, com as palavras mais simples possíveis."
+        case .example: "Um caso concreto, resolvido passo a passo."
+        case .analogy: "Uma comparação com algo que você já conhece."
+        case .deeper: "O que está por trás — para quem já entendeu o básico."
+        }
+    }
 }
 
 /// A worked example, rendered inline under the prose.
@@ -35,7 +47,19 @@ public struct ConsumeExample: Decodable, Sendable {
 /// A schematic figure: labelled boxes wired by directed arrows.
 public struct ConsumeFigure: Decodable, Sendable {
     public struct Node: Decodable, Sendable, Identifiable { public let id: String; public let label: String }
-    public struct Edge: Decodable, Sendable { public let from: String; public let to: String }
+    public struct Edge: Decodable, Sendable {
+        public let from: String
+        public let to: String
+        /// Three words at most, and the prompt asks for it — so it is drawn on
+        /// the arrow rather than generated, paid for and thrown away.
+        public let label: String?
+
+        public init(from: String, to: String, label: String? = nil) {
+            self.from = from
+            self.to = to
+            self.label = label
+        }
+    }
     public let nodes: [Node]
     public let edges: [Edge]
 }
@@ -66,6 +90,18 @@ public struct ConsumePrediction: Decodable, Sendable {
     public let opts: [Option]
     public let right: String
     public let wrong: String
+
+    /// A check the learner can actually get right, or nil.
+    ///
+    /// The server refuses to write anything else (`validatePrediction`), but
+    /// `consume` is generated on the device, where no validator runs: a check
+    /// with no correct option is a gate that never opens, on a screen whose
+    /// only exit is the back arrow. An unusable check leaves the section
+    /// ungated, exactly like the pre-check content the model type already
+    /// tolerates.
+    var usable: ConsumePrediction? {
+        opts.count >= 2 && opts.filter(\.correct).count == 1 ? self : nil
+    }
 }
 
 public struct ConsumeChunk: Decodable, Sendable, Identifiable {
@@ -81,14 +117,41 @@ public struct ConsumeChunk: Decodable, Sendable, Identifiable {
     public let cite: String?
     public let diagram: String?
     public let figure: ConsumeFigure?
-    /// Absent on sections cached before checks existed — those stay ungated.
-    public let check: ConsumePrediction?
+    /// Absent on sections cached before checks existed, and on sections whose
+    /// check came back unanswerable — both stay ungated rather than deadlocked.
+    public var check: ConsumePrediction? { written?.usable }
+
+    /// The check as the model wrote it. Read through `check`, which is the only
+    /// thing the screen gates on.
+    private let written: ConsumePrediction?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, kicker, body, example, takeaway, cite, diagram, figure
+        case written = "check"
+    }
 }
 
 /// One beat of a model view — revealed in turn, never all at once.
+///
+/// Both halves are optional on the wire because a beat is written label-first:
+/// a redraw carrying a label and no prose yet is exactly what the lens sheet is
+/// meant to paint rather than sit blank through.
 public struct ConsumeModelBeat: Decodable, Sendable {
     public let label: String
     public let text: String
+
+    public init(label: String, text: String) {
+        self.label = label
+        self.text = text
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        label = try fields.decodeIfPresent(String.self, forKey: .label) ?? ""
+        text = try fields.decodeIfPresent(String.self, forKey: .text) ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey { case label, text }
 }
 
 // MARK: - Socratic (screen 15)

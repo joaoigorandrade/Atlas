@@ -13,13 +13,22 @@ struct NDJSONStreamer: Sendable {
     let baseURL: URL
     let session: URLSession
 
+    /// Caps the silence between bytes. `URLSession`'s own 60s default is the
+    /// wrong bound for a generation: the map sends nothing at all while the
+    /// model reasons — 90 seconds of it, on a cold topic — and the default
+    /// counted that as a dead connection and killed a request the server was
+    /// still answering. The only honest bound is the route's `maxDuration`
+    /// (`app/api/generate/route.ts`), which is what gives up first.
+    static let streamSeconds: TimeInterval = 310
+
     /// One frame per line, yielded as it lands. Partial frames are redraws —
     /// render them, never assemble or cache them.
     func frames(_ request: any HTTPRequest) -> AsyncThrowingStream<StreamFrame, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let urlRequest = try request.makeURLRequest(baseURL: baseURL)
+                    var urlRequest = try request.makeURLRequest(baseURL: baseURL)
+                    urlRequest.timeoutInterval = Self.streamSeconds
                     let (bytes, response) = try await session.bytes(for: urlRequest)
                     try check(response)
                     // One decoder for the whole stream: a long generation is
@@ -27,9 +36,11 @@ struct NDJSONStreamer: Sendable {
                     let decoder = JSONDecoder()
                     for try await line in bytes.lines where !line.isEmpty {
                         let frame = try decoder.decode(StreamFrame.self, from: Data(line.utf8))
-                        guard frame.p != StreamFrame.errorPart else {
-                            throw AtlasError(code: "upstream", message: "stream died mid-flight", status: 200)
-                        }
+                        // The terminal frame carries `{code, message, requestId}`
+                        // (`lib/server/stream.ts`). Reading it is what lets a quota
+                        // or an expired token say so, instead of every mid-stream
+                        // death landing on the same generic sentence.
+                        guard frame.p != StreamFrame.errorPart else { throw AtlasError.frame(frame.v) }
                         continuation.yield(frame)
                     }
                     continuation.finish()

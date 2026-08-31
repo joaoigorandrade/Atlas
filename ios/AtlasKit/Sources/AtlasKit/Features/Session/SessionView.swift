@@ -50,7 +50,11 @@ struct SessionView: View {
         case .feynman: FeynmanView(session: session)
         case .connect: ConnectView(session: session)
         case .crucible: CrucibleView(session: session)
-        case .retained: Pending("Revisão")
+        // Unreachable by construction: `SessionViewModel` clamps to `.crucible`,
+        // because Review owns `.retained` and this shell hides the tab bar, the
+        // nav bar and the back button — a screen here without a `PhaseBar` is a
+        // screen with no way out.
+        case .retained: Color.clear
         }
     }
 }

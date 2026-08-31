@@ -53,6 +53,24 @@ extension AtlasError {
             requestId: response.headers["x-atlas-request-id"]
         )
     }
+
+    /// The `__error` frame a stream sends when it dies after committing to a
+    /// 200 — `{ code, message, requestId }`. The code is the whole point: it is
+    /// what `ErrorCopy` speaks, and it is the difference between "we hit the
+    /// quota" and "try again in a moment".
+    static func frame(_ value: JSONValue) -> AtlasError {
+        let fields = value.fields ?? [:]
+        func text(_ key: String) -> String? {
+            guard case .string(let value)? = fields[key] else { return nil }
+            return value
+        }
+        return AtlasError(
+            code: text("code") ?? "upstream",
+            message: text("message") ?? "stream died mid-flight",
+            status: 200,
+            requestId: text("requestId")
+        )
+    }
 }
 
 /// Minimal JSON value — generated payloads are heterogeneous and only the screen
@@ -124,10 +142,15 @@ public struct Landed<T: Sendable>: Sendable {
     public let value: T
     /// Exactly what the model wrote — one object, or the array of them.
     public let raw: JSONValue
+    /// A redraw of a slot still being written. It is worth painting — the model
+    /// writes a beat's `label` before its `text` — but it is not content: the
+    /// cache never files it and it is never uploaded.
+    public let partial: Bool
 
-    public init(value: T, raw: JSONValue) {
+    public init(value: T, raw: JSONValue, partial: Bool = false) {
         self.value = value
         self.raw = raw
+        self.partial = partial
     }
 }
 

@@ -41,8 +41,14 @@ import {
 import { generationBlocked } from "@/lib/server/quota";
 import { createClient } from "@/lib/supabase/server";
 
-// Content generation is a real LLM round-trip — allow it time.
-export const maxDuration = 120;
+// Content generation is a real LLM round-trip — allow it time. It has to fit
+// TWO of them back to back: `generateMapStream` falls back to the single-shot
+// `generateMap` when the stream dies before its first concept, and each call is
+// capped at `OPENROUTER_TIMEOUT_MS` (90s). At 120 the fallback was started with
+// 30s left and killed by the platform mid-flight, so a slow map came back as a
+// 504 — "Não conseguimos montar seu mapa agora" — instead of the map the
+// fallback was about to produce.
+export const maxDuration = 300;
 
 type SupabaseLike = Awaited<ReturnType<typeof createClient>>;
 

@@ -319,14 +319,33 @@ public extension Phase {
     }
 }
 
-/// The two fields of the web's `ConsumeProgress` the spiral reads. The rest of
-/// the record belongs to the browser's reader and rides through untouched —
-/// see `AtlasStore.consumeProgress`.
+/// The fields of the web's `ConsumeProgress` this client reads. The rest of the
+/// record belongs to the browser's reader and rides through untouched — see
+/// `AtlasStore.consumeProgress`.
+///
+/// The reading pass is the longest surface in Atlas, so where the learner got
+/// to has to outlive the screen: `idx` and `checks` are what let a phone call,
+/// a pop back to the map or a section read in the browser resume rather than
+/// start over.
 public struct ReadingProgress: Sendable {
+    public var idx: Int
+    /// The most sections this pass has ever had. A high-water mark, because a
+    /// stream that is still writing reports fewer than it will end with, and a
+    /// rail that shrinks on a re-entry is a lie about progress.
+    public var total: Int
+    /// Chunk ids whose check is already passed. A section answered once is not
+    /// re-gated.
+    public var checks: Set<String>
     public var finished: Bool
     public var handedOff: Bool
-    public init(finished: Bool, handedOff: Bool) {
-        self.finished = finished; self.handedOff = handedOff
+
+    public init(idx: Int = 0, total: Int = 0, checks: Set<String> = [],
+                finished: Bool, handedOff: Bool) {
+        self.idx = idx
+        self.total = total
+        self.checks = checks
+        self.finished = finished
+        self.handedOff = handedOff
     }
 }
 

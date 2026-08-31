@@ -298,8 +298,11 @@ public struct ChoiceRow: View {
 public struct SegmentBar: View {
     private let fills: [Color?]
     private let height: CGFloat
-    public init(_ fills: [Color?], height: CGFloat = 4) {
-        self.fills = fills; self.height = height
+    /// What the rail says out loud. A row of capsules is the only progress
+    /// indicator on the screen and announces nothing without it.
+    private let spoken: Text
+    public init(_ fills: [Color?], height: CGFloat = 4, value: Text = Text(verbatim: "")) {
+        self.fills = fills; self.height = height; self.spoken = value
     }
     public var body: some View {
         HStack(spacing: 5) {
@@ -310,6 +313,9 @@ public struct SegmentBar: View {
         // The rail is the only thing on screen that says "you moved" — a
         // segment lighting is worth the quarter second.
         .animation(Motion.standard, value: fills)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Progresso"))
+        .accessibilityValue(spoken)
     }
 }
 

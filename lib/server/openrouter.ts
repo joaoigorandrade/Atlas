@@ -133,6 +133,14 @@ async function chatOnce(
 /** Delays before retrying a transient failure on the same model (#11). */
 const RETRY_DELAYS_MS = [1000, 4000];
 
+/** A call that ran out its own `REQUEST_MS` rather than failing: `chatOnce`
+ *  aborts through `AbortSignal.timeout` (a `TimeoutError`), the streamed path
+ *  raises its own 504. */
+const isTimeout = (err: unknown): boolean =>
+  err instanceof OpenRouterError
+    ? err.status === 504
+    : err instanceof DOMException && err.name === "TimeoutError";
+
 /**
  * Chat with retry + fallback: each model in the chain gets its transient
  * failures (429/5xx/network) retried with backoff before the next model is
@@ -170,6 +178,12 @@ async function chat(messages: ChatMessage[], role: ModelRole): Promise<ChatResul
             error: String(err instanceof Error ? err.message : err).slice(0, 600),
           }),
         );
+        // A timeout costs a full REQUEST_MS to learn and a retry on the same
+        // model almost never fixes it — a provider that sent nothing in 90s
+        // sends nothing in the next 90 either. Three in a row spent the whole
+        // route budget without ever reaching the second model in the chain,
+        // which is what the chain is for: move on rather than repeat.
+        if (isTimeout(err)) break;
         if (attempt < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[attempt]);
       }
     }

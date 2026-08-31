@@ -210,10 +210,16 @@ public actor AtlasAPI {
     /// item of one named list. Each event carries every item so far, so a
     /// screen paints on its first section instead of its last.
     ///
-    /// Partial frames are skipped: they are half-written items, which is a
-    /// redraw of prose elsewhere but not something a list can hold.
+    /// Partial frames are half-written items. They are dropped unless the kind
+    /// asked for them, and even then they are yielded for the redraw only —
+    /// never assembled into the list and never handed to the cache.
+    ///
+    /// A slot the model wrote badly costs that slot, not the pass: `consume`
+    /// and `socratic` are generated on the device with no server-side
+    /// validator behind them, and one missing `takeaway` used to throw away
+    /// every section that had already landed.
     private func list<T: Decodable & Sendable>(
-        _ kind: String, _ part: String, _ context: [String: JSONValue]
+        _ kind: String, _ part: String, _ context: [String: JSONValue], partials: Bool = false
     ) -> AsyncThrowingStream<Landed<[T]>, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -221,10 +227,21 @@ public actor AtlasAPI {
                 var raw: [JSONValue?] = []
                 do {
                     for try await frame in stream(kind, context) {
-                        guard frame.p == part, frame.partial != true, let index = frame.i else { continue }
+                        guard frame.p == part, let index = frame.i,
+                              let value = try? frame.v.decode(T.self) else { continue }
+                        if frame.partial == true {
+                            guard partials else { continue }
+                            var draft = items
+                            draft.append(contentsOf: repeatElement(nil, count: max(0, index + 1 - draft.count)))
+                            draft[index] = value
+                            continuation.yield(Landed(
+                                value: draft.compactMap { $0 }, raw: .null, partial: true
+                            ))
+                            continue
+                        }
                         items.append(contentsOf: repeatElement(nil, count: max(0, index + 1 - items.count)))
                         raw.append(contentsOf: repeatElement(nil, count: max(0, index + 1 - raw.count)))
-                        items[index] = try frame.v.decode(T.self)
+                        items[index] = value
                         raw[index] = frame.v
                         continuation.yield(Landed(
                             value: items.compactMap { $0 },
@@ -245,9 +262,13 @@ public actor AtlasAPI {
         list("consume", "chunks", context)
     }
 
-    /// One lens over one section — the model view's beats.
+    /// One lens over one section — the model view's beats. The only kind that
+    /// asks for partials: the server writes a beat's `label` before its `text`
+    /// (`lib/server/generate/model.ts`), so a redraw with a label and no prose
+    /// is still worth showing on a sheet the learner opened because they were
+    /// stuck.
     public func model(_ context: [String: JSONValue]) -> AsyncThrowingStream<Landed<[ConsumeModelBeat]>, Error> {
-        list("model", "beats", context)
+        list("model", "beats", context, partials: true)
     }
 
     /// The questioning script, first probe first.

@@ -15,29 +15,23 @@ final class ModelLensViewModel {
 
     private let store: AtlasStore
     private let node: ConceptNode
-    private let chunk: ConsumeChunk?
-    private let lens: AltKey
-    private let context: [String: JSONValue]?
+    /// Everything the request needs, decided by the chip that was tapped. Not
+    /// optional: a sheet built from a nil context used to spin forever on a
+    /// request nobody had made.
+    private let request: LensRequest
 
-    init(store: AtlasStore, node: ConceptNode, chunk: ConsumeChunk?, lens: AltKey,
-         context: [String: JSONValue]?) {
+    init(store: AtlasStore, node: ConceptNode, request: LensRequest) {
         self.store = store
         self.node = node
-        self.chunk = chunk
-        self.lens = lens
-        self.context = context
+        self.request = request
     }
 
-    var beats: [ConsumeModelBeat] {
-        guard let chunk else { return [] }
-        return store.lens(node, chunk, lens)
-    }
+    var beats: [ConsumeModelBeat] { store.lens(node, request.chunk, request.lens) }
 
     var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo…") : message }
 
     func load() async {
-        guard let chunk, let context else { return }
-        if let error = await store.model(node, chunk, lens, context: context) {
+        if let error = await store.model(node, request.chunk, request.lens, context: request.context) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "abrir essa visão"))
         }
     }
