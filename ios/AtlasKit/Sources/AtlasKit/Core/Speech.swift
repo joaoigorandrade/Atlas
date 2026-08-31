@@ -115,37 +115,97 @@ public final class Speaker {
     }
 }
 
-/// Dictation, for every free-text answer in the spiral. Delivers the whole
+/// Dictation, for every free-text answer in the spiral.  Delivers the whole
 /// transcription once, on stop: a field that rewrites itself under the
 /// learner's cursor while they think is worse than one that waits.
+///
+/// Every way this can fail is a state the caller can draw. A mic that does
+/// nothing, forever, is the failure mode this control actually has — the same
+/// reasoning `Speaker.message` above is written from.
 @Observable
 @MainActor
 public final class Dictation {
+    /// Why the last tap did nothing. Drawn beside the mic.
+    public enum Trouble: Sendable {
+        case unavailable, denied, engine, recognition
+
+        var sentence: String {
+            switch self {
+            case .unavailable: String(localized: "Ditado indisponível neste idioma ou sem conexão.")
+            case .denied: String(localized: "Sem permissão para o microfone. Autorize em Ajustes para ditar.")
+            case .engine: String(localized: "Não conseguimos abrir o microfone agora. Tente de novo.")
+            case .recognition: String(localized: "O ditado parou sozinho. O que já foi ouvido está no campo.")
+            }
+        }
+    }
+
     public private(set) var listening = false
+    public private(set) var trouble: Trouble?
+    /// Between the tap and the permission reply there is no engine to stop and
+    /// nothing on screen yet — but a second tap must not start a second one:
+    /// two `installTap`s on the same bus is an ObjC exception, not an error.
+    private var starting = false
     private let engine = AVAudioEngine()
     private var task: SFSpeechRecognitionTask?
     private var transcript = ""
+    /// Where the transcription goes. Held for the whole run so the recogniser
+    /// stopping on its own can still deliver what it heard.
+    private var onText: ((String) -> Void)?
 
     public init() {}
 
     public func toggle(onText: @escaping (String) -> Void) {
-        listening ? stop(onText) : start()
+        if listening { return flush() }
+        // The tap that lands while the permission sheet is still up: cancel the
+        // start rather than queue a second one.
+        if starting { starting = false; return }
+        start(onText)
     }
 
-    private func start() {
+    /// Deliver whatever has been heard and hand the session back. What the
+    /// learner said out loud survives leaving the screen or hitting send —
+    /// delivery only ever happened on an explicit second tap before.
+    public func flush() {
+        guard listening else { return starting = false }
+        end(deliver: true)
+    }
+
+    private func start(_ onText: @escaping (String) -> Void) {
+        trouble = nil
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: AtlasAPI.language)),
-              recognizer.isAvailable else { return }
-        // The TCC reply lands on a background queue. The closure must carry no
-        // main-actor isolation of its own or Swift 6 traps on entry, before the
-        // hop below can happen — hence @Sendable, and the unsafe capture of the
-        // recognizer, which is not Sendable but is only read on the main actor.
+              recognizer.isAvailable else { return trouble = .unavailable }
+        starting = true
+        self.onText = onText
+        // Not Sendable, only ever read on the main actor — the crossing is
+        // stated rather than hidden, same as the buffer request below.
         nonisolated(unsafe) let ready = recognizer
-        SFSpeechRecognizer.requestAuthorization { @Sendable status in
-            Task { @MainActor in
-                guard status == .authorized else { return }
-                self.listen(ready)
+        Task { @MainActor in
+            // Two separate TCC permissions, and the microphone one has to be
+            // answered *before* `inputNode` is touched: on a denied mic the
+            // node reports a 0 Hz format and `installTap` raises an ObjC
+            // exception, which Swift cannot catch — the app just dies.
+            guard await AVAudioApplication.requestRecordPermission() else { return self.giveUp(.denied) }
+            guard await Self.speechAllowed() else { return self.giveUp(.denied) }
+            guard self.starting else { return }
+            self.listen(ready)
+        }
+    }
+
+    private static func speechAllowed() async -> Bool {
+        await withCheckedContinuation { resume in
+            // The TCC reply lands on a background queue, so the closure must
+            // carry no main-actor isolation of its own or Swift 6 traps on
+            // entry, before the hop above can happen.
+            SFSpeechRecognizer.requestAuthorization { @Sendable status in
+                resume.resume(returning: status == .authorized)
             }
         }
+    }
+
+    private func giveUp(_ trouble: Trouble) {
+        starting = false
+        onText = nil
+        self.trouble = trouble
     }
 
     private func listen(_ recognizer: SFSpeechRecognizer) {
@@ -155,37 +215,62 @@ public final class Dictation {
         // documented use, so the crossing is stated rather than hidden.
         nonisolated(unsafe) let request = SFSpeechAudioBufferRecognitionRequest()
         // Partial results, but nothing is delivered until the learner stops:
-        // the running transcript is what `stop` has to read, since the final
+        // the running transcript is what `end` has to read, since the final
         // result lands after the task is finished.
         request.shouldReportPartialResults = true
         try? AVAudioSession.sharedInstance().setCategory(.record, mode: .measurement, options: .duckOthers)
         try? AVAudioSession.sharedInstance().setActive(true)
         let input = engine.inputNode
-        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { buffer, _ in
+        let format = input.outputFormat(forBus: 0)
+        // The backstop for the exception above: a format with no rate and no
+        // channels is what a mic the app cannot use reports.
+        guard format.sampleRate > 0, format.channelCount > 0 else { return giveUp(.denied) }
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             request.append(buffer)
         }
         engine.prepare()
-        guard (try? engine.start()) != nil else { return input.removeTap(onBus: 0) }
+        guard (try? engine.start()) != nil else {
+            input.removeTap(onBus: 0)
+            return giveUp(.engine)
+        }
+        starting = false
         listening = true
-        task = recognizer.recognitionTask(with: request) { @Sendable result, _ in
-            // Only the string crosses back — the result object stays on the
-            // recognizer's queue.
+        task = recognizer.recognitionTask(with: request) { @Sendable result, error in
+            // Only the string and two flags cross back — the result object
+            // stays on the recognizer's queue.
             let text = result?.bestTranscription.formattedString
-            Task { @MainActor in if let text { self.transcript = text } }
+            let (failed, final) = (error != nil, result?.isFinal ?? false)
+            Task { @MainActor in
+                if let text { self.transcript = text }
+                // The recogniser ends on its own on a network drop and at
+                // Apple's ~one-minute cap on a single utterance. Nothing would
+                // fire again: the mic would keep breathing over an engine
+                // nobody is reading, and the learner would find out by tapping.
+                if failed || final { self.ended(failed: failed) }
+            }
         }
     }
 
-    private func stop(_ onText: (String) -> Void) {
+    private func ended(failed: Bool) {
+        guard listening else { return }
+        end(deliver: true)
+        if failed { trouble = .recognition }
+    }
+
+    private func end(deliver: Bool) {
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
         task?.finish()
         task = nil
         listening = false
+        starting = false
         // Give the shared session back, or read-aloud on the next screen plays
         // into a session still configured to record.
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        let said = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let said = transcript.trimmed
         transcript = ""
-        if !said.isEmpty { onText(said) }
+        let deliverTo = onText
+        onText = nil
+        if deliver, !said.isEmpty { deliverTo?(said) }
     }
 }

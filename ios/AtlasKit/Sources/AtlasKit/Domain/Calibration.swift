@@ -2,9 +2,9 @@ import SwiftUI
 
 // Screen 20 — what the learner actually knows, held against what they felt they
 // knew. Mirrors the reading half of `lib/curriculum/calibration.ts`; the
-// samples come from the confidence tap before every review card is flipped.
-// ponytail: Review is the only hook so far — the Crucible's own tap is part of
-// screen 18, and feeds the same `recordCalib` the day it lands.
+// samples come from the confidence tap before every review card is flipped and
+// from the Crucible's own tap before the problem is revealed (screen 18) —
+// both through `recordCalib`.
 
 /// One reading: stated confidence against first-try performance, both 0–100.
 public struct CalibSample: Codable, Sendable, Identifiable {

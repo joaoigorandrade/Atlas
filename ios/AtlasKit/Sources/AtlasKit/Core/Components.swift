@@ -361,14 +361,18 @@ public struct AnswerEditor: View {
     private let placeholder: String
     private let minHeight: CGFloat
     private let tint: Color
-    @State private var dictation: Dictation?
+    /// The recogniser belongs to the phase, not to the box: a `Dictation` built
+    /// here died with the card it was drawn in (Feynman rebuilds one per beat)
+    /// and took the learner's spoken answer with it.
+    private let dictation: Dictation
     /// Voice is a setting, and screen 13 owns it — one read here covers every
     /// phase that asks the learner to write.
     @Environment(AtlasStore.self) private var store
 
-    public init(text: Binding<String>, placeholder: String, minHeight: CGFloat = 150,
-                tint: Color = Palette.accent) {
-        _text = text; self.placeholder = placeholder; self.minHeight = minHeight; self.tint = tint
+    public init(text: Binding<String>, placeholder: String, dictation: Dictation,
+                minHeight: CGFloat = 150, tint: Color = Palette.accent) {
+        _text = text; self.placeholder = placeholder; self.dictation = dictation
+        self.minHeight = minHeight; self.tint = tint
     }
 
     public var body: some View {
@@ -388,8 +392,14 @@ public struct AnswerEditor: View {
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: minHeight)
             }
-            if store.dictationOn, let dictation {
-                HStack {
+            if store.dictationOn {
+                HStack(alignment: .center, spacing: 8) {
+                    if let trouble = dictation.trouble {
+                        Text(verbatim: trouble.sentence)
+                            .font(.atlas(.sans, 12.5))
+                            .foregroundStyle(Palette.amberInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Spacer(minLength: 0)
                     MicButton(dictation: dictation, tint: tint) { text += text.isEmpty ? $0 : " \($0)" }
                 }
@@ -403,8 +413,10 @@ public struct AnswerEditor: View {
         .padding(.vertical, 10)
         .background(Palette.card, in: .rect(cornerRadius: 12))
         .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
-        // The recogniser is a reference type: built once, not on every redraw.
-        .task { if dictation == nil { dictation = Dictation() } }
+        // Whatever was being said when the learner walked off the screen is
+        // still delivered — the transcript only exists inside the recogniser
+        // until something asks for it.
+        .onDisappear { dictation.flush() }
     }
 }
 
@@ -436,6 +448,10 @@ public struct MicButton: View {
         .animation(Motion.snap, value: dictation.listening)
         .sensoryFeedback(.selection, trigger: dictation.listening)
         .accessibilityLabel(dictation.listening ? "Parar de ditar" : "Ditar resposta")
+        // The mic's whole signal is its state, and a glyph that breathes says
+        // nothing to VoiceOver.
+        .accessibilityValue(dictation.listening ? Text("Ouvindo") : Text("Parado"))
+        .accessibilityAddTraits(.startsMediaSession)
     }
 }
 

@@ -30,10 +30,6 @@ struct SocraticView: View {
             PhaseBar(.socratic, title: model.node.label, back: { navigator.pop() }) {
                 helpDial(model)
             }
-            // The script lands probe by probe into the run's warm cache, which
-            // is observed rather than returned — this is where a dock waiting
-            // on the next one finds out it has been written.
-            .onChange(of: model.steps.count) { _, _ in model.landed() }
 
             if model.log.isEmpty {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
@@ -41,7 +37,11 @@ struct SocraticView: View {
                 transcript(model)
             }
 
-            if model.done {
+            if model.failed {
+                // A generation that came back with nothing leaves a sentence
+                // ending in "tente de novo" over a screen with nothing to tap.
+                Dock { CTAButton("Tentar de novo", tint: Phase.socratic.tint) { Task { await model.retry() } } }
+            } else if model.done {
                 Dock { CTAButton("Seguir para o Feynman →", tint: Phase.socratic.tint) { model.advance() } }
             } else if !model.log.isEmpty && !model.awaiting {
                 answerDock(model)
@@ -49,8 +49,16 @@ struct SocraticView: View {
         }
     }
 
+    /// Set the level, never cycle it — and say which one it is out loud, which
+    /// three unlabelled capsules cannot.
     private func helpDial(_ model: SocraticViewModel) -> some View {
-        Button { model.cycleHelp() } label: {
+        Menu {
+            Picker("Nível de apoio", selection: Binding(get: { model.help }, set: { model.setHelp($0) })) {
+                ForEach(0...3, id: \.self) { level in
+                    Text(verbatim: SocraticViewModel.helpLabel(level)).tag(level)
+                }
+            }
+        } label: {
             HStack(spacing: 7) {
                 Text("Apoio").font(.atlas(.mono, 11.5)).foregroundStyle(Palette.inkMuted)
                 HStack(alignment: .bottom, spacing: 2) {
@@ -70,6 +78,7 @@ struct SocraticView: View {
         // the new level rather than snapping to it.
         .animation(Motion.snap, value: model.help)
         .accessibilityLabel("Nível de apoio")
+        .accessibilityValue(Text(verbatim: SocraticViewModel.helpLabel(model.help)))
     }
 
     private func transcript(_ model: SocraticViewModel) -> some View {
@@ -92,6 +101,9 @@ struct SocraticView: View {
                     }
                     if !model.message.isEmpty {
                         Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
+                    }
+                    if let trouble = model.dictation.trouble {
+                        Text(verbatim: trouble.sentence).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,6 +164,16 @@ struct SocraticView: View {
     private func answerDock(_ model: SocraticViewModel) -> some View {
         @Bindable var model = model
         return Dock {
+            VStack(spacing: 10) {
+            // The only way off a probe used to be typing something the judge
+            // graded `correct` or `lost`. Both of these spend material the
+            // generation already wrote: `hint` and `tell`.
+            HStack(spacing: 8) {
+                GhostButton("Estou travado") { model.stuck() }
+                    .disabled(!model.canEscape)
+                GhostButton("Só me conte") { model.tell() }
+                    .disabled(!model.canEscape)
+            }
             HStack(alignment: .bottom, spacing: 8) {
                 HStack(alignment: .bottom, spacing: 0) {
                     TextField("Responda com suas palavras…", text: $model.answer, axis: .vertical)
@@ -170,7 +192,12 @@ struct SocraticView: View {
                 }
                 .background(Palette.card, in: .capsule)
                 .overlay { Capsule().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
-                Button { Task { await model.send() } } label: {
+                Button {
+                    // Whatever is still being said goes into the field before
+                    // it is read, or the spoken half of the answer is lost.
+                    model.dictation.flush()
+                    Task { await model.send() }
+                } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(model.canSend ? Palette.accentInk : Palette.inkGhost)
@@ -183,6 +210,7 @@ struct SocraticView: View {
                 .disabled(!model.canSend)
             }
             .animation(Motion.snap, value: store.dictationOn)
+            }
         }
     }
 }

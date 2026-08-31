@@ -128,3 +128,78 @@ import Testing
     // Redoing an earlier phase doesn't walk the node's mastery backwards.
     #expect(owned.states["cadeia"] == .mastered)
 }
+
+@MainActor
+private func beat(_ index: Int) -> FeynmanBeat {
+    let raw = """
+    {"id":"b\(index)","subPoint":"Ponto \(index)","mustConvey":["x"],
+     "gap":{"id":"cadeia-g\(index)","label":"Lacuna \(index)","reason":"não explicou","dx":40,"dy":60}}
+    """
+    return try! JSONDecoder().decode(FeynmanBeat.self, from: Data(raw.utf8))
+}
+
+@MainActor
+private func report(_ rows: [(Int, String, String?)]) -> FeynmanJudgement {
+    let verdicts = rows.map { row in
+        let quote = row.2.map { "\"quote\":\"\($0)\"," } ?? ""
+        return "{\"i\":\(row.0),\(quote)\"verdict\":\"\(row.1)\"}"
+    }
+    let raw = "{\"verdicts\":[\(verdicts.joined(separator: ","))],\"response\":\"ok\"}"
+    return try! JSONDecoder().decode(FeynmanJudgement.self, from: Data(raw.utf8))
+}
+
+@MainActor
+@Test func aRubricRowTheJudgeNeverRuledOnIsASkipRatherThanAPass() {
+    let (pass, store) = session(["lat": .mastered])
+    let beats = [beat(0), beat(1), beat(2)]
+    // Row 1 is missing from the payload entirely. Silence about a sub-point the
+    // learner never mentioned is the finding this phase exists for — grading it
+    // good is the one thing the write must never do.
+    pass.writeFeynmanGaps(report([(0, "good", "eu disse isso"), (2, "confused", "taxa de fora")]), beats: beats)
+
+    #expect(store.states["cadeia-g0"] == nil)
+    #expect(store.states["cadeia-g1"] == .gap)
+    #expect(store.states["cadeia-g2"] == .gap)
+    // The learner's own words are the whole context a later pass on the gap
+    // opens with; without the quote it carries the reason written before they
+    // said anything.
+    #expect(store.graph.nodes.first { $0.id == "cadeia-g2" }?.summary?.contains("taxa de fora") == true)
+    #expect(store.graph.nodes.first { $0.id == "cadeia-g1" }?.summary == "não explicou")
+    // Every gap hangs on a dashed edge — a gap can never lock anything.
+    #expect(store.graph.edges.filter(\.dashed).count == 2)
+}
+
+@MainActor
+@Test func aRepeatCrucibleFailureRenamesTheGapInsteadOfKeepingTheFirstWording() {
+    let gap = GapSpec(id: "cadeia-gap", label: "Rascunho", reason: "rascunho", dx: 40, dy: 60)
+    let (pass, store) = session(["lat": .mastered])
+    pass.settleCrucible(CrucibleJudgement(outcome: "partial", transfer: [], gapLabel: "Primeira",
+                                          gapReason: "primeira", reExplain: nil), gap: gap)
+    pass.settleCrucible(CrucibleJudgement(outcome: "partial", transfer: [], gapLabel: "Segunda",
+                                          gapReason: "segunda", reExplain: nil), gap: gap)
+    // `spawnGap` is idempotent by id, which is right — but the second judgement
+    // named the missing sub-concept again, and the map kept the first wording.
+    #expect(store.graph.nodes.filter { $0.id == gap.id }.count == 1)
+    #expect(store.graph.nodes.first { $0.id == gap.id }?.label == "Segunda")
+    #expect(store.graph.nodes.first { $0.id == gap.id }?.summary == "segunda")
+}
+
+@MainActor
+@Test func theConnectPoolIsWhatTheLearnerOwns_neverAGapAndNeverUnbounded() {
+    let store = store(["lat": .mastered])
+    // A gap the learner opened a pass on is `.learning`, and offering it back
+    // as "a concept you already know" is the bug elaboration exists to avoid.
+    store.graph.nodes.append(ConceptNode(id: "g", label: "Lacuna", gap: true))
+    store.states["g"] = .learning
+    for index in 0..<12 {
+        store.graph.nodes.append(ConceptNode(id: "n\(index)", label: "N\(index)"))
+        store.states["n\(index)"] = .learning
+    }
+    let pool = store.learned(besides: store.graph.nodes[1])
+    #expect(pool.contains { $0.id == "g" } == false)
+    #expect(pool.contains { $0.id == "cadeia" } == false)
+    // Capped at 8 — the pool is in the prompt *and* in the cache key.
+    #expect(pool.count == 8)
+    // Most-owned first.
+    #expect(pool.first?.id == "lat")
+}

@@ -116,7 +116,10 @@ public struct RetainContent: Decodable, Sendable {
 /// the honest label on each button. Port real FSRS when the two clients have to
 /// agree on a due date card for card.
 public struct ScheduledCard: Codable, Sendable, Identifiable {
-    public let card: ReviewCard
+    /// `var` so a redraft can rewrite the card's text in place — Connect keys
+    /// its cards on the link's identity, and a redo must not reset the
+    /// scheduler state the learner has built on it.
+    public var card: ReviewCard
     public var due: Date
     /// Days until the next review; 0 for a card that is new or relearning.
     public var interval: Double

@@ -226,9 +226,24 @@ public extension AtlasStore {
     }
 
     /// Nodes the learner already owns — what Connect may wire into and what a
-    /// Crucible problem may interleave. Mirrors `CONNECT_POOL_STATES`.
+    /// Crucible problem may interleave. Mirrors `connectPool`.
+    ///
+    /// Gap sub-nodes are excluded: a gap the learner opened a pass on is
+    /// `.learning`, and offering it back as "a concept you already know" is the
+    /// bug elaboration exists to avoid. The cap and the ordering matter too —
+    /// this list is in the prompt *and* in the cache key, so an unbounded one
+    /// grows both without limit, and most-owned first is the order the model
+    /// should read it in.
+    ///
+    /// It is also what keeps the reader and the filler on the same key: nothing
+    /// a pass writes (a gap node, this node's own state) can move it.
     func learned(besides node: ConceptNode) -> [ConceptNode] {
-        graph.nodes.filter { $0.id != node.id && (states[$0.id] ?? .unknown).isLearned }
+        let rank: [NodeState: Int] = [.mastered: 0, .shaky: 1, .learning: 2]
+        return graph.nodes
+            .filter { $0.gap != true && $0.id != node.id && rank[states[$0.id] ?? .unknown] != nil }
+            .sorted { rank[states[$0.id] ?? .unknown, default: 3] < rank[states[$1.id] ?? .unknown, default: 3] }
+            .prefix(8)
+            .map { $0 }
     }
 
     /// Where a kind's content lives. The run and the language are in the key

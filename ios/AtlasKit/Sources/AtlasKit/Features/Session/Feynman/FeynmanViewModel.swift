@@ -16,6 +16,11 @@ final class FeynmanViewModel {
     private(set) var judgement: FeynmanJudgement?
     private(set) var message = ""
 
+    /// One recogniser for the whole screen. The editor used to build its own,
+    /// and the card it lives in is keyed on the beat — walking to the next
+    /// topic tore down a recogniser mid-sentence and lost what was said.
+    let dictation = Dictation()
+
     private let session: SessionViewModel
     private let api: AtlasAPI
 
@@ -37,7 +42,20 @@ final class FeynmanViewModel {
     var isFirst: Bool { index == 0 }
     /// Nothing to judge is nothing to send — a blank teach-back is not an answer.
     var canSubmit: Bool { !judging && taught.values.contains { !$0.trimmed.isEmpty } }
+    /// Nothing landed and nothing is coming — the retry the screen offers
+    /// instead of a bare sentence with no dock under it.
+    var failed: Bool { !writing && beats.isEmpty }
     var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo os tópicos…") : message }
+
+    /// What each row's verdict says in words. Colour alone is invisible to
+    /// VoiceOver and indistinguishable to a colour-blind learner.
+    static func verdictLabel(_ verdict: String) -> String {
+        switch verdict {
+        case "good": String(localized: "Bem explicado")
+        case "confused": String(localized: "Errado · confuso")
+        default: String(localized: "Pulado")
+        }
+    }
 
     func subPoint(at index: Int) -> String { beats[safe: index]?.subPoint ?? "" }
 
@@ -48,10 +66,22 @@ final class FeynmanViewModel {
     }
 
     func load() async {
+        writing = true
+        message = ""
         if let error = await session.store.feynman(node) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever os tópicos"))
         }
         writing = false
+    }
+
+    func retry() async { await load() }
+
+    /// Teach it again with the report's rows in mind — the answers are still
+    /// there, and the next verdict is the delta. The gaps the first pass wrote
+    /// stay on the map; a later pass is what takes them off.
+    func teachAgain() {
+        judgement = nil
+        index = 0
     }
 
     func back() {
@@ -76,7 +106,12 @@ final class FeynmanViewModel {
         context["rubric"] = .array(beats.map {
             .object(["subPoint": .string($0.subPoint), "mustConvey": .array($0.mustConvey.map { .string($0) })])
         })
-        context["answer"] = .string(beats.compactMap { taught[$0.id] }.joined(separator: "\n\n"))
+        // One monologue in rail order, with the parts they never wrote simply
+        // absent — which is exactly what a skipped rubric row looks like.
+        // `compactMap` alone kept the blanks and shifted nothing.
+        context["answer"] = .string(
+            beats.compactMap { taught[$0.id]?.trimmed }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+        )
         do {
             let verdict: FeynmanJudgement = try await api.judge("feynman", context)
             session.writeFeynmanGaps(verdict, beats: beats)

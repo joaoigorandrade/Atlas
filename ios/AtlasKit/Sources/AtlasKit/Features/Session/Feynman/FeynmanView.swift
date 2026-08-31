@@ -46,6 +46,9 @@ struct FeynmanView: View {
                 teach(beat, model)
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
+                if model.failed {
+                    Dock { CTAButton("Tentar de novo", tint: Phase.feynman.tint) { Task { await model.retry() } } }
+                }
             }
         }
         // Walking the rail is a step sideways; the Gap Report is the payoff and
@@ -75,13 +78,21 @@ struct FeynmanView: View {
 
                     Card {
                         VStack(alignment: .leading, spacing: 0) {
-                            Kicker("Tópico \(model.index + 1)", tint: Palette.inkGhost)
-                            Text(verbatim: beat.subPoint)
+                            Kicker("Tópico \(model.index + 1) de \(model.beats.count)", tint: Palette.inkGhost)
+                            // Never `beat.subPoint`. The rubric row is the
+                            // outline of the answer, and printing it above the
+                            // box hands the test over before the test: what the
+                            // learner never thinks to mention is the whole
+                            // diagnostic (`lib/curriculum/feynman.ts`).
+                            Text(model.isFirst
+                                 ? "Comece do começo: o que é isso, e que problema resolve?"
+                                 : "Continue de onde parou — o que vem depois?")
                                 .font(.atlas(.serif, 21))
                                 .foregroundStyle(Palette.ink)
                                 .padding(.top, 8)
                             AnswerEditor(text: model.binding(for: beat),
                                          placeholder: String(localized: "Ensine com suas palavras…"),
+                                         dictation: model.dictation,
                                          tint: Phase.feynman.tint)
                                 .padding(.top, 14)
                         }
@@ -111,6 +122,9 @@ struct FeynmanView: View {
                     if model.isLast && !model.writing {
                         CTAButton(model.judging ? "Lendo sua explicação…" : "Enviar explicação",
                                   tint: Phase.feynman.tint) {
+                            // The spoken half of the last topic goes in before
+                            // the explanation is read.
+                            model.dictation.flush()
                             Task { await model.submit() }
                         }
                         .disabled(!model.canSubmit)
@@ -143,6 +157,13 @@ struct FeynmanView: View {
                                 Text(verbatim: model.subPoint(at: row.i))
                                     .font(.atlas(.serif, 15.5))
                                     .foregroundStyle(Palette.ink)
+                                // The verdict was carried by dot colour alone —
+                                // green, grey and red, which is nothing to a
+                                // colour-blind learner and nothing to VoiceOver.
+                                Text(verbatim: FeynmanViewModel.verdictLabel(row.verdict))
+                                    .font(.atlas(.mono, 10.5))
+                                    .tracking(0.8)
+                                    .foregroundStyle(color(row.verdict))
                                 if let quote = row.quote {
                                     Text(verbatim: "“\(quote)”").font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
                                 }
@@ -150,6 +171,7 @@ struct FeynmanView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 14)
+                        .accessibilityElement(children: .combine)
                     }
 
                     if let jargon = judgement.jargon, !jargon.isEmpty {
@@ -161,7 +183,15 @@ struct FeynmanView: View {
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.vertical, 22)
             }
-            Dock { CTAButton("Seguir para o Connect →", tint: Palette.connectInk) { model.advance() } }
+            Dock {
+                HStack(spacing: 10) {
+                    // The one place the loop is visible working: the answers
+                    // are still there, and the next report is the delta.
+                    GhostButton("Ensinar de novo") { model.teachAgain() }
+                        .frame(width: 140)
+                    CTAButton("Seguir para o Connect →", tint: Palette.connectInk) { model.advance() }
+                }
+            }
         }
     }
 

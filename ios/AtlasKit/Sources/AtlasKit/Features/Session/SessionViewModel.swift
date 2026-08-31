@@ -107,26 +107,60 @@ public final class SessionViewModel: Identifiable {
                 reason: judgement.gapReason ?? gap.reason,
                 dx: gap.dx, dy: gap.dy
             )
-            store.graph = spawnGap(store.graph, parentId: node.id, named)
+            var graph = spawnGap(store.graph, parentId: node.id, named)
+            // `spawnGap` is idempotent by id, which is the right rule — but a
+            // second failure judges the gap again, and the map kept the first
+            // attempt's wording. Rename in place rather than adding a twin.
+            if let index = graph.nodes.firstIndex(where: { $0.id == named.id }) {
+                graph.nodes[index].label = named.label
+                graph.nodes[index].summary = named.reason
+            }
+            store.graph = graph
             store.states[named.id] = .gap
             return
         }
-        store.graph.nodes.removeAll { $0.id == gap.id }
-        store.graph.edges.removeAll { $0.from == gap.id || $0.to == gap.id }
-        store.states[gap.id] = nil
+        // A clean first-attempt pass never spawned anything: two whole-graph
+        // assignments, two rederives and two saves to remove a node that was
+        // never there.
+        if store.graph.nodes.contains(where: { $0.id == gap.id }) {
+            var graph = store.graph
+            graph.nodes.removeAll { $0.id == gap.id }
+            graph.edges.removeAll { $0.from == gap.id || $0.to == gap.id }
+            store.graph = graph
+            store.states[gap.id] = nil
+        }
         store.states[node.id] = .mastered
     }
 
     /// A teach-back leaves its unresolved sub-points on the map: a beat the
     /// learner skipped or got confused about is a real gap, in their own
     /// material's words.
+    ///
+    /// A row the judge did not rule on is a skip, not a pass: silence about a
+    /// sub-point the learner never mentioned is exactly the finding this phase
+    /// exists for. The server validator refuses such a payload today; this is
+    /// the client not depending on that.
     public func writeFeynmanGaps(_ judgement: FeynmanJudgement, beats: [FeynmanBeat]) {
-        for row in judgement.verdicts where row.verdict != "good" {
-            guard let beat = beats[safe: row.i] else { continue }
-            store.graph = spawnGap(store.graph, parentId: node.id, beat.gap)
-            if store.graph.nodes.contains(where: { $0.id == beat.gap.id }) {
-                store.states[beat.gap.id] = .gap
-            }
+        let ruled = Dictionary(judgement.verdicts.map { ($0.i, $0) }, uniquingKeysWith: { first, _ in first })
+        // One assignment, one rederive, one debounced save — not one per row.
+        var graph = store.graph
+        var spawned: [String] = []
+        for (index, beat) in beats.enumerated() {
+            let row = ruled[index]
+            guard row?.verdict != "good" else { continue }
+            // The learner's own words are the whole context a later pass on
+            // this gap opens with; the pre-written reason was drafted before
+            // they said anything.
+            let named = GapSpec(
+                id: beat.gap.id,
+                label: beat.gap.label,
+                reason: row?.quote.map { String(localized: "Você disse: “\($0)” — \(beat.gap.reason)") } ?? beat.gap.reason,
+                dx: beat.gap.dx, dy: beat.gap.dy
+            )
+            graph = spawnGap(graph, parentId: node.id, named)
+            if graph.nodes.contains(where: { $0.id == named.id }) { spawned.append(named.id) }
         }
+        store.graph = graph
+        for id in spawned { store.states[id] = .gap }
     }
 }

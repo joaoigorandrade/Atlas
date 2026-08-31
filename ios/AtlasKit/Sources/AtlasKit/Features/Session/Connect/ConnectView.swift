@@ -39,7 +39,9 @@ struct ConnectView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         Kicker("Teia de conceitos")
-                        ConceptWeb(content: content, linked: model.linked).padding(.top, 10)
+                        ConceptWeb(content: content, linked: model.linked,
+                                   active: model.candidate?.id, select: model.select)
+                            .padding(.top, 10)
                             .animation(Motion.standard, value: model.linked)
                         Text(verbatim: content.detectNote)
                             .font(.atlas(.sans, 13))
@@ -55,10 +57,23 @@ struct ConnectView: View {
                     .padding(.vertical, 18)
                 }
                 Dock {
-                    CTAButton("Seguir para o Crisol →", tint: Palette.crucibleInk) { model.advance() }
+                    VStack(spacing: 8) {
+                        if !model.ready {
+                            // The node becomes Shaky on the way out, as if the
+                            // elaboration happened. Something has to have.
+                            Text("Confirme pelo menos dois vínculos para seguir.")
+                                .font(.atlas(.sans, 12.5))
+                                .foregroundStyle(Palette.inkMuted)
+                        }
+                        CTAButton("Seguir para o Crisol →", tint: Palette.crucibleInk) { model.advance() }
+                            .disabled(!model.ready)
+                    }
                 }
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
+                if model.failed {
+                    Dock { CTAButton("Tentar de novo", tint: Palette.connectInk) { Task { await model.retry() } } }
+                }
             }
         }
         // A confirmed link lights its edge on the web and drops a card below —
@@ -80,9 +95,22 @@ struct ConnectView: View {
                     .padding(.top, 9)
                 AnswerEditor(text: model.draft(candidate),
                              placeholder: String(localized: "Escreva o vínculo com suas palavras…"),
+                             dictation: model.dictation,
                              minHeight: 88, tint: Palette.connectInk)
                     .padding(.top, 14)
-                CTAButton("Confirmar vínculo", tint: Palette.connectInk) { model.confirm(candidate) }
+                // Offered, not imposed: the box opens blank, and the map's own
+                // sentence is one tap away until there is something of theirs
+                // to overwrite.
+                if model.canSuggest(candidate) {
+                    Button("Ver a sugestão do mapa") { model.suggest(candidate) }
+                        .font(.atlas(.sans, 13))
+                        .foregroundStyle(Palette.connectInk)
+                        .padding(.top, 10)
+                }
+                CTAButton("Confirmar vínculo", tint: Palette.connectInk) {
+                    model.dictation.flush()
+                    model.confirm(candidate)
+                }
                     .padding(.top, 12)
                     .disabled(!model.canConfirm(candidate))
             }
@@ -105,7 +133,7 @@ struct ConnectView: View {
                         .foregroundStyle(Palette.inkMuted)
                 }
                 ForEach(confirmed) { candidate in
-                    Text(verbatim: model.text(for: candidate))
+                    Text(verbatim: model.back(for: candidate))
                         .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.ink)
                         .padding(.horizontal, 15).padding(.vertical, 13)
@@ -127,6 +155,8 @@ struct ConnectView: View {
 private struct ConceptWeb: View {
     let content: ElaborationContent
     let linked: Set<String>
+    let active: String?
+    let select: @MainActor (ElaborationLink) -> Void
 
     var body: some View {
         Canvas { context, size in
@@ -158,7 +188,30 @@ private struct ConceptWeb: View {
                          with: .color(Palette.connectBg))
             context.draw(Text(verbatim: content.centerLabel).font(.atlas(.serif, 12)).foregroundStyle(Palette.ink), at: centre)
         }
-        .frame(height: 190)
+        // The generation places its candidates in a 560×440 canvas and both
+        // axes are scaled by the width — a fixed 190pt frame put the bottom
+        // three slots off the screen entirely.
+        .aspectRatio(560.0 / 440.0, contentMode: .fit)
+        // A Canvas has no hit-testing and no accessibility of its own: the
+        // learner could not choose which candidate to link, and the whole
+        // diagram did not exist for VoiceOver.
+        .accessibilityHidden(true)
+        .overlay {
+            GeometryReader { geo in
+                let scale = geo.size.width / 560
+                ForEach(content.cands) { candidate in
+                    Button { select(candidate) } label: {
+                        Circle().fill(.clear).frame(width: 23 * scale * 2 + 16, height: 23 * scale * 2 + 16)
+                    }
+                    .contentShape(.circle)
+                    .position(x: candidate.x * scale, y: candidate.y * scale)
+                    .accessibilityLabel(Text(verbatim: candidate.label))
+                    .accessibilityValue(linked.contains(candidate.id)
+                                        ? Text("Vinculado") : Text("Sem vínculo"))
+                    .accessibilityAddTraits(candidate.id == active ? [.isSelected] : [])
+                }
+            }
+        }
         .padding(8)
         .background(Palette.card, in: .rect(cornerRadius: 16))
         .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
