@@ -66,6 +66,13 @@ public struct HomeView: View {
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                         newMapButton(model).padding(.top, 14)
+                        if !model.message.isEmpty {
+                            Text(verbatim: model.message)
+                                .font(.atlas(.sans, 13))
+                                .foregroundStyle(Palette.dangerInk)
+                                .padding(.top, 12)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -76,7 +83,17 @@ public struct HomeView: View {
                 // list only ever needs to not jump.
                 .animation(Motion.spring, value: model.streak)
                 .animation(Motion.standard, value: model.maps.map(\.subject))
+                .animation(Motion.standard, value: model.message)
             }
+        }
+        // Long-press a card to exclude it. The map, its mastery states, its
+        // cards and everything generated for it are one row, and the delete
+        // takes all of it — so it is asked about first, like the account is.
+        .alert(model.deleteAsk, isPresented: model.isConfirmingDelete) {
+            Button("Manter", role: .cancel) { model.cancelDelete() }
+            Button("Excluir", role: .destructive) { Task { await model.delete() } }
+        } message: {
+            Text("O mapa, seus estados de domínio, seus cartões e tudo que foi gerado para ele são apagados. Sua sequência permanece. Não dá para desfazer.")
         }
     }
 
@@ -158,6 +175,11 @@ public struct HomeView: View {
             }
         }
         .buttonStyle(Pressable())
+        .contextMenu {
+            Button("Excluir este tópico", systemImage: "trash", role: .destructive) {
+                model.askToDelete(map)
+            }
+        }
     }
 
     /// Clearing the run is what shows onboarding, so there is nowhere to

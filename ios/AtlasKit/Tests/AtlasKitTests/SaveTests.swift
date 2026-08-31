@@ -1,4 +1,5 @@
 import Foundation
+import Networking
 import Testing
 @testable import AtlasKit
 
@@ -103,6 +104,55 @@ private final class Stub: URLProtocol, @unchecked Sendable {
     #expect(Stub.saw("POST", "run_states", host: host.host()!))
     #expect(store.session == nil)
     #expect(store.subject.isEmpty)
+}
+
+/// Excluding a topic. The row has to actually go — a delete that only cleared
+/// the screen would put the map back on the dashboard at the next launch — and
+/// the debounce armed by the work that came before it must not upsert it back.
+@MainActor
+@Test func excludingATopicDeletesItsRowAndClearsTheRunItWasOpen() async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [Stub.self]
+    let session = URLSession(configuration: config)
+    let host = URL(string: "https://atlas-exclude.test")!
+
+    let store = AtlasStore(
+        api: AtlasAPI(baseURL: host, session: session),
+        auth: AtlasAuth(baseURL: host, session: session),
+        runs: RunStore(baseURL: host, session: session)
+    )
+    await store.restore()
+    try await store.signIn(email: "a@b.c", password: "secret")
+
+    store.subject = "Cálculo I"
+    store.graph = ConceptGraph(nodes: [ConceptNode(id: "lat", label: "Limites laterais")])
+    await store.saveNow()
+    #expect(store.maps.contains { $0.subject == "Cálculo I" })
+
+    // No sleep, again: the graph change above is still in the debounce.
+    try await store.deleteMap("Cálculo I")
+    #expect(Stub.saw("DELETE", "run_states", host: host.host()!))
+    #expect(store.maps.isEmpty)
+    // It was the open map, and the only one — an empty run is what routes the
+    // shell back to onboarding.
+    #expect(store.subject.isEmpty)
+    #expect(store.graph.nodes.isEmpty)
+}
+
+/// The subject filter, which is the whole of "which row". Quoting it looked
+/// careful and matched nothing: PostgREST takes the quotes literally, answers
+/// 204 to a delete that removed no row and `[]` to a caches read, so both
+/// failures were completely silent. Pinned as the literal PostgREST value,
+/// unencoded — `URLComponents` escapes it on the way out.
+@Test func theSubjectFilterIsTheBareValuePostgRESTMatchesOn() {
+    let filter = { (request: HTTPRequestData) in
+        request.queryItems.first { $0.name == "subject" }?.value
+    }
+    #expect(filter(RunEndpoint.delete(subject: "Cálculo I", apiKey: "k", token: "t")) == "eq.Cálculo I")
+    #expect(filter(RunEndpoint.caches(subject: "Cálculo I", apiKey: "k", token: "t")) == "eq.Cálculo I")
+    // A comma, a parenthesis or a dot is only syntax to `in.()` and `or=()`,
+    // never to `eq.` — so they travel as they were typed too.
+    #expect(filter(RunEndpoint.delete(subject: "Redes (I), v2.0", apiKey: "k", token: "t")) == "eq.Redes (I), v2.0")
 }
 
 /// Answers auth, and refuses every `run_states` request. The two failures the

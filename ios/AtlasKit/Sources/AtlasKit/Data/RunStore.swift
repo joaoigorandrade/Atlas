@@ -61,6 +61,12 @@ public actor RunStore {
         _ = try await send(try RunEndpoint.save(.object(row), apiKey: apiKey, token: token))
     }
 
+    /// Drop the run. One row, so this takes the map, its mastery states, its
+    /// cards and everything ever generated for it with it.
+    public func delete(subject: String, token: String) async throws {
+        _ = try await send(RunEndpoint.delete(subject: subject, apiKey: apiKey, token: token))
+    }
+
     /// Execute and classify, the one place a run request becomes an `AtlasError`.
     private func send(_ request: any HTTPRequest) async throws -> NetworkResponse {
         let response: NetworkResponse

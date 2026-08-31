@@ -56,15 +56,32 @@ enum RunEndpoint {
     /// The generated content for one run. Fetched on open and nowhere else.
     static func caches(subject: String, apiKey: String, token: String) -> HTTPRequestData {
         HTTPRequestData(path: table)
-            // Quoted: PostgREST reads a bare comma or parenthesis in a filter
-            // value as syntax, and a subject is whatever the learner typed.
-            .query([
-                "select": "caches", "limit": "1",
-                "subject": "eq.\"\(subject.replacingOccurrences(of: "\"", with: "\\\""))\"",
-            ])
+            .query(["select": "caches", "limit": "1", "subject": match(subject)])
             .header("apikey", apiKey)
             .bearer(token)
     }
+
+    /// Drop one run outright. The map, the mastery states, the cards and the
+    /// generated content are halves of the same row, so this one DELETE takes
+    /// all of them — same as `deleteRun` in `lib/persistence.ts`. RLS scopes
+    /// the match to the bearer, so the subject alone identifies the row.
+    static func delete(subject: String, apiKey: String, token: String) -> HTTPRequestData {
+        HTTPRequestData(path: table, method: .delete)
+            .query(["subject": match(subject)])
+            .header("apikey", apiKey)
+            .header("Prefer", "return=minimal")
+            .bearer(token)
+    }
+
+    /// Unquoted, and percent-encoded by `URLComponents` like any other query
+    /// value. Double quotes around it looked like the careful thing to do and
+    /// were the opposite: PostgREST matches them *literally*, so `eq."x"` finds
+    /// the row whose subject is `"x"` — quotes and all — which is no row at
+    /// all. It answers 204 either way, so the delete looked like it worked and
+    /// the caches read looked like an empty column. A comma, a parenthesis or a
+    /// dot in the value needs no escaping here: only `in.()` and `or=()` read
+    /// them as syntax.
+    private static func match(_ subject: String) -> String { "eq.\(subject)" }
 
     /// Upsert on the primary key. `user_id` is absent from the body on purpose
     /// — the column defaults to `auth.uid()`, which is the only value RLS would

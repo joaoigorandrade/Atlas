@@ -133,8 +133,14 @@ private func landed(_ items: [String]) -> Landed<[String]> {
         }
     } as @Sendable () async -> AsyncThrowingStream<Landed<[String]>, Error>)
 
-    try? await Task.sleep(for: .milliseconds(40))
-    let drawn: [String]? = cache.content("model|x")
+    // Polled, not a fixed beat: this test shares the main actor with every
+    // other one in the suite, and a 40 ms sleep was really a bet on how busy
+    // that actor happened to be.
+    var drawn: [String]?
+    for _ in 0..<200 where drawn == nil {
+        try? await Task.sleep(for: .milliseconds(10))
+        drawn = cache.content("model|x")
+    }
     #expect(drawn == ["draft"])
     // Painted, never filed: a half-written beat must not be uploaded to the
     // shared row, and must not be served to the next caller as a finished one.

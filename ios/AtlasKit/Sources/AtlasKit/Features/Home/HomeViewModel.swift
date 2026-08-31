@@ -78,6 +78,50 @@ final class HomeViewModel {
         await store.switchTo(map)
     }
 
+    // MARK: - Excluir um mapa
+
+    /// The card the learner is being asked about, and the failure if the delete
+    /// did not land. Nothing else on this screen can fail.
+    private(set) var pendingDelete: RunSnapshot?
+    private(set) var message = ""
+    /// The same subject again, held where the alert cannot take it back:
+    /// dismissing clears `pendingDelete` through the binding, and SwiftUI does
+    /// that *before* the confirmed button's task gets to run — which is exactly
+    /// how "Excluir" used to delete nothing at all.
+    private var confirmed = ""
+
+    func askToDelete(_ map: RunSnapshot) {
+        pendingDelete = map
+        confirmed = map.subject
+    }
+
+    func cancelDelete() {
+        pendingDelete = nil
+        confirmed = ""
+    }
+
+    var isConfirmingDelete: Binding<Bool> {
+        Binding(get: { self.pendingDelete != nil }, set: { if !$0 { self.pendingDelete = nil } })
+    }
+
+    var deleteAsk: String {
+        String(localized: "Excluir “\(pendingDelete?.subject ?? confirmed)”?")
+    }
+
+    /// Confirmed. Deleting the open map clears the live run, which is what puts
+    /// the shell back on onboarding when it was the last one — the store does
+    /// all of that; this only speaks the failure.
+    func delete() async {
+        let subject = confirmed
+        guard !subject.isEmpty else { return }
+        cancelDelete()
+        do {
+            try await store.deleteMap(subject)
+        } catch {
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "excluir esse mapa"))
+        }
+    }
+
     /// "+ Novo mapa". The store flushes and clears the open run, which is what
     /// puts the shell on onboarding; nothing is deleted.
     func newMap() async {

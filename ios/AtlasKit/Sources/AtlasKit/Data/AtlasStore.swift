@@ -440,6 +440,34 @@ public extension AtlasStore {
         clearRun()
     }
 
+    /// Exclude a topic: the saved row is deleted outright, and with it the map,
+    /// the mastery states, the cards and everything ever generated for it —
+    /// the same one-row delete `excludeTopic` makes in the browser. The streak
+    /// is deliberately untouched: it is the learner's habit, not the topic's.
+    ///
+    /// Deleting the open map clears the live run too and opens whatever is
+    /// freshest of what remains; with nothing left, the empty run is what puts
+    /// the shell back on onboarding.
+    func deleteMap(_ subject: String) async throws {
+        guard let token = await bearer() else { return }
+        // Before the request, not after: the debounce is armed with a row this
+        // delete is about to remove, and letting it land would upsert it back.
+        pendingSave?.cancel()
+        pendingSave = nil
+        try await runs.delete(subject: subject, token: token)
+        library.removeAll { $0.subject == subject }
+        guard subject == self.subject else { return }
+        quiet = true
+        loaded = nil
+        cachesLoaded = true
+        clearRun()
+        quiet = false
+        if let next = library.first {
+            open(next)
+            await hydrateCaches()
+        }
+    }
+
     /// The dashboard's list: every saved map, with the open one answered from
     /// live state rather than from its row, which is a debounce behind.
     var maps: [RunSnapshot] {

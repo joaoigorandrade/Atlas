@@ -1,6 +1,72 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "Manter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep it"
+          }
+        }
+      }
+    },
+    "Excluir" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exclude"
+          }
+        }
+      }
+    },
+    "Excluir este tópico" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exclude this topic"
+          }
+        }
+      }
+    },
+    "Excluir “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exclude “%@”?"
+          }
+        }
+      }
+    },
+    "excluir esse mapa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "exclude this map"
+          }
+        }
+      }
+    },
+    "O mapa, seus estados de domínio, seus cartões e tudo que foi gerado para ele são apagados. Sua sequência permanece. Não dá para desfazer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The map, its mastery states, its cards and everything generated for it are deleted. Your streak stays. This can't be undone."
+          }
+        }
+      }
+    },
     "Progresso" : {
       "extractionState" : "manual",
       "localizations" : {
