@@ -510,6 +510,28 @@ describe("validateConsume", () => {
   // The shape forbids naming a work the model isn't sure exists. When `cite`
   // was also required, the only way to satisfy both was to invent one — so
   // abstaining has to validate, and the "Further reading" line just goes away.
+  // The model writes the answer in the same slot nearly every time — over the
+  // runs already generated it was slot 2 of 3 in 73% of checks and never slot
+  // 3, which is a strategy that beats reading the section. The shuffle is what
+  // makes the position carry nothing.
+  it("shuffles the check's options so the answer's slot says nothing", () => {
+    const slots = Array.from({ length: 200 }, () => {
+      const [chunk] = validateConsume({ chunks: [0, 1].map((i) => consumeChunk(i)) });
+      return chunk.check!.opts.findIndex((o) => o.correct);
+    });
+    // Every slot is reachable, and none of them owns the answer. The band is
+    // wide on purpose: this asserts "not a pattern", not a fair coin.
+    for (const slot of [0, 1, 2]) {
+      const hits = slots.filter((s) => s === slot).length;
+      expect(hits).toBeGreaterThan(30);
+      expect(hits).toBeLessThan(105);
+    }
+    // The labels themselves survive the shuffle — one correct, three options.
+    const [chunk] = validateConsume({ chunks: [0, 1].map((i) => consumeChunk(i)) });
+    expect(chunk.check!.opts.map((o) => o.label).sort()).toEqual(["a", "b", "c"]);
+    expect(chunk.check!.opts.find((o) => o.correct)!.label).toBe("b");
+  });
+
   it("accepts a section that declines to name a further-reading work", () => {
     const out = validateConsume(consumePayload([{ cite: undefined }]));
     expect(out[0].cite).toBeUndefined();

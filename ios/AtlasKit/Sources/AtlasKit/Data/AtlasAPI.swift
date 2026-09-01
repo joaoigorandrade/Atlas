@@ -18,7 +18,21 @@ public actor AtlasAPI {
     /// The Supabase access token. `/api/generate` requires a signed-in learner.
     private var accessToken: String?
 
+    /// The unary half needs the same bound the streamed half already has.
+    /// `URLSession.shared` waits 60s for a response and a non-streamed
+    /// generation is silent for all of it — the server may still be writing at
+    /// 60s and the route allows 300 (`app/api/generate/route.ts`), so the
+    /// default killed requests that were about to land. `retain` measured
+    /// 49.8s on one call and 60.0s-and-dead on the next.
+    private static func generous(_ session: URLSession) -> URLSession {
+        guard session === URLSession.shared else { return session }
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = NDJSONStreamer.streamSeconds
+        return URLSession(configuration: config)
+    }
+
     public init(baseURL: URL, session: URLSession = .shared) {
+        let session = Self.generous(session)
         client = URLSessionNetworkClient(
             baseURL: baseURL,
             session: session,
@@ -313,8 +327,15 @@ public actor AtlasAPI {
         var body = context
         body["mode"] = .string(mode)
         var verdict: T?
+        // The verdict-prefix frame (`judgeStream`'s `firstShape` — `{"quality"}`,
+        // `{"verdicts"}`, `{"outcome"}`) rides out as a *complete* frame, not a
+        // partial: it carries the classification and none of the critique. So a
+        // frame that does not decode is the prefix, not a failure — skip it and
+        // keep the last one that does, the same way the list collector above
+        // does. Decoding it with `try` failed every Socratic, Feynman and
+        // Crucible answer with "we couldn't grade your answer".
         for try await frame in stream("judge", body) where frame.p == "judgement" && frame.partial != true {
-            verdict = try frame.v.decode(T.self)
+            verdict = (try? frame.v.decode(T.self)) ?? verdict
         }
         guard let verdict else {
             throw AtlasError(code: "upstream", message: "the judge returned nothing")

@@ -122,7 +122,7 @@ struct ConsumeView: View {
         VStack(alignment: .leading, spacing: 0) {
             Kicker(verbatim: chunk.kicker)
             ForEach(Array(chunk.body.enumerated()), id: \.offset) { _, paragraph in
-                Text(verbatim: paragraph)
+                Text(Markdown.rich(paragraph))
                     .font(.atlas(.serif, 17.5))
                     .lineSpacing(6)
                     .foregroundStyle(Palette.ink)
@@ -136,17 +136,17 @@ struct ConsumeView: View {
 
             if let example = chunk.example {
                 Kicker("Exemplo").padding(.top, 22)
-                Text(verbatim: example.title).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink).padding(.top, 8)
+                Text(Markdown.rich(example.title)).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink).padding(.top, 8)
                 ForEach(Array(example.steps.enumerated()), id: \.offset) { step, text in
                     HStack(alignment: .top, spacing: 10) {
                         Text(verbatim: "\(step + 1)").font(.atlas(.mono, 11)).foregroundStyle(Palette.inkFaint)
-                        Text(verbatim: text).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
+                        Text(Markdown.rich(text)).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
                     }
                     .padding(.top, 8)
                 }
             }
 
-            Text(verbatim: chunk.takeaway)
+            Text(Markdown.rich(chunk.takeaway))
                 .font(.atlas(.serif, 16))
                 .foregroundStyle(Palette.ink)
                 .padding(14)
@@ -241,7 +241,7 @@ struct ConsumeView: View {
                 }
             }
 
-            Text(verbatim: check.q)
+            Text(Markdown.rich(check.q))
                 .font(.atlas(.serif, 17.5))
                 .lineSpacing(4)
                 .foregroundStyle(Palette.ink)
@@ -261,7 +261,7 @@ struct ConsumeView: View {
 
             VStack(spacing: 9) {
                 ForEach(Array(check.opts.enumerated()), id: \.offset) { option, opt in
-                    ChoiceRow(opt.label,
+                    ChoiceRow(Markdown.plain(opt.label),
                               mark: mark(option, check, model),
                               chosen: model.picked == option,
                               enabled: !model.passed && !model.missed.contains(option)) {
@@ -292,7 +292,7 @@ struct ConsumeView: View {
         let tint = correct ? Palette.accent : Palette.amberInk
         return VStack(alignment: .leading, spacing: 5) {
             Kicker(correct ? "Correto" : "Tente outra", tint: tint)
-            Text(verbatim: correct ? check.right : check.wrong)
+            Text(Markdown.rich(correct ? check.right : check.wrong))
                 .font(.atlas(.sans, 13.5))
                 .lineSpacing(3)
                 .foregroundStyle(Palette.inkSoft)

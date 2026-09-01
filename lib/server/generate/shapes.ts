@@ -34,6 +34,10 @@ export const CONSUME_SECTION_SHAPE = `{
       "check": {                                           // EVERY SECTION — the comprehension check that closes it
         "q": "a question answerable only by someone who read THIS section — never general knowledge, never guessable from the kicker",
         "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
+                                                             // all three within a few words of the same length, and each as specific as
+                                                             // the others: the longest, most-qualified option must not be the answer,
+                                                             // or the check is answerable without reading. The slot is shuffled after
+                                                             // you write it, so which one you mark correct here carries no information.
         "right": "one line confirming what they got right",
         "wrong": "one line naming what they missed and where in the section it was — no new material"
       }

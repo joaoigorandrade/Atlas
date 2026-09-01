@@ -47,8 +47,14 @@ public struct MapView: View {
         // cap; widen it when a warm is cheaper than a wait.
         .task(id: store.frontier.prefix(2).map(\.id).joined()) {
             for node in store.frontier.prefix(2) { store.warmUp("consume", for: node) }
-            store.warmRetain()
         }
+        // Not keyed on the frontier: the day's deck is drawn from the nodes
+        // with no card yet, which has nothing to do with which two are at the
+        // head of the queue. Opening a node moves the frontier, and this used
+        // to re-fire — against a `uncovered` the first draft had already
+        // changed, so the two calls addressed different keys and the cache
+        // deduplicated neither. Two decks, two charges, one of them unread.
+        .task { store.warmRetain() }
     }
 
     private func open(_ node: ConceptNode) {

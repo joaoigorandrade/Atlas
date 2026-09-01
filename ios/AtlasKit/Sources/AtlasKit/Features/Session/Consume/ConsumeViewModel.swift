@@ -126,7 +126,9 @@ final class ConsumeViewModel {
             segments.append(contentsOf: example.steps)
         }
         segments.append(chunk.takeaway)
-        return segments
+        // The screen renders the model's markdown; the voice has to be handed
+        // the same string, or it reads the asterisks out loud. See `Markdown`.
+        return segments.map(Markdown.plain)
     }
 
     var waitingCopy: String { message.isEmpty ? String(localized: "Escrevendo sua leitura…") : message }
@@ -146,6 +148,11 @@ final class ConsumeViewModel {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "escrever sua leitura"))
         }
         writing = false
+        // A restored `idx` past the end of the pass in hand — a pass rewritten
+        // shorter than the one the learner left — drew no section *and* no
+        // dock: the back arrow was the only way off the screen. Clamped here,
+        // once, so `next`, `rail` and `note` all agree with what is drawn.
+        if !chunks.isEmpty, index > chunks.count - 1 { index = chunks.count - 1 }
     }
 
     func pick(_ option: Int) {
@@ -208,7 +215,17 @@ final class ConsumeViewModel {
         seenTotal = max(seenTotal, chunks.count)
         session.store.note(
             reading: node.id, idx: index, total: seenTotal,
-            finished: !chunks.isEmpty && index >= chunks.count - 1, passed: chunk
+            // Reaching the last section is not finishing the pass: `finished`
+            // is what `readingPhaseIndex` ticks Consume off by, so writing it
+            // on arrival marked the reading done for a learner who had not
+            // answered its check — and the way back in became "Refazer",
+            // which throws the whole pass away. Mirrors the web, where only
+            // `finishConsume` (the recap's CTA, past the check) sets it.
+            // `writing` matters for the same reason the dock reads it: the
+            // last section *in hand* is not the last one while the stream is
+            // still going.
+            finished: !chunks.isEmpty && index >= chunks.count - 1 && !writing && passed,
+            passed: chunk
         )
     }
 

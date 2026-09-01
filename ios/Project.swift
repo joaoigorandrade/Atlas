@@ -10,6 +10,22 @@ import ProjectDescription
 // pt-BR is the source language: the copy in the code *is* the Portuguese, and
 // `App/Resources/Localizable.xcstrings` carries the English beside it. Both
 // regions are declared so the catalogue compiles an `en.lproj` as well.
+/// The web app this build talks to. Prod unless the environment names another
+/// one — see the note beside `ATLAS_BASE_URL` below.
+/// `TUIST_` is Tuist's own prefix — the manifest runs sandboxed and sees no
+/// other environment. `TUIST_ATLAS_BASE_URL=http://localhost:3000`.
+let devBaseURL: String? = {
+    let named = Environment.atlasBaseUrl.getString(default: "")
+    return named.isEmpty ? nil : named
+}()
+
+/// ATS blocks plaintext HTTP, which is exactly what a local dev server serves.
+/// Added only for a local build, so a shipped one keeps the default refusal.
+let localNetworkingATS: [String: Plist.Value] =
+    devBaseURL?.hasPrefix("http://") == true
+        ? ["NSAppTransportSecurity": ["NSAllowsLocalNetworking": true]]
+        : [:]
+
 let project = Project(
     name: "Atlas",
     options: .options(developmentRegion: "pt-BR"),
@@ -30,13 +46,17 @@ let project = Project(
                 "NSSpeechRecognitionUsageDescription": "Para transcrever o que você fala nas respostas.",
                 // Screen 4 — the confirmation link comes back into the app.
                 "CFBundleURLTypes": [["CFBundleURLSchemes": ["atlas"]]],
-                "ATLAS_BASE_URL": "https://atlas-tan-two.vercel.app",
+                // ponytail: one constant, overridable by an env var at generate
+                // time — `ATLAS_BASE_URL=http://localhost:3000 tuist generate`
+                // is what points a simulator build at a fixture-mode dev
+                // server, so a walk through the phases costs no model calls.
+                "ATLAS_BASE_URL": .string(devBaseURL ?? "https://atlas-tan-two.vercel.app"),
                 // The serif in `Face.serif`. One variable file: CoreText
                 // exposes its named instances (Medium, SemiBold, …), so
                 // `Font.custom("Newsreader", …).weight(…)` picks a real cut
                 // instead of a synthetic one.
                 "UIAppFonts": ["Newsreader.ttf"],
-            ]),
+            ].merging(localNetworkingATS) { a, _ in a }),
             sources: ["App/Sources/**"],
             resources: ["App/Resources/**"],
             dependencies: [.package(product: "AtlasKit")]

@@ -292,9 +292,6 @@ the retried `generateJson` path when nothing has been yielded — the mechanism 
 calls "the proven, retried path" that "covers the common failure mode (format
 non-compliance)". `OpenRouter.json` (`:49-75`), including its corrective-retry conversation
 (`:61-68`), is written, tested by nothing, and called by nothing (`grep` finds no call site).
-Failure scenario: `google/gemini-2.5-flash` opens with a `{"chunks": [` wrapper instead of
-bare objects; the server would silently recover, the phone shows "we couldn't write your
-reading".
 
 **B11 — the first-token deadline does not actually cap first-token silence. (medium,
 confirmed)** `openrouter.ts:276-291` arms two independent timers on one `AbortController`:

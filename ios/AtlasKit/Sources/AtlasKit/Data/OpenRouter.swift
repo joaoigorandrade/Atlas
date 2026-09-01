@@ -38,8 +38,11 @@ public actor OpenRouter {
     /// Caps the silence before the first token. A mute model is the failure a
     /// whole-request deadline waits out — and so does the learner.
     private static let firstTokenSeconds: TimeInterval = 25
-    /// Caps the whole call, including a model that streams forever.
-    private static let requestSeconds: TimeInterval = 90
+    /// Caps the whole call, including a model that streams forever. 90 was the
+    /// server's number and it was too tight for a full reading pass: a Consume
+    /// that took 138s lost every section after the first, and a Socratic lost
+    /// the whole pass. The bound that matters is the route's `maxDuration`.
+    private static let requestSeconds: TimeInterval = 300
 
     // MARK: - One-shot JSON
 

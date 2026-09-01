@@ -1050,17 +1050,6 @@
         }
       }
     },
-    "Continuar · Feynman": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Continue · Feynman"
-          }
-        }
-      }
-    },
     "Continue de onde parou — o que vem depois?": {
       "extractionState": "manual",
       "localizations": {

@@ -53,7 +53,11 @@ final class NodeDetailViewModel {
         if state == .learning, store.reading(node.id)?.finished == false { return "Retomar a leitura" }
         return switch state {
         case .frontier: "Começar · Consume"
-        case .learning: "Continuar · Feynman"
+        // Named after the phase the button actually opens. A fixed "Feynman"
+        // here was a label for one of the three phases `.learning` can owe:
+        // a node whose reading is done but never handed off is owed Socratic,
+        // and the row list beside the button said so while the button did not.
+        case .learning: "Continuar · \(action?.rawValue ?? Phase.feynman.rawValue)"
         case .shaky: "Tentar de novo · Crucible"
         case .mastered: "Revisar agora"
         case .gap: "Corrigir esta lacuna"

@@ -210,3 +210,24 @@ private func check(correct: [Bool]) -> JSONValue {
     #expect(Speaker.batched(["Um.", "Dois.", "Três."]).count == 1)
     #expect(Speaker.batched(["", "   "]).isEmpty)
 }
+
+/// The model writes markdown emphasis into its prose. `Text(verbatim:)` printed
+/// the markers; the voice read them out. Both go through `Markdown` now, so
+/// this is the one check that keeps the two halves the same string.
+@Suite("Markdown na leitura")
+struct MarkdownTests {
+    @Test("os marcadores de ênfase somem do que se lê e do que se fala")
+    func stripsEmphasis() {
+        let written = "vetores que *geram* o espaço e são **independentes**"
+        #expect(Markdown.plain(written) == "vetores que geram o espaço e são independentes")
+        // What the screen draws is the same characters, styled — never the
+        // markers, and never the fallback of showing the raw string.
+        #expect(String(Markdown.rich(written).characters) == Markdown.plain(written))
+    }
+
+    @Test("prosa sem marcação atravessa intacta, espaços inclusive")
+    func leavesPlainProseAlone() {
+        let plain = "Se v = (1, 2) e w = (-2, -4), então w = -2·v."
+        #expect(Markdown.plain(plain) == plain)
+    }
+}

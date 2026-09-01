@@ -30,7 +30,7 @@ struct NDJSONStreamer: Sendable {
                     var urlRequest = try request.makeURLRequest(baseURL: baseURL)
                     urlRequest.timeoutInterval = Self.streamSeconds
                     let (bytes, response) = try await session.bytes(for: urlRequest)
-                    try check(response)
+                    try await check(response, bytes)
                     // One decoder for the whole stream: a long generation is
                     // thousands of lines, and each one was building its own.
                     let decoder = JSONDecoder()
@@ -57,12 +57,23 @@ struct NDJSONStreamer: Sendable {
 
     /// A stream that never starts fails like any other request — the body is the
     /// error payload, and it is small enough to read before giving up on it.
-    private func check(_ response: URLResponse) throws {
+    private func check(_ response: URLResponse, _ bytes: URLSession.AsyncBytes) async throws {
         guard let http = response as? HTTPURLResponse,
               !(200..<300).contains(http.statusCode) else { return }
+        // The refusal body is `apiError`'s `{code, error}` and the code in it is
+        // the one the learner hears — the same body `AtlasError.http` reads on
+        // the unary path. Deriving the code from the status alone instead sent
+        // an OpenRouter 402 (`code: "upstream"`, "try again in a moment") to the
+        // screen as "describe the topic differently", which the learner cannot
+        // act on. One line, so `bytes.lines` is enough to hold it.
+        var body: [String: String]?
+        for try await line in bytes.lines where !line.isEmpty {
+            body = try? JSONDecoder().decode([String: String].self, from: Data(line.utf8))
+            break
+        }
         throw AtlasError(
-            code: codeForStatus(http.statusCode),
-            message: "stream refused (\(http.statusCode))",
+            code: body?["code"] ?? codeForStatus(http.statusCode),
+            message: body?["error"] ?? "stream refused (\(http.statusCode))",
             status: http.statusCode,
             requestId: http.value(forHTTPHeaderField: "x-atlas-request-id")
         )

@@ -48,6 +48,18 @@ export function validateFigure(raw: unknown, name: string): ConsumeFigure {
   return { nodes, edges };
 }
 
+/** Fisher-Yates. The answer's slot has to carry no information — see the note
+ *  in `validatePrediction`. Not seeded: the shuffle happens once, on the way
+ *  into the cache, so the learner sees one stable order either way. */
+function shuffle<T>(items: readonly T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 /** A multiple-choice question with verdict copy — a section's closing check. */
 function validatePrediction(raw: unknown, name: string): ConsumePrediction {
   const pred = obj(raw, name);
@@ -62,7 +74,13 @@ function validatePrediction(raw: unknown, name: string): ConsumePrediction {
     fail(`${name}.opts must have exactly one correct option`);
   return {
     q: str(pred.q, `${name}.q`),
-    opts,
+    // Shuffled here rather than at either client, because this is the one
+    // place both of them go through and because the order is what gets cached:
+    // a section shuffled per render would move the options under a learner
+    // re-reading it. Measured over the runs already generated, the model put
+    // the answer in slot 2 of 3 in 73% of checks and never once in slot 3 —
+    // "it's the middle one" was a strictly better strategy than reading.
+    opts: shuffle(opts),
     right: str(pred.right, `${name}.right`),
     wrong: str(pred.wrong, `${name}.wrong`),
   };
