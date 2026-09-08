@@ -200,6 +200,10 @@ export function* slots<T>(
             evt: "stream_slot_dropped",
             kind: label,
             index,
+            // The head of what was actually dropped. Without it the error is
+            // the field the validator happened to reach first, which is what
+            // sent one round of this investigation at the wrong shape.
+            raw: raw.slice(0, 400),
             error: String(err instanceof Error ? err.message : err).slice(0, 200),
           }),
         );
