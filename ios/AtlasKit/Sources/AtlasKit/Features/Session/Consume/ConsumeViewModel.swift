@@ -180,6 +180,10 @@ final class ConsumeViewModel {
             missed = []
             grade = nil
             reachedEnd = false
+            // A read-aloud that failed on the section just left has nothing to
+            // say about this one — the banner was outliving the section it was
+            // about, over prose nobody asked to hear.
+            speaker.clearMessage()
         }
         note()
     }

@@ -145,3 +145,34 @@ function lastCommaOutsideString(text: string): number {
   }
   return last;
 }
+
+/**
+ * Validate one object off a stream, or drop it.
+ *
+ * A slot the model wrote badly costs that slot, not the pass. Throwing instead
+ * sent the caller to its single-shot fallback, which re-generates and re-bills
+ * the whole thing over one malformed object: a lens cost 7.8s + 6.1s and two
+ * model calls, a socratic 29.6s + 27.6s. A stream where *every* object is bad
+ * still yields nothing, and the caller's empty-stream throw routes that into
+ * the same fallback — which is the case the fallback is actually for.
+ */
+export function validateSlot<T>(
+  raw: string,
+  index: number,
+  label: string,
+  validate: (value: unknown, index: number) => T,
+): T | undefined {
+  try {
+    return validate(JSON.parse(raw), index);
+  } catch (err) {
+    console.error(
+      JSON.stringify({
+        evt: "stream_slot_dropped",
+        kind: label,
+        index,
+        error: String(err instanceof Error ? err.message : err).slice(0, 200),
+      }),
+    );
+    return undefined;
+  }
+}

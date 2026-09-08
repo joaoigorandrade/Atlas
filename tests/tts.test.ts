@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { normalizeMarks } from "@/lib/server/tts";
+import { normalizeMarks, splitForProvider } from "@/lib/server/tts";
 import { speechKey } from "@/lib/server/speechCache";
 
 // The provider's speech marks are the one part of this integration the app
@@ -142,5 +142,38 @@ describe("speechKey", () => {
     expect(speechKey({ ...base, model: "ab", voice: "c" })).not.toBe(
       speechKey({ ...base, model: "a", voice: "bc" }),
     );
+  });
+});
+
+describe("splitForProvider", () => {
+  it("leaves anything inside the cap alone", () => {
+    expect(splitForProvider("Uma frase curta.", 2_000)).toEqual(["Uma frase curta."]);
+  });
+
+  it("rejoins to exactly the input, so mark offsets stay true", () => {
+    const text = ("Uma frase sobre ação coletiva. ".repeat(200) + "Fim.").trim();
+    const pieces = splitForProvider(text);
+    expect(pieces.length).toBeGreaterThan(1);
+    expect(pieces.join("")).toBe(text);
+  });
+
+  it("keeps every piece under the provider's cap", () => {
+    const text = "Uma frase sobre incentivos e carona. ".repeat(300);
+    for (const piece of splitForProvider(text))
+      expect(piece.length).toBeLessThanOrEqual(2_000);
+  });
+
+  it("cuts at a sentence end rather than mid-word", () => {
+    const text = `${"a".repeat(40)}. ${"b".repeat(40)}. ${"c".repeat(40)}.`;
+    expect(splitForProvider(text, 50)).toEqual([
+      `${"a".repeat(40)}. `,
+      `${"b".repeat(40)}. `,
+      `${"c".repeat(40)}.`,
+    ]);
+  });
+
+  it("hard-cuts a single unbroken run rather than looping", () => {
+    const pieces = splitForProvider("x".repeat(120), 50);
+    expect(pieces).toEqual(["x".repeat(50), "x".repeat(50), "x".repeat(20)]);
   });
 });

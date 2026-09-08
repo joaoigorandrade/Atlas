@@ -117,12 +117,87 @@ interface SpeechifyResponse {
   billable_characters_count?: unknown;
 }
 
+/** The provider's own hard cap on one `input`. Over it the call comes back 400
+ *  `Field input must not exceed 2000 characters` — which is what read-aloud did
+ *  on every normal Consume section, because both clients were sized against
+ *  the route's 4 000 rather than this. */
+const PROVIDER_CHARS = 2_000;
+
+/**
+ * Cut `text` into pieces the provider will accept, splitting at the last
+ * sentence end that fits and falling back to the last space.
+ *
+ * The pieces are plain slices and nothing between them is dropped, so
+ * `split(text).join("") === text` — which is what lets the marks below be
+ * shifted by a running character count and still index into the string the
+ * caller sent.
+ */
+export function splitForProvider(text: string, limit = PROVIDER_CHARS): string[] {
+  const pieces: string[] = [];
+  let rest = text;
+  while (rest.length > limit) {
+    const window = rest.slice(0, limit);
+    // `+ 2` keeps the punctuation and the space that follows it on this piece.
+    const sentence = Math.max(
+      window.lastIndexOf(". "),
+      window.lastIndexOf("! "),
+      window.lastIndexOf("? "),
+      window.lastIndexOf("\n"),
+    );
+    const cut = sentence > 0 ? sentence + 2 : window.lastIndexOf(" ") + 1;
+    // A single unbroken run longer than the cap: hard-cut it rather than loop.
+    const at = cut > 0 ? cut : limit;
+    pieces.push(rest.slice(0, at));
+    rest = rest.slice(at);
+  }
+  if (rest) pieces.push(rest);
+  return pieces;
+}
+
 /**
  * Synthesize one segment. `text` must already be the plain, spoken string —
  * the offsets that come back index into it, and markdown sent here would both
  * be read aloud and shift every offset.
+ *
+ * A segment over the provider's cap is synthesized in pieces and handed back as
+ * one clip, because that is the contract both clients are built on: one request
+ * in, one clip out, offsets indexing exactly what was sent. Splitting at either
+ * client instead would need the word highlight to be re-mapped across two
+ * clips, in two languages, twice.
  */
 export async function synthesize(
+  text: string,
+  language: Language,
+  requestId?: string,
+): Promise<SpeechClip> {
+  const pieces = splitForProvider(text);
+  if (pieces.length <= 1) return synthesizeOne(text, language, requestId);
+
+  const audio: Buffer[] = [];
+  const marks: SpeechMark[] = [];
+  let chars = 0;
+  let ms = 0;
+  for (const piece of pieces) {
+    const clip = await synthesizeOne(piece, language, requestId);
+    audio.push(Buffer.from(clip.audio, "base64"));
+    for (const mark of clip.marks)
+      marks.push({
+        from: mark.from + chars,
+        to: mark.to + chars,
+        at: mark.at + ms,
+        end: mark.end + ms,
+      });
+    chars += piece.length;
+    // ponytail: the last word's end stands in for the clip's duration — the
+    // provider returns no length, and the gap is the trailing silence. Good
+    // enough to keep the highlight on the voice; if it drifts audibly, decode
+    // the mp3 header for the real duration.
+    ms += clip.marks.at(-1)?.end ?? 0;
+  }
+  return { audio: Buffer.concat(audio).toString("base64"), marks };
+}
+
+async function synthesizeOne(
   text: string,
   language: Language,
   requestId?: string,

@@ -45,6 +45,10 @@ struct ConsumeView: View {
             SegmentBar(model.rail, height: 3, value: model.railValue)
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 10)
+                // The scroll clips against the rail, so without a gap the prose
+                // is sheared off flush under it as it passes — which reads as a
+                // rendering fault rather than as scrolling.
+                .padding(.bottom, 8)
 
             // A read-aloud that fails in silence reads as a dead button.
             if !model.speaker.message.isEmpty {

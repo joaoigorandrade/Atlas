@@ -202,10 +202,11 @@ public actor AtlasAPI {
     /// asked for them, and even then they are yielded for the redraw only —
     /// never assembled into the list and never handed to the cache.
     ///
-    /// A slot the model wrote badly costs that slot, not the pass: `consume`
-    /// and `socratic` are generated on the device with no server-side
-    /// validator behind them, and one missing `takeaway` used to throw away
-    /// every section that had already landed.
+    /// A slot the model wrote badly costs that slot, not the pass — one
+    /// missing `takeaway` used to throw away every section that had already
+    /// landed. The server drops a bad slot the same way now
+    /// (`streamJsonObjectsProgressive`); this is the client half of the same
+    /// rule, for anything that survives it.
     private func list<T: Decodable & Sendable>(
         _ kind: String, _ part: String, _ context: [String: JSONValue], partials: Bool = false
     ) -> AsyncThrowingStream<Landed<[T]>, Error> {

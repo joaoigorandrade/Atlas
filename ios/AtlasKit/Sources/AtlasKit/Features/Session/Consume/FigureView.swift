@@ -19,9 +19,10 @@ struct FigureView: View {
     private let caption: String?
 
     init(_ figure: ConsumeFigure, caption: String? = nil) {
-        // The server rejects duplicate ids; `consume` is generated on the
-        // device, where nothing does. Two boxes called "a" would give `ForEach`
-        // a duplicate identity, which drops or mis-diffs a row — so the first
+        // `validateFigure` on the server rejects duplicate ids, so this is a
+        // second line rather than the only one — a row cached before that
+        // validator, or one the phone decoded loosely, would still give
+        // `ForEach` a duplicate identity and drop or mis-diff a row. The first
         // box of an id wins, and an edge pointing at a box that isn't there (or
         // at itself) is dropped with it.
         var seen = Set<String>()
@@ -109,9 +110,20 @@ struct FigureView: View {
         context.stroke(head, with: .color(Palette.inkGhost), lineWidth: 1)
 
         guard let label, !label.isEmpty else { return }
-        context.draw(
-            Text(verbatim: label).font(.atlas(.mono, 9)).foregroundStyle(Palette.inkFaint),
-            at: CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        // On its own card, not bare on the line. An edge that spans two rows
+        // has its midpoint *inside* the row between them, so the label landed
+        // across a box — "Coordenação" was printed over with "não aproveita" —
+        // and two labels from the same row overlapped each other.
+        let text = context.resolve(
+            Text(verbatim: label).font(.atlas(.mono, 9)).foregroundStyle(Palette.inkFaint)
         )
+        let size = text.measure(in: CGSize(width: 140, height: 40))
+        let at = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        let card = CGRect(
+            x: at.x - size.width / 2 - 3, y: at.y - size.height / 2 - 1,
+            width: size.width + 6, height: size.height + 2
+        )
+        context.fill(Path(roundedRect: card, cornerRadius: 3), with: .color(Palette.card))
+        context.draw(text, at: at)
     }
 }

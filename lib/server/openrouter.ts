@@ -8,7 +8,7 @@
 //   OPENROUTER_FALLBACK_MODEL — comma-separated chain tried after retries exhaust (#11)
 //   OPENROUTER_BASE_URL       — override for tests/self-hosted gateways
 
-import { closePartialJson, extractCompleteObjects } from "@/lib/server/streamingJson";
+import * as json from "@/lib/server/streamingJson";
 
 /** Cheap default that reliably produces the structured JSON this app needs.
  *  `deepseek/deepseek-chat` is OpenRouter's alias for DeepSeek's latest V3
@@ -438,19 +438,17 @@ export async function* streamJsonObjectsProgressive<T>(
       firstTokenMs = Date.now() - started;
     })) {
       buf += delta;
-      const { objects, rest } = extractCompleteObjects(buf);
+      const { objects, rest } = json.extractCompleteObjects(buf);
       buf = rest;
-      for (const raw of objects)
-        yield {
-          value: validate(JSON.parse(raw), index++),
-          index: index - 1,
-          partial: false,
-        };
+      for (const raw of objects) {
+        const value = json.validateSlot(raw, index, label, validate);
+        if (value !== undefined) yield { value, index: index++, partial: false };
+      }
       if (!opts.partial || !buf.trim()) continue;
       const now = Date.now();
       if (now - lastPartialAt < PARTIAL_MS) continue;
       lastPartialAt = now;
-      const repaired = closePartialJson(buf);
+      const repaired = json.closePartialJson(buf);
       if (repaired === null) continue;
       // A lenient validator that throws on a half-object is a bug in the
       // validator, not a reason to kill a working stream.

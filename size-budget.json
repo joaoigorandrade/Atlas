@@ -27,7 +27,7 @@
     "lib/server/generate/judge.ts": 499,
     "lib/server/generate/map.ts": 486,
     "lib/server/job.ts": 689,
-    "lib/server/openrouter.ts": 548,
+    "lib/server/openrouter.ts": 546,
     "lib/speech.ts": 779
   }
 }

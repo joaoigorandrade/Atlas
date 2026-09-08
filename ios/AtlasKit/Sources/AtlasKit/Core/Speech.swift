@@ -105,6 +105,10 @@ public final class Speaker {
         return pieces.isEmpty ? [body] : pieces
     }
 
+    /// Drop the failure notice. A section turn is not a retry, but the banner
+    /// is about the section being left — see `ConsumeViewModel.advance`.
+    public func clearMessage() { message = "" }
+
     public func stop() {
         clip?.cancel()
         clip = nil
