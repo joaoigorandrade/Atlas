@@ -74,6 +74,11 @@ struct NDJSONStreamer: Sendable {
         throw AtlasError(
             code: body?["code"] ?? codeForStatus(http.statusCode),
             message: body?["error"] ?? "stream refused (\(http.statusCode))",
+            // The sub-case too, and for the same reason the code is read here:
+            // a 429 that is the day's budget rather than a burst is a different
+            // sentence, and dropping it here told the learner to wait an
+            // instant for a cap that lifts tomorrow.
+            reason: body?["reason"],
             status: http.statusCode,
             requestId: http.value(forHTTPHeaderField: "x-atlas-request-id")
         )
