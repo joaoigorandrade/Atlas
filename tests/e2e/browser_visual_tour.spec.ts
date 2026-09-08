@@ -3,8 +3,11 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { FIRST_NODE, SECOND_NODE, clearRuns, openPhase, openRun, TOPIC } from "./helpers";
 
-const SCREENSHOT_DIR =
-  "/Users/joaoigor/.gemini/antigravity/brain/defa1227-ab88-4c34-b53e-1f513fb2d566/screenshots";
+// Under the gitignored `test-results/`, so the tour writes where the rest of
+// Playwright's output already goes. It was an absolute path into one machine's
+// home directory, which is a spec that only runs there — CI could not even
+// mkdir it.
+const SCREENSHOT_DIR = path.join("test-results", "visual-tour");
 
 mkdirSync(SCREENSHOT_DIR, { recursive: true });
 

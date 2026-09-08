@@ -1,12 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  FIRST_NODE,
-  SECOND_NODE,
-  clearRuns,
-  openPhase,
-  openRun,
-  TOPIC,
-} from "./helpers";
+import { FIRST_NODE, SECOND_NODE, clearRuns, openPhase, openRun, TOPIC } from "./helpers";
 
 interface AuditLog {
   errors: string[];
