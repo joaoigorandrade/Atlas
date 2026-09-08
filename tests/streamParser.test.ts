@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closePartialJson, extractCompleteObjects } from "@/lib/server/openrouter";
+import { closePartialJson, extractCompleteObjects } from "@/lib/server/streamingJson";
 
 describe("extractCompleteObjects", () => {
   it("extracts nothing from a partial object", () => {

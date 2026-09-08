@@ -6,7 +6,7 @@
     "components/SettingsScreen.tsx": 491,
     "components/analytics/CalibrationView.tsx": 687,
     "components/atlas/useGeneration.ts": 591,
-    "components/atlas/useOnboarding.ts": 533,
+    "components/atlas/useOnboarding.ts": 532,
     "components/atlas/useRunState.ts": 755,
     "components/atlas/useSpiral.ts": 2135,
     "components/map/LeftRail.tsx": 452,
@@ -27,7 +27,7 @@
     "lib/server/generate/judge.ts": 499,
     "lib/server/generate/map.ts": 486,
     "lib/server/job.ts": 689,
-    "lib/server/openrouter.ts": 662,
+    "lib/server/openrouter.ts": 548,
     "lib/speech.ts": 779
   }
 }
