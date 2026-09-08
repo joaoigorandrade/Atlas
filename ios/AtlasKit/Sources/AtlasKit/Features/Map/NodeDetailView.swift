@@ -15,6 +15,13 @@ struct NodeDetailView: View {
         Group {
             if let model { content(model) } else { Color.clear.frame(height: 1) }
         }
+        // Fill the detent rather than be measured by the content. Sized to its
+        // content the stack ran past the sheet at the accessibility sizes and
+        // took the dock with it, so there was no way to start the phase at all
+        // — this is what puts the CTA back on screen. The header is still
+        // clipped off the top there, and the ScrollView still will not scroll
+        // to it; that half is not understood yet and is not fixed here.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.cardAlt)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
