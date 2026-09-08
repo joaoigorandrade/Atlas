@@ -1,7 +1,8 @@
 // Account + data deletion (#33, privacy). Auth-gated:
-//   1. Delete the caller's run_states rows via RLS (their learning data).
+//   1. Delete the caller's topics via RLS — the cascade takes their nodes,
+//      edges, cards and generated content with them — and their profile.
 //   2. Delete the auth user via the service key — its FK cascade purges BOTH
-//      run_states and generation_log. generation_log has no user-facing delete
+//      of those and generation_log. generation_log has no user-facing delete
 //      policy on purpose (its rows are spend telemetry, not the user's data to
 //      rewrite), so the cascade is the only correct way to remove those rows.
 // Returns 200 even if the auth-user delete is skipped (no service key) — the
@@ -26,8 +27,12 @@ export async function POST() {
   const userId = claims?.claims?.sub;
   if (!userId) return apiError("auth", { requestId });
 
-  // RLS confines this to the caller's own rows.
-  const runs = await supabase.from("run_states").delete().eq("user_id", userId);
+  // RLS confines this to the caller's own rows. One delete per root table:
+  // `topics` cascades to everything a run is made of, and `profiles` is the
+  // learner's own row, which hangs off auth.users rather than off a topic.
+  const runs = await supabase.from("topics").delete().eq("user_id", userId);
+  if (!runs.error)
+    await supabase.from("profiles").delete().eq("user_id", userId);
   // PostgREST's own prose used to go straight onto the wire from here. It is a
   // database's account of a database's problem — it says nothing a learner can
   // act on, and it says more than they should see.

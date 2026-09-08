@@ -18,7 +18,7 @@ import { type Language, languageAction, useLanguage } from "@/lib/i18n";
 import { InkRule } from "@/components/Pending";
 import { color, font } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
-import type { LoadedRun } from "@/lib/persistence";
+import type { Profile, Topic } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import {
@@ -68,13 +68,13 @@ import { useOnline } from "@/lib/online";
 
 export default function AtlasApp({
   userEmail,
-  initialRun,
+  initial,
 }: {
   userEmail: string;
   /** The saved run's core, already read on the server (see app/page.tsx).
    *  `undefined` means "not provided" — fall back to loading it here; `null`
    *  means "read, and there is no saved run". */
-  initialRun?: LoadedRun | null;
+  initial?: { profile: Profile; topics: Topic[] } | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
   // The learner's chosen UI language — threaded into every generation/judge
@@ -184,7 +184,6 @@ export default function AtlasApp({
   // The run: the persisted map, its progress, its cached content, and the
   // loaders and debounced writers that keep all three on the server.
   const run = useRunState({
-    supabase,
     warm,
     screen,
     excluding,
@@ -192,7 +191,7 @@ export default function AtlasApp({
     showError,
     resetSessions,
     resetTransient,
-    initialRun,
+    initial,
   });
 
   const {

@@ -269,15 +269,28 @@ it.
   `middleware.ts` session refresh). Env vars keep their unprefixed names in
   `.env.local`; `next.config.ts` mirrors URL + publishable key to
   `NEXT_PUBLIC_*` for the browser.
-- Run state persists coarsely (§17): one `run_states` row per (user, subject),
-  split across two columns. `snapshot` is the run core — graph, StateMap,
-  positions, adherence, calibration, cards, per-node Consume reading progress,
-  the modality tally — small, versioned (v4), saved on a
-  1.2s debounce; it is the only thing the first paint waits on. `caches` holds
-  the per-node generated content — large, saved on a 4s debounce, loaded in the
-  background behind an already-interactive map. `lib/persistence.ts` defines
-  both and migrates v1/v2 rows whose caches still travel inline. RLS keeps rows
-  per-user (`supabase/migrations/`). Normalize when FSRS lands.
+- **Learner data moves only over `/api/v1`.** Neither client touches PostgREST:
+  the server owns the schema, so it can change without releasing two clients.
+  Supabase is auth plus a database. `lib/persistence.ts` is the wire contract
+  (a topic, a profile, a node delta) and the browser's client for it;
+  `lib/server/store.ts` is the data layer behind the routes. RLS stays on as
+  defence-in-depth and every route uses the caller's bearer.
+- **A run is rows** (`supabase/migrations/20260907120000_normalize.sql`):
+  `topics` → `nodes`, `edges`, `cards`, `node_content`, all `on delete cascade`,
+  plus `profiles` for what belongs to the learner rather than to a topic (the
+  streak, the daily target, the reminders). Deleting a topic is one statement
+  and cannot leave anything behind — that guarantee is the schema's, not any
+  call site's, which is why there is no cleanup list to keep in step.
+- **Writes are deltas.** A node drag is one row's x/y; a graded card is one row.
+  Nothing uploads a whole run, and *nothing uploads content at all* — the
+  generate route records a payload against the topic the moment it exists, from
+  either client. `GET /api/v1/bootstrap` is the whole first paint in one request.
+- **One scheduler.** `lib/fsrs.ts` on `ts-fsrs`: the browser calls it locally,
+  the phone reaches it through `/api/v1/topics/:id/review`, which answers with
+  the deck *and* the real interval for every grade button. Two implementations
+  is how the phone's cards used to disagree with the browser's.
+- What stays JSON: a node's per-phase progress record, which exactly one screen
+  reads and writes whole. Normalizing it would buy nothing and cost a join.
 
 ## Conventions
 

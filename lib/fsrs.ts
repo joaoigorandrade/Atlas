@@ -32,6 +32,7 @@ const FORECAST_STRINGS = {
     minutes: (n: number) => `~${n} min`,
     onSchedule: "recall lifting as scheduled",
     farOut: "next lift 30 d+ out",
+    months: (n: number) => `${n} mo`,
   },
   "pt-BR": {
     dueNow: "Para agora",
@@ -41,6 +42,7 @@ const FORECAST_STRINGS = {
     minutes: (n: number) => `~${n} min`,
     onSchedule: "a lembrança sobe conforme o previsto",
     farOut: "próxima revisão em 30 d+",
+    months: (n: number) => `${n} meses`,
   },
 } as const;
 
@@ -126,23 +128,30 @@ export function dueCards(cards: StoredCard[], now: Date = new Date()): StoredCar
 /** Honest queue math: ~1 minute per card, capped to the daily budget. */
 export const CARD_MINUTES = 1.5;
 
-function fmtInterval(ms: number): string {
+/** The interval on a grade button, in the learner's language.
+ *
+ *  Localized because it is the one number the phone no longer computes: the
+ *  scheduler runs here, so these words are written here too, and an app whose
+ *  source language is pt-BR would otherwise show "2 mo" under "Fácil". */
+function fmtInterval(ms: number, lang: Language = "en"): string {
+  const t = FORECAST_STRINGS[lang];
   const min = ms / 60_000;
   if (min < 60) return `<${Math.max(1, Math.ceil(min))} min`;
   const days = ms / 86_400_000;
   if (days < 30) return `${Math.max(1, Math.round(days))} d`;
-  return `${Math.round(days / 30)} mo`;
+  return t.months(Math.round(days / 30));
 }
 
 /** What each grade would schedule for this card — real intervals on the buttons. */
 export function intervalLabels(
   card: StoredCard,
   now: Date = new Date(),
+  lang: Language = "en",
 ): Record<ReviewGrade, string> {
   const out = {} as Record<ReviewGrade, string>;
   for (const grade of Object.keys(RATING) as ReviewGrade[]) {
     const { card: next } = scheduler.next(fromStored(card.fsrs), now, RATING[grade]);
-    out[grade] = fmtInterval(next.due.getTime() - now.getTime());
+    out[grade] = fmtInterval(next.due.getTime() - now.getTime(), lang);
   }
   return out;
 }
@@ -206,7 +215,7 @@ export function retainContentFromStore(
     answer: c.answer,
     front: c.front,
     back: c.back,
-    fsrs: intervalLabels(c, now),
+    fsrs: intervalLabels(c, now, lang),
     fails: true,
     reExplain: c.reExplain,
   }));

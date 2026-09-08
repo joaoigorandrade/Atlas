@@ -101,14 +101,15 @@ public enum JSONValue: Codable, Sendable, Equatable {
         }
     }
 
-    /// Stamp an `id` on an object that has none. The server assigns list-item
-    /// ids after validating (`c1`, `s1`, …) because the model is never asked
-    /// for one; a device-side generation has to do the same before the screen's
-    /// `Identifiable` types can decode it.
-    func withId(_ id: String) -> JSONValue {
-        guard case .object(var fields) = self, fields["id"] == nil else { return self }
-        fields["id"] = .string(id)
-        return .object(fields)
+    /// A stable string form, for comparing one value against another.
+    ///
+    /// Sorted keys so two objects that differ only in the order they were built
+    /// compare equal — otherwise every save would think every node had changed.
+    var compact: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(self) else { return "" }
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// Decode a frame's value into the concrete shape the screen renders.
@@ -121,6 +122,12 @@ public enum JSONValue: Codable, Sendable, Equatable {
     /// client only partly owns, so its halves are assembled as JSON.
     public init<T: Encodable>(encoding value: T) throws {
         self = try JSONDecoder().decode(JSONValue.self, from: try JSONEncoder().encode(value))
+    }
+
+    /// The array's elements, or nil for every other kind of value.
+    var items: [JSONValue]? {
+        guard case .array(let items) = self else { return nil }
+        return items
     }
 
     /// The object's fields, or nil for every other kind of value.

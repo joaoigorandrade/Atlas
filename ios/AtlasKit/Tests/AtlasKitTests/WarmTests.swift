@@ -181,3 +181,48 @@ private func landed(_ items: [String]) -> Landed<[String]> {
     let nothing: [String]? = cache.content("consume|x")
     #expect(nothing == nil)
 }
+
+/// A pass that ends short of its kind's floor. The stream succeeds — the model
+/// simply stopped — which is exactly the case that used to be indistinguishable
+/// from a finished pass.
+@MainActor
+@Test func aPassThatStopsShortIsAPrefixAndNotACacheHit() async {
+    let cache = WarmCache()
+    let starts = Starts()
+    let short: @Sendable () async -> AsyncThrowingStream<Landed<[String]>, Error> = {
+        await starts.tick()
+        return AsyncThrowingStream { continuation in
+            continuation.yield(landed(["one"]))
+            continuation.finish()
+        }
+    }
+
+    #expect(await cache.fill("consume|x", atLeast: 2, live: short) != nil)
+    // The section that landed is the learner's place in the reading — kept.
+    #expect(cache.content("consume|x") == ["one"])
+    #expect(cache.isIncomplete("consume|x"))
+    // But never filed as content: a truncated pass uploaded to the shared row
+    // is what re-served it as whole on every later open.
+    #expect(cache.raw["consume|x"] == nil)
+
+    // And never served as a hit — the next open regenerates rather than
+    // inheriting the prefix.
+    _ = await cache.fill("consume|x", atLeast: 2, live: short)
+    #expect(await starts.count == 2)
+}
+
+/// The same floor, applied to what the shared row already holds.
+@MainActor
+@Test func aShortPassAdoptedFromTheRowIsAdoptedAsAPrefix() async {
+    let cache = WarmCache()
+    cache.seed("consume|x", ["one"], .array([.string("one")]), incomplete: true)
+    #expect(cache.content("consume|x") == ["one"])
+    #expect(cache.isIncomplete("consume|x"))
+
+    let starts = Starts()
+    _ = await cache.fill("consume|x", atLeast: 2, live: twoParts(starts))
+    // An incomplete key is not a hit, so the pass is actually rewritten.
+    #expect(await starts.count == 1)
+    #expect(!cache.isIncomplete("consume|x"))
+    #expect(cache.content("consume|x") == ["one", "two"])
+}

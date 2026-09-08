@@ -1,89 +1,18 @@
+// Which language a run presents in, and the one stored shape that still has to
+// be reshaped on the way in. The snapshot-version ladder these tests used to
+// cover is gone: a run is rows now, and `lib/server/store.ts` is where the
+// round trip is checked (tests/store.test.ts).
+
 import { describe, expect, it } from "vitest";
-import { loadRunCore, migrateConsume } from "@/lib/persistence";
+import { migrateConsume } from "@/lib/contentMigrate";
 import { languageAction } from "@/lib/i18n";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Just enough of the client for `loadRunCore`: it only ever chains down to a
- *  single `maybeSingle`. */
-const clientReturning = (snapshot: unknown): SupabaseClient => {
-  const result = Promise.resolve({
-    data: { subject: "Concorrência em Swift", snapshot },
-    error: null,
-  });
-  const chain = {
-    select: () => chain,
-    order: () => chain,
-    limit: () => chain,
-    maybeSingle: () => result,
-  };
-  return { from: () => chain } as unknown as SupabaseClient;
-};
-
-const core = {
-  form: {
-    topic: "Concorrência em Swift",
-    goal: "",
-    paretoPct: 20,
-    interests: [],
-  },
-  graph: { nodes: [], edges: [] },
-  spawnedIds: [],
-  states: {},
-  positions: {},
-  adherence: {},
-  calibSamples: [],
-  litToday: [],
-};
-
-describe("run snapshot: content language", () => {
-  it("keeps a v9 run's own language", async () => {
-    const run = await loadRunCore(clientReturning({ ...core, v: 9, language: "pt-BR" }));
-    expect(run?.snapshot.language).toBe("pt-BR");
-  });
-
-  // The bug this exists to prevent: a pre-v9 row's content language was never
-  // recorded, and defaulting it to *anything* is a guess that read-aloud then
-  // acts on — an English voice over Portuguese prose, billed to its own cache
-  // key. Undefined is the honest answer, and the caller falls back to the UI
-  // language exactly as it did before.
-  it("leaves a pre-v9 run's language unknown rather than guessing", async () => {
-    const run = await loadRunCore(clientReturning({ ...core, v: 8 }));
-    expect(run?.snapshot.v).toBe(9);
-    expect(run?.snapshot.language).toBeUndefined();
-  });
-});
-
-// ---- the other client's keys ------------------------------------------------
-
-describe("run snapshot: another client's keys", () => {
-  // The bug this exists to prevent: `useRunState` spreads the loaded snapshot
-  // under the literal it saves, which is the only thing carrying the iOS
-  // client's `iosCards` (an SM-2 queue; this one schedules with FSRS) back out.
-  // A `migrate` that built a literal instead of spreading would delete the
-  // phone's review queue the first time the run was opened in a browser.
-  it("keeps a key this app has no field for", async () => {
-    const run = await loadRunCore(
-      clientReturning({ ...core, v: 9, iosCards: [{ id: "c1" }] }),
-    );
-    expect((run?.snapshot as unknown as { iosCards: unknown }).iosCards).toEqual([
-      { id: "c1" },
-    ]);
-  });
-
-  // The other half: the pre-v3 inline caches have their own column now, and
-  // must not ride back into the snapshot one.
-  it("drops a pre-v3 row's inline caches", async () => {
-    const run = await loadRunCore(clientReturning({ ...core, v: 2, caches: {} }));
-    expect(run?.snapshot).not.toHaveProperty("caches");
-    expect(run?.inlineCaches).not.toBeNull();
-  });
-});
-
-describe("run caches: a section written on the phone", () => {
-  // The iOS client generates on-device, so its sections never pass through
-  // `validateConsumeSection` — the server-side step that gives these two their
-  // empty defaults. `ConsumeView` maps over `terms` without a guard, so a
-  // reading pass written on a phone used to crash the browser that opened it.
+describe("stored content: a section missing what the validator would have added", () => {
+  // Sections written before `validateConsumeSection` gave these two their empty
+  // defaults are still out there — the normalization carried every payload the
+  // `caches` column held straight into `node_content`, and a cache hit is
+  // served without re-validation. `ConsumeView` maps over `terms` without a
+  // guard, so one of these used to crash the reading.
   it("renders even without the fields the server would have defaulted", () => {
     const [chunk] = migrateConsume({
       lat: [{ id: "c1", kicker: "1", body: "…", takeaway: "…" }],

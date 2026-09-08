@@ -20,9 +20,11 @@ import Testing
 }
 
 /// A pass of `sections` sections, seeded straight into the warm cache the way a
-/// browser-written reading arrives.
+/// stored reading arrives from the topic's content.
 @MainActor private func reading(_ store: AtlasStore, _ raw: [JSONValue]) {
-    store.seedWarm(["consume": .object(["lat": .array(raw)])])
+    store.seedWarm([
+        RunStore.ContentItem(nodeId: "lat", kind: "consume", variant: "", payload: .array(raw))
+    ])
 }
 
 /// One section, with whatever check is handed in.

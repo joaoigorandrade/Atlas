@@ -11,7 +11,7 @@
 // Pro for an hourly schedule and gate on the stored usualTime for right-moment.
 
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { logError, logEvent } from "@/lib/log";
 import { apiError, newRequestId, withRequestId } from "@/lib/server/apiError";
 import { supabaseUrl } from "@/lib/supabase/config";
@@ -108,7 +108,12 @@ export async function GET(request: Request) {
   const admin = createClient(supabaseUrl(), serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await admin.from("run_states").select("user_id, snapshot");
+  // Adherence is the learner's, not a topic's — one row each, instead of the
+  // old scan over every run_states row looking for the freshest copy.
+  const { data, error } = await admin
+    .from("profiles")
+    .select("user_id, language, streak, best, freezes, last_day, met_today, usual_time, reminder_on, history")
+    .eq("reminder_on", true);
   // Log the database's account of itself; don't publish it.
   if (error) {
     logError("reminders_read_failed", error, { req: requestId });
@@ -120,12 +125,16 @@ export async function GET(request: Request) {
   let failed = 0;
   let noop = 0;
   for (const row of data ?? []) {
-    const snapshot = row.snapshot as {
-      adherence?: AdherenceState;
-      language?: Language;
-    } | null;
-    const adherence = snapshot?.adherence;
-    if (!adherence?.reminderOn) continue;
+    const adherence: AdherenceState = {
+      streak: row.streak,
+      best: row.best,
+      freezes: row.freezes,
+      lastDay: row.last_day,
+      metToday: row.met_today,
+      usualTime: row.usual_time,
+      reminderOn: row.reminder_on,
+      history: row.history ?? [],
+    };
     const metToday = adherence.lastDay === today && adherence.metToday;
     if (metToday) continue;
 
@@ -133,17 +142,58 @@ export async function GET(request: Request) {
     const email = u?.user?.email;
     if (!email) continue;
     // The reminder speaks the language the learner's own map is written in.
-    const outcome = await sendReminder(email, adherence, maySend, snapshot?.language);
+    const outcome = await sendReminder(
+      email,
+      adherence,
+      maySend,
+      (row.language as Language | null) ?? undefined,
+    );
     if (outcome === "sent") sent += 1;
     else if (outcome === "failed") failed += 1;
     else noop += 1;
   }
+  // The shared caches have never had a lifecycle: rows abandoned by a
+  // CONTENT_CACHE_VERSION bump are simply never addressed again, and nothing
+  // ever removed them. This is the only daily cron the plan allows, so the
+  // prune rides along at the tail of it, after the sends that people notice.
+  const pruned = await prune(admin, requestId);
+
   logEvent("reminders_run", {
     candidates: data?.length ?? 0,
     sent,
     failed,
     noop,
+    pruned,
     req: requestId,
   });
-  return withRequestId(NextResponse.json({ ok: true, sent, failed, noop }), requestId);
+  return withRequestId(
+    NextResponse.json({ ok: true, sent, failed, noop, pruned }),
+    requestId,
+  );
+}
+
+/** Days a cached payload may go unread before it is dropped. Long enough that
+ *  a learner returning after a season still opens warm; short enough that a
+ *  prompt version nobody addresses any more stops being paid for in storage. */
+const CACHE_TTL_DAYS = Number(process.env.CONTENT_CACHE_TTL_DAYS || 90);
+
+/** Drop shared cache rows nothing has read in a season. Best-effort: a failed
+ *  prune costs storage, never content. */
+async function prune(
+  admin: SupabaseClient,
+  requestId: string,
+): Promise<number> {
+  if (CACHE_TTL_DAYS <= 0) return 0;
+  const cutoff = new Date(Date.now() - CACHE_TTL_DAYS * 86_400_000).toISOString();
+  let dropped = 0;
+  for (const table of ["content_cache", "speech_cache"] as const) {
+    const { data, error } = await admin
+      .from(table)
+      .delete()
+      .lt("last_hit_at", cutoff)
+      .select("key");
+    if (error) logError("cache_prune_failed", error, { table, req: requestId });
+    else dropped += data?.length ?? 0;
+  }
+  return dropped;
 }

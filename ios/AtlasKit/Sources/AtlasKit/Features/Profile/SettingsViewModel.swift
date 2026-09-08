@@ -72,12 +72,16 @@ final class SettingsViewModel {
     /// A quoted field with a quote in it doubles it, which is the whole of CSV.
     private func makeExportedCards() -> String {
         func cell(_ text: String) -> String { "\"\(text.replacingOccurrences(of: "\"", with: "\"\""))\"" }
-        let rows = store.cards.map { scheduled in
-            [
-                cell(scheduled.card.front ?? (scheduled.card.cloze ?? []).joined(separator: " ______ ")),
-                cell(scheduled.card.back),
-                cell(scheduled.card.node),
-                cell(scheduled.due.formatted(.iso8601)),
+        let rows = store.cards.map { card in
+            // The due date rides inside the scheduler state, which this client
+            // carries but never interprets — read as text, exported as text.
+            let due: String
+            if case .string(let value)? = card.fsrs.fields?["due"] { due = value } else { due = "" }
+            return [
+                cell(card.front ?? (card.cloze ?? []).joined(separator: " ______ ")),
+                cell(card.back),
+                cell(card.nodeId),
+                cell(due),
             ].joined(separator: ",")
         }
         return (["frente,verso,no,vencimento"] + rows).joined(separator: "\n")

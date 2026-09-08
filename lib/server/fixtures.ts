@@ -372,66 +372,205 @@ export function fixturePayload(
   }
 }
 
-// ---- the seeded run store (docs/PLAN-QUALITY.md §1.2) ----------------------
-
-/** One `run_states` row, in memory. */
-export interface SeededRun {
-  subject: string;
-  snapshot: unknown;
-  caches: unknown;
-  /** Write order — `loadRunCore` wants the most recently touched run, exactly
-   *  as the real query's `order("updated_at")` does. */
-  at: number;
-}
+// ---- the seeded table store (docs/PLAN-QUALITY.md §1.2) -------------------
 
 /**
- * Fixture-mode persistence: a module-level map instead of Postgres.
+ * Fixture-mode persistence: in-memory tables instead of Postgres.
  *
- * One process serves the whole Playwright run, so this is all the storage a
- * seeded run needs — and it resets with the server, which is the behaviour a
- * test suite wants from its database anyway.
+ * This used to be a parallel run store the browser reached through
+ * `/api/test/seed`, which meant fixture mode exercised a *different*
+ * persistence path than production — the one place a bug is least likely to be
+ * caught. Now `lib/server/store.ts` runs unchanged against these tables, and a
+ * test seeds by writing rows the same way the app does.
+ *
+ * Only the operators `store.ts` actually issues are implemented. That is not a
+ * mini-PostgREST and must not become one: it is a closed set because there is
+ * exactly one caller.
  */
-export const seededRuns = new Map<string, SeededRun>();
+type Row = Record<string, unknown>;
 
-export function seedRun(subject: string, patch: Partial<SeededRun>): void {
-  const prev = seededRuns.get(subject);
-  seededRuns.set(subject, {
-    subject,
-    snapshot: patch.snapshot ?? prev?.snapshot ?? null,
-    caches: patch.caches ?? prev?.caches ?? null,
-    at: Date.now(),
-  });
+/**
+ * Pinned to the process, not to this module.
+ *
+ * Next compiles each route into its own bundle in dev, so module-level state is
+ * per-route: a topic created through `/api/v1/topics` was invisible to
+ * `/api/v1/bootstrap` a moment later. The old seed store never hit this because
+ * every read and write went through the one `/api/test/seed` route.
+ */
+const GLOBAL = globalThis as typeof globalThis & {
+  __atlasFixtureTables?: Map<string, Row[]>;
+};
+export const seededTables: Map<string, Row[]> = (GLOBAL.__atlasFixtureTables ??=
+  new Map<string, Row[]>());
+
+const rowsOf = (table: string): Row[] => {
+  const rows = seededTables.get(table);
+  if (rows) return rows;
+  const fresh: Row[] = [];
+  seededTables.set(table, fresh);
+  return fresh;
+};
+
+/** Drop every table. What a spec runs between cases. */
+export function resetTables(): void {
+  seededTables.clear();
 }
 
-/** Most recently touched first — the order `loadRunCore` and `listRuns` read. */
-export function seededList(): SeededRun[] {
-  return [...seededRuns.values()].sort((a, b) => b.at - a.at);
+/** Seed rows directly — the "land on Crucible, node 7" shortcut. */
+export function seedTable(table: string, rows: Row[]): void {
+  rowsOf(table).push(...rows.map((r) => ({ user_id: FIXTURE_USER_ID, ...r })));
+}
+
+type Filter = (row: Row) => boolean;
+
+interface Result {
+  data: unknown;
+  error: { message: string } | null;
+}
+
+/** The keys a table is upserted on, mirroring each table's real constraint. */
+const CONFLICT_KEYS: Record<string, string[]> = {
+  profiles: ["user_id"],
+  topics: ["user_id", "subject"],
+  nodes: ["topic_id", "id"],
+  edges: ["topic_id", "from_id", "to_id"],
+  cards: ["topic_id", "id"],
+  node_content: ["topic_id", "node_id", "kind", "variant"],
+};
+
+function fixtureTable(name: string) {
+  const filters: Filter[] = [];
+  let sort: { column: string; ascending: boolean } | null = null;
+  let pending: Result = { data: null, error: null };
+  let mode: "select" | "delete" | "write" = "select";
+
+  const matching = () => {
+    let rows = rowsOf(name).filter((row) => filters.every((f) => f(row)));
+    if (sort) {
+      const { column, ascending } = sort;
+      rows = [...rows].sort((a, b) => {
+        const l = String(a[column] ?? "");
+        const r = String(b[column] ?? "");
+        return (l < r ? -1 : l > r ? 1 : 0) * (ascending ? 1 : -1);
+      });
+    }
+    return rows;
+  };
+
+  const resolve = (): Result => {
+    if (mode === "delete") {
+      const doomed = new Set(matching());
+      const rows = rowsOf(name);
+      const kept = rows.filter((row) => !doomed.has(row));
+      seededTables.set(name, kept);
+      // The cascade Postgres gives us for free. Fixture mode has to do it by
+      // hand, and a test that deletes a topic must see the same emptiness a
+      // learner does — that is the behaviour worth checking here at all.
+      if (name === "topics")
+        for (const child of ["nodes", "edges", "cards", "node_content"]) {
+          const ids = new Set([...doomed].map((row) => row.id));
+          seededTables.set(
+            child,
+            rowsOf(child).filter((row) => !ids.has(row.topic_id)),
+          );
+        }
+      return { data: [...doomed], error: null };
+    }
+    if (mode === "write") return pending;
+    return { data: matching(), error: null };
+  };
+
+  const api = {
+    select: () => api,
+    eq: (column: string, value: unknown) => {
+      filters.push((row) => row[column] === value);
+      return api;
+    },
+    in: (column: string, values: unknown[]) => {
+      filters.push((row) => values.includes(row[column]));
+      return api;
+    },
+    lt: (column: string, value: string) => {
+      filters.push((row) => String(row[column] ?? "") < value);
+      return api;
+    },
+    order: (column: string, opts?: { ascending?: boolean }) => {
+      sort = { column, ascending: opts?.ascending !== false };
+      return api;
+    },
+    limit: () => api,
+    delete: () => {
+      mode = "delete";
+      return api;
+    },
+    insert: async (rows: Row | Row[]) => {
+      for (const row of [rows].flat()) rowsOf(name).push({ user_id: FIXTURE_USER_ID, ...row });
+      return { data: null, error: null };
+    },
+    update: (patch: Row) => {
+      mode = "write";
+      const applied = () => {
+        for (const row of matching()) Object.assign(row, patch);
+        pending = { data: null, error: null };
+      };
+      // The filters arrive after `update()`, so the work waits for the await.
+      return {
+        eq: (column: string, value: unknown) => {
+          filters.push((row) => row[column] === value);
+          applied();
+          return api;
+        },
+      };
+    },
+    upsert: (rows: Row | Row[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }) => {
+      mode = "write";
+      const keys = opts?.onConflict?.split(",").map((k) => k.trim()) ?? CONFLICT_KEYS[name] ?? ["id"];
+      const written: Row[] = [];
+      for (const incoming of [rows].flat()) {
+        const row: Row = { user_id: FIXTURE_USER_ID, ...incoming };
+        const existing = rowsOf(name).find((r) => keys.every((k) => r[k] === row[k]));
+        if (existing) {
+          if (!opts?.ignoreDuplicates) Object.assign(existing, row);
+          written.push(existing);
+        } else {
+          if (!row.id && name === "topics") row.id = crypto.randomUUID();
+          if (!row.updated_at) row.updated_at = new Date().toISOString();
+          rowsOf(name).push(row);
+          written.push(row);
+        }
+      }
+      pending = { data: written, error: null };
+      return api;
+    },
+    maybeSingle: async () => {
+      const result = resolve();
+      const rows = (result.data as Row[] | null) ?? [];
+      return { data: rows[0] ?? null, error: result.error };
+    },
+    single: async () => {
+      const result = resolve();
+      const rows = (result.data as Row[] | null) ?? [];
+      return rows.length
+        ? { data: rows[0], error: null }
+        : { data: null, error: { message: "no rows" } };
+    },
+    then: (resolve_: (v: Result) => unknown) => resolve_(resolve()),
+  };
+  return api;
 }
 
 // ---- the Supabase stand-in -------------------------------------------------
 
 /**
  * What `createClient()` hands back in fixture mode: a signed-in learner, an
- * empty quota, and a `from()` that swallows writes.
+ * empty quota, and tables that actually store what is written to them.
  *
- * Only the calls the server actually makes are implemented — `getClaims` (auth
- * on every route), `generation_log` inserts, and the quota RPC. Run state does
- * not come through here: the browser reads and writes it through
- * `/api/test/seed` instead (see lib/persistence.ts).
+ * The tables matter: every route now reaches persistence through
+ * `lib/server/store.ts`, so fixture mode exercises the same reads, the same
+ * upserts and the same cascade the live path does — rather than a second
+ * implementation that could drift from it silently.
  */
 export function fixtureSupabase() {
-  const noop = { data: null, error: null };
-  const table = {
-    insert: async () => noop,
-    upsert: async () => noop,
-    delete: () => table,
-    select: () => table,
-    eq: () => table,
-    order: () => table,
-    limit: () => table,
-    maybeSingle: async () => noop,
-    then: (resolve: (v: typeof noop) => unknown) => resolve(noop),
-  };
   return {
     auth: {
       getClaims: async () => ({
@@ -442,8 +581,9 @@ export function fixtureSupabase() {
         data: { user: { id: FIXTURE_USER_ID, email: FIXTURE_EMAIL } },
         error: null,
       }),
+      signOut: async () => ({ error: null }),
     },
-    from: () => table,
+    from: (table: string) => fixtureTable(table),
     rpc: async () => ({ data: 0, error: null }),
   };
 }

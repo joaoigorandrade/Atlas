@@ -103,25 +103,22 @@ final class ConnectViewModel {
     private func draftCards() {
         guard let content else { return }
         for candidate in confirmed {
-            let card = ReviewCard(
-                id: "\(content.centerId)-connect-\(candidate.id)",
-                type: .why,
-                source: "Connect",
-                node: node.id,
-                cloze: nil,
-                answer: nil,
-                front: String(localized: "\(content.centerLabel) ↔ \(candidate.label): qual é a conexão?"),
-                back: back(for: candidate),
-                reExplain: nil
+            let id = "\(content.centerId)-connect-\(candidate.id)"
+            let front = String(
+                localized: "\(content.centerLabel) ↔ \(candidate.label): qual é a conexão?"
             )
             // Keep the scheduler state of a card that already exists: redoing
-            // Connect must not reset a link the learner has been reviewing.
-            if let index = session.store.cards.firstIndex(where: { $0.id == card.id }) {
-                var existing = session.store.cards[index]
-                existing.card = card
-                session.store.cards[index] = existing
+            // Connect must not reset a link the learner has been reviewing. The
+            // state itself is opaque here — it is the server's, and this only
+            // carries it forward with the rewritten text.
+            if let index = session.store.cards.firstIndex(where: { $0.id == id }) {
+                session.store.cards[index].front = front
+                session.store.cards[index].back = back(for: candidate)
             } else {
-                session.store.cards.append(ScheduledCard(card))
+                session.store.cards.append(StoredCard(
+                    id: id, nodeId: node.id, type: .why, source: "Connect",
+                    front: front, back: back(for: candidate)
+                ))
             }
         }
     }

@@ -23,9 +23,14 @@ public final class AtlasStore {
     /// wherever `.shaky` is; shared with the browser through the run row.
     public var shakyReasons: [String: ShakyReason] = [:] { didSet { saveSoon() } }
 
-    /// Every review card ever drafted for this run, with its scheduler state.
-    /// The generation is a card factory; this is the queue it feeds.
-    public var cards: [ScheduledCard] = [] { didSet { saveSoon() } }
+    /// Every review card drafted for this run. The generation is a card
+    /// factory; `deck` below is the queue it feeds, and the scheduler that
+    /// orders that queue runs on the server — see `Retain.swift`.
+    public var cards: [StoredCard] = [] { didSet { saveSoon() } }
+    /// Today's deck, as the server budgeted it, with the real interval already
+    /// on every grade button. Loaded when Review opens; empty otherwise.
+    public internal(set) var deck: [ReviewCard] = []
+    public internal(set) var forecast: [RetainContent.ForecastRow] = []
     /// Confidence-vs-performance readings, one per node, screen 20's whole
     /// content. Written by the confidence tap before each card is flipped.
     public var calib: [CalibSample] = [] { didSet { saveSoon() } }
@@ -61,7 +66,7 @@ public final class AtlasStore {
     /// Every saved run, freshest first — what "Seus mapas" lists. The open one
     /// is in here too, a debounce behind; `maps` answers that one from live
     /// state instead.
-    public internal(set) var library: [RunSnapshot] = []
+    public internal(set) var library: [AtlasRun] = []
 
     /// The library could not be read. Not the same as "there are no maps": the
     /// shell shows onboarding for an empty library, and doing that because a GET
@@ -129,14 +134,28 @@ public final class AtlasStore {
     public let api: AtlasAPI
     public let auth: AtlasAuth
     public let runs: RunStore
+    /// The on-device mirror. What makes a relaunch paint the map the learner
+    /// left open before the network has answered, and what makes a relaunch
+    /// with no network show that map instead of a failure. See `LocalStore`.
+    let local: LocalStore
     /// Generated content for the open run — what a screen reads instead of
     /// waiting on a model. See `Warm.swift`; it is emptied when the run
     /// changes, since every key names the run it belongs to.
     public let warm = WarmCache()
 
-    /// The row the open run was loaded from, kept so a save can hand back every
-    /// key this client does not render. See `RunSnapshot`.
-    private var loaded: RunSnapshot?
+    /// The open topic's id — the address every write goes to. Nil before the
+    /// first load, and while a map is being built but not yet created.
+    public internal(set) var topicId: String?
+    /// The open run as it was last loaded, for the fields no screen edits.
+    private var loaded: AtlasRun?
+    /// What the server last acknowledged, per node and per card: the baseline
+    /// every debounced write diffs against. A write sends what differs from
+    /// this, which is what makes a node drag one node's coordinates rather than
+    /// the whole run.
+    private var savedNodes: [String: String] = [:]
+    private var savedCards: [String: String] = [:]
+    private var savedTopic = ""
+    private var savedProfile = ""
     /// True while the store is being written *to* rather than *by* the learner
     /// — a restore, a map switch, a sign-out. Without it the clear in `signOut`
     /// would upsert an empty map over the row it had just read.
@@ -156,12 +175,16 @@ public final class AtlasStore {
     public private(set) var session: AuthSession?
 
     public init(
-        api: AtlasAPI, auth: AtlasAuth, runs: RunStore = RunStore(),
+        api: AtlasAPI, auth: AtlasAuth, runs: RunStore? = nil, local: LocalStore? = nil,
         graph: ConceptGraph = .init(), states: StateMap = [:], subject: String = ""
     ) {
         self.api = api
         self.auth = auth
-        self.runs = runs
+        self.local = local ?? LocalStore()
+        // The same host by default: `/api/generate` and `/api/v1` are one
+        // server, and letting them be configured apart is a way to point the
+        // two halves of the app at different deployments by accident.
+        self.runs = runs ?? RunStore(baseURL: api.baseURL)
         self.graph = graph
         self.states = states
         self.subject = subject
@@ -267,20 +290,57 @@ public extension AtlasStore {
 // MARK: - Retain (screens 11, 19, 20)
 
 public extension AtlasStore {
-    /// Today's deck: what is due, cut to the daily target.
-    var queue: [ScheduledCard] { todaysQueue(cards, target: dailyTarget) }
-
     /// Nodes worth drafting cards for — learned at least once, no card yet.
     var uncovered: [ConceptNode] {
         graph.nodes.filter { node in
-            (states[node.id] ?? .unknown).isLearned && !cards.contains { $0.card.node == node.id }
+            (states[node.id] ?? .unknown).isLearned && !cards.contains { $0.nodeId == node.id }
         }
     }
 
-    /// Take the scheduler's word for where a card goes next.
-    func schedule(_ card: ScheduledCard) {
-        guard let index = cards.firstIndex(where: { $0.id == card.id }) else { return cards.append(card) }
-        cards[index] = card
+    /// Load today's deck. The budget, the order and the interval on every grade
+    /// button come from the server, because that is where the scheduler is.
+    func loadDeck() async {
+        guard let topicId, let token = await bearer() else { return }
+        let budget = max(1, dailyTarget / 2)
+        guard let content = try? await runs.review(
+            topicId, budgetMin: budget, language: language, token: token
+        ) else { return }
+        deck = content.cards
+        forecast = content.forecast
+    }
+
+    /// Grade a card.
+    ///
+    /// The card leaves today's deck immediately and the write settles behind
+    /// it. Nothing on screen waits on the round trip — the next card is already
+    /// up — and the next due date is the server's answer rather than a second
+    /// scheduler's guess.
+    func grade(_ card: ReviewCard, _ grade: ReviewGrade) {
+        deck.removeAll { $0.id == card.id }
+        guard let topicId else { return }
+        Task {
+            guard let token = await bearer() else { return }
+            do {
+                let graded = try await runs.grade(
+                    topicId, cardId: card.id, grade: grade, token: token
+                )
+                // Take the scheduler's word for where the card goes next. Without
+                // this the dashboard keeps counting a card the learner has just
+                // answered as due, because the copy here still holds the old
+                // date — and the next write would send that stale state back.
+                quiet = true
+                if let index = cards.firstIndex(where: { $0.id == graded.id }) {
+                    cards[index] = graded
+                }
+                quiet = false
+                savedCards[graded.id] = (try? JSONValue(encoding: graded))?.compact ?? graded.id
+            } catch {
+                // A grade that did not land is a card that comes back tomorrow
+                // rather than one that is lost — the row still holds its old
+                // due date. Worth the chip, not worth blocking the deck.
+                saveFailed = true
+            }
+        }
     }
 
     /// Merge a felt/real reading into the curve — a running average per node,
@@ -346,172 +406,325 @@ public extension AtlasStore {
         await loadLibrary()
     }
 
-    /// Read every saved run and open the freshest — the row `updated_at` sorts
-    /// first. This is the whole reason a relaunch lands on the dashboard rather
-    /// than on onboarding: the map outlives the process because it is a row.
+    /// One request for everything the app draws, then open the freshest map.
+    ///
+    /// This used to be three: the library, then the open run's generated
+    /// content, then whatever a screen asked for. The first two are one call
+    /// now — a learner's whole library is a few hundred rows — and the third is
+    /// narrowed to the nodes about to be shown.
     func loadLibrary() async {
         opening = true
         defer { opening = false }
+
+        // Paint first. The mirror holds what the server last acknowledged, so a
+        // relaunch draws the map the learner left open instead of a spinner —
+        // and, with no signal, instead of "não foi possível carregar seus
+        // mapas" over a map the phone has on disk.
+        let mirrored = local.topics()
+        if !mirrored.isEmpty, graph.nodes.isEmpty {
+            library = mirrored
+            if let freshest = mirrored.first {
+                open(freshest)
+                seedWarm(local.content(topicId: freshest.id))
+                cachesLoaded = true
+            }
+            // Drawn: the shell can stop holding onboarding back, and the
+            // revalidation below runs behind an interactive map.
+            opening = false
+        }
+
         guard let token = await bearer() else { return }
-        guard let saved = try? await runs.list(token: token) else {
-            libraryFailed = true
+        guard let (profile, topics) = try? await runs.bootstrap(token: token) else {
+            // Only a failure with nothing behind it is a failure the learner
+            // has to be told about. With the mirror drawn, this is a refresh
+            // that did not land.
+            libraryFailed = mirrored.isEmpty
             return
         }
         libraryFailed = false
-        library = saved
-        guard let freshest = saved.first, graph.nodes.isEmpty else { return }
+        library = topics
+        local.replace(topics: topics)
+        adopt(profile)
+        guard let freshest = topics.first else { return }
+        // Re-open when nothing was drawn, or when the server's copy is newer
+        // than the one on disk — another device having moved the map on.
+        let stale = mirrored.first.map { $0.id != freshest.id || $0.updatedAt < freshest.updatedAt } ?? true
+        guard graph.nodes.isEmpty || (stale && freshest.id == topicId) else { return }
         open(freshest)
-        await hydrateCaches()
+        await hydrateContent()
     }
 
-    /// The open run's generated content, read on its own — `list` deliberately
-    /// leaves the column behind, since it is the large half of every row and
-    /// only the run actually on screen has any use for it.
-    private func hydrateCaches() async {
-        guard var run = loaded, let token = await bearer(),
-              let column = try? await runs.caches(subject: run.subject, token: token)
+    /// Take the learner's own row: the streak, the daily target, the reminders.
+    /// One copy, rather than one per topic and a third in `UserDefaults`.
+    private func adopt(_ profile: AtlasProfile) {
+        let wasQuiet = quiet
+        quiet = true
+        defer { quiet = wasQuiet }
+        dailyTarget = profile.dailyTarget
+        streak = profile.adherence.streak
+        lastActiveDay = profile.adherence.lastDay
+        savedProfile = Self.profileShot(target: profile.dailyTarget, streak: profile.adherence.streak, day: profile.adherence.lastDay)
+    }
+
+    /// The open run's generated content — every payload the topic has, read
+    /// once behind an already-drawn map and seeded into the warm cache.
+    ///
+    /// Nothing is ever written back. The server records content the moment it
+    /// generates it, which is what retired the `caches` column this used to
+    /// download whole and re-upload merged.
+    private func hydrateContent() async {
+        guard let topicId else { return }
+        // Whatever is on disk goes in first: a phase the learner has already
+        // read opens with no request at all, and with no network it opens
+        // anyway.
+        seedWarm(local.content(topicId: topicId))
+        guard let token = await bearer(),
+              let items = try? await runs.content(topicId, token: token)
         else { return }
-        // A v1/v2 row keeps its caches inside the snapshot, where the decode
-        // already found them; an empty column must not wipe that.
-        run.caches = column.isEmpty ? run.caches : column
         // The learner can have switched maps during the GET.
-        guard run.subject == subject else { return }
-        loaded = run
+        guard topicId == self.topicId else { return }
+        seedWarm(items)
+        local.save(items, topicId: topicId)
         cachesLoaded = true
-        // A generation that landed while this was in flight has to still go up
-        // on the next save, so only a clean warm adopts the seeded revision.
-        let dirty = warm.revision != savedWarm
-        seedWarm(run.caches)
-        if !dirty { savedWarm = warm.revision }
     }
 
     /// Point the live run at a saved one. Every write here is the store being
     /// filled in, not the learner working, so nothing is saved on the way.
-    private func open(_ run: RunSnapshot) {
+    private func open(_ run: AtlasRun) {
         let wasQuiet = quiet
         quiet = true
         defer { quiet = wasQuiet }
         loaded = run
+        topicId = run.id
         cachesLoaded = false
         warm.clear()
+        deck = []
+        forecast = []
         subject = run.subject
         graph = run.graph
         states = run.states
         shakyReasons = run.shakyReasons
         interests = run.interests
         goal = run.goal
-        dailyTarget = run.target
         paretoPct = run.paretoPct
         examDate = run.examDate
         cards = run.cards
-        calib = run.calib
-        reviewed = run.reviewed
+        calib = run.calibSamples
+        reviewed = Set(run.reviewedNodes)
         consumeProgress = run.consumeProgress
-        // Only when the row records one: a pre-v9 run's content language is
-        // genuinely unknown, and the device preference is the honest fallback.
+        // Only when the topic records one: a run built before the field existed
+        // has a genuinely unknown content language, and the device preference is
+        // the honest fallback.
         if let language = run.language { self.language = language }
-        // Last, because a warm key is built from the subject, the graph and the
-        // language above: this is the reading the browser already paid for.
-        seedWarm(run.caches)
-        savedWarm = warm.revision
+        // What the server already has, so the first debounce after an open
+        // sends nothing. Without this every open would re-upload the map it
+        // just finished reading.
+        savedNodes = nodeShots()
+        savedCards = cardShots()
+        savedTopic = topicShot()
+    }
+
+    /// Create the topic a build is about to fill.
+    ///
+    /// Before the generation rather than after it: the server warms the new
+    /// map's frontier the moment the map lands, and it needs a topic to file
+    /// what it generates under. A build that produces nothing calls
+    /// `abandonTopic()`.
+    func createTopic(_ form: OnboardingForm) async {
+        guard let token = await bearer() else { return }
+        let body = JSONValue.object([
+            "subject": .string(form.topic),
+            "goal": .string(form.goal.rawValue),
+            "interests": .string(form.interests),
+            "paretoPct": .number(Double(form.paretoPct)),
+            "examDate": .string(form.examDate),
+            "language": .string(language),
+        ])
+        // Not fatal: the map still builds and still draws. What is lost is the
+        // server-side warm's address, so the first phase generates on the click.
+        guard let run = try? await runs.create(body, token: token) else { return }
+        quiet = true
+        topicId = run.id
+        loaded = run
+        savedNodes = [:]
+        savedCards = [:]
+        savedTopic = ""
+        quiet = false
+        library.insert(run, at: 0)
+    }
+
+    /// Undo the row above — a build that produced no map owns nothing.
+    func abandonTopic() async {
+        guard let id = topicId, let token = await bearer() else { return }
+        topicId = nil
+        loaded = nil
+        library.removeAll { $0.id == id }
+        local.delete(topicId: id)
+        try? await runs.delete(id, token: token)
     }
 
     /// Open another saved map. The one being left is flushed first — switching
     /// must not be the thing that loses the last two seconds of a run.
-    func switchTo(_ run: RunSnapshot) async {
-        guard run.subject != subject else { return }
+    func switchTo(_ run: AtlasRun) async {
+        guard run.id != topicId else { return }
         await saveNow()
-        open(run)
-        await hydrateCaches()
+        // Re-read rather than trusting the library's copy: it was fetched at
+        // bootstrap, and a map another device has been working on should open
+        // with that work on it.
+        guard let token = await bearer(),
+              let fresh = try? await runs.topic(run.id, token: token)
+        else { return open(run) }
+        open(fresh)
+        await hydrateContent()
     }
 
     /// Start a second map. Clearing the live run is the whole trigger: the shell
     /// shows onboarding for exactly as long as there is no map, and onboarding's
-    /// `finish()` writes a *new* row under the new subject. Nothing is deleted
-    /// — the run left behind is a row, and stays on the dashboard.
+    /// `finish()` creates a *new* topic. Nothing is deleted — the run left
+    /// behind is a row, and stays on the dashboard.
     func newMap() async {
         await saveNow()
         quiet = true
         defer { quiet = false }
         loaded = nil
-        // A map that does not exist yet has no column to merge over, so the
-        // first generation can go up as it is.
+        topicId = nil
         cachesLoaded = true
+        savedNodes = [:]
+        savedCards = [:]
+        savedTopic = ""
         clearRun()
     }
 
-    /// Exclude a topic: the saved row is deleted outright, and with it the map,
-    /// the mastery states, the cards and everything ever generated for it —
-    /// the same one-row delete `excludeTopic` makes in the browser. The streak
-    /// is deliberately untouched: it is the learner's habit, not the topic's.
+    /// Exclude a topic: one DELETE, and the foreign keys behind it take the
+    /// map, the mastery states, the cards and every generated payload with it.
+    /// There is no cleanup list here to keep in step with the schema — that is
+    /// the whole point of the topic being the root of a cascade.
+    ///
+    /// The streak is deliberately untouched: it is the learner's habit, not the
+    /// topic's, and it lives on their profile rather than in each run.
     ///
     /// Deleting the open map clears the live run too and opens whatever is
     /// freshest of what remains; with nothing left, the empty run is what puts
     /// the shell back on onboarding.
-    func deleteMap(_ subject: String) async throws {
+    func deleteMap(_ id: String) async throws {
         guard let token = await bearer() else { return }
-        // Before the request, not after: the debounce is armed with a row this
-        // delete is about to remove, and letting it land would upsert it back.
+        // Before the request, not after: the debounce is armed with writes
+        // against a topic this delete is about to remove, and letting them land
+        // would recreate rows under it.
         pendingSave?.cancel()
         pendingSave = nil
-        try await runs.delete(subject: subject, token: token)
-        library.removeAll { $0.subject == subject }
-        guard subject == self.subject else { return }
+        // Every warmed key belongs to a topic that is about to stop existing,
+        // and a generation still in flight is spend on content nobody will see.
+        if id == topicId { warm.clear() }
+        try await runs.delete(id, token: token)
+        // The local half of the cascade the foreign keys make on the server.
+        local.delete(topicId: id)
+        library.removeAll { $0.id == id }
+        guard id == topicId else { return }
         quiet = true
         loaded = nil
+        topicId = nil
         cachesLoaded = true
+        savedNodes = [:]
+        savedCards = [:]
+        savedTopic = ""
         clearRun()
         quiet = false
         if let next = library.first {
             open(next)
-            await hydrateCaches()
+            await hydrateContent()
         }
     }
 
     /// The dashboard's list: every saved map, with the open one answered from
     /// live state rather than from its row, which is a debounce behind.
-    var maps: [RunSnapshot] {
-        guard !subject.isEmpty else { return library }
-        let live = currentRun
-        guard let index = library.firstIndex(where: { $0.subject == subject }) else {
-            return [live] + library
-        }
+    var maps: [AtlasRun] {
+        guard let topicId, let index = library.firstIndex(where: { $0.id == topicId })
+        else { return library }
         var maps = library
-        maps[index] = live
+        maps[index].subject = subject
+        maps[index].graph = graph
+        maps[index].states = states
         return maps
     }
 
-    /// The open run as a row: live state written over the one it was loaded
-    /// from, so the keys only the browser fills in survive the round trip.
-    private var currentRun: RunSnapshot {
-        var run = loaded ?? RunSnapshot(subject: subject)
-        run.subject = subject
-        run.graph = graph
-        run.states = states
-        run.shakyReasons = shakyReasons
-        run.interests = interests
-        run.goal = goal
-        run.target = dailyTarget
-        run.paretoPct = paretoPct
-        run.examDate = examDate
-        // Only a run this device built records a language here. A row written
-        // before the field existed has genuinely never recorded one, and
-        // stamping the device preference on it would freeze the wrong answer
-        // permanently — see `RunSnapshot.language`.
-        if loaded == nil { run.language = language }
-        run.calib = calib
-        run.reviewed = reviewed
-        run.consumeProgress = consumeProgress
-        run.cards = cards
-        return run
+    /// How many cards are due right now — the dashboard's count.
+    ///
+    /// Read from the stored due date rather than from a local scheduler: the
+    /// scheduling itself is the server's, and this only asks whether a date has
+    /// passed. `deck` is the ordered, budgeted answer, and Review asks for it.
+    var dueCount: Int {
+        let now = Date.now
+        return cards.count { card in
+            guard case .string(let due)? = card.fsrs.fields?["due"],
+                  let date = ISODate.parse(due)
+            else { return true }
+            return date <= now
+        }
+    }
+
+    // MARK: - What a write compares against
+    //
+    // A node, a card, the topic's own fields and the profile, each reduced to
+    // the JSON of exactly what is persisted about it. Comparing strings is what
+    // makes the diff one line per row rather than a field-by-field equality
+    // function that has to be updated every time a column is added — and a
+    // string that differs is, by construction, a row that has to be written.
+
+    private func nodeShots() -> [String: String] {
+        var shots: [String: String] = [:]
+        for node in graph.nodes {
+            let fields: [String: JSONValue] = [
+                "label": .string(node.label),
+                "summary": node.summary.map(JSONValue.string) ?? .null,
+                "g": .number(Double(node.g)),
+                "week": .number(Double(node.week)),
+                "x": .number(node.x),
+                "y": .number(node.y),
+                "isGap": .bool(node.gap == true),
+                // `frontier` is derived from the prerequisites on every read, in
+                // both clients, and never lands in `StateMap` — so this is a
+                // straight copy with the node's generated seed as the fallback.
+                "state": .string((states[node.id] ?? node.state).rawValue),
+                "shakyReason": shakyReasons[node.id].map { .string($0.rawValue) } ?? .null,
+                "reviewed": .bool(reviewed.contains(node.id)),
+                "consumeProgress": consumeProgress[node.id] ?? .null,
+            ]
+            shots[node.id] = JSONValue.object(fields).compact
+        }
+        return shots
+    }
+
+    private func cardShots() -> [String: String] {
+        var shots: [String: String] = [:]
+        for card in cards { shots[card.id] = (try? JSONValue(encoding: card))?.compact ?? card.id }
+        return shots
+    }
+
+    private func topicShot() -> String {
+        JSONValue.object([
+            "goal": .string(goal.rawValue),
+            "interests": .string(interests),
+            "paretoPct": .number(Double(paretoPct)),
+            "examDate": .string(examDate),
+            "language": .string(language),
+            "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
+        ]).compact
+    }
+
+    private static func profileShot(target: Int, streak: Int, day: String) -> String {
+        JSONValue.object([
+            "dailyTarget": .number(Double(target)),
+            "streak": .number(Double(streak)),
+            "lastDay": .string(day),
+        ]).compact
     }
 
     /// Persist the open run a beat after the last change. Every write the
     /// learner makes lands here — a graded card, a spawned gap, a settings tap
-    /// — so the debounce is what keeps a review session from being one upsert
-    /// per button.
+    /// — so the debounce is what keeps a session from being one request per tap.
     private func saveSoon() {
-        guard !quiet, signedIn, !subject.isEmpty else { return }
+        guard !quiet, signedIn else { return }
         saveIn(2)
     }
 
@@ -525,59 +738,120 @@ public extension AtlasStore {
             guard !Task.isCancelled else { return }
             // Let go of the handle before flushing: `saveNow` cancels whatever
             // is pending, and that used to be *this* task — which cancelled the
-            // upsert it had just started and dropped the write on the floor.
+            // write it had just started and dropped it on the floor.
             pendingSave = nil
             await saveNow()
         }
     }
 
-    /// Write now, and remember what was written so the dashboard's card for the
-    /// open map stops being a debounce behind.
+    /// Write what changed.
+    ///
+    /// The whole run used to go up on every tick, which is why the generated
+    /// content had to be split into a second column on a longer debounce so a
+    /// node drag would stop re-uploading every section the learner had read.
+    /// Neither is needed now: content is never uploaded at all, and this sends
+    /// a payload the size of what actually moved.
     ///
     /// A failure is kept — `saveFailed` draws the chip and a retry is armed, so
     /// a session worked through offline lands as soon as there is signal.
     func saveNow() async {
         pendingSave?.cancel()
         pendingSave = nil
-        guard signedIn, !subject.isEmpty, var token = await bearer() else { return }
-        // The column was never read — at open, or because that read failed. A
-        // generation waits for it rather than merging over nothing, which would
-        // drop every bucket only the browser fills.
-        if warm.revision != savedWarm, !cachesLoaded { await hydrateCaches() }
-        var run = currentRun
-        // The generated content only goes up when a generation has landed since
-        // the last write — it is the large half of the row, and a node drag
-        // must not re-upload every section the learner has read.
-        let revision = warm.revision
-        let sendCaches = revision != savedWarm && cachesLoaded
-        if sendCaches { run.caches = cachesRow(over: run.caches) }
+        guard signedIn, var token = await bearer() else { return }
+
+        let profile = Self.profileShot(target: dailyTarget, streak: streak, day: lastActiveDay)
+        let nodes = nodeShots()
+        let cardsNow = cardShots()
+        let topic = topicShot()
+
         do {
-            try await runs.save(run, caches: sendCaches, token: token)
+            if profile != savedProfile {
+                try await runs.patchProfile(.object([
+                    "dailyTarget": .number(Double(dailyTarget)),
+                    "language": .string(language),
+                    "adherence": .object([
+                        "streak": .number(Double(streak)),
+                        "lastDay": .string(lastActiveDay),
+                    ]),
+                ]), token: token)
+                savedProfile = profile
+            }
+            guard let topicId else { return }
+
+            var deltas: [NodeDelta] = []
+            for node in graph.nodes where savedNodes[node.id] != nodes[node.id] {
+                var delta = NodeDelta(id: node.id)
+                delta.label = node.label
+                delta.summary = node.summary
+                delta.g = node.g
+                delta.week = node.week
+                delta.x = node.x
+                delta.y = node.y
+                delta.isGap = node.gap == true
+                delta.state = states[node.id] ?? node.state
+                delta.shakyReason = .some(shakyReasons[node.id])
+                delta.reviewed = reviewed.contains(node.id)
+                delta.consumeProgress = consumeProgress[node.id]
+                // Only a node the server has never seen needs its edges; an
+                // existing one's prerequisites are already rows, and re-sending
+                // them on every drag would be the write amplification this
+                // whole change replaced.
+                if savedNodes[node.id] == nil {
+                    delta.prereqs = graph.edges.filter { $0.to == node.id }.map(\.from)
+                }
+                deltas.append(delta)
+            }
+            let removed = savedNodes.keys.filter { nodes[$0] == nil }
+            if !deltas.isEmpty || !removed.isEmpty {
+                try await runs.patchNodes(topicId, deltas: deltas, remove: Array(removed), token: token)
+                savedNodes = nodes
+            }
+
+            let changed = cards.filter { savedCards[$0.id] != cardsNow[$0.id] }
+            if !changed.isEmpty {
+                try await runs.putCards(topicId, cards: changed, token: token)
+                savedCards = cardsNow
+            }
+
+            if topic != savedTopic {
+                try await runs.patchTopic(topicId, body: .object([
+                    "goal": .string(goal.rawValue),
+                    "interests": .string(interests),
+                    "paretoPct": .number(Double(paretoPct)),
+                    "examDate": .string(examDate),
+                    "language": .string(language),
+                    "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
+                ]), token: token)
+                savedTopic = topic
+            }
         } catch {
             // A 401 means the token died between the check above and the write.
-            // Renewing and trying once more is the difference between a save
-            // that lands and an afternoon of work nobody knows is unsaved.
-            guard (error as? AtlasError)?.code == "auth", let renewed = await bearer(renew: true),
-                  (try? await runs.save(run, caches: sendCaches, token: renewed)) != nil
-            else {
-                saveFailed = true
-                saveIn(15)
-                return
+            // Renewing and arming a retry is the difference between a save that
+            // lands and an afternoon of work nobody knows is unsaved.
+            if (error as? AtlasError)?.code == "auth", let renewed = await bearer(renew: true) {
+                token = renewed
             }
-            token = renewed
+            saveFailed = true
+            saveIn(15)
+            return
         }
         saveFailed = false
         // The learner can have signed out — or signed in as somebody else —
-        // while that upsert was in flight. Writing this run back into `loaded`
-        // and `library` now would hand it to whoever is holding the phone next,
-        // and their first save would start from this run's row.
+        // while those writes were in flight.
         guard session?.accessToken == token else { return }
-        savedWarm = revision
-        loaded = run
-        if let index = library.firstIndex(where: { $0.subject == run.subject }) {
-            library[index] = run
-        } else {
-            library.insert(run, at: 0)
+        if let index = library.firstIndex(where: { $0.id == topicId }) {
+            library[index].subject = subject
+            library[index].graph = graph
+            library[index].states = states
+            library[index].cards = cards
+            library[index].shakyReasons = shakyReasons
+            library[index].reviewedNodes = reviewed.sorted()
+            library[index].consumeProgress = consumeProgress
+            library[index].calibSamples = calib
+            // The mirror holds what the server acknowledged, never what the
+            // screen hopes it did — so it is written here, after the write
+            // landed, and not beside the state change that caused it.
+            local.save(library[index])
         }
     }
 
@@ -626,8 +900,12 @@ public extension AtlasStore {
         saveFailed = false
         session = nil
         loaded = nil
+        topicId = nil
         library = []
-        // The map belongs to the learner who signed in, not to the device.
+        // The map belongs to the learner who signed in, not to the device — and
+        // that is true of the mirror on disk too. The next person to hold this
+        // phone must not open somebody else's map.
+        local.clear()
         clearRun()
         SessionStore.save(nil)
         // Awaited, not fired: a warm still in flight must not be able to send
@@ -662,8 +940,17 @@ public extension AtlasStore {
         graph = Fixtures.graph
         states = Fixtures.states
         subject = Fixtures.subject
-        cards = Fixtures.cards
         calib = Fixtures.calib
+        // The deck directly, not the card store: fixture mode makes no request,
+        // and the deck is normally the server's answer.
+        deck = Fixtures.cards
+        cards = Fixtures.cards.map {
+            StoredCard(
+                id: $0.id, nodeId: $0.node, type: $0.type, source: $0.source,
+                cloze: $0.cloze, answer: $0.answer, front: $0.front,
+                back: $0.back, reExplain: $0.reExplain
+            )
+        }
     }
 
     /// The bearer for a run request, renewed when it has aged out. Every read

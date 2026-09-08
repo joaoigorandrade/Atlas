@@ -112,7 +112,7 @@ private final class Stub: URLProtocol, @unchecked Sendable {
 @MainActor
 @Test func asecondMapUnderAsubjectAlreadyInTheLibraryIsRefused() {
     let (model, store) = onboarding()
-    store.library = [RunSnapshot(subject: "Cálculo I")]
+    store.library = [try! JSONDecoder().decode(AtlasRun.self, from: Data(#"{"id":"t1","subject":"Cálculo I","graph":{"nodes":[],"edges":[]}}"#.utf8))]
     // Normalised the same way `finish()` normalises it: the collision is on the
     // row's key, not on what was typed.
     model.form.topic = "  Cálculo I  "

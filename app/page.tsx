@@ -4,7 +4,8 @@ import AuthUnavailable from "@/components/AuthUnavailable";
 import { FIXTURES } from "@/lib/fixtureMode";
 import { logWarning } from "@/lib/log";
 import { FIXTURE_EMAIL } from "@/lib/server/fixtures";
-import { loadRunCore, type LoadedRun } from "@/lib/persistence";
+import type { Profile, Topic } from "@/lib/persistence";
+import { getProfile, loadLibrary } from "@/lib/server/store";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
@@ -18,31 +19,34 @@ export default async function Home() {
   }
   if (!data?.claims) redirect("/login");
 
-  // The map's first paint used to wait on a browser→Supabase round-trip for
-  // this row (~770 ms measured). It is small by design — the content caches
-  // live in their own column — so reading it here, on the server that is
-  // already talking to Supabase for the session, hands the client an
-  // already-drawable map instead of a spinner.
+  // The map's first paint used to wait on a browser→Supabase round-trip
+  // (~770 ms measured). The same query runs here instead, on the server that is
+  // already talking to Supabase for the session, so the client is handed an
+  // already-drawable map rather than a spinner. Generated content is not in it
+  // — that arrives behind the drawn map.
   //
-  // Best-effort: a failure here falls through to the client's own load rather
+  // Best-effort: a failure falls through to the client's own bootstrap rather
   // than 500ing a page that works fine without it.
   //
-  // Skipped in fixture mode: the run lives in the seed store, which only the
-  // browser can reach. `initialRun` is left off entirely rather than passed as
-  // null — null means "the server looked and there is no run", and the client
-  // takes it at its word and never loads.
-  let initialRun: LoadedRun | null = null;
+  // Skipped in fixture mode: the tables live in the test process's memory, and
+  // `initial` is left off entirely rather than passed as null — null means "the
+  // server looked and there is nothing", and the client takes it at its word.
+  let initial: { profile: Profile; topics: Topic[] } | null = null;
   if (FIXTURES) return <AtlasApp userEmail={FIXTURE_EMAIL} />;
   try {
-    initialRun = await loadRunCore(supabase);
+    const [profile, topics] = await Promise.all([
+      getProfile(supabase as never, data.claims.sub as string),
+      loadLibrary(supabase as never),
+    ]);
+    initial = { profile, topics };
   } catch (err) {
-    console.warn("server-side run load failed", err);
+    console.warn("server-side bootstrap failed", err);
   }
 
   return (
     <AtlasApp
       userEmail={(data.claims.email as string | undefined) ?? ""}
-      initialRun={initialRun}
+      initial={initial}
     />
   );
 }

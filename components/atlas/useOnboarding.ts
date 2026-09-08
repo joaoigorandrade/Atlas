@@ -29,6 +29,8 @@ import {
 import { FAKE_MAP_CENTER } from "@/components/onboarding/fakeMap";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { Language } from "@/lib/i18n";
+import { logWarning } from "@/lib/log";
+import { createTopic, deleteTopic } from "@/lib/persistence";
 import type { Screen } from "@/components/atlas/screen";
 import type { ToastChannel } from "@/components/atlas/useToast";
 import type { RunState } from "@/components/atlas/useRunState";
@@ -86,6 +88,7 @@ export function useOnboarding(deps: {
     setSpawnedIds,
     setRunLanguage,
     setCachesLoaded,
+    setTopicId,
     setShakyReason,
     attachGap,
     clearRun,
@@ -141,7 +144,7 @@ export function useOnboarding(deps: {
    * The diagnostic opens once that floor has passed *and* the first question
    * has arrived.
    */
-  const build = useCallback(() => {
+  const build = useCallback(async () => {
     const topic = formRef.current.topic.trim();
     if (!topic) {
       showToast(tc().nameTopicFirst);
@@ -193,8 +196,42 @@ export function useOnboarding(deps: {
     const started = Date.now();
     const openAt = () => Math.max(0, BUILD_MS - (Date.now() - started));
 
+    // The topic row is created before the map is generated, not after, because
+    // the server's post-build warm needs somewhere to file what it generates —
+    // and that warm runs the moment the map lands, while the learner is still
+    // answering placement questions. A build that fails or turns out to be too
+    // broad deletes the row again below; an empty topic must never reach the
+    // dashboard.
+    let created: string | null = null;
+    try {
+      const row = await createTopic({
+        subject: topic,
+        goal: formRef.current.goal,
+        interests: formRef.current.interests,
+        paretoPct: formRef.current.paretoPct,
+        examDate: formRef.current.examDate,
+        ...(languageRef.current ? { language: languageRef.current } : null),
+      });
+      created = row.id;
+      setTopicId(row.id);
+    } catch (err) {
+      // Not fatal: the map still builds and still draws. What is lost is the
+      // server-side warm's address, so the first phase generates on the click
+      // the way it used to.
+      logWarning("create_topic_failed", err);
+    }
+    /** Undo the row above — a build that produced no map owns nothing. */
+    const abandon = () => {
+      if (!created) return;
+      const id = created;
+      created = null;
+      setTopicId(null);
+      deleteTopic(id).catch((err: unknown) => logWarning("abandon_topic_failed", err));
+    };
+
     const params = {
       topic,
+      topicId: created ?? undefined,
       goal: formRef.current.goal,
       paretoPct: formRef.current.paretoPct,
       outline: outline ?? undefined,
@@ -246,6 +283,7 @@ export function useOnboarding(deps: {
         if ("scopes" in result) {
           setScreen("welcome");
           setScopes(result.scopes);
+          abandon();
           return;
         }
         setBuildNote(`placement question 1 of ${DIAGNOSTIC_COUNT}`);
@@ -281,6 +319,7 @@ export function useOnboarding(deps: {
       .catch((err: Error) => {
         if (!current()) return;
         setScreen("welcome");
+        abandon();
         showError(err, { context: "build", retry: () => buildRef.current?.() });
       });
   }, [
@@ -297,6 +336,7 @@ export function useOnboarding(deps: {
     formRef,
     clearRun,
     setCachesLoaded,
+    setTopicId,
     setGraph,
     setRunLanguage,
     setSpawnedIds,

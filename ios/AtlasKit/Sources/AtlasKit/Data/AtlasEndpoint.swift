@@ -27,72 +27,91 @@ enum AtlasEndpoint {
     }
 }
 
-/// `run_states` over PostgREST — the same rows `lib/persistence.ts` reads and
-/// writes in the browser. RLS scopes every one of them to the bearer, so there
-/// is no user id in a path or a filter here: the token is the scope.
+/// `/api/v1` on the web app — the one place learner data moves.
+///
+/// This used to be PostgREST: the phone read and wrote `run_states` directly,
+/// which meant the storage shape was encoded here as well as in
+/// `lib/persistence.ts`, and neither could change without releasing both. Now
+/// the server owns the schema and this knows only a topic, a node delta and a
+/// card. Supabase is still reached directly, but for auth alone.
+///
+/// RLS is still underneath every one of these; the bearer is still the scope.
 enum RunEndpoint {
-    private static let table = "rest/v1/run_states"
+    /// Profile and library in one request — every topic with its map, its
+    /// mastery states and its cards. Generated content is deliberately not in
+    /// it: that arrives per node, behind an already-drawn map.
+    static func bootstrap(token: String) -> HTTPRequestData {
+        HTTPRequestData(path: "api/v1/bootstrap").bearer(token)
+    }
 
-    /// Every run this learner has, freshest first. The whole snapshot comes
-    /// back rather than a summary — the dashboard needs the graph and the
-    /// states to draw a card's mastery share, and that is most of the row.
-    ///
-    /// `caches` is deliberately *not* selected: it is the large half of the row
-    /// and only the open run ever needs it — see `caches(subject:)`, which is
-    /// the same split `lib/persistence.ts` makes between `listRuns` and its
-    /// per-subject caches read.
-    static func list(apiKey: String, token: String) -> HTTPRequestData {
-        HTTPRequestData(path: table)
-            .query([
-                "select": "subject,snapshot", "order": "updated_at.desc",
-                // ponytail: a dashboard nobody scrolls past 50 maps on. Paginate
-                // when someone has more than that.
-                "limit": "50",
-            ])
-            .header("apikey", apiKey)
+    /// One topic, re-read. What "switch map" runs, so a map another device has
+    /// been working on opens with that work on it.
+    static func topic(_ id: String, token: String) -> HTTPRequestData {
+        HTTPRequestData(path: "api/v1/topics/\(id)").bearer(token)
+    }
+
+    /// Create a topic and lay its map down. Onboarding's one write.
+    static func createTopic(_ body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/topics", method: .post).jsonBody(body).bearer(token)
+    }
+
+    /// The map's only write path: what changed, and what left the map. A drag
+    /// is one node's coordinates; finishing Crucible is one node's state.
+    static func nodes(_ id: String, body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/topics/\(id)/nodes", method: .patch)
+            .jsonBody(body).bearer(token)
+    }
+
+    /// The run-level fields: calibration, misconceptions, the exam date.
+    static func patchTopic(_ id: String, body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/topics/\(id)", method: .patch)
+            .jsonBody(body).bearer(token)
+    }
+
+    /// The learner's own row — the streak, the daily target, the reminders.
+    /// One copy, rather than one per topic and a third in UserDefaults.
+    static func patchProfile(_ body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/profile", method: .patch).jsonBody(body).bearer(token)
+    }
+
+    /// Drop a topic. One statement on the server, and the foreign keys take the
+    /// map, the mastery states, the cards and every generated payload with it.
+    static func delete(_ id: String, token: String) -> HTTPRequestData {
+        HTTPRequestData(path: "api/v1/topics/\(id)", method: .delete).bearer(token)
+    }
+
+    /// The topic's generated content. With no nodes named this asks for
+    /// everything it has — what a map open does once, to fill the local mirror.
+    static func content(_ id: String, nodes: [String], kinds: [String], token: String) -> HTTPRequestData {
+        var query: [String: String] = [:]
+        if !nodes.isEmpty, !kinds.isEmpty {
+            query["nodes"] = nodes.joined(separator: ",")
+            query["kinds"] = kinds.joined(separator: ",")
+        }
+        return HTTPRequestData(path: "api/v1/topics/\(id)/content").query(query).bearer(token)
+    }
+
+    /// Today's deck, with the real interval already on every grade button. The
+    /// scheduler runs server-side (`lib/fsrs.ts`, the same `ts-fsrs` the browser
+    /// grades with), so the two clients cannot drift on a due date.
+    static func review(_ id: String, budgetMin: Int, language: String, token: String) -> HTTPRequestData {
+        HTTPRequestData(path: "api/v1/topics/\(id)/review")
+            .query(["budgetMin": String(budgetMin), "lang": language])
             .bearer(token)
     }
 
-    /// The generated content for one run. Fetched on open and nowhere else.
-    static func caches(subject: String, apiKey: String, token: String) -> HTTPRequestData {
-        HTTPRequestData(path: table)
-            .query(["select": "caches", "limit": "1", "subject": match(subject)])
-            .header("apikey", apiKey)
-            .bearer(token)
+    /// Grade one card. One row, one round trip — never the whole deck.
+    static func grade(_ id: String, body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/topics/\(id)/review", method: .post)
+            .jsonBody(body).bearer(token)
     }
 
-    /// Drop one run outright. The map, the mastery states, the cards and the
-    /// generated content are halves of the same row, so this one DELETE takes
-    /// all of them — same as `deleteRun` in `lib/persistence.ts`. RLS scopes
-    /// the match to the bearer, so the subject alone identifies the row.
-    static func delete(subject: String, apiKey: String, token: String) -> HTTPRequestData {
-        HTTPRequestData(path: table, method: .delete)
-            .query(["subject": match(subject)])
-            .header("apikey", apiKey)
-            .header("Prefer", "return=minimal")
-            .bearer(token)
-    }
-
-    /// Unquoted, and percent-encoded by `URLComponents` like any other query
-    /// value. Double quotes around it looked like the careful thing to do and
-    /// were the opposite: PostgREST matches them *literally*, so `eq."x"` finds
-    /// the row whose subject is `"x"` — quotes and all — which is no row at
-    /// all. It answers 204 either way, so the delete looked like it worked and
-    /// the caches read looked like an empty column. A comma, a parenthesis or a
-    /// dot in the value needs no escaping here: only `in.()` and `or=()` read
-    /// them as syntax.
-    private static func match(_ subject: String) -> String { "eq.\(subject)" }
-
-    /// Upsert on the primary key. `user_id` is absent from the body on purpose
-    /// — the column defaults to `auth.uid()`, which is the only value RLS would
-    /// accept anyway.
-    static func save(_ row: JSONValue, apiKey: String, token: String) throws -> HTTPRequestData {
-        try HTTPRequestData(path: table, method: .post)
-            .query(["on_conflict": "user_id,subject"])
-            .jsonBody(row)
-            .header("apikey", apiKey)
-            .header("Prefer", "resolution=merge-duplicates,return=minimal")
-            .bearer(token)
+    /// Cards the phases mint themselves — Connect's one card per confirmed
+    /// link, and the deck Retain drafts. Scheduler state is the server's; these
+    /// arrive new.
+    static func putCards(_ id: String, body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/topics/\(id)/cards", method: .put)
+            .jsonBody(body).bearer(token)
     }
 }
 

@@ -11,10 +11,6 @@ import Networking
 public actor AtlasAPI {
     private let client: URLSessionNetworkClient
     private let streamer: NDJSONStreamer
-    /// The device's own content engine. A kind `Prompts` has ported runs here;
-    /// everything else still goes to `/api/generate`, which is why the two can
-    /// coexist mid-port.
-    private let openRouter = OpenRouter()
     /// The Supabase access token. `/api/generate` requires a signed-in learner.
     private var accessToken: String?
 
@@ -31,7 +27,13 @@ public actor AtlasAPI {
         return URLSession(configuration: config)
     }
 
+    /// The deployment this app talks to. Held so `AtlasStore` can point its
+    /// data client at the same host without the caller having to say it twice —
+    /// generation and learner data are the same server now.
+    public nonisolated let baseURL: URL
+
     public init(baseURL: URL, session: URLSession = .shared) {
+        self.baseURL = baseURL
         let session = Self.generous(session)
         client = URLSessionNetworkClient(
             baseURL: baseURL,
@@ -97,7 +99,6 @@ public actor AtlasAPI {
     /// Streamed generation: one frame per line, yielded as it lands so a screen
     /// paints on its first item instead of its last.
     public func stream(_ kind: String, _ context: [String: JSONValue] = [:]) -> AsyncThrowingStream<StreamFrame, Error> {
-        if let ported = Prompts.streamed(kind, context) { return frames(ported) }
         var body = context
         body["kind"] = .string(kind)
         body["stream"] = .bool(true)
@@ -107,33 +108,6 @@ public actor AtlasAPI {
             }
         }
         return streamer.frames(request)
-    }
-
-    /// The same frames `/api/generate` would have sent, produced here: one
-    /// object off OpenRouter per list item, in the part the screen reads.
-    ///
-    /// The id is stamped on rather than asked for — `validateConsumeSection`
-    /// and `validateSocraticStep` assign `c1`, `s1`, … server-side, the model
-    /// never writes one, and the screens key their views on it.
-    private nonisolated func frames(_ ported: Prompts.Streamed) -> AsyncThrowingStream<StreamFrame, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    for try await object in openRouter.objects(ported.messages) {
-                        continuation.yield(StreamFrame(
-                            p: ported.part,
-                            i: object.index,
-                            v: object.value.withId("\(ported.idPrefix)\(object.index + 1)"),
-                            partial: object.partial ? true : nil
-                        ))
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
     }
 
     // MARK: - Kinds

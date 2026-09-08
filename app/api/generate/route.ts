@@ -31,6 +31,7 @@ import {
   withRequestId,
 } from "@/lib/server/apiError";
 import { readContent, writeContent } from "@/lib/server/contentCache";
+import { ownsTopic, putContent } from "@/lib/server/store";
 import { resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import {
   framesToPayload,
@@ -64,13 +65,16 @@ type SupabaseLike = Awaited<ReturnType<typeof createClient>>;
 async function logGenerationCalls(
   supabase: SupabaseLike,
   job: Job,
-  opts: { jobId: string; requestId?: string },
+  opts: { jobId: string; requestId?: string; topicId?: string },
 ): Promise<void> {
   const calls = Math.max(1, job.cost ?? 1);
   const { error } = await supabase.from("generation_log").insert(
     Array.from({ length: calls }, () => ({
       kind: job.kind.slice(0, 40),
       job_id: opts.jobId,
+      // Spend, attributable to the topic that caused it. Nulled rather than
+      // deleted when that topic goes — the log outlives the learning data.
+      topic_id: opts.topicId ?? null,
     })),
   );
   // Non-fatal (the table may lag a migration) but loudly logged.
@@ -87,6 +91,71 @@ function errorResponse(err: unknown, prefetch: boolean, requestId: string): Next
   // A failed warm is silent — nobody is looking at it.
   if (prefetch) return new NextResponse(null, { status: 204 });
   return apiErrorFrom(err, { requestId });
+}
+
+/** Kinds whose payload belongs to a node of a topic.
+ *
+ *  `curriculum` is absent on purpose: the map is not content hanging off a
+ *  node, it *is* the nodes, and it lands in the `nodes` and `edges` tables.
+ *  The uncacheable kinds (`judge`, `diagnosticQuestion`, `passage`) are absent
+ *  because each one answers one learner's own words and is never replayed. */
+const RECORDED = new Set([
+  "summary",
+  "consume",
+  "model",
+  "socratic",
+  "feynman",
+  "connect",
+  "crucible",
+  "retain",
+]);
+
+/**
+ * Record that this topic now has this content.
+ *
+ * The single change that retires the `caches` column: the moment a payload
+ * exists — freshly generated, or served from the shared cache to a learner who
+ * has never seen it — it is written against their topic here, on the server.
+ * No client uploads content any more, and a second device opens warm for free.
+ *
+ * A `cacheKey` is stored in preference to the payload: the bytes already live
+ * once in `content_cache` for everyone, so the topic only needs a pointer.
+ *
+ * Best-effort and never awaited by the response path. A learner who has their
+ * content must not be made to wait on the bookkeeping that remembers it, and a
+ * failure here costs a re-generation later, not the content in front of them.
+ */
+function recordContent(
+  supabase: SupabaseLike,
+  body: GenerateBody,
+  job: Job,
+  userId: string,
+  payload: Record<string, unknown>,
+): void {
+  const topicId = body.topicId;
+  if (!topicId || !RECORDED.has(job.kind)) return;
+  // `retain` is drafted from the set of nodes with no card yet, so it is
+  // topic-wide and files under the empty node id — the same address the
+  // normalization backfill gave it.
+  const nodeId = job.kind === "retain" ? "" : (body.nodeId ?? "");
+  if (job.kind !== "retain" && !nodeId) return;
+  after(async () => {
+    try {
+      // RLS checks `user_id`, which this write supplies — so the topic itself
+      // has to be checked, or a forged topicId would file a learner's content
+      // under someone else's map.
+      if (!(await ownsTopic(supabase as never, topicId))) return;
+      await putContent(
+        supabase as never,
+        userId,
+        topicId,
+        { nodeId, kind: job.kind, variant: body.variant ?? "" },
+        job.key ? { cacheKey: job.key } : { payload },
+      );
+    } catch (err) {
+      logError("record_content_failed", err, { kind: job.kind, node: nodeId });
+    }
+  });
 }
 
 export async function POST(request: Request) {
@@ -138,6 +207,9 @@ export async function POST(request: Request) {
         kind: job.kind,
         req: requestId,
       });
+      // A hit is content the learner now has, even though nothing was
+      // generated for it — record it against their topic exactly as a miss is.
+      recordContent(supabase, body, job, userId, hit);
       // A hit is replayed in whichever format the caller asked for, so the
       // client reads one wire shape whether the content is seconds or weeks old.
       if (streaming)
@@ -191,13 +263,22 @@ export async function POST(request: Request) {
     startCurriculumWarm(supabase, graph, body, userId);
   };
 
-  if (streaming) return streamGeneration(job, userId, prefetch, onPayload, requestId);
+  /** Everything that happens when a complete payload lands, whichever path
+   *  produced it. The streaming path assembles its payload from frames, so
+   *  this is the only place both paths meet. */
+  const onLanded = (payload: Record<string, unknown>) => {
+    recordContent(supabase, body, job, userId, payload);
+    onPayload(payload);
+  };
+
+  if (streaming) return streamGeneration(job, userId, prefetch, onLanded, requestId);
 
   try {
     const payload = await job.run();
     // Write-through, not awaited: the learner gets their content immediately
     // and everyone after them gets it from Postgres.
     if (job.key) writeContent(job.key, job.kind, payload);
+    recordContent(supabase, body, job, userId, payload);
     onPayload(payload);
     return withRequestId(
       NextResponse.json(payload, { headers: { "x-atlas-cache": "miss" } }),
@@ -213,9 +294,15 @@ export async function POST(request: Request) {
   }
 }
 
-/** Frontier nodes warmed behind a finished build. Each costs two calls
- *  (Consume and Socratic), so the default of 3 spends ~6. */
-const CURRICULUM_WARM_NODES = Number(process.env.CURRICULUM_WARM_NODES || 3);
+/** Cap on frontier nodes warmed behind a finished build; 0 turns the warm off.
+ *
+ *  A *fresh* map's frontier is exactly its root set — the concepts with no
+ *  prerequisites — because every state starts `unknown`. That is two to four
+ *  nodes on a real map, so this cap is a backstop against a pathological map
+ *  rather than the thing that decides the depth. It used to be 3, which cut
+ *  real root sets short and left the learner generating the fourth root
+ *  themselves. */
+const CURRICULUM_WARM_NODES = Number(process.env.CURRICULUM_WARM_NODES || 12);
 
 /**
  * Generate the first thing the learner will click, before they click it.
@@ -241,6 +328,7 @@ function startCurriculumWarm(
   userId: string,
 ): void {
   if (CURRICULUM_WARM_NODES <= 0) return;
+  const topicId = body.topicId;
   // The same derivation the client uses, not a second heuristic that could
   // drift from it: on a fresh map every state is `unknown`, so `frontier` is
   // exactly the nodes whose prerequisites are already met.
@@ -270,6 +358,13 @@ function startCurriculumWarm(
       return;
     }
     for (const node of frontier) {
+      // A learner who deleted the topic while this was running must stop being
+      // billed for it. The row is gone the moment the DELETE lands, so asking
+      // once per node is both the check and the cancellation.
+      if (topicId && !(await ownsTopic(supabase as never, topicId))) {
+        logEvent("curriculum_warm_cancelled", { user: userId, topic: topicId });
+        return;
+      }
       for (const kind of ["consume", "socratic"] as const) {
         try {
           // Through resolveJob, so these hash to the row the learner's own
@@ -284,10 +379,28 @@ function startCurriculumWarm(
             ...(kind === "consume" ? { prereqLabels: prereqLabels(node) } : null),
           });
           if (!warm.key) continue;
-          if (await readContent(warm.key)) continue;
+          const record = () =>
+            topicId
+              ? putContent(
+                  supabase as never,
+                  userId,
+                  topicId,
+                  { nodeId: node.id, kind },
+                  { cacheKey: warm.key! },
+                )
+              : Promise.resolve();
+          // Already generated — by an earlier warm, or by another learner on
+          // the same topic. Still record it: the payload exists, so this topic
+          // should own a pointer to it rather than re-deriving one on the
+          // learner's click.
+          if (await readContent(warm.key)) {
+            await record();
+            continue;
+          }
           const jobId = crypto.randomUUID();
-          await logGenerationCalls(supabase, warm, { jobId });
+          await logGenerationCalls(supabase, warm, { jobId, topicId });
           writeContent(warm.key, warm.kind, await warm.run());
+          await record();
           logEvent("curriculum_warm", { user: userId, kind, node: node.id });
         } catch (err) {
           logError("curriculum_warm_failed", err, { kind, node: node.id });

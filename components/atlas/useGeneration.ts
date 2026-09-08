@@ -89,6 +89,7 @@ export function useGeneration(opts_: {
     formRef,
     graphRef,
     statesRef,
+    topicIdRef,
     consumeCacheRef,
     socraticCacheRef,
     feynmanCacheRef,
@@ -198,6 +199,23 @@ export function useGeneration(opts_: {
       .map((n) => n.label);
   }, [graphRef, statesRef]);
 
+  /**
+   * Where a generation belongs, on top of what it is *about*.
+   *
+   * The topic id and the node id are not part of any cache key — the cache is
+   * shared across every learner on the same topic, keyed by the prompt inputs
+   * alone. They are the address the server files the result under, so the
+   * content becomes this learner's the moment it exists and no client ever
+   * uploads it.
+   */
+  const belongsTo = useCallback(
+    (nodeId: string) => ({
+      ...(topicIdRef.current ? { topicId: topicIdRef.current } : null),
+      nodeId,
+    }),
+    [topicIdRef],
+  );
+
   // ---- one source of truth per generation -------------------------------
   // Each surface's inputs are built in exactly one place, so a background warm
   // and the click that follows it hash to the same `content_cache` row. Every
@@ -207,13 +225,14 @@ export function useGeneration(opts_: {
   const consumeParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
+      ...belongsTo(node.id),
       nodeLabel: node.label,
       prereqLabels: prereqLabelsOf(node.id),
       interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [prereqLabelsOf, boundaryOf, formRef, languageRef],
+    [prereqLabelsOf, boundaryOf, belongsTo, formRef, languageRef],
   );
 
   /** The backfilled sentence for a node that arrived without one. Deliberately
@@ -223,11 +242,12 @@ export function useGeneration(opts_: {
   const summaryParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
+      ...belongsTo(node.id),
       nodeLabel: node.label,
       prereqLabels: prereqLabelsOf(node.id),
       language: languageRef.current,
     }),
-    [prereqLabelsOf, formRef, languageRef],
+    [prereqLabelsOf, belongsTo, formRef, languageRef],
   );
 
   /**
@@ -241,6 +261,10 @@ export function useGeneration(opts_: {
   const modelParams = useCallback(
     (node: ConceptNode, chunk: ConsumeChunk, lens: AltKey) => ({
       topic: formRef.current.topic,
+      ...belongsTo(node.id),
+      // The walkthrough's address within the node: one section, one lens. Two
+      // lenses over the same section are two payloads, and both are kept.
+      variant: `${chunk.id}:${lens}`,
       nodeLabel: node.label,
       lens,
       kicker: chunk.kicker,
@@ -249,30 +273,31 @@ export function useGeneration(opts_: {
       interests: formRef.current.interests,
       language: languageRef.current,
     }),
-    [formRef, languageRef],
+    [belongsTo, formRef, languageRef],
   );
 
   const socraticParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
+      ...belongsTo(node.id),
       nodeLabel: node.label,
       interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [boundaryOf, formRef, languageRef],
+    [boundaryOf, belongsTo, formRef, languageRef],
   );
 
   const feynmanParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
-      nodeId: node.id,
+      ...belongsTo(node.id),
       nodeLabel: node.label,
       interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [boundaryOf, formRef, languageRef],
+    [boundaryOf, belongsTo, formRef, languageRef],
   );
 
   /**
@@ -285,27 +310,27 @@ export function useGeneration(opts_: {
       const pool = connectPool(graphRef.current.nodes, statesRef.current, node.id);
       return {
         topic: formRef.current.topic,
-        nodeId: node.id,
+        ...belongsTo(node.id),
         nodeLabel: node.label,
         pool,
         interests: formRef.current.interests,
         language: languageRef.current,
       };
     },
-    [formRef, graphRef, statesRef, languageRef],
+    [belongsTo, formRef, graphRef, statesRef, languageRef],
   );
 
   const crucibleParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
-      nodeId: node.id,
+      ...belongsTo(node.id),
       nodeLabel: node.label,
       masteredLabels: learnedLabels(),
       interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
     }),
-    [learnedLabels, boundaryOf, formRef, languageRef],
+    [learnedLabels, boundaryOf, belongsTo, formRef, languageRef],
   );
 
   /** Warm-queue / in-memory cache address for one node's surface. */

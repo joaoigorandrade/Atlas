@@ -15,9 +15,11 @@ public struct ReviewView: View {
             if let model { content(model) } else { Color.clear }
         }
         .background(Palette.paper)
-        // Keyed on the queue so finishing a deck, or learning a new concept,
-        // brings the screen back to life instead of freezing on "fila limpa".
-        .task(id: store.queue.count) {
+        // Keyed on the cards that exist so finishing a deck, or learning a new
+        // concept, brings the screen back to life instead of freezing on "fila
+        // limpa". The deck itself is asked for inside `open()` — which cards are
+        // due, in what order, is the server's answer.
+        .task(id: store.cards.count) {
             let model = model ?? ReviewViewModel(store: store)
             self.model = model
             await model.open()
@@ -59,7 +61,7 @@ public struct ReviewView: View {
 
     // MARK: - The deck
 
-    private func deck(_ model: ReviewViewModel, _ card: ScheduledCard) -> some View {
+    private func deck(_ model: ReviewViewModel, _ card: ReviewCard) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 SegmentBar(model.rail)
@@ -71,10 +73,10 @@ public struct ReviewView: View {
                 .padding(.top, 7)
 
                 HStack {
-                    Chip(card.card.type.label, tint: card.card.type.tint,
-                         background: card.card.type.tint.opacity(0.08))
+                    Chip(card.type.label, tint: card.type.tint,
+                         background: card.type.tint.opacity(0.08))
                     Spacer()
-                    Text(verbatim: card.card.source).font(.atlas(.mono, 11)).foregroundStyle(Palette.inkGhost)
+                    Text(verbatim: card.source).font(.atlas(.mono, 11)).foregroundStyle(Palette.inkGhost)
                         .lineLimit(1)
                 }
                 .padding(.top, 18)
@@ -93,7 +95,7 @@ public struct ReviewView: View {
     }
 
     /// The card itself, on the two backs the design stacks behind it.
-    private func face(_ model: ReviewViewModel, _ card: ScheduledCard) -> some View {
+    private func face(_ model: ReviewViewModel, _ card: ReviewCard) -> some View {
         ZStack(alignment: .top) {
             ForEach(Array([(18.0, 0.956, 0.5), (9.0, 0.978, 0.75)].enumerated()), id: \.offset) { _, back in
                 RoundedRectangle(cornerRadius: 18)
@@ -104,7 +106,7 @@ public struct ReviewView: View {
                     .offset(y: back.0)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text(verbatim: model.front(card.card))
+                Text(verbatim: model.front(card))
                     .font(.atlas(.serif, 22))
                     .foregroundStyle(Palette.ink)
                     .lineSpacing(6)
@@ -129,7 +131,7 @@ public struct ReviewView: View {
                     .padding(.top, 10)
                 case .reveal:
                     Divider().overlay(Palette.hairline).padding(.vertical, 18)
-                    Text(verbatim: card.card.back)
+                    Text(verbatim: card.back)
                         .font(.atlas(.serif, 17))
                         .foregroundStyle(Palette.inkSoft)
                         .lineSpacing(5)
@@ -152,12 +154,12 @@ public struct ReviewView: View {
 
     /// The alive-loop: a miss doesn't only reschedule. The node is Shaky on the
     /// map, the re-explanation is right here, and the spiral is one tap away.
-    private func failed(_ model: ReviewViewModel, _ card: ScheduledCard) -> some View {
+    private func failed(_ model: ReviewViewModel, _ card: ReviewCard) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Kicker("De volta ao ciclo", tint: NodeState.gap.color, size: 10)
-            Text(verbatim: card.card.back)
+            Text(verbatim: card.back)
                 .font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).lineSpacing(5)
-            if let reExplain = card.card.reExplain {
+            if let reExplain = card.reExplain {
                 Text(verbatim: reExplain)
                     .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkSoft).lineSpacing(3)
                     .padding(14)
@@ -173,7 +175,7 @@ public struct ReviewView: View {
     // MARK: - The dock
 
     @ViewBuilder
-    private func dock(_ model: ReviewViewModel, _ card: ScheduledCard) -> some View {
+    private func dock(_ model: ReviewViewModel, _ card: ReviewCard) -> some View {
         Dock {
             switch model.stage {
             case .confidence:
@@ -190,7 +192,13 @@ public struct ReviewView: View {
                             Button { model.grade(grade) } label: {
                                 VStack(spacing: 2) {
                                     Text(grade.label).font(.atlas(.sans, 13, weight: .semibold))
-                                    Text(card.label(for: grade)).font(.atlas(.mono, 9.5))
+                                    // The real interval, written by the same
+                                    // scheduler that will apply it. A card that
+                                    // arrived without one shows the grade alone
+                                    // rather than a made-up number.
+                                    if let interval = card.label(for: grade) {
+                                        Text(verbatim: interval).font(.atlas(.mono, 9.5))
+                                    }
                                 }
                                 .foregroundStyle(grade.tint)
                                 .frame(maxWidth: .infinity, minHeight: Metrics.cta)

@@ -47,20 +47,22 @@ public enum Fixtures {
 
     /// A deck due right now, so screens 19 and 20 are reachable without a
     /// generation — fixture mode makes no request.
-    static let cards: [ScheduledCard] = [
+    static let cards: [ReviewCard] = [
         ReviewCard(
             id: "f-lat", type: .recall, source: "de Connect", node: "lat",
             cloze: ["Um limite existe quando os limites laterais ", " no mesmo ponto."],
             answer: "coincidem", front: nil, back: "…coincidem — o da esquerda e o da direita dão o mesmo valor.",
-            reExplain: "Se os dois lados discordam, não há um valor único de que a função se aproxime."
+            reExplain: "Se os dois lados discordam, não há um valor único de que a função se aproxime.",
+            fsrs: ["again": "<1 d", "hard": "1 d", "good": "3 d", "easy": "6 d"]
         ),
         ReviewCard(
             id: "f-cont", type: .why, source: "do seu teach-back", node: "cont",
             cloze: nil, answer: nil, front: "Por que continuidade é mais forte do que ter limite?",
             back: "Porque exige também que o limite seja igual ao valor da função no ponto.",
-            reExplain: "Ter limite fala do entorno; continuidade fala do entorno e do ponto."
+            reExplain: "Ter limite fala do entorno; continuidade fala do entorno e do ponto.",
+            fsrs: ["again": "<1 d", "hard": "1 d", "good": "3 d", "easy": "6 d"]
         ),
-    ].map { ScheduledCard($0) }
+    ]
 
     /// Two readings — one honest, one bravado — so the curve has a shape.
     static let calib: [CalibSample] = [

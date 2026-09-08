@@ -17,7 +17,7 @@ import {
   validateSummary,
 } from "@/lib/server/generate";
 import { graphFromMapNodes } from "@/lib/curriculum";
-import { migrateConsume, type LegacyConsumeChunk } from "@/lib/persistence";
+import { migrateConsume, type LegacyConsumeChunk } from "@/lib/contentMigrate";
 
 // ---- curriculum map: DAG + scoping --------------------------------------------
 

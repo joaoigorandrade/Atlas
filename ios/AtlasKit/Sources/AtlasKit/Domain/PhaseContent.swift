@@ -104,6 +104,19 @@ public struct ConsumePrediction: Decodable, Sendable {
     }
 }
 
+/// How many sections a reading pass may run to — the mirror of
+/// `CONSUME_SECTION_BOUNDS` (`lib/curriculum/consume.ts`).
+///
+/// The prompts were ported to the device; this bound was not, and it is the
+/// half that says when a pass is *finished*. Without it a stream that died
+/// after one section was indistinguishable from a concept that only needed
+/// one, so a truncated reading was cached, uploaded and re-served as a whole
+/// pass — see `WarmCache.fill(_:atLeast:live:)`.
+public enum ConsumeSectionBounds {
+    public static let min = 2
+    public static let max = 6
+}
+
 public struct ConsumeChunk: Decodable, Sendable, Identifiable {
     public let id: String
     /// Segment label, e.g. "1 · O que é".

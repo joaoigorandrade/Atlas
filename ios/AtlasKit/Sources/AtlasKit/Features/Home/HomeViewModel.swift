@@ -21,19 +21,22 @@ final class HomeViewModel {
 
     var today: String { Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)) }
 
-    private var queue: [ScheduledCard] { store.queue }
-    var queueIsEmpty: Bool { queue.isEmpty }
+    /// Cards due right now, counted from the store rather than fetched: the
+    /// dashboard says how much is waiting, and the deck itself — the order and
+    /// the intervals — is the server's answer, asked for when Review opens.
+    private var dueCount: Int { store.dueCount }
+    var queueIsEmpty: Bool { dueCount == 0 }
 
     /// The queue, framed in minutes against the daily target — never a wall of
     /// cards, and never a number that isn't due.
     var reviewHeadline: String {
-        queueIsEmpty ? String(localized: "Fila limpa") : String(localized: "\(queue.count) cartões pendentes")
+        queueIsEmpty ? String(localized: "Fila limpa") : String(localized: "\(dueCount) cartões pendentes")
     }
 
     var reviewNote: String {
         queueIsEmpty
             ? String(localized: "Nada a recuperar agora. O próximo cartão volta assim que a memória começar a esfriar.")
-            : String(localized: "~\(Int((Double(queue.count) * cardMinutes).rounded())) min · no momento exato em que essas memórias estão prestes a desvanecer.")
+            : String(localized: "~\(Int((Double(dueCount) * cardMinutes).rounded())) min · no momento exato em que essas memórias estão prestes a desvanecer.")
     }
 
     var reviewAction: LocalizedStringKey { queueIsEmpty ? "Abrir a revisão →" : "Iniciar revisão →" }
@@ -60,21 +63,21 @@ final class HomeViewModel {
 
     /// Every saved map, freshest first. The open one is in here, answered from
     /// live state — see `AtlasStore.maps`.
-    var maps: [RunSnapshot] { store.maps }
-    func isOpen(_ map: RunSnapshot) -> Bool { map.subject == store.subject }
+    var maps: [AtlasRun] { store.maps }
+    func isOpen(_ map: AtlasRun) -> Bool { map.subject == store.subject }
 
     /// The chip each card carries: which one the tabs are currently showing.
-    func status(_ map: RunSnapshot) -> LocalizedStringKey {
+    func status(_ map: AtlasRun) -> LocalizedStringKey {
         isOpen(map) ? "Em andamento" : "Salvo"
     }
 
-    func frontierCount(_ map: RunSnapshot) -> Int {
+    func frontierCount(_ map: AtlasRun) -> Int {
         isOpen(map) ? frontier.count : map.frontierCount
     }
 
     /// Tapping a card. The open map is already on screen, so this only has work
     /// to do for the others — the view decides where to go afterwards.
-    func open(_ map: RunSnapshot) async {
+    func open(_ map: AtlasRun) async {
         await store.switchTo(map)
     }
 
@@ -82,7 +85,7 @@ final class HomeViewModel {
 
     /// The card the learner is being asked about, and the failure if the delete
     /// did not land. Nothing else on this screen can fail.
-    private(set) var pendingDelete: RunSnapshot?
+    private(set) var pendingDelete: AtlasRun?
     private(set) var message = ""
     /// The same subject again, held where the alert cannot take it back:
     /// dismissing clears `pendingDelete` through the binding, and SwiftUI does
@@ -90,9 +93,10 @@ final class HomeViewModel {
     /// how "Excluir" used to delete nothing at all.
     private var confirmed = ""
 
-    func askToDelete(_ map: RunSnapshot) {
+    func askToDelete(_ map: AtlasRun) {
         pendingDelete = map
-        confirmed = map.subject
+        confirmed = map.id
+        confirmedSubject = map.subject
     }
 
     func cancelDelete() {
@@ -104,19 +108,23 @@ final class HomeViewModel {
         Binding(get: { self.pendingDelete != nil }, set: { if !$0 { self.pendingDelete = nil } })
     }
 
+    /// Named while the alert still has the card. `confirmed` is an id, which
+    /// is not something to show a learner, so the subject is held beside it.
+    private var confirmedSubject = ""
+
     var deleteAsk: String {
-        String(localized: "Excluir “\(pendingDelete?.subject ?? confirmed)”?")
+        String(localized: "Excluir “\(pendingDelete?.subject ?? confirmedSubject)”?")
     }
 
     /// Confirmed. Deleting the open map clears the live run, which is what puts
     /// the shell back on onboarding when it was the last one — the store does
     /// all of that; this only speaks the failure.
     func delete() async {
-        let subject = confirmed
-        guard !subject.isEmpty else { return }
+        let id = confirmed
+        guard !id.isEmpty else { return }
         cancelDelete()
         do {
-            try await store.deleteMap(subject)
+            try await store.deleteMap(id)
         } catch {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "excluir esse mapa"))
         }

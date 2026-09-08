@@ -13,7 +13,7 @@ import SwiftUI
 public final class ReviewViewModel {
     public enum Stage { case confidence, reveal, failed }
 
-    public private(set) var deck: [ScheduledCard]
+    public private(set) var deck: [ReviewCard]
     public private(set) var index = 0
     public private(set) var stage: Stage = .confidence
     public private(set) var confidence: ReviewConfidence?
@@ -28,12 +28,12 @@ public final class ReviewViewModel {
     /// Cards already sent back to the end of the deck once.
     private var requeued: Set<String> = []
 
-    public init(store: AtlasStore, deck: [ScheduledCard] = []) {
+    public init(store: AtlasStore, deck: [ReviewCard] = []) {
         self.store = store
         self.deck = deck
     }
 
-    public var card: ScheduledCard? { deck[safe: index] }
+    public var card: ReviewCard? { deck[safe: index] }
     public var hasCard: Bool { card != nil && !finished }
     /// Cards still to answer, this one included — the deck count in the header.
     public var remaining: Int { max(0, deck.count - index) }
@@ -53,7 +53,7 @@ public final class ReviewViewModel {
     /// The concept a missed card belongs to — what "reensinar agora" opens.
     public var failedNode: ConceptNode? {
         guard let card else { return nil }
-        return store.graph.nodes.first { $0.id == card.card.node }
+        return store.graph.nodes.first { $0.id == card.node }
     }
 
     // MARK: - Filling the deck
@@ -62,22 +62,27 @@ public final class ReviewViewModel {
     /// reviewed gets its cards drafted once, and they live here from then on.
     public func open() async {
         if hasCard { return }
-        if !store.queue.isEmpty { return reset(to: store.queue) }
+        // The deck — which cards are due, in what order, and what each grade
+        // button would schedule — is the server's answer, because that is where
+        // the scheduler runs. See `Retain.swift`.
+        await store.loadDeck()
+        if !store.deck.isEmpty { return reset(to: store.deck) }
         let uncovered = store.uncovered
         guard !uncovered.isEmpty, !drafting else { return }
         drafting = true
         defer { drafting = false }
         // The map warms this ahead of the tab being opened, and the draft files
         // itself into the run either way — so this usually returns with the
-        // deck already there. See `AtlasStore.draftCards`.
+        // cards already written. See `AtlasStore.draftCards`.
         if let error = await store.draftCards(for: uncovered) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "montar sua revisão"))
         } else {
-            reset(to: store.queue)
+            await store.loadDeck()
+            reset(to: store.deck)
         }
     }
 
-    private func reset(to deck: [ScheduledCard]) {
+    private func reset(to deck: [ReviewCard]) {
         self.deck = deck
         index = 0
         stage = .confidence
@@ -99,23 +104,25 @@ public final class ReviewViewModel {
     /// Grade the card on screen: the scheduler moves it, the tap before the
     /// flip becomes a calibration reading, and a miss flags its node Shaky.
     public func grade(_ grade: ReviewGrade) {
-        guard stage == .reveal, let scheduled = card else { return }
-        store.schedule(scheduled.graded(grade))
-        results[scheduled.id] = grade
+        guard stage == .reveal, let card else { return }
+        // The scheduler is the server's; the card leaves this deck immediately
+        // and the write settles behind it, so nothing on screen waits.
+        store.grade(card, grade)
+        results[card.id] = grade
         store.markActiveToday()
-        if let confidence { store.recordCalib(scheduled.card.node, felt: confidence.felt, real: grade.real) }
+        if let confidence { store.recordCalib(card.node, felt: confidence.felt, real: grade.real) }
         // Real review history is what earns "Retido ✓" — mastered alone doesn't.
-        if grade == .good || grade == .easy { store.reviewed.insert(scheduled.card.node) }
+        if grade == .good || grade == .easy { store.reviewed.insert(card.node) }
         guard grade == .again else { return advance() }
-        if store.states[scheduled.card.node] == .mastered {
-            store.states[scheduled.card.node] = .shaky
-            store.shakyReasons[scheduled.card.node] = .reviewMiss
+        if store.states[card.node] == .mastered {
+            store.states[card.node] = .shaky
+            store.shakyReasons[card.node] = .reviewMiss
         }
         // A miss really does come back at the end of the deck — but only once,
-        // or a card nobody can answer is a session with no end. It goes back
-        // *as graded*: re-answering the stale copy would schedule off the ease
-        // this miss just took away.
-        if requeued.insert(scheduled.id).inserted { deck.append(scheduled.graded(grade)) }
+        // or a card nobody can answer is a session with no end. This copy is
+        // local to the pass: the server has already been told, and grading it
+        // again would schedule off a state this session no longer knows.
+        if requeued.insert(card.id).inserted { deck.append(card) }
         stage = .failed
     }
 

@@ -30,16 +30,33 @@ import Testing
 }
 
 @MainActor
-@Test func openingAPassMarksTheNodeLearningAndNothingElse() {
+@Test func openingAPassMarksNothingUntilTheLearnerDoesSomething() {
     let owned = store(["cadeia": .mastered])
     _ = SessionViewModel(node: owned.graph.nodes[1], store: owned)
-    // A node already past Learning is left where it is — arriving is evidence
-    // of work, not a reason to walk mastery backwards.
+    // A node already past Learning is left where it is — nothing on this screen
+    // is a reason to walk mastery backwards.
     #expect(owned.states["cadeia"] == .mastered)
 
+    // Opening the screen and backing out is not learning the concept. It used
+    // to write Learning here, and `isLearned` counts Learning as a satisfied
+    // prerequisite — so a tap and a back swipe unlocked everything downstream.
     let fresh = store(["lat": .mastered])
-    _ = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
+    let pass = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
+    #expect(fresh.states["cadeia"] == nil)
+
+    // The first thing the learner actually does is what marks it.
+    pass.markWorked()
     #expect(fresh.states["cadeia"] == .learning)
+}
+
+/// The reason the rule above matters: Learning satisfies a prerequisite, so
+/// writing it on arrival lit the next concept up for free.
+@MainActor
+@Test func aTapAndABackSwipeDoesNotUnlockTheNextConcept() {
+    let fresh = store(["lat": .mastered])
+    let locked = fresh.graph.nodes.first { fresh.display[$0.id] == .unknown }
+    _ = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
+    if let locked { #expect(fresh.display[locked.id] == .unknown) }
 }
 
 @MainActor

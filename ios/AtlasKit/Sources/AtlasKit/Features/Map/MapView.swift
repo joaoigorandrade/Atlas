@@ -42,11 +42,15 @@ public struct MapView: View {
         // written while they are still looking at the map, and the day's cards
         // are drafted the same way — see `Warm.swift`.
         //
-        // ponytail: the two nodes at the head of the frontier rather than all
-        // of them. There is no concurrency cap under this, so this list is the
-        // cap; widen it when a warm is cheaper than a wait.
-        .task(id: store.frontier.prefix(2).map(\.id).joined()) {
-            for node in store.frontier.prefix(2) { store.warmUp("consume", for: node) }
+        // The whole frontier, not the two at its head. That cap existed because
+        // every warm was a model call from this device; now a hit is a local
+        // read from the mirror, then a shared-cache read, and only a genuine
+        // miss reaches a model — and the server has usually already written the
+        // frontier's reading behind the build. The frontier is the root set of
+        // what the learner can start next, which is a handful of nodes, not a
+        // list that needs a cap of its own.
+        .task(id: store.frontier.map(\.id).joined()) {
+            for node in store.frontier { store.warmUp("consume", for: node) }
         }
         // Not keyed on the frontier: the day's deck is drawn from the nodes
         // with no card yet, which has nothing to do with which two are at the
@@ -84,7 +88,7 @@ public struct MapView: View {
                 // map" and "move this node", and on a phone-sized viewport
                 // panning is the one worth having. Rearranging a map is a desk
                 // job — the browser owns the drag, and the positions it writes
-                // are folded onto the nodes on load (`RunSnapshot.init`), so
+                // are folded onto the nodes on load (`AtlasRun.init`), so
                 // this screen draws whatever layout the learner arranged there.
                 DragGesture(minimumDistance: 0)
                     .onChanged { model.pan($0.translation) }

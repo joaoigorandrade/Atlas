@@ -141,7 +141,7 @@ public struct HomeView: View {
     /// One saved run. Tapping the open one goes to its map; tapping any other
     /// switches the whole store onto it first, which is a round trip, so the
     /// tab change waits for it.
-    private func mapCard(_ map: RunSnapshot, _ model: HomeViewModel) -> some View {
+    private func mapCard(_ map: AtlasRun, _ model: HomeViewModel) -> some View {
         let open = model.isOpen(map)
         return Button {
             Task {

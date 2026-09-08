@@ -2,10 +2,16 @@ import Foundation
 import Testing
 @testable import AtlasKit
 
-/// What Review writes and what the scheduler promises. Layout is layout; these
-/// three are the parts that lie to the learner if they drift: the interval on a
-/// grade button, the alive-loop a miss opens, and the calibration reading the
-/// tap-then-grade pair produces.
+/// What Review writes. Layout is layout; these are the parts that lie to the
+/// learner if they drift: the alive-loop a miss opens, the calibration reading
+/// the tap-then-grade pair produces, and the review history that finally earns
+/// Retained.
+///
+/// The scheduler itself is deliberately not tested here any more — it does not
+/// live here. This client used to carry a hand-rolled SM-2 while the browser
+/// used FSRS, so the same card had two different due dates depending on which
+/// screen graded it; the scheduling now happens in one place (`lib/fsrs.ts`) and
+/// the interval on each grade button arrives with the card.
 
 @MainActor private func store(_ states: StateMap = ["lat": .mastered]) -> AtlasStore {
     AtlasStore(
@@ -20,38 +26,31 @@ import Testing
 private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
     ReviewCard(id: id, type: .recall, source: "de Connect", node: node,
                cloze: ["Um limite existe quando ", " coincidem."], answer: "os laterais",
-               front: nil, back: "os limites laterais coincidem", reExplain: "Os dois lados discordam.")
+               front: nil, back: "os limites laterais coincidem",
+               reExplain: "Os dois lados discordam.",
+               fsrs: ["again": "<1 d", "hard": "1 d", "good": "3 d", "easy": "6 d"])
 }
 
-@Test func gradesScheduleFurtherOutTheBetterTheyAre() {
-    let now = Date(timeIntervalSince1970: 1_700_000_000)
-    let fresh = ScheduledCard(card(), now: now)
-    let intervals = ReviewGrade.allCases.map { fresh.graded($0, now: now).due.timeIntervalSince(now) }
-    #expect(intervals == intervals.sorted())
-    // A miss stays inside the day; everything else buys at least one.
-    #expect(intervals[0] < 3600)
-    #expect(intervals[1] >= 86_400)
-
-    // Repeated Goods compound rather than resetting to the same day.
-    let once = fresh.graded(.good, now: now)
-    let twice = once.graded(.good, now: once.due)
-    #expect(twice.interval > once.interval)
-}
-
-@Test func theQueueIsWhatIsDue_cutToTheDailyTarget() {
-    let now = Date(timeIntervalSince1970: 1_700_000_000)
-    var later = ScheduledCard(card("future"), now: now)
-    later.due = now.addingTimeInterval(86_400)
-    let due = (0..<20).map { ScheduledCard(card("c\($0)"), now: now) }
-    let queue = todaysQueue(due + [later], target: 15, now: now)
-    #expect(queue.count == 10)
-    #expect(!queue.contains { $0.id == "future" })
+@Test func everyGradeButtonCarriesTheIntervalItSchedules() {
+    // The numbers come from the server, computed by the same scheduler that
+    // will apply them. What this checks is that the phone shows them rather
+    // than deriving its own — a button reading "3 d" over a card the server
+    // will move by ten is the exact lie the SM-2 port used to tell.
+    let deck = card()
+    #expect(ReviewGrade.allCases.allSatisfy { deck.label(for: $0) != nil })
+    #expect(deck.label(for: .good) == "3 d")
+    // A card that arrived from anywhere but the deck endpoint shows the grade
+    // alone. No interval is better than a made-up one.
+    let minted = ReviewCard(id: "c2", type: .why, source: "Connect", node: "lat",
+                            cloze: nil, answer: nil, front: "Por quê?", back: "Porque.",
+                            reExplain: nil, fsrs: nil)
+    #expect(minted.label(for: .good) == nil)
 }
 
 @MainActor
 @Test func aTapThenAGradeIsOneCalibrationReading() {
     let owner = store()
-    let review = ReviewViewModel(store: owner, deck: [ScheduledCard(card())])
+    let review = ReviewViewModel(store: owner, deck: [card()])
 
     // Nothing is graded before the card is flipped.
     review.grade(.good)
@@ -70,7 +69,7 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 @MainActor
 @Test func aMissReEntersTheSpiralAndComesBackOnce() {
     let owner = store()
-    let review = ReviewViewModel(store: owner, deck: [ScheduledCard(card())])
+    let review = ReviewViewModel(store: owner, deck: [card()])
     review.tap(.solid)
     review.grade(.again)
 
@@ -91,16 +90,16 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 @MainActor
 @Test func onlyARealReviewEarnsRetained() {
     let owner = store()
-    let review = ReviewViewModel(store: owner, deck: [ScheduledCard(card())])
+    let review = ReviewViewModel(store: owner, deck: [card()])
     review.tap(.solid)
     review.grade(.good)
 
     #expect(review.finished)
     #expect(owner.reviewed.contains("lat"))
     #expect(phaseIndex(.mastered, reviewed: owner.reviewed.contains("lat")) == 6)
-    // The scheduler kept the card — it is due later, not gone.
-    #expect(owner.cards.count == 1)
-    #expect(owner.queue.isEmpty)
+    // The card leaves today's deck the moment it is graded; where it goes next
+    // is the server's answer, not this client's.
+    #expect(owner.deck.isEmpty)
 }
 
 @MainActor

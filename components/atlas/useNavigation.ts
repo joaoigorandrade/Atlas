@@ -7,7 +7,7 @@
 // layer, which is why it sits apart from them.
 
 import { useCallback } from "react";
-import { deleteRun } from "@/lib/persistence";
+import { deleteTopic } from "@/lib/persistence";
 import { emptyGraph } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import { logWarning } from "@/lib/log";
@@ -112,14 +112,21 @@ export function useNavigation(deps: {
    * shows up if that was the learner's last map. Excluding any other map just
    * drops its row and refreshes the grid.
    *
-   * `excluding` gates `runActive`, so the debounced writers are already off by
-   * the time the delete lands; nothing can re-upsert the row behind it.
+   * `excluding` gates `runActive`, so the debounced writer is already off by
+   * the time the delete lands; nothing can re-upsert the rows behind it.
    * Adherence is deliberately untouched: the streak is the learner's habit,
-   * not the topic's, and fabricating a reset would be the dishonest read.
+   * not the topic's, and it lives on their profile now rather than in each
+   * topic, so there is nothing here that could reset it by accident.
+   *
+   * On the server this is one statement. `topics` is the root of the cascade,
+   * so the map, the mastery states, the cards and every generated payload go
+   * with it — there is no cleanup list to keep in step with the schema.
    */
   const excludeTopic = (subject: string) => {
+    const row = maps.find((m) => m.subject === subject);
+    if (!row) return;
     setExcluding(true);
-    deleteRun(supabase, subject)
+    deleteTopic(row.id)
       .then(() => {
         if (subject !== runSubject) {
           refreshMaps();

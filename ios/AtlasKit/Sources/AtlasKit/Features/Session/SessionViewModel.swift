@@ -32,10 +32,6 @@ public final class SessionViewModel: Identifiable {
         let last = Phase.allCases.count - 2
         let asked = Phase.allCases.firstIndex(of: phase ?? store.owedPhase(node)) ?? 0
         self.phase = Phase.allCases[max(0, min(asked, last))]
-        // Arriving is the evidence: a node being worked is Learning, whatever
-        // else happens on the screen. Anything already past that is left alone.
-        let state = store.states[node.id] ?? .unknown
-        if state == .unknown { store.states[node.id] = .learning }
         warmNext()
         noteReading()
     }
@@ -43,7 +39,18 @@ public final class SessionViewModel: Identifiable {
     /// A day on the streak is adherence, and opening a screen is not adherence:
     /// a learner who taps a node, sees the wrong phase and backs out has done
     /// no work. Every phase that gets somewhere calls this.
-    public func markWorked() { store.markActiveToday() }
+    ///
+    /// It is also where the node becomes Learning. That used to happen in
+    /// `init`, on the reasoning that arriving is the evidence — but `isLearned`
+    /// counts Learning as a *satisfied prerequisite*, so merely opening a node
+    /// and backing out lit up everything downstream of it. Tapping a concept is
+    /// not learning it, and it must not unlock the next one. The rule this
+    /// function already stated for the streak is the right one for the map too:
+    /// the first thing the learner actually does is the evidence.
+    public func markWorked() {
+        store.markActiveToday()
+        if (store.states[node.id] ?? .unknown) == .unknown { store.states[node.id] = .learning }
+    }
 
     /// The reading record the spiral reads back. Opening Consume is what
     /// creates it — without that, a node marked Learning above and then left

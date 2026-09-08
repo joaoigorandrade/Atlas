@@ -61,26 +61,26 @@ that run only. `Info.plist` carries the host and nothing else — the Supabase U
 and its publishable key moved into `Secrets.swift` with the rest, so a generated
 project holds no credential.
 
-## Where a call goes (development phase)
+## Where a call goes
 
-The app holds its own credentials — `Secrets.swift`, which is **not committed**
-(copy `Secrets.example.swift.txt` and fill it from the web app's `.env.local`).
-The repo is public and the OpenRouter key is a spend credential: it must never
-be committed, and it is extractable from any build that leaves this machine.
+The app holds one credential — `Secrets.swift`, which is **not committed** (copy
+`Secrets.example.swift.txt` and fill it from the web app's `.env.local`). It is
+Supabase's publishable key, which is designed to be in a client. **No spend
+credential ships in this binary**, and none may: anything extractable from a
+build that leaves this machine is a key someone else can spend.
 
-Three destinations, on purpose:
+Two destinations, on purpose:
 
-- **Supabase, directly** — auth (`AtlasAuth` → GoTrue). The publishable key is
-  a client key and RLS is the access control.
-- **OpenRouter, directly** — the kinds listed in `Prompts.streamed`. Their
-  prompts are _copied_ from `lib/server/generate/*.ts`, not rewritten: change a
-  prompt on the server and it has to be re-copied here, or the app quietly
-  teaches something else. `OpenRouter.swift` is a port of the transport half of
-  `lib/server/openrouter.ts` — same request, same deadlines, same streaming-JSON
-  scanning, pinned by `OpenRouterTests.swift`.
-- **The web app** — everything not yet ported. `Prompts.streamed` returning nil
-  is what routes a kind to `/api/generate`, so an unported kind keeps working
-  and porting one is a single `case`.
+- **The web app** — everything. Generation over `/api/generate`, learner data
+  over `/api/v1`. One host, one place the schema and the prompts live.
+- **Supabase, directly** — auth (`AtlasAuth` → GoTrue), and nothing else. The
+  publishable key is a client key and RLS is the access control.
+
+There used to be a third: `consume` and `socratic` were generated on the device
+against OpenRouter, with a live spend key compiled into the binary. Those two
+kinds had no shared content cache, no quota, no spend log and no fallback chain
+— the four things that make a generation cheap and a screen fast — and the
+prompts were a hand-kept copy of the server's. It is gone; do not bring it back.
 
 What the device path deliberately does not have: the fallback model chain, the
 shared `content_cache`, the quota, and the spend log. Those are the server's,
@@ -116,8 +116,8 @@ Sources/AtlasKit/
   Domain/     the vocabulary and the pure functions — Concept, Diagnostic,
               Calibration, Retain, PhaseContent. No I/O, no SwiftUI state.
   Data/       AtlasAPI + AtlasEndpoint + NDJSONStream, AtlasAuth + SessionStore,
-              RunStore + RunSnapshot (the `run_states` row, shared with the web),
-              OpenRouter + Prompts + Secrets (uncommitted),
+              RunStore + AtlasRun (the `/api/v1` client and its wire shapes),
+              Local/LocalStore (the SwiftData mirror), Secrets (uncommitted),
               AtlasStore + Defaults, Warm (the generation cache), Fixtures
   Features/   one folder per surface, each holding its view(s) and view model:
               Auth, Onboarding, Home, Map, Review, Profile,
@@ -189,8 +189,9 @@ AtlasNavigator`, `AtlasTabNavigator` for a tab change) — `navigate(to:)` to
 - **The run is a row, and it saves itself.** Every stored property of the run on
   `AtlasStore` has `didSet { saveSoon() }`, so a screen persists by writing to
   the store and never by calling a save. Adding a field to the run means adding
-  the observer _and_ a line in `RunSnapshot` — a field in neither is a field
-  that vanishes on relaunch.
+  the observer _and_ a line in the projection `saveNow` diffs against
+  (`nodeShots` / `topicShot`) — a field in neither is a field that vanishes on
+  relaunch, because a write only sends what the projection says has changed.
 - **Writes that are not the learner working hold `quiet`.** Restoring, switching
   map and signing out all write the whole run at once, and `signOut` writes it
   empty; without the flag that clear upserts an empty map over a real row. Any
@@ -227,13 +228,12 @@ than calling `AtlasAPI` from a view model.
   Consume writes Socratic, Socratic writes Feynman, and so on to the Crisol.
 - The cache is emptied whenever the run changes (`open`, `clearRun`) — every key
   names the run and the language it belongs to, and nothing survives a sign-out.
-- **The cache is also a column, shared with the browser.** `run_states.caches`
-  holds the run's generated content in the shape `lib/persistence.ts` writes —
-  `{ consume: { nodeId: [...] }, … }` — so a reading pass written in the browser
-  opens here without a generation, and one written here shows up there. `open`
-  seeds the cache from the row and `saveNow` merges it back, only when a
-  generation has landed (`warm.revision`): it is the large half of the row and a
-  node drag must not re-upload it.
+- **Content is never uploaded.** The server records a payload against the topic
+  the moment it generates it, so `hydrateContent` only ever reads: what is on
+  disk first (the mirror), then `/api/v1/topics/:id/content`. A reading pass
+  written in a browser opens here without a generation, and one written here
+  shows up there, because both are the same rows. There is no `caches` column to
+  merge back and no revision to track.
 - **What travels is the model's own JSON, never a re-encode of what was
   decoded.** `PhaseContent.swift` is deliberately narrower than
   `lib/curriculum/*.ts`, so every generation is carried as a `Landed` — the
@@ -241,9 +241,12 @@ than calling `AtlasAPI` from a view model.
   first into the second strips the fields only the browser draws (`terms`,
   `ask`, `encoding`). A new cached kind carries both halves or it degrades the
   web.
-- The two buckets this client does not fill — `models` (the lens beats) and
-  `retain` — ride through the merge untouched, the same way `RunSnapshot` hands
-  back the snapshot keys it has no screen for.
+- **The mirror is a cache, not a second source of truth** (`Local/LocalStore`).
+  `loadLibrary` paints from it and revalidates behind an interactive map, so a
+  relaunch shows the map the learner left open and a relaunch with no signal
+  shows it too. It holds the topic as the JSON `/api/v1` sent, never a rebuild
+  from parts, and it is written after a write lands — never beside the state
+  change that caused it. Sign-out clears it.
 
 ## Networking
 
@@ -252,11 +255,12 @@ than calling `AtlasAPI` from a view model.
 never a hand-built `URLRequest`, never a bare `URLSession` call, and never a
 second client type per call site.
 
-- **`AtlasAPI` is the only place that talks to the web app.** A new content kind
-  is a method there, never a request in a view or a view model. `AtlasAuth` and
-  `RunStore` are the same rule for Supabase — auth over GoTrue, saved runs over
-  PostgREST — and each holds its own client for that second host. Those three
-  are the whole list.
+- **`AtlasAPI` is the only place that talks to the generation seam.** A new
+  content kind is a method there, never a request in a view or a view model.
+  `RunStore` is the same rule for learner data over `/api/v1` — it defaults to
+  `AtlasAPI`'s own base URL, because the two are one deployment — and
+  `AtlasAuth` for GoTrue, which is the only thing still reached directly. Those
+  three are the whole list.
 - Requests are `HTTPRequestData` values built in `AtlasEndpoint` — a path, a
   method, headers and a body, nothing else. There is no request type per call.
 - Unary requests run through `Networking`'s `URLSessionNetworkClient`, with
@@ -279,11 +283,9 @@ second client type per call site.
 - Errors surface as `AtlasError` with a `code`. The screen says something true
   about the code in the learner's language — the `message` is for logs and never
   appears on screen.
-- `OpenRouter.swift` is the single sanctioned exception, and only because it is a
-  port of a server file that must stay diffable against it (see _Where a call
-  goes_). It is a vendor transport, not app networking: nothing else in the app
-  builds a `URLRequest`, and no view or view model ever reaches it — a screen
-  asks `AtlasAPI` for content and does not know which destination answered.
+- There are no exceptions left. Nothing in the app builds a `URLRequest`, and no
+  view or view model reaches a network client — a screen asks `AtlasAPI` for
+  content or `AtlasStore` for data, and does not know what answered.
 
 ## Touch, safety, accessibility
 

@@ -26,7 +26,7 @@ final class ProfileViewModel {
     }
 
     var queueLine: LocalizedStringKey {
-        let due = store.queue.count
+        let due = store.dueCount
         return due == 0
             ? "Fila limpa hoje"
             : "\(due) pendentes · ~\(Int((Double(due) * cardMinutes).rounded())) min hoje"

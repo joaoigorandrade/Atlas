@@ -18,9 +18,9 @@
 // anywhere in its chain re-runs the hydrate on every render.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFAULT_FORM,
+  PARETO_DEFAULT,
   emptyGraph,
   freshAdherence,
   removeNode,
@@ -51,16 +51,18 @@ import type { StoredCard } from "@/lib/fsrs";
 import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
 import {
-  listRuns,
-  loadRunBySubject,
-  loadRunCaches,
-  loadRunCore,
-  saveRun,
-  saveRunCaches,
-  type LoadedRun,
+  bootstrap,
+  deleteCards as deleteCardsApi,
+  loadContent,
+  loadTopic,
+  patchNodes,
+  patchProfile,
+  patchTopic,
+  putCards,
+  type NodeDelta,
+  type Profile,
   type RunCaches,
-  type RunSnapshot,
-  type RunSummary,
+  type Topic,
 } from "@/lib/persistence";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
@@ -70,7 +72,6 @@ import type { createWarmQueue } from "@/lib/warm";
 export type RunState = ReturnType<typeof useRunState>;
 
 export function useRunState(opts: {
-  supabase: SupabaseClient;
   warm: ReturnType<typeof createWarmQueue>;
   /** The run is only written while a real map is on screen — see `runActive`. */
   screen: Screen;
@@ -86,11 +87,10 @@ export function useRunState(opts: {
   /** …and the onboarding/selection state that is neither run nor session:
    *  the selected node, the diagnostic, the momentum replay, the upload. */
   resetTransient: () => void;
-  /** Initial run core, already read on the server (see app/page.tsx). */
-  initialRun?: LoadedRun | null;
+  /** Profile + library, already read on the server (see app/page.tsx). */
+  initial?: { profile: Profile; topics: Topic[] } | null;
 }) {
   const {
-    supabase,
     warm,
     screen,
     excluding,
@@ -98,7 +98,7 @@ export function useRunState(opts: {
     showError,
     resetSessions,
     resetTransient,
-    initialRun,
+    initial,
   } = opts;
 
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
@@ -311,10 +311,25 @@ export function useRunState(opts: {
    * more: the content was written in the old language and has to go, but the
    * learner's progress through it is language-independent and must not.
    */
-  /** The row this run was loaded from, spread under every save — see the save
-   *  effect. A ref because nothing renders it and it must not re-arm the
-   *  debounce. */
-  const loadedRef = useRef<Partial<RunSnapshot>>({});
+  /** The open topic's id — the address every write goes to. Null before the
+   *  first load, and while a map is being built but not yet created. */
+  const [topicId, setTopicId] = useState<string | null>(null);
+  const topicIdRef = useRef<string | null>(null);
+  topicIdRef.current = topicId;
+
+  /** What the server last acknowledged, per node / per card / for the topic and
+   *  the profile — the baseline every debounced write diffs against. Refs, not
+   *  state: nothing renders them, and re-arming the debounce on a successful
+   *  save would make the writer chase its own tail. */
+  const savedNodesRef = useRef<Record<string, string>>({});
+  const savedCardsRef = useRef<Record<string, string>>({});
+  const savedTopicRef = useRef("");
+  const savedProfileRef = useRef("");
+  const targetRef = useRef(DEFAULT_FORM.target);
+  targetRef.current = form.target;
+
+  /** Adopt a loaded profile — see `adoptProfile` at the foot of the file. */
+  const setProfile = (p: Profile) => adoptProfile(p, setForm, savedProfileRef);
 
   const clearCaches = useCallback(() => {
     setConsumeCache({});
@@ -343,7 +358,9 @@ export function useRunState(opts: {
     setCards([]);
     setLitToday([]);
     setSummaryFailed({});
-    loadedRef.current = {};
+    savedNodesRef.current = {};
+    savedCardsRef.current = {};
+    savedTopicRef.current = "";
   }, [clearCaches]);
 
   // ---- persistence (§17) -----------------------------------------------
@@ -371,8 +388,8 @@ export function useRunState(opts: {
    * grid runs, not just the initial mount hydrate.
    */
   const applyRun = useCallback(
-    (row: LoadedRun) => {
-      loadedRef.current = row.snapshot;
+    (topic: Topic) => {
+      setTopicId(topic.id);
       warm.clear();
       resetSessions();
       resetTransient();
@@ -383,106 +400,114 @@ export function useRunState(opts: {
       setConnectCache({});
       setCrucibleCache({});
       setRetainContent(null);
-      setConsumeProgress({});
-      setModalityTally({});
-      setSocraticProgress({});
-      setFeynmanProgress({});
-      setConnectProgress({});
-      setMisconceptions([]);
 
-      const s = row.snapshot;
       // The run's language wins over the device's. UI language is detected
       // per-browser (`navigator.language`), so the same pt-BR map opened on an
       // en-US machine used to present as English to everything downstream —
       // most audibly read-aloud, which picked the English voice and model for
-      // Portuguese prose and paid for a second cache key to do it. Adopting is
-      // also the cheap direction: the alternative, regenerating the whole run
-      // into the device's language, throws away content the learner owns.
+      // Portuguese prose and paid for a second cache key to do it.
       //
       // Recorded, not applied: the effect above owns which language wins, and
-      // it waits for detection to settle before deciding. Applying it here
-      // would race that — this runs during hydration, before the detected
-      // language has even landed.
-      setRunLanguage(s.language);
-      setForm(s.form);
-      setGraph(s.graph);
-      setStates(s.states);
-      setPositions(s.positions);
-      setSpawnedIds(new Set(s.spawnedIds));
-      // Judge every day that passed while the tab was closed (#22) —
-      // a new calendar day also clears yesterday's litToday list.
-      const rolled = rolloverAdherence(s.adherence);
-      setAdherence(rolled);
-      setLitToday(rolled.lastDay === s.adherence.lastDay ? s.litToday : []);
-      setCalibSamples(s.calibSamples);
-      setShakyReasons(s.shakyReasons);
-      setReviewedNodes(s.reviewedNodes);
-      setCards(s.cards);
-      setConsumeProgress(s.consumeProgress);
-      setModalityTally(s.modalityTally);
-      setSocraticProgress(s.socraticProgress);
-      setFeynmanProgress(s.feynmanProgress);
-      setConnectProgress(s.connectProgress);
-      setMisconceptions(s.misconceptions);
+      // it waits for detection to settle before deciding.
+      setRunLanguage(topic.language ?? undefined);
+      setForm({
+        topic: topic.subject,
+        goal: topic.goal as OnboardingForm["goal"],
+        interests: topic.interests,
+        paretoPct: topic.paretoPct,
+        examDate: topic.examDate,
+        target: targetRef.current,
+      });
+      setGraph(topic.graph);
+      setStates(topic.states);
+      setPositions(topic.positions);
+      setSpawnedIds(new Set(topic.graph.nodes.filter((n) => n.gap).map((n) => n.id)));
+      setLitToday(topic.litToday);
+      setCalibSamples(topic.calibSamples);
+      setShakyReasons(topic.shakyReasons);
+      setReviewedNodes(topic.reviewedNodes);
+      setCards(topic.cards);
+      setConsumeProgress(topic.consumeProgress);
+      setModalityTally(topic.modalityTally);
+      setSocraticProgress(topic.socraticProgress);
+      setFeynmanProgress(topic.feynmanProgress);
+      setConnectProgress(topic.connectProgress);
+      setMisconceptions(topic.misconceptions);
       setScreen("map");
-      // A pre-v3 row still carries its caches inline; take them and skip
-      // the second query.
-      if (row.inlineCaches) {
-        applyCaches(row.inlineCaches);
-        return;
-      }
+      // What the server already has, so the first debounce after a load sends
+      // nothing. Without this every open would re-upload the whole map it just
+      // finished reading.
+      savedNodesRef.current = projectNodes(topic);
+      savedCardsRef.current = projectCards(topic.cards);
+      savedTopicRef.current = projectTopic(topic);
+
+      // Generated content, behind an already-drawn map. Never written back —
+      // the server records it as it generates it.
       setCachesLoaded(false);
-      withRetry(() => loadRunCaches(supabase, row.subject))
+      withRetry(() => loadContent(topic.id))
         .then((c) => {
           applyCaches(c);
           setCachesLoaded(true);
         })
-        // Genuinely non-fatal for *reading*: the map is already drawn and every
+        // Genuinely non-fatal for reading: the map is already drawn and every
         // phase regenerates (the shared `content_cache` still has them, so it
         // is a round-trip, not a re-generation). Logged so a persistent failure
         // is findable, not toasted — nothing the learner can do about it.
-        //
-        // `cachesLoaded` deliberately stays false: we know this row holds
-        // content we failed to read, and writing what we have over it would
-        // turn a failed read into permanent data loss. This run stops saving
-        // caches; the next load gets another chance at the row.
-        .catch((err: unknown) => logWarning("load_caches_failed", err));
+        .catch((err: unknown) => logWarning("load_content_failed", err));
     },
-    [warm, applyCaches, supabase, resetSessions, resetTransient, setScreen],
+    [warm, applyCaches, resetSessions, resetTransient, setScreen],
   );
 
+  /**
+   * One request for everything: profile and library together.
+   *
+   * This used to be three round trips — the run core, the dashboard list, then
+   * the content column — with the first paint waiting on one of them and the
+   * grid re-querying every time the dashboard was entered. The library is a few
+   * hundred rows, so asking for all of it once is both faster and simpler than
+   * asking for parts of it repeatedly.
+   */
   useEffect(() => {
     let cancelled = false;
-    const hydrate = (row: LoadedRun | null) => {
+    const hydrate = (payload: { profile: Profile; topics: Topic[] }) => {
       if (cancelled) return;
-      if (row) applyRun(row);
+      setProfile(payload.profile);
+      // Judge every day that passed while the tab was closed (#22) — a new
+      // calendar day also clears yesterday's litToday list.
+      const rolled = rolloverAdherence(payload.profile.adherence);
+      setAdherence(rolled);
+      setMaps(payload.topics);
+      const open = payload.topics[0];
+      if (open) {
+        applyRun(open);
+        if (rolled.lastDay !== payload.profile.adherence.lastDay) setLitToday([]);
+      }
       setHydrated(true);
     };
 
-    // The server already read the core and shipped it with the HTML, so the
-    // map draws on the first commit instead of after a round-trip.
-    if (initialRun !== undefined) {
-      hydrate(initialRun);
+    // The server already ran the same query and shipped it with the HTML, so
+    // the map draws on the first commit instead of after a round-trip.
+    if (initial !== undefined) {
+      if (initial) hydrate(initial);
+      else setHydrated(true);
       return () => {
         cancelled = true;
       };
     }
 
-    // Two loads, deliberately: the core is what the map draws, so it is the
-    // only thing the first paint waits on. The generated content — by far the
-    // larger half — streams in behind an already-interactive map.
-    loadRunCore(supabase)
+    bootstrap()
       .then(hydrate)
       .catch((err: unknown) => {
         // A failed load must not brick the app — start fresh and say so.
         if (cancelled) return;
         setHydrated(true);
+        setMapsFailed(true);
         showError(err, { context: "load" });
       });
     return () => {
       cancelled = true;
     };
-  }, [supabase, showError, applyRun, initialRun]);
+  }, [showError, applyRun, initial]);
 
   const runActive =
     hydrated &&
@@ -493,24 +518,24 @@ export function useRunState(opts: {
     screen !== "diagnostic";
   const runSubject = form.topic.trim() || "Untitled";
 
-  /** Every saved map, for the dashboard's "Your maps" grid. Refreshed each
-   *  time the dashboard is entered, so a newly built or excluded map is never
-   *  more than one nav away from correct. */
-  const [maps, setMaps] = useState<RunSummary[]>([]);
-  /** Set when the grid is empty because the query failed, not because there
-   *  are no maps — two states that looked identical before. */
+  /** Every saved map, for the dashboard's "Your maps" grid — the same rows the
+   *  bootstrap already returned, so entering the dashboard costs nothing. */
+  const [maps, setMaps] = useState<Topic[]>([]);
+  /** Set when the grid is empty because the load failed, not because there are
+   *  no maps — two states that looked identical before. */
   const [mapsFailed, setMapsFailed] = useState(false);
   const refreshMaps = useCallback(() => {
-    listRuns(supabase)
-      .then((rows) => {
-        setMaps(rows);
+    bootstrap()
+      .then((payload) => {
+        setMaps(payload.topics);
+        setProfile(payload.profile);
         setMapsFailed(false);
       })
       .catch((err: unknown) => {
-        logWarning("list_runs_failed", err);
+        logWarning("bootstrap_failed", err);
         setMapsFailed(true);
       });
-  }, [supabase]);
+  }, []);
 
   /** Open a map from the dashboard grid — a no-op switch for the one already
    *  live, otherwise loads it as the new live run. */
@@ -519,10 +544,13 @@ export function useRunState(opts: {
       setScreen("map");
       return;
     }
-    loadRunBySubject(supabase, subject)
-      .then((row) => {
-        if (row) applyRun(row);
-      })
+    const row = maps.find((m) => m.subject === subject);
+    if (!row) return;
+    // The grid's copy is a full topic already, but it was read at bootstrap;
+    // re-reading is what makes switching to a map another device has been
+    // working on show that work.
+    loadTopic(row.id)
+      .then(applyRun)
       .catch((err: unknown) =>
         showError(err, {
           context: "openMap",
@@ -530,48 +558,87 @@ export function useRunState(opts: {
         }),
       );
   };
-  // The retry button on a failed open re-runs the same switch. Through a ref
-  // because the callback has to reference itself, and the toast outlives the
-  // render that posted it.
   const switchMapRef = useRef(switchMap);
   switchMapRef.current = switchMap;
 
-  // Write-through, debounced, in two halves (see lib/persistence.ts).
+  // Write-through, debounced, and proportional to what actually changed.
   //
-  // The core: small and touched constantly — a node drag alone rewrites
-  // `positions` — so it saves on a short debounce.
+  // There used to be two whole-run uploads here: the snapshot on a 1.2-second
+  // debounce and the generated content on a 4-second one, the second existing
+  // only so a node drag would stop re-uploading megabytes of chunks. Neither is
+  // needed now. Content is never written by a client at all — the server
+  // records it as it generates it — and the map is written as deltas, so a drag
+  // is one node's coordinates and a graded card is one row.
+  //
+  // The diff lives here rather than at the mutation sites on purpose: this hook
+  // is the single writer, which is what makes "did this get saved?" a question
+  // with one place to look. What it compares against is what the server last
+  // acknowledged, so a failed write is retried by the next tick rather than
+  // being lost to an optimistic bookkeeping update.
   useEffect(() => {
-    if (!runActive) return;
-    const snapshot: RunSnapshot = {
-      // Under the literal, so a key this app has no field for survives the
-      // round trip: the iOS client schedules review under `iosCards`, and
-      // rebuilding the literal used to delete the phone's queue the first time
-      // the run was opened in a browser. Not a pre-v3 row's inline `caches` —
-      // `migrate` strips it, and it belongs to the other column.
-      ...loadedRef.current,
-      v: 9,
-      form,
-      // The run's own language, not the reader's — see `RunSnapshot.language`.
-      language: runLanguage,
-      graph,
-      spawnedIds: [...spawnedIds],
-      states,
-      positions,
-      adherence,
-      calibSamples,
-      litToday,
-      shakyReasons,
-      reviewedNodes,
-      cards,
-      consumeProgress,
-      modalityTally,
-      socraticProgress,
-      feynmanProgress,
-      connectProgress,
-      misconceptions,
-    };
+    if (!runActive || !topicId) return;
+    const nodes = projectNodes({ graph, states, positions, shakyReasons, reviewedNodes,
+      consumeProgress, socraticProgress, feynmanProgress, connectProgress });
+    const cardShots = projectCards(cards);
+    const topicShot = projectTopic({
+      goal: form.goal, interests: form.interests,
+      examDate: form.examDate, paretoPct: form.paretoPct ?? PARETO_DEFAULT,
+      language: runLanguage ?? null, calibSamples,
+      misconceptions, modalityTally, litToday,
+    });
+
     const timer = setTimeout(() => {
-      withRetry(() => saveRun(supabase, runSubject, snapshot))
+      const writes: Array<Promise<unknown>> = [];
+
+      const deltas: NodeDelta[] = [];
+      for (const [id, shot] of Object.entries(nodes)) {
+        if (savedNodesRef.current[id] === shot) continue;
+        const isNew = savedNodesRef.current[id] === undefined;
+        deltas.push({
+          ...(JSON.parse(shot) as Omit<NodeDelta, "id">),
+          id,
+          // Only a node the server has never seen needs its edges; an existing
+          // one's prerequisites are already rows, and re-sending them on every
+          // drag would be the write amplification this replaced.
+          ...(isNew
+            ? {
+                prereqs: graph.edges
+                  .filter(([, to]) => to === id)
+                  .map(([from]) => from),
+              }
+            : null),
+        });
+      }
+      const removed = Object.keys(savedNodesRef.current).filter((id) => !(id in nodes));
+      if (deltas.length || removed.length)
+        writes.push(
+          withRetry(() => patchNodes(topicId, deltas, removed)).then(() => {
+            savedNodesRef.current = nodes;
+          }),
+        );
+
+      const changedCards = cards.filter((c) => savedCardsRef.current[c.id] !== cardShots[c.id]);
+      const droppedCards = Object.keys(savedCardsRef.current).filter(
+        (id) => !(id in cardShots),
+      );
+      if (changedCards.length)
+        writes.push(withRetry(() => putCards(topicId, changedCards)));
+      if (droppedCards.length)
+        writes.push(withRetry(() => deleteCardsApi(topicId, droppedCards)));
+      if (changedCards.length || droppedCards.length)
+        writes.push(Promise.resolve().then(() => {
+          savedCardsRef.current = cardShots;
+        }));
+
+      if (savedTopicRef.current !== topicShot)
+        writes.push(
+          withRetry(() => patchTopic(topicId, JSON.parse(topicShot))).then(() => {
+            savedTopicRef.current = topicShot;
+          }),
+        );
+
+      if (writes.length === 0) return;
+      Promise.all(writes)
         .then(() => setSaveFailed(false))
         .catch((err: unknown) => {
           logWarning("save_run_failed", err);
@@ -581,15 +648,12 @@ export function useRunState(opts: {
     return () => clearTimeout(timer);
   }, [
     runActive,
-    runSubject,
-    supabase,
+    topicId,
     form,
     runLanguage,
     graph,
-    spawnedIds,
     states,
     positions,
-    adherence,
     calibSamples,
     litToday,
     shakyReasons,
@@ -603,44 +667,27 @@ export function useRunState(opts: {
     misconceptions,
   ]);
 
-  // The content: large, but only ever changes when a generation lands. Its own
-  // effect on a long debounce, so dragging a node no longer re-uploads every
-  // chunk the run has ever generated.
+  // The learner's own row — the streak, the daily target, the interface
+  // language. Its own writer because it outlives every topic: it used to be
+  // copied into each run's snapshot, which is why two topics could disagree
+  // about how many days in a row someone had shown up.
   useEffect(() => {
-    if (!runActive || !cachesLoaded) return;
-    const caches: RunCaches = {
-      consume: consumeCache,
-      models: modelCache,
-      socratic: socraticCache,
-      feynman: feynmanCache,
-      connect: connectCache,
-      crucible: crucibleCache,
-      retain: retainContent,
-    };
+    if (!hydrated) return;
+    const shot = JSON.stringify({ dailyTarget: form.target, adherence });
+    if (savedProfileRef.current === shot) return;
     const timer = setTimeout(() => {
-      withRetry(() => saveRunCaches(supabase, runSubject, caches))
-        .then(() => setSaveFailed(false))
+      withRetry(() => patchProfile({ dailyTarget: form.target, adherence }))
+        .then(() => {
+          savedProfileRef.current = shot;
+          setSaveFailed(false);
+        })
         .catch((err: unknown) => {
-          // The caches are re-generatable and the core write is the one that
-          // matters, so this shares the chip rather than earning its own.
-          logWarning("save_caches_failed", err);
+          logWarning("save_profile_failed", err);
           setSaveFailed(true);
         });
-    }, 4000);
+    }, 1200);
     return () => clearTimeout(timer);
-  }, [
-    runActive,
-    cachesLoaded,
-    runSubject,
-    supabase,
-    consumeCache,
-    modelCache,
-    socraticCache,
-    feynmanCache,
-    connectCache,
-    crucibleCache,
-    retainContent,
-  ]);
+  }, [hydrated, form.target, adherence]);
 
   return {
     form,
@@ -720,6 +767,9 @@ export function useRunState(opts: {
     setSaveFailed,
     runActive,
     runSubject,
+    topicId,
+    setTopicId,
+    topicIdRef,
     maps,
     setMaps,
     mapsFailed,
@@ -734,4 +784,101 @@ export function useRunState(opts: {
     clearRun,
     clearCaches,
   };
+}
+
+// ---- what a write compares against ---------------------------------------
+//
+// A node, a card and the topic's own fields, each reduced to the JSON of
+// exactly what is persisted about it. Comparing strings is what makes the diff
+// one line per row instead of a field-by-field equality function that has to be
+// updated every time a column is added — and a string that differs is, by
+// construction, a row that has to be written.
+
+/** The persisted projection of every node on the map, keyed by id. */
+function projectNodes(run: {
+  graph: ConceptGraph;
+  states: StateMap;
+  positions: Record<string, { x: number; y: number }>;
+  shakyReasons: Record<string, ShakyReason>;
+  reviewedNodes: string[];
+  consumeProgress: Record<string, ConsumeProgress>;
+  socraticProgress: Record<string, SocraticSession>;
+  feynmanProgress: Record<string, FeynmanSession>;
+  connectProgress: Record<string, ConnectSession>;
+}): Record<string, string> {
+  const reviewed = new Set(run.reviewedNodes);
+  const out: Record<string, string> = {};
+  for (const node of run.graph.nodes) {
+    const at = run.positions[node.id];
+    const state = run.states[node.id] ?? node.state ?? "unknown";
+    out[node.id] = JSON.stringify({
+      label: node.label,
+      summary: node.summary ?? undefined,
+      g: node.g,
+      week: node.week,
+      x: at?.x ?? node.x,
+      y: at?.y ?? node.y,
+      isGap: node.gap === true,
+      // `StateMap` is already the stored vocabulary — `frontier` is derived
+      // from the prerequisites on every read and never lands in it — so this
+      // is a straight copy, with the node's generated seed as the fallback.
+      state,
+      shakyReason: run.shakyReasons[node.id] ?? null,
+      reviewed: reviewed.has(node.id),
+      consumeProgress: run.consumeProgress[node.id] ?? null,
+      socraticProgress: run.socraticProgress[node.id] ?? null,
+      feynmanProgress: run.feynmanProgress[node.id] ?? null,
+      connectProgress: run.connectProgress[node.id] ?? null,
+    });
+  }
+  return out;
+}
+
+function projectCards(cards: StoredCard[]): Record<string, string> {
+  return Object.fromEntries(cards.map((c) => [c.id, JSON.stringify(c)]));
+}
+
+function projectTopic(topic: {
+  goal: string;
+  interests: string;
+  paretoPct: number;
+  examDate: string;
+  language: Language | null;
+  calibSamples: CalibSample[];
+  misconceptions: MisconceptionRecord[];
+  modalityTally: ModalityTally;
+  litToday: string[];
+}): string {
+  return JSON.stringify({
+    goal: topic.goal,
+    interests: topic.interests,
+    paretoPct: topic.paretoPct,
+    examDate: topic.examDate,
+    ...(topic.language ? { language: topic.language } : null),
+    calibSamples: topic.calibSamples,
+    misconceptions: topic.misconceptions,
+    modalityTally: topic.modalityTally,
+    litToday: topic.litToday,
+  });
+}
+
+/**
+ * Adopt a loaded profile.
+ *
+ * The daily target rides in the form, where every surface already reads it
+ * from, and the write baseline is set at the same moment so the first debounce
+ * after a load sends nothing back. Outside the hook because it closes over
+ * nothing of its own: the setter is stable and the ref is a ref, so keeping it
+ * here is what lets both call sites stay memoizable.
+ */
+function adoptProfile(
+  profile: Profile,
+  setForm: React.Dispatch<React.SetStateAction<OnboardingForm>>,
+  baseline: React.MutableRefObject<string>,
+): void {
+  setForm((f) => ({ ...f, target: profile.dailyTarget }));
+  baseline.current = JSON.stringify({
+    dailyTarget: profile.dailyTarget,
+    adherence: profile.adherence,
+  });
 }

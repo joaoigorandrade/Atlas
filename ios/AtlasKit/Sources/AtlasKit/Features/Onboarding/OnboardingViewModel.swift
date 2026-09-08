@@ -137,6 +137,13 @@ public final class OnboardingViewModel {
         build = Task { [form] in
             let opened = ContinuousClock.now
             var first: Task<DiagnosticQuestion, Error>?
+            // The topic row is created before the map is generated, not after,
+            // because the server's post-build warm needs somewhere to file what
+            // it generates — and that warm runs the moment the map lands, while
+            // the learner is still answering placement questions. Every exit
+            // below that produces no map deletes the row again; an empty topic
+            // must never reach the dashboard.
+            await store.createTopic(form)
             do {
                 for try await event in await store.api.curriculum(form) {
                     switch event {
@@ -150,6 +157,7 @@ public final class OnboardingViewModel {
                         scopes = offers
                         pending?.cancel()
                         stage = .welcome
+                        await store.abandonTopic()
                         return
                     }
                 }
@@ -160,6 +168,7 @@ public final class OnboardingViewModel {
                 guard graph.nodes.count >= Self.mapMinimum else {
                     pending?.cancel()
                     stage = .welcome
+                    await store.abandonTopic()
                     return
                 }
                 mapIncomplete = true
@@ -172,6 +181,7 @@ public final class OnboardingViewModel {
                 pending?.cancel()
                 message = String(localized: "Seu mapa não ficou pronto. Tente de novo.")
                 stage = .welcome
+                await store.abandonTopic()
                 return
             }
             // Short map, or a stream that ended before the overlap fired.

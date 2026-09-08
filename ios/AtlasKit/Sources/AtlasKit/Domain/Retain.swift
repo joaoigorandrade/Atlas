@@ -86,8 +86,15 @@ public enum ReviewConfidence: Int, CaseIterable, Sendable, Identifiable {
     }
 }
 
-/// One card the `retain` kind drafted: atomic, one fact. Cloze cards carry the
-/// two halves around the blank, the others a plain `front`.
+/// One card in today's deck, as the server sends it.
+///
+/// `fsrs` here is the four interval labels — what "Bom" would actually
+/// schedule, in days or months — not scheduler state. They arrive with the card
+/// because the scheduler runs in one place: `lib/fsrs.ts`, which the browser
+/// calls locally and this client reaches through `/api/v1/…/review`. Computing
+/// them here instead would mean a second implementation of FSRS, which is
+/// exactly what the hand-rolled SM-2 that used to live in this file was — and
+/// why a card graded on the phone showed a different due date in a browser.
 public struct ReviewCard: Codable, Sendable, Identifiable {
     public let id: String
     public let type: ReviewCardType
@@ -101,80 +108,31 @@ public struct ReviewCard: Codable, Sendable, Identifiable {
     public let back: String
     /// The 30-second re-explanation shown right there when it is missed.
     public let reExplain: String?
+    /// Grade → the interval it schedules, already worded. Absent on a card that
+    /// arrived from somewhere other than the deck endpoint.
+    public let fsrs: [String: String]?
+
+    /// The honest label for a grade button. Falls back to nothing rather than
+    /// to a guess: a made-up interval is worse than no interval.
+    func label(for grade: ReviewGrade) -> String? { fsrs?[grade.rawValue] }
 }
 
-/// What the `retain` kind answers with — a card factory, not a queue.
+/// What the deck endpoint answers with: today's cards, budgeted to the daily
+/// target, plus the retention forecast the screen's three rows read.
 public struct RetainContent: Decodable, Sendable {
+    public let budgetMin: Int
     public let cards: [ReviewCard]
-}
+    public let forecast: [ForecastRow]
 
-/// A card with its scheduler state. The web grades through `ts-fsrs`; there is
-/// no Swift port worth a dependency, and this client's cards are its own (the
-/// run itself doesn't sync yet either).
-///
-/// ponytail: SM-2, not FSRS — same four grades, same monotonic intervals, and
-/// the honest label on each button. Port real FSRS when the two clients have to
-/// agree on a due date card for card.
-public struct ScheduledCard: Codable, Sendable, Identifiable {
-    /// `var` so a redraft can rewrite the card's text in place — Connect keys
-    /// its cards on the link's identity, and a redo must not reset the
-    /// scheduler state the learner has built on it.
-    public var card: ReviewCard
-    public var due: Date
-    /// Days until the next review; 0 for a card that is new or relearning.
-    public var interval: Double
-    public var ease: Double
-
-    public var id: String { card.id }
-
-    public init(_ card: ReviewCard, now: Date = .now) {
-        self.card = card
-        due = now
-        interval = 0
-        ease = 2.5
-    }
-
-    public func isDue(_ now: Date = .now) -> Bool { due <= now }
-
-    /// What this grade schedules. `again` doesn't leave the day — the card
-    /// comes back at the end of the session, which is what "de novo" means.
-    public func graded(_ grade: ReviewGrade, now: Date = .now) -> ScheduledCard {
-        var next = self
-        switch grade {
-        case .again:
-            next.ease = max(1.3, ease - 0.2)
-            next.interval = 0
-            next.due = now.addingTimeInterval(600)
-        case .hard:
-            next.ease = max(1.3, ease - 0.15)
-            next.interval = max(1, interval * 1.2)
-        case .good:
-            next.interval = interval == 0 ? 1 : interval * ease
-        case .easy:
-            next.ease = min(3, ease + 0.15)
-            next.interval = interval == 0 ? 3 : interval * ease * 1.3
-        }
-        if grade != .again { next.due = now.addingTimeInterval(next.interval * 86_400) }
-        return next
-    }
-
-    /// The interval each grade would schedule, for the button that offers it.
-    func label(for grade: ReviewGrade, now: Date = .now) -> LocalizedStringKey {
-        let days = graded(grade, now: now).due.timeIntervalSince(now) / 86_400
-        if days < 1 { return "<1 d" }
-        if days < 30 { return "\(Int(days.rounded())) d" }
-        return "\(Int((days / 30).rounded())) meses"
+    public struct ForecastRow: Decodable, Sendable, Identifiable {
+        public let label: String
+        public let count: String
+        public let sub: String
+        public let tone: String
+        public var id: String { label }
     }
 }
 
 /// Roughly how long one card takes — the queue is budgeted in minutes against
 /// the daily target, never framed as a wall of cards.
 public let cardMinutes = 1.5
-
-/// Today's queue: what is due, most overdue first, cut to the daily target.
-public func todaysQueue(_ cards: [ScheduledCard], target: Int, now: Date = .now) -> [ScheduledCard] {
-    cards.filter { $0.isDue(now) }
-        .sorted { $0.due < $1.due }
-        .prefix(max(1, Int(Double(target) / cardMinutes)))
-        .map { $0 }
-}

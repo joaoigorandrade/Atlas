@@ -2,15 +2,18 @@ import Foundation
 import Testing
 @testable import AtlasKit
 
-/// `run_states.caches` is one column two clients write, so what this pins is the
-/// round trip: a section written in the browser opens here without a
-/// generation, one written here goes back in the shape the browser reads, and
-/// neither client's write deletes the other's.
+/// Generated content belongs to the topic, and the server writes it the moment
+/// it generates it — one row per payload, addressed by node, kind and variant.
+///
+/// What this pins is the read: a payload written by either client opens here
+/// without a generation, and it opens under the key this client would have
+/// generated it under. The other half of the old round trip is gone — nothing
+/// is uploaded any more, so there is no merge left to get wrong.
 
 private let node = ConceptNode(id: "lat", label: "Limites laterais")
 
 /// A reading pass as the model writes it — including the two fields this client
-/// has no property for, which is exactly what must survive the round trip.
+/// has no property for, which is what the store holds it as JSON for.
 private let sectionJSON = JSONValue.object([
     "id": .string("c1"),
     "kicker": .string("1 · O que é"),
@@ -19,6 +22,16 @@ private let sectionJSON = JSONValue.object([
     "terms": .array([.object(["term": .string("limite"), "gloss": .string("valor de chegada")])]),
     "ask": .string("Pergunte sobre esta passagem"),
 ])
+
+private let beatsJSON = JSONValue.array([
+    .object(["label": .string("Passo 1"), "text": .string("Comece pelo lado direito.")]),
+])
+
+private func item(
+    _ kind: String, node nodeId: String = "lat", variant: String = "", payload: JSONValue
+) -> RunStore.ContentItem {
+    RunStore.ContentItem(nodeId: nodeId, kind: kind, variant: variant, payload: payload)
+}
 
 @MainActor
 private func store() -> AtlasStore {
@@ -30,83 +43,53 @@ private func store() -> AtlasStore {
 }
 
 @MainActor
-@Test func aPassWrittenInTheBrowserOpensHereWithoutAGeneration() {
+@Test func aPassGeneratedAnywhereOpensHereWithoutAGeneration() {
     let store = store()
-    store.seedWarm(["consume": .object(["lat": .array([sectionJSON])])])
+    store.seedWarm([item("consume", payload: .array([sectionJSON]))])
     #expect(store.chunks(node).map(\.id) == ["c1"])
 }
 
 @MainActor
-@Test func aPassWrittenHereGoesBackInTheShapeTheBrowserReads() async {
+@Test func theModelsOwnJSONIsWhatIsHeld_notARe_encodeOfIt() {
+    // `terms` and `ask` are rendered by the browser and by nothing here, and
+    // `PhaseContent.swift` is deliberately narrower than the server's shapes.
+    // Holding the payload as it arrived is what keeps them from being lost the
+    // first time a section passes through this client.
     let store = store()
-    let key = store.key("consume", node)
-    await store.warm.fill(key, live: {
-        AsyncThrowingStream { continuation in
-            continuation.yield(Landed(
-                value: [try! sectionJSON.decode(ConsumeChunk.self)],
-                raw: .array([sectionJSON])
-            ))
-            continuation.finish()
-        }
-    } as @Sendable () async -> AsyncThrowingStream<Landed<[ConsumeChunk]>, Error>)
-
-    // Keyed by node id under the kind, which is `RunCaches` in lib/persistence.ts.
-    let row = store.cachesRow(over: ["retain": .null])
-    let section = row["consume"]?.fields?["lat"]
-    #expect(section == .array([sectionJSON]))
-
-    // Stored as the model wrote it: `terms` and `ask` are rendered by the
-    // browser and by nothing here, and a re-encode of the decoded half would
-    // have dropped both.
-    let stored = section.flatMap { try? $0.decode([JSONValue].self) }
-    #expect(stored?.first?.fields?["ask"] != nil)
-
-    // And the buckets only the browser fills are still there.
-    #expect(row["retain"] == .null)
+    store.seedWarm([item("consume", payload: .array([sectionJSON]))])
+    let raw = store.warm.raw[store.key("consume", node)]
+    #expect(raw?.items?.first?.fields?["ask"] != nil)
+    #expect(raw?.items?.first?.fields?["terms"] != nil)
 }
 
 @MainActor
-@Test func whatIsNotSharedStaysOutOfTheColumn() {
-    // The Retain draft is keyed on the node set, not on one node — it has no
-    // slot in the browser's shape, and its cards are already persisted as
-    // `iosCards` on the snapshot.
-    #expect(AtlasStore.cacheSlot("retain|Cálculo I|pt-BR|lat,der") == nil)
-    #expect(AtlasStore.cacheSlot("consume|Cálculo I|lat|pt-BR|")?.key == "lat")
-    // A subject with a pipe in it would file content under the wrong node.
-    #expect(AtlasStore.cacheSlot("consume|a|b|lat|pt-BR|") == nil)
-}
-
-/// The lens beats are the one bucket keyed per section rather than per node.
-/// They are shared all the same — `model:<nodeId>:<chunkId>:<lens>` is the
-/// address `useGeneration.ts` files them under.
-
-private let beatsJSON = JSONValue.array([
-    .object(["label": .string("Passo 1"), "text": .string("Comece pelo lado direito.")]),
-])
-
-@MainActor
-@Test func aLensReadInTheBrowserReopensHereWithoutAGeneration() {
+@Test func aLensOpensUnderItsOwnAddressWithinTheNode() {
     let store = store()
     let chunk = try! sectionJSON.decode(ConsumeChunk.self)
-    store.seedWarm(["models": .object(["model:lat:c1:analogy": beatsJSON])])
+    // `variant` is the server's own address for a walkthrough: one section, one
+    // lens. Two lenses over the same section are two payloads, and both are
+    // kept.
+    store.seedWarm([item("model", variant: "c1:analogy", payload: beatsJSON)])
     #expect(store.lens(node, chunk, .analogy).map(\.label) == ["Passo 1"])
-    // A different lens over the same section is a different walkthrough.
     #expect(store.lens(node, chunk, .deeper).isEmpty)
 }
 
 @MainActor
-@Test func aLensReadHereGoesBackUnderTheBrowsersAddress() async {
+@Test func contentForANodeThisMapDoesNotHaveIsIgnored() {
+    // A payload arriving for a node that is not on the map — a re-planned gap
+    // this client has not seen yet — is dropped rather than filed under a key
+    // nothing will ever ask for.
     let store = store()
-    let key = store.key("model", node, AtlasStore.lensInputs("c1", .analogy))
-    await store.warm.fill(key, live: {
-        AsyncThrowingStream { continuation in
-            continuation.yield(Landed(
-                value: try! beatsJSON.decode([ConsumeModelBeat].self), raw: beatsJSON
-            ))
-            continuation.finish()
-        }
-    } as @Sendable () async -> AsyncThrowingStream<Landed<[ConsumeModelBeat]>, Error>)
+    store.seedWarm([item("consume", node: "der", payload: .array([sectionJSON]))])
+    #expect(store.chunks(node).isEmpty)
+}
 
-    let row = store.cachesRow(over: [:])
-    #expect(row["models"]?.fields?["model:lat:c1:analogy"] == beatsJSON)
+@MainActor
+@Test func aTruncatedPassIsAdoptedAsAPrefix_notAsAFinishedOne() {
+    // A pass whose stream died is kept so the learner keeps their place, but it
+    // is marked incomplete: it must show the retry rather than reading as a
+    // one-section concept.
+    let store = store()
+    store.seedWarm([item("consume", payload: .array([sectionJSON]))])
+    #expect(store.warm.isIncomplete(store.key("consume", node)))
 }

@@ -179,17 +179,6 @@
         }
       }
     },
-    "%lld d": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld d"
-          }
-        }
-      }
-    },
     "%lld dias": {
       "extractionState": "stale",
       "localizations": {
@@ -224,47 +213,6 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld dias"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld meses": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld month"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld months"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld mês"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld meses"
                 }
               }
             }
@@ -342,17 +290,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "+ New map"
-          }
-        }
-      }
-    },
-    "<1 d": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "<1 d"
           }
         }
       }

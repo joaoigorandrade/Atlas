@@ -1,19 +1,20 @@
-// Coarse per-(user, subject) run persistence (§17), split in two so the map
-// never waits on content it isn't rendering:
+// The run as it travels: the wire contract between the app and /api/v1, and
+// the client that speaks it.
 //
-//   run_states.snapshot — the run core: graph, mastery StateMap, positions,
-//     adherence, calibration, the FSRS card store. Small, changes constantly,
-//     saved on a short debounce. This is all the map needs to draw.
-//   run_states.caches   — the per-node generated content. Large, changes only
-//     after a generation, loaded in the background and saved on a long
-//     debounce so a node drag no longer re-uploads megabytes of chunks.
+// This file used to be a PostgREST module — the browser reached into
+// `run_states` itself, which meant the storage shape was encoded in two clients
+// and could not change without releasing both. Now the server owns the schema
+// and this is the only vocabulary either client knows: a topic, a profile, and
+// a node delta.
 //
-// RLS on the table keeps rows per-user; the browser client writes directly
-// with the publishable key.
+// What a topic looks like here is deliberately *not* what it looks like in
+// Postgres. Rows are how a run is stored — one per node, one per card, so a
+// drag is one UPDATE and a graded card is one row. A graph, a StateMap and a
+// positions map are how it is drawn. `lib/server/store.ts` translates between
+// them; everything above this line only ever sees the drawing.
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { AtlasError } from "@/lib/errors";
-import { FIXTURES } from "@/lib/fixtureMode";
+import { migrateConsume, usableRubrics, type LegacyConsumeChunk } from "@/lib/contentMigrate";
+import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import type {
   AdherenceState,
   CalibSample,
@@ -28,8 +29,9 @@ import type {
   FeynmanSession,
   MisconceptionRecord,
   ModalityTally,
-  OnboardingForm,
+  ProgressState,
   RetainContent,
+  ReviewGrade,
   ShakyReason,
   SocraticSession,
   SocraticStep,
@@ -38,13 +40,99 @@ import type {
 import type { StoredCard } from "@/lib/fsrs";
 import type { Language } from "@/lib/i18n";
 
-/** Per-node generated content. Also lives in the shared `content_cache` table
- *  keyed by prompt hash — this copy is the learner's own instant-resume set. */
+// ---------------------------------------------------------- the contract --
+
+/** The learner, not the run. One streak, finally — it used to be copied into
+ *  every topic's snapshot and a third time into the iOS UserDefaults. */
+export interface Profile {
+  dailyTarget: number;
+  language: Language | null;
+  adherence: AdherenceState;
+}
+
+/** A whole run, as a client draws it. */
+export interface Topic {
+  id: string;
+  subject: string;
+  goal: string;
+  interests: string;
+  paretoPct: number;
+  examDate: string;
+  language: Language | null;
+  calibSamples: CalibSample[];
+  misconceptions: MisconceptionRecord[];
+  modalityTally: ModalityTally;
+  litToday: string[];
+  updatedAt: string;
+  graph: ConceptGraph;
+  states: StateMap;
+  positions: Record<string, { x: number; y: number }>;
+  shakyReasons: Record<string, ShakyReason>;
+  reviewedNodes: string[];
+  consumeProgress: Record<string, ConsumeProgress>;
+  socraticProgress: Record<string, SocraticSession>;
+  feynmanProgress: Record<string, FeynmanSession>;
+  connectProgress: Record<string, ConnectSession>;
+  cards: StoredCard[];
+}
+
+/** One node's changed fields — the unit every map write is made of. A drag is
+ *  `{id, x, y}`; finishing Crucible is `{id, state}`. */
+export interface NodeDelta {
+  id: string;
+  label?: string;
+  summary?: string;
+  g?: number;
+  week?: number;
+  x?: number;
+  y?: number;
+  isGap?: boolean;
+  state?: ProgressState;
+  /** `null` clears it — a node that stopped being shaky. */
+  shakyReason?: ShakyReason | null;
+  reviewed?: boolean;
+  consumeProgress?: ConsumeProgress | null;
+  socraticProgress?: SocraticSession | null;
+  feynmanProgress?: FeynmanSession | null;
+  connectProgress?: ConnectSession | null;
+  /** Prerequisites to attach — only meaningful for a node being created. */
+  prereqs?: string[];
+}
+
+export interface TopicPatch {
+  goal?: string;
+  interests?: string;
+  paretoPct?: number;
+  examDate?: string;
+  language?: Language;
+  calibSamples?: CalibSample[];
+  misconceptions?: MisconceptionRecord[];
+  modalityTally?: ModalityTally;
+  litToday?: string[];
+}
+
+export interface ProfilePatch {
+  dailyTarget?: number;
+  language?: Language;
+  adherence?: Partial<AdherenceState>;
+}
+
+export interface NewTopic extends TopicPatch {
+  subject: string;
+  graph?: ConceptGraph;
+}
+
+/**
+ * Per-node generated content, as the screens hold it.
+ *
+ * Still the shape the app has always rendered from — but it is now assembled
+ * from `node_content` rows on the way in and never written back. The server
+ * records content the moment it generates it, which is what retired the
+ * `caches` column and the four-second upload behind it.
+ */
 export interface RunCaches {
   consume: Record<string, ConsumeChunk[]>;
-  /** Lens views already opened, keyed `model:<nodeId>:<chunkId>:<lens>` — a
-   *  learner who re-enters a pass reopens the walkthrough they read, not a
-   *  freshly written one. */
+  /** Lens views already opened, keyed `model:<nodeId>:<chunkId>:<lens>`. */
   models: Record<string, ConsumeModelBeat[]>;
   socratic: Record<string, SocraticStep[]>;
   feynman: Record<string, FeynmanBeat[]>;
@@ -63,407 +151,204 @@ export const emptyCaches = (): RunCaches => ({
   retain: null,
 });
 
-export interface RunSnapshot {
-  v: 9;
-  form: OnboardingForm;
-  /** The language the generated content is written in — a property of the run,
-   *  not of the device reading it. Without it, a restored run's language was
-   *  assumed to be the current UI language, which is detected per-browser: a
-   *  pt-BR map opened on an en-US machine read as English to everything
-   *  downstream, and read-aloud spoke Portuguese prose in an English voice
-   *  (and billed it under a second cache key).
-   *
-   *  Optional because it can only be known honestly. A pre-v9 row predates the
-   *  field, and its content language is genuinely unrecorded — guessing from
-   *  the current UI language would freeze the wrong answer permanently. Those
-   *  rows stay `undefined` and keep the old behaviour until the run is either
-   *  built or deliberately switched, the two moments that actually know. */
-  language?: Language;
-  graph: ConceptGraph;
-  /** Gap-node ids spawned by re-planning (a Set in memory). */
-  spawnedIds: string[];
-  states: StateMap;
-  positions: Record<string, { x: number; y: number }>;
-  adherence: AdherenceState;
-  calibSamples: CalibSample[];
-  litToday: string[];
-  /** How each Shaky node got that way — honest confidence copy (#14). */
-  shakyReasons: Record<string, ShakyReason>;
-  /** Nodes with at least one review graded good+ — gates Retained ✓ (#13). */
-  reviewedNodes: string[];
-  /** The persisted FSRS card store (#21) — real due dates survive refreshes. */
-  cards: StoredCard[];
-  /** Where the learner got to in each node's reading pass (§6). The reading is
-   *  the longest surface in the app; losing your place in it on a refresh is
-   *  the difference between a document and somewhere you can leave. */
-  consumeProgress: Record<string, ConsumeProgress>;
-  /** How often each lens has been opened, run-wide — the evidence behind the
-   *  adaptive-modality preference. */
-  modalityTally: ModalityTally;
-  /** The unfinished questioning pass on each node (§3a) — same reason the
-   *  reading keeps its place: a session left half-answered is somewhere to
-   *  come back to, not a transcript to re-earn. Finished passes drop out. */
-  socraticProgress: Record<string, SocraticSession>;
-  /** The unfinished teach-back on each node (§3b) — including one parked on
-   *  its Gap Report, whose gaps haven't been carried to the map yet. Dropped
-   *  once they have. */
-  feynmanProgress: Record<string, FeynmanSession>;
-  /** The unfinished elaboration pass on each node (§4) — the confirmed links
-   *  and the drafts behind them. Same reason as the two above: stepping back
-   *  to the map used to throw away every connection the learner had just
-   *  written. Dropped once the phase finishes. */
-  connectProgress: Record<string, ConnectSession>;
-  /** What this learner keeps getting wrong, run-wide (§3a). Unlike the passes
-   *  above — dropped the moment one finishes — this outlives every session,
-   *  because "you keep confusing X and Y" is the one thing a tutor can only
-   *  learn by having been there before. */
-  misconceptions: MisconceptionRecord[];
+// ------------------------------------------------------------- the client --
+
+const V1 = "/api/v1";
+
+/** Non-OK → a classified error, preferring the server's own code. Mirrors
+ *  `failure` in lib/api.ts; kept separate so this module stays free of the
+ *  generation vocabulary. */
+async function failure(res: Response, op: string): Promise<AtlasError> {
+  const body = (await res.json().catch(() => null)) as {
+    error?: string;
+    code?: string;
+    reason?: string;
+  } | null;
+  const code = isErrorCode(body?.code) ? body.code : codeForStatus(res.status);
+  return new AtlasError(code, `${op}: ${body?.error ?? res.status}`, {
+    status: res.status,
+    requestId: res.headers.get("x-atlas-request-id") ?? undefined,
+    reason: body?.reason,
+  });
 }
 
-/** What may come back from the table: a v1 … v9 snapshot. v1 predates
- *  cards/shakyReasons/reviewedNodes/examDate/lastDay; v1 and v2 carry the
- *  content caches inline, which v3 moved to their own column; v4 adds the
- *  Consume reading progress and the modality tally; v5 the Socratic one; v6
- *  the run-wide misconception roll-up; v7 the Feynman one; v8 the Connect one;
- *  v9 records the language the content was generated in. */
-type LoadedSnapshot = Omit<
-  RunSnapshot,
-  | "v"
-  | "form"
-  | "adherence"
-  | "shakyReasons"
-  | "reviewedNodes"
-  | "cards"
-  | "caches"
-  | "consumeProgress"
-  | "modalityTally"
-  | "socraticProgress"
-  | "feynmanProgress"
-  | "connectProgress"
-  | "misconceptions"
-> & {
-  v: number;
-  form: Omit<OnboardingForm, "examDate"> & { examDate?: string };
-  adherence: Omit<AdherenceState, "lastDay"> & { lastDay?: string };
-  shakyReasons?: Record<string, ShakyReason>;
-  reviewedNodes?: string[];
-  cards?: StoredCard[];
-  caches?: Partial<RunCaches>;
-  consumeProgress?: Record<string, ConsumeProgress>;
-  modalityTally?: ModalityTally;
-  socraticProgress?: Record<string, SocraticSession>;
-  feynmanProgress?: Record<string, FeynmanSession>;
-  connectProgress?: Record<string, ConnectSession>;
-  misconceptions?: MisconceptionRecord[];
-};
-
-/** Every snapshot version this loader accepts. */
-const SNAPSHOT_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-/** Fill an older snapshot's gaps; a v9 passes through unchanged. */
-function migrate(raw: LoadedSnapshot): RunSnapshot {
-  const { caches: _inline, ...rest } = raw;
-  return {
-    ...rest,
-    v: 9,
-    form: { ...raw.form, examDate: raw.form.examDate ?? "" },
-    adherence: { ...raw.adherence, lastDay: raw.adherence.lastDay ?? "" },
-    shakyReasons: raw.shakyReasons ?? {},
-    reviewedNodes: raw.reviewedNodes ?? [],
-    cards: raw.cards ?? [],
-    // A pre-v4 run has read passes it can't prove it read. Empty is the honest
-    // answer: the map under-claims rather than inventing a position.
-    consumeProgress: raw.consumeProgress ?? {},
-    modalityTally: raw.modalityTally ?? {},
-    socraticProgress: raw.socraticProgress ?? {},
-    feynmanProgress: raw.feynmanProgress ?? {},
-    connectProgress: raw.connectProgress ?? {},
-    misconceptions: raw.misconceptions ?? [],
-  };
-}
-
-/** A cached chunk from before the reading-first Consume rewrite: one short
- *  body string, a prediction on every chunk, verdict copy hanging off the
- *  chunk, and no example or takeaway. */
-export type LegacyConsumeChunk = Omit<ConsumeChunk, "body" | "example" | "takeaway"> & {
-  body: string | string[];
-  example?: ConsumeChunk["example"];
-  takeaway?: string;
-  right?: string;
-  wrong?: string;
-  pred?: unknown;
-};
-
-/** Reshape a quiz-shaped reading pass into the current one. Detected by shape,
- *  not by snapshot version: these chunks live in their own column now, and a
- *  row written by the previous deploy carries no version of its own. The old
- *  material is all we have — it stays short — but it renders, and it stops
- *  gating: the pre-reading prediction hook is dropped along with its verdict
- *  copy, since nothing renders it any more. */
-export function migrateConsume(
-  cached: Record<string, LegacyConsumeChunk[]> | undefined,
-): Record<string, ConsumeChunk[]> {
-  return Object.fromEntries(
-    Object.entries(cached ?? {}).map(([nodeId, chunks]) => [
-      nodeId,
-      chunks.map((c) => {
-        const { right: _right, wrong: _wrong, pred: _pred, ...rest } = c;
-        return {
-          ...rest,
-          body: Array.isArray(c.body) ? c.body : [c.body],
-          example: c.example ?? {
-            title: "Worked through",
-            steps: [c.alt?.example ?? "See the passage above."],
-          },
-          takeaway: c.takeaway ?? c.alt?.simpler ?? "",
-          // The iOS client generates on-device and so never passes through
-          // `validateConsumeSection`, which is where these two get their empty
-          // defaults. `c.terms.map` on a section written there is a crash.
-          terms: c.terms ?? [],
-          ask: c.ask ?? "",
-        };
-      }),
-    ]),
-  );
-}
-
-/** Teach-back rubrics written before the blank-page rewrite are scripts, not
- *  rubrics: a learner monologue and three canned replies, with nothing to grade
- *  an explanation against. There is no `mustConvey` to recover from them, so
- *  they are dropped and the node writes a fresh rubric on its next teach-back.
- *  Detected by shape, like the reading above: these rows carry no version. */
-function usableRubrics(
-  cached: Record<string, FeynmanBeat[]> | undefined,
-): Record<string, FeynmanBeat[]> {
-  return Object.fromEntries(
-    Object.entries(cached ?? {}).filter(([, beats]) =>
-      beats?.every((b) => Array.isArray(b?.mustConvey) && b.mustConvey.length),
-    ),
-  );
-}
-
-/** The one funnel every stored cache passes through — the separate column and
- *  a pre-v3 snapshot's inline copy alike. */
-function normalizeCaches(raw: Partial<RunCaches> | null | undefined): RunCaches {
-  const merged = { ...emptyCaches(), ...(raw ?? {}) };
-  return {
-    ...merged,
-    consume: migrateConsume(
-      merged.consume as unknown as Record<string, LegacyConsumeChunk[]>,
-    ),
-    feynman: usableRubrics(merged.feynman),
-  };
-}
-
-export interface LoadedRun {
-  subject: string;
-  snapshot: RunSnapshot;
-  /** Present only for pre-v3 rows, whose caches still travel inside the
-   *  snapshot — nothing is lost on the first load after the migration. */
-  inlineCaches: RunCaches | null;
+async function call<T>(
+  op: string,
+  path: string,
+  init?: { method?: string; body?: unknown },
+): Promise<T> {
+  const res = await fetch(`${V1}${path}`, {
+    method: init?.method,
+    ...(init?.body !== undefined
+      ? {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(init.body),
+        }
+      : null),
+  });
+  if (!res.ok) throw await failure(res, op);
+  return (await res.json().catch(() => null)) as T;
 }
 
 /**
- * Every Postgres failure in this file, classified once.
+ * Everything the app draws, in one request: the learner's profile and their
+ * whole library — every topic with its map, its mastery states and its cards.
  *
- * These used to throw ``new Error(`Saving run failed: ${error.message}`)`` — and
- * PostgREST's own prose travelled from there all the way into a toast, in
- * English, describing a schema the learner has never heard of. The `op` is kept
- * for the log line; what reaches a screen is chosen from the code.
- *
- * A Supabase client error carries no HTTP status, so the split is by shape: a
- * `fetch` that never left is the browser being offline, and anything else is
- * the service having a problem. Both are retryable, which is what
- * `lib/retry.ts` reads.
+ * One round trip on purpose. It used to be three (the run core, the library
+ * list, the content column) with the first paint waiting on one of them.
+ * Generated content is deliberately absent; `loadContent` fetches it behind an
+ * already-interactive map.
  */
-function storageError(op: string, error: { message: string }): AtlasError {
-  const offline =
-    typeof navigator !== "undefined" &&
-    typeof navigator.onLine === "boolean" &&
-    !navigator.onLine;
-  return new AtlasError(
-    offline ? "offline" : "upstream",
-    `${op} failed: ${error.message}`,
-    {
-      reason: op,
-    },
+export function bootstrap(): Promise<{ profile: Profile; topics: Topic[] }> {
+  return call("bootstrap", "/bootstrap");
+}
+
+export function loadTopic(id: string): Promise<Topic> {
+  return call("loadTopic", `/topics/${id}`);
+}
+
+export function createTopic(topic: NewTopic): Promise<Topic> {
+  return call("createTopic", "/topics", { method: "POST", body: topic });
+}
+
+export function patchTopic(id: string, patch: TopicPatch): Promise<void> {
+  return call("patchTopic", `/topics/${id}`, { method: "PATCH", body: patch });
+}
+
+/**
+ * Drop a topic entirely — the learner excluding it from the dashboard.
+ *
+ * One statement on the server, and the foreign keys take the map, the mastery
+ * states, the cards and every generated payload with it. Nothing to remember to
+ * clean up, because there is nowhere for anything to be left.
+ */
+export function deleteTopic(id: string): Promise<void> {
+  return call("deleteTopic", `/topics/${id}`, { method: "DELETE" });
+}
+
+/** The map's only write path: what changed, and what left the map. */
+export function patchNodes(
+  id: string,
+  deltas: NodeDelta[],
+  remove: string[] = [],
+): Promise<void> {
+  return call("patchNodes", `/topics/${id}/nodes`, {
+    method: "PATCH",
+    body: { deltas, remove },
+  });
+}
+
+export function putCards(id: string, cards: StoredCard[]): Promise<void> {
+  return call("putCards", `/topics/${id}/cards`, { method: "PUT", body: { cards } });
+}
+
+export function deleteCards(id: string, ids: string[]): Promise<void> {
+  return call("deleteCards", `/topics/${id}/cards`, {
+    method: "DELETE",
+    body: { ids },
+  });
+}
+
+/**
+ * Today's deck: what is due, budgeted to the daily minutes, with the real
+ * interval already on every grade button.
+ *
+ * The labels come from the server because that is where the scheduler runs for
+ * a client that does not carry it. The browser has `ts-fsrs` and builds the
+ * same object locally from the same function; this exists for the one that
+ * doesn't.
+ */
+export function loadReview(
+  id: string,
+  at: { budgetMin: number; lang: Language },
+): Promise<RetainContent> {
+  return call(
+    "loadReview",
+    `/topics/${id}/review?budgetMin=${at.budgetMin}&lang=${encodeURIComponent(at.lang)}`,
   );
 }
 
-// ---- fixture mode (docs/PLAN-QUALITY.md §1.1-1.2) --------------------------
-//
-// Under ATLAS_FIXTURES=1 there is no Supabase to talk to, so every read and
-// write below is answered by `/api/test/seed` — the same in-memory store a
-// test seeds a run into. The branch sits in this file rather than in a fake
-// Supabase client because this is the whole query surface: seven functions,
-// one table, no joins.
-
-const SEED_URL = "/api/test/seed";
-
-interface SeededRow {
-  subject: string;
-  snapshot: unknown;
-  caches: unknown;
-}
-
-async function seedRead(subject?: string): Promise<SeededRow[]> {
-  const url = subject ? `${SEED_URL}?subject=${encodeURIComponent(subject)}` : SEED_URL;
-  const res = await fetch(url);
-  if (!res.ok) throw storageError("load", { message: `seed route ${res.status}` });
-  return ((await res.json()) as { runs?: SeededRow[] }).runs ?? [];
-}
-
-async function seedWrite(body: Record<string, unknown>): Promise<void> {
-  const res = await fetch(SEED_URL, {
+/** Grade one card through the real scheduler and get it back with its next due
+ *  date. One row, one round trip — never the whole deck. */
+export function gradeCard(
+  id: string,
+  cardId: string,
+  grade: ReviewGrade,
+): Promise<{ card: StoredCard }> {
+  return call("gradeCard", `/topics/${id}/review`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: { cardId, grade },
   });
-  if (!res.ok) throw storageError("save", { message: `seed route ${res.status}` });
+}
+
+export function patchProfile(patch: ProfilePatch): Promise<Profile> {
+  return call("patchProfile", "/profile", { method: "PATCH", body: patch });
+}
+
+/** One generated payload as it arrives from the content route. */
+interface ContentItem {
+  nodeId: string;
+  kind: string;
+  variant: string;
+  payload: unknown;
 }
 
 /**
- * The run core for the most recently touched run, without the content caches.
- * This is the query the first paint waits on, so it stays small on purpose.
+ * The topic's generated content, folded back into the shape the screens read.
+ *
+ * With no arguments this asks for everything the topic has — what a map open
+ * does once, behind an already-drawn map. Narrow it to the nodes and kinds a
+ * screen is about to need when that is all you want.
  */
-export async function loadRunCore(supabase: SupabaseClient): Promise<LoadedRun | null> {
-  if (FIXTURES) return toLoadedRun((await seedRead())[0] ?? null);
-  const { data, error } = await supabase
-    .from("run_states")
-    .select("subject, snapshot")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw storageError("load", error);
-  return toLoadedRun(data);
-}
-
-/** The run core for one named subject — switching onto a non-default map. */
-export async function loadRunBySubject(
-  supabase: SupabaseClient,
-  subject: string,
-): Promise<LoadedRun | null> {
-  if (FIXTURES) return toLoadedRun((await seedRead(subject))[0] ?? null);
-  const { data, error } = await supabase
-    .from("run_states")
-    .select("subject, snapshot")
-    .eq("subject", subject)
-    .maybeSingle();
-  if (error) throw storageError("load", error);
-  return toLoadedRun(data);
-}
-
-function toLoadedRun(
-  data: { subject: string; snapshot: unknown } | null,
-): LoadedRun | null {
-  const snapshot = data?.snapshot as LoadedSnapshot | undefined;
-  if (!snapshot || !SNAPSHOT_VERSIONS.includes(snapshot.v)) return null;
-  return {
-    subject: data!.subject,
-    snapshot: migrate(snapshot),
-    inlineCaches: snapshot.caches ? normalizeCaches(snapshot.caches) : null,
-  };
-}
-
-/** A dashboard-card's worth of a run — just enough to derive mastery %, the
- *  frontier count and the goal label, without the (large) generated caches. */
-export interface RunSummary {
-  subject: string;
-  goal: OnboardingForm["goal"];
-  graph: ConceptGraph;
-  states: StateMap;
-}
-
-/** Every saved run for the caller — RLS scopes it to their own rows. Powers
- *  the "Your maps" grid; the currently-open run isn't excluded, callers that
- *  already hold it live prefer their own (fresher) copy. */
-export async function listRuns(supabase: SupabaseClient): Promise<RunSummary[]> {
-  if (FIXTURES) return summaries(await seedRead());
-  const { data, error } = await supabase
-    .from("run_states")
-    .select("subject, snapshot")
-    .order("updated_at", { ascending: false });
-  if (error) throw storageError("list", error);
-  return summaries(data ?? []);
-}
-
-/** Rows → cards. Shared with the fixture path, so the grid is derived the same
- *  way whichever store answered. */
-function summaries(rows: Array<{ subject: string; snapshot: unknown }>): RunSummary[] {
-  return rows.flatMap((row) => {
-    const snapshot = row.snapshot as LoadedSnapshot | undefined;
-    // Every version the loader accepts, not just the first three — a run saved
-    // since v4 was silently missing from the grid.
-    if (!snapshot || !SNAPSHOT_VERSIONS.includes(snapshot.v)) return [];
-    return [
-      {
-        subject: row.subject,
-        goal: snapshot.form.goal,
-        graph: snapshot.graph,
-        states: snapshot.states,
-      },
-    ];
-  });
-}
-
-/** The generated content for a run — fetched after the map is already drawn. */
-export async function loadRunCaches(
-  supabase: SupabaseClient,
-  subject: string,
+export async function loadContent(
+  id: string,
+  at?: { nodes?: string[]; kinds?: string[] },
 ): Promise<RunCaches> {
-  if (FIXTURES)
-    return normalizeCaches((await seedRead(subject))[0]?.caches as Partial<RunCaches>);
-  const { data, error } = await supabase
-    .from("run_states")
-    .select("caches")
-    .eq("subject", subject)
-    .maybeSingle();
-  if (error) throw storageError("loadCaches", error);
-  return normalizeCaches(data?.caches as Partial<RunCaches> | undefined);
-}
-
-/** Write-through upsert of the run core; `user_id` defaults to `auth.uid()`. */
-export async function saveRun(
-  supabase: SupabaseClient,
-  subject: string,
-  snapshot: RunSnapshot,
-): Promise<void> {
-  if (FIXTURES) return seedWrite({ subject, snapshot });
-  const { error } = await supabase
-    .from("run_states")
-    .upsert({ subject, snapshot }, { onConflict: "user_id,subject" });
-  if (error) throw storageError("save", error);
-}
-
-/**
- * Drop a run entirely — the learner excluding a topic from the dashboard.
- * Both halves live in the one row, so a single delete takes the map, the
- * mastery states, the cards and the generated content with it. RLS scopes the
- * match to the caller, so `subject` alone identifies the row.
- */
-export async function deleteRun(
-  supabase: SupabaseClient,
-  subject: string,
-): Promise<void> {
-  if (FIXTURES) {
-    await fetch(`${SEED_URL}?subject=${encodeURIComponent(subject)}`, {
-      method: "DELETE",
-    });
-    return;
+  const params = new URLSearchParams();
+  if (at?.nodes?.length) params.set("nodes", at.nodes.join(","));
+  if (at?.kinds?.length) params.set("kinds", at.kinds.join(","));
+  const query = params.toString();
+  const { items } = await call<{ items: ContentItem[] }>(
+    "loadContent",
+    `/topics/${id}/content${query ? `?${query}` : ""}`,
+  );
+  const caches = emptyCaches();
+  for (const item of items ?? []) {
+    switch (item.kind) {
+      case "consume":
+        caches.consume[item.nodeId] = item.payload as ConsumeChunk[];
+        break;
+      case "model":
+        // The lens bucket keeps its flat composite key: one node has as many
+        // walkthroughs as the learner has opened lenses over its sections.
+        caches.models[`model:${item.nodeId}:${item.variant}`] =
+          item.payload as ConsumeModelBeat[];
+        break;
+      case "socratic":
+        caches.socratic[item.nodeId] = item.payload as SocraticStep[];
+        break;
+      case "feynman":
+        caches.feynman[item.nodeId] = item.payload as FeynmanBeat[];
+        break;
+      case "connect":
+        caches.connect[item.nodeId] = item.payload as ElaborationContent;
+        break;
+      case "crucible":
+        caches.crucible[item.nodeId] = item.payload as CrucibleContent;
+        break;
+      case "retain":
+        caches.retain = item.payload as RetainContent;
+        break;
+    }
   }
-  const { error } = await supabase.from("run_states").delete().eq("subject", subject);
-  if (error) throw storageError("delete", error);
-}
-
-/** Write-through upsert of the content caches alone — the big, rare write. */
-export async function saveRunCaches(
-  supabase: SupabaseClient,
-  subject: string,
-  caches: RunCaches,
-): Promise<void> {
-  if (FIXTURES) return seedWrite({ subject, caches });
-  const { error } = await supabase
-    .from("run_states")
-    .upsert({ subject, caches }, { onConflict: "user_id,subject" });
-  if (error) throw storageError("saveCaches", error);
+  // The two payloads whose shape changed under them. See lib/contentMigrate.ts:
+  // a row the normalization carried over from the `caches` column may predate
+  // either rewrite, and a hit is never re-validated.
+  return {
+    ...caches,
+    consume: migrateConsume(
+      caches.consume as unknown as Record<string, LegacyConsumeChunk[]>,
+    ),
+    feynman: usableRubrics(caches.feynman),
+  };
 }

@@ -156,6 +156,7 @@ export function useSpiral(deps: {
     graphRef,
     formRef,
     statesRef,
+    topicIdRef,
     cardsRef,
     setGraph,
     setStates,
@@ -1626,6 +1627,10 @@ export function useSpiral(deps: {
       key: `retain:${uncovered.map((n) => n.id).join(",")}`,
       params: {
         topic: formRef.current.topic,
+        // Retain is drafted from the nodes with no card yet, so it belongs to
+        // the topic rather than to any one node — it files under the empty node
+        // id, the same address the normalization gave it.
+        ...(topicIdRef.current ? { topicId: topicIdRef.current } : null),
         budgetMin,
         nodes: uncovered.map((n) => ({
           id: n.id,
@@ -1636,7 +1641,7 @@ export function useSpiral(deps: {
         language: languageRef.current,
       },
     };
-  }, [cardsRef, formRef, graphRef, statesRef, languageRef]);
+  }, [cardsRef, formRef, graphRef, statesRef, topicIdRef, languageRef]);
 
   /** Draft the day's new cards ahead of the click. The result is discarded —
    *  its point is filling the shared cache so opening Review is a lookup. */

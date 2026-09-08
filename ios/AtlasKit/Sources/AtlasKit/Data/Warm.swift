@@ -65,9 +65,15 @@ public final class WarmCache {
     ///
     /// Every check above the `inflight` write happens without a suspension in
     /// between, which is why two callers on the same key can never both start.
+    /// `atLeast` is the kind's own floor — how many items make a *whole*
+    /// answer rather than a prefix of one. The server states it in its
+    /// validator (`arr(root.chunks, "chunks", min, max)`); on the device this
+    /// is where it lives, because this is the one place that decides whether a
+    /// pass is kept as finished or kept as a prefix to be retried.
     @discardableResult
     public func fill<T: Sendable>(
         _ key: String,
+        atLeast minimum: Int = 1,
         live: @escaping @Sendable () async -> AsyncThrowingStream<Landed<[T]>, Error>
     ) async -> Error? {
         if let running = inflight[key] { return await running.value }
@@ -88,10 +94,20 @@ public final class WarmCache {
                     landed = items.value
                     self.write(key, items.value, items.raw, era)
                 }
-                // A pass that ended with nothing is a failure that forgot to
-                // throw; keeping it hands every later click an empty screen.
-                guard !landed.isEmpty else {
-                    throw AtlasError(code: "upstream", message: "\(key) came back empty")
+                // A pass that ended short is a failure that forgot to throw.
+                // Nothing at all hands every later click an empty screen; one
+                // section of a five-section reading is worse, because it looks
+                // like a finished pass and gets cached, uploaded and re-served
+                // as one. Either way what landed is kept and marked incomplete
+                // by `failed` below — the learner keeps their place, and the
+                // key stays cold so the retry actually regenerates.
+                guard landed.count >= minimum else {
+                    throw AtlasError(
+                        code: "upstream",
+                        message: landed.isEmpty
+                            ? "\(key) came back empty"
+                            : "\(key) stopped after \(landed.count) of at least \(minimum)"
+                    )
                 }
             } catch {
                 return self.failed(key, error, keeping: landed.isEmpty ? nil : landed, era)
@@ -167,11 +183,16 @@ public final class WarmCache {
     /// changes nothing.
     /// A whole pass from the shared row beats a prefix this device is holding,
     /// so an incomplete key is seeded over rather than skipped.
-    func seed(_ key: String, _ value: any Sendable, _ raw: JSONValue) {
+    /// `incomplete` is for content the row holds that is short of its kind's
+    /// floor — a pass the other client (or an older build of this one) uploaded
+    /// after its stream died. It is still the learner's place in the reading,
+    /// so it is shown; it is not a finished pass, so it is not served as a
+    /// cache hit and the screen offers the retry.
+    func seed(_ key: String, _ value: any Sendable, _ raw: JSONValue, incomplete short: Bool = false) {
         guard inflight[key] == nil, content[key] == nil || incomplete.contains(key) else { return }
         content[key] = value
         self.raw[key] = raw
-        incomplete.remove(key)
+        if short { incomplete.insert(key) } else { incomplete.remove(key) }
     }
 
     /// Give up on a pass. The key goes cold either way — `raw` is cleared, so
@@ -270,7 +291,8 @@ public extension AtlasStore {
     @discardableResult
     func consume(_ node: ConceptNode) async -> Error? {
         let (api, context) = (api, context(for: node))
-        return await warm.fill(key("consume", node), live: { await api.consume(context) })
+        return await warm.fill(key("consume", node), atLeast: ConsumeSectionBounds.min,
+                               live: { await api.consume(context) })
     }
 
     @discardableResult
@@ -354,11 +376,19 @@ public extension AtlasStore {
         })
         if let error { return error }
         let drafted: [ReviewCard] = warm.content(key) ?? []
-        // The warm drafts into the run itself, so the deck is already there when
-        // the tab is opened — and the guard is what keeps the click that
+        // The warm drafts into the run itself, so the cards are already written
+        // when the tab is opened — and the guard is what keeps the click that
         // follows the warm from filing every card a second time.
-        for card in drafted where !cards.contains(where: { $0.card.id == card.id }) {
-            cards.append(ScheduledCard(card))
+        //
+        // No scheduler state travels: these are new cards, and where they go
+        // next is decided by the one scheduler, on the server, from the first
+        // grade onwards.
+        for card in drafted where !cards.contains(where: { $0.id == card.id }) {
+            cards.append(StoredCard(
+                id: card.id, nodeId: card.node, type: card.type, source: card.source,
+                cloze: card.cloze, answer: card.answer, front: card.front,
+                back: card.back, reExplain: card.reExplain
+            ))
         }
         return nil
     }
@@ -367,106 +397,70 @@ public extension AtlasStore {
     func warmRetain() { Task { await draftCards(for: uncovered) } }
 }
 
-// MARK: - The shared content cache
+// MARK: - The topic's stored content
 
-/// `run_states.caches` is the browser's content column, and this client keeps
-/// its half of the run in the same shape — `{ consume: { nodeId: [...] }, … }`.
-/// A reading pass written in the browser therefore opens on the phone without a
-/// generation, and one written here shows up in the browser the same way.
+/// Generated content belongs to the topic, one row per payload, and the server
+/// writes it the moment it generates it.
 ///
-/// What travels is the model's own JSON, never a re-encode of what
-/// `PhaseContent.swift` decoded: those types are deliberately narrower than
-/// `lib/curriculum/*.ts`, and re-encoding would strip a section's `terms` and
-/// `ask` the first time it was written on a phone. See `Landed`.
+/// This used to be an upload: the browser's `run_states.caches` column, which
+/// this client downloaded whole on open and re-uploaded *merged* after every
+/// generation — merged because rebuilding the object from its own cache would
+/// have deleted the buckets it never fills. None of that exists any more. What
+/// arrives here is a list of `(node, kind, variant, payload)` rows, and nothing
+/// goes back.
 @MainActor
 public extension AtlasStore {
-    /// The buckets keyed by node id, which both clients fill. `models` is
-    /// shared too but keyed per section and lens — see `lensInputs`. `retain`
-    /// stays the browser's own: this client turns a Retain draft into scheduled
-    /// cards the moment it lands, so it has nothing to put there, and the
-    /// bucket rides through the merge below untouched.
-    static let cacheBuckets: Set<String> = ["consume", "socratic", "feynman", "connect", "crucible"]
-
-    /// The lens half of a warm key, and the tail of the browser's own
-    /// `model:<nodeId>:<chunkId>:<lens>` — `useGeneration.ts`'s `modelKey`.
+    /// The lens half of a warm key, and the tail of the server's own
+    /// `variant` for a walkthrough — one section, one lens.
     static func lensInputs(_ chunkId: String, _ lens: AltKey) -> String {
         "\(chunkId):\(lens.rawValue)"
     }
 
-    /// Adopt the run's saved content. Called on `open`, once the subject, the
+    /// Adopt the topic's stored content. Called on open, once the subject, the
     /// graph and the language a key is built from are all in place.
-    func seedWarm(_ caches: [String: JSONValue]) {
+    func seedWarm(_ items: [RunStore.ContentItem]) {
         let byId = graph.byId
-        for (kind, bucket) in caches {
-            for (nodeId, raw) in bucket.fields ?? [:] {
-                // `models` is the one bucket not keyed by node id: its key is
-                // the whole address of a lens over a section.
-                if kind == "models" { seedLens(nodeId, raw, byId); continue }
-                guard let node = byId[nodeId] else { continue }
-                switch kind {
-                case "consume": seed(kind, node, raw, as: [ConsumeChunk].self)
-                case "socratic": seed(kind, node, raw, as: [SocraticStep].self)
-                case "feynman": seed(kind, node, raw, as: [FeynmanBeat].self)
-                case "connect": seed(kind, node, raw, as: ElaborationContent.self)
-                case "crucible": seed(kind, node, raw, as: CrucibleContent.self)
-                default: continue
-                }
+        for item in items {
+            if item.kind == "model" {
+                seedLens(item, byId)
+                continue
+            }
+            guard let node = byId[item.nodeId] else { continue }
+            switch item.kind {
+            // A short pass came from a stream that died before this floor
+            // existed. Adopted as a prefix, so it shows the incomplete notice
+            // and its retry instead of reading as a one-section concept.
+            case "consume":
+                seed(item.kind, node, item.payload, as: [ConsumeChunk].self,
+                     shortOf: ConsumeSectionBounds.min)
+            case "socratic": seed(item.kind, node, item.payload, as: [SocraticStep].self)
+            case "feynman": seed(item.kind, node, item.payload, as: [FeynmanBeat].self)
+            case "connect": seed(item.kind, node, item.payload, as: ElaborationContent.self)
+            case "crucible": seed(item.kind, node, item.payload, as: CrucibleContent.self)
+            default: continue
             }
         }
     }
 
-    /// The column to upsert: what the row already held, with this device's
-    /// generations written over it. A merge for the same reason `RunSnapshot`
-    /// is one — a client that rebuilt this object out of its own cache would
-    /// delete the two buckets it never fills.
-    func cachesRow(over loaded: [String: JSONValue]) -> [String: JSONValue] {
-        var caches = loaded
-        for (key, raw) in warm.raw {
-            guard let slot = Self.cacheSlot(key) else { continue }
-            var bucket = caches[slot.bucket]?.fields ?? [:]
-            bucket[slot.key] = raw
-            caches[slot.bucket] = .object(bucket)
-        }
-        return caches
-    }
-
-    /// Where in the column a warm key belongs — `kind|subject|nodeId|language|inputs`.
-    /// Anything else stays out of the shared column: the Retain draft's own key
-    /// has four parts, and so does a key whose subject happens to contain a
-    /// pipe, which is a run this client keeps to itself rather than files wrong.
-    static func cacheSlot(_ key: String) -> (bucket: String, key: String)? {
-        let parts = key.split(separator: "|", omittingEmptySubsequences: false)
-        guard parts.count == 5 else { return nil }
-        let kind = String(parts[0])
-        // A lens files under the browser's own address for it, which already
-        // carries the node — so the two clients share one walkthrough.
-        if kind == "model" {
-            guard !parts[4].isEmpty else { return nil }
-            return ("models", "model:\(parts[2]):\(parts[4])")
-        }
-        guard cacheBuckets.contains(kind) else { return nil }
-        return (kind, String(parts[2]))
-    }
-
-    /// Content the browser wrote, under the key this client would have written
+    /// Content the server holds, under the key this client would have written
     /// it under. Undecodable content is left where it is rather than dropped —
     /// it is still the browser's to render, and this client simply regenerates.
     private func seed<T: Decodable & Sendable>(
-        _ kind: String, _ node: ConceptNode, _ raw: JSONValue, as type: T.Type
+        _ kind: String, _ node: ConceptNode, _ raw: JSONValue, as type: T.Type,
+        shortOf floor: Int = 0
     ) {
         guard let value = try? raw.decode(T.self) else { return }
-        warm.seed(key(kind, node, cacheInputs(kind, node)), value, raw)
+        let short = (raw.items?.count ?? Int.max) < floor
+        warm.seed(key(kind, node, cacheInputs(kind, node)), value, raw, incomplete: short)
     }
 
-    /// A lens the browser wrote, under the key this client would have written
-    /// it under. `model:<nodeId>:<chunkId>:<lens>` in, four parts out; anything
-    /// shaped otherwise is content this client has no address for.
-    private func seedLens(_ address: String, _ raw: JSONValue, _ byId: [String: ConceptNode]) {
-        let parts = address.split(separator: ":", omittingEmptySubsequences: false)
-        guard parts.count == 4, parts[0] == "model", let node = byId[String(parts[1])],
-              let value = try? raw.decode([ConsumeModelBeat].self)
+    /// A walkthrough, whose address within its node is `<chunkId>:<lens>` —
+    /// the same `variant` the browser writes.
+    private func seedLens(_ item: RunStore.ContentItem, _ byId: [String: ConceptNode]) {
+        guard let node = byId[item.nodeId], !item.variant.isEmpty,
+              let value = try? item.payload.decode([ConsumeModelBeat].self)
         else { return }
-        warm.seed(key("model", node, "\(parts[2]):\(parts[3])"), value, raw)
+        warm.seed(key("model", node, item.variant), value, item.payload)
     }
 
     /// The pool half of a key. Connect and Crucible are drawn from what the
