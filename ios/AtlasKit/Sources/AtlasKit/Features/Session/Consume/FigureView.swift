@@ -53,9 +53,13 @@ struct FigureView: View {
             .overlayPreferenceValue(FigureBoxes.self) { boxes in
                 GeometryReader { space in
                     Canvas { context, _ in
+                        // What the labels have already taken. Two edges out of
+                        // the same box land their midpoints side by side, and
+                        // the second card drew over the first.
+                        var placed: [CGRect] = []
                         for edge in edges {
                             guard let from = boxes[edge.from], let to = boxes[edge.to] else { continue }
-                            wire(&context, space[from], space[to], edge.label)
+                            wire(&context, space[from], space[to], edge.label, &placed)
                         }
                     }
                 }
@@ -91,9 +95,18 @@ struct FigureView: View {
             .anchorPreference(key: FigureBoxes.self, value: .bounds) { [node.id: $0] }
     }
 
+    /// The card drawn behind a label, centred on `at`.
+    private func box(_ size: CGSize, _ at: CGPoint) -> CGRect {
+        CGRect(x: at.x - size.width / 2 - 3, y: at.y - size.height / 2 - 1,
+               width: size.width + 6, height: size.height + 2)
+    }
+
     /// One arrow between two boxes, from the edge of the first towards the
     /// edge of the second, with the model's label on it when it wrote one.
-    private func wire(_ context: inout GraphicsContext, _ from: CGRect, _ to: CGRect, _ label: String?) {
+    private func wire(
+        _ context: inout GraphicsContext, _ from: CGRect, _ to: CGRect, _ label: String?,
+        _ placed: inout [CGRect]
+    ) {
         let start = CGPoint(x: from.midX, y: from.midY < to.midY ? from.maxY : from.minY)
         let end = CGPoint(x: to.midX, y: from.midY < to.midY ? to.minY - 3 : to.maxY + 3)
         var line = Path()
@@ -118,11 +131,18 @@ struct FigureView: View {
             Text(verbatim: label).font(.atlas(.mono, 9)).foregroundStyle(Palette.inkFaint)
         )
         let size = text.measure(in: CGSize(width: 140, height: 40))
-        let at = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
-        let card = CGRect(
-            x: at.x - size.width / 2 - 3, y: at.y - size.height / 2 - 1,
-            width: size.width + 6, height: size.height + 2
-        )
+        var at = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        var card = box(size, at)
+        // Step out of the way of a label already drawn, along the line rather
+        // than across it — the label stays on the edge it belongs to. Two
+        // rows of clearance is every layer gap this figure has.
+        var tries = 0
+        while placed.contains(where: { $0.intersects(card) }), tries < 2 {
+            at.y += size.height + 4
+            card = box(size, at)
+            tries += 1
+        }
+        placed.append(card)
         context.fill(Path(roundedRect: card, cornerRadius: 3), with: .color(Palette.card))
         context.draw(text, at: at)
     }

@@ -147,32 +147,66 @@ function lastCommaOutsideString(text: string): number {
 }
 
 /**
- * Validate one object off a stream, or drop it.
+ * The objects one completed top-level JSON value actually carries.
  *
- * A slot the model wrote badly costs that slot, not the pass. Throwing instead
- * sent the caller to its single-shot fallback, which re-generates and re-bills
- * the whole thing over one malformed object: a lens cost 7.8s + 6.1s and two
- * model calls, a socratic 29.6s + 27.6s. A stream where *every* object is bad
- * still yields nothing, and the caller's empty-stream throw routes that into
- * the same fallback — which is the case the fallback is actually for.
+ * Models ignore "SEPARATE top-level objects, NOT wrapped in an array or a
+ * {"chunks": [...]} object" often enough that it is the common case rather
+ * than the edge. Every streamed kind was then handed the wrapper as its first
+ * object and failed on whichever field its validator dereferences first —
+ * `chunks[0].example`, `steps[0].replies`, `beats[0].label`, none of them the
+ * actual fault — threw the stream away and paid for a second whole
+ * generation. A lone key holding an array is that wrapper: no payload here
+ * has a single field.
  */
-export function validateSlot<T>(
-  raw: string,
-  index: number,
+function unwrap(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [value];
+  const keys = Object.keys(value as Record<string, unknown>);
+  const only = keys.length === 1 ? (value as Record<string, unknown>)[keys[0]] : null;
+  return Array.isArray(only) ? only : [value];
+}
+
+/**
+ * Validate what came off the stream, numbering from `from` and dropping
+ * anything the model wrote badly.
+ *
+ * A slot the model wrote badly costs that slot, not the pass. Throwing sent
+ * the caller to its single-shot fallback, which re-generates and re-bills the
+ * whole thing over one bad object. A stream where *every* object is bad still
+ * yields nothing, and the caller's empty-stream throw routes that into the
+ * fallback — which is the case the fallback is actually for.
+ */
+export function* slots<T>(
+  raws: string[],
+  from: number,
   label: string,
   validate: (value: unknown, index: number) => T,
-): T | undefined {
-  try {
-    return validate(JSON.parse(raw), index);
-  } catch (err) {
-    console.error(
-      JSON.stringify({
-        evt: "stream_slot_dropped",
-        kind: label,
-        index,
-        error: String(err instanceof Error ? err.message : err).slice(0, 200),
-      }),
-    );
-    return undefined;
+): Generator<T> {
+  let index = from;
+  for (const raw of raws) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    for (const one of unwrap(parsed)) {
+      let value: T;
+      try {
+        value = validate(one, index);
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            evt: "stream_slot_dropped",
+            kind: label,
+            index,
+            error: String(err instanceof Error ? err.message : err).slice(0, 200),
+          }),
+        );
+        continue;
+      }
+      yield value;
+      index += 1;
+    }
   }
 }

@@ -440,9 +440,8 @@ export async function* streamJsonObjectsProgressive<T>(
       buf += delta;
       const { objects, rest } = json.extractCompleteObjects(buf);
       buf = rest;
-      for (const raw of objects) {
-        const value = json.validateSlot(raw, index, label, validate);
-        if (value !== undefined) yield { value, index: index++, partial: false };
+      for (const value of json.slots(objects, index, label, validate)) {
+        yield { value, index: index++, partial: false };
       }
       if (!opts.partial || !buf.trim()) continue;
       const now = Date.now();

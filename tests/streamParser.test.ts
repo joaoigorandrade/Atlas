@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { closePartialJson, extractCompleteObjects } from "@/lib/server/streamingJson";
+import {
+  closePartialJson,
+  extractCompleteObjects,
+  slots,
+} from "@/lib/server/streamingJson";
 
 describe("extractCompleteObjects", () => {
   it("extracts nothing from a partial object", () => {
@@ -76,5 +80,53 @@ describe("closePartialJson", () => {
     expect(close("   \n")).toBeNull();
     expect(close("{")).toBeNull();
     expect(close('{"')).toBeNull();
+  });
+});
+
+describe("slots", () => {
+  const asSection = (raw: unknown, i: number) => {
+    const s = raw as { example?: unknown; kicker?: unknown };
+    if (typeof s?.example !== "object" || s.example === null)
+      throw new Error(`chunks[${i}].example must be an object`);
+    return s.kicker as string;
+  };
+
+  it("takes the objects the model was asked for", () => {
+    const raws = ['{"kicker":"a","example":{}}', '{"kicker":"b","example":{}}'];
+    expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a", "b"]);
+  });
+
+  // The whole reason this exists: the model wraps the list despite being told
+  // not to, and the wrapper used to fail as `chunks[0].example` and cost a
+  // second whole generation.
+  it("unwraps the {chunks: [...]} object the model was told not to send", () => {
+    const raws = ['{"chunks":[{"kicker":"a","example":{}},{"kicker":"b","example":{}}]}'];
+    expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a", "b"]);
+  });
+
+  it("unwraps a bare top-level array too", () => {
+    const raws = ['[{"kicker":"a","example":{}}]'];
+    expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a"]);
+  });
+
+  it("drops the slot the model wrote badly and keeps the rest", () => {
+    const raws = ['{"chunks":[{"kicker":"a"},{"kicker":"b","example":{}}]}'];
+    expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["b"]);
+  });
+
+  it("numbers from `from`, counting only what it yields", () => {
+    const seen: number[] = [];
+    const raws = ['{"chunks":[{"kicker":"a","example":{}},{"kicker":"b","example":{}}]}'];
+    [
+      ...slots(raws, 3, "x", (raw, i) => {
+        seen.push(i);
+        return raw;
+      }),
+    ];
+    expect(seen).toEqual([3, 4]);
+  });
+
+  it("skips a raw that is not JSON at all rather than throwing", () => {
+    expect([...slots(["not json"], 0, "x", (raw) => raw)]).toEqual([]);
   });
 });
