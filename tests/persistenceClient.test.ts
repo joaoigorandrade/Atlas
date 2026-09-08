@@ -63,6 +63,32 @@ describe("loadContent", () => {
     expect(caches.crucible.lat).toBeTruthy();
   });
 
+  // What a row actually holds: `recordContent` stores the whole object
+  // `job.run()` returned, envelope and all, and `writeContent` puts the same
+  // thing in the shared cache. The tests above hand in the inner value, which
+  // is why the cast through the envelope went unnoticed until a cached reading
+  // reached the screens as an object and died on `chunks.map`.
+  it("unwraps the envelope the payload is actually stored in", async () => {
+    answering(
+      items(
+        { kind: "consume", payload: { chunks: [section] } },
+        { kind: "socratic", payload: { steps: [{ id: "s1" }] } },
+        { kind: "feynman", payload: { beats: [{ mustConvey: ["x"] }] } },
+        { kind: "model", variant: "c1:analogy", payload: { beats: [{ label: "a" }] } },
+        { kind: "connect", payload: { content: { centerId: "lat" } } },
+        { kind: "crucible", payload: { content: { problem: "…" } } },
+      ),
+    );
+    const caches = await loadContent("t1");
+    expect(Array.isArray(caches.consume.lat)).toBe(true);
+    expect(caches.consume.lat).toHaveLength(1);
+    expect(caches.socratic.lat).toHaveLength(1);
+    expect(caches.feynman.lat).toHaveLength(1);
+    expect(caches.models["model:lat:c1:analogy"]).toHaveLength(1);
+    expect(caches.connect.lat).toEqual({ centerId: "lat" });
+    expect(caches.crucible.lat).toEqual({ problem: "…" });
+  });
+
   it("keys a walkthrough by its variant, so two lenses are two payloads", async () => {
     answering(
       items(

@@ -298,6 +298,26 @@ interface ContentItem {
 }
 
 /**
+ * The generator's envelope, off a stored payload.
+ *
+ * A row holds what `job.run()` returned — `{chunks: [...]}`, `{steps: [...]}`,
+ * `{content: {...}}` — which is the same envelope `lib/api.ts` unwraps on the
+ * live path. The read side cast straight through it instead, so a cached
+ * reading arrived as an object where the screens expect a list and died on the
+ * first `.map`: `chunks.map is not a function`, and the throw took every other
+ * node's content with it. None of the three content shapes carries a `content`
+ * field of its own, and rows normalized over from the old `caches` column hold
+ * the inner value already — so an absent key means this is already unwrapped.
+ */
+function inner<T>(payload: unknown, key: string): T {
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    const held = (payload as Record<string, unknown>)[key];
+    if (held !== undefined) return held as T;
+  }
+  return payload as T;
+}
+
+/**
  * The topic's generated content, folded back into the shape the screens read.
  *
  * With no arguments this asks for everything the topic has — what a map open
@@ -320,28 +340,30 @@ export async function loadContent(
   for (const item of items ?? []) {
     switch (item.kind) {
       case "consume":
-        caches.consume[item.nodeId] = item.payload as ConsumeChunk[];
+        caches.consume[item.nodeId] = inner<ConsumeChunk[]>(item.payload, "chunks");
         break;
       case "model":
         // The lens bucket keeps its flat composite key: one node has as many
         // walkthroughs as the learner has opened lenses over its sections.
-        caches.models[`model:${item.nodeId}:${item.variant}`] =
-          item.payload as ConsumeModelBeat[];
+        caches.models[`model:${item.nodeId}:${item.variant}`] = inner<ConsumeModelBeat[]>(
+          item.payload,
+          "beats",
+        );
         break;
       case "socratic":
-        caches.socratic[item.nodeId] = item.payload as SocraticStep[];
+        caches.socratic[item.nodeId] = inner<SocraticStep[]>(item.payload, "steps");
         break;
       case "feynman":
-        caches.feynman[item.nodeId] = item.payload as FeynmanBeat[];
+        caches.feynman[item.nodeId] = inner<FeynmanBeat[]>(item.payload, "beats");
         break;
       case "connect":
-        caches.connect[item.nodeId] = item.payload as ElaborationContent;
+        caches.connect[item.nodeId] = inner<ElaborationContent>(item.payload, "content");
         break;
       case "crucible":
-        caches.crucible[item.nodeId] = item.payload as CrucibleContent;
+        caches.crucible[item.nodeId] = inner<CrucibleContent>(item.payload, "content");
         break;
       case "retain":
-        caches.retain = item.payload as RetainContent;
+        caches.retain = inner<RetainContent>(item.payload, "content");
         break;
     }
   }
