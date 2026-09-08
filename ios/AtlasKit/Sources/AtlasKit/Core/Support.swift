@@ -24,6 +24,10 @@ public enum ErrorCopy {
     public static func sentence(for error: Error, doing what: String) -> String {
         switch (error as? AtlasError)?.code {
         case "auth": String(localized: "Sua sessão expirou — entre de novo para \(what).")
+        // `transport` has classified this since the client was written, and
+        // nothing ever read it: an offline learner was told to try again in a
+        // moment, about a request that cannot succeed until they reconnect.
+        case "offline": String(localized: "Você está sem internet — não conseguimos \(what) agora.")
         case "rate_limit": String(localized: "Você pediu bastante coisa em pouco tempo. Espere um instante e tente de novo.")
         case "request": String(localized: "Não conseguimos \(what) com esse pedido. Tente descrever o tema de outro jeito.")
         default: String(localized: "Não conseguimos \(what) agora. Tente de novo em instantes.")

@@ -69,7 +69,11 @@ public struct TopBar<Leading: View, Trailing: View>: View {
             trailing
         }
         .padding(.horizontal, 16)
-        .frame(height: Metrics.bar)
+        // A floor, not a height: `Font.custom(_:size:)` scales with Dynamic
+        // Type, so at the accessibility sizes a two-line slot (the phase
+        // kicker over the concept) grew past a fixed 52 and was sheared off
+        // against the divider. Every screen with a bar had it.
+        .frame(minHeight: Metrics.bar)
         .background(Palette.card.opacity(0.92))
         .overlay(alignment: .bottom) { Divider().overlay(Palette.hairline) }
     }

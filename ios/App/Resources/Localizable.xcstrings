@@ -3775,6 +3775,16 @@
         }
       }
     },
+    "Você está sem internet — não conseguimos %@ agora.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're offline — we can't %@ right now."
+          }
+        }
+      }
+    },
     "Você hesitou nisso no nivelamento — provavelmente é frágil. Uma tentativa no Crisol mostra se resiste.": {
       "extractionState": "stale",
       "localizations": {
