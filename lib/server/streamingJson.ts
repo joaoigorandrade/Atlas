@@ -162,8 +162,14 @@ function unwrap(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (!value || typeof value !== "object") return [value];
   const keys = Object.keys(value as Record<string, unknown>);
-  const only = keys.length === 1 ? (value as Record<string, unknown>)[keys[0]] : null;
-  return Array.isArray(only) ? only : [value];
+  if (keys.length !== 1) return [value];
+  const only = (value as Record<string, unknown>)[keys[0]];
+  if (Array.isArray(only)) return only;
+  // One key holding one object is the same refusal, per item: asked for bare
+  // objects the model numbers them instead — `{"secao1": {...}}`,
+  // `{"passo1": {...}}` — and the wrapper failed as `chunks[0].example`. No
+  // payload here is a single field, so a lone key is never the item itself.
+  return only && typeof only === "object" && !Array.isArray(only) ? [only] : [value];
 }
 
 /**

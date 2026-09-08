@@ -104,6 +104,21 @@ describe("slots", () => {
     expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a", "b"]);
   });
 
+  // What the model actually sends when told to write bare objects: it numbers
+  // them. Captured off production — `{"secao1": {...}}`, one per frame.
+  it("unwraps the numbered single-key object the model actually sends", () => {
+    const raws = [
+      '{"secao1":{"kicker":"a","example":{}}}',
+      '{"secao2":{"kicker":"b","example":{}}}',
+    ];
+    expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a", "b"]);
+  });
+
+  it("leaves a real section alone — it never has a single field", () => {
+    const raws = ['{"kicker":"a","example":{},"takeaway":"t"}'];
+    expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a"]);
+  });
+
   it("unwraps a bare top-level array too", () => {
     const raws = ['[{"kicker":"a","example":{}}]'];
     expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a"]);
