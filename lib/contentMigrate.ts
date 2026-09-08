@@ -33,23 +33,29 @@ export function migrateConsume(
   cached: Record<string, LegacyConsumeChunk[]> | undefined,
 ): Record<string, ConsumeChunk[]> {
   return Object.fromEntries(
-    Object.entries(cached ?? {}).map(([nodeId, chunks]) => [
-      nodeId,
-      chunks.map((c) => {
-        const { right: _right, wrong: _wrong, pred: _pred, ...rest } = c;
-        return {
-          ...rest,
-          body: Array.isArray(c.body) ? c.body : [c.body],
-          example: c.example ?? {
-            title: "Worked through",
-            steps: [c.alt?.example ?? "See the passage above."],
-          },
-          takeaway: c.takeaway ?? c.alt?.simpler ?? "",
-          terms: c.terms ?? [],
-          ask: c.ask ?? "",
-        };
-      }),
-    ]),
+    Object.entries(cached ?? {})
+      // The cast at the call site is a promise, not a check: a row written in
+      // some other shape reached `chunks.map` and threw, and the throw rejected
+      // the whole content load — every node's cached passes for the topic, not
+      // just the one bad row. Drop it and let that node regenerate.
+      .filter((entry): entry is [string, LegacyConsumeChunk[]] => Array.isArray(entry[1]))
+      .map(([nodeId, chunks]) => [
+        nodeId,
+        chunks.map((c) => {
+          const { right: _right, wrong: _wrong, pred: _pred, ...rest } = c;
+          return {
+            ...rest,
+            body: Array.isArray(c.body) ? c.body : [c.body],
+            example: c.example ?? {
+              title: "Worked through",
+              steps: [c.alt?.example ?? "See the passage above."],
+            },
+            takeaway: c.takeaway ?? c.alt?.simpler ?? "",
+            terms: c.terms ?? [],
+            ask: c.ask ?? "",
+          };
+        }),
+      ]),
   );
 }
 
