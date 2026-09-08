@@ -39,7 +39,10 @@ describe("the first-token deadline", () => {
   it("is disarmed by reasoning deltas, so a thinking model still delivers", async () => {
     const { streamJsonObjects } = await import("@/lib/server/openrouter");
     const out: unknown[] = [];
-    for await (const item of streamJsonObjects([{ role: "user", content: "map" }], (raw) => raw))
+    for await (const item of streamJsonObjects(
+      [{ role: "user", content: "map" }],
+      (raw) => raw,
+    ))
       out.push(item);
     expect(out).toEqual([{ id: "n0", label: "Concept" }]);
   });

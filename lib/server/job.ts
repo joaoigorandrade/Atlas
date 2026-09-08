@@ -72,14 +72,10 @@ export interface GenerateBody {
   paretoPct?: number;
   interests?: string;
   outline?: string;
-  /** The topic this generation belongs to. Not part of any cache key — the
-   *  cache is shared across learners — but it is what lets the route record
-   *  the result against the learner's own topic, so the content is theirs the
-   *  moment it exists and no client ever uploads it. */
+  /** Where the route files the result — never part of a cache key. `variant`
+   *  separates two payloads of one kind on one node (section + lens). */
   topicId?: string;
   nodeId?: string;
-  /** Distinguishes two payloads of the same kind on the same node — the lens
-   *  and section a `model` walkthrough was opened over. */
   variant?: string;
   nodeLabel?: string;
   prereqLabels?: string[];

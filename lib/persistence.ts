@@ -13,7 +13,11 @@
 // positions map are how it is drawn. `lib/server/store.ts` translates between
 // them; everything above this line only ever sees the drawing.
 
-import { migrateConsume, usableRubrics, type LegacyConsumeChunk } from "@/lib/contentMigrate";
+import {
+  migrateConsume,
+  usableRubrics,
+  type LegacyConsumeChunk,
+} from "@/lib/contentMigrate";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import type {
   AdherenceState,

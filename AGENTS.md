@@ -282,12 +282,12 @@ it.
   and cannot leave anything behind — that guarantee is the schema's, not any
   call site's, which is why there is no cleanup list to keep in step.
 - **Writes are deltas.** A node drag is one row's x/y; a graded card is one row.
-  Nothing uploads a whole run, and *nothing uploads content at all* — the
+  Nothing uploads a whole run, and _nothing uploads content at all_ — the
   generate route records a payload against the topic the moment it exists, from
   either client. `GET /api/v1/bootstrap` is the whole first paint in one request.
 - **One scheduler.** `lib/fsrs.ts` on `ts-fsrs`: the browser calls it locally,
   the phone reaches it through `/api/v1/topics/:id/review`, which answers with
-  the deck *and* the real interval for every grade button. Two implementations
+  the deck _and_ the real interval for every grade button. Two implementations
   is how the phone's cards used to disagree with the browser's.
 - What stays JSON: a node's per-phase progress record, which exactly one screen
   reads and writes whole. Normalizing it would buy nothing and cost a join.

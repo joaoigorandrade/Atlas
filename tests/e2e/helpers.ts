@@ -1,10 +1,15 @@
 // Shared e2e plumbing (docs/AGENT-TESTING.md).
 //
-// The one idea here: no spec hand-writes a run snapshot. Onboarding is driven
-// once, the snapshot the app itself persisted is captured from the seed store,
-// and every later spec re-seeds that same snapshot with the node states it
-// needs. A snapshot literal in a test file would be a second, drifting copy of
-// `RunSnapshot` — this one is always the shape the app just wrote.
+// The one idea here: no spec hand-writes a run. Onboarding is driven once, the
+// rows the app itself persisted are captured from the fixture tables, and every
+// later spec re-seeds those same rows with the node states it needs. A run
+// literal in a test file would be a second, drifting copy of the schema — this
+// one is always what the app just wrote.
+//
+// Reads go through the real `/api/v1` route rather than the seed store, so a
+// spec asserting "it was persisted" is asserting what the app would actually
+// read back. Writes go straight to the tables, because forcing a node to
+// `mastered` is the one thing no route will do for you.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -20,38 +25,49 @@ export const SECOND_NODE = "notation";
 
 const SEED = "/api/test/seed";
 
-interface SeededRow {
-  subject: string;
-  snapshot: Snapshot;
-  caches: unknown;
-}
+/** The fixture tables, as the seed route hands them over. */
+type Tables = Record<string, Array<Record<string, unknown>>>;
 
-/** Only the parts a spec reaches into; the rest travels untouched. */
-export interface Snapshot {
+/** A topic as `/api/v1` sends it — the shape both clients draw from. Only the
+ *  parts a spec reaches into are named; the rest travels untouched. */
+export interface Run {
+  id: string;
+  subject: string;
   states: Record<string, string>;
-  graph: { nodes: Array<{ id: string; label: string }> };
+  graph: { nodes: Array<{ id: string; label: string; gap?: boolean }> };
+  consumeProgress: Record<string, unknown>;
+  cards: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
+
+/** Gap nodes, which used to be their own `spawnedIds` list on the snapshot and
+ *  are now a flag on the node row. Derived here so a spec asks one question. */
+export const gapIds = (run: Run): string[] =>
+  run.graph.nodes.filter((n) => n.gap).map((n) => n.id);
 
 export async function clearRuns(request: APIRequestContext): Promise<void> {
   await request.delete(SEED);
 }
 
-export async function readRun(
-  request: APIRequestContext,
-  subject = TOPIC,
-): Promise<SeededRow | null> {
-  const res = await request.get(`${SEED}?subject=${encodeURIComponent(subject)}`);
-  const body = (await res.json()) as { runs: SeededRow[] };
-  return body.runs[0] ?? null;
+/** The open run, read back through the route the app itself reads. */
+export async function readRun(request: APIRequestContext): Promise<Run | null> {
+  const res = await request.get("/api/v1/bootstrap");
+  if (!res.ok()) return null;
+  const body = (await res.json()) as { topics: Run[] };
+  return body.topics?.[0] ?? null;
 }
 
-export async function writeRun(
-  request: APIRequestContext,
-  snapshot: Snapshot,
-  subject = TOPIC,
-): Promise<void> {
-  const res = await request.post(SEED, { data: { subject, snapshot } });
+async function readTables(request: APIRequestContext): Promise<Tables> {
+  const res = await request.get(SEED);
+  const body = (await res.json()) as { tables: Tables };
+  return body.tables ?? {};
+}
+
+/** Replace the store with these rows. Cleared first: the seed route appends,
+ *  and seeding over a live run would double every node. */
+async function writeTables(request: APIRequestContext, tables: Tables): Promise<void> {
+  await clearRuns(request);
+  const res = await request.post(SEED, { data: { tables } });
   expect(res.ok()).toBeTruthy();
 }
 
@@ -79,56 +95,63 @@ export async function runOnboarding(page: Page): Promise<void> {
 /**
  * A map with a run on it, without replaying onboarding every time.
  *
- * The first call in a worker builds the run and keeps the snapshot; later calls
- * re-seed it (with `states` applied) and reload. `states` is how a spec lands
+ * The first call in a worker builds the run and keeps its rows; later calls
+ * re-seed them (with `states` applied) and reload. `states` is how a spec lands
  * on a concept that is already learned — a Crucible spec needs a mastered
  * neighbour to draw on, and earning one through the UI is six phases of setup.
  */
-let captured: Snapshot | null = null;
+let captured: Tables | null = null;
 
 // Playwright gives each spec file its own module registry, so the in-memory
-// copy above only covers one file. The build is worth ~10s a spec, so the
-// snapshot is also parked on disk — under `test-results/`, which Playwright
-// wipes at the start of every run, so it can never go stale across runs.
-const CACHE = path.join(process.cwd(), "test-results", "run-snapshot.json");
+// copy above only covers one file. The build is worth ~10s a spec, so the rows
+// are also parked on disk — under `test-results/`, which Playwright wipes at
+// the start of every run, so they can never go stale across runs.
+const CACHE = path.join(process.cwd(), "test-results", "run-tables.json");
 
-function cached(): Snapshot | null {
+function cached(): Tables | null {
   if (captured) return captured;
   try {
-    captured = JSON.parse(readFileSync(CACHE, "utf8")) as Snapshot;
+    captured = JSON.parse(readFileSync(CACHE, "utf8")) as Tables;
   } catch {
     captured = null;
   }
   return captured;
 }
 
+/** The captured rows with `states` forced onto the matching nodes. */
+function withStates(tables: Tables, states: Record<string, string>): Tables {
+  return {
+    ...tables,
+    nodes: (tables.nodes ?? []).map((node) => {
+      const forced = states[node.id as string];
+      return forced ? { ...node, state: forced } : node;
+    }),
+  };
+}
+
 export async function openRun(
   page: Page,
   states: Record<string, string> = {},
-): Promise<Snapshot> {
+): Promise<Run> {
   if (!cached()) {
     // A run left behind by an earlier spec would open on the map, and
     // onboarding starts from the welcome screen.
     await clearRuns(page.request);
     await runOnboarding(page);
-    // The core save is debounced; the row appears a beat after the map does.
+    // The writes are debounced; the rows appear a beat after the map does.
     await expect(async () => {
-      const row = await readRun(page.request);
-      expect(row?.snapshot).toBeTruthy();
-      captured = row!.snapshot;
+      const tables = await readTables(page.request);
+      expect((tables.nodes ?? []).length).toBeGreaterThan(1);
+      captured = tables;
     }).toPass({ timeout: 15_000 });
     mkdirSync(path.dirname(CACHE), { recursive: true });
     writeFileSync(CACHE, JSON.stringify(captured));
   }
-  const snapshot: Snapshot = {
-    ...captured!,
-    states: { ...captured!.states, ...states },
-  };
-  await writeRun(page.request, snapshot);
+  await writeTables(page.request, withStates(captured!, states));
   await page.goto("/");
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
   await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
-  return snapshot;
+  return (await readRun(page.request))!;
 }
 
 /** Select a node and open one phase of its spiral, nudge and all. */

@@ -12,12 +12,8 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  FIXTURE_USER_ID,
-  fixtureSupabase,
-  resetTables,
-  seededTables,
-} from "@/lib/server/fixtures";
+import { FIXTURE_USER_ID, fixtureSupabase } from "@/lib/server/fixtures";
+import { resetTables, seededTables } from "@/lib/server/fixtureTables";
 import {
   applyNodeDeltas,
   createTopic,

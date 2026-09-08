@@ -52,18 +52,21 @@ import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
 import {
   bootstrap,
-  deleteCards as deleteCardsApi,
   loadContent,
   loadTopic,
-  patchNodes,
   patchProfile,
-  patchTopic,
-  putCards,
-  type NodeDelta,
   type Profile,
   type RunCaches,
   type Topic,
 } from "@/lib/persistence";
+import {
+  adoptProfile,
+  projectCards,
+  projectNodes,
+  projectTopic,
+  pushRun,
+} from "@/components/atlas/runProjection";
+import { setGenerationTopic } from "@/lib/generationTopic";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
 import type { ErrorContext } from "@/lib/errorCopy";
@@ -316,11 +319,12 @@ export function useRunState(opts: {
   const [topicId, setTopicId] = useState<string | null>(null);
   const topicIdRef = useRef<string | null>(null);
   topicIdRef.current = topicId;
+  // Every generation is addressed to the open topic — see `setGenerationTopic`.
+  setGenerationTopic(topicId);
 
-  /** What the server last acknowledged, per node / per card / for the topic and
-   *  the profile — the baseline every debounced write diffs against. Refs, not
-   *  state: nothing renders them, and re-arming the debounce on a successful
-   *  save would make the writer chase its own tail. */
+  /** What the server last acknowledged — the baseline every write diffs
+   *  against. Refs, not state: re-arming the debounce on a successful save
+   *  would make the writer chase its own tail. */
   const savedNodesRef = useRef<Record<string, string>>({});
   const savedCardsRef = useRef<Record<string, string>>({});
   const savedTopicRef = useRef("");
@@ -435,14 +439,12 @@ export function useRunState(opts: {
       setMisconceptions(topic.misconceptions);
       setScreen("map");
       // What the server already has, so the first debounce after a load sends
-      // nothing. Without this every open would re-upload the whole map it just
-      // finished reading.
+      // nothing — without it every open re-uploads the map it just read.
       savedNodesRef.current = projectNodes(topic);
       savedCardsRef.current = projectCards(topic.cards);
       savedTopicRef.current = projectTopic(topic);
 
-      // Generated content, behind an already-drawn map. Never written back —
-      // the server records it as it generates it.
+      // Behind an already-drawn map, and never written back.
       setCachesLoaded(false);
       withRetry(() => loadContent(topic.id))
         .then((c) => {
@@ -458,15 +460,9 @@ export function useRunState(opts: {
     [warm, applyCaches, resetSessions, resetTransient, setScreen],
   );
 
-  /**
-   * One request for everything: profile and library together.
-   *
-   * This used to be three round trips — the run core, the dashboard list, then
-   * the content column — with the first paint waiting on one of them and the
-   * grid re-querying every time the dashboard was entered. The library is a few
-   * hundred rows, so asking for all of it once is both faster and simpler than
-   * asking for parts of it repeatedly.
-   */
+  /** One request for everything: profile and library together. It used to be
+   *  three round trips, with the first paint waiting on one and the grid
+   *  re-querying on every dashboard visit. The library is a few hundred rows. */
   useEffect(() => {
     let cancelled = false;
     const hydrate = (payload: { profile: Profile; topics: Topic[] }) => {
@@ -563,83 +559,54 @@ export function useRunState(opts: {
 
   // Write-through, debounced, and proportional to what actually changed.
   //
-  // There used to be two whole-run uploads here: the snapshot on a 1.2-second
-  // debounce and the generated content on a 4-second one, the second existing
-  // only so a node drag would stop re-uploading megabytes of chunks. Neither is
-  // needed now. Content is never written by a client at all — the server
-  // records it as it generates it — and the map is written as deltas, so a drag
-  // is one node's coordinates and a graded card is one row.
-  //
-  // The diff lives here rather than at the mutation sites on purpose: this hook
-  // is the single writer, which is what makes "did this get saved?" a question
-  // with one place to look. What it compares against is what the server last
-  // acknowledged, so a failed write is retried by the next tick rather than
-  // being lost to an optimistic bookkeeping update.
+  // There used to be two whole-run uploads here — the snapshot on a 1.2s
+  // debounce, the content on a 4s one so a drag would stop re-uploading every
+  // chunk. Neither is needed: content is never written by a client at all, and
+  // the map goes as deltas. The diff lives here rather than at the mutation
+  // sites because this hook is the single writer, which is what makes "did that
+  // save?" a question with one place to look; what it compares against is what
+  // the server last acknowledged, so a failed write is retried by the next tick.
   useEffect(() => {
     if (!runActive || !topicId) return;
-    const nodes = projectNodes({ graph, states, positions, shakyReasons, reviewedNodes,
-      consumeProgress, socraticProgress, feynmanProgress, connectProgress });
+    const nodes = projectNodes({
+      graph,
+      states,
+      positions,
+      shakyReasons,
+      reviewedNodes,
+      consumeProgress,
+      socraticProgress,
+      feynmanProgress,
+      connectProgress,
+    });
     const cardShots = projectCards(cards);
     const topicShot = projectTopic({
-      goal: form.goal, interests: form.interests,
-      examDate: form.examDate, paretoPct: form.paretoPct ?? PARETO_DEFAULT,
-      language: runLanguage ?? null, calibSamples,
-      misconceptions, modalityTally, litToday,
+      goal: form.goal,
+      interests: form.interests,
+      examDate: form.examDate,
+      paretoPct: form.paretoPct ?? PARETO_DEFAULT,
+      language: runLanguage ?? null,
+      calibSamples,
+      misconceptions,
+      modalityTally,
+      litToday,
     });
 
     const timer = setTimeout(() => {
-      const writes: Array<Promise<unknown>> = [];
-
-      const deltas: NodeDelta[] = [];
-      for (const [id, shot] of Object.entries(nodes)) {
-        if (savedNodesRef.current[id] === shot) continue;
-        const isNew = savedNodesRef.current[id] === undefined;
-        deltas.push({
-          ...(JSON.parse(shot) as Omit<NodeDelta, "id">),
-          id,
-          // Only a node the server has never seen needs its edges; an existing
-          // one's prerequisites are already rows, and re-sending them on every
-          // drag would be the write amplification this replaced.
-          ...(isNew
-            ? {
-                prereqs: graph.edges
-                  .filter(([, to]) => to === id)
-                  .map(([from]) => from),
-              }
-            : null),
-        });
-      }
-      const removed = Object.keys(savedNodesRef.current).filter((id) => !(id in nodes));
-      if (deltas.length || removed.length)
-        writes.push(
-          withRetry(() => patchNodes(topicId, deltas, removed)).then(() => {
-            savedNodesRef.current = nodes;
-          }),
-        );
-
-      const changedCards = cards.filter((c) => savedCardsRef.current[c.id] !== cardShots[c.id]);
-      const droppedCards = Object.keys(savedCardsRef.current).filter(
-        (id) => !(id in cardShots),
-      );
-      if (changedCards.length)
-        writes.push(withRetry(() => putCards(topicId, changedCards)));
-      if (droppedCards.length)
-        writes.push(withRetry(() => deleteCardsApi(topicId, droppedCards)));
-      if (changedCards.length || droppedCards.length)
-        writes.push(Promise.resolve().then(() => {
-          savedCardsRef.current = cardShots;
-        }));
-
-      if (savedTopicRef.current !== topicShot)
-        writes.push(
-          withRetry(() => patchTopic(topicId, JSON.parse(topicShot))).then(() => {
-            savedTopicRef.current = topicShot;
-          }),
-        );
-
-      if (writes.length === 0) return;
-      Promise.all(writes)
-        .then(() => setSaveFailed(false))
+      // The write itself lives in `runProjection` — all this hook decides is
+      // *when*, which is the debounce it is wrapped in.
+      pushRun({
+        topicId,
+        nodes,
+        cards,
+        cardShots,
+        topicShot,
+        edges: graph.edges,
+        saved: { nodes: savedNodesRef, cards: savedCardsRef, topic: savedTopicRef },
+      })
+        .then((wrote) => {
+          if (wrote) setSaveFailed(false);
+        })
         .catch((err: unknown) => {
           logWarning("save_run_failed", err);
           setSaveFailed(true);
@@ -784,101 +751,4 @@ export function useRunState(opts: {
     clearRun,
     clearCaches,
   };
-}
-
-// ---- what a write compares against ---------------------------------------
-//
-// A node, a card and the topic's own fields, each reduced to the JSON of
-// exactly what is persisted about it. Comparing strings is what makes the diff
-// one line per row instead of a field-by-field equality function that has to be
-// updated every time a column is added — and a string that differs is, by
-// construction, a row that has to be written.
-
-/** The persisted projection of every node on the map, keyed by id. */
-function projectNodes(run: {
-  graph: ConceptGraph;
-  states: StateMap;
-  positions: Record<string, { x: number; y: number }>;
-  shakyReasons: Record<string, ShakyReason>;
-  reviewedNodes: string[];
-  consumeProgress: Record<string, ConsumeProgress>;
-  socraticProgress: Record<string, SocraticSession>;
-  feynmanProgress: Record<string, FeynmanSession>;
-  connectProgress: Record<string, ConnectSession>;
-}): Record<string, string> {
-  const reviewed = new Set(run.reviewedNodes);
-  const out: Record<string, string> = {};
-  for (const node of run.graph.nodes) {
-    const at = run.positions[node.id];
-    const state = run.states[node.id] ?? node.state ?? "unknown";
-    out[node.id] = JSON.stringify({
-      label: node.label,
-      summary: node.summary ?? undefined,
-      g: node.g,
-      week: node.week,
-      x: at?.x ?? node.x,
-      y: at?.y ?? node.y,
-      isGap: node.gap === true,
-      // `StateMap` is already the stored vocabulary — `frontier` is derived
-      // from the prerequisites on every read and never lands in it — so this
-      // is a straight copy, with the node's generated seed as the fallback.
-      state,
-      shakyReason: run.shakyReasons[node.id] ?? null,
-      reviewed: reviewed.has(node.id),
-      consumeProgress: run.consumeProgress[node.id] ?? null,
-      socraticProgress: run.socraticProgress[node.id] ?? null,
-      feynmanProgress: run.feynmanProgress[node.id] ?? null,
-      connectProgress: run.connectProgress[node.id] ?? null,
-    });
-  }
-  return out;
-}
-
-function projectCards(cards: StoredCard[]): Record<string, string> {
-  return Object.fromEntries(cards.map((c) => [c.id, JSON.stringify(c)]));
-}
-
-function projectTopic(topic: {
-  goal: string;
-  interests: string;
-  paretoPct: number;
-  examDate: string;
-  language: Language | null;
-  calibSamples: CalibSample[];
-  misconceptions: MisconceptionRecord[];
-  modalityTally: ModalityTally;
-  litToday: string[];
-}): string {
-  return JSON.stringify({
-    goal: topic.goal,
-    interests: topic.interests,
-    paretoPct: topic.paretoPct,
-    examDate: topic.examDate,
-    ...(topic.language ? { language: topic.language } : null),
-    calibSamples: topic.calibSamples,
-    misconceptions: topic.misconceptions,
-    modalityTally: topic.modalityTally,
-    litToday: topic.litToday,
-  });
-}
-
-/**
- * Adopt a loaded profile.
- *
- * The daily target rides in the form, where every surface already reads it
- * from, and the write baseline is set at the same moment so the first debounce
- * after a load sends nothing back. Outside the hook because it closes over
- * nothing of its own: the setter is stable and the ref is a ref, so keeping it
- * here is what lets both call sites stay memoizable.
- */
-function adoptProfile(
-  profile: Profile,
-  setForm: React.Dispatch<React.SetStateAction<OnboardingForm>>,
-  baseline: React.MutableRefObject<string>,
-): void {
-  setForm((f) => ({ ...f, target: profile.dailyTarget }));
-  baseline.current = JSON.stringify({
-    dailyTarget: profile.dailyTarget,
-    adherence: profile.adherence,
-  });
 }

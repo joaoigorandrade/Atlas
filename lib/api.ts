@@ -18,6 +18,7 @@ import type {
   SocraticStep,
 } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode, toAtlasError } from "@/lib/errors";
+import { addressed } from "@/lib/generationTopic";
 import type { Language } from "@/lib/i18n";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
@@ -67,7 +68,7 @@ async function postOnce<T>(body: Record<string, unknown>, opts?: FetchOpts): Pro
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(opts?.prefetch ? { ...body, prefetch: true } : body),
+    body: JSON.stringify(addressed(body, opts?.prefetch === true)),
   });
   if (res.status === 204) throw new WarmDeclined();
   if (!res.ok) throw await failure(res);
@@ -279,7 +280,7 @@ export async function fetchStream(
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(addressed(body)),
   });
   if (!res.ok) throw await failure(res);
   const requestId = res.headers.get("x-atlas-request-id") ?? undefined;

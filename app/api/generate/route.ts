@@ -14,15 +14,8 @@
 // made GENERATION_MONTHLY_CALLS model calls in the month (Phase 3). A cache hit
 // is free and is answered before either ceiling is consulted.
 
-import { after, NextResponse } from "next/server";
-import {
-  displayStates,
-  graphFromMapNodes,
-  initialStates,
-  type ConceptGraph,
-  type ConceptNode,
-  type MapNode,
-} from "@/lib/curriculum";
+import { NextResponse } from "next/server";
+import { graphFromMapNodes, type MapNode } from "@/lib/curriculum";
 import { logError, logEvent } from "@/lib/log";
 import {
   apiError,
@@ -31,7 +24,11 @@ import {
   withRequestId,
 } from "@/lib/server/apiError";
 import { readContent, writeContent } from "@/lib/server/contentCache";
-import { ownsTopic, putContent } from "@/lib/server/store";
+import {
+  logGenerationCalls,
+  recordContent,
+  startCurriculumWarm,
+} from "@/lib/server/afterBuild";
 import { resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import {
   framesToPayload,
@@ -51,36 +48,6 @@ import { createClient } from "@/lib/supabase/server";
 // fallback was about to produce.
 export const maxDuration = 300;
 
-type SupabaseLike = Awaited<ReturnType<typeof createClient>>;
-
-/**
- * Record the job's model calls in `generation_log`.
- *
- * Nothing here can decline a job — `generationBlocked` already did. The rows are written
- * before the work runs so a generation that fails upstream still shows up in
- * the spend picture — one row per model call the job may make, all sharing a
- * `job_id` so calls can still be grouped back into the surface that caused
- * them.
- */
-async function logGenerationCalls(
-  supabase: SupabaseLike,
-  job: Job,
-  opts: { jobId: string; requestId?: string; topicId?: string },
-): Promise<void> {
-  const calls = Math.max(1, job.cost ?? 1);
-  const { error } = await supabase.from("generation_log").insert(
-    Array.from({ length: calls }, () => ({
-      kind: job.kind.slice(0, 40),
-      job_id: opts.jobId,
-      // Spend, attributable to the topic that caused it. Nulled rather than
-      // deleted when that topic goes — the log outlives the learning data.
-      topic_id: opts.topicId ?? null,
-    })),
-  );
-  // Non-fatal (the table may lag a migration) but loudly logged.
-  if (error) logError("generation_log_insert_failed", error, { req: opts.requestId });
-}
-
 /** Same error → response mapping used by the plain path and the "peek the
  *  first streamed frame before committing to a streaming response" path.
  *
@@ -91,71 +58,6 @@ function errorResponse(err: unknown, prefetch: boolean, requestId: string): Next
   // A failed warm is silent — nobody is looking at it.
   if (prefetch) return new NextResponse(null, { status: 204 });
   return apiErrorFrom(err, { requestId });
-}
-
-/** Kinds whose payload belongs to a node of a topic.
- *
- *  `curriculum` is absent on purpose: the map is not content hanging off a
- *  node, it *is* the nodes, and it lands in the `nodes` and `edges` tables.
- *  The uncacheable kinds (`judge`, `diagnosticQuestion`, `passage`) are absent
- *  because each one answers one learner's own words and is never replayed. */
-const RECORDED = new Set([
-  "summary",
-  "consume",
-  "model",
-  "socratic",
-  "feynman",
-  "connect",
-  "crucible",
-  "retain",
-]);
-
-/**
- * Record that this topic now has this content.
- *
- * The single change that retires the `caches` column: the moment a payload
- * exists — freshly generated, or served from the shared cache to a learner who
- * has never seen it — it is written against their topic here, on the server.
- * No client uploads content any more, and a second device opens warm for free.
- *
- * A `cacheKey` is stored in preference to the payload: the bytes already live
- * once in `content_cache` for everyone, so the topic only needs a pointer.
- *
- * Best-effort and never awaited by the response path. A learner who has their
- * content must not be made to wait on the bookkeeping that remembers it, and a
- * failure here costs a re-generation later, not the content in front of them.
- */
-function recordContent(
-  supabase: SupabaseLike,
-  body: GenerateBody,
-  job: Job,
-  userId: string,
-  payload: Record<string, unknown>,
-): void {
-  const topicId = body.topicId;
-  if (!topicId || !RECORDED.has(job.kind)) return;
-  // `retain` is drafted from the set of nodes with no card yet, so it is
-  // topic-wide and files under the empty node id — the same address the
-  // normalization backfill gave it.
-  const nodeId = job.kind === "retain" ? "" : (body.nodeId ?? "");
-  if (job.kind !== "retain" && !nodeId) return;
-  after(async () => {
-    try {
-      // RLS checks `user_id`, which this write supplies — so the topic itself
-      // has to be checked, or a forged topicId would file a learner's content
-      // under someone else's map.
-      if (!(await ownsTopic(supabase as never, topicId))) return;
-      await putContent(
-        supabase as never,
-        userId,
-        topicId,
-        { nodeId, kind: job.kind, variant: body.variant ?? "" },
-        job.key ? { cacheKey: job.key } : { payload },
-      );
-    } catch (err) {
-      logError("record_content_failed", err, { kind: job.kind, node: nodeId });
-    }
-  });
 }
 
 export async function POST(request: Request) {
@@ -292,122 +194,6 @@ export async function POST(request: Request) {
     });
     return errorResponse(err, prefetch, requestId);
   }
-}
-
-/** Cap on frontier nodes warmed behind a finished build; 0 turns the warm off.
- *
- *  A *fresh* map's frontier is exactly its root set — the concepts with no
- *  prerequisites — because every state starts `unknown`. That is two to four
- *  nodes on a real map, so this cap is a backstop against a pathological map
- *  rather than the thing that decides the depth. It used to be 3, which cut
- *  real root sets short and left the learner generating the fourth root
- *  themselves. */
-const CURRICULUM_WARM_NODES = Number(process.env.CURRICULUM_WARM_NODES || 12);
-
-/**
- * Generate the first thing the learner will click, before they click it.
- *
- * A fresh map's frontier is the one part of the spiral we can predict with
- * certainty, and the learner is about to spend a good half-minute answering
- * three placement questions. `after()` runs this once the response has been
- * flushed, so the build isn't slowed by it, and the results land in the shared
- * `content_cache` — which means the *next* learner on this topic gets them
- * too, not just this one.
- *
- * This also covers a gap the client-side warm structurally cannot: `warm.ts`
- * runs two requests at a time from the browser and only starts once the map is
- * on screen.
- *
- * Everything here is best-effort. A failure is logged and dropped — the click
- * it was meant to cover simply generates the way it does today.
- */
-function startCurriculumWarm(
-  supabase: SupabaseLike,
-  graph: ConceptGraph,
-  body: GenerateBody,
-  userId: string,
-): void {
-  if (CURRICULUM_WARM_NODES <= 0) return;
-  const topicId = body.topicId;
-  // The same derivation the client uses, not a second heuristic that could
-  // drift from it: on a fresh map every state is `unknown`, so `frontier` is
-  // exactly the nodes whose prerequisites are already met.
-  const display = displayStates(initialStates(graph), graph);
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-  const frontier = graph.nodes
-    .filter((n) => display[n.id] === "frontier")
-    .slice(0, CURRICULUM_WARM_NODES);
-  if (frontier.length === 0) return;
-
-  /** A node's solid prerequisites, derived exactly as `consumeParams` does on
-   *  the client — the labels are part of the cache key, so a different
-   *  derivation here would write rows nobody ever reads. */
-  const prereqLabels = (node: ConceptNode): string[] =>
-    graph.edges
-      .filter(([, to, dashed]) => to === node.id && !dashed)
-      .map(([from]) => byId.get(from)?.label)
-      .filter((label): label is string => !!label);
-
-  after(async () => {
-    // The warm is real spend — six calls at the default depth — and it runs
-    // after the response, where nothing else would stop it. The month's
-    // ceiling is checked once for the whole pass; the learner's own daily
-    // quota is not, because this is the server's speculation, not their click.
-    if ((await generationBlocked(supabase, undefined, { daily: 0 })) !== null) {
-      logEvent("curriculum_warm_skipped", { user: userId, reason: "ceiling" });
-      return;
-    }
-    for (const node of frontier) {
-      // A learner who deleted the topic while this was running must stop being
-      // billed for it. The row is gone the moment the DELETE lands, so asking
-      // once per node is both the check and the cancellation.
-      if (topicId && !(await ownsTopic(supabase as never, topicId))) {
-        logEvent("curriculum_warm_cancelled", { user: userId, topic: topicId });
-        return;
-      }
-      for (const kind of ["consume", "socratic"] as const) {
-        try {
-          // Through resolveJob, so these hash to the row the learner's own
-          // request will later address.
-          const warm = resolveJob({
-            kind,
-            topic: body.topic,
-            interests: body.interests,
-            language: body.language,
-            nodeId: node.id,
-            nodeLabel: node.label,
-            ...(kind === "consume" ? { prereqLabels: prereqLabels(node) } : null),
-          });
-          if (!warm.key) continue;
-          const record = () =>
-            topicId
-              ? putContent(
-                  supabase as never,
-                  userId,
-                  topicId,
-                  { nodeId: node.id, kind },
-                  { cacheKey: warm.key! },
-                )
-              : Promise.resolve();
-          // Already generated — by an earlier warm, or by another learner on
-          // the same topic. Still record it: the payload exists, so this topic
-          // should own a pointer to it rather than re-deriving one on the
-          // learner's click.
-          if (await readContent(warm.key)) {
-            await record();
-            continue;
-          }
-          const jobId = crypto.randomUUID();
-          await logGenerationCalls(supabase, warm, { jobId, topicId });
-          writeContent(warm.key, warm.kind, await warm.run());
-          await record();
-          logEvent("curriculum_warm", { user: userId, kind, node: node.id });
-        } catch (err) {
-          logError("curriculum_warm_failed", err, { kind, node: node.id });
-        }
-      }
-    }
-  });
 }
 
 /**

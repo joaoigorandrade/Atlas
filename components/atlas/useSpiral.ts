@@ -156,7 +156,6 @@ export function useSpiral(deps: {
     graphRef,
     formRef,
     statesRef,
-    topicIdRef,
     cardsRef,
     setGraph,
     setStates,
@@ -1608,8 +1607,7 @@ export function useSpiral(deps: {
   /**
    * What the Review queue would generate right now: the card factory only runs
    * for touched nodes that have no cards yet. Derived in one place so a warm
-   * and the real entry address the same cache row.
-   */
+   * and the real entry address the same cache row. */
   const retainPlan = useCallback(() => {
     const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
     const touched = graphRef.current.nodes.filter(
@@ -1627,10 +1625,6 @@ export function useSpiral(deps: {
       key: `retain:${uncovered.map((n) => n.id).join(",")}`,
       params: {
         topic: formRef.current.topic,
-        // Retain is drafted from the nodes with no card yet, so it belongs to
-        // the topic rather than to any one node — it files under the empty node
-        // id, the same address the normalization gave it.
-        ...(topicIdRef.current ? { topicId: topicIdRef.current } : null),
         budgetMin,
         nodes: uncovered.map((n) => ({
           id: n.id,
@@ -1641,7 +1635,7 @@ export function useSpiral(deps: {
         language: languageRef.current,
       },
     };
-  }, [cardsRef, formRef, graphRef, statesRef, topicIdRef, languageRef]);
+  }, [cardsRef, formRef, graphRef, statesRef, languageRef]);
 
   /** Draft the day's new cards ahead of the click. The result is discarded —
    *  its point is filling the shared cache so opening Review is a lookup. */

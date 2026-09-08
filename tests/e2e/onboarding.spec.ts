@@ -17,9 +17,9 @@ test.describe("onboarding", () => {
 
     // …and it is persisted, which is what every other spec seeds from.
     await expect(async () => {
-      const row = await readRun(page.request);
-      expect(row?.subject).toBe(TOPIC);
-      expect(row?.snapshot.graph.nodes.length).toBeGreaterThan(1);
+      const run = await readRun(page.request);
+      expect(run?.subject).toBe(TOPIC);
+      expect(run?.graph.nodes.length).toBeGreaterThan(1);
     }).toPass();
   });
 });

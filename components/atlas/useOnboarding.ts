@@ -29,8 +29,7 @@ import {
 import { FAKE_MAP_CENTER } from "@/components/onboarding/fakeMap";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { Language } from "@/lib/i18n";
-import { logWarning } from "@/lib/log";
-import { createTopic, deleteTopic } from "@/lib/persistence";
+import { openTopic } from "@/components/atlas/topicLifecycle";
 import type { Screen } from "@/components/atlas/screen";
 import type { ToastChannel } from "@/components/atlas/useToast";
 import type { RunState } from "@/components/atlas/useRunState";
@@ -169,11 +168,10 @@ export function useOnboarding(deps: {
       scale,
     });
     // The previous map is not this topic's map, and everything below is keyed
-    // to its node ids. Clearing it all up front is what stops the assembly beat
-    // animating over the *old* territory, and — more importantly — what stops a
-    // failed build from persisting those nodes under the new subject name: the
-    // save is gated on a non-empty graph. It happens here rather than when the
-    // map lands because the map no longer lands at one moment.
+    // to its node ids. Clearing it up front stops the assembly beat animating
+    // over the *old* territory, and stops a failed build persisting those nodes
+    // under the new subject. Here rather than when the map lands, because the
+    // map no longer lands at one moment.
     setGraph(emptyGraph());
     setPositions({});
     setStates({});
@@ -193,41 +191,20 @@ export function useOnboarding(deps: {
     askedNodeIdsRef.current = [];
     nextDifficultyRef.current = "medium";
     maxCorrectDifficultyRef.current = null;
+    // Before the generation, not after — see `openTopic`.
+    const { id: created, abandon } = await openTopic(
+      { ...formRef.current, topic },
+      languageRef.current,
+      setTopicId,
+    );
+
+    // The clock starts after it, not before: `BUILD_MS` is the floor the
+    // *build* is held to, and the learner is watching concepts land, not a
+    // topic row being created. Timing it from before the round trip took that
+    // long off the map's head start and opened the placement panel over a map
+    // still streaming in underneath it.
     const started = Date.now();
     const openAt = () => Math.max(0, BUILD_MS - (Date.now() - started));
-
-    // The topic row is created before the map is generated, not after, because
-    // the server's post-build warm needs somewhere to file what it generates —
-    // and that warm runs the moment the map lands, while the learner is still
-    // answering placement questions. A build that fails or turns out to be too
-    // broad deletes the row again below; an empty topic must never reach the
-    // dashboard.
-    let created: string | null = null;
-    try {
-      const row = await createTopic({
-        subject: topic,
-        goal: formRef.current.goal,
-        interests: formRef.current.interests,
-        paretoPct: formRef.current.paretoPct,
-        examDate: formRef.current.examDate,
-        ...(languageRef.current ? { language: languageRef.current } : null),
-      });
-      created = row.id;
-      setTopicId(row.id);
-    } catch (err) {
-      // Not fatal: the map still builds and still draws. What is lost is the
-      // server-side warm's address, so the first phase generates on the click
-      // the way it used to.
-      logWarning("create_topic_failed", err);
-    }
-    /** Undo the row above — a build that produced no map owns nothing. */
-    const abandon = () => {
-      if (!created) return;
-      const id = created;
-      created = null;
-      setTopicId(null);
-      deleteTopic(id).catch((err: unknown) => logWarning("abandon_topic_failed", err));
-    };
 
     const params = {
       topic,

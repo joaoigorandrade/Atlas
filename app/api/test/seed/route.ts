@@ -11,7 +11,8 @@
 // and takes them away again.
 
 import { NextResponse } from "next/server";
-import { FIXTURES, resetTables, seedTable, seededTables } from "@/lib/server/fixtures";
+import { FIXTURES } from "@/lib/server/fixtures";
+import { resetTables, seedTable, seededTables } from "@/lib/server/fixtureTables";
 
 const gone = () => new NextResponse(null, { status: 404 });
 

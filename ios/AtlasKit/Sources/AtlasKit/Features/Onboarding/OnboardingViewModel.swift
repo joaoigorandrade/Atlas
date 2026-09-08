@@ -135,7 +135,6 @@ public final class OnboardingViewModel {
         maxCorrect = nil
 
         build = Task { [form] in
-            let opened = ContinuousClock.now
             var first: Task<DiagnosticQuestion, Error>?
             // The topic row is created before the map is generated, not after,
             // because the server's post-build warm needs somewhere to file what
@@ -144,6 +143,10 @@ public final class OnboardingViewModel {
             // below that produces no map deletes the row again; an empty topic
             // must never reach the dashboard.
             await store.createTopic(form)
+            // The clock starts after it: `buildFloor` is the floor the *build*
+            // is held to, and the learner is watching concepts land, not a
+            // topic row being created.
+            let opened = ContinuousClock.now
             do {
                 for try await event in await store.api.curriculum(form) {
                     switch event {

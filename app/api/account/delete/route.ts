@@ -31,8 +31,7 @@ export async function POST() {
   // `topics` cascades to everything a run is made of, and `profiles` is the
   // learner's own row, which hangs off auth.users rather than off a topic.
   const runs = await supabase.from("topics").delete().eq("user_id", userId);
-  if (!runs.error)
-    await supabase.from("profiles").delete().eq("user_id", userId);
+  if (!runs.error) await supabase.from("profiles").delete().eq("user_id", userId);
   // PostgREST's own prose used to go straight onto the wire from here. It is a
   // database's account of a database's problem — it says nothing a learner can
   // act on, and it says more than they should see.

@@ -112,7 +112,9 @@ export async function GET(request: Request) {
   // old scan over every run_states row looking for the freshest copy.
   const { data, error } = await admin
     .from("profiles")
-    .select("user_id, language, streak, best, freezes, last_day, met_today, usual_time, reminder_on, history")
+    .select(
+      "user_id, language, streak, best, freezes, last_day, met_today, usual_time, reminder_on, history",
+    )
     .eq("reminder_on", true);
   // Log the database's account of itself; don't publish it.
   if (error) {
@@ -179,10 +181,7 @@ const CACHE_TTL_DAYS = Number(process.env.CONTENT_CACHE_TTL_DAYS || 90);
 
 /** Drop shared cache rows nothing has read in a season. Best-effort: a failed
  *  prune costs storage, never content. */
-async function prune(
-  admin: SupabaseClient,
-  requestId: string,
-): Promise<number> {
+async function prune(admin: SupabaseClient, requestId: string): Promise<number> {
   if (CACHE_TTL_DAYS <= 0) return 0;
   const cutoff = new Date(Date.now() - CACHE_TTL_DAYS * 86_400_000).toISOString();
   let dropped = 0;

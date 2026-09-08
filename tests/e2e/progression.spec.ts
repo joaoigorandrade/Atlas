@@ -12,8 +12,9 @@ import {
   SECOND_NODE,
   openPhase,
   openRun,
+  gapIds,
   readRun,
-  type Snapshot,
+  type Run,
 } from "./helpers";
 
 /**
@@ -24,13 +25,13 @@ import {
  * happily return the *seed* instead of what the app just wrote. Every caller
  * states the change it is waiting for.
  */
-async function persisted(page: Page, until: (snap: Snapshot) => boolean = () => true) {
-  let snap: Snapshot | undefined;
+async function persisted(page: Page, until: (run: Run) => boolean = () => true) {
+  let snap: Run | undefined;
   await expect(async () => {
-    const row = await readRun(page.request);
-    expect(row?.snapshot).toBeTruthy();
-    expect(until(row!.snapshot)).toBe(true);
-    snap = row!.snapshot;
+    const run = await readRun(page.request);
+    expect(run).toBeTruthy();
+    expect(until(run!)).toBe(true);
+    snap = run!;
   }).toPass({ timeout: 20_000 });
   return snap!;
 }
@@ -140,14 +141,13 @@ test("feynman: a judged teach-back spawns the gap it found", async ({ page }) =>
   // The hand-off goes on to Connect — Feynman's advance is a step in the
   // spiral, not an exit to the map.
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", /connect|map/);
-  const snap = await persisted(
-    page,
-    (s) => ((s.spawnedIds ?? []) as string[]).length > 0,
+  // A gap is a node with the flag on it now, not an id in a second list — so
+  // "the gap is a real node on the persisted graph" is true by construction,
+  // and what is worth asserting is that one was spawned at all.
+  const snap = await persisted(page, (run) => gapIds(run).length > 0);
+  expect(snap.graph.nodes.map((n) => n.id)).toEqual(
+    expect.arrayContaining([gapIds(snap)[0]]),
   );
-  const gapIds = snap.spawnedIds as string[];
-  // …and the gap node is a real node on the persisted graph, not just an id.
-  const nodes = snap.graph.nodes.map((n) => n.id);
-  expect(nodes).toEqual(expect.arrayContaining([gapIds[0]]));
 });
 
 test("crucible: a graded attempt records a calibration reading", async ({ page }) => {

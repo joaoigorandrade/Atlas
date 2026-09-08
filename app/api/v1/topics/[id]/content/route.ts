@@ -52,7 +52,9 @@ export async function GET(request: Request, { params }: Params) {
       return apiError("notfound", { requestId: who.requestId });
 
     const rows = await readContentRows(who.db, id, addresses);
-    const keys = [...new Set(rows.map((r) => r.cacheKey).filter((k): k is string => !!k))];
+    const keys = [
+      ...new Set(rows.map((r) => r.cacheKey).filter((k): k is string => !!k)),
+    ];
     // One RPC for every pointer in the batch, not one per row.
     const payloads = keys.length ? await readManyContent(keys) : {};
 
