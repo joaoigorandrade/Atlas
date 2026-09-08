@@ -136,7 +136,11 @@ export async function POST(request: Request) {
     // A background warm is nobody's click: decline it silently, exactly as a
     // failed warm is declined, rather than surfacing a 429 no one asked for.
     if (prefetch) return new NextResponse(null, { status: 204 });
-    return apiError("rate_limit", { requestId });
+    // Which limit it was, on the wire: both answer 429, but "today's budget is
+    // spent" and "wait a few seconds" are different instructions, and a client
+    // that cannot tell them apart tells the learner to retry a cap that will
+    // not lift for hours.
+    return apiError("rate_limit", { requestId, reason: blocked });
   }
 
   // Accounting in one place — the background warm in startCurriculumWarm goes

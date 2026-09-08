@@ -1,6 +1,146 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "%@ — fundamentos" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — foundations"
+          }
+        }
+      }
+    },
+    "A ideia por trás: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The idea behind it: %@"
+          }
+        }
+      }
+    },
+    "Apoiando-se em respostas prontas — vamos reforçar a base primeiro." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leaning on being told — let's shore up the basics first."
+          }
+        }
+      }
+    },
+    "Apoiou-se na resposta pronta mais de uma vez na passagem Socrática" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leaned on being told outright more than once in the Socratic pass"
+          }
+        }
+      }
+    },
+    "As gerações estão pausadas por enquanto. Tudo o que já foi escrito continua aqui." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generating is paused for now. Everything already written is still here."
+          }
+        }
+      }
+    },
+    "Compreensão construída — com uma ajuda pelo caminho." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Understanding built — with a nudge along the way."
+          }
+        }
+      }
+    },
+    "Compreensão estabelecida — você reconstruiu isso sozinho." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Understanding established — you reconstructed it unaided."
+          }
+        }
+      }
+    },
+    "Construa a ideia · eu flagro raciocínios errados" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Construct the idea · I catch wrong turns"
+          }
+        }
+      }
+    },
+    "Fechar a lacuna · voltar ao mapa →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close the gap · back to the map →"
+          }
+        }
+      }
+    },
+    "Ouvir a última fala" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hear the last turn"
+          }
+        }
+      }
+    },
+    "Por hoje as gerações acabaram — voltam amanhã. Tudo o que já foi escrito continua aqui." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That's today's generating done — it resets tomorrow. Everything already written is still here."
+          }
+        }
+      }
+    },
+    "Reler isto primeiro · Consume →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-read this first · Consume →"
+          }
+        }
+      }
+    },
+    "Subponto reconstruído — essa lacuna pode se fechar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sub-point rebuilt — this gap can close."
+          }
+        }
+      }
+    },
+    "Voltar ao mapa →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to the map →"
+          }
+        }
+      }
+    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2997,7 +3137,6 @@
       }
     },
     "Pergunta %lld de %lld" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4103,17 +4242,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You haven't reasoned this out yet — want to?"
-          }
-        }
-      }
-    },
-    "Você chegou aqui pelo Consume" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You got here through Consume"
           }
         }
       }

@@ -6,12 +6,20 @@ import Networking
 public struct AtlasError: Error, Sendable {
     public let code: String
     public let message: String
+    /// The sub-case worth naming. A code says the request was declined; only
+    /// this can say *which* limit — "today's budget is spent" and "wait a few
+    /// seconds" are different instructions. Set by the server, never guessed.
+    public let reason: String?
     public let status: Int?
     public let requestId: String?
 
-    public init(code: String, message: String, status: Int? = nil, requestId: String? = nil) {
+    public init(
+        code: String, message: String, reason: String? = nil,
+        status: Int? = nil, requestId: String? = nil
+    ) {
         self.code = code
         self.message = message
+        self.reason = reason
         self.status = status
         self.requestId = requestId
     }
@@ -49,6 +57,7 @@ extension AtlasError {
         return AtlasError(
             code: body?["code"] ?? codeForStatus(response.statusCode),
             message: body?["error"] ?? "request failed (\(response.statusCode))",
+            reason: body?["reason"],
             status: response.statusCode,
             requestId: response.headers["x-atlas-request-id"]
         )
@@ -67,6 +76,7 @@ extension AtlasError {
         return AtlasError(
             code: text("code") ?? "upstream",
             message: text("message") ?? "stream died mid-flight",
+            reason: text("reason"),
             status: 200,
             requestId: text("requestId")
         )

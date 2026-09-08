@@ -45,6 +45,19 @@ public final class AtlasStore {
     /// replaced. See `note(reading:)`.
     public var consumeProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
 
+    /// The web's `socraticProgress` — one pass in progress per node id, held as
+    /// JSON for the reason above it: the browser's session carries keys this
+    /// client does not draw (`ruledOut`), and a phone must not drop them.
+    /// A pass is the one thing in the spiral that is a *conversation*, so
+    /// leaving the screen mid-pass has to keep it. See `SocraticSnapshot`.
+    public var socraticProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
+
+    /// What this learner keeps getting wrong, run-wide. A pass is discarded
+    /// when it ends; this is not — the judge is told the repeats
+    /// (`recurringMisconceptions`) so a confusion is named as a repeat instead
+    /// of caught cold again under the next concept.
+    public var misconceptions: [MisconceptionRecord] = [] { didSet { saveSoon() } }
+
     /// How often each lens has been opened. SPEC §6's adaptive modality is a
     /// tally and a marked chip, not a second content path: the way a learner
     /// reaches for "Analogia" three sections running is the app's only evidence
@@ -280,6 +293,49 @@ public extension AtlasStore {
         }
         consumeProgress[id] = .object(record)
     }
+
+    /// Put the reading back to the top, unread. What a flagged Socratic pass
+    /// hands *back* into — the reading didn't land, so it reopens whole rather
+    /// than at the section the learner stopped on, with nothing collapsed to
+    /// its takeaway. Mirrors the `reread` record in `advanceFromSocratic`.
+    func reopen(reading id: String) {
+        note(reading: id, idx: 0, handedOff: false)
+        guard var record = consumeProgress[id]?.fields else { return }
+        record["collapsed"] = .object([:])
+        consumeProgress[id] = .object(record)
+    }
+}
+
+// MARK: - The Socratic pass (screen 15)
+
+public extension AtlasStore {
+    /// A pass left half-answered on this node, or nil. Undecodable JSON is
+    /// nothing rather than a throw: a browser's session with a shape this
+    /// client cannot read is a pass that starts fresh, never a screen that
+    /// refuses to open.
+    func savedPass(_ id: String) -> SocraticSnapshot? {
+        guard let held = socraticProgress[id] else { return nil }
+        return try? held.decode(SocraticSnapshot.self)
+    }
+
+    /// Keep the pass as it stands. Called on every turn — the store's own
+    /// debounce is what makes that one request rather than twelve.
+    func note(pass: SocraticSnapshot) {
+        guard let encoded = try? JSONValue(encoding: pass) else { return }
+        socraticProgress[pass.nodeId] = encoded
+    }
+
+    /// The pass is over: nothing to resume, and the row must say so or every
+    /// later entry reopens a finished transcript.
+    func clearPass(_ id: String) {
+        guard socraticProgress[id] != nil else { return }
+        socraticProgress[id] = .null
+    }
+
+    /// File a caught misconception into the run-wide roll-up.
+    func file(misconception label: String, under node: String) {
+        misconceptions = recordMisconception(misconceptions, label, node: node)
+    }
 }
 
 // MARK: - Retain (screens 11, 19, 20)
@@ -512,6 +568,8 @@ public extension AtlasStore {
         calib = run.calibSamples
         reviewed = Set(run.reviewedNodes)
         consumeProgress = run.consumeProgress
+        socraticProgress = run.socraticProgress
+        misconceptions = run.misconceptions
         // Only when the topic records one: a run built before the field existed
         // has a genuinely unknown content language, and the device preference is
         // the honest fallback.
@@ -687,6 +745,7 @@ public extension AtlasStore {
                 "shakyReason": shakyReasons[node.id].map { .string($0.rawValue) } ?? .null,
                 "reviewed": .bool(reviewed.contains(node.id)),
                 "consumeProgress": consumeProgress[node.id] ?? .null,
+                "socraticProgress": socraticProgress[node.id] ?? .null,
             ]
             shots[node.id] = JSONValue.object(fields).compact
         }
@@ -707,6 +766,7 @@ public extension AtlasStore {
             "examDate": .string(examDate),
             "language": .string(language),
             "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
+            "misconceptions": (try? JSONValue(encoding: misconceptions)) ?? .array([]),
         ]).compact
     }
 
@@ -790,6 +850,7 @@ public extension AtlasStore {
                 delta.shakyReason = .some(shakyReasons[node.id])
                 delta.reviewed = reviewed.contains(node.id)
                 delta.consumeProgress = consumeProgress[node.id]
+                delta.socraticProgress = socraticProgress[node.id]
                 // Only a node the server has never seen needs its edges; an
                 // existing one's prerequisites are already rows, and re-sending
                 // them on every drag would be the write amplification this
@@ -819,6 +880,7 @@ public extension AtlasStore {
                     "examDate": .string(examDate),
                     "language": .string(language),
                     "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
+                    "misconceptions": (try? JSONValue(encoding: misconceptions)) ?? .array([]),
                 ]), token: token)
                 savedTopic = topic
             }
@@ -845,6 +907,8 @@ public extension AtlasStore {
             library[index].shakyReasons = shakyReasons
             library[index].reviewedNodes = reviewed.sorted()
             library[index].consumeProgress = consumeProgress
+            library[index].socraticProgress = socraticProgress
+            library[index].misconceptions = misconceptions
             library[index].calibSamples = calib
             // The mirror holds what the server acknowledged, never what the
             // screen hopes it did — so it is written here, after the write
@@ -927,6 +991,8 @@ public extension AtlasStore {
         calib = []
         reviewed = []
         consumeProgress = [:]
+        socraticProgress = [:]
+        misconceptions = []
     }
 
     /// `ATLAS_FIXTURES=1` boots straight into a demo run: the map and the node

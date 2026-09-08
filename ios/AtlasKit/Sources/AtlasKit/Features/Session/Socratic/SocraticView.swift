@@ -27,8 +27,26 @@ struct SocraticView: View {
 
     private func content(_ model: SocraticViewModel) -> some View {
         VStack(spacing: 0) {
-            PhaseBar(.socratic, title: model.node.label, back: { navigator.pop() }) {
-                helpDial(model)
+            // The clip stops on the way out. A read-aloud parked in its own
+            // sleep otherwise keeps speaking over the map the learner just
+            // went back to.
+            PhaseBar(.socratic, title: model.node.label,
+                     back: { model.stopReadAloud(); navigator.pop() }) {
+                HStack(spacing: 2) {
+                    if store.readAloudOn { speaker(model) }
+                    helpDial(model)
+                }
+            }
+
+            // How long the pass is, and how each probe closed. The pass buys
+            // and sells probes as it goes (`socratic.ts`'s `advance`), and this
+            // is the only place a learner can see that happen — without it the
+            // phase is a corridor of unknown length.
+            if !model.log.isEmpty {
+                SegmentBar(model.rail, height: 3, value: model.railValue)
+                    .padding(.horizontal, Metrics.gutter)
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
             }
 
             if model.log.isEmpty {
@@ -42,11 +60,29 @@ struct SocraticView: View {
                 // ending in "tente de novo" over a screen with nothing to tap.
                 Dock { CTAButton("Tentar de novo", tint: Phase.socratic.tint) { Task { await model.retry() } } }
             } else if model.done {
-                Dock { CTAButton("Seguir para o Feynman →", tint: Phase.socratic.tint) { model.advance() } }
+                doneDock(model)
             } else if !model.log.isEmpty && !model.awaiting {
                 answerDock(model)
             }
         }
+    }
+
+    /// Read the tutor's last turn out loud. Socratic is the one phase that is
+    /// genuinely a conversation, and the mic is already the other half of it.
+    private func speaker(_ model: SocraticViewModel) -> some View {
+        Button { model.toggleReadAloud() } label: {
+            Image(systemName: model.speaker.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                .font(.system(size: 17))
+                .foregroundStyle(model.speaker.speaking ? Phase.socratic.tint : Palette.inkMuted)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.variableColor.iterative, isActive: model.speaker.speaking)
+                .frame(width: Metrics.tap, height: Metrics.tap)
+        }
+        .pressable()
+        .animation(Motion.snap, value: model.speaker.speaking)
+        .accessibilityLabel("Ouvir a última fala")
+        .disabled(!model.canSpeak)
+        .opacity(model.speaker.loading ? 0.4 : 1)
     }
 
     /// Set the level, never cycle it — and say which one it is out loud, which
@@ -85,7 +121,11 @@ struct SocraticView: View {
         ScrollViewReader { scroll in
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Kicker("Você chegou aqui pelo Consume", size: 10.5)
+                    // What this phase is for, and the one promise it makes.
+                    // It used to claim the learner had arrived from the
+                    // reading, which a pass opened by skipping straight here
+                    // had never done.
+                    Kicker("Construa a ideia · eu flagro raciocínios errados", size: 10.5)
                     ForEach(model.log) { turn in
                         bubble(turn).id(turn.id)
                             // A turn arriving is the whole surface: it comes in
@@ -105,11 +145,19 @@ struct SocraticView: View {
                     if let trouble = model.dictation.trouble {
                         Text(verbatim: trouble.sentence).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
                     }
+                    if !model.speaker.message.isEmpty {
+                        Text(verbatim: model.speaker.message)
+                            .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.vertical, 20)
             }
+            // A conversation grows downwards from the composer, not from the
+            // top of the paper: one probe on a fresh pass used to float at the
+            // top of the screen with the whole page empty under it.
+            .defaultScrollAnchor(.bottom)
             .animation(Motion.standard, value: model.log.count)
             .animation(Motion.snap, value: model.judging)
             .animation(Motion.snap, value: model.awaiting)
@@ -142,8 +190,26 @@ struct SocraticView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 7) {
-                Kicker(verbatim: "Atlas", tint: tone(turn.quality), size: 9.5)
+                // A probe says which move it is making; a verdict says who is
+                // speaking. Without the move, a hint and a fresh question are
+                // the same serif under the same word.
+                Kicker(verbatim: turn.move ?? "Atlas", tint: tone(turn.quality), size: 9.5)
                 Text(verbatim: turn.text).font(.atlas(.serif, 17)).lineSpacing(4).foregroundStyle(Palette.ink)
+                // The judge names the wrong idea behind a caught answer. It
+                // used to be collected and never shown — so the learner read a
+                // colour where there was a sentence.
+                if let misconception = turn.misconception {
+                    Text(verbatim: String(localized: "A ideia por trás: \(misconception)"))
+                        .font(.atlas(.sans, 12.5))
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.top, 1)
+                }
+            }
+            // The tone as a rail rather than only a tinted word: a catch reads
+            // as a catch from across the bubble.
+            .padding(.leading, 11)
+            .overlay(alignment: .leading) {
+                Capsule().fill(tone(turn.quality).opacity(0.55)).frame(width: 2.5)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -156,6 +222,27 @@ struct SocraticView: View {
         case "correct": Palette.accent
         case "near", "wrong": Palette.amberInk
         default: Phase.socratic.tint
+        }
+    }
+
+    /// The end of the pass, which is not automatically an achievement: the line
+    /// says what it earned, and the CTA goes where that verdict sends them.
+    private func doneDock(_ model: SocraticViewModel) -> some View {
+        Dock {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 9) {
+                    Circle().fill(model.doneTint).frame(width: 8, height: 8)
+                    Text(model.doneLine)
+                        .font(.atlas(.sans, 13.5))
+                        .foregroundStyle(model.doneTint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                CTAButton(
+                    model.advanceLabel,
+                    tint: model.outcome == .flagged ? Palette.amberInk : Phase.socratic.tint
+                ) { model.advance() }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

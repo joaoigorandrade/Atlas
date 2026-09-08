@@ -89,6 +89,57 @@ public final class SessionViewModel: Identifiable {
         phase = next
     }
 
+    /// The Socratic pass closed — and "closed" is not automatically
+    /// "understood". Where the learner goes next is the outcome's call and not
+    /// the CTA's: a gap pass reconstructed unaided closes the gap and ends the
+    /// session; a pass that had to be told through hands *back* into the
+    /// reading with a real gap attached under it; anything else hands off to
+    /// the teach-back. Mirrors `advanceFromSocratic` in `useSpiral.ts`.
+    public func settleSocratic(_ outcome: SocraticOutcome) {
+        markWorked()
+        // Nothing left to resume: a finished pass that stays in the row reopens
+        // as a finished transcript on the next entry.
+        store.clearPass(node.id)
+        if node.gap == true {
+            // The gap was the whole concept here. Reconstructing it unaided is
+            // what takes it off the map; leaning on being told leaves it, red,
+            // exactly where it was.
+            if outcome == .unaided, store.graph.nodes.contains(where: { $0.id == node.id }) {
+                var graph = store.graph
+                graph.nodes.removeAll { $0.id == node.id }
+                graph.edges.removeAll { $0.from == node.id || $0.to == node.id }
+                store.graph = graph
+                store.states[node.id] = nil
+                store.clearPass(node.id)
+            }
+            // Either way the pass is over: a gap node has no teach-back to
+            // hand off to, so the map takes the screen back.
+            finished = true
+            return
+        }
+        guard outcome == .flagged else {
+            guard let next = phase.next else { return finished = true }
+            phase = next
+            return
+        }
+        // ponytail: a synthetic gap — no model-authored label or reason, unlike
+        // Feynman's and the Crucible's. Promote it to a generated one if
+        // "foundations" ever needs richer framing.
+        let spec = GapSpec(
+            id: "gap-soc-\(node.id)",
+            label: String(localized: "\(node.label) — fundamentos"),
+            reason: String(localized: "Apoiou-se na resposta pronta mais de uma vez na passagem Socrática"),
+            dx: -140, dy: 150
+        )
+        store.graph = spawnGap(store.graph, parentId: node.id, spec)
+        store.states[spec.id] = .gap
+        // The flag on its own would be passive. A pass that had to be told
+        // through is a reading that didn't land, so the hand-off runs backwards
+        // — into the reading, reopened at the top with nothing collapsed.
+        store.reopen(reading: node.id)
+        phase = .consume
+    }
+
     /// Connect closes: the concept is understood and wired, but nothing has
     /// proven it transfers. That is exactly Shaky — `connect-complete`.
     public func finishConnect() {
