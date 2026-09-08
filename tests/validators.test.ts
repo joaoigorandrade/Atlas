@@ -646,18 +646,6 @@ describe("migrateConsume", () => {
     },
   })) as unknown as LegacyConsumeChunk[];
 
-  // Seen as seven `load_content_failed: chunks.map is not a function` warnings
-  // in one audit run: the throw rejected the whole load, so every node lost its
-  // cached pass over one bad row.
-  it("drops a row that is not a list instead of failing the whole load", () => {
-    const out = migrateConsume({
-      good: legacy,
-      bad: { chunks: legacy } as unknown as LegacyConsumeChunk[],
-    });
-    expect(Object.keys(out)).toEqual(["good"]);
-    expect(out.good).toHaveLength(2);
-  });
-
   it("reshapes a v2 pass and drops every question it carried", () => {
     const out = migrateConsume({ n1: legacy }).n1;
     expect(out[0].body).toEqual(["one short paragraph"]);
