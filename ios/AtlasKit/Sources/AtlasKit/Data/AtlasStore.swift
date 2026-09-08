@@ -164,11 +164,6 @@ public final class AtlasStore {
     /// The `warm.revision` last written to `run_states.caches`. What keeps the
     /// generated content out of the upsert until a generation has landed.
     private var savedWarm = 0
-    /// True once `run_states.caches` for the open run has actually been read —
-    /// or when there is nothing to read, as for a map built on this device.
-    /// `cachesRow` merges over what was loaded, so uploading before that read
-    /// lands would delete every bucket only the browser fills.
-    private var cachesLoaded = true
 
     /// The signed-in learner, or nil for the auth screens. Writing it is the one
     /// way the bearer token reaches `AtlasAPI` and the keychain.
@@ -426,7 +421,6 @@ public extension AtlasStore {
             if let freshest = mirrored.first {
                 open(freshest)
                 seedWarm(local.content(topicId: freshest.id))
-                cachesLoaded = true
             }
             // Drawn: the shell can stop holding onboarding back, and the
             // revalidation below runs behind an interactive map.
@@ -446,11 +440,19 @@ public extension AtlasStore {
         local.replace(topics: topics)
         adopt(profile)
         guard let freshest = topics.first else { return }
-        // Re-open when nothing was drawn, or when the server's copy is newer
-        // than the one on disk — another device having moved the map on.
+        // Re-open when nothing was drawn, or when the server's copy of the open
+        // map is newer than the one on disk — another device having moved it on.
+        // A *different* map being freshest is deliberately not a reason to
+        // re-open: the learner is looking at this one.
         let stale = mirrored.first.map { $0.id != freshest.id || $0.updatedAt < freshest.updatedAt } ?? true
-        guard graph.nodes.isEmpty || (stale && freshest.id == topicId) else { return }
-        open(freshest)
+        if graph.nodes.isEmpty || (stale && freshest.id == topicId) {
+            open(freshest)
+        }
+        // Outside the branch on purpose. Content is refreshed on every load,
+        // not only on the loads that re-open the map: a reading generated in a
+        // browser reaches the phone through `node_content`, and skipping this
+        // whenever the mirror had already painted meant the phone regenerated
+        // content it in fact owned.
         await hydrateContent()
     }
 
@@ -485,7 +487,6 @@ public extension AtlasStore {
         guard topicId == self.topicId else { return }
         seedWarm(items)
         local.save(items, topicId: topicId)
-        cachesLoaded = true
     }
 
     /// Point the live run at a saved one. Every write here is the store being
@@ -496,7 +497,6 @@ public extension AtlasStore {
         defer { quiet = wasQuiet }
         loaded = run
         topicId = run.id
-        cachesLoaded = false
         warm.clear()
         deck = []
         forecast = []
@@ -588,7 +588,6 @@ public extension AtlasStore {
         defer { quiet = false }
         loaded = nil
         topicId = nil
-        cachesLoaded = true
         savedNodes = [:]
         savedCards = [:]
         savedTopic = ""
@@ -624,7 +623,6 @@ public extension AtlasStore {
         quiet = true
         loaded = nil
         topicId = nil
-        cachesLoaded = true
         savedNodes = [:]
         savedCards = [:]
         savedTopic = ""
