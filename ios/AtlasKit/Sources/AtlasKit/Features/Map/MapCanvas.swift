@@ -28,83 +28,12 @@ struct MapTransform: Equatable {
             scale: scale
         )
     }
-
-    /// The band a pinch may leave the fit in, matching the web's
-    /// `Math.min(1.7, Math.max(0.4, …))` (`components/atlas/useCanvas.ts:59`).
-    /// Unbounded zoom is unrecoverable: every node ends up off-screen.
-    func scaled(_ factor: CGFloat, about anchor: CGPoint, within fit: CGFloat) -> MapTransform {
-        let target = min(max(scale * factor, fit * 0.4), fit * 1.7)
-        guard scale > 0 else { return self }
-        // Anchored on the pinch centroid, like the web: whatever is under the
-        // fingers stays under the fingers.
-        let applied = target / scale
-        return MapTransform(
-            offset: CGSize(width: anchor.x - (anchor.x - offset.width) * applied,
-                           height: anchor.y - (anchor.y - offset.height) * applied),
-            scale: target
-        )
-    }
-
-    /// Keeps a corner of the graph on screen. A flick with nothing holding it
-    /// leaves the learner looking at blank paper with no way back.
-    ///
-    /// ponytail: a hard clamp, no rubber-band. Add the elastic overshoot when
-    /// the edge starts feeling like a wall rather than an end.
-    func bounded(_ bounds: CGRect, in size: CGSize, margin: CGFloat = 60) -> MapTransform {
-        guard !bounds.isNull, size.width > margin * 2, size.height > margin * 2 else { return self }
-        var held = self
-        held.offset.width = min(max(offset.width, margin - bounds.maxX * scale),
-                                size.width - margin - bounds.minX * scale)
-        held.offset.height = min(max(offset.height, margin - bounds.maxY * scale),
-                                 size.height - margin - bounds.minY * scale)
-        return held
-    }
-
-    /// Puts one node in the middle of the viewport, keeping the current zoom.
-    func centred(on node: ConceptNode, in size: CGSize) -> MapTransform {
-        MapTransform(
-            offset: CGSize(width: size.width / 2 - node.x * scale, height: size.height / 2 - node.y * scale),
-            scale: scale
-        )
-    }
 }
 
-/// `Canvas` captures the values its renderer closes over, so SwiftUI has
-/// nothing to interpolate when the transform changes — `jump`'s animation used
-/// to snap. A `View` that is `Animatable` gives it the hook: SwiftUI walks
-/// `animatableData` and re-evaluates the body a frame at a time.
-extension MapTransform: Animatable {
-    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {
-        get { .init(.init(offset.width, offset.height), scale) }
-        set {
-            offset = CGSize(width: newValue.first.first, height: newValue.first.second)
-            scale = newValue.second
-        }
-    }
-}
-
-/// The widest disc the map draws — a frontier node and its halo. Shared with
-/// `nodeHit` so the glow a learner aims at is the thing they hit.
+/// The widest disc the map draws — a frontier node and its halo.
 enum NodeDisc {
     static let radius: CGFloat = 15
     static let halo: CGFloat = 1.7
-}
-
-/// The nearest node under a tap, or nil for empty canvas. The reach is a tap
-/// target, not the drawn radius — the design's 13pt circles are far under 44pt.
-///
-/// One pass, no intermediate arrays: this runs on every tap over a graph that
-/// can be hundreds of nodes long.
-func nodeHit(_ graph: ConceptGraph, _ transform: MapTransform, at point: CGPoint,
-             reach: CGFloat = max(Metrics.tap / 2, NodeDisc.radius * NodeDisc.halo)) -> ConceptNode? {
-    var best: (node: ConceptNode, distance: CGFloat)?
-    for node in graph.nodes {
-        let at = transform.place(node)
-        let distance = hypot(at.x - point.x, at.y - point.y)
-        guard distance <= reach, best.map({ distance < $0.distance }) ?? true else { continue }
-        best = (node, distance)
-    }
-    return best?.node
 }
 
 /// Everything a redraw needs that the transform never changes: the edges
@@ -127,9 +56,6 @@ final class PreparedGraph {
     /// Edges naming a node the graph doesn't have are dropped here rather than
     /// looked up and skipped sixty times a second.
     let links: [Link]
-    /// The graph's model-space box, so the pan clamp doesn't walk every node on
-    /// every frame. `.null` for an empty graph — nothing to hold on screen.
-    let bounds: CGRect
     private var metrics: [Key: CGSize] = [:]
 
     private struct Key: Hashable {
@@ -142,7 +68,6 @@ final class PreparedGraph {
 
     init(_ graph: ConceptGraph) {
         self.graph = graph
-        bounds = graph.nodes.reduce(CGRect.null) { $0.union(CGRect(x: $1.x, y: $1.y, width: 0, height: 0)) }
         let byId = Dictionary(graph.nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         links = graph.edges.compactMap { edge in
             guard let a = byId[edge.from], let b = byId[edge.to] else { return nil }
@@ -177,7 +102,6 @@ func drawGraph(
     _ shown: [String: NodeState],
     _ view: MapTransform,
     viewport: CGSize,
-    selected: String? = nil,
     labels: Bool = true
 ) {
     // At any real zoom most of a generated map is off-screen, and off-screen
@@ -223,18 +147,15 @@ func drawGraph(
         // inside the scaled transform (`MapCanvas.tsx`) and discs grow with the
         // zoom. On touch a disc is a tap target, so pinching spreads the map
         // apart at a constant 44pt reach instead of shrinking what can be hit.
-        let radius: CGFloat = state == .frontier || node.id == selected ? NodeDisc.radius : (node.gap == true ? 11 : isLit ? 13 : 10)
+        let radius: CGFloat = state == .frontier ? NodeDisc.radius : (node.gap == true ? 11 : isLit ? 13 : 10)
         // The frontier's halo is the design's only glow — it is what makes
         // "where do I go next" readable at a glance. One soft disc and a ring,
         // not two stacked discs: two adjacent frontiers used to merge into one
         // amber cloud with no nodes visible inside it.
-        let outer = state == .frontier || node.id == selected ? radius * NodeDisc.halo : radius
+        let outer = state == .frontier ? radius * NodeDisc.halo : radius
         if state == .frontier {
             context.fill(circle(point, outer), with: .color(state.color.opacity(0.14)))
             context.stroke(circle(point, outer), with: .color(state.color.opacity(0.30)), lineWidth: 1.5)
-        }
-        if node.id == selected, state != .frontier {
-            context.stroke(circle(point, outer), with: .color(Palette.ink.opacity(0.25)), lineWidth: 1.5)
         }
         // A paper ring and a paper fill first: nodes that sit close together
         // still read as two, and the edges running under a pale node stop
@@ -245,7 +166,7 @@ func drawGraph(
         context.stroke(circle(point, radius), with: .color(Palette.ink.opacity(isLit ? 0.10 : 0.06)), lineWidth: 1)
 
         taken.append(CGRect(x: point.x - outer, y: point.y - outer, width: outer * 2, height: outer * 2))
-        if labels, state == .frontier || state == .shaky || node.id == selected {
+        if labels, state == .frontier || state == .shaky {
             pending.append((node, point, radius, state))
         }
     }
@@ -285,24 +206,4 @@ private func labelBox(_ point: CGPoint, _ radius: CGFloat, _ size: CGSize, above
         width: size.width,
         height: size.height
     )
-}
-
-/// The map as a view, so a transform change can be animated. Everything the
-/// renderer needs beyond the transform is fixed for the frame.
-struct GraphCanvas: View, Animatable {
-    var transform: MapTransform
-    let prepared: PreparedGraph
-    let shown: [String: NodeState]
-    let selected: String?
-
-    nonisolated var animatableData: MapTransform.AnimatableData {
-        get { transform.animatableData }
-        set { transform.animatableData = newValue }
-    }
-
-    var body: some View {
-        Canvas { context, size in
-            drawGraph(&context, prepared, shown, transform, viewport: size, selected: selected)
-        }
-    }
 }

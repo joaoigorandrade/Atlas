@@ -1,8 +1,10 @@
 import Navigation
 import SwiftUI
 
-/// "Mapa" — the canvas, the frontier jump, and the persistent sheet that says
-/// where the run stands. Selecting a node opens the node drawer through the
+/// "Mapa" — the trail, and the persistent sheet that says where the run stands.
+/// The map read as one walk down the screen, foundations at the top and the
+/// frontier somewhere below, rather than a graph the learner has to pan around
+/// to find themselves on. Selecting a step opens the node drawer through the
 /// navigator; starting a pass is pushed from there.
 public struct MapView: View {
     @Environment(AtlasStore.self) private var store
@@ -26,12 +28,12 @@ public struct MapView: View {
                 }
             }
 
-            canvasLayer
+            trail
             sheet
         }
         .background(Palette.paper)
-        // A pass ending changes the map underneath this screen: the frontier
-        // count moves, the sheet's next node changes, the mastery bar fills.
+        // A pass ending changes the trail underneath this screen: the frontier
+        // count moves, a step's disc fills, the sheet's next node changes.
         .animation(Motion.standard, value: store.frontier.count)
         // The drawer closing takes the highlight with it.
         .onChange(of: navigator.activeSheet) { _, sheet in
@@ -66,103 +68,92 @@ public struct MapView: View {
         navigator.openSheet(.nodeDetail(node))
     }
 
-    // MARK: - Canvas
+    // MARK: - The trail
 
-    private var canvasLayer: some View {
+    private var trail: some View {
+        // One read of the width: the layout is built against it, and a
+        // GeometryReader per level would re-measure the same number for each.
         GeometryReader { geo in
-            // Keep this read inside the GeometryReader: Observation tracks per
-            // property, so a pan frame invalidates this closure only. Hoisted
-            // two lines up it would put the sheet's percentage animation and
-            // the frontier pill on the drag loop.
-            let view = model.transform
-            let prepared = model.prepared(store.graph)
-            GraphCanvas(transform: view, prepared: prepared, shown: store.display,
-                        selected: model.selection?.id)
-            .contentShape(.rect)
-            .gesture(
-                // From the first pixel: the default 10pt minimum arrives as a
-                // 10pt jump on the first frame. A tap produces no drag update,
-                // so `onTapGesture` still wins short touches.
-                //
-                // Pan only, on purpose: one finger cannot mean both "move the
-                // map" and "move this node", and on a phone-sized viewport
-                // panning is the one worth having. Rearranging a map is a desk
-                // job — the browser owns the drag, and the positions it writes
-                // are folded onto the nodes on load (`AtlasRun.init`), so
-                // this screen draws whatever layout the learner arranged there.
-                DragGesture(minimumDistance: 0)
-                    .onChanged { model.pan($0.translation) }
-                    .onEnded { _ in model.endPan() }
-                    .simultaneously(with: MagnifyGesture()
-                        .onChanged { model.magnify($0.magnification, around: $0.startLocation) }
-                        .onEnded { _ in model.endZoom() })
-            )
-            // Simultaneous, not a separate `.onTapGesture`: the pan above
-            // recognises from the first pixel, so a tap gesture added beside it
-            // never gets the touch. A spatial tap fails the moment the finger
-            // travels, so panning still wins a real drag.
-            .simultaneousGesture(SpatialTapGesture().onEnded { tap in
-                if let node = model.node(store.graph, at: tap.location) { open(node) }
-            })
-            // Only on opening a node: closing the drawer clears the selection,
-            // and a buzz on dismiss reads as a second, phantom tap.
-            .sensoryFeedback(.selection, trigger: model.selection?.id) { _, new in new != nil }
-            .onAppear { model.fit(store.graph, in: geo.size) }
-            .onChange(of: geo.size) { _, size in model.resize(store.graph, in: size) }
-            // Another map opened underneath this screen — "Seus mapas" switches
-            // the run without leaving the tab, and the old fit points at
-            // coordinates the new graph has no nodes near.
-            .onChange(of: store.subject) { _, _ in model.fit(store.graph, in: geo.size) }
+            let map = model.trail(store.graph, width: geo.size.width)
+            ScrollViewReader { proxy in
+                ScrollView([.horizontal, .vertical]) {
+                    ZStack(alignment: .topLeading) {
+                        // Every edge in one canvas, over the whole map: an edge
+                        // reaching back three levels has to be drawn across the
+                        // bands it crosses, and a canvas per band would clip it.
+                        Canvas { context, _ in draw(map, into: &context) }
+                            .frame(width: map.size.width, height: map.size.height)
+                        // The bands are real views, in order, so the frontier
+                        // can be scrolled to — a concept placed with `.position`
+                        // has the band's frame, not its own.
+                        VStack(spacing: 0) {
+                            ForEach(Array(map.levels.enumerated()), id: \.offset) { level, row in
+                                ZStack {
+                                    ForEach(row) { placed in
+                                        NodeMark(
+                                            node: placed.node,
+                                            state: store.display[placed.id] ?? .unknown,
+                                            selected: model.selection?.id == placed.id
+                                        ) { open(placed.node) }
+                                        .frame(width: TrailMap.slot - 12)
+                                        .position(x: placed.at.x, y: TrailMap.band / 2)
+                                    }
+                                }
+                                .frame(width: map.size.width, height: TrailMap.band)
+                                .id(level)
+                            }
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                // Landing on the frontier is the whole point: the level the
+                // learner is working on, not the foundations they finished
+                // weeks ago. No animation — this is where the screen opens.
+                .onAppear { show(map, proxy) }
+                // Another map opened underneath this screen: "Seus mapas"
+                // switches the run without leaving the tab, and the scroll is
+                // still parked on a level the new map may not have.
+                .onChange(of: store.subject) { _, _ in show(map, proxy) }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .overlay(alignment: .bottomTrailing) { controls.padding(16) }
     }
 
-    /// The two things a learner can ask of the view itself: put it back, and
-    /// take me to the next node.
-    private var controls: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            if model.moved {
-                Button { model.reframe(store.graph) } label: {
-                    Image(systemName: "arrow.down.left.and.arrow.up.right")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Palette.ink)
-                        .frame(width: Metrics.tap, height: Metrics.tap)
-                        .background(Palette.card, in: .circle)
-                        .overlay { Circle().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
-                        .shadow(color: Palette.ink.opacity(0.10), radius: 10, y: 6)
-                }
-                .pressable()
-                .accessibilityLabel(Text("Enquadrar o mapa"))
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
-            }
-            frontierButton
-        }
-        .animation(Motion.standard, value: model.moved)
+    private func show(_ map: TrailMap, _ proxy: ScrollViewProxy) {
+        guard let target = store.frontier.first,
+              let placed = map.placed.first(where: { $0.id == target.id }) else { return }
+        // The band is the full width of the map, so the anchor has to carry the
+        // horizontal position too: on a level wide enough to scroll, `.center`
+        // would centre the whole level and leave the frontier off to one side.
+        proxy.scrollTo(placed.level, anchor: UnitPoint(x: placed.at.x / map.size.width, y: 0.5))
     }
 
-    @ViewBuilder
-    private var frontierButton: some View {
-        if let target = store.frontier.first {
-            Button {
-                model.jump(to: target)
-            } label: {
-                HStack(spacing: 8) {
-                    Circle().fill(NodeState.frontier.color).frame(width: 8, height: 8)
-                        .shadow(color: NodeState.frontier.color, radius: 3)
-                    Text("Ir para a fronteira").font(.atlas(.sans, 13.5)).foregroundStyle(Palette.ink)
-                }
-                .padding(.horizontal, 16)
-                .frame(minHeight: Metrics.tap)
-                .background(Palette.card, in: .capsule)
-                .overlay { Capsule().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
-                .shadow(color: Palette.ink.opacity(0.10), radius: 10, y: 6)
-            }
-            .pressable()
-            // It appears the moment a frontier exists and goes when the map is
-            // finished — both are worth a beat.
-            .transition(.scale(scale: 0.8).combined(with: .opacity))
+    /// The edges, drawn top to bottom. Direction is the layout's job — a
+    /// prerequisite is always above what it unlocks — so there are no
+    /// arrowheads to keep the map quiet at a glance.
+    private func draw(_ map: TrailMap, into context: inout GraphicsContext) {
+        for link in map.links {
+            // Off the bottom of one disc and into the top of the next, so an
+            // edge never crosses the disc it starts from.
+            let from = CGPoint(x: link.from.x, y: link.from.y + 17)
+            let to = CGPoint(x: link.to.x, y: link.to.y - 19)
+            let reach = (to.y - from.y) * 0.45
+            var path = Path()
+            path.move(to: from)
+            path.addCurve(to: to,
+                          control1: CGPoint(x: from.x, y: from.y + reach),
+                          control2: CGPoint(x: to.x, y: to.y - reach))
+            // The last step into a frontier concept is the one the learner is
+            // about to take: it gets the colour, everything else stays hairline.
+            let next = store.display[link.into] == .frontier
+            context.stroke(
+                path,
+                with: .color(next
+                    ? NodeState.frontier.color.opacity(0.5)
+                    : Palette.ink.opacity(link.dashed ? 0.09 : 0.15)),
+                style: .init(lineWidth: next ? 2 : 1.4, lineCap: .round,
+                             dash: link.dashed ? [4, 5] : [])
+            )
         }
     }
 
@@ -219,5 +210,119 @@ public struct MapView: View {
         .background(Palette.cardAlt)
         .clipShape(.rect(topLeadingRadius: 18, topTrailingRadius: 18))
         .overlay(alignment: .top) { Divider().overlay(Palette.hairline) }
+    }
+}
+
+// MARK: - One concept
+
+/// A concept on the map: the disc, its name under it, and what it is called
+/// when that is worth saying. Everything about a level's arrangement is the
+/// layout's business — this only has to draw one of them.
+private struct NodeMark: View {
+    let node: ConceptNode
+    let state: NodeState
+    let selected: Bool
+    let open: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    /// The frontier is the biggest disc on the map and untouched territory the
+    /// smallest — size carries "where am I" before colour does.
+    private var diameter: CGFloat {
+        switch state {
+        case .frontier: 28
+        case .unknown: 22
+        case .gap: 24
+        default: 25
+        }
+    }
+
+    var body: some View {
+        Button(action: open) {
+            VStack(spacing: 6) {
+                // A fixed zone, so every disc on a level sits on the same line
+                // whatever size its state gives it.
+                disc.frame(height: 52)
+                Text(verbatim: node.label)
+                    .font(.atlas(.serif, state == .frontier ? 14.5 : 13.5))
+                    .foregroundStyle(state == .unknown ? Palette.inkMuted : Palette.ink)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    // A name is never printed over an edge, only in the paper
+                    // around one: an edge from three levels up runs straight
+                    // through the middle of this level on its way past.
+                    .padding(.horizontal, 5)
+                    .background(Palette.paper.opacity(0.92), in: .rect(cornerRadius: 7))
+                // Untouched territory says nothing: the pale disc is the whole
+                // message, and a grid of "Desconhecido" under the half of the
+                // map nobody has reached is noise.
+                if state != .unknown {
+                    Text(state.headline)
+                        .font(.atlas(.sans, 10.5))
+                        .foregroundStyle(state == .frontier ? Palette.amberInk : Palette.inkMuted)
+                        .lineLimit(1)
+                        .padding(.horizontal, 5)
+                        .background(Palette.paper.opacity(0.92), in: .capsule)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(Text("Abrir o conceito"))
+    }
+
+    private var disc: some View {
+        let size = diameter
+        return ZStack {
+            // The glow is the design's one flourish, and every lit concept gets
+            // it — the frontier's is simply the brightest.
+            if state != .unknown {
+                Circle().fill(state.color.opacity(state == .frontier ? 0.16 : 0.10))
+                    .frame(width: size * 1.75, height: size * 1.75)
+                Circle().strokeBorder(state.color.opacity(state == .frontier ? 0.4 : 0.25), lineWidth: 1.5)
+                    .frame(width: size * 1.75, height: size * 1.75)
+            }
+            if state == .frontier {
+                // The map's only motion, and it is the one thing worth
+                // animating: where to go next. Under Reduce Motion the ring
+                // above still marks it.
+                Circle().strokeBorder(state.color.opacity(0.45), lineWidth: 1.5)
+                    .frame(width: size, height: size)
+                    .scaleEffect(pulsing && !reduceMotion ? 1.75 : 1)
+                    .opacity(pulsing && !reduceMotion ? 0 : 0.9)
+                    .animation(
+                        reduceMotion ? nil : .easeOut(duration: 1.9).repeatForever(autoreverses: false),
+                        value: pulsing
+                    )
+            }
+            // A paper ring first, so the edges running under a pale disc stop
+            // showing through it.
+            Circle().fill(Palette.paper).frame(width: size + 7, height: size + 7)
+            Circle().fill(state.color.opacity(state == .unknown ? 0.4 : 1))
+                .frame(width: size, height: size)
+                .shadow(color: state.color.opacity(state == .unknown ? 0 : 0.3), radius: 5, y: 2)
+            if selected {
+                Circle().strokeBorder(Palette.ink.opacity(0.3), lineWidth: 1.5)
+                    .frame(width: size * 1.75 + 7, height: size * 1.75 + 7)
+            }
+            glyph
+        }
+        .task { pulsing = true }
+    }
+
+    /// What the disc carries: a tick for a concept already learned, a pip for
+    /// one the learner can start now, nothing at all for territory ahead.
+    @ViewBuilder
+    private var glyph: some View {
+        if state.isLearned {
+            Image(systemName: "checkmark")
+                .font(.system(size: diameter * 0.44, weight: .bold))
+                .foregroundStyle(Palette.accentInk)
+        } else if state == .frontier {
+            Circle().fill(Palette.accentInk).frame(width: 7, height: 7)
+        }
     }
 }

@@ -437,6 +437,16 @@
         }
       }
     },
+    "Abrir o conceito" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the concept"
+          }
+        }
+      }
+    },
     "Abrir o mapa →" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1556,17 +1566,6 @@
         }
       }
     },
-    "Enquadrar o mapa" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Frame the map"
-          }
-        }
-      }
-    },
     "Ensinar de novo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2245,17 +2244,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Go straight to the map"
-          }
-        }
-      }
-    },
-    "Ir para a fronteira" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Go to the frontier"
           }
         }
       }

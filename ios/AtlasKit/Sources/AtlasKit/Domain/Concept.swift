@@ -18,6 +18,22 @@ public enum NodeState: String, Codable, Sendable, CaseIterable {
 
     /// A prerequisite is met once the node has been learned at least once.
     var isLearned: Bool { self == .learning || self == .shaky || self == .mastered }
+
+    /// What the state is called, wherever one is named to a learner — the
+    /// drawer's heading and the trail's caption are the same sentence, and two
+    /// hand-written switches are how they drift a word apart.
+    public var headline: LocalizedStringKey {
+        switch self {
+        case .frontier: "Fronteira · pronto"
+        case .learning: "Aprendendo"
+        case .shaky: "Instável"
+        case .mastered: "Dominado"
+        case .gap: "Lacuna"
+        // `STATE_LABEL_PT` names the state; the drawer's CTA already says
+        // "Bloqueado", which is the *consequence* of it.
+        case .unknown: "Desconhecido"
+        }
+    }
 }
 
 /// What is actually stored per node. `frontier` is never stored — it is derived

@@ -122,18 +122,7 @@ final class NodeDetailViewModel {
             .map { ($0.label, shown[$0.id] ?? .unknown) }
     }
 
-    var headline: LocalizedStringKey {
-        switch state {
-        case .frontier: "Fronteira · pronto"
-        case .learning: "Aprendendo"
-        case .shaky: "Instável"
-        case .mastered: "Dominado"
-        case .gap: "Lacuna"
-        // `STATE_LABEL_PT` names the state; the CTA below already says
-        // "Bloqueado", which is the *consequence* of it.
-        case .unknown: "Desconhecido"
-        }
-    }
+    var headline: LocalizedStringKey { state.headline }
 
     func skip() { store.states[node.id] = .mastered }
 }

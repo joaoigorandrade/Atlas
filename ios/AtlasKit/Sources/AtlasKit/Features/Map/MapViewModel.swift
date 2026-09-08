@@ -1,109 +1,145 @@
 import Observation
 import SwiftUI
 
-/// The canvas's own state: where the map is, how far it is zoomed, and which
-/// node is highlighted. It owns no navigation — tapping a node answers *which*
-/// node, and the view asks the navigator to open it.
+/// The map laid out in levels: every concept exactly once, at its own depth,
+/// with the real edges between them — including the ones that reach back
+/// several levels, and the levels that hold half a dozen concepts side by side.
+///
+/// Depth is the longest path from a root, not `ConceptNode.g`: `g` is whatever
+/// the generator wrote and defaults to zero on a map built before it existed,
+/// which lays every concept out on one line. The edges are the thing the layout
+/// has to agree with, so the edges are what it counts.
+struct TrailMap: Equatable {
+    /// A concept and where it sits, in content space.
+    struct Placed: Identifiable, Equatable {
+        let node: ConceptNode
+        let level: Int
+        /// The centre of its disc. `y` is the middle of the level's band, so a
+        /// level reads as one line straight across.
+        let at: CGPoint
+
+        var id: String { node.id }
+    }
+
+    /// One edge, resolved to the two points it runs between. Edges naming a
+    /// node the graph doesn't have are dropped when the map is built rather
+    /// than looked up and skipped on every redraw.
+    struct Link: Equatable {
+        let from: CGPoint
+        let to: CGPoint
+        /// The destination id, so the renderer can ask whether this is the last
+        /// step into the frontier without re-reading the node.
+        let into: String
+        let dashed: Bool
+    }
+
+    /// A level's height, and the width one concept is given inside it. The band
+    /// has to hold a disc, two lines of name and a state under it; the slot is
+    /// what a name can be set in before it starts hyphenating.
+    static let band: CGFloat = 134
+    static let slot: CGFloat = 128
+
+    let levels: [[Placed]]
+    let links: [Link]
+    /// The whole map's size. Wider than the screen when a level holds more
+    /// concepts than fit across it — that is what the horizontal scroll is for.
+    let size: CGSize
+
+    var placed: [Placed] { levels.flatMap { $0 } }
+
+    init(_ graph: ConceptGraph, width: CGFloat) {
+        // Solid edges only, as everywhere else: a dashed edge hangs a gap off
+        // its parent and unlocks nothing, so it must not push it down a level.
+        var prereqs: [String: [String]] = [:]
+        for edge in graph.edges where !edge.dashed { prereqs[edge.to, default: []].append(edge.from) }
+
+        var depth: [String: Int] = [:]
+        var open: Set<String> = []
+        // Memoised, and a cycle stops at the node that closes it instead of
+        // recurring forever. A generated map is a DAG, but nothing on the wire
+        // enforces that, and an infinite recursion here hangs the map tab.
+        func level(_ id: String) -> Int {
+            if let known = depth[id] { return known }
+            guard open.insert(id).inserted else { return 0 }
+            defer { open.remove(id) }
+            let found = (prereqs[id] ?? []).map(level).max().map { $0 + 1 } ?? 0
+            depth[id] = found
+            return found
+        }
+
+        let ranked = Dictionary(grouping: graph.nodes) { level($0.id) }
+        let count = (ranked.keys.max() ?? 0) + 1
+        let widest = ranked.values.map(\.count).max() ?? 1
+        let content = max(width, CGFloat(widest) * Self.slot)
+
+        // Top down, each level ordered under its own prerequisites rather than
+        // by the browser's `x`: spreading a level evenly and then sorting it by
+        // a coordinate from a different layout drags every edge across the map.
+        // Placing a concept over the average of what it waits on is the cheap
+        // half of the usual layered-graph ordering, and it is the half that
+        // removes the crossings a reader actually notices.
+        //
+        // ponytail: one pass, no sweeps. Add the back-and-forth passes if a
+        // real map still looks tangled — a phone shows a handful of levels at a
+        // time, and each one is already sorted against the level above it.
+        var settled: [String: CGFloat] = [:]
+        var rows: [[Placed]] = []
+        for depth in 0..<count {
+            // Roots have nothing above them, so they keep the order the browser
+            // laid them out in; everything deeper is placed under its parents.
+            let row = (ranked[depth] ?? []).sorted { left, right in
+                (anchor(left, settled), left.x, left.id) < (anchor(right, settled), right.x, right.id)
+            }
+            let placed = row.enumerated().map { position, node in
+                Placed(
+                    node: node,
+                    level: depth,
+                    at: CGPoint(
+                        x: content * CGFloat(position + 1) / CGFloat(row.count + 1),
+                        y: Self.band * (CGFloat(depth) + 0.5)
+                    )
+                )
+            }
+            for one in placed { settled[one.id] = one.at.x }
+            rows.append(placed)
+        }
+        levels = rows
+
+        func anchor(_ node: ConceptNode, _ settled: [String: CGFloat]) -> CGFloat {
+            let above = (prereqs[node.id] ?? []).compactMap { settled[$0] }
+            guard !above.isEmpty else { return node.x }
+            return above.reduce(0, +) / CGFloat(above.count)
+        }
+
+        size = CGSize(width: content, height: Self.band * CGFloat(count))
+
+        let index = Dictionary(levels.flatMap { $0 }.map { ($0.id, $0.at) }, uniquingKeysWith: { first, _ in first })
+        links = graph.edges.compactMap { edge in
+            guard let from = index[edge.from], let to = index[edge.to] else { return nil }
+            return Link(from: from, to: to, into: edge.to, dashed: edge.dashed)
+        }
+    }
+}
+
+/// The map screen's own state: the layout, and which concept is highlighted. It
+/// owns no navigation — tapping a concept answers *which* node, and the view
+/// asks the navigator to open it.
 @Observable
 @MainActor
 final class MapViewModel {
-    /// Where the map is. A gesture folds its delta straight in, so there is
-    /// never a second live transform for the drawing and the hit-test to
-    /// disagree over.
-    private(set) var transform = MapTransform()
     private(set) var selection: ConceptNode?
-    /// The viewport, kept so the frontier jump and the initial fit do their
-    /// arithmetic outside the layout pass.
-    private(set) var canvas: CGSize = .zero
-    /// Whether the learner has put the map somewhere themselves — and so also
-    /// whether there is anything for the re-fit control to undo.
-    private(set) var moved = false
 
-    /// The scale `fit` chose. The pinch band is relative to it: 1.7× a fit that
-    /// already had to shrink a 400-node map is a very different number.
-    @ObservationIgnored private var fitScale: CGFloat = 1
+    /// Built once per graph and width. A `body` reads this on every scroll
+    /// frame, and walking the edges there would put the whole layout on the
+    /// scroll loop.
+    @ObservationIgnored private var cache: (graph: ConceptGraph, width: CGFloat, map: TrailMap)?
 
-    /// Each sub-gesture's own cumulative value, kept so every frame contributes
-    /// a *delta*. `.simultaneously` ends its two halves separately, and a
-    /// cumulative translation re-applied after the other half ended is how the
-    /// map used to jump when one of two fingers lifted.
-    @ObservationIgnored private var panBase: CGSize?
-    @ObservationIgnored private var zoomBase: CGFloat?
-
-    func fit(_ graph: ConceptGraph, in size: CGSize) {
-        canvas = size
-        if moved { moved = false }
-        transform = .fitting(graph, in: size)
-        fitScale = transform.scale
-    }
-
-    /// A size arriving after the first layout — or a map swapped in underneath
-    /// — re-fits, but only while the map is still where `fit` put it: once the
-    /// learner has moved it, where the map sits is their answer, not ours.
-    func resize(_ graph: ConceptGraph, in size: CGSize) {
-        canvas = size
-        guard !moved else { return }
-        fit(graph, in: size)
-    }
-
-    /// Back to the whole map. The one control that can undo any pan or pinch,
-    /// including the ones that left nothing on screen.
-    func reframe(_ graph: ConceptGraph) {
-        withAnimation(Motion.enter) { fit(graph, in: canvas) }
-    }
-
-    // MARK: - Gestures
-
-    func pan(_ translation: CGSize) {
-        let base = panBase ?? .zero
-        panBase = translation
-        if !moved { moved = true }
-        var next = transform
-        next.offset.width += translation.width - base.width
-        next.offset.height += translation.height - base.height
-        transform = held(next)
-    }
-
-    func magnify(_ magnification: CGFloat, around anchor: CGPoint) {
-        let base = zoomBase ?? 1
-        zoomBase = magnification
-        guard base > 0 else { return }
-        if !moved { moved = true }
-        transform = held(transform.scaled(magnification / base, about: anchor, within: fitScale))
-    }
-
-    /// Ending drops only that sub-gesture's baseline, so the other half keeps
-    /// measuring from where it started. Called twice is the same as once.
-    func endPan() { panBase = nil }
-    func endZoom() { zoomBase = nil }
-
-    private func held(_ transform: MapTransform) -> MapTransform {
-        transform.bounded(cache?.bounds ?? .null, in: canvas)
-    }
-
-    // MARK: - Graph
-
-    /// The graph's transform-independent half, kept across pan frames — the
-    /// renderer closure would otherwise rebuild it sixty times a second.
-    @ObservationIgnored private var cache: PreparedGraph?
-
-    func prepared(_ graph: ConceptGraph) -> PreparedGraph {
-        if let cache, cache.graph == graph { return cache }
-        let made = PreparedGraph(graph)
-        cache = made
+    func trail(_ graph: ConceptGraph, width: CGFloat) -> TrailMap {
+        if let cache, cache.graph == graph, cache.width == width { return cache.map }
+        let made = TrailMap(graph, width: width)
+        cache = (graph, width, made)
         return made
     }
 
-    func node(_ graph: ConceptGraph, at point: CGPoint) -> ConceptNode? {
-        nodeHit(graph, transform, at: point)
-    }
-
     func select(_ node: ConceptNode?) { selection = node }
-
-    /// Centre the frontier without changing the zoom — "onde eu vou agora",
-    /// answered in place.
-    func jump(to node: ConceptNode) {
-        if !moved { moved = true }
-        withAnimation(Motion.enter) { transform = held(transform.centred(on: node, in: canvas)) }
-    }
 }

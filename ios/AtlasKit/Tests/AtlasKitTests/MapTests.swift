@@ -2,25 +2,67 @@ import Foundation
 import Testing
 @testable import AtlasKit
 
-/// The map's two pieces of arithmetic. Both are silent when wrong: a bad fit
-/// draws an empty canvas, and a bad hit-test opens the wrong node's sheet —
-/// neither crashes, so neither shows up without a check.
-@Test func tappingPicksTheNearestNodeAndNothingFarAway() {
-    let graph = ConceptGraph(nodes: [
-        ConceptNode(id: "a", label: "A", x: 100, y: 100),
-        ConceptNode(id: "b", label: "B", x: 140, y: 100),
-    ])
-    let view = MapTransform(offset: CGSize(width: 10, height: 20), scale: 1)
+/// The layout's own arithmetic, and it is silent when wrong: a bad depth draws
+/// a plausible-looking map with concepts on levels their prerequisites have not
+/// reached yet, and a dropped edge simply isn't there.
+@Test func levelsAreTheLongestPathAndHoldEverythingAtThatDepthSideBySide() {
+    let graph = ConceptGraph(
+        nodes: [
+            ConceptNode(id: "a", label: "A", x: 10),
+            ConceptNode(id: "b", label: "B", x: 90),
+            ConceptNode(id: "c", label: "C", x: 40),
+            ConceptNode(id: "d", label: "D", x: 60),
+        ],
+        // `d` waits on `a` (a root) and on `c` (two levels down), so the
+        // longest path — not the shortest, and not the first one found — is
+        // what puts it below both.
+        edges: [ConceptEdge("a", "c"), ConceptEdge("c", "d"), ConceptEdge("a", "d"),
+                ConceptEdge("b", "d", dashed: true)]
+    )
+    let map = TrailMap(graph, width: 390)
 
-    // Between the two, leaning towards b: b wins, not whichever comes first.
-    #expect(nodeHit(graph, view, at: CGPoint(x: 138, y: 120))?.id == "b")
-    #expect(nodeHit(graph, view, at: CGPoint(x: 110, y: 120))?.id == "a")
-    // Empty canvas stays empty — a tap to pan must not select.
-    #expect(nodeHit(graph, view, at: CGPoint(x: 300, y: 300)) == nil)
-    // The reach is the tap target, not the drawn 13pt circle.
-    #expect(nodeHit(graph, view, at: CGPoint(x: 110, y: 140))?.id == "a")
+    // `a` and `b` are both roots and share the top level, left to right by x.
+    #expect(map.levels.map { $0.map(\.id) } == [["a", "b"], ["c"], ["d"]])
+    #expect(map.levels[0][0].at.x < map.levels[0][1].at.x)
+    #expect(map.levels[0][0].at.y < map.levels[1][0].at.y)
+    // A dashed edge hangs a gap off its parent and unlocks nothing, so it never
+    // pushes `d` below `b`; it is still drawn.
+    #expect(map.links.count == 4)
+    #expect(map.links.filter(\.dashed).map(\.into) == ["d"])
 }
 
+/// A map that closes a loop must not hang the tab.
+@Test func aCycleStopsInsteadOfRecurringForever() {
+    let graph = ConceptGraph(
+        nodes: [ConceptNode(id: "a", label: "A"), ConceptNode(id: "b", label: "B")],
+        edges: [ConceptEdge("a", "b"), ConceptEdge("b", "a")]
+    )
+    #expect(TrailMap(graph, width: 390).placed.count == 2)
+}
+
+/// A level wider than the phone widens the map rather than crushing the names
+/// into it — that is what the horizontal scroll is for.
+@Test func aWideLevelMakesTheMapWiderThanTheScreen() {
+    let graph = ConceptGraph(nodes: (0..<6).map { ConceptNode(id: "n\($0)", label: "N", x: Double($0)) })
+    let map = TrailMap(graph, width: 390)
+    #expect(map.levels.count == 1)
+    #expect(map.size.width == TrailMap.slot * 6)
+    #expect(map.placed.allSatisfy { $0.at.x > 0 && $0.at.x < map.size.width })
+}
+
+@MainActor
+@Test func theModelRebuildsTheLayoutOnlyWhenTheGraphOrTheWidthChanges() {
+    let model = MapViewModel()
+    let graph = ConceptGraph(nodes: [ConceptNode(id: "a", label: "A")])
+    let first = model.trail(graph, width: 390)
+    #expect(model.trail(graph, width: 390) == first)
+    // A node landing mid-stream is a different graph and must not be cached over.
+    var grown = graph
+    grown.nodes.append(ConceptNode(id: "b", label: "B"))
+    #expect(model.trail(grown, width: 390).placed.map(\.id) == ["a", "b"])
+}
+
+/// `fitting` still draws the map assembling behind onboarding.
 @Test func fittingCentresTheWholeGraph() {
     let graph = ConceptGraph(nodes: [
         ConceptNode(id: "a", label: "A", x: 60, y: 60),
@@ -65,68 +107,4 @@ import Testing
     #expect(prepared.links.map(\.dashed) == [false, true])
 }
 
-@MainActor
-@Test func theModelRebuildsThePreparedGraphOnlyWhenTheGraphChanges() {
-    let model = MapViewModel()
-    let graph = ConceptGraph(nodes: [ConceptNode(id: "a", label: "A")])
-    let first = model.prepared(graph)
-    #expect(model.prepared(graph) === first)
-    // A node landing mid-stream is a different graph and must not be cached over.
-    var grown = graph
-    grown.nodes.append(ConceptNode(id: "b", label: "B"))
-    #expect(model.prepared(grown) !== first)
-}
 
-/// The gesture arithmetic. All three of these fail silently: a bad anchor moves
-/// the node out from under the fingers, an unclamped scale leaves blank paper
-/// with no way back, and a re-applied cumulative delta jumps the map by
-/// however far the other finger travelled.
-@MainActor
-@Test func pinchingHoldsTheFingersAndStaysInTheBand() {
-    let graph = ConceptGraph(nodes: [
-        ConceptNode(id: "a", label: "A", x: 0, y: 0),
-        ConceptNode(id: "b", label: "B", x: 200, y: 200),
-    ])
-    let model = MapViewModel()
-    _ = model.prepared(graph)
-    model.fit(graph, in: CGSize(width: 390, height: 600))
-    let fitScale = model.transform.scale
-
-    // Whatever is under the pinch centroid stays under it.
-    let anchor = CGPoint(x: 120, y: 200)
-    let before = model.transform
-    let point = CGPoint(x: (anchor.x - before.offset.width) / before.scale,
-                        y: (anchor.y - before.offset.height) / before.scale)
-    model.magnify(1.4, around: anchor)
-    let after = model.transform
-    #expect(abs(point.x * after.scale + after.offset.width - anchor.x) < 0.5)
-    #expect(abs(point.y * after.scale + after.offset.height - anchor.y) < 0.5)
-
-    // Repeated pinches cannot walk out of the band in either direction.
-    for _ in 0..<3 { model.endZoom(); model.magnify(4, around: anchor) }
-    #expect(model.transform.scale <= fitScale * 1.7 + 0.001)
-    for _ in 0..<3 { model.endZoom(); model.magnify(0.05, around: anchor) }
-    #expect(model.transform.scale >= fitScale * 0.4 - 0.001)
-}
-
-@MainActor
-@Test func oneHalfOfTheGestureEndingDoesNotReapplyTheOther() {
-    let graph = ConceptGraph(nodes: [ConceptNode(id: "a", label: "A", x: 100, y: 100)])
-    let model = MapViewModel()
-    _ = model.prepared(graph)
-    model.fit(graph, in: CGSize(width: 390, height: 600))
-    let start = model.transform.offset.width
-
-    model.pan(CGSize(width: 30, height: 0))
-    // The magnify half ends while the drag is still live — lifting one of two
-    // fingers. The drag's next frame is still cumulative from its own start.
-    model.endZoom()
-    model.pan(CGSize(width: 40, height: 0))
-    #expect(abs(model.transform.offset.width - (start + 40)) < 0.001)
-
-    // A re-fit undoes it all, however far the map was thrown.
-    model.pan(CGSize(width: 9000, height: 9000))
-    model.reframe(graph)
-    #expect(model.transform == .fitting(graph, in: model.canvas))
-    #expect(model.moved == false)
-}
