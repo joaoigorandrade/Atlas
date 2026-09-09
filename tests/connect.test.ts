@@ -6,6 +6,7 @@ import {
   connectReady,
   connectReducer,
   connectStart,
+  mnemonicToolName,
   type ConceptNode,
   type ConnectSession,
   type ElaborationContent,
@@ -229,5 +230,17 @@ describe("connectPool", () => {
       "a",
     );
     expect(pool.map((p) => p.id)).toEqual(["c", "d", "b"]);
+  });
+});
+
+describe("mnemonicToolName — the aid's kind is the model's, its name is not", () => {
+  it("translates the three the prompt allows, either case", () => {
+    expect(mnemonicToolName("Acronym", "pt-BR")).toBe("Acrônimo");
+    expect(mnemonicToolName("method of loci", "pt-BR")).toBe("Palácio da memória");
+    expect(mnemonicToolName("Vivid Image", "en")).toBe("Vivid image");
+  });
+
+  it("shows anything else as written, rather than blanking a real aid", () => {
+    expect(mnemonicToolName("Rhyme", "pt-BR")).toBe("Rhyme");
   });
 });

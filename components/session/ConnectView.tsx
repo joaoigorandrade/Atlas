@@ -6,6 +6,7 @@ import {
   connectCards,
   connectLinkedCount,
   connectReady,
+  mnemonicToolName,
   mnemonicToolsOff,
   type ConnectSession,
   type ElaborationContent,
@@ -871,6 +872,7 @@ function MnemonicTool({
   onAcceptMnemonic: () => void;
 }) {
   const t = useT(STRINGS);
+  const { language } = useLanguage();
   const options = content.mnemonics ?? [];
   const picked = session.mnemonicPick;
 
@@ -878,14 +880,7 @@ function MnemonicTool({
     <div>
       {/* The sequence the aid organizes */}
       {content.items && content.items.length > 0 && (
-        <ol
-          style={{
-            margin: "0 0 14px",
-            padding: 0,
-            listStyle: "none",
-            counterReset: "step",
-          }}
-        >
+        <div style={{ margin: "0 0 14px" }}>
           {content.items.map((it, i) => (
             <div
               key={i}
@@ -912,7 +907,7 @@ function MnemonicTool({
               <span>{it}</span>
             </div>
           ))}
-        </ol>
+        </div>
       )}
 
       {/* Aid options — pick one to draft */}
@@ -947,7 +942,7 @@ function MnemonicTool({
                   color: active ? VIOLET : color.inkFaint,
                 }}
               >
-                {opt.kind}
+                {mnemonicToolName(opt.kind, language)}
               </span>
               <span style={{ fontSize: 13.5, color: color.ink }}>{opt.title}</span>
             </button>

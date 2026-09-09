@@ -74,6 +74,23 @@ const MNEMONIC_TOOLS_OFF_PT = [
   "Imagem vívida",
 ] as const;
 
+/**
+ * The tool's name in the learner's language. The generator writes `kind` in
+ * English — the prompt fixes the three it may answer — and what the learner
+ * reads is not the model's to choose. Anything else is shown as written, which
+ * beats a blank label over a real aid.
+ */
+const MNEMONIC_TOOL_NAMES: Record<string, { en: string; "pt-BR": string }> = {
+  acronym: { en: "Acronym", "pt-BR": "Acrônimo" },
+  "method of loci": { en: "Memory palace", "pt-BR": "Palácio da memória" },
+  "memory palace": { en: "Memory palace", "pt-BR": "Palácio da memória" },
+  "vivid image": { en: "Vivid image", "pt-BR": "Imagem vívida" },
+};
+
+export function mnemonicToolName(kind: string, lang: Language = "en"): string {
+  return MNEMONIC_TOOL_NAMES[kind.trim().toLowerCase()]?.[lang] ?? kind;
+}
+
 /** Language-aware struck-through mnemonic tool names. */
 export function mnemonicToolsOff(lang: Language = "en"): readonly string[] {
   return lang === "pt-BR" ? MNEMONIC_TOOLS_OFF_PT : MNEMONIC_TOOLS_OFF;
@@ -213,13 +230,18 @@ export interface ConnectCard {
   kind: "link" | "mnemonic";
 }
 
+// U+FE0E after the arrow: bare U+2194 defaults to *emoji* presentation on iOS
+// and Android, so the card's front rendered a blue arrow glyph in the middle of
+// a serif sentence, on the phone and in the review queue behind it.
 const CONNECT_CARD_COPY = {
   en: {
-    link: (center: string, cand: string) => `${center} ↔ ${cand}: what’s the connection?`,
+    link: (center: string, cand: string) =>
+      `${center} \u2194\ufe0e ${cand}: what’s the connection?`,
     mnemonic: (center: string) => `${center} · what’s the order of the steps?`,
   },
   "pt-BR": {
-    link: (center: string, cand: string) => `${center} ↔ ${cand}: qual é a conexão?`,
+    link: (center: string, cand: string) =>
+      `${center} \u2194\ufe0e ${cand}: qual é a conexão?`,
     mnemonic: (center: string) => `${center} · qual é a ordem dos passos?`,
   },
 } as const;

@@ -67,7 +67,9 @@ final class ConnectViewModel {
     /// The question that back answers — the front of the card, shown with it so
     /// the drafted card reads as a card rather than as their sentence again.
     func front(for candidate: ElaborationLink) -> String {
-        String(localized: "\(content?.centerLabel ?? node.label) ↔ \(candidate.label): qual é a conexão?")
+        // U+FE0E: a bare U+2194 takes emoji presentation on iOS, so the front
+        // read as a blue arrow glyph inside a serif sentence.
+        String(localized: "\(content?.centerLabel ?? node.label) \u{2194}\u{FE0E} \(candidate.label): qual é a conexão?")
     }
 
     func draft(_ candidate: ElaborationLink) -> Binding<String> {
@@ -102,7 +104,36 @@ final class ConnectViewModel {
 
     /// The ordered items the aid organizes — what the learner is actually
     /// being handed a handle for.
-    var items: [String] { content?.isListLike == true ? (content?.items ?? []) : [] }
+    ///
+    /// `items` is an ordered array and the row draws its own ordinal, but the
+    /// model writes "1. …" into the text about half the time — so the list
+    /// rendered "1  1. Condensação…". Strip the one it wrote rather than drop
+    /// the one the row draws: a step arriving unnumbered still gets a number.
+    var items: [String] {
+        guard content?.isListLike == true else { return [] }
+        return (content?.items ?? []).map(Self.unnumbered)
+    }
+
+    private static let ordinal = /^\d{1,2}\s*[.)\-–:]\s+/
+
+    private static func unnumbered(_ item: String) -> String {
+        let trimmed = item.trimmed
+        guard let match = trimmed.firstMatch(of: ordinal) else { return trimmed }
+        return String(trimmed[match.range.upperBound...])
+    }
+
+    /// The tool's name in the learner's language. The model writes it in
+    /// English — the prompt fixes the three it may answer — and what the
+    /// learner reads is not the model's to choose. Anything else is shown as
+    /// written, which is better than a blank label over a real aid.
+    static func toolName(_ kind: String) -> LocalizedStringKey? {
+        switch kind.lowercased() {
+        case "acronym", "acrônimo": "Acrônimo"
+        case "method of loci", "memory palace", "palácio da memória": "Palácio da memória"
+        case "vivid image", "imagem vívida": "Imagem vívida"
+        default: nil
+        }
+    }
 
     var mnemonic: Binding<String> {
         Binding(get: { self.mnemonicText }, set: { self.mnemonicText = $0; self.park() })

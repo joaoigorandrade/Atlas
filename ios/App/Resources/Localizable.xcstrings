@@ -33,17 +33,6 @@
         }
       }
     },
-    "%@ ↔ %@: qual é a conexão?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ ↔ %2$@: what's the connection?"
-          }
-        }
-      }
-    },
     "%@ atravessou para um enquadramento que você nunca viu. Isso é domínio." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4751,6 +4740,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "That’s my explanation →"
+          }
+        }
+      }
+    },
+    "%@ ↔︎ %@: qual é a conexão?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ↔︎ %2$@: what's the connection?"
+          }
+        }
+      }
+    },
+    "Acrônimo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acronym"
+          }
+        }
+      }
+    },
+    "Palácio da memória" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory palace"
+          }
+        }
+      }
+    },
+    "Imagem vívida" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vivid image"
           }
         }
       }

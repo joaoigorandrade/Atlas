@@ -61,8 +61,12 @@ function validateConnect(
       // The cap is generous on purpose: "vocab" is a named list-like case, and
       // a twenty-noun set used to fail validation twice and throw the learner
       // an error instead of a phase.
+      // `items` is an ordered list and both clients draw their own ordinal —
+      // but the model writes "1. " into the text about half the time, and the
+      // step then rendered as "1  1. Condensação…". Strip it once here so the
+      // shared cache holds it clean for every reader.
       base.items = arr(root.items, "items (required for list-like)", 3, 30).map((s, i) =>
-        str(s, `items[${i}]`),
+        str(s, `items[${i}]`).replace(/^\s*\d{1,2}\s*[.)\-\u2013:]\s+/, ""),
       );
       base.mnemonics = arr(
         root.mnemonics,

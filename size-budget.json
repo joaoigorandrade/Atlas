@@ -15,7 +15,7 @@
     "components/map/StreakFlame.tsx": 441,
     "components/onboarding/DiagnosticPanel.tsx": 500,
     "components/onboarding/WelcomeScreen.tsx": 450,
-    "components/session/ConnectView.tsx": 1014,
+    "components/session/ConnectView.tsx": 1009,
     "components/session/ConsumeView.tsx": 1226,
     "components/session/CrucibleView.tsx": 866,
     "components/session/FeynmanView.tsx": 1323,

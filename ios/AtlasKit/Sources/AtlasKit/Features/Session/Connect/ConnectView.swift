@@ -172,8 +172,12 @@ struct ConnectView: View {
                     let picked = model.mnemonicPick == index
                     Button { model.pick(index) } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Kicker(verbatim: option.kind.uppercased(),
-                                   tint: picked ? Palette.connectInk : Palette.inkFaint)
+                            if let name = ConnectViewModel.toolName(option.kind) {
+                                Kicker(name, tint: picked ? Palette.connectInk : Palette.inkFaint)
+                            } else {
+                                Kicker(verbatim: option.kind,
+                                       tint: picked ? Palette.connectInk : Palette.inkFaint)
+                            }
                             Text(verbatim: option.title)
                                 .font(.atlas(.serif, 15.5))
                                 .foregroundStyle(Palette.ink)
