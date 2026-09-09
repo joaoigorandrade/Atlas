@@ -96,6 +96,12 @@ export interface GenerateBody {
   index?: number;
   /** Background warm: the client is filling its cache, nobody is waiting. */
   prefetch?: boolean;
+  /** crucible: which time through this concept's transfer test this is. 0 (or
+   *  absent) is the first pass and keys exactly as it always did; a redo sends
+   *  1, 2, … and gets a problem in a different domain rather than the one the
+   *  learner has already solved. Part of the cache key, and omitted when 0 so
+   *  rows written before it keep their address. */
+  rerun?: number;
   // passage fields ("ask about this" — the learner's own words about a
   // highlighted stretch of the reading)
   /** The section's kicker — named by the model view and the passage ask alike. */
@@ -112,6 +118,8 @@ export interface GenerateBody {
   rubric?: Array<{ subPoint: string; mustConvey: string[] }>;
   problem?: string;
   hint?: string;
+  /** judge-crucible: the learner revealed the reframe before answering. */
+  hinted?: boolean;
   // judge-socratic fields (#A, #B) — the dialogue so far, the anticipated
   // misconceptions for this step, and the scaffolding dial.
   history?: Array<{ role: "ai" | "learner"; text: string }>;
@@ -502,6 +510,14 @@ function buildJob(body: GenerateBody): Job {
 
     case "crucible": {
       if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      // A redo of a passed Crucible used to serve the problem the learner had
+      // just solved — a transfer test you have seen before tests recall, not
+      // transfer. Omitted when 0 so every row written before this keeps its
+      // address, exactly like `boundary`.
+      const rerun =
+        typeof body.rerun === "number"
+          ? Math.max(0, Math.min(9, Math.round(body.rerun)))
+          : 0;
       return cacheable(
         "crucible",
         {
@@ -512,6 +528,7 @@ function buildJob(body: GenerateBody): Job {
           interests,
           language,
           ...boundary(body),
+          ...(rerun ? { rerun } : {}),
         },
         async (p) => ({ content: await generateCrucible(p) }),
       );
@@ -672,6 +689,7 @@ function buildJob(body: GenerateBody): Job {
           problem: s(body.problem).slice(0, CAPS.freeText),
           hint: s(body.hint).slice(0, CAPS.freeText),
           attempt: answer,
+          hinted: body.hinted === true,
           language,
         };
         return uncached(

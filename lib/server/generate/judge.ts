@@ -417,11 +417,15 @@ interface JudgeCrucibleParams {
   problem: string;
   hint: string;
   attempt: string;
+  /** The learner opened the hint before answering. The Crucible is the only
+   *  measurement of transfer in the app, and an unaided pass and a pass on a
+   *  handed-over reframe are not the same reading — so the judge is told. */
+  hinted?: boolean;
   language?: Language;
 }
 
 function crucibleJudgeMessages(params: JudgeCrucibleParams): ChatMessage[] {
-  const { topic, nodeLabel, problem, hint, attempt, language = "en" } = params;
+  const { topic, nodeLabel, problem, hint, attempt, hinted, language = "en" } = params;
   return [
     JUDGE_SYSTEM,
     {
@@ -431,7 +435,11 @@ Transfer problem posed: """${problem}"""
 (The intended reframe: ${hint})
 The learner's actual attempt: """${attempt}"""
 
-Grade the attempt. "pass" ONLY if the core concept genuinely transferred — the reasoning is right where it matters (arithmetic slips that don't touch the concept may pass with a note). Anything empty, vague, off-topic, or containing a conceptual error is "partial". Never grade generously.
+${
+  hinted
+    ? 'The learner revealed the hint before answering, so the reframe was handed to them. Grade what is left: applying a reframe you were given is a lower bar than finding it, so "pass" needs the reasoning after the hint to be right AND complete. Say plainly in one transfer row how much of the work the hint did.\n'
+    : ""
+}Grade the attempt. "pass" ONLY if the core concept genuinely transferred — the reasoning is right where it matters (arithmetic slips that don't touch the concept may pass with a note). Anything empty, vague, off-topic, or containing a conceptual error is "partial". Never grade generously.
 
 Return JSON:
 {

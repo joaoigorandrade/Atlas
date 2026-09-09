@@ -23,6 +23,8 @@ public final class SessionViewModel: Identifiable {
 
     /// Opens on the phase the node is actually owed. A locked node has no
     /// session at all, so the caller checks `phaseIndex` before making one.
+    /// `phase` non-nil means the map asked for one particular phase again — a
+    /// redo, not the next step of a pass.
     public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil) {
         self.node = node
         self.store = store
@@ -32,6 +34,10 @@ public final class SessionViewModel: Identifiable {
         let last = Phase.allCases.count - 2
         let asked = Phase.allCases.firstIndex(of: phase ?? store.owedPhase(node)) ?? 0
         self.phase = Phase.allCases[max(0, min(asked, last))]
+        // Before the first warm, so the warm and the click after it address the
+        // same problem: a redo of the Crucible asks for a new one rather than
+        // re-serving the transfer the learner has already carried through.
+        if phase != nil, self.phase == .crucible { store.bumpCrucibleRerun(node.id) }
         warmNext()
         noteReading()
     }
@@ -156,6 +162,11 @@ public final class SessionViewModel: Identifiable {
     /// first-attempt gap back off the map; a failure flips it Shaky and hangs
     /// the sub-concept that didn't carry over under it.
     public func settleCrucible(_ judgement: CrucibleJudgement, gap: GapSpec) {
+        // The one phase that grants green was the one phase that never counted
+        // as work: a learner who opens the Crucible straight from the map (a
+        // Shaky node is owed it) and submits an attempt got no day on the
+        // streak and, on an untouched node, never even went Learning.
+        markWorked()
         guard judgement.passed else {
             store.states[node.id] = .shaky
             store.shakyReasons[node.id] = .crucibleFail

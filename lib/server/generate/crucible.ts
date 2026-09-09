@@ -105,6 +105,27 @@ export function validateCrucible(
   };
 }
 
+/** Where a re-run's problem is set. The Crucible's whole premise is a framing
+ *  the learner was never handed, so the second and third times through one
+ *  concept must not reach for the same one — and the model has no memory of
+ *  what it wrote last time. Rotating the domain by rerun index is what makes
+ *  each pass a different problem while staying deterministic enough to cache
+ *  and share. Index 0 is deliberately unused: the first pass keeps the prompt
+ *  it always had. */
+const RERUN_DOMAINS = [
+  "",
+  "a workshop, a kitchen or everyday logistics",
+  "a living system — an organism, an ecosystem, a population",
+  "money, a market or a business decision",
+  "a machine, a program or a signal",
+  "a game, a sport or a puzzle",
+] as const;
+
+const rerunNote = (rerun: number): string =>
+  rerun > 0
+    ? `\nThis learner has already worked a transfer problem on this concept and passed it, so the obvious framing is spent. Set this one in ${RERUN_DOMAINS[rerun % RERUN_DOMAINS.length] || RERUN_DOMAINS[1]} — a different world from a first attempt, testing the same idea.`
+    : "";
+
 export async function generateCrucible(params: {
   topic: string;
   nodeId: string;
@@ -114,14 +135,24 @@ export async function generateCrucible(params: {
   language?: Language;
   priorLabels?: string[];
   laterLabels?: string[];
+  /** Which time through this concept's Crucible this is — 0 on the first. */
+  rerun?: number;
 }): Promise<CrucibleContent> {
-  const { topic, nodeId, nodeLabel, masteredLabels, interests, language = "en" } = params;
+  const {
+    topic,
+    nodeId,
+    nodeLabel,
+    masteredLabels,
+    interests,
+    language = "en",
+    rerun = 0,
+  } = params;
   return generateJson(
     user(
       `Write the Crucible (application/transfer) pass for the concept "${nodeLabel}" within "${topic}".
 Force the knowledge into a NOVEL context it was never taught in — that's the truest mastery signal.
 Concepts the learner already owns, to interleave: ${masteredLabels.join(", ") || "the concept's own prerequisites"}.
-${interestNote(interests)}
+${interestNote(interests)}${rerunNote(rerun)}
 ${boundaryNote(params)}
 
 Return JSON:

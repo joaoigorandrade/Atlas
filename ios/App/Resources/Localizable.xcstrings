@@ -4794,6 +4794,136 @@
           }
         }
       }
+    },
+    "%@ atravessou no degrau com apoio. O conceito está firme — e a transferência a frio continua sendo o próximo teste." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ carried over on the scaffolded rung. The concept holds — and a cold transfer is still the next test."
+          }
+        }
+      }
+    },
+    "Acho que vou travar em alguma parte." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I think I'll get stuck somewhere."
+          }
+        }
+      }
+    },
+    "Consigo sem hesitar, em qualquer contexto." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I can do it without hesitating, in any context."
+          }
+        }
+      }
+    },
+    "Consigo, com algum esforço." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I can do it, with some effort."
+          }
+        }
+      }
+    },
+    "Dica · o enquadramento, sem a resposta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint · the reframe, not the answer"
+          }
+        }
+      }
+    },
+    "Lendo sua tentativa — isso leva alguns segundos." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading your attempt — this takes a few seconds."
+          }
+        }
+      }
+    },
+    "O que faltou" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What was missing"
+          }
+        }
+      }
+    },
+    "Responda antes de ver o problema — depois dele a resposta já não mede nada. O Crisol compara o que você sentiu com o que aconteceu." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer before you see the problem — afterwards the answer measures nothing. The Crucible holds what you felt against what happened."
+          }
+        }
+      }
+    },
+    "Tentativa %lld de %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attempt %lld of %lld"
+          }
+        }
+      }
+    },
+    "Você abriu a dica antes de responder, então o enquadramento veio pronto. Isso conta — a leitura de confiança abaixo já desconta essa ajuda." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You opened the hint before answering, so the reframe was handed to you. That counts — the confidence reading below already discounts the help."
+          }
+        }
+      }
+    },
+    "Você disse “Muito confiante” e a transferência confirmou. Confiança e resultado se alinham — isso é domínio calibrado, não fluência." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You said “Very confident” and the transfer confirmed it. Confidence and result line up — that's calibrated mastery, not fluency."
+          }
+        }
+      }
+    },
+    "Você disse “Não tenho certeza” — e atravessou mesmo assim. Você sabe mais do que sente que sabe, e subestimar-se custa tanto quanto o excesso de confiança." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You said “Not sure” — and carried it over anyway. You know more than you feel you know, and underrating yourself costs as much as overconfidence."
+          }
+        }
+      }
+    },
+    "Voltar ao mapa · continuar depois" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to the map · pick this up later"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

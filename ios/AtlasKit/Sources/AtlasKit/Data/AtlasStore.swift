@@ -38,6 +38,14 @@ public final class AtlasStore {
     /// Mastered alone doesn't (`phaseIndex`).
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
 
+    /// Which time through each node's Crucible the learner is on, keyed by node
+    /// id. Deliberately **not** persisted and deliberately without `saveSoon`:
+    /// it is part of a cache key, not part of the run, and a column for it
+    /// would need a migration on both clients to buy a counter that only has to
+    /// survive the app being open. A relaunch resets it, which costs at worst
+    /// one repeated problem. See `Warm.crucible`.
+    var crucibleRerun: [String: Int] = [:]
+
     /// The web's `consumeProgress`, held as JSON and keyed by node id. This
     /// client reads four of its fields (`readingPhaseIndex`, and where the
     /// learner got to) and writes five; the browser's reader owns the rest —

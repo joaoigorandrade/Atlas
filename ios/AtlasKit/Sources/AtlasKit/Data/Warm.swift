@@ -290,7 +290,24 @@ public extension AtlasStore {
         warm.content(key("connect", node, learned(besides: node).ids))
     }
     func problems(_ node: ConceptNode) -> CrucibleContent? {
-        warm.content(key("crucible", node, learned(besides: node).ids))
+        warm.content(key("crucible", node, crucibleInputs(node)))
+    }
+
+    /// The pool *and* which time through this is — the two things that decide
+    /// which transfer problem the model writes. One function, because a warm
+    /// and the click after it address the same content only if exactly one
+    /// decides the inputs.
+    private func crucibleInputs(_ node: ConceptNode) -> String {
+        let rerun = crucibleRerun[node.id] ?? 0
+        return rerun == 0 ? learned(besides: node).ids : "\(learned(besides: node).ids)|r\(rerun)"
+    }
+
+    /// Opening the Crucible again on a concept the learner has already carried
+    /// through it asks for a *new* problem. Re-serving the one they solved
+    /// measures recall, which is the one thing this phase exists not to
+    /// measure. Called once per redo entry, before the first warm.
+    func bumpCrucibleRerun(_ nodeId: String) {
+        crucibleRerun[nodeId] = (crucibleRerun[nodeId] ?? 0) + 1
     }
 
     @discardableResult
@@ -333,10 +350,15 @@ public extension AtlasStore {
     @discardableResult
     func crucible(_ node: ConceptNode) async -> Error? {
         let pool = learned(besides: node)
+        let rerun = crucibleRerun[node.id] ?? 0
         var context = context(for: node)
         context["masteredLabels"] = .array(pool.map { .string($0.label) })
+        // Omitted when 0, exactly as the server omits it from the cache key —
+        // a first pass keys where it always did.
+        if rerun > 0 { context["rerun"] = .number(Double(rerun)) }
         let (api, sent) = (api, context)
-        return await warm.fill(key("crucible", node, pool.ids), once: { try await api.crucible(sent) })
+        return await warm.fill(key("crucible", node, crucibleInputs(node)),
+                               once: { try await api.crucible(sent) })
     }
 
     /// The beats of one lens over one section. Keyed like everything else, with
@@ -480,6 +502,9 @@ public extension AtlasStore {
     /// keys on the node alone. Seeding under the *current* pool is what adopts
     /// its answer: the browser would serve that content again too.
     private func cacheInputs(_ kind: String, _ node: ConceptNode) -> String {
+        // Crucible carries a rerun index too, but content the server already
+        // holds for a node is its *first* pass's problem — so it seeds where a
+        // first pass reads, which is the pool alone.
         kind == "connect" || kind == "crucible" ? learned(besides: node).ids : ""
     }
 }
