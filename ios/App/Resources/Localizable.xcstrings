@@ -2238,17 +2238,6 @@
         }
       }
     },
-    "Fila limpa por hoje. Volte amanhã — é quando essas memórias começam a desvanecer." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Queue clear for today. Come back tomorrow — that's when those memories start to fade."
-          }
-        }
-      }
-    },
     "Fronteira · pronto" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4930,6 +4919,106 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The reading we kept is the first attempt's, cold — and it broke. The scaffolded rung shows the concept holds, not that your confidence was right."
+          }
+        }
+      }
+    },
+    "Fila limpa. O FSRS já agendou cada cartão para o próximo momento em que ele vale a pena." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queue clear. FSRS has already scheduled every card for the next moment it is worth asking."
+          }
+        }
+      }
+    },
+    "Nada vencendo agora. Suas memórias ainda estão firmes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing due right now. Your memories are still holding."
+          }
+        }
+      }
+    },
+    "Próximo cartão %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next card %@."
+          }
+        }
+      }
+    },
+    "Saúde da retenção · previsão FSRS" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retention health · FSRS forecast"
+          }
+        }
+      }
+    },
+    "Terminado por hoje" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done for today"
+          }
+        }
+      }
+    },
+    "Você errou %lld. Eles voltam cedo, e os nós deles reentraram no ciclo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You missed %lld. They come back soon, and their nodes have re-entered the loop."
+          }
+        }
+      }
+    },
+    "Você recordou todos. Se algum pareceu fácil demais, o intervalo dele acabou de crescer." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You recalled every one. Any that felt too easy just had its interval grow."
+          }
+        }
+      }
+    },
+    "Você tocou “Sólido” antes de virar em %lld dos que errou — é esse excesso de confiança que a curva de calibração existe para pegar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You tapped “Solid” before flipping on %lld of the ones you missed — that overconfidence is exactly what the calibration curve exists to catch."
+          }
+        }
+      }
+    },
+    "dias seguidos" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "day streak"
+          }
+        }
+      }
+    },
+    "recordados" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "recalled"
           }
         }
       }

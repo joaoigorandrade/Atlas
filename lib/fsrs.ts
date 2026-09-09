@@ -38,7 +38,7 @@ const FORECAST_STRINGS = {
     dueNow: "Para agora",
     thisWeek: "Chegando esta semana",
     rockSolid: "Consolidado",
-    cards: (n: number) => `${n} card${n === 1 ? "" : "s"}`,
+    cards: (n: number) => `${n} ${n === 1 ? "cartão" : "cartões"}`,
     minutes: (n: number) => `~${n} min`,
     onSchedule: "a lembrança sobe conforme o previsto",
     farOut: "próxima revisão em 30 d+",

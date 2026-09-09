@@ -430,7 +430,7 @@ public extension AtlasStore {
             topicId, budgetMin: budget, language: language, token: token
         ) else { return }
         deck = content.cards
-        forecast = content.forecast
+        forecast = content.forecast ?? []
     }
 
     /// Grade a card.
@@ -473,8 +473,10 @@ public extension AtlasStore {
         guard let index = calib.firstIndex(where: { $0.id == nodeId }) else {
             return calib.append(CalibSample(id: nodeId, felt: felt, real: real))
         }
-        calib[index].felt = (calib[index].felt + felt) / 2
-        calib[index].real = (calib[index].real + real) / 2
+        // Rounded, not truncated — `useRunState.recordCalib` rounds, and a
+        // curve that drifts a point per reading is two clients disagreeing.
+        calib[index].felt = Int((Double(calib[index].felt + felt) / 2).rounded())
+        calib[index].real = Int((Double(calib[index].real + real) / 2).rounded())
     }
 
     /// Tick the streak. Same day: nothing. Yesterday: onwards. Anything older:
@@ -820,11 +822,26 @@ public extension AtlasStore {
     var dueCount: Int {
         let now = Date.now
         return cards.count { card in
+            // A card whose date will not parse is not counted as due: it used
+            // to be, which meant one bad row inflated the dashboard forever and
+            // sent the learner to a Review screen with nothing on it.
             guard case .string(let due)? = card.fsrs.fields?["due"],
                   let date = ISODate.parse(due)
-            else { return true }
+            else { return false }
             return date <= now
         }
+    }
+
+    /// When the next card comes back — the soonest due date still ahead. What
+    /// lets an empty queue name the day instead of guessing at "tomorrow".
+    var nextDue: Date? {
+        let now = Date.now
+        return cards.compactMap { card -> Date? in
+            guard case .string(let due)? = card.fsrs.fields?["due"],
+                  let date = ISODate.parse(due), date > now
+            else { return nil }
+            return date
+        }.min()
     }
 
     // MARK: - What a write compares against

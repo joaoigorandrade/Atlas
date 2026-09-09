@@ -18,7 +18,14 @@ public struct HomeView: View {
             if let model { content(model) } else { Color.clear }
         }
         .background(Palette.paper)
-        .task { if model == nil { model = HomeViewModel(store: store) } }
+        .task {
+            if model == nil { model = HomeViewModel(store: store) }
+            // Home is the other door into Review, and it used to be the cold
+            // one: only the map warmed the card draft, so opening Review from
+            // here meant watching it be written. A run whose nodes are all
+            // covered returns from this immediately.
+            store.warmRetain()
+        }
     }
 
     private func content(_ model: HomeViewModel) -> some View {

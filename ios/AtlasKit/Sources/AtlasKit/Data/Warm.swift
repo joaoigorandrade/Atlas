@@ -415,13 +415,27 @@ public extension AtlasStore {
         // No scheduler state travels: these are new cards, and where they go
         // next is decided by the one scheduler, on the server, from the first
         // grade onwards.
-        for card in drafted where !cards.contains(where: { $0.id == card.id }) {
+        //
+        // The id the server puts on a drafted card is request-scoped — `r1…rN`,
+        // reassigned on every draft — so filing them verbatim meant the second
+        // node's cards collided with the first's and were dropped by the guard
+        // below, forever. The browser mints its own for exactly this reason
+        // (`useSpiral.ts`), and this is the same shape so one deck reads the
+        // same on both clients.
+        let stamp = Int(Date.now.timeIntervalSince1970 * 1000)
+        for (index, card) in drafted.enumerated() {
+            let id = "\(card.node)-retain-\(stamp)-\(index)"
+            guard !cards.contains(where: { $0.id == id }) else { continue }
             cards.append(StoredCard(
-                id: card.id, nodeId: card.node, type: card.type, source: card.source,
+                id: id, nodeId: card.node, type: card.type, source: card.source,
                 cloze: card.cloze, answer: card.answer, front: card.front,
                 back: card.back, reExplain: card.reExplain
             ))
         }
+        // The deck is read back from the server, and the ordinary save is two
+        // seconds behind — so without this the very first Review of a run asks
+        // for a queue built from cards that have not landed yet, and gets none.
+        await saveNow()
         return nil
     }
 

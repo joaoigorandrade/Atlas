@@ -6,6 +6,7 @@ import SwiftUI
 public struct ReviewView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
+    @EnvironmentObject private var tabs: AtlasTabNavigator
     @State private var model: ReviewViewModel?
 
     public init() {}
@@ -15,11 +16,13 @@ public struct ReviewView: View {
             if let model { content(model) } else { Color.clear }
         }
         .background(Palette.paper)
-        // Keyed on the cards that exist so finishing a deck, or learning a new
-        // concept, brings the screen back to life instead of freezing on "fila
-        // limpa". The deck itself is asked for inside `open()` — which cards are
-        // due, in what order, is the server's answer.
-        .task(id: store.cards.count) {
+        // Deliberately unkeyed. This used to be keyed on `store.cards.count` so
+        // a new concept would bring the screen back — but drafting cards *is*
+        // what changes that count, so SwiftUI cancelled the task mid-draft:
+        // the PUT that files the cards died 8ms in, and the restarted pass then
+        // read an empty deck back off the server and settled on "fila limpa".
+        // Re-entering the tab runs this again, which is the same refresh.
+        .task {
             let model = model ?? ReviewViewModel(store: store)
             self.model = model
             await model.open()
@@ -48,8 +51,10 @@ public struct ReviewView: View {
             if let card = model.card, model.hasCard {
                 deck(model, card)
                 dock(model, card)
+            } else if model.drafting {
+                Waiting(verbatim: model.waitingCopy)
             } else {
-                Waiting(verbatim: model.waitingCopy, spinning: model.drafting)
+                resting(model)
             }
         }
         // The deck moving on is the screen's one motion: the answered card
@@ -57,6 +62,111 @@ public struct ReviewView: View {
         .animation(Motion.standard, value: model.index)
         .animation(Motion.standard, value: model.hasCard)
         .sensoryFeedback(.selection, trigger: model.stage)
+    }
+
+    // MARK: - Nothing on the deck
+
+    /// The three ways this screen can be empty — a finished pass, a queue with
+    /// nothing due, a failure — none of which is a blank screen with a grey
+    /// sentence in the middle of it. What the learner gets instead is what the
+    /// scheduler actually knows: what the pass was worth, when the next card
+    /// comes back, and how the whole rotation is holding.
+    private func resting(_ model: ReviewViewModel) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Kicker(model.gradedCount > 0 ? "Terminado por hoje" : "Revisão",
+                       tint: model.gradedCount > 0 ? Palette.accent : Palette.inkFaint, size: 10)
+                Text(verbatim: model.waitingCopy)
+                    .font(.atlas(.serif, 24))
+                    .foregroundStyle(Palette.ink)
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+
+                if let next = model.nextDueCopy {
+                    Text(verbatim: next)
+                        .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted)
+                        .padding(.top, 10)
+                }
+
+                if model.canRetry {
+                    CTAButton("Tentar de novo", tint: Palette.accent) {
+                        Task { await model.retry() }
+                    }
+                    .padding(.top, 20)
+                }
+
+                if model.gradedCount > 0 { tally(model).padding(.top, 22) }
+                // Only while it is still true: the forecast is the server's
+                // count as of the deck load, so a pass that has just cleared
+                // cards would be reading it back stale.
+                if !model.forecast.isEmpty, model.gradedCount == 0 {
+                    health(model).padding(.top, 24)
+                }
+
+                if model.gradedCount > 0 {
+                    GhostButton("Voltar ao mapa") { tabs.switchTab(to: .map) }
+                        .padding(.top, 22)
+                }
+            }
+            .padding(.horizontal, Metrics.gutter)
+            .padding(.top, 28)
+            .padding(.bottom, 32)
+        }
+    }
+
+    /// What the pass was worth — the counts, the streak, and the one line the
+    /// confidence taps finally say out loud.
+    private func tally(_ model: ReviewViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                figure("\(model.recalledCount)/\(model.gradedCount)",
+                       "recordados", Palette.accent)
+                figure("\(store.streak)", "dias seguidos", Palette.amberInk)
+            }
+            if let verdict = model.passVerdict {
+                Text(verbatim: verdict)
+                    .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted).lineSpacing(3)
+            }
+        }
+    }
+
+    private func figure(_ value: String, _ label: LocalizedStringKey, _ tint: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(verbatim: value).font(.atlas(.serif, 26)).foregroundStyle(tint)
+            Kicker(label, size: 9.5)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(Palette.card, in: .rect(cornerRadius: 12))
+        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+    }
+
+    /// The FSRS forecast the deck endpoint already answers with, and which this
+    /// client fetched and threw away until now. Due now · this week · consolidated.
+    private func health(_ model: ReviewViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 13) {
+            Kicker("Saúde da retenção · previsão FSRS", size: 9.5)
+            ForEach(model.forecast) { row in
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 4).fill(row.tint).frame(width: 8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(verbatim: row.label).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.ink)
+                            Spacer()
+                            Text(verbatim: row.count).font(.atlas(.serif, 15)).foregroundStyle(Palette.ink)
+                        }
+                        Text(verbatim: row.sub)
+                            .font(.atlas(.sans, 12)).foregroundStyle(Palette.inkFaint).lineSpacing(2)
+                    }
+                }
+                .frame(minHeight: 34)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.cardAlt, in: .rect(cornerRadius: 14))
+        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline, lineWidth: 1) }
     }
 
     // MARK: - The deck

@@ -122,7 +122,13 @@ public struct ReviewCard: Codable, Sendable, Identifiable {
 public struct RetainContent: Decodable, Sendable {
     public let budgetMin: Int
     public let cards: [ReviewCard]
-    public let forecast: [ForecastRow]
+    /// Absent on the draft, because two endpoints answer in this shape and
+    /// only one of them carries it: `/api/v1/…/review` builds the forecast from
+    /// real due dates, while the card *factory* at `/api/generate` deliberately
+    /// does not (`lib/server/generate/retain.ts`). Requiring it here made every
+    /// draft fail to decode — silently, since the draft path treats a decode
+    /// failure as "no cards" — and the Review tab could never fill.
+    public let forecast: [ForecastRow]?
 
     public struct ForecastRow: Decodable, Sendable, Identifiable {
         public let label: String
@@ -130,6 +136,16 @@ public struct RetainContent: Decodable, Sendable {
         public let sub: String
         public let tone: String
         public var id: String { label }
+
+        /// The rail beside each row. Same three tones the browser paints —
+        /// `FORECAST_COLOR` in `lib/curriculum/retain.ts`.
+        var tint: Color {
+            switch tone {
+            case "solid": NodeState.mastered.color
+            case "soft": NodeState.shaky.color
+            default: Palette.accent
+            }
+        }
     }
 }
 
