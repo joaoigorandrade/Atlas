@@ -822,11 +822,15 @@ public extension AtlasStore {
     var dueCount: Int {
         let now = Date.now
         return cards.count { card in
-            // A card whose date will not parse is not counted as due: it used
-            // to be, which meant one bad row inflated the dashboard forever and
-            // sent the learner to a Review screen with nothing on it.
-            guard case .string(let due)? = card.fsrs.fields?["due"],
-                  let date = ISODate.parse(due)
+            // A card the client has just drafted carries no scheduler state at
+            // all — the scheduler is the server's, and `withSchedule` starts it
+            // there — and a brand-new card is due now, which is what makes the
+            // dashboard agree with the deck the learner can already see.
+            guard let due = card.fsrs.fields?["due"] else { return true }
+            // A date that is present and will not parse is a different thing:
+            // counting it kept one bad row on the dashboard for ever, pointing
+            // at a Review screen with nothing on it.
+            guard case .string(let text) = due, let date = ISODate.parse(text)
             else { return false }
             return date <= now
         }

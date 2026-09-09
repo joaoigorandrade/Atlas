@@ -133,6 +133,21 @@ onto a full-but-not-due deck reads "Nada vencendo agora. Suas memórias ainda
 estão firmes.", "Próximo cartão em 4 minutos.", and a forecast that says
 "3 cartões".
 
+## Round 3 — one the round-2 fix caused
+
+Tightening `dueCount` (#11) went one step too far. A card the phone has just
+drafted carries **no** scheduler state at all — the scheduler is the server's,
+and `withSchedule` starts it there — so treating a missing `due` as "not due"
+made Home say "Fila limpa" while the Review tab was showing "Cartão 1 de 4" of
+that very topic. Missing state now means a brand-new card, which is due now;
+only a `due` that is *present and unparseable* is excluded. Home and the deck
+agree again: "8 cartões pendentes · ~12 min".
+
+Also confirmed on a second, untouched topic (Algebra Linear, 0 cards): the first
+visit to Review drafts, saves and deals a deck with no relaunch, and the eight
+cards land under eight distinct `${node}-retain-${stamp}-${i}` ids across eight
+nodes — the exact case the old `r1…rN` scheme collided on.
+
 ## Out of scope, still red
 
 `npm run size` fails on `main` for two files this change never touches —
