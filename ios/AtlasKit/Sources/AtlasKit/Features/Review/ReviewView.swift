@@ -16,13 +16,17 @@ public struct ReviewView: View {
             if let model { content(model) } else { Color.clear }
         }
         .background(Palette.paper)
-        // Deliberately unkeyed. This used to be keyed on `store.cards.count` so
-        // a new concept would bring the screen back — but drafting cards *is*
+        // Keyed on the tab, because the tab is the one thing that changes when
+        // the learner comes back and never while the deck is being built. It
+        // used to be keyed on `store.cards.count` — but drafting cards *is*
         // what changes that count, so SwiftUI cancelled the task mid-draft:
         // the PUT that files the cards died 8ms in, and the restarted pass then
         // read an empty deck back off the server and settled on "fila limpa".
-        // Re-entering the tab runs this again, which is the same refresh.
-        .task {
+        // A `.task` alone does not re-run on tab re-entry (measured), so it
+        // cannot be the refresh on its own. `open()` leaves a deck in progress
+        // alone, so re-entering never restarts a pass.
+        .task(id: tabs.selectedTab) {
+            guard tabs.selectedTab == .review else { return }
             let model = model ?? ReviewViewModel(store: store)
             self.model = model
             await model.open()

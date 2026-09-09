@@ -98,7 +98,13 @@ Fixing #1 exposed the bug underneath it. `ReviewView` keyed its `.task` on
 cards is what changes that count*, so SwiftUI cancelled the task mid-draft. The
 PUT that files the cards died 8 ms in (surfacing as "Sem conexão · não salvo"),
 and the restarted pass read an empty deck back off the server and settled on
-"fila limpa". Caught in the app's own network log; the task is now unkeyed.
+"fila limpa". Caught in the app's own network log.
+
+Unkeying it was not enough either: measured on the simulator, a bare `.task`
+does **not** re-run when a `TabView` tab is re-entered, so the "learn a
+concept and Review comes back to life" refresh was gone. It is keyed on the
+selected tab now — the one thing that changes when the learner returns and
+never while the deck is being built.
 
 Two more found by driving the fixed deck:
 
@@ -120,6 +126,12 @@ intervals on all four buttons → miss → re-explanation, calibration line, req
 → done-for-today with the pass tally and the next due time → calibration curve
 reads the new sample. Postgres after the pass: three cards rescheduled with real
 FSRS state, `ciclo-celular` = `shaky` / `review-miss` / `reviewed = true`.
+
+Re-verified after that, on the deployed build (`dpl_6j9sHKKF85LZ8vknJzHHWP1ta3QT`):
+deck → grade → tab away → tab back refetches and keeps the pass tally; a relaunch
+onto a full-but-not-due deck reads "Nada vencendo agora. Suas memórias ainda
+estão firmes.", "Próximo cartão em 4 minutos.", and a forecast that says
+"3 cartões".
 
 ## Out of scope, still red
 
