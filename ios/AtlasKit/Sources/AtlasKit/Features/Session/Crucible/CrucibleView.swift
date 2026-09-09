@@ -235,8 +235,10 @@ struct CrucibleView: View {
                         Spacer(minLength: 0)
                     }
                 }
-                CTAButton(model.judging ? "Lendo sua tentativa…" : "Enviar tentativa",
-                          tint: Palette.crucibleInk) {
+                // The label stays put: the line above already says what the
+                // wait is, and the button saying it a second time in slightly
+                // different words read as two different things happening.
+                CTAButton("Enviar tentativa", tint: Palette.crucibleInk) {
                     model.dictation.flush()
                     model.submit()
                 }

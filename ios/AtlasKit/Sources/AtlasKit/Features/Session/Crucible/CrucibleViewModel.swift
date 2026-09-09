@@ -139,6 +139,18 @@ final class CrucibleViewModel {
                 return String(localized: "Você se sentiu razoavelmente confiante, mas um subconceito não se transferiu. Registre a diferença entre se sentir pronto e estar pronto.")
             }
         }
+        // The reading that was kept is the *first* attempt's, and on this rung
+        // that attempt failed. Announcing alignment here would describe a
+        // calibration the learner has not shown.
+        if rung > 0 {
+            return String(localized: "A leitura guardada é a da primeira tentativa, a frio — e ela quebrou. O degrau com apoio mostra que o conceito está firme, não que a sua confiança já acertou.")
+        }
+        // A pass on a reframe that was handed over is not the clean alignment
+        // the three sentences below describe, and the note above it says the
+        // reading is discounted — so it must not then declare a clean one.
+        if leaned {
+            return String(localized: "Você atravessou, com a dica aberta. A leitura guardada desconta essa ajuda: confiança e resultado só se encontram de verdade quando o enquadramento vem de você.")
+        }
         switch confidence {
         case .very:
             return String(localized: "Você disse “Muito confiante” e a transferência confirmou. Confiança e resultado se alinham — isso é domínio calibrado, não fluência.")

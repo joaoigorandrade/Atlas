@@ -2447,17 +2447,6 @@
         }
       }
     },
-    "Lendo sua tentativa…" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reading your attempt…"
-          }
-        }
-      }
-    },
     "ler esta seção em voz alta" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4921,6 +4910,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Back to the map · pick this up later"
+          }
+        }
+      }
+    },
+    "Você atravessou, com a dica aberta. A leitura guardada desconta essa ajuda: confiança e resultado só se encontram de verdade quando o enquadramento vem de você." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You carried it over, with the hint open. The stored reading discounts that help: confidence and result only truly meet when the reframe comes from you."
+          }
+        }
+      }
+    },
+    "A leitura guardada é a da primeira tentativa, a frio — e ela quebrou. O degrau com apoio mostra que o conceito está firme, não que a sua confiança já acertou." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The reading we kept is the first attempt's, cold — and it broke. The scaffolded rung shows the concept holds, not that your confidence was right."
           }
         }
       }
