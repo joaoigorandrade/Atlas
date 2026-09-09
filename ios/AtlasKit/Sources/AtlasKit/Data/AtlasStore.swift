@@ -59,6 +59,12 @@ public final class AtlasStore {
     /// See `FeynmanSnapshot`.
     public var feynmanProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
 
+    /// The web's `connectProgress` — one elaboration pass per node id, held as
+    /// JSON for the reason above it. Connect asks the learner to write a
+    /// sentence per link in their own words, and until this existed every one
+    /// of them died with the view: leaving the screen re-opened it blank.
+    public var connectProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
+
     /// What this learner keeps getting wrong, run-wide. A pass is discarded
     /// when it ends; this is not — the judge is told the repeats
     /// (`recurringMisconceptions`) so a confusion is named as a repeat instead
@@ -372,6 +378,31 @@ public extension AtlasStore {
     }
 }
 
+// MARK: - The elaboration pass (screen 17)
+
+public extension AtlasStore {
+    /// An elaboration parked on this node, or nil — read the way the two above
+    /// are: a shape this client cannot decode starts fresh rather than throws.
+    func savedConnect(_ id: String) -> ConnectSnapshot? {
+        guard let held = connectProgress[id] else { return nil }
+        return try? held.decode(ConnectSnapshot.self)
+    }
+
+    /// Keep the pass as it stands — every confirmed link and every keystroke of
+    /// the sentence under it, debounced by the store's own save.
+    func note(connect: ConnectSnapshot) {
+        guard let encoded = try? JSONValue(encoding: connect) else { return }
+        connectProgress[connect.nodeId] = encoded
+    }
+
+    /// The cards are drafted and the node is Shaky: nothing left to come back
+    /// to. Mirrors the clear in `advanceFromConnect`.
+    func clearConnect(_ id: String) {
+        guard connectProgress[id] != nil else { return }
+        connectProgress[id] = .null
+    }
+}
+
 // MARK: - Retain (screens 11, 19, 20)
 
 public extension AtlasStore {
@@ -604,6 +635,7 @@ public extension AtlasStore {
         consumeProgress = run.consumeProgress
         socraticProgress = run.socraticProgress
         feynmanProgress = run.feynmanProgress
+        connectProgress = run.connectProgress
         misconceptions = run.misconceptions
         // Only when the topic records one: a run built before the field existed
         // has a genuinely unknown content language, and the device preference is
@@ -782,6 +814,7 @@ public extension AtlasStore {
                 "consumeProgress": consumeProgress[node.id] ?? .null,
                 "socraticProgress": socraticProgress[node.id] ?? .null,
                 "feynmanProgress": feynmanProgress[node.id] ?? .null,
+                "connectProgress": connectProgress[node.id] ?? .null,
             ]
             shots[node.id] = JSONValue.object(fields).compact
         }
@@ -888,6 +921,7 @@ public extension AtlasStore {
                 delta.consumeProgress = consumeProgress[node.id]
                 delta.socraticProgress = socraticProgress[node.id]
                 delta.feynmanProgress = feynmanProgress[node.id]
+                delta.connectProgress = connectProgress[node.id]
                 // Only a node the server has never seen needs its edges; an
                 // existing one's prerequisites are already rows, and re-sending
                 // them on every drag would be the write amplification this
@@ -946,6 +980,7 @@ public extension AtlasStore {
             library[index].consumeProgress = consumeProgress
             library[index].socraticProgress = socraticProgress
             library[index].feynmanProgress = feynmanProgress
+            library[index].connectProgress = connectProgress
             library[index].misconceptions = misconceptions
             library[index].calibSamples = calib
             // The mirror holds what the server acknowledged, never what the
@@ -1031,6 +1066,7 @@ public extension AtlasStore {
         consumeProgress = [:]
         socraticProgress = [:]
         feynmanProgress = [:]
+        connectProgress = [:]
         misconceptions = []
     }
 

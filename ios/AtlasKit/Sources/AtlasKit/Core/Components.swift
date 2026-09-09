@@ -628,23 +628,32 @@ public extension AnyTransition {
 /// prose, with the sentence about what Atlas is writing under it. A failure is
 /// only the sentence — nothing is coming, so nothing is shaped.
 struct Waiting: View {
+    /// What is being waited *for*. Prose is the default because most phases are
+    /// prose; Connect resolves into a diagram, and paragraph bars there promised
+    /// a screen it never becomes.
+    enum Shape { case prose, web }
     private let text: Text
     /// A failure is not a wait: the shape and the dots come off when the
     /// sentence on screen is the reason nothing is coming.
     private let spinning: Bool
+    private let shape: Shape
     /// A generation that lands in a few hundred milliseconds should look
     /// instant, not like a skeleton that flashed. Held back one beat.
     @State private var shown = false
     /// The sentence answers the shape a beat later — see `body`.
     @State private var narrating = false
-    init(_ key: LocalizedStringKey, spinning: Bool = true) { text = Text(key); self.spinning = spinning }
+    init(_ key: LocalizedStringKey, spinning: Bool = true, shape: Shape = .prose) {
+        text = Text(key); self.spinning = spinning; self.shape = shape
+    }
     /// The sentence a view model already resolved — an `ErrorCopy` line, or a
     /// wait it picked between several. Localised there, not here.
-    init(verbatim: String, spinning: Bool = true) { text = Text(verbatim: verbatim); self.spinning = spinning }
+    init(verbatim: String, spinning: Bool = true, shape: Shape = .prose) {
+        text = Text(verbatim: verbatim); self.spinning = spinning; self.shape = shape
+    }
     var body: some View {
         VStack(alignment: spinning ? .leading : .center, spacing: 24) {
             if spinning {
-                SkeletonLines().padding(.top, 30)
+                held.padding(.top, 30)
                 // The sentence sits under the shape, on the same left edge as
                 // the prose it stands in for — a caption centred against
                 // left-aligned bars is the thing that reads as unfinished.
@@ -672,6 +681,20 @@ struct Waiting: View {
             withAnimation(Motion.enter) { narrating = true }
         }
         .transition(.opacity)
+    }
+
+    /// The place the answer will take, at the answer's own shape.
+    @ViewBuilder
+    private var held: some View {
+        switch shape {
+        case .prose: SkeletonLines()
+        case .web:
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Palette.chipBg)
+                .aspectRatio(560.0 / 440.0, contentMode: .fit)
+                .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.hairline, lineWidth: 1) }
+                .accessibilityHidden(true)
+        }
     }
 
     private func sentence(_ alignment: TextAlignment) -> some View {

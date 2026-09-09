@@ -6,6 +6,7 @@ import {
   intervalLabels,
   newStoredCard,
   retainContentFromStore,
+  withSchedule,
 } from "@/lib/fsrs";
 
 const now = new Date("2026-07-20T12:00:00Z");
@@ -71,5 +72,28 @@ describe("FSRS store (#21)", () => {
     const content = retainContentFromStore(many, 6, now);
     expect(content.cards.length).toBe(4); // floor(6 / 1.5)
     expect(content.budgetMin).toBe(6);
+  });
+});
+
+describe("withSchedule — a card minted by a client that has no scheduler", () => {
+  const bare = {
+    id: "agencia-connect-incentivos",
+    nodeId: "agencia",
+    type: "why" as const,
+    source: "Connect",
+    front: "Agência ↔ Incentivos: qual é a conexão?",
+    back: "Sem agência o incentivo não tem em quem agir.",
+  };
+
+  it("gets scheduler state, and is due now", () => {
+    const [filled] = withSchedule([bare], now);
+    expect(filled.fsrs.due).toBeTruthy();
+    expect(dueCards([filled], now).length).toBe(1);
+    expect(filled.back).toBe(bare.back);
+  });
+
+  it("leaves a graded card's own state alone", () => {
+    const graded = gradeStoredCard(card("a"), "good", now);
+    expect(withSchedule([graded], now)[0].fsrs.due).toBe(graded.fsrs.due);
   });
 });

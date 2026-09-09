@@ -381,12 +381,59 @@ public struct ElaborationLink: Decodable, Sendable, Identifiable {
 
 public struct ElaborationContent: Decodable, Sendable {
     public struct Point: Decodable, Sendable { public let x: Double; public let y: Double }
+    /// One offered memory aid — list-like content only.
+    public struct Mnemonic: Decodable, Sendable, Identifiable {
+        /// Acronym · Method of loci · Vivid image.
+        public let kind: String
+        public let title: String
+        /// The aid itself, editable before the learner accepts it.
+        public let body: String
+        public var id: String { "\(kind)|\(title)" }
+    }
     public let centerId: String
     public let centerLabel: String
+    /// The auto-detected encoding — `conceptual` or `list-like`. Absent in a
+    /// payload written before this client read it, which reads as conceptual.
+    public let encoding: String?
     /// The detector's plain-language rationale.
     public let detectNote: String
     public let center: Point
     public let cands: [ElaborationLink]
+    /// The ordered items a mnemonic organizes (list-like only).
+    public let items: [String]?
+    /// The offered aids (list-like only).
+    public let mnemonics: [Mnemonic]?
+
+    /// Whether this node's material is genuinely enumerable — the one thing the
+    /// mnemonic half of the phase turns on.
+    public var isListLike: Bool { encoding == "list-like" && !(mnemonics ?? []).isEmpty }
+}
+
+/// Screen 17's pass, parked. Field for field the browser's `ConnectSession`,
+/// because the two clients resume the same elaboration off the same column —
+/// including the two mnemonic fields, which only list-like content ever fills.
+public struct ConnectSnapshot: Codable, Sendable {
+    public var nodeId: String
+    /// The candidate whose linking prompt is open, or nil.
+    public var active: String?
+    /// What the learner has written, per candidate id.
+    public var drafts: [String: String]
+    /// Which links they have confirmed as true.
+    public var linked: [String: Bool]
+    /// Index into `content.mnemonics` — list-like only.
+    public var mnemonicPick: Int?
+    public var mnemonicDraft: String
+    public var mnemonicAccepted: Bool
+
+    public init(
+        nodeId: String, active: String? = nil, drafts: [String: String] = [:],
+        linked: [String: Bool] = [:], mnemonicPick: Int? = nil,
+        mnemonicDraft: String = "", mnemonicAccepted: Bool = false
+    ) {
+        self.nodeId = nodeId; self.active = active; self.drafts = drafts
+        self.linked = linked; self.mnemonicPick = mnemonicPick
+        self.mnemonicDraft = mnemonicDraft; self.mnemonicAccepted = mnemonicAccepted
+    }
 }
 
 // MARK: - Crucible (screen 18)

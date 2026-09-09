@@ -4,6 +4,10 @@ import SwiftUI
 /// Screen 17's state: the candidate prior nodes off the learner's own map, the
 /// relationship drafts, and which links have been confirmed. Every candidate is
 /// a real node they already own, so every link is true rather than trivia.
+///
+/// On list-like material the phase has a second half — the ordered items and
+/// the memory aid the generation drafts for them. It is one screen, not two:
+/// the same pass wires the concept in *and* gives the sequence a handle.
 @Observable
 @MainActor
 final class ConnectViewModel {
@@ -12,6 +16,11 @@ final class ConnectViewModel {
     private(set) var writing = true
     private var drafts: [String: String] = [:]
     private var active: String?
+    /// The chosen aid (index into `content.mnemonics`), and the learner's
+    /// edit of it — accepted, it drafts a card of its own.
+    private(set) var mnemonicPick: Int?
+    private(set) var mnemonicAccepted = false
+    private var mnemonicText = ""
 
     /// One recogniser for the screen — the link editor is rebuilt on every
     /// candidate, and a recogniser rebuilt with it loses what was being said.
@@ -55,13 +64,19 @@ final class ConnectViewModel {
         return written.isEmpty ? candidate.rel : written
     }
 
+    /// The question that back answers — the front of the card, shown with it so
+    /// the drafted card reads as a card rather than as their sentence again.
+    func front(for candidate: ElaborationLink) -> String {
+        String(localized: "\(content?.centerLabel ?? node.label) ↔ \(candidate.label): qual é a conexão?")
+    }
+
     func draft(_ candidate: ElaborationLink) -> Binding<String> {
-        Binding(get: { self.text(for: candidate) }, set: { self.drafts[candidate.id] = $0 })
+        Binding(get: { self.text(for: candidate) }, set: { self.drafts[candidate.id] = $0; self.park() })
     }
 
     /// "Ver a sugestão do mapa" — offered, never imposed, and gone once there
     /// is anything of theirs to overwrite.
-    func suggest(_ candidate: ElaborationLink) { drafts[candidate.id] = candidate.rel }
+    func suggest(_ candidate: ElaborationLink) { drafts[candidate.id] = candidate.rel; park() }
     func canSuggest(_ candidate: ElaborationLink) -> Bool { text(for: candidate).trimmed.isEmpty }
 
     func canConfirm(_ candidate: ElaborationLink) -> Bool { !text(for: candidate).trimmed.isEmpty }
@@ -69,21 +84,67 @@ final class ConnectViewModel {
     func confirm(_ candidate: ElaborationLink) {
         linked.insert(candidate.id)
         active = content?.cands.first { !linked.contains($0.id) }?.id
+        park()
     }
 
     /// Pick any node on the web, including one already linked — the order the
     /// generation happened to emit is not the order the learner has to work in.
-    func select(_ candidate: ElaborationLink) { active = candidate.id }
+    func select(_ candidate: ElaborationLink) { active = candidate.id; park() }
+
+    // MARK: - The mnemonic half (list-like content only)
+
+    /// The aids on offer. Empty for conceptual material, which is the whole
+    /// point of the detector: a mnemonic there is noise.
+    var mnemonics: [ElaborationContent.Mnemonic] {
+        guard let content, content.isListLike else { return [] }
+        return content.mnemonics ?? []
+    }
+
+    /// The ordered items the aid organizes — what the learner is actually
+    /// being handed a handle for.
+    var items: [String] { content?.isListLike == true ? (content?.items ?? []) : [] }
+
+    var mnemonic: Binding<String> {
+        Binding(get: { self.mnemonicText }, set: { self.mnemonicText = $0; self.park() })
+    }
+
+    /// Pick an aid: its body goes in the box, editable, and un-accepts whatever
+    /// was accepted before. Mirrors `pickMnemonic`.
+    func pick(_ index: Int) {
+        guard let option = mnemonics.indices.contains(index) ? mnemonics[index] : nil else { return }
+        mnemonicPick = index
+        mnemonicText = option.body
+        mnemonicAccepted = false
+        park()
+    }
+
+    func acceptMnemonic() {
+        guard mnemonicPick != nil, !mnemonicText.trimmed.isEmpty else { return }
+        mnemonicAccepted = true
+        park()
+    }
+
+    /// The front of the card an accepted aid drafts.
+    var mnemonicFront: String {
+        String(localized: "\(content?.centerLabel ?? node.label) · qual é a ordem dos passos?")
+    }
+
+    // MARK: - The gate
+
+    /// How many links the gate is asking for — two, unless the web could never
+    /// offer two. The number is on screen because a gate you cannot count down
+    /// is a gate you cannot plan around.
+    var required: Int { min(2, max(1, content?.cands.count ?? 1)) }
 
     /// Two real connections is the design's gate — but a web that only ever
     /// offered one candidate cannot produce two, and a gate nobody can pass is
     /// a dead end. Mirrors `connectReady`.
-    var ready: Bool {
-        linked.count >= min(2, max(1, content?.cands.count ?? 1))
-    }
+    var ready: Bool { linked.count >= required }
 
     /// Nothing landed and nothing is coming.
     var failed: Bool { !writing && content == nil }
+
+    // MARK: - Leaving
 
     /// Understood and wired, but nothing has proven it transfers yet — that is
     /// exactly Shaky, and the write lives on the session.
@@ -93,34 +154,57 @@ final class ConnectViewModel {
     /// nothing was ever written: the learner's own sentence died with the view.
     func advance() {
         draftCards()
+        // The cards are drafted and the node is about to move: the parked copy
+        // has nothing left to come back to. Mirrors `advanceFromConnect`.
+        session.store.clearConnect(node.id)
         session.finishConnect()
         session.advance()
     }
 
-    /// One card per confirmed link, keyed by the link's own identity so redoing
-    /// the phase rewrites in place instead of stacking a second copy into the
-    /// queue. Mirrors `connectCards` + `advanceFromConnect`.
+    /// One card per confirmed link (plus the accepted aid), keyed by the link's
+    /// own identity so redoing the phase rewrites in place instead of stacking
+    /// a second copy into the queue. Mirrors `connectCards` + `advanceFromConnect`.
     private func draftCards() {
         guard let content else { return }
-        for candidate in confirmed {
-            let id = "\(content.centerId)-connect-\(candidate.id)"
-            let front = String(
-                localized: "\(content.centerLabel) ↔ \(candidate.label): qual é a conexão?"
-            )
+        var drafted: [(id: String, type: ReviewCardType, front: String, back: String)] =
+            confirmed.map {
+                ("\(content.centerId)-connect-\($0.id)", .why, front(for: $0), back(for: $0))
+            }
+        // A mnemonic is order-recall, not a "why" — grading it as one would
+        // misreport what the learner actually proved.
+        if mnemonicAccepted, !mnemonicText.trimmed.isEmpty {
+            drafted.append((
+                "\(content.centerId)-connect-mnemonic", .recall, mnemonicFront, mnemonicText.trimmed
+            ))
+        }
+        for card in drafted {
             // Keep the scheduler state of a card that already exists: redoing
             // Connect must not reset a link the learner has been reviewing. The
             // state itself is opaque here — it is the server's, and this only
             // carries it forward with the rewritten text.
-            if let index = session.store.cards.firstIndex(where: { $0.id == id }) {
-                session.store.cards[index].front = front
-                session.store.cards[index].back = back(for: candidate)
+            if let index = session.store.cards.firstIndex(where: { $0.id == card.id }) {
+                session.store.cards[index].front = card.front
+                session.store.cards[index].back = card.back
             } else {
                 session.store.cards.append(StoredCard(
-                    id: id, nodeId: node.id, type: .why, source: "Connect",
-                    front: front, back: back(for: candidate)
+                    id: card.id, nodeId: node.id, type: card.type, source: "Connect",
+                    front: card.front, back: card.back
                 ))
             }
         }
+    }
+
+    /// Park the pass as it stands. Called on every change the learner makes —
+    /// a keystroke included — because leaving the screen used to discard every
+    /// sentence they had written. The store's own debounce makes that one
+    /// request rather than one per letter.
+    private func park() {
+        session.store.note(connect: ConnectSnapshot(
+            nodeId: node.id, active: active, drafts: drafts,
+            linked: Dictionary(uniqueKeysWithValues: linked.map { ($0, true) }),
+            mnemonicPick: mnemonicPick, mnemonicDraft: mnemonicText,
+            mnemonicAccepted: mnemonicAccepted
+        ))
     }
 
     func load() async {
@@ -129,6 +213,16 @@ final class ConnectViewModel {
         // learner to link concepts they have never met. The store answers the
         // same way — an empty pool is no generation at all.
         guard !session.learnedElsewhere.isEmpty else { return advance() }
+        // Resume the pass if one was left open — the links already written are
+        // the learner's words, not something to re-earn.
+        if let saved = session.store.savedConnect(node.id) {
+            drafts = saved.drafts
+            linked = Set(saved.linked.filter(\.value).keys)
+            active = saved.active
+            mnemonicPick = saved.mnemonicPick
+            mnemonicText = saved.mnemonicDraft
+            mnemonicAccepted = saved.mnemonicAccepted
+        }
         writing = true
         message = ""
         if let error = await session.store.connect(node) {

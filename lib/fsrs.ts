@@ -104,6 +104,23 @@ export function newStoredCard(
   return { ...fields, fsrs: toStored(createEmptyCard(now)) };
 }
 
+/**
+ * Start the scheduler on any card that arrived without it.
+ *
+ * A client that does not run the scheduler mints a card with no state — the
+ * scheduler is the server's, on purpose. The write path used to reject those
+ * outright, which quietly dropped every card the phone drafted; a brand-new
+ * card is simply due now, which is what `newStoredCard` already says.
+ */
+export function withSchedule(
+  cards: Array<Omit<StoredCard, "fsrs"> & { fsrs?: StoredFsrsState }>,
+  now: Date = new Date(),
+): StoredCard[] {
+  return cards.map(({ fsrs, ...rest }) =>
+    fsrs?.due ? { ...rest, fsrs } : newStoredCard(rest, now),
+  );
+}
+
 /** Grade a card through the real scheduler — returns it with its next due date. */
 export function gradeStoredCard(
   card: StoredCard,
