@@ -16,8 +16,17 @@ public enum NodeState: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// A prerequisite is met once the node has been learned at least once.
+    /// The concept has been worked on at all — what the map ticks and what the
+    /// review queue and the Connect pool draw from. It is *not* the unlock rule.
     var isLearned: Bool { self == .learning || self == .shaky || self == .mastered }
+
+    /// A prerequisite is met once its pass is *finished*, not once it is
+    /// started: Connect leaves a node shaky, the Crucible mastered, and the
+    /// diagnostic writes both. `learning` is a pass in progress — written as
+    /// soon as the learner answers the first check in the reading — so counting
+    /// it here unlocked every descendant of a concept barely opened.
+    /// Mirrors `meetsPrereq` in `replan.ts`.
+    var meetsPrereq: Bool { self == .shaky || self == .mastered }
 
     /// What the state is called, wherever one is named to a learner — the
     /// drawer's heading and the trail's caption are the same sentence, and two
@@ -205,7 +214,7 @@ public func displayStates(_ states: StateMap, _ graph: ConceptGraph) -> [String:
     var out: [String: NodeState] = [:]
     for node in graph.nodes {
         let state = states[node.id] ?? .unknown
-        let unlocked = (prereqs[node.id] ?? []).allSatisfy { (states[$0] ?? .unknown).isLearned }
+        let unlocked = (prereqs[node.id] ?? []).allSatisfy { (states[$0] ?? .unknown).meetsPrereq }
         out[node.id] = (state == .unknown && node.gap != true && unlocked) ? .frontier : state
     }
     return out

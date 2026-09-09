@@ -37,9 +37,8 @@ import Testing
     // is a reason to walk mastery backwards.
     #expect(owned.states["cadeia"] == .mastered)
 
-    // Opening the screen and backing out is not learning the concept. It used
-    // to write Learning here, and `isLearned` counts Learning as a satisfied
-    // prerequisite — so a tap and a back swipe unlocked everything downstream.
+    // Opening the screen and backing out is not learning the concept, so
+    // nothing is written until the learner does something.
     let fresh = store(["lat": .mastered])
     let pass = SessionViewModel(node: fresh.graph.nodes[1], store: fresh)
     #expect(fresh.states["cadeia"] == nil)
@@ -49,8 +48,8 @@ import Testing
     #expect(fresh.states["cadeia"] == .learning)
 }
 
-/// The reason the rule above matters: Learning satisfies a prerequisite, so
-/// writing it on arrival lit the next concept up for free.
+/// Neither arriving nor a first check unlocks the next concept: `meetsPrereq`
+/// wants a finished pass, and the map must stay locked behind one in progress.
 @MainActor
 @Test func aTapAndABackSwipeDoesNotUnlockTheNextConcept() {
     let fresh = store(["lat": .mastered])

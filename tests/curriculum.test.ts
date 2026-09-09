@@ -784,6 +784,13 @@ describe("map state", () => {
     expect(display.b).toBe("frontier");
   });
 
+  it("a half-finished prerequisite does not unlock what builds on it", () => {
+    // `learning` is written on the first check in the reading: starting a
+    // concept must not light up its descendants.
+    expect(displayStates({ a: "learning", b: "unknown" }, graph).b).toBe("unknown");
+    expect(displayStates({ a: "shaky", b: "unknown" }, graph).b).toBe("frontier");
+  });
+
   it("spawnGap is idempotent; removeNode cleans edges", () => {
     const spec = { id: "g1", label: "G", reason: "r", dx: 10, dy: 10 };
     const g1 = spawnGap(graph, "a", spec);

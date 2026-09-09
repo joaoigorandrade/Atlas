@@ -25,6 +25,12 @@ import Testing
     #expect(shown["c"] == .frontier)
     #expect(shown["g"] == .unknown)
 
+    // A prerequisite still mid-pass is not met: `learning` is written on the
+    // first check in the reading, and starting a concept must not unlock what
+    // builds on it.
+    shown = displayStates(["a": .mastered, "b": .learning], graph)
+    #expect(shown["c"] == .unknown)
+
     // Stored progress always wins over derivation.
     shown = displayStates(["a": .mastered, "b": .mastered, "c": .learning], graph)
     #expect(shown["c"] == .learning)

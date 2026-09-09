@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   PHASES,
   STATE_COLOR,
+  meetsPrereq,
   readingPhaseIndex,
   readingProgress,
   shakyLine,
@@ -13,6 +14,7 @@ import {
   type ConceptNode,
   type ConsumeProgress,
   type NodeState,
+  type ProgressState,
   type ShakyReason,
 } from "@/lib/curriculum";
 import { color, font, motion } from "@/lib/theme";
@@ -116,10 +118,7 @@ function Body({
   const prereqIds = edges
     .filter(([, to, dashed]) => to === node.id && !dashed)
     .map(([from]) => from);
-  const met = prereqIds.filter((id) => {
-    const s = display[id];
-    return s === "learning" || s === "shaky" || s === "mastered";
-  }).length;
+  const met = prereqIds.filter((id) => meetsPrereq(display[id] as ProgressState)).length;
   const unlocks = edges.filter(([from, , dashed]) => from === node.id && !dashed).length;
   const gaps = edges.filter(([from, , dashed]) => from === node.id && dashed).length;
 

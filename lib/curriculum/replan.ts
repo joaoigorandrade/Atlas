@@ -18,9 +18,15 @@ export function initialStates(graph: ConceptGraph): StateMap {
   return Object.fromEntries(graph.nodes.map((n) => [n.id, n.state]));
 }
 
-/** A prerequisite is met once the node has been learned at least once. */
-function isLearned(state: ProgressState | undefined): boolean {
-  return state === "learning" || state === "shaky" || state === "mastered";
+/**
+ * A prerequisite is met once its pass is *finished*, not once it is started.
+ * Connect leaves a node shaky, the Crucible mastered, and the diagnostic writes
+ * both — `learning` is a pass in progress, written the moment the learner
+ * answers the first check in the reading. Counting that as met unlocked every
+ * descendant of a concept the learner had barely opened.
+ */
+export function meetsPrereq(state: ProgressState | undefined): boolean {
+  return state === "shaky" || state === "mastered";
 }
 
 /** Solid prerequisite edges into each node (dashed gap edges don't lock). */
@@ -50,7 +56,7 @@ export function displayStates(
     out[node.id] =
       state === "unknown" &&
       !node.gap &&
-      (prereqs[node.id] ?? []).every((p) => isLearned(states[p]))
+      (prereqs[node.id] ?? []).every((p) => meetsPrereq(states[p]))
         ? "frontier"
         : state;
   }
@@ -68,7 +74,7 @@ export function unmetPathOf(
 ): Set<string> {
   const path = new Set<string>();
   for (const anc of ancestorsOf(id, graph.edges)) {
-    if (anc === id || !isLearned(states[anc])) path.add(anc);
+    if (anc === id || !meetsPrereq(states[anc])) path.add(anc);
   }
   return path;
 }
