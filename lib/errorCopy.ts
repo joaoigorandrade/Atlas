@@ -26,13 +26,7 @@ import type { Language } from "@/lib/i18n";
  * server (`AtlasError.reason`, on the wire as `reason`), never by prose.
  */
 export type ErrorReason =
-  | "no_file"
-  | "file_too_big"
-  | "unsupported_type"
-  | "no_text"
-  | "unreadable"
-  | "daily_quota"
-  | "monthly_ceiling";
+  "no_file" | "file_too_big" | "unsupported_type" | "no_text" | "unreadable";
 
 export type ErrorContext =
   | "build"
@@ -87,10 +81,6 @@ export const ERROR_STRINGS = {
       no_text:
         "No text in that file — a scanned PDF is just pictures. The typed topic still works.",
       unreadable: "Couldn't read that file — the typed topic still works.",
-      daily_quota:
-        "That's today's generating done — it resets tomorrow. Everything already written is still here.",
-      monthly_ceiling:
-        "Generating is paused for now. Everything already written is still here to read and review.",
     } satisfies Record<ErrorReason, string>,
     retry: "Try again",
     dismiss: "Dismiss",
@@ -145,10 +135,6 @@ export const ERROR_STRINGS = {
       no_text:
         "Nenhum texto nesse arquivo — um PDF escaneado é só imagem. O tópico digitado ainda funciona.",
       unreadable: "Não deu para ler esse arquivo — o tópico digitado ainda funciona.",
-      daily_quota:
-        "Por hoje as gerações acabaram — voltam amanhã. Tudo o que já foi escrito continua aqui.",
-      monthly_ceiling:
-        "As gerações estão pausadas por enquanto. Tudo o que já foi escrito continua aqui para ler e revisar.",
     } satisfies Record<ErrorReason, string>,
     retry: "Tentar de novo",
     dismiss: "Fechar",

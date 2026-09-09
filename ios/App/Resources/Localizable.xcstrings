@@ -41,16 +41,6 @@
         }
       }
     },
-    "As gerações estão pausadas por enquanto. Tudo o que já foi escrito continua aqui." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Generating is paused for now. Everything already written is still here."
-          }
-        }
-      }
-    },
     "Compreensão construída — com uma ajuda pelo caminho." : {
       "localizations" : {
         "en" : {
@@ -97,16 +87,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hear the last turn"
-          }
-        }
-      }
-    },
-    "Por hoje as gerações acabaram — voltam amanhã. Tudo o que já foi escrito continua aqui." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That's today's generating done — it resets tomorrow. Everything already written is still here."
           }
         }
       }

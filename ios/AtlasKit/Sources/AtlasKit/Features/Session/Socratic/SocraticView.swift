@@ -57,16 +57,8 @@ struct SocraticView: View {
 
             if model.failed {
                 // A generation that came back with nothing leaves a sentence
-                // ending in "tente de novo" over a screen with nothing to tap
-                // — and when the day's budget is what refused it, the honest
-                // action is the map rather than a retry that cannot land.
-                Dock {
-                    if model.exhausted {
-                        CTAButton("Voltar ao mapa →", tint: Phase.socratic.tint) { navigator.pop() }
-                    } else {
-                        CTAButton("Tentar de novo", tint: Phase.socratic.tint) { Task { await model.retry() } }
-                    }
-                }
+                // ending in "tente de novo" over a screen with nothing to tap.
+                Dock { CTAButton("Tentar de novo", tint: Phase.socratic.tint) { Task { await model.retry() } } }
             } else if model.done {
                 doneDock(model)
             } else if !model.log.isEmpty && !model.awaiting {

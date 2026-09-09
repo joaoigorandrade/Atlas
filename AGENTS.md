@@ -226,22 +226,15 @@ kind, where latency is dominated by sequential output decoding:
 groups them into _jobs_ (the surfaces a learner asked for). A job that fans out
 declares `Job.cost`, which is how many rows it writes.
 
-Two ceilings sit on that table, both in `lib/server/quota.ts`
-(`generationBlocked`), both checked in `/api/generate` after the free cache hit
-and before the first model call:
-
-- **`GENERATION_DAILY_QUOTA`** (default 60) — distinct jobs one learner may
-  start per UTC day, via `generation_jobs_today()`. Fairness.
-- **`GENERATION_MONTHLY_CALLS`** (default 20,000) — model calls this deployment
-  may make in a calendar month across every learner, via
-  `generation_calls_this_month()`. The bill. It also gates the server-side
-  frontier warm, which spends after the response where nothing else would stop
-  it.
-
-Over either, `/api/generate` answers 429 `rate_limit`; a background warm is
-declined silently with a 204 instead. Both **fail open**: if a count is
-unavailable the request proceeds, because 429-ing every learner over a broken
-meter is the worse failure. Still missing: any `max_tokens` on model calls.
+**Nothing sits on that table as a ceiling.** There is no daily quota and no
+monthly spend ceiling: the log meters generation, it does not gate it. A
+signed-in learner may generate as much as they ask for, the server-side
+frontier warm spends whatever `CURRICULUM_WARM_NODES` asks for, and the only
+brakes on the bill are the shared `content_cache`, the input caps in
+`lib/server/job.ts` and the model the chain picks. There is also still no
+`max_tokens` on model calls. `generation_jobs_today()` and
+`generation_calls_this_month()` are still in the database and still correct —
+they are how you read the spend, and what any future ceiling would count.
 
 ## Logs
 
@@ -252,8 +245,9 @@ the client on the `x-atlas-request-id` header. That is what makes "it failed" a
 grep, not an investigation.
 
 Server lines land in Vercel's runtime logs and in any drain attached to them —
-`lvl:"error"` is an error-budget query, `evt:"generate_quota_exceeded"` is the
-spend picture, `req` joins a learner's report to the exact request. No
+`lvl:"error"` is an error-budget query, `evt:"generate_request"` and the
+`generation_log` table are the spend picture, `req` joins a learner's report to
+the exact request. No
 telemetry vendor and no logging table: the platform already stores and queries
 these, and a second store would be a second thing to keep alive. Never
 `console.log` directly, and never log a raw upstream body — `describe()` bounds

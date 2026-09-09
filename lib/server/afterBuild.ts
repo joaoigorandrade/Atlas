@@ -15,7 +15,6 @@ import {
 } from "@/lib/curriculum";
 import { logError, logEvent } from "@/lib/log";
 import { readContent, writeContent } from "@/lib/server/contentCache";
-import { generationBlocked } from "@/lib/server/quota";
 import { ownsTopic, putContent } from "@/lib/server/store";
 import { resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import type { createClient } from "@/lib/supabase/server";
@@ -162,14 +161,8 @@ export function startCurriculumWarm(
       .filter((label): label is string => !!label);
 
   after(async () => {
-    // The warm is real spend — six calls at the default depth — and it runs
-    // after the response, where nothing else would stop it. The month's
-    // ceiling is checked once for the whole pass; the learner's own daily
-    // quota is not, because this is the server's speculation, not their click.
-    if ((await generationBlocked(supabase, undefined, { daily: 0 })) !== null) {
-      logEvent("curriculum_warm_skipped", { user: userId, reason: "ceiling" });
-      return;
-    }
+    // The warm is real spend — six calls at the default depth — and nothing
+    // stops it any more: `CURRICULUM_WARM_NODES` is the only dial on it.
     for (const node of frontier) {
       // A learner who deleted the topic while this was running must stop being
       // billed for it. The row is gone the moment the DELETE lands, so asking

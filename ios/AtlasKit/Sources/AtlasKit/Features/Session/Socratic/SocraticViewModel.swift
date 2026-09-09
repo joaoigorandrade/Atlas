@@ -81,9 +81,6 @@ final class SocraticViewModel {
     var done: Bool { total > 0 && (step >= total || (!writing && step >= steps.count)) }
     /// Nothing landed and nothing is coming — the retry the screen offers.
     var failed: Bool { !writing && steps.isEmpty }
-    /// …except when the day's generating is spent, in which case a retry is a
-    /// button that cannot work: the way out is the map, and the screen says so.
-    private(set) var exhausted = false
 
     var canSend: Bool { !judging && !answer.trimmed.isEmpty }
     /// The two escape hatches off a probe. Both spend material the generation
@@ -183,17 +180,12 @@ final class SocraticViewModel {
         landed()
         if let error = await session.store.socratic(node) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "abrir esta sessão"))
-            let reason = (error as? AtlasError)?.reason
-            exhausted = reason == "daily_quota" || reason == "monthly_ceiling"
         }
         writing = false
         landed()
     }
 
-    func retry() async {
-        exhausted = false
-        await load()
-    }
+    func retry() async { await load() }
 
     private func watchSteps() {
         withObservationTracking { _ = steps.count } onChange: {

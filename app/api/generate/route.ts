@@ -8,11 +8,10 @@
 // Only a genuine miss reaches OpenRouter.
 //
 // Protection (#18): requires a signed-in Supabase session, caps every input
-// length (in lib/server/job.ts), logs every call that actually generates to the
-// generation_log table, and declines with a 429 once a learner has started
-// GENERATION_DAILY_QUOTA jobs in a UTC day (Phase 0.6) or this deployment has
-// made GENERATION_MONTHLY_CALLS model calls in the month (Phase 3). A cache hit
-// is free and is answered before either ceiling is consulted.
+// length (in lib/server/job.ts), and logs every call that actually generates to
+// the generation_log table. There is deliberately no quota and no spend
+// ceiling: generation is metered by the log, not gated by it, so the only
+// brakes on cost are the cache, the prompt caps and the model chosen.
 
 import { NextResponse } from "next/server";
 import { graphFromMapNodes, type MapNode } from "@/lib/curriculum";
@@ -36,7 +35,6 @@ import {
   ndjsonStream,
   payloadToFrames,
 } from "@/lib/server/stream";
-import { generationBlocked } from "@/lib/server/quota";
 import { createClient } from "@/lib/supabase/server";
 
 // Content generation is a real LLM round-trip — allow it time. It has to fit
@@ -121,26 +119,6 @@ export async function POST(request: Request) {
         requestId,
       );
     }
-  }
-
-  // Everything from here on costs money, so this is where the day's ceiling
-  // applies — after the free cache hit, before the first model call.
-  const blocked = await generationBlocked(supabase, requestId);
-  if (blocked) {
-    logEvent("generate_quota_exceeded", {
-      user: userId,
-      kind: job.kind,
-      limit: blocked,
-      req: requestId,
-    });
-    // A background warm is nobody's click: decline it silently, exactly as a
-    // failed warm is declined, rather than surfacing a 429 no one asked for.
-    if (prefetch) return new NextResponse(null, { status: 204 });
-    // Which limit it was, on the wire: both answer 429, but "today's budget is
-    // spent" and "wait a few seconds" are different instructions, and a client
-    // that cannot tell them apart tells the learner to retry a cap that will
-    // not lift for hours.
-    return apiError("rate_limit", { requestId, reason: blocked });
   }
 
   // Accounting in one place — the background warm in startCurriculumWarm goes
