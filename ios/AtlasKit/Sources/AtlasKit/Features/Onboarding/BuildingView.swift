@@ -29,9 +29,7 @@ struct BuildingView: View {
                     .padding(.bottom, 20)
                 // Indeterminate on purpose: the map's length isn't known until
                 // it ends, and a bar that pretends otherwise stalls at 90%.
-                ProgressView()
-                    .progressViewStyle(.linear)
-                    .tint(Palette.accent)
+                AtlasProgressBar()
                     .frame(maxWidth: 260)
                 Text(verbatim: count)
                     .font(.atlas(.mono, 11))

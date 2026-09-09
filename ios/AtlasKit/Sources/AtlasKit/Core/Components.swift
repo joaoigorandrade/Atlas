@@ -482,34 +482,60 @@ public struct AtlasPulse: View {
 
 /// Prose that hasn't landed yet, in the shape it will land in — the paragraph
 /// rhythm of a reading, so the screen doesn't jump from an empty box to a wall
-/// of text. A sweep crosses it about once a second; under Reduce Motion the
-/// bars simply sit there, which is still the right shape.
+/// of text. The lines settle in one after another, and a slanted sheen crosses
+/// the block about once a second; under Reduce Motion the bars simply sit
+/// there, which is still the right shape.
 public struct SkeletonLines: View {
-    /// Each line's share of the width. The defaults are one settled paragraph
-    /// and the start of a second — long, long, slightly short, long, half.
-    private let widths: [Double]
+    /// Each paragraph, each line's share of the width. The default is one
+    /// settled paragraph and most of a second — the rhythm of a reading, not a
+    /// single stub floating at the top of an empty screen.
+    private let paragraphs: [[Double]]
     @State private var sweeping = false
+    @State private var settled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(_ widths: [Double] = [1, 0.96, 0.82, 0.99, 0.55]) { self.widths = widths }
+    public init(_ paragraphs: [[Double]] = [[1, 0.96, 0.82, 0.99, 0.55], [1, 0.9, 0.97, 0.64]]) {
+        self.paragraphs = paragraphs
+    }
 
     public var body: some View {
         bars
             .overlay { if !reduceMotion { sweep } }
-            // The sweep is painted over the whole block and then cut to the
+            // The sheen is painted over the whole block and then cut to the
             // bars, so it lights the text lines and never the gaps.
             .mask { bars }
-            .task { sweeping = true }
+            .task {
+                sweeping = true
+                withAnimation(Motion.enter) { settled = true }
+            }
             .accessibilityHidden(true)
     }
 
+    /// Flattened once so a line knows both its gap above — 13 inside a
+    /// paragraph, 24 between two — and its place in the settling order.
+    private var lines: [(width: Double, gap: CGFloat)] {
+        paragraphs.enumerated().flatMap { paragraph, widths in
+            widths.enumerated().map { line, width in
+                (width, line > 0 ? 13 : (paragraph > 0 ? 24 : 0))
+            }
+        }
+    }
+
     private var bars: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            ForEach(Array(widths.enumerated()), id: \.offset) { _, width in
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                 GeometryReader { geo in
-                    Capsule().fill(Palette.hairline).frame(width: geo.size.width * width)
+                    Capsule().fill(Palette.hairline).frame(width: geo.size.width * line.width)
                 }
                 .frame(height: 11)
+                .padding(.top, line.gap)
+                // Each line lands a beat after the one above it, so the shape
+                // writes itself down the page instead of appearing whole.
+                .opacity(settled || reduceMotion ? 1 : 0)
+                .animation(
+                    reduceMotion ? nil : Motion.enter.delay(Double(index) * 0.05),
+                    value: settled
+                )
             }
         }
     }
@@ -517,13 +543,47 @@ public struct SkeletonLines: View {
     private var sweep: some View {
         GeometryReader { geo in
             LinearGradient(
-                colors: [.clear, Palette.ink.opacity(0.07), .clear],
-                startPoint: .leading, endPoint: .trailing
+                colors: [.clear, Palette.paper.opacity(0.85), .clear],
+                startPoint: .topLeading, endPoint: .bottomTrailing
             )
-            .frame(width: geo.size.width * 0.45)
-            .offset(x: sweeping ? geo.size.width : -geo.size.width * 0.45)
-            .animation(.easeInOut(duration: 1.15).repeatForever(autoreverses: false), value: sweeping)
+            .frame(width: geo.size.width * 0.5)
+            .offset(x: sweeping ? geo.size.width : -geo.size.width * 0.5)
+            .animation(.easeInOut(duration: 1.35).repeatForever(autoreverses: false), value: sweeping)
         }
+    }
+}
+
+/// The app's own indeterminate bar — a hairline rule with a short accent
+/// segment travelling it. `ProgressView(.linear)` is UIKit's, and it reads as a
+/// system alert in the middle of paper the same way its spinner does.
+public struct AtlasProgressBar: View {
+    @State private var travelling = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    public init() {}
+    public var body: some View {
+        GeometryReader { geo in
+            Capsule()
+                .fill(Palette.hairline)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(Palette.accent)
+                        // Under Reduce Motion the segment holds still rather
+                        // than pacing the width for as long as the wait lasts.
+                        .frame(width: geo.size.width * (reduceMotion ? 1 : 0.34))
+                        .opacity(reduceMotion ? 0.35 : 1)
+                        .offset(x: travelling && !reduceMotion ? geo.size.width * 0.66 : 0)
+                        .animation(
+                            reduceMotion
+                                ? nil
+                                : .easeInOut(duration: 1.3).repeatForever(autoreverses: true),
+                            value: travelling
+                        )
+                }
+                .clipShape(Capsule())
+        }
+        .frame(height: 3)
+        .task { travelling = true }
+        .accessibilityHidden(true)
     }
 }
 
@@ -546,21 +606,27 @@ struct Waiting: View {
     /// A generation that lands in a few hundred milliseconds should look
     /// instant, not like a skeleton that flashed. Held back one beat.
     @State private var shown = false
+    /// The sentence answers the shape a beat later — see `body`.
+    @State private var narrating = false
     init(_ key: LocalizedStringKey, spinning: Bool = true) { text = Text(key); self.spinning = spinning }
     /// The sentence a view model already resolved — an `ErrorCopy` line, or a
     /// wait it picked between several. Localised there, not here.
     init(verbatim: String, spinning: Bool = true) { text = Text(verbatim: verbatim); self.spinning = spinning }
     var body: some View {
-        VStack(spacing: 22) {
+        VStack(alignment: spinning ? .leading : .center, spacing: 24) {
             if spinning {
-                SkeletonLines().padding(.top, 26)
+                SkeletonLines().padding(.top, 30)
+                // The sentence sits under the shape, on the same left edge as
+                // the prose it stands in for — a caption centred against
+                // left-aligned bars is the thing that reads as unfinished.
                 HStack(spacing: 9) {
                     AtlasPulse(size: 17)
-                    sentence
+                    sentence(.leading)
                 }
+                .opacity(narrating ? 1 : 0)
             } else {
                 Spacer(minLength: 0)
-                sentence
+                sentence(.center)
                 Spacer(minLength: 0)
             }
         }
@@ -570,12 +636,19 @@ struct Waiting: View {
         .task {
             try? await Task.sleep(for: .milliseconds(spinning ? 180 : 0))
             withAnimation(Motion.standard) { shown = true }
+            guard spinning else { return }
+            // The shape lands first and the sentence answers it, rather than
+            // both arriving in the same frame.
+            try? await Task.sleep(for: .milliseconds(420))
+            withAnimation(Motion.enter) { narrating = true }
         }
         .transition(.opacity)
     }
 
-    private var sentence: some View {
-        text.font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted).multilineTextAlignment(.center)
+    private func sentence(_ alignment: TextAlignment) -> some View {
+        text.font(.atlas(.sans, 13.5))
+            .foregroundStyle(Palette.inkMuted)
+            .multilineTextAlignment(alignment)
     }
 }
 
