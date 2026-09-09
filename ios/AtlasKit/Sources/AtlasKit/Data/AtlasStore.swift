@@ -52,6 +52,13 @@ public final class AtlasStore {
     /// leaving the screen mid-pass has to keep it. See `SocraticSnapshot`.
     public var socraticProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
 
+    /// The web's `feynmanProgress` — one teach-back per node id, held as JSON
+    /// for the reason above it. This is the phase that asks the most of the
+    /// learner, and it was the only one that forgot it happened: a pass parked
+    /// mid-sentence, or sitting on its Gap Report, reopens exactly where it was.
+    /// See `FeynmanSnapshot`.
+    public var feynmanProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
+
     /// What this learner keeps getting wrong, run-wide. A pass is discarded
     /// when it ends; this is not — the judge is told the repeats
     /// (`recurringMisconceptions`) so a confusion is named as a repeat instead
@@ -338,6 +345,33 @@ public extension AtlasStore {
     }
 }
 
+// MARK: - The teach-back (screen 16)
+
+public extension AtlasStore {
+    /// A teach-back parked on this node, or nil. Undecodable JSON is nothing
+    /// rather than a throw, exactly as `savedPass` reads a browser's session:
+    /// a shape this client cannot read is a pass that starts fresh, never a
+    /// screen that refuses to open.
+    func savedTeachBack(_ id: String) -> FeynmanSnapshot? {
+        guard let held = feynmanProgress[id] else { return nil }
+        return try? held.decode(FeynmanSnapshot.self)
+    }
+
+    /// Keep the teach-back as it stands — every keystroke's worth, debounced by
+    /// the store's own save.
+    func note(teachBack: FeynmanSnapshot) {
+        guard let encoded = try? JSONValue(encoding: teachBack) else { return }
+        feynmanProgress[teachBack.nodeId] = encoded
+    }
+
+    /// The gaps are on the map now: the pass has nothing left to come back to.
+    /// Mirrors the clear in `advanceFromFeynman`.
+    func clearTeachBack(_ id: String) {
+        guard feynmanProgress[id] != nil else { return }
+        feynmanProgress[id] = .null
+    }
+}
+
 // MARK: - Retain (screens 11, 19, 20)
 
 public extension AtlasStore {
@@ -569,6 +603,7 @@ public extension AtlasStore {
         reviewed = Set(run.reviewedNodes)
         consumeProgress = run.consumeProgress
         socraticProgress = run.socraticProgress
+        feynmanProgress = run.feynmanProgress
         misconceptions = run.misconceptions
         // Only when the topic records one: a run built before the field existed
         // has a genuinely unknown content language, and the device preference is
@@ -746,6 +781,7 @@ public extension AtlasStore {
                 "reviewed": .bool(reviewed.contains(node.id)),
                 "consumeProgress": consumeProgress[node.id] ?? .null,
                 "socraticProgress": socraticProgress[node.id] ?? .null,
+                "feynmanProgress": feynmanProgress[node.id] ?? .null,
             ]
             shots[node.id] = JSONValue.object(fields).compact
         }
@@ -851,6 +887,7 @@ public extension AtlasStore {
                 delta.reviewed = reviewed.contains(node.id)
                 delta.consumeProgress = consumeProgress[node.id]
                 delta.socraticProgress = socraticProgress[node.id]
+                delta.feynmanProgress = feynmanProgress[node.id]
                 // Only a node the server has never seen needs its edges; an
                 // existing one's prerequisites are already rows, and re-sending
                 // them on every drag would be the write amplification this
@@ -908,6 +945,7 @@ public extension AtlasStore {
             library[index].reviewedNodes = reviewed.sorted()
             library[index].consumeProgress = consumeProgress
             library[index].socraticProgress = socraticProgress
+            library[index].feynmanProgress = feynmanProgress
             library[index].misconceptions = misconceptions
             library[index].calibSamples = calib
             // The mirror holds what the server acknowledged, never what the
@@ -992,6 +1030,7 @@ public extension AtlasStore {
         reviewed = []
         consumeProgress = [:]
         socraticProgress = [:]
+        feynmanProgress = [:]
         misconceptions = []
     }
 

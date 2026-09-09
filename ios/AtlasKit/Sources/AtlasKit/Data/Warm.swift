@@ -281,6 +281,11 @@ public extension AtlasStore {
     func chunks(_ node: ConceptNode) -> [ConsumeChunk] { warm.content(key("consume", node)) ?? [] }
     func steps(_ node: ConceptNode) -> [SocraticStep] { warm.content(key("socratic", node)) ?? [] }
     func beats(_ node: ConceptNode) -> [FeynmanBeat] { warm.content(key("feynman", node)) ?? [] }
+    /// The rubric on screen is a prefix, not a whole one — a stream that died
+    /// short of the floor. `WarmCache.isIncomplete` had no reader anywhere in
+    /// the app; this is the phase it matters most to, because a short rubric is
+    /// silently a shorter test.
+    func beatsIncomplete(_ node: ConceptNode) -> Bool { warm.isIncomplete(key("feynman", node)) }
     func web(_ node: ConceptNode) -> ElaborationContent? {
         warm.content(key("connect", node, learned(besides: node).ids))
     }
@@ -304,7 +309,12 @@ public extension AtlasStore {
     @discardableResult
     func feynman(_ node: ConceptNode) async -> Error? {
         let (api, context) = (api, context(for: node))
-        return await warm.fill(key("feynman", node), live: { await api.feynman(context) })
+        // The server's own floor (`FEYNMAN_BEAT_BOUNDS.min`). Without it a
+        // stream that died after one beat was filed as a complete rubric: the
+        // learner taught one sub-point, was told they were done, and the rows
+        // the model never wrote could never become gaps.
+        return await warm.fill(key("feynman", node), atLeast: FeynmanBeatBounds.min,
+                               live: { await api.feynman(context) })
     }
 
     /// Connect's candidates are the learner's own map, so the pool is part of
@@ -434,7 +444,9 @@ public extension AtlasStore {
                 seed(item.kind, node, item.payload, as: [ConsumeChunk].self,
                      shortOf: ConsumeSectionBounds.min)
             case "socratic": seed(item.kind, node, item.payload, as: [SocraticStep].self)
-            case "feynman": seed(item.kind, node, item.payload, as: [FeynmanBeat].self)
+            case "feynman":
+                seed(item.kind, node, item.payload, as: [FeynmanBeat].self,
+                     shortOf: FeynmanBeatBounds.min)
             case "connect": seed(item.kind, node, item.payload, as: ElaborationContent.self)
             case "crucible": seed(item.kind, node, item.payload, as: CrucibleContent.self)
             default: continue

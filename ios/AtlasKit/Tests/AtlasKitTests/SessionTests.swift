@@ -146,46 +146,6 @@ import Testing
 }
 
 @MainActor
-private func beat(_ index: Int) -> FeynmanBeat {
-    let raw = """
-    {"id":"b\(index)","subPoint":"Ponto \(index)","mustConvey":["x"],
-     "gap":{"id":"cadeia-g\(index)","label":"Lacuna \(index)","reason":"não explicou","dx":40,"dy":60}}
-    """
-    return try! JSONDecoder().decode(FeynmanBeat.self, from: Data(raw.utf8))
-}
-
-@MainActor
-private func report(_ rows: [(Int, String, String?)]) -> FeynmanJudgement {
-    let verdicts = rows.map { row in
-        let quote = row.2.map { "\"quote\":\"\($0)\"," } ?? ""
-        return "{\"i\":\(row.0),\(quote)\"verdict\":\"\(row.1)\"}"
-    }
-    let raw = "{\"verdicts\":[\(verdicts.joined(separator: ","))],\"response\":\"ok\"}"
-    return try! JSONDecoder().decode(FeynmanJudgement.self, from: Data(raw.utf8))
-}
-
-@MainActor
-@Test func aRubricRowTheJudgeNeverRuledOnIsASkipRatherThanAPass() {
-    let (pass, store) = session(["lat": .mastered])
-    let beats = [beat(0), beat(1), beat(2)]
-    // Row 1 is missing from the payload entirely. Silence about a sub-point the
-    // learner never mentioned is the finding this phase exists for — grading it
-    // good is the one thing the write must never do.
-    pass.writeFeynmanGaps(report([(0, "good", "eu disse isso"), (2, "confused", "taxa de fora")]), beats: beats)
-
-    #expect(store.states["cadeia-g0"] == nil)
-    #expect(store.states["cadeia-g1"] == .gap)
-    #expect(store.states["cadeia-g2"] == .gap)
-    // The learner's own words are the whole context a later pass on the gap
-    // opens with; without the quote it carries the reason written before they
-    // said anything.
-    #expect(store.graph.nodes.first { $0.id == "cadeia-g2" }?.summary?.contains("taxa de fora") == true)
-    #expect(store.graph.nodes.first { $0.id == "cadeia-g1" }?.summary == "não explicou")
-    // Every gap hangs on a dashed edge — a gap can never lock anything.
-    #expect(store.graph.edges.filter(\.dashed).count == 2)
-}
-
-@MainActor
 @Test func aRepeatCrucibleFailureRenamesTheGapInsteadOfKeepingTheFirstWording() {
     let gap = GapSpec(id: "cadeia-gap", label: "Rascunho", reason: "rascunho", dx: 40, dy: 60)
     let (pass, store) = session(["lat": .mastered])

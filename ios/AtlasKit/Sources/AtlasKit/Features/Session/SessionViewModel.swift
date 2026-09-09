@@ -194,31 +194,52 @@ public final class SessionViewModel: Identifiable {
     /// learner skipped or got confused about is a real gap, in their own
     /// material's words.
     ///
-    /// A row the judge did not rule on is a skip, not a pass: silence about a
-    /// sub-point the learner never mentioned is exactly the finding this phase
-    /// exists for. The server validator refuses such a payload today; this is
-    /// the client not depending on that.
-    public func writeFeynmanGaps(_ judgement: FeynmanJudgement, beats: [FeynmanBeat]) {
-        let ruled = Dictionary(judgement.verdicts.map { ($0.i, $0) }, uniquingKeysWith: { first, _ in first })
+    /// It runs on the way *out* of the phase, from the verdicts as they finally
+    /// stand — not the instant the judge answers. Writing at submit meant a
+    /// learner who read the report and backed out had still mutated the map,
+    /// and a row taken from `confused` to `good` by a fix or a second pass left
+    /// its red node hanging under the concept forever, because nothing ever
+    /// removed one. So this both spawns and removes, the way `settleCrucible`
+    /// does. Mirrors `advanceFromFeynman`.
+    public func settleFeynman(_ verdicts: [String: TeachVerdict], beats: [FeynmanBeat], quotes: [String: String]) {
         // One assignment, one rederive, one debounced save — not one per row.
         var graph = store.graph
         var spawned: [String] = []
-        for (index, beat) in beats.enumerated() {
-            let row = ruled[index]
-            guard row?.verdict != "good" else { continue }
+        var cleared: [String] = []
+        for beat in beats {
+            let verdict = verdicts[beat.id] ?? .skipped
+            guard verdict.isGap else {
+                // Explained this time. The node it left behind last time is a
+                // lie about what the learner owes, so it comes off.
+                if graph.nodes.contains(where: { $0.id == beat.gap.id }) {
+                    graph.nodes.removeAll { $0.id == beat.gap.id }
+                    graph.edges.removeAll { $0.from == beat.gap.id || $0.to == beat.gap.id }
+                    cleared.append(beat.gap.id)
+                }
+                continue
+            }
             // The learner's own words are the whole context a later pass on
             // this gap opens with; the pre-written reason was drafted before
             // they said anything.
             let named = GapSpec(
                 id: beat.gap.id,
                 label: beat.gap.label,
-                reason: row?.quote.map { String(localized: "Você disse: “\($0)” — \(beat.gap.reason)") } ?? beat.gap.reason,
+                reason: quotes[beat.id].map { String(localized: "Você disse: “\($0)” — \(beat.gap.reason)") } ?? beat.gap.reason,
                 dx: beat.gap.dx, dy: beat.gap.dy
             )
             graph = spawnGap(graph, parentId: node.id, named)
-            if graph.nodes.contains(where: { $0.id == named.id }) { spawned.append(named.id) }
+            // `spawnGap` is idempotent by id: a second pass that still owes the
+            // row must re-word it in place rather than leave the first
+            // attempt's quote on the map.
+            if let index = graph.nodes.firstIndex(where: { $0.id == named.id }) {
+                graph.nodes[index].summary = named.reason
+                spawned.append(named.id)
+            }
         }
         store.graph = graph
         for id in spawned { store.states[id] = .gap }
+        for id in cleared { store.states[id] = nil }
+        // The gaps are on the map now — the pass has nothing left to come back to.
+        store.clearTeachBack(node.id)
     }
 }

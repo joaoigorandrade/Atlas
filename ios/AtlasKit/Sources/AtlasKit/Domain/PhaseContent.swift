@@ -206,14 +206,74 @@ public struct SocraticJudgement: Decodable, Sendable {
 
 // MARK: - Feynman (screen 16)
 
+/// How long a rubric may be — `FEYNMAN_BEAT_BOUNDS`. Two rows is a complete
+/// rubric for a concept that genuinely has two things to say; one row is a
+/// stream that died. Without the floor here a truncated rubric was filed as a
+/// whole one, the learner was told they were done, and the sub-points the model
+/// never wrote could never become gaps.
+public enum FeynmanBeatBounds {
+    public static let min = 2
+    public static let max = 4
+}
+
+/// The targeted micro-pass that closes one sub-point — one probe, one right
+/// answer, and the misconception a real learner holds here written out in their
+/// own voice. Every generation pays for one of these per beat
+/// (`validateFeynmanBeat` fails without it), so a client that doesn't draw it
+/// is buying the phase's only remediation loop and throwing it away.
+public struct FeynmanFix: Decodable, Sendable {
+    public struct Reply: Decodable, Sendable, Identifiable {
+        public let label: String
+        public let correct: Bool
+        /// What the naive student says back when this one is picked.
+        public let response: String
+        public var id: String { label }
+    }
+    public let probe: String
+    public let replies: [Reply]
+}
+
 public struct FeynmanBeat: Decodable, Sendable, Identifiable {
     public let id: String
     /// The sub-point being tested — never shown before they teach.
     public let subPoint: String
     /// What a solid explanation has to convey. The judge's rubric.
     public let mustConvey: [String]
+    /// The one-probe corrective the Gap Report opens on this row. Optional so a
+    /// row written before the field existed still decodes — the report simply
+    /// offers no fix for it rather than blanking the whole rubric.
+    public let fix: FeynmanFix?
     /// The red gap sub-node this beat writes back when left unresolved.
     public let gap: GapSpec
+}
+
+/// A beat's verdict: explained, hand-waved, or wrong. The judge's own three
+/// words, and the one vocabulary the report, the map write-back and the saved
+/// pass all speak.
+public enum TeachVerdict: String, Codable, Sendable {
+    case good, skipped, confused
+
+    /// Green explained it, grey skipped it, red got it wrong — `VERDICT_COLOR`.
+    public var color: Color {
+        switch self {
+        case .good: NodeState.mastered.color
+        case .confused: NodeState.gap.color
+        case .skipped: NodeState.unknown.color
+        }
+    }
+
+    /// The verdict in words. Colour alone is invisible to VoiceOver and
+    /// indistinguishable to a colour-blind learner.
+    public var label: String {
+        switch self {
+        case .good: String(localized: "Bem explicado")
+        case .confused: String(localized: "Errado · confuso")
+        case .skipped: String(localized: "Pulado · enrolado")
+        }
+    }
+
+    /// A row still owed — what writes back to the map as a red sub-node.
+    public var isGap: Bool { self != .good }
 }
 
 public struct FeynmanJudgement: Decodable, Sendable {
@@ -227,6 +287,83 @@ public struct FeynmanJudgement: Decodable, Sendable {
     public let response: String
     /// Terms they used but never unpacked.
     public let jargon: [String]?
+}
+
+/// A teach-back as the row holds it — the browser's own `FeynmanSession`, so a
+/// pass parked on a phone reopens in a browser and back again. Every key the
+/// browser writes is carried, including the three this client never draws
+/// (`fixing`, `fixRuledOut`, `fixReaction`), because dropping one on save is
+/// how a mid-fix pass reopens broken over there.
+///
+/// This is the phase that asks the most of the learner — five to fifteen
+/// minutes of writing — and it was the only one that forgot it happened.
+public struct FeynmanSnapshot: Codable, Sendable {
+    public var nodeId: String
+    public var started: Bool
+    public var scaffolded: Bool
+    /// The learner's own explanation, whole, as they taught it.
+    public var explanation: String
+    /// The naive student's reaction to it.
+    public var response: String
+    public var pending: Bool
+    /// Verdict per beat id — `good` once a fix has closed the row.
+    public var verdicts: [String: TeachVerdict]
+    /// The words that earned each gap, per beat id.
+    public var quotes: [String: String]
+    public var jargon: [String]
+    /// The previous pass's verdicts, kept across "teach it again" so the second
+    /// report can show the delta — the one place the loop is visible working.
+    public var previous: [String: TeachVerdict]?
+    /// The explanation has been judged: the Gap Report is what reopens.
+    public var reported: Bool
+    public var fixing: String?
+    public var fixRuledOut: [String]
+    public var fixReaction: String?
+
+    public init(
+        nodeId: String, started: Bool = true, scaffolded: Bool = false,
+        explanation: String = "", response: String = "", pending: Bool = false,
+        verdicts: [String: TeachVerdict] = [:], quotes: [String: String] = [:],
+        jargon: [String] = [], previous: [String: TeachVerdict]? = nil,
+        reported: Bool = false, fixing: String? = nil,
+        fixRuledOut: [String] = [], fixReaction: String? = nil
+    ) {
+        self.nodeId = nodeId; self.started = started; self.scaffolded = scaffolded
+        self.explanation = explanation; self.response = response; self.pending = pending
+        self.verdicts = verdicts; self.quotes = quotes; self.jargon = jargon
+        self.previous = previous; self.reported = reported; self.fixing = fixing
+        self.fixRuledOut = fixRuledOut; self.fixReaction = fixReaction
+    }
+}
+
+/// How many rows a pass ended owing — the number the second-pass delta compares.
+/// A row the judge never ruled on counts: silence about a sub-point the learner
+/// never mentioned is exactly the finding this phase exists for.
+public func feynmanGapCount(_ verdicts: [String: TeachVerdict], _ beats: [FeynmanBeat]) -> Int {
+    beats.filter { (verdicts[$0.id] ?? .skipped).isGap }.count
+}
+
+/// Every sub-point explained well, nothing wrong or skipped. A phase that
+/// cannot be won is a phase learners stop taking seriously.
+public func feynmanClean(_ verdicts: [String: TeachVerdict], _ beats: [FeynmanBeat]) -> Bool {
+    !beats.isEmpty && beats.allSatisfy { verdicts[$0.id] == .good }
+}
+
+/// The judge's rows, read against the rubric it was handed. A row it did not
+/// rule on is a skip, not a pass — the server validator refuses such a payload
+/// today, and this is the client not depending on that.
+public func feynmanVerdicts(
+    _ judgement: FeynmanJudgement, _ beats: [FeynmanBeat]
+) -> (verdicts: [String: TeachVerdict], quotes: [String: String]) {
+    let ruled = Dictionary(judgement.verdicts.map { ($0.i, $0) }, uniquingKeysWith: { first, _ in first })
+    var verdicts: [String: TeachVerdict] = [:]
+    var quotes: [String: String] = [:]
+    for (index, beat) in beats.enumerated() {
+        let row = ruled[index]
+        verdicts[beat.id] = row.flatMap { TeachVerdict(rawValue: $0.verdict) } ?? .skipped
+        if let quote = row?.quote?.trimmed, !quote.isEmpty { quotes[beat.id] = quote }
+    }
+    return (verdicts, quotes)
 }
 
 // MARK: - Connect (screen 17)

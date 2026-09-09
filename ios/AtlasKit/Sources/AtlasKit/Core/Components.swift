@@ -104,6 +104,12 @@ public struct CTAButton: View {
     /// (auth), rather than one row of a dock.
     private let hero: Bool
     private let action: () -> Void
+    /// A dead control that looks live is a dropped tap the learner blames on
+    /// the app. The dimming lives here rather than at the call site: `.disabled`
+    /// is the one thing that decides it, so a CTA can never be turned off
+    /// without looking off — `GhostButton` beside it in the same dock used to
+    /// dim while this one stayed fully lit.
+    @Environment(\.isEnabled) private var enabled
     public init(_ title: LocalizedStringKey, tint: Color = Palette.accent, hero: Bool = false, action: @escaping () -> Void) {
         self.title = title; self.tint = tint; self.hero = hero; self.action = action
     }
@@ -119,9 +125,11 @@ public struct CTAButton: View {
                 .shadow(color: tint.opacity(0.26), radius: 11, y: 8)
         }
         .pressable()
+        .opacity(enabled ? 1 : 0.5)
         // The phase colour is the CTA's whole job — it must not cut between
         // two phases, and neither must the disabled dimming above it.
         .animation(Motion.standard, value: tint)
+        .animation(Motion.standard, value: enabled)
     }
 }
 
@@ -132,15 +140,24 @@ public struct GhostButton: View {
     public init(_ title: LocalizedStringKey, action: @escaping () -> Void) {
         self.title = title; self.action = action
     }
+    @Environment(\.isEnabled) private var enabled
     public var body: some View {
         Button(action: action) {
             Text(title)
                 .font(.atlas(.sans, 13.5))
                 .foregroundStyle(Palette.inkMuted)
+                // A dock's two buttons sit side by side, and at the
+                // accessibility sizes the label is what decides how wide each
+                // needs to be. Never a fixed width at the call site: that is
+                // what sheared "Ensinar de novo" into "Teach…".
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
         }
         .pressable()
+        .opacity(enabled ? 1 : 0.4)
+        .animation(Motion.standard, value: enabled)
     }
 }
 
@@ -347,7 +364,10 @@ public struct PhaseBar<Trailing: View>: View {
                     Text(title)
                         .font(.atlas(.serif, 16))
                         .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
+                        // Two lines, not one: `TopBar`'s height is a floor, and
+                        // a concept whose name is four words truncated to
+                        // "Regra da c…" at the accessibility sizes.
+                        .lineLimit(2)
                 }
             }
             .padding(.leading, -12)
@@ -363,7 +383,14 @@ public struct PhaseBar<Trailing: View>: View {
 public struct AnswerEditor: View {
     @Binding private var text: String
     private let placeholder: String
-    private let minHeight: CGFloat
+    /// The box grows with the type scale. A fixed 150pt held about three lines
+    /// at AX3 — on the one phase whose premise is a long free explanation.
+    @ScaledMetric private var minHeight: CGFloat
+    /// Take every point the page has left, rather than a floor with empty paper
+    /// under it. The screen that sets this must not put the editor inside a
+    /// `ScrollView`: two nested scrolls is a drag that does different things a
+    /// few points apart.
+    private let fills: Bool
     private let tint: Color
     /// The recogniser belongs to the phase, not to the box: a `Dictation` built
     /// here died with the card it was drawn in (Feynman rebuilds one per beat)
@@ -374,9 +401,10 @@ public struct AnswerEditor: View {
     @Environment(AtlasStore.self) private var store
 
     public init(text: Binding<String>, placeholder: String, dictation: Dictation,
-                minHeight: CGFloat = 150, tint: Color = Palette.accent) {
+                minHeight: CGFloat = 150, fills: Bool = false, tint: Color = Palette.accent) {
         _text = text; self.placeholder = placeholder; self.dictation = dictation
-        self.minHeight = minHeight; self.tint = tint
+        _minHeight = ScaledMetric(wrappedValue: minHeight)
+        self.fills = fills; self.tint = tint
     }
 
     public var body: some View {
@@ -394,8 +422,9 @@ public struct AnswerEditor: View {
                     .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: minHeight)
+                    .frame(minHeight: minHeight, maxHeight: fills ? .infinity : nil)
             }
+            .frame(maxHeight: fills ? .infinity : nil)
             if store.dictationOn {
                 HStack(alignment: .center, spacing: 8) {
                     if let trouble = dictation.trouble {

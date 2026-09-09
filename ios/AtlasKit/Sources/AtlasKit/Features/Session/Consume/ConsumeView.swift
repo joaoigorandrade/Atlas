@@ -329,14 +329,12 @@ struct ConsumeView: View {
             if let next = model.next {
                 CTAButton("Continuar · \(next.kicker)") { model.advance() }
                     .disabled(!model.passed)
-                    .opacity(model.passed ? 1 : 0.5)
             } else if model.writing {
                 CTAButton("Escrevendo a próxima seção…", tint: Palette.inkGhost) {}
                     .disabled(true)
             } else {
                 CTAButton("Seguir para o Socrático →") { model.finish() }
                     .disabled(!model.passed)
-                    .opacity(model.passed ? 1 : 0.5)
             }
         }
     }

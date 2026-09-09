@@ -39,6 +39,9 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     /// The Socratic passes in progress, keyed by node id — the same JSON for
     /// the same reason, and the row both clients resume a conversation from.
     public var socraticProgress: [String: JSONValue]
+    /// The teach-backs in progress, keyed by node id — the pass a learner may
+    /// have left mid-explanation or sitting on its Gap Report.
+    public var feynmanProgress: [String: JSONValue]
     /// What the learner keeps getting wrong, run-wide. A topic field, not a
     /// node one: the whole point of it is that it crosses concepts.
     public var misconceptions: [MisconceptionRecord]
@@ -65,7 +68,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         case id, subject, goal, interests, paretoPct, examDate, language
         case calibSamples, litToday, updatedAt, graph, states, positions
         case shakyReasons, reviewedNodes, consumeProgress, socraticProgress
-        case misconceptions, cards
+        case feynmanProgress, misconceptions, cards
     }
 
     public init(from decoder: Decoder) throws {
@@ -87,6 +90,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         reviewedNodes = (try? c.decode([String].self, forKey: .reviewedNodes)) ?? []
         consumeProgress = (try? c.decode([String: JSONValue].self, forKey: .consumeProgress)) ?? [:]
         socraticProgress = (try? c.decode([String: JSONValue].self, forKey: .socraticProgress)) ?? [:]
+        feynmanProgress = (try? c.decode([String: JSONValue].self, forKey: .feynmanProgress)) ?? [:]
         misconceptions = (try? c.decode([MisconceptionRecord].self, forKey: .misconceptions)) ?? []
         cards = (try? c.decode([StoredCard].self, forKey: .cards)) ?? []
         // Positions are their own map because the browser draws from it and
@@ -183,6 +187,8 @@ public struct NodeDelta: Encodable, Sendable {
     /// The saved pass. `.null` is how a finished one is cleared — the column
     /// holds a session, and a finished pass must not be resumable.
     public var socraticProgress: JSONValue?
+    /// The saved teach-back, cleared the same way once its gaps are on the map.
+    public var feynmanProgress: JSONValue?
     /// Prerequisites to attach. Only meaningful for a node being created.
     public var prereqs: [String]?
 
@@ -205,12 +211,13 @@ public struct NodeDelta: Encodable, Sendable {
         try c.encodeIfPresent(reviewed, forKey: .reviewed)
         try c.encodeIfPresent(consumeProgress, forKey: .consumeProgress)
         try c.encodeIfPresent(socraticProgress, forKey: .socraticProgress)
+        try c.encodeIfPresent(feynmanProgress, forKey: .feynmanProgress)
         try c.encodeIfPresent(prereqs, forKey: .prereqs)
     }
 
     private enum Key: String, CodingKey {
         case id, label, summary, g, week, x, y, isGap, state, shakyReason
-        case reviewed, consumeProgress, socraticProgress, prereqs
+        case reviewed, consumeProgress, socraticProgress, feynmanProgress, prereqs
     }
 }
 
