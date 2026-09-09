@@ -32,7 +32,15 @@ struct ConnectView: View {
         VStack(spacing: 0) {
             PhaseBar(.connect, title: model.node.label, back: { navigator.pop() })
 
-            if let content = model.content {
+            if model.nothingToWire {
+                // Not a failure and not a wait: there is simply nothing owned
+                // yet to wire this into. Saying so beats a phase that vanishes.
+                Waiting("Ainda não há nada no seu mapa para conectar a este conceito. Volte quando outros estiverem acesos.",
+                        spinning: false)
+                Dock {
+                    CTAButton("Seguir para o Crisol →", tint: Palette.crucibleInk) { model.skip() }
+                }
+            } else if let content = model.content {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(alignment: .firstTextBaseline, spacing: 10) {

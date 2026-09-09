@@ -4784,6 +4784,16 @@
           }
         }
       }
+    },
+    "Ainda não há nada no seu mapa para conectar a este conceito. Volte quando outros estiverem acesos." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing on your map to wire this into yet. Come back when others are lit."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

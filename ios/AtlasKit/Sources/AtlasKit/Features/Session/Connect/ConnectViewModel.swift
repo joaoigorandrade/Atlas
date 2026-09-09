@@ -14,6 +14,9 @@ final class ConnectViewModel {
     private(set) var linked: Set<String> = []
     private(set) var message = ""
     private(set) var writing = true
+    /// Nothing owned yet is nothing true to wire into. The phase has no
+    /// material — it says so and hands the node on, rather than vanishing.
+    private(set) var nothingToWire = false
     private var drafts: [String: String] = [:]
     private var active: String?
     /// The chosen aid (index into `content.mnemonics`), and the learner's
@@ -238,12 +241,22 @@ final class ConnectViewModel {
         ))
     }
 
+    /// Leave without an elaboration behind you. The node is *not* marked
+    /// "understood and connected" — nothing was connected, and `advance` is
+    /// what claims it was. The web's skip does the same: it enters the Crucible
+    /// directly, past `advanceFromConnect`.
+    func skip() { session.advance() }
+
     func load() async {
         // Nothing owned yet is nothing true to wire into: the phase has no
-        // material, so it hands the node straight on rather than asking the
-        // learner to link concepts they have never met. The store answers the
-        // same way — an empty pool is no generation at all.
-        guard !session.learnedElsewhere.isEmpty else { return advance() }
+        // material, so it says so and offers the Crucible rather than asking
+        // the learner to link concepts they have never met. The store answers
+        // the same way — an empty pool is no generation at all.
+        guard !session.learnedElsewhere.isEmpty else {
+            nothingToWire = true
+            writing = false
+            return
+        }
         // Resume the pass if one was left open — the links already written are
         // the learner's words, not something to re-earn.
         if let saved = session.store.savedConnect(node.id) {
