@@ -657,16 +657,49 @@ public extension AtlasStore {
     /// `abandonTopic()`.
     func createTopic(_ form: OnboardingForm) async {
         guard let token = await bearer() else { return }
-        let body = JSONValue.object([
+        // Not fatal here: the map still builds and still draws. What is lost is
+        // the server-side warm's address, so the first phase generates on the
+        // click — and the row itself, which `ensureTopic` asks for again at the
+        // first save rather than leaving the run with nowhere to be written.
+        await adoptTopic(.object([
             "subject": .string(form.topic),
             "goal": .string(form.goal.rawValue),
             "interests": .string(form.interests),
             "paretoPct": .number(Double(form.paretoPct)),
             "examDate": .string(form.examDate),
             "language": .string(language),
-        ])
-        // Not fatal: the map still builds and still draws. What is lost is the
-        // server-side warm's address, so the first phase generates on the click.
+        ]), token: token)
+    }
+
+    /// The row every write below needs, asked for again when the build's own
+    /// `createTopic` did not come back with one.
+    ///
+    /// One POST on a phone is enough to lose: a request that timed out, or one
+    /// the server answered after the radio dropped. The run kept working with no
+    /// `topicId`, which made every save after it a silent no-op *and* left the
+    /// map off "Seus mapas" — the dashboard lists `library`, and nothing had put
+    /// it there. Until the next launch read the row back from the server, which
+    /// is where a learner would find a map they had already been working in.
+    ///
+    /// Safe to ask twice: the upsert is on `(user_id, subject)`, so a create
+    /// whose *answer* was lost returns that same row rather than a second one.
+    private func ensureTopic(token: String) async -> String? {
+        if let topicId { return topicId }
+        guard !subject.isEmpty else { return nil }
+        await adoptTopic(.object([
+            "subject": .string(subject),
+            "goal": .string(goal.rawValue),
+            "interests": .string(interests),
+            "paretoPct": .number(Double(paretoPct)),
+            "examDate": .string(examDate),
+            "language": .string(language),
+        ]), token: token)
+        return topicId
+    }
+
+    /// Take the created row as the open run. Every field here is the store being
+    /// filled in rather than the learner working, so it is written quiet.
+    private func adoptTopic(_ body: JSONValue, token: String) async {
         guard let run = try? await runs.create(body, token: token) else { return }
         quiet = true
         topicId = run.id
@@ -903,7 +936,16 @@ public extension AtlasStore {
                 ]), token: token)
                 savedProfile = profile
             }
-            guard let topicId else { return }
+            // A run whose row never landed is not a run with nothing to save —
+            // it is the one that most needs saving. `ensureTopic` makes it, and
+            // a failure arms the retry instead of dropping the map on the floor.
+            guard let topicId = await ensureTopic(token: token) else {
+                if !subject.isEmpty {
+                    saveFailed = true
+                    saveIn(15)
+                }
+                return
+            }
 
             var deltas: [NodeDelta] = []
             for node in graph.nodes where savedNodes[node.id] != nodes[node.id] {
