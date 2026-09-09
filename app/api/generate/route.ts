@@ -161,7 +161,7 @@ export async function POST(request: Request) {
     const payload = await job.run();
     // Write-through, not awaited: the learner gets their content immediately
     // and everyone after them gets it from Postgres.
-    if (job.key) writeContent(job.key, job.kind, payload);
+    if (job.key) void writeContent(job.key, job.kind, payload);
     recordContent(supabase, body, job, userId, payload);
     onPayload(payload);
     return withRequestId(
@@ -197,7 +197,7 @@ function streamGeneration(
 ): Promise<Response> {
   return ndjsonStream(job.stream!(), {
     requestId,
-    onComplete: (frames) => {
+    onComplete: async (frames) => {
       // `framesToPayload` returns null on a short or gappy set. Caching that
       // would be the worst kind of bug: hits skip validation, so a truncated
       // payload would flow straight into the renderer for everyone after.
@@ -211,7 +211,12 @@ function streamGeneration(
         });
         return;
       }
-      if (job.key) writeContent(job.key, job.kind, payload);
+      // Awaited, unlike the unary path's: there, the write is started before
+      // the response is returned and the request is still open behind it. Here
+      // the last frame *is* the end of the request, so a write left running
+      // after it is one that may never land — which is exactly what happened
+      // to a lens the learner opened, generated and was billed for twice.
+      if (job.key) await writeContent(job.key, job.kind, payload);
       onPayload(payload);
     },
     onError: (err, phase) => {

@@ -13,6 +13,12 @@ public actor AtlasAPI {
     private let streamer: NDJSONStreamer
     /// The Supabase access token. `/api/generate` requires a signed-in learner.
     private var accessToken: String?
+    /// The open topic — the address the server files what it generates under
+    /// (`node_content`). Ambient rather than a parameter on every kind, for the
+    /// reason `lib/generationTopic.ts` gives on the web: it is a property of
+    /// which map is open, not of what is being asked for, and a kind that
+    /// forgets to carry it is a payload the learner generated and does not own.
+    private var topicId: String?
 
     /// The unary half needs the same bound the streamed half already has.
     /// `URLSession.shared` waits 60s for a response and a non-streamed
@@ -49,6 +55,18 @@ public actor AtlasAPI {
 
     public func setAccessToken(_ token: String?) { accessToken = token }
 
+    public func setTopic(_ id: String?) { topicId = id }
+
+    /// Stamp a request body with where the answer belongs. Every generation
+    /// goes through here, so there is one place a kind can be added without
+    /// losing its content.
+    private func addressed(_ context: [String: JSONValue], _ kind: String) -> [String: JSONValue] {
+        var body = context
+        body["kind"] = .string(kind)
+        if let topicId { body["topicId"] = .string(topicId) }
+        return body
+    }
+
     /// Execute and classify. Every unary request in the app lands here, so this
     /// is the only place a transport failure becomes an `AtlasError`.
     private func send(_ request: any HTTPRequest) async throws -> NetworkResponse {
@@ -72,8 +90,7 @@ public actor AtlasAPI {
     /// for (`terms`, `ask`, `encoding`, …), so what is stored has to be the
     /// model's own object and never this client's narrower re-encode of it.
     private func generated(_ kind: String, _ context: [String: JSONValue]) async throws -> JSONValue {
-        var body = context
-        body["kind"] = .string(kind)
+        let body = addressed(context, kind)
         let response = try await send(try AtlasEndpoint.generate(body, token: accessToken))
         return try decoded(kind, JSONValue.self, from: response.data)
     }
@@ -99,8 +116,7 @@ public actor AtlasAPI {
     /// Streamed generation: one frame per line, yielded as it lands so a screen
     /// paints on its first item instead of its last.
     public func stream(_ kind: String, _ context: [String: JSONValue] = [:]) -> AsyncThrowingStream<StreamFrame, Error> {
-        var body = context
-        body["kind"] = .string(kind)
+        var body = addressed(context, kind)
         body["stream"] = .bool(true)
         guard let request = try? AtlasEndpoint.generate(body, token: accessToken) else {
             return AsyncThrowingStream {

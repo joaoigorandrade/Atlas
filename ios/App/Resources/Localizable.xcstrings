@@ -11,6 +11,46 @@
         }
       }
     },
+    "Monte seu primeiro mapa para começar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build your first map to begin."
+          }
+        }
+      }
+    },
+    "Nada na fronteira agora" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing on the frontier right now"
+          }
+        }
+      }
+    },
+    "Nenhum conceito na fronteira. Continue os que já estão em andamento." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No concepts on the frontier. Keep going with the ones already under way."
+          }
+        }
+      }
+    },
+    "Todo conceito liberado já está em andamento. Abra o mapa para levar um adiante." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every unlocked concept is already under way. Open the map to carry one further."
+          }
+        }
+      }
+    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {

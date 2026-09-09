@@ -43,13 +43,30 @@ final class HomeViewModel {
 
     var frontier: [ConceptNode] { store.frontier }
     /// The node's own label when there is one, so this is a String the view
-    /// renders verbatim — the fallback is the only half that is copy.
-    var frontierHeadline: String { frontier.first?.label ?? String(localized: "Seu mapa ainda está vazio") }
+    /// renders verbatim — the fallbacks are the only half that is copy.
+    ///
+    /// Two fallbacks, not one: a map with nothing open on its frontier is not a
+    /// learner with no map. Sending someone who has been working all week to
+    /// "monte um mapa" is the one sentence on this screen that can't be true.
+    var frontierHeadline: String {
+        if let label = frontier.first?.label { return label }
+        return hasRun
+            ? String(localized: "Nada na fronteira agora")
+            : String(localized: "Seu mapa ainda está vazio")
+    }
     var frontierNote: String {
-        frontier.first?.summary ?? String(localized: "Monte um mapa para acender sua primeira fronteira.")
+        if let summary = frontier.first?.summary { return summary }
+        return hasRun
+            ? String(localized: "Todo conceito liberado já está em andamento. Abra o mapa para levar um adiante.")
+            : String(localized: "Monte um mapa para acender sua primeira fronteira.")
     }
     var frontierLine: LocalizedStringKey {
-        "Você está na fronteira de \(frontier.count) conceitos. Continue de onde parou."
+        guard !frontier.isEmpty else {
+            return hasRun
+                ? "Nenhum conceito na fronteira. Continue os que já estão em andamento."
+                : "Monte seu primeiro mapa para começar."
+        }
+        return "Você está na fronteira de \(frontier.count) conceitos. Continue de onde parou."
     }
 
     var hasRun: Bool { !store.subject.isEmpty }

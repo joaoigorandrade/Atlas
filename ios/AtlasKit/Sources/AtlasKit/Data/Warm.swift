@@ -372,6 +372,12 @@ public extension AtlasStore {
     func model(
         _ node: ConceptNode, _ chunk: ConsumeChunk, _ lens: AltKey, context: [String: JSONValue]
     ) async -> Error? {
+        var context = context
+        // The address the server files the walkthrough under, and the one
+        // `seedWarm` reads it back from — the same string the browser sends.
+        // Without it every lens over every section would upsert the same
+        // `node_content` row.
+        context["variant"] = .string(Self.lensInputs(chunk.id, lens))
         let (api, sent) = (api, context)
         return await warm.fill(key("model", node, Self.lensInputs(chunk.id, lens)),
                                live: { await api.model(sent) })

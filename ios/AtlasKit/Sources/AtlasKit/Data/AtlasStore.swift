@@ -179,7 +179,18 @@ public final class AtlasStore {
 
     /// The open topic's id — the address every write goes to. Nil before the
     /// first load, and while a map is being built but not yet created.
-    public internal(set) var topicId: String?
+    ///
+    /// It travels to `AtlasAPI` on every change, because a generation is filed
+    /// against it server-side: a request that carries no topic is content the
+    /// learner paid for and does not own — no `node_content` row, nothing in
+    /// the mirror, and a phase that regenerates rather than reopens.
+    public internal(set) var topicId: String? {
+        didSet {
+            guard topicId != oldValue else { return }
+            let id = topicId
+            Task { await api.setTopic(id) }
+        }
+    }
     /// The open run as it was last loaded, for the fields no screen edits.
     private var loaded: AtlasRun?
     /// What the server last acknowledged, per node and per card: the baseline

@@ -205,7 +205,7 @@ export function startCurriculumWarm(
           }
           const jobId = crypto.randomUUID();
           await logGenerationCalls(supabase, warm, { jobId, topicId });
-          writeContent(warm.key, warm.kind, await warm.run());
+          await writeContent(warm.key, warm.kind, await warm.run());
           await record();
           logEvent("curriculum_warm", { user: userId, kind, node: node.id });
         } catch (err) {

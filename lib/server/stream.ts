@@ -202,8 +202,11 @@ export function ndjsonResponse(
 export async function ndjsonStream(
   gen: AsyncGenerator<StreamFrame>,
   opts: {
-    /** Every frame, in arrival order. Only called on a clean finish. */
-    onComplete: (frames: StreamFrame[]) => void;
+    /** Every frame, in arrival order. Only called on a clean finish, and
+     *  awaited before the stream closes: what it writes (the shared content
+     *  cache) is work with nothing left to keep it alive once the response is
+     *  over, and an un-awaited write is one the platform is free to drop. */
+    onComplete: (frames: StreamFrame[]) => void | Promise<void>;
     onError: (err: unknown, phase: "first" | "mid") => void;
     errorResponse: (err: unknown) => Response;
     /** Travels in the terminal error frame, so a learner's report about a
@@ -236,7 +239,7 @@ export async function ndjsonStream(
           if (!frame.partial) frames.push(frame);
           controller.enqueue(enc.encode(JSON.stringify(frame) + "\n"));
         }
-        opts.onComplete(frames);
+        await opts.onComplete(frames);
       } catch (err) {
         opts.onError(err, "mid");
         // The status is long since fixed at 200, so this frame is the only way
