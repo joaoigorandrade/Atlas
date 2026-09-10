@@ -387,6 +387,12 @@ public extension AtlasStore {
     /// warm nobody is watching that fails is retried by the click that needed it.
     func warmUp(_ kind: String, for node: ConceptNode) {
         Task {
+            // A warm carries the same credential a click would. It is the first
+            // thing that fires on a launch that painted from the mirror, which
+            // is exactly when the stored access token can still be the expired
+            // one — and a speculative 401 leaves the key cold and the learner
+            // waiting for the generation at the tap.
+            _ = await bearer()
             switch kind {
             case "consume": await consume(node)
             case "socratic": await socratic(node)
@@ -446,7 +452,12 @@ public extension AtlasStore {
     }
 
     /// Draft the Review queue ahead of the tap, the same way a phase is warmed.
-    func warmRetain() { Task { await draftCards(for: uncovered) } }
+    func warmRetain() {
+        Task {
+            _ = await bearer()
+            await draftCards(for: uncovered)
+        }
+    }
 }
 
 // MARK: - The topic's stored content

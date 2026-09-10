@@ -21,10 +21,13 @@ final class HomeViewModel {
 
     var today: String { Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)) }
 
-    /// Cards due right now, counted from the store rather than fetched: the
-    /// dashboard says how much is waiting, and the deck itself — the order and
-    /// the intervals — is the server's answer, asked for when Review opens.
-    private var dueCount: Int { store.dueCount }
+    /// Cards in today's session, counted from the store rather than fetched:
+    /// the dashboard says how much is waiting, and the deck itself — the order
+    /// and the intervals — is the server's answer, asked for when Review opens.
+    ///
+    /// `dueToday` and not `dueCount`: the deck is budgeted to half the daily
+    /// target, so the raw due pile is a promise Review does not keep.
+    private var dueCount: Int { store.dueToday }
     var queueIsEmpty: Bool { dueCount == 0 }
 
     /// The queue, framed in minutes against the daily target — never a wall of

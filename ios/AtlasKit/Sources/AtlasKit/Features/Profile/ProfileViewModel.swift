@@ -26,7 +26,9 @@ final class ProfileViewModel {
     }
 
     var queueLine: LocalizedStringKey {
-        let due = store.dueCount
+        // The session, not the debt — the same number "Início" says and the
+        // same one the deck opens with. See `AtlasStore.dueToday`.
+        let due = store.dueToday
         return due == 0
             ? "Fila limpa hoje"
             : "\(due) pendentes · ~\(Int((Double(due) * cardMinutes).rounded())) min hoje"

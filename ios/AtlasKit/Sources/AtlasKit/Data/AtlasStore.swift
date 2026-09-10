@@ -206,6 +206,14 @@ public final class AtlasStore {
     /// would upsert an empty map over the row it had just read.
     private var quiet = true
     private var pendingSave: Task<Void, Never>?
+    /// The token renewal in flight, if there is one.
+    ///
+    /// GoTrue *rotates* refresh tokens: a second renewal started with the same
+    /// one is spending a token the first has already burned, and the learner is
+    /// signed out for it. The launch renewal and the first screen's warms
+    /// overlap now that the mirror paints before the credential is renewed, so
+    /// they join this instead of racing. See `renewOnce`.
+    private var renewal: Task<Result<AuthSession, any Error>, Never>?
     /// The `warm.revision` last written to `run_states.caches`. What keeps the
     /// generated content out of the upsert until a generation has landed.
     private var savedWarm = 0
@@ -434,11 +442,15 @@ public extension AtlasStore {
 
     /// Load today's deck. The budget, the order and the interval on every grade
     /// button come from the server, because that is where the scheduler is.
+    /// How many minutes of review today's deck is built to fill. Half the daily
+    /// target, and the *only* place that decides it: the dashboard promises a
+    /// session this long, and the deck endpoint is asked for one this long.
+    var reviewBudgetMin: Int { max(1, dailyTarget / 2) }
+
     func loadDeck() async {
         guard let topicId, let token = await bearer() else { return }
-        let budget = max(1, dailyTarget / 2)
         guard let content = try? await runs.review(
-            topicId, budgetMin: budget, language: language, token: token
+            topicId, budgetMin: reviewBudgetMin, language: language, token: token
         ) else { return }
         deck = content.cards
         forecast = content.forecast ?? []
@@ -514,33 +526,53 @@ public extension AtlasStore {
 public extension AtlasStore {
     var signedIn: Bool { session != nil }
 
-    /// Launch: pick the stored session back up, renewing it if it has aged out,
-    /// then pull the maps it owns. The shell draws nothing until this returns,
-    /// which is what keeps a signed-in learner with a saved map from seeing
-    /// onboarding flash before the map lands.
+    /// Launch: pick the stored session back up, draw what the mirror holds, and
+    /// renew the credential and re-read the library behind it. The shell draws
+    /// nothing until this returns, which is what keeps a signed-in learner with
+    /// a saved map from seeing onboarding flash before the map lands.
+    ///
+    /// It returns at the *paint*, not at the end of the network. The wordmark
+    /// used to outlast the mirror by a token refresh, a bootstrap and a content
+    /// read — measured at ~2.3s of round trips held in front of a map the phone
+    /// already had on disk. Everything after the paint is revalidation, and
+    /// revalidation belongs behind an interactive map.
     ///
     /// The token is renewed here and, from then on, by `bearer()` — a run
     /// outlives the hour an access token is good for, and a save that quietly
     /// 401s all afternoon is a week of work that never left the phone.
     func restore() async {
         if Fixtures.enabled { return adoptFixtures() }
-        defer { quiet = false }
-        guard let stored = SessionStore.load() else { return }
-        if stored.isExpired {
-            do {
-                await adopt(try await auth.refresh(stored.refreshToken))
-            } catch {
-                // Only an answer from GoTrue means the credential is dead. A
-                // transport failure means the phone is on a plane — keep the
-                // refresh token and try again next launch rather than signing
-                // the learner out for being offline.
-                if (error as? AtlasError)?.status != nil { await signOut(flush: false) }
-                return
+        guard let stored = SessionStore.load() else { return quiet = false }
+        await adopt(stored)
+        // Drawn from disk: the rest is a refresh, and a refresh that finds the
+        // credential dead still signs them out — one beat later, over their own
+        // map rather than over the wordmark.
+        if draw(local.topics()) {
+            quiet = false
+            Task {
+                guard await renew(stored) else { return }
+                await loadLibrary()
             }
-        } else {
-            await adopt(stored)
+            return
         }
+        defer { quiet = false }
+        guard await renew(stored) else { return }
         await loadLibrary()
+    }
+
+    /// Renew a session that has aged out. False means the launch stops here.
+    private func renew(_ stored: AuthSession) async -> Bool {
+        guard stored.isExpired else { return true }
+        switch await renewOnce(stored.refreshToken) {
+        case .success: return true
+        case .failure(let error):
+            // Only an answer from GoTrue means the credential is dead. A
+            // transport failure means the phone is on a plane — keep the
+            // refresh token and try again next launch rather than signing the
+            // learner out for being offline.
+            if (error as? AtlasError)?.status != nil { await signOut(flush: false) }
+            return false
+        }
     }
 
     /// One request for everything the app draws, then open the freshest map.
@@ -553,21 +585,8 @@ public extension AtlasStore {
         opening = true
         defer { opening = false }
 
-        // Paint first. The mirror holds what the server last acknowledged, so a
-        // relaunch draws the map the learner left open instead of a spinner —
-        // and, with no signal, instead of "não foi possível carregar seus
-        // mapas" over a map the phone has on disk.
         let mirrored = local.topics()
-        if !mirrored.isEmpty, graph.nodes.isEmpty {
-            library = mirrored
-            if let freshest = mirrored.first {
-                open(freshest)
-                seedWarm(local.content(topicId: freshest.id))
-            }
-            // Drawn: the shell can stop holding onboarding back, and the
-            // revalidation below runs behind an interactive map.
-            opening = false
-        }
+        draw(mirrored)
 
         guard let token = await bearer() else { return }
         guard let (profile, topics) = try? await runs.bootstrap(token: token) else {
@@ -596,6 +615,24 @@ public extension AtlasStore {
         // whenever the mirror had already painted meant the phone regenerated
         // content it in fact owned.
         await hydrateContent()
+    }
+
+    /// Paint what the mirror holds. It holds what the server last acknowledged,
+    /// so a relaunch draws the map the learner left open instead of a spinner —
+    /// and, with no signal, instead of "não foi possível carregar seus mapas"
+    /// over a map the phone has on disk. Answers whether a map landed; every
+    /// caller revalidates behind it.
+    @discardableResult
+    private func draw(_ mirrored: [AtlasRun]) -> Bool {
+        guard !mirrored.isEmpty, graph.nodes.isEmpty else { return false }
+        library = mirrored
+        if let freshest = mirrored.first {
+            open(freshest)
+            seedWarm(local.content(topicId: freshest.id))
+        }
+        // Drawn: the shell can stop holding onboarding back.
+        opening = false
+        return true
     }
 
     /// Take the learner's own row: the streak, the daily target, the reminders.
@@ -846,6 +883,16 @@ public extension AtlasStore {
             return date <= now
         }
     }
+
+    /// How many of those the learner is actually being offered today — the
+    /// number the dashboard says out loud.
+    ///
+    /// `dueCount` is the debt; this is the session. The deck endpoint budgets
+    /// the due pile down to what fits `reviewBudgetMin`
+    /// (`retainContentFromStore` in `lib/fsrs.ts` — the same floor), so a
+    /// dashboard reading the raw debt promised "10 cartões · ~15 min" over a
+    /// deck that opened with six cards and nine minutes.
+    var dueToday: Int { min(dueCount, max(1, Int(Double(reviewBudgetMin) / cardMinutes))) }
 
     /// When the next card comes back — the soonest due date still ahead. What
     /// lets an empty queue name the day instead of guessing at "tomorrow".
@@ -1181,12 +1228,25 @@ public extension AtlasStore {
     /// Nil means there is no usable credential — offline, or a refresh token
     /// GoTrue has rejected. The caller treats that as the request failing;
     /// signing the learner out on it would do it for a flight-mode phone too.
-    private func bearer(renew: Bool = false) async -> String? {
+    func bearer(renew: Bool = false) async -> String? {
         guard let session else { return nil }
         guard renew || session.isExpired else { return session.accessToken }
-        guard let renewed = try? await auth.refresh(session.refreshToken) else { return nil }
-        await adopt(renewed, opening: false)
+        guard case .success(let renewed) = await renewOnce(session.refreshToken) else { return nil }
         return renewed.accessToken
+    }
+
+    /// Renew the session, once — see `renewal`.
+    private func renewOnce(_ refreshToken: String) async -> Result<AuthSession, any Error> {
+        if let renewal { return await renewal.value }
+        let task = Task<Result<AuthSession, any Error>, Never> { [auth] in
+            do { return .success(try await auth.refresh(refreshToken)) }
+            catch { return .failure(error) }
+        }
+        renewal = task
+        let outcome = await task.value
+        renewal = nil
+        if case .success(let renewed) = outcome { await adopt(renewed, opening: false) }
+        return outcome
     }
 
     /// `opening: false` for a mid-session renewal: the shell reads `opening` to
