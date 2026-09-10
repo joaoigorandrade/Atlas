@@ -16,6 +16,27 @@ export function extractCompleteObjects(buf: string): {
   objects: string[];
   rest: string;
 } {
+  // A model told to write SEPARATE top-level objects wraps them in
+  // {"nodes":[...]} often enough that `unwrap` below calls it the common case
+  // rather than the edge — and a wrapper never returns to depth 0 until its
+  // final brace, so the entire generation buffers and lands in one tick at the
+  // end. Stepping inside the container lets the items stream as they are
+  // written; the closing `]}` is then junk between objects, which the scan
+  // below already walks past. The caller carries `rest` forward, so this is
+  // consumed once.
+  //
+  // `scopes` is the one exception: {"tooBroad": true, "scopes": [...]} is a
+  // real payload a validator reads whole (`validateScopeOffer`), not a wrapper
+  // around items.
+  //
+  // ponytail: an item whose own FIRST field is an array would be mistaken for a
+  // wrapper. No streamed shape is written that way — every one of them opens on
+  // a scalar (`id`, `kicker`, `label`, `spare`, `subPoint`, `p`, `verdict`) — so
+  // the check is the head of the buffer and nothing more. If a shape ever leads
+  // with an array, gate this on the caller's "nothing emitted yet" instead: a
+  // wrapper can only ever arrive before the first object.
+  const opener = /^\s*(?:\[|\{\s*"(?!scopes")[^"]+"\s*:\s*\[)/.exec(buf);
+  if (opener) buf = buf.slice(opener[0].length);
   const objects: string[] = [];
   let depth = 0;
   let start = -1;

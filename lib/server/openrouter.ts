@@ -25,8 +25,7 @@ const BASE_URL = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v
  *   returned 1.9 MB of SSE for a "~600 words" prompt) dies here.
  * - `FIRST_TOKEN_MS` caps the silence *before* the first token, and only a
  *   stream can enforce it. A misconfigured model sat mute for 12m45s and then
- *   streamed a perfectly valid answer — a whole-request cap would have waited
- *   out the silence, and the learner would have too.
+ *   streamed a valid answer — a whole-request cap waits that out; a learner won't.
  *
  * Both are well inside the route's `maxDuration`, so a timeout surfaces as our
  * own error rather than a platform-level 504.
@@ -271,14 +270,11 @@ export async function generateJson<T>(
   );
 }
 
-/** One POST to one model, streamed. Yields raw text deltas as they arrive —
- *  no retry, no fallback chain (a caller that wants those falls back to
- *  `generateJson` wholesale on failure, since a half-streamed response can't
- *  be cleanly retried in place).
- *
- *  `onFirstToken` fires once, when the first delta lands: for a streamed call
- *  that is the number that matters (when the learner sees something), and it
- *  is invisible in the total latency `logGeneration` records. */
+/** One POST to one model, streamed. Yields raw text deltas as they arrive — no
+ *  retry, no fallback chain, since a half-streamed response can't be cleanly
+ *  retried in place; a caller that wants those falls back to `generateJson`
+ *  wholesale. `onFirstToken` fires once, on the first delta — a number the
+ *  total latency `logGeneration` records cannot show. */
 async function* chatStreamOnce(
   model: string,
   messages: ChatMessage[],
@@ -328,6 +324,11 @@ async function* chatStreamOnce(
         messages,
         temperature: temperatureFor(role),
         stream: true,
+        // A reasoning model plans the whole answer before writing a word, and
+        // on a streamed call that think is a blank screen — 23.6s of it for a
+        // map. Normalised per provider, a no-op on a model that doesn't reason,
+        // and `chat` keeps it, so the single-shot fallback is still thought out.
+        reasoning: { enabled: false },
       }),
     }).catch(failed);
     if (!res.ok || !res.body) {
@@ -357,11 +358,9 @@ async function* chatStreamOnce(
             choices?: Array<{ delta?: { content?: string; reasoning?: string } }>;
           };
           const chunk = evt.choices?.[0]?.delta;
-          // A reasoning model (deepseek-v4-flash, r1, …) thinks out loud before
-          // it writes a word: the content deltas start well past FIRST_TOKEN_MS
-          // on a map-sized prompt. Reasoning is not content and is never
-          // yielded, but it is proof the model is alive — so it disarms the
-          // silence deadline and leaves REQUEST_MS as the only bound.
+          // Reasoning is off above, but a provider that ignores the flag must
+          // not be killed for thinking: these deltas are never content, yet
+          // they prove the model is alive, so they disarm the silence deadline.
           if (chunk?.reasoning) disarm();
           delta = chunk?.content;
         } catch {
@@ -396,16 +395,13 @@ export interface StreamedJson<T> {
 const PARTIAL_MS = Number(process.env.OPENROUTER_PARTIAL_MS || 66);
 
 /**
- * Stream a completion expected to contain a sequence of top-level JSON
- * objects (not one wrapping object/array) and yield each as it completes,
- * validated. No corrective retry here — unlike `generateJson`, a caller that
- * hits a validation error mid-stream can't cleanly redo just the bad part;
- * the caller's job is to fall back to the single-shot, retried path.
- *
- * With `opts.partial`, the object still being decoded is also yielded on a
- * timer — that lenient validator gets the repaired half-object and returns what
- * is renderable of it, or null to skip this redraw. Those yields carry
- * `partial: true` and are never counted, never assembled, never cached.
+ * Stream a sequence of top-level JSON objects, yielding each as it completes,
+ * validated — a wrapping object or array the model added anyway is stepped into
+ * rather than waited out (`extractCompleteObjects`). No corrective retry: a
+ * validation error mid-stream can't cleanly redo just the bad part, so the
+ * caller falls back to the single-shot, retried path. With `opts.partial` the
+ * object still being decoded is yielded too, on a timer, as `partial: true` —
+ * never counted, never assembled, never cached.
  */
 export async function* streamJsonObjectsProgressive<T>(
   messages: ChatMessage[],
@@ -426,6 +422,7 @@ export async function* streamJsonObjectsProgressive<T>(
   const model = modelChain(role)[0];
   const started = Date.now();
   let firstTokenMs: number | null = null;
+  let firstObjectMs: number | null = null;
   let buf = "";
   let index = 0;
   let lastPartialAt = 0;
@@ -441,6 +438,7 @@ export async function* streamJsonObjectsProgressive<T>(
       const { objects, rest } = json.extractCompleteObjects(buf);
       buf = rest;
       for (const value of json.slots(objects, index, label, validate)) {
+        firstObjectMs ??= Date.now() - started;
         yield { value, index: index++, partial: false };
       }
       if (!opts.partial || !buf.trim()) continue;
@@ -460,11 +458,10 @@ export async function* streamJsonObjectsProgressive<T>(
       if (draft !== null) yield { value: draft, index, partial: true };
     }
     // A stream that ends cleanly having produced nothing is a failure, not an
-    // empty answer — an empty completion is exactly what a model returns when
-    // it refuses the prompt shape. Throwing here is what routes it into every
-    // caller's `catch`, which is where the retried single-shot fallback lives;
-    // without it the route saw a clean, empty stream and returned a 502 while
-    // the documented safety net never fired.
+    // empty answer — that is what a model returns when it refuses the prompt
+    // shape. Throwing routes it into every caller's `catch`, where the retried
+    // single-shot fallback lives; without it the route answered 502 and the
+    // documented safety net never fired.
     if (index === 0) throw new OpenRouterError("the model streamed no JSON objects", 502);
     outcome = "ok";
   } catch (err) {
@@ -473,7 +470,7 @@ export async function* streamJsonObjectsProgressive<T>(
     outcome = "stream-fail";
     throw err;
   } finally {
-    logStream(label, model, started, firstTokenMs, index, outcome);
+    logStream(label, model, started, firstTokenMs, firstObjectMs, index, outcome);
   }
 }
 
@@ -512,9 +509,10 @@ type StreamOutcome = "ok" | "stream-fail" | "abandoned";
 
 /**
  * The streamed twin of `logGeneration`. Same `evt: "generate"` shape so both
- * paths aggregate together, plus the two numbers only a stream has: how long
- * until the first token (what the learner actually waits for) and how many
- * objects made it out. A streamed response carries no usage block, so the
+ * paths aggregate together, plus the numbers only a stream has: the first token,
+ * the first *renderable object* — what the learner actually waits for, and not
+ * the same number when a model wraps its answer — and how many objects made it
+ * out. A streamed response carries no usage block, so the
  * token counts are null rather than fabricated.
  */
 function logStream(
@@ -522,6 +520,7 @@ function logStream(
   model: string,
   started: number,
   firstTokenMs: number | null,
+  firstObjectMs: number | null,
   objects: number,
   outcome: StreamOutcome,
 ): void {
@@ -533,6 +532,7 @@ function logStream(
       streamed: true,
       ms: Date.now() - started,
       first_token_ms: firstTokenMs,
+      first_object_ms: firstObjectMs,
       objects,
       prompt_tokens: null,
       completion_tokens: null,

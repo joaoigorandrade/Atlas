@@ -30,6 +30,36 @@ describe("extractCompleteObjects", () => {
     expect(rest2).toBe("");
   });
 
+  // The bug this guards: a wrapper never returns to depth 0 until its final
+  // brace, so a map that arrived as {"nodes":[...]} streamed nothing and landed
+  // in one burst at the end — 23.6s of blank building screen.
+  it('streams the items of a {"nodes":[...]} wrapper before it closes', () => {
+    const first = extractCompleteObjects('{"nodes": [{"id":"a"},{"id":"b"},{"id');
+    expect(first.objects.map((o) => JSON.parse(o))).toEqual([{ id: "a" }, { id: "b" }]);
+
+    // ...and the wrapper's own tail is not mistaken for an item.
+    const last = extractCompleteObjects(first.rest + '":"c"}]}');
+    expect(last.objects.map((o) => JSON.parse(o))).toEqual([{ id: "c" }]);
+  });
+
+  it("streams the items of a bare array as they close", () => {
+    const { objects } = extractCompleteObjects('[{"id":"a"},{"id":"b"');
+    expect(objects.map((o) => JSON.parse(o))).toEqual([{ id: "a" }]);
+  });
+
+  // The one single-key-array payload in the app that is NOT a wrapper: the
+  // too-broad answer is validated whole, so it must arrive whole (#30).
+  it("keeps a too-broad scope answer as one object", () => {
+    const raw = '{"tooBroad": true, "scopes": [{"label":"x","note":"y"}]}';
+    const { objects } = extractCompleteObjects(raw);
+    expect(objects.map((o) => JSON.parse(o))).toEqual([JSON.parse(raw)]);
+
+    const reordered = '{"scopes": [{"label":"x","note":"y"}], "tooBroad": true}';
+    expect(extractCompleteObjects(reordered).objects.map((o) => JSON.parse(o))).toEqual([
+      JSON.parse(reordered),
+    ]);
+  });
+
   it("ignores braces and quotes inside string values", () => {
     const { objects, rest } = extractCompleteObjects(
       '{"body": "a {weird} \\"quoted\\" sentence"}',
