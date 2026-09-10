@@ -31,6 +31,8 @@ public final class AtlasStore {
     /// on every grade button. Loaded when Review opens; empty otherwise.
     public internal(set) var deck: [ReviewCard] = []
     public internal(set) var forecast: [RetainContent.ForecastRow] = []
+    /// Due cards today's budget left over — see `RetainContent.remaining`.
+    public internal(set) var deckRemaining = 0
     /// Confidence-vs-performance readings, one per node, screen 20's whole
     /// content. Written by the confidence tap before each card is flipped.
     public var calib: [CalibSample] = [] { didSet { saveSoon() } }
@@ -454,6 +456,7 @@ public extension AtlasStore {
         ) else { return }
         deck = content.cards
         forecast = content.forecast ?? []
+        deckRemaining = content.remaining ?? 0
     }
 
     /// Grade a card.

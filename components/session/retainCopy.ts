@@ -9,6 +9,10 @@ export const STRINGS = {
     retainReview: "Retain · Review",
     doneForToday: "Done for today",
     queueClear: "Queue clear. You ended on a green node.",
+    budgetSpent: (n: number) =>
+      `Today’s budget is spent. ${n} due card${n === 1 ? "" : "s"} still waiting.`,
+    budgetSpentBody:
+      "Not a clear queue — the day’s minutes are gone, which is the point of budgeting them. The rest keeps until tomorrow, or raise your daily target to take them now.",
     finishedBody:
       "Short, winnable, and it lit something up — the feeling that pulls you back tomorrow. FSRS has already scheduled every card for its next optimal moment.",
     litUpToday: (labels: string) => `Lit up today · ${labels}`,
@@ -52,6 +56,10 @@ export const STRINGS = {
     retainReview: "Retain · Revisão",
     doneForToday: "Terminado por hoje",
     queueClear: "Fila zerada. Você terminou num nó verde.",
+    budgetSpent: (n: number) =>
+      `A meta de hoje foi cumprida. Ainda há ${n} cartão${n === 1 ? "" : "es"} vencido${n === 1 ? "" : "s"} esperando.`,
+    budgetSpentBody:
+      "A fila não está limpa — os minutos do dia acabaram, que é justamente para isso que eles são orçados. O resto espera amanhã, ou aumente sua meta diária para pegá-los agora.",
     finishedBody:
       "Curto, vencível, e acendeu alguma coisa — a sensação que te traz de volta amanhã. O FSRS já agendou cada card para seu próximo momento ideal.",
     litUpToday: (labels: string) => `Acendeu hoje · ${labels}`,

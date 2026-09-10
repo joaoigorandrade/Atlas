@@ -72,6 +72,14 @@ describe("FSRS store (#21)", () => {
     const content = retainContentFromStore(many, 6, now);
     expect(content.cards.length).toBe(4); // floor(6 / 1.5)
     expect(content.budgetMin).toBe(6);
+    // The budget cut 16 due cards off the deck, and an empty deck alone can't
+    // say so — "Fila limpa" was told over a queue with 16 cards still in it.
+    expect(content.remaining).toBe(16);
+  });
+
+  it("a queue that really is clear reports nothing left over", () => {
+    const scheduled = gradeStoredCard(card("b"), "good", now);
+    expect(retainContentFromStore([scheduled], 60, now).remaining).toBe(0);
   });
 });
 

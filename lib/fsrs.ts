@@ -236,5 +236,10 @@ export function retainContentFromStore(
     fails: true,
     reExplain: c.reExplain,
   }));
-  return { budgetMin, forecast: forecastRows(cards, now, lang), cards: deck };
+  return {
+    budgetMin,
+    forecast: forecastRows(cards, now, lang),
+    cards: deck,
+    remaining: due.length - budgeted.length,
+  };
 }

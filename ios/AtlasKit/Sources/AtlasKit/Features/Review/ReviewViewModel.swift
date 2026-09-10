@@ -51,6 +51,13 @@ public final class ReviewViewModel {
         // at all has an empty queue for a different reason, and saying it
         // cleared one it never had is the screen reading its own state wrong.
         if finished, !store.cards.isEmpty {
+            // A budget that ran out is not a queue that emptied. The deck the
+            // server hands over is already cut to the daily minutes, so an
+            // empty deck alone could never tell the two apart — `remaining`
+            // does. See `retainContentFromStore`.
+            if store.deckRemaining > 0 {
+                return String(localized: "A meta de hoje foi cumprida. Ainda há \(store.deckRemaining) cartões vencidos — eles esperam amanhã, ou aumente sua meta diária.")
+            }
             return String(localized: "Fila limpa. O FSRS já agendou cada cartão para o próximo momento em que ele vale a pena.")
         }
         // A learner with forty cards, none of them due, is not a learner with

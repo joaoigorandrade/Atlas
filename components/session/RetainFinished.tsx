@@ -16,12 +16,15 @@ import { STRINGS } from "@/components/session/retainCopy";
 /** The done-for-today surface: short, winnable, ending on a lit node — and the
  *  streak ticking forward, so the last thing the learner sees is a good feeling. */
 export default function Finished({
+  remaining,
   litNodes,
   adherence,
   litToday,
   onToggleReminder,
   onExit,
 }: {
+  /** Due cards the budget could not fit — a spent budget is not a clear queue. */
+  remaining: number;
   litNodes: number;
   adherence: AdherenceState;
   litToday: string[];
@@ -53,7 +56,7 @@ export default function Finished({
           marginBottom: 12,
         }}
       >
-        {t.queueClear}
+        {remaining > 0 ? t.budgetSpent(remaining) : t.queueClear}
       </div>
       <div
         style={{
@@ -64,7 +67,7 @@ export default function Finished({
           margin: "0 auto 24px",
         }}
       >
-        {t.finishedBody}
+        {remaining > 0 ? t.budgetSpentBody : t.finishedBody}
       </div>
 
       {/* What lit up — the concrete "you moved the territory" line, when a node

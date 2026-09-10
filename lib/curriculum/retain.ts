@@ -142,6 +142,11 @@ export interface RetainContent {
    *  output, which is a card factory rather than a queue. */
   forecast?: ForecastRow[];
   cards: ReviewCard[];
+  /** Due cards the budget could not fit today. Zero means the queue really is
+   *  clear; anything else means "budget spent", which is a different sentence
+   *  and used to be told as the same one. Absent on the generator's output,
+   *  which drafts cards rather than budgeting a queue. */
+  remaining?: number;
 }
 
 /** The micro-Socratic aside "Explain" opens on any revealed card. */
@@ -279,12 +284,14 @@ export function retainQueueLabel(
   content: RetainContent,
   lang: Language = "en",
 ): string {
+  const over = content.remaining ?? 0;
   if (lang === "pt-BR") {
-    if (session.finished) return "Fila limpa";
+    if (session.finished)
+      return over > 0 ? `Meta cumprida · ${over} esperando` : "Fila limpa";
     const { left, total, doneCount } = retainBudget(session, content);
     return `~${left} min restantes · ${total - doneCount} cartões`;
   }
-  if (session.finished) return "Queue clear";
+  if (session.finished) return over > 0 ? `Budget spent · ${over} waiting` : "Queue clear";
   const { left, total, doneCount } = retainBudget(session, content);
   return `~${left} min left · ${total - doneCount} cards`;
 }

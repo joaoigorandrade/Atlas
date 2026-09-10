@@ -129,6 +129,11 @@ public struct RetainContent: Decodable, Sendable {
     /// draft fail to decode — silently, since the draft path treats a decode
     /// failure as "no cards" — and the Review tab could never fill.
     public let forecast: [ForecastRow]?
+    /// Due cards the budget could not fit today. Nil on the draft, for the same
+    /// reason `forecast` is: only the deck endpoint budgets a queue. A spent
+    /// budget and a clear queue are different sentences, and Review used to
+    /// read an empty deck as the second one either way.
+    public let remaining: Int?
 
     public struct ForecastRow: Decodable, Sendable, Identifiable {
         public let label: String
