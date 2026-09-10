@@ -322,21 +322,42 @@ public struct SegmentBar: View {
     /// What the rail says out loud. A row of capsules is the only progress
     /// indicator on the screen and announces nothing without it.
     private let spoken: Text
-    public init(_ fills: [Color?], height: CGFloat = 4, value: Text = Text(verbatim: "")) {
-        self.fills = fills; self.height = height; self.spoken = value
+    /// What a segment does when tapped, on the rails that are navigation as
+    /// well as progress. A 3pt capsule is not a tap target, so the segments
+    /// grow a hit area — but only where there is something to tap.
+    private let tap: ((Int) -> Void)?
+    public init(_ fills: [Color?], height: CGFloat = 4, value: Text = Text(verbatim: ""),
+                tap: ((Int) -> Void)? = nil) {
+        self.fills = fills; self.height = height; self.spoken = value; self.tap = tap
     }
     public var body: some View {
         HStack(spacing: 5) {
-            ForEach(Array(fills.enumerated()), id: \.offset) { _, fill in
-                Capsule().fill(fill ?? Palette.hairlineStrong).frame(height: height)
+            ForEach(Array(fills.enumerated()), id: \.offset) { index, fill in
+                if let tap {
+                    Button { tap(index) } label: {
+                        segment(fill)
+                            .frame(height: max(height, 14))
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Seção \(index + 1)"))
+                } else {
+                    segment(fill)
+                }
             }
         }
         // The rail is the only thing on screen that says "you moved" — a
         // segment lighting is worth the quarter second.
         .animation(Motion.standard, value: fills)
-        .accessibilityElement(children: .ignore)
+        // A tappable rail is navigation, and navigation VoiceOver can't reach
+        // segment by segment is no navigation at all.
+        .accessibilityElement(children: tap == nil ? .ignore : .contain)
         .accessibilityLabel(Text("Progresso"))
         .accessibilityValue(spoken)
+    }
+
+    private func segment(_ fill: Color?) -> some View {
+        Capsule().fill(fill ?? Palette.hairlineStrong).frame(height: height)
     }
 }
 
@@ -485,222 +506,6 @@ public struct MicButton: View {
         // nothing to VoiceOver.
         .accessibilityValue(dictation.listening ? Text("Ouvindo") : Text("Parado"))
         .accessibilityAddTraits(.startsMediaSession)
-    }
-}
-
-/// The app's own indeterminate wait. `ProgressView`'s spinner is the one
-/// control on these screens drawn by UIKit rather than by the design, and it
-/// reads as a system alert in the middle of paper — three ink dots lit in turn
-/// say the same thing in the app's own voice. The effect is the same one the
-/// mic wears while it listens, which is the only other "still working" beat in
-/// the app.
-public struct AtlasPulse: View {
-    private let tint: Color
-    private let size: CGFloat
-    public init(tint: Color = Palette.inkFaint, size: CGFloat = 20) {
-        self.tint = tint; self.size = size
-    }
-    public var body: some View {
-        Image(systemName: "ellipsis")
-            .font(.system(size: size, weight: .semibold))
-            .foregroundStyle(tint)
-            .symbolEffect(.variableColor.iterative.dimInactiveLayers, isActive: true)
-            .accessibilityLabel("Carregando")
-    }
-}
-
-/// Prose that hasn't landed yet, in the shape it will land in — the paragraph
-/// rhythm of a reading, so the screen doesn't jump from an empty box to a wall
-/// of text. The lines settle in one after another, and a slanted sheen crosses
-/// the block about once a second; under Reduce Motion the bars simply sit
-/// there, which is still the right shape.
-public struct SkeletonLines: View {
-    /// Each paragraph, each line's share of the width. The default is one
-    /// settled paragraph and most of a second — the rhythm of a reading, not a
-    /// single stub floating at the top of an empty screen.
-    private let paragraphs: [[Double]]
-    @State private var sweeping = false
-    @State private var settled = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    public init(_ paragraphs: [[Double]] = [[1, 0.96, 0.82, 0.99, 0.55], [1, 0.9, 0.97, 0.64]]) {
-        self.paragraphs = paragraphs
-    }
-
-    public var body: some View {
-        bars
-            .overlay { if !reduceMotion { sweep } }
-            // The sheen is painted over the whole block and then cut to the
-            // bars, so it lights the text lines and never the gaps.
-            .mask { bars }
-            .task {
-                sweeping = true
-                withAnimation(Motion.enter) { settled = true }
-            }
-            .accessibilityHidden(true)
-    }
-
-    /// Flattened once so a line knows both its gap above — 13 inside a
-    /// paragraph, 24 between two — and its place in the settling order.
-    private var lines: [(width: Double, gap: CGFloat)] {
-        paragraphs.enumerated().flatMap { paragraph, widths in
-            widths.enumerated().map { line, width in
-                (width, line > 0 ? 13 : (paragraph > 0 ? 24 : 0))
-            }
-        }
-    }
-
-    private var bars: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                GeometryReader { geo in
-                    Capsule().fill(Palette.hairline).frame(width: geo.size.width * line.width)
-                }
-                .frame(height: 11)
-                .padding(.top, line.gap)
-                // Each line lands a beat after the one above it, so the shape
-                // writes itself down the page instead of appearing whole.
-                .opacity(settled || reduceMotion ? 1 : 0)
-                .animation(
-                    reduceMotion ? nil : Motion.enter.delay(Double(index) * 0.05),
-                    value: settled
-                )
-            }
-        }
-    }
-
-    private var sweep: some View {
-        GeometryReader { geo in
-            LinearGradient(
-                colors: [.clear, Palette.paper.opacity(0.85), .clear],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            .frame(width: geo.size.width * 0.5)
-            .offset(x: sweeping ? geo.size.width : -geo.size.width * 0.5)
-            .animation(.easeInOut(duration: 1.35).repeatForever(autoreverses: false), value: sweeping)
-        }
-    }
-}
-
-/// The app's own indeterminate bar — a hairline rule with a short accent
-/// segment travelling it. `ProgressView(.linear)` is UIKit's, and it reads as a
-/// system alert in the middle of paper the same way its spinner does.
-public struct AtlasProgressBar: View {
-    @State private var travelling = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    public init() {}
-    public var body: some View {
-        GeometryReader { geo in
-            Capsule()
-                .fill(Palette.hairline)
-                .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(Palette.accent)
-                        // Under Reduce Motion the segment holds still rather
-                        // than pacing the width for as long as the wait lasts.
-                        .frame(width: geo.size.width * (reduceMotion ? 1 : 0.34))
-                        .opacity(reduceMotion ? 0.35 : 1)
-                        .offset(x: travelling && !reduceMotion ? geo.size.width * 0.66 : 0)
-                        .animation(
-                            reduceMotion
-                                ? nil
-                                : .easeInOut(duration: 1.3).repeatForever(autoreverses: true),
-                            value: travelling
-                        )
-                }
-                .clipShape(Capsule())
-        }
-        .frame(height: 3)
-        .task { travelling = true }
-        .accessibilityHidden(true)
-    }
-}
-
-public extension AnyTransition {
-    /// How generated material replaces the wait that held its place: it rises
-    /// the last few points in rather than cutting over the skeleton.
-    static var arrival: AnyTransition { .opacity.combined(with: .offset(y: 10)) }
-}
-
-/// A generation in flight, or the honest sentence about why it isn't coming.
-///
-/// A wait is drawn as the thing being waited for: the paragraph shape of the
-/// prose, with the sentence about what Atlas is writing under it. A failure is
-/// only the sentence — nothing is coming, so nothing is shaped.
-struct Waiting: View {
-    /// What is being waited *for*. Prose is the default because most phases are
-    /// prose; Connect resolves into a diagram, and paragraph bars there promised
-    /// a screen it never becomes.
-    enum Shape { case prose, web }
-    private let text: Text
-    /// A failure is not a wait: the shape and the dots come off when the
-    /// sentence on screen is the reason nothing is coming.
-    private let spinning: Bool
-    private let shape: Shape
-    /// A generation that lands in a few hundred milliseconds should look
-    /// instant, not like a skeleton that flashed. Held back one beat.
-    @State private var shown = false
-    /// The sentence answers the shape a beat later — see `body`.
-    @State private var narrating = false
-    init(_ key: LocalizedStringKey, spinning: Bool = true, shape: Shape = .prose) {
-        text = Text(key); self.spinning = spinning; self.shape = shape
-    }
-    /// The sentence a view model already resolved — an `ErrorCopy` line, or a
-    /// wait it picked between several. Localised there, not here.
-    init(verbatim: String, spinning: Bool = true, shape: Shape = .prose) {
-        text = Text(verbatim: verbatim); self.spinning = spinning; self.shape = shape
-    }
-    var body: some View {
-        VStack(alignment: spinning ? .leading : .center, spacing: 24) {
-            if spinning {
-                held.padding(.top, 30)
-                // The sentence sits under the shape, on the same left edge as
-                // the prose it stands in for — a caption centred against
-                // left-aligned bars is the thing that reads as unfinished.
-                HStack(spacing: 9) {
-                    AtlasPulse(size: 17)
-                    sentence(.leading)
-                }
-                .opacity(narrating ? 1 : 0)
-            } else {
-                Spacer(minLength: 0)
-                sentence(.center)
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: spinning ? .top : .center)
-        .padding(.horizontal, Metrics.gutter)
-        .opacity(shown ? 1 : 0)
-        .task {
-            try? await Task.sleep(for: .milliseconds(spinning ? 180 : 0))
-            withAnimation(Motion.standard) { shown = true }
-            guard spinning else { return }
-            // The shape lands first and the sentence answers it, rather than
-            // both arriving in the same frame.
-            try? await Task.sleep(for: .milliseconds(420))
-            withAnimation(Motion.enter) { narrating = true }
-        }
-        .transition(.opacity)
-    }
-
-    /// The place the answer will take, at the answer's own shape.
-    @ViewBuilder
-    private var held: some View {
-        switch shape {
-        case .prose: SkeletonLines()
-        case .web:
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Palette.chipBg)
-                .aspectRatio(560.0 / 440.0, contentMode: .fit)
-                .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.hairline, lineWidth: 1) }
-                .accessibilityHidden(true)
-        }
-    }
-
-    private func sentence(_ alignment: TextAlignment) -> some View {
-        text.font(.atlas(.sans, 13.5))
-            .foregroundStyle(Palette.inkMuted)
-            .multilineTextAlignment(alignment)
     }
 }
 
