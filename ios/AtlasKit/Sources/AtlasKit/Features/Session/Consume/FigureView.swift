@@ -53,10 +53,13 @@ struct FigureView: View {
             .overlayPreferenceValue(FigureBoxes.self) { boxes in
                 GeometryReader { space in
                     Canvas { context, _ in
-                        // What the labels have already taken. Two edges out of
-                        // the same box land their midpoints side by side, and
-                        // the second card drew over the first.
-                        var placed: [CGRect] = []
+                        // What is already taken. The boxes count: an edge that
+                        // spans two rows passes *through* the row between them,
+                        // so its midpoint sits inside a box — "Gases liberados"
+                        // was printed across "Gases quentes". Labels count too:
+                        // two edges out of the same box land their midpoints
+                        // side by side, and the second card drew over the first.
+                        var placed: [CGRect] = boxes.values.map { space[$0] }
                         for edge in edges {
                             guard let from = boxes[edge.from], let to = boxes[edge.to] else { continue }
                             wire(&context, space[from], space[to], edge.label, &placed)
@@ -133,14 +136,36 @@ struct FigureView: View {
         let size = text.measure(in: CGSize(width: 140, height: 40))
         var at = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
         var card = box(size, at)
-        // Step out of the way of a label already drawn, along the line rather
-        // than across it — the label stays on the edge it belongs to. Two
-        // rows of clearance is every layer gap this figure has.
-        var tries = 0
-        while placed.contains(where: { $0.intersects(card) }), tries < 2 {
-            at.y += size.height + 4
-            card = box(size, at)
-            tries += 1
+        if placed.contains(where: { $0.intersects(card) }) {
+            // Step out of the way, sideways before lengthways: an edge crossing
+            // a row has a whole row-gap of paper beside the box it passes over,
+            // while sliding along the edge stays in that same column.
+            let len = max(hypot(end.x - start.x, end.y - start.y), 1)
+            let ax = (end.x - start.x) / len, ay = (end.y - start.y) / len
+            let across = size.width / 2 + 12, along = size.height + 6
+            let offsets = (1...3).flatMap { i -> [CGPoint] in
+                let n = CGFloat(i)
+                return [CGPoint(x: -ay * across * n, y: ax * across * n),
+                        CGPoint(x: ay * across * n, y: -ax * across * n),
+                        CGPoint(x: ax * along * n, y: ay * along * n),
+                        CGPoint(x: -ax * along * n, y: -ay * along * n)]
+            }
+            var free: CGRect?
+            for offset in offsets {
+                let point = CGPoint(x: at.x + offset.x, y: at.y + offset.y)
+                let rect = box(size, point)
+                if !placed.contains(where: { $0.intersects(rect) }) {
+                    free = rect
+                    at = point
+                    break
+                }
+            }
+            // Nowhere to put it: drop the label rather than print it over a box.
+            // The arrow still says there is an edge, which is more than two
+            // unreadable words stacked on each other said. Same rule the map
+            // uses for its node labels (`drawGraph`).
+            guard let free else { return }
+            card = free
         }
         placed.append(card)
         context.fill(Path(roundedRect: card, cornerRadius: 3), with: .color(Palette.card))
