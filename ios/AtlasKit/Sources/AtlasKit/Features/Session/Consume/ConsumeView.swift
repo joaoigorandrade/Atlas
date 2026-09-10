@@ -42,7 +42,10 @@ struct ConsumeView: View {
                 if store.readAloudOn { speaker(model) }
             }
 
-            SegmentBar(model.rail, height: 3, value: model.railValue)
+            // The rail is also the way back: a section already read is one tap
+            // away, instead of the back arrow (which leaves the pass) being the
+            // only thing to press. Mirrors the web's jump-to-section rail.
+            SegmentBar(model.rail, height: 3, value: model.railValue) { model.revisit($0) }
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 10)
                 // The scroll clips against the rail, so without a gap the prose
@@ -68,10 +71,7 @@ struct ConsumeView: View {
                         .padding(.bottom, 28)
                 }
                 .id(chunk.id)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
-                ))
+                .transition(turn(back: model.goingBack))
                 dock(model)
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
@@ -103,6 +103,14 @@ struct ConsumeView: View {
         }
     }
 
+    /// A section turn, in the direction it was taken.
+    private func turn(back: Bool) -> AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: back ? .leading : .trailing).combined(with: .opacity),
+            removal: .move(edge: back ? .trailing : .leading).combined(with: .opacity)
+        )
+    }
+
     private func speaker(_ model: ConsumeViewModel) -> some View {
         Button { model.toggleReadAloud() } label: {
             Image(systemName: model.speaker.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
@@ -115,7 +123,7 @@ struct ConsumeView: View {
         .pressable()
         .animation(Motion.snap, value: model.speaker.speaking)
         .accessibilityLabel("Ouvir esta seção")
-        .disabled(model.chunk == nil)
+        .disabled(model.chunk?.settled != true)
         .opacity(model.speaker.loading ? 0.4 : 1)
     }
 
@@ -125,8 +133,19 @@ struct ConsumeView: View {
     private func section(_ chunk: ConsumeChunk, _ model: ConsumeViewModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Kicker(verbatim: chunk.kicker)
-            ForEach(Array(chunk.body.enumerated()), id: \.offset) { _, paragraph in
-                Text(Markdown.rich(paragraph))
+            ForEach(Array(chunk.body.enumerated()), id: \.offset) { index, paragraph in
+                // The last paragraph of a section still being written ends
+                // mid-sentence, so it says so: a caret glyph on the end of the
+                // prose, which is where the next words are about to appear.
+                //
+                // ponytail: concatenated rather than blinking — a `Text` run
+                // cannot carry its own animation, and an overlay that tracks
+                // the end of reflowing markdown is a lot of machinery for a
+                // mark that lives two seconds. Give it `Caret` if it reads dead.
+                (Text(Markdown.rich(paragraph))
+                    + (chunk.settled || index < chunk.body.count - 1
+                        ? Text(verbatim: "")
+                        : Text(verbatim: "\u{258C}").foregroundColor(Palette.accent)))
                     .font(.atlas(.serif, 17.5))
                     .lineSpacing(6)
                     .foregroundStyle(Palette.ink)
@@ -150,45 +169,53 @@ struct ConsumeView: View {
                 }
             }
 
-            Text(Markdown.rich(chunk.takeaway))
-                .font(.atlas(.serif, 16))
-                .foregroundStyle(Palette.ink)
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Palette.accentBg, in: .rect(cornerRadius: 10))
-                .padding(.top, 20)
-                // The check appears once the end of the section has been on
-                // screen — a gate answerable without scrolling past the prose
-                // no longer implies reading. Mirrors `SectionCheck`'s observer.
-                .onScrollVisibilityChange(threshold: 0.6) { shown in
-                    if shown { model.reachEnd() }
-                }
-
-            Kicker("Ver de outro jeito").padding(.top, 24)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8, alignment: .leading)],
-                      alignment: .leading, spacing: 8) {
-                ForEach(AltKey.allCases) { key in
-                    // The lens the learner keeps reaching for is marked from
-                    // the second time they pick it — SPEC §6's adaptive
-                    // modality, as a border rather than a second content path.
-                    let preferred = model.preferredLens == key
-                    Button { model.open(key) } label: {
-                        Text(key.label)
-                            .font(.atlas(.mono, 12))
-                            .foregroundStyle(preferred ? Palette.accent : Palette.inkMuted)
-                            .frame(maxWidth: .infinity, minHeight: 40)
-                            .background(preferred ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 8))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(preferred ? Palette.accent.opacity(0.4) : Palette.hairlineStrong,
-                                                  lineWidth: 1)
-                            }
+            // Nothing past the prose exists on a section still being written:
+            // the takeaway is the sentence the model writes after it.
+            if chunk.settled {
+                Text(Markdown.rich(chunk.takeaway))
+                    .font(.atlas(.serif, 16))
+                    .foregroundStyle(Palette.ink)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Palette.accentBg, in: .rect(cornerRadius: 10))
+                    .padding(.top, 20)
+                    // The check appears once the end of the section has been on
+                    // screen — a gate answerable without scrolling past the prose
+                    // no longer implies reading. Mirrors `SectionCheck`'s observer.
+                    .onScrollVisibilityChange(threshold: 0.6) { shown in
+                        if shown { model.reachEnd() }
                     }
-                    .pressable()
-                    .accessibilityHint(preferred ? Text("Sua preferência") : Text(verbatim: ""))
-                }
             }
-            .padding(.top, 10)
+
+            // The lenses go with it — a model view is generated *from* the
+            // section, so one opened over half of it walks half the material.
+            if chunk.settled {
+                Kicker("Ver de outro jeito").padding(.top, 24)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8, alignment: .leading)],
+                          alignment: .leading, spacing: 8) {
+                    ForEach(AltKey.allCases) { key in
+                        // The lens the learner keeps reaching for is marked from
+                        // the second time they pick it — SPEC §6's adaptive
+                        // modality, as a border rather than a second content path.
+                        let preferred = model.preferredLens == key
+                        Button { model.open(key) } label: {
+                            Text(key.label)
+                                .font(.atlas(.mono, 12))
+                                .foregroundStyle(preferred ? Palette.accent : Palette.inkMuted)
+                                .frame(maxWidth: .infinity, minHeight: 40)
+                                .background(preferred ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 8))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(preferred ? Palette.accent.opacity(0.4) : Palette.hairlineStrong,
+                                                      lineWidth: 1)
+                                }
+                        }
+                        .pressable()
+                        .accessibilityHint(preferred ? Text("Sua preferência") : Text(verbatim: ""))
+                    }
+                }
+                .padding(.top, 10)
+            }
 
             if let check = chunk.check, model.reachedEnd {
                 self.check(check, model)
@@ -326,7 +353,13 @@ struct ConsumeView: View {
 
     private func dock(_ model: ConsumeViewModel) -> some View {
         Dock {
-            if let next = model.next {
+            if model.chunk?.settled == false {
+                // The section on screen *is* the one being written — the dock
+                // said "next", which reads as a wait for something else while
+                // the prose in front of the learner is still arriving.
+                CTAButton("Escrevendo esta seção…", tint: Palette.inkGhost) {}
+                    .disabled(true)
+            } else if let next = model.next {
                 CTAButton("Continuar · \(next.kicker)") { model.advance() }
                     .disabled(!model.passed)
             } else if model.writing {

@@ -138,9 +138,37 @@ public struct ConsumeChunk: Decodable, Sendable, Identifiable {
     /// thing the screen gates on.
     private let written: ConsumePrediction?
 
+    /// The section is finished. A section still being written arrives as a
+    /// redraw of its own slot — the kicker and the paragraphs so far, nothing
+    /// past them (`draftConsumeSection`) — and the empty `takeaway` is what
+    /// says so: every validated section carries one, so no flag has to ride
+    /// along on the wire or through the shared cache.
+    ///
+    /// Everything that acts on a section reads this: a draft gates nothing,
+    /// is not spoken, and is not counted as a section the reading has.
+    public var settled: Bool { !takeaway.isEmpty }
+
     private enum CodingKeys: String, CodingKey {
         case id, kicker, body, example, takeaway, cite, diagram, figure
         case written = "check"
+    }
+
+    /// Lenient on purpose: a redraw of a section mid-sentence is missing every
+    /// field the model has not reached yet, and the synthesized decode threw on
+    /// it — which dropped the frame and left the learner on a placeholder until
+    /// the whole section had landed. What the server validated is unaffected: a
+    /// complete section always carries all of these.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        kicker = try c.decodeIfPresent(String.self, forKey: .kicker) ?? ""
+        body = try c.decodeIfPresent([String].self, forKey: .body) ?? []
+        example = try c.decodeIfPresent(ConsumeExample.self, forKey: .example)
+        takeaway = try c.decodeIfPresent(String.self, forKey: .takeaway) ?? ""
+        cite = try c.decodeIfPresent(String.self, forKey: .cite)
+        diagram = try c.decodeIfPresent(String.self, forKey: .diagram)
+        figure = try c.decodeIfPresent(ConsumeFigure.self, forKey: .figure)
+        written = try c.decodeIfPresent(ConsumePrediction.self, forKey: .written)
     }
 }
 

@@ -262,9 +262,14 @@ public actor AtlasAPI {
         }
     }
 
-    /// The reading pass, one section at a time.
+    /// The reading pass, one section at a time — and the section being written
+    /// as it is written. Partials are asked for because the first section is
+    /// the longest wait in the app and it is pure prose: the screen paints the
+    /// paragraphs as they arrive instead of holding a placeholder over them.
+    /// A draft carries no takeaway, example or check (`draftConsumeSection`),
+    /// which is what `ConsumeChunk.settled` reads.
     public func consume(_ context: [String: JSONValue]) -> AsyncThrowingStream<Landed<[ConsumeChunk]>, Error> {
-        list("consume", "chunks", context)
+        list("consume", "chunks", context, partials: true)
     }
 
     /// One lens over one section — the model view's beats. The only kind that

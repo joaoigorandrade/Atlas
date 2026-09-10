@@ -233,3 +233,72 @@ struct MarkdownTests {
         #expect(Markdown.plain(plain) == plain)
     }
 }
+
+@MainActor
+@Test func aSectionAlreadyReadIsOneTapBackAndStaysAnswered() {
+    let store = store()
+    reading(store, [
+        section("c1", check: check(correct: [true, false, false])),
+        section("c2", check: check(correct: [true, false, false])),
+    ])
+    let model = consume(store)
+    model.pick(0)
+    model.advance()
+    #expect(model.index == 1)
+    model.pick(1)
+    #expect(model.missed == [1])
+
+    // Only one section is on screen at a time, so the rail is the way back to
+    // the prose the learner needs to re-read.
+    model.revisit(0)
+    #expect(model.index == 0)
+    #expect(model.goingBack)
+    #expect(model.missed.isEmpty)
+    #expect(model.grade == nil)
+    // The check answered on the way through stays answered — the way forward is
+    // not re-gated by coming back.
+    #expect(model.passed)
+    // And how far the reading got is not undone by re-reading behind it.
+    #expect(store.reading("lat")?.idx == 1)
+
+    // Forwards is not the rail's job, and neither is standing still.
+    model.revisit(1)
+    #expect(model.index == 0)
+    model.revisit(0)
+    #expect(model.index == 0)
+}
+
+@MainActor
+@Test func theSectionBeingWrittenIsReadableButGatesNothing() {
+    let store = store()
+    // What a redraw of the slot being written looks like on the wire
+    // (`draftConsumeSection`): the kicker and the paragraphs so far, and none of
+    // the material the model has not reached yet.
+    let draft = JSONValue.object([
+        "id": .string("c2"),
+        "kicker": .string("2 · Onde quebra"),
+        "body": .array([.string("A primeira metade de um parágraf")]),
+    ])
+    reading(store, [section("c1", check: check(correct: [true, false, false])), draft])
+    let model = consume(store)
+
+    // It decodes and it is on screen — that is the whole point of streaming it.
+    #expect(model.chunks.count == 2)
+    #expect(model.chunks[1].settled == false)
+    #expect(model.chunks[1].body.count == 1)
+
+    // But it is not a section the reading has: the rail would grow a slot that
+    // can still fail, and the recap would total a section nobody wrote.
+    #expect(model.landed == 1)
+    #expect(model.rail.count == 1)
+
+    // And it cannot be left. Its check has not been written, and "no check"
+    // means "ungated" everywhere else on this screen.
+    model.pick(0)
+    model.advance()
+    #expect(model.index == 1)
+    #expect(model.chunk?.settled == false)
+    #expect(model.passed == false)
+    // Nor read aloud: half a section stops mid-sentence and cannot resume.
+    #expect(model.spoken.isEmpty)
+}

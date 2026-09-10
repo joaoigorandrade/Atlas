@@ -18,7 +18,7 @@ import {
   ConsumePrediction,
 } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
-import { generateJson, streamJsonObjects } from "@/lib/server/openrouter";
+import { generateJson, streamJsonObjectsProgressive } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
 
 export function validateFigure(raw: unknown, name: string): ConsumeFigure {
@@ -128,6 +128,31 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
   };
 }
 
+/**
+ * A section as it is being written — the kicker and the paragraphs so far, and
+ * nothing that gates.
+ *
+ * The shape is written in order (kicker → body → example → takeaway → check),
+ * so a redraw is prose with a truncated last paragraph and no material past
+ * it. Everything that *acts* is left out on purpose: half a worked example
+ * teaches nothing, and half a check has options nobody can answer.
+ *
+ * The empty `takeaway` is how a reader tells a draft from a section: every
+ * validated section carries one (`str` rejects an empty string), so no extra
+ * flag has to ride along on the wire or through the cache.
+ */
+function draftConsumeSection(raw: unknown, i: number): ConsumeChunk | null {
+  const c = raw as { kicker?: unknown; body?: unknown };
+  const kicker = typeof c?.kicker === "string" ? c.kicker : "";
+  const body = (Array.isArray(c?.body) ? c.body : []).filter(
+    (p): p is string => typeof p === "string" && p.trim() !== "",
+  );
+  if (!kicker.trim() && body.length === 0) return null;
+  // Cast because a draft is deliberately missing the fields a whole section
+  // must have — it is only ever rendered, never validated, assembled or cached.
+  return { id: `c${i + 1}`, kicker, terms: [], body, takeaway: "", ask: "" } as unknown as ConsumeChunk;
+}
+
 export function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
   return arr(
@@ -214,6 +239,11 @@ Return JSON:
  * wrapping array, so each is a complete, parseable unit as soon as its
  * closing brace lands) and yields each the moment it validates.
  *
+ * It also yields the section currently being written, on a timer
+ * (`draftConsumeSection`), so the first screen of a reading is the prose
+ * appearing rather than a placeholder standing in for it — the wait used to
+ * be the whole of the first section, which is the longest one there is.
+ *
  * No corrective retry mid-stream — if the very first section fails to parse
  * or validate (the model ignored the format, a network hiccup), that's
  * indistinguishable from "nothing usable happened yet", so this falls back
@@ -235,7 +265,7 @@ export async function* generateConsumeStream(params: {
 }): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   try {
-    const stream = streamJsonObjects(
+    const stream = streamJsonObjectsProgressive(
       user(
         `${consumeContext(params)}
 
@@ -246,9 +276,15 @@ shape:
 ${CONSUME_SECTION_SHAPE}${languageNote(params.language)}`,
       ),
       validateConsumeSection,
-      { label: "consume-stream" },
+      { label: "consume-stream", partial: draftConsumeSection },
     );
-    for await (const chunk of stream) yield { p: "chunks", i: yielded++, v: chunk };
+    for await (const chunk of stream) {
+      if (chunk.partial) {
+        yield { p: "chunks", i: yielded, v: chunk.value, partial: true };
+        continue;
+      }
+      yield { p: "chunks", i: yielded++, v: chunk.value };
+    }
   } catch (err) {
     if (yielded > 0) throw err;
     console.error(

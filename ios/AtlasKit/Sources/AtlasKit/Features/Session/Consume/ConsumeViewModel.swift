@@ -45,6 +45,10 @@ final class ConsumeViewModel {
     /// then: a gate answerable without scrolling past the prose is a gate that
     /// no longer implies reading. Mirrors `SectionCheck`'s observer.
     private(set) var reachedEnd = false
+    /// The last section turn went backwards, so the page turn animates that
+    /// way: a section the learner just came back to sliding in from the right
+    /// reads as going forward.
+    private(set) var goingBack = false
     private(set) var message = ""
     /// Which lens is open over the prose, if any. Bound by the sheet.
     var lens: LensRequest?
@@ -93,15 +97,24 @@ final class ConsumeViewModel {
     /// A section closes on its check: getting it right is what earns Continue.
     /// A section answered on an earlier visit stays answered.
     var passed: Bool {
-        guard let chunk, let check = chunk.check else { return true }
+        guard let chunk else { return true }
+        // A section still being written is not a section that can be left: its
+        // check has not been written yet, and `check == nil` means "ungated".
+        guard chunk.settled else { return false }
+        guard let check = chunk.check else { return true }
         if passedChecks.contains(chunk.id) { return true }
         guard let picked else { return false }
         return check.opts[safe: picked]?.correct == true
     }
 
+    /// Sections the reading actually has. The one being written is on screen —
+    /// it is the point of streaming it — but it is not a section the rail
+    /// counts, the recap totals, or the map records: it can still fail.
+    var landed: Int { chunks.filter(\.settled).count }
+
     /// One colour per landed section, never fewer than the pass has had before.
     var rail: [Color?] {
-        (0..<max(chunks.count, seenTotal)).map {
+        (0..<max(landed, seenTotal)).map {
             $0 < index ? Palette.accent : ($0 == index ? NodeState.frontier.color : nil)
         }
     }
@@ -112,14 +125,15 @@ final class ConsumeViewModel {
     var railValue: Text {
         writing
             ? Text("Seção \(index + 1)")
-            : Text("Seção \(index + 1) de \(max(chunks.count, seenTotal))")
+            : Text("Seção \(index + 1) de \(max(landed, seenTotal))")
     }
 
     /// The prose as it is spoken: the explanation, the worked example that
     /// follows it and the takeaway that closes it — what is on screen, rather
     /// than the paragraphs alone. Mirrors `segmentsForChunk`.
     var spoken: [String] {
-        guard let chunk else { return [] }
+        // Half a section read aloud stops mid-sentence and cannot be resumed.
+        guard let chunk, chunk.settled else { return [] }
         var segments = chunk.body
         if let example = chunk.example {
             segments.append(example.title)
@@ -172,9 +186,31 @@ final class ConsumeViewModel {
     /// The end of the section has scrolled into view, so the check may appear.
     func reachEnd() { reachedEnd = true }
 
+    /// Back to a section already read. The rail is the way back: the web keeps
+    /// every revealed section on the page, and here only one is on screen at a
+    /// time — so without this the only way back to the previous section was the
+    /// back arrow, which leaves the pass. Nothing is written: how far the
+    /// reading *got* is not undone by re-reading something behind it.
+    func revisit(_ section: Int) {
+        guard section >= 0, section < index else { return }
+        speaker.stop()
+        withAnimation(Motion.standard) {
+            goingBack = true
+            index = section
+            // The check on a section already answered stays answered — that
+            // lives in `passedChecks`, not in these.
+            picked = nil
+            missed = []
+            grade = nil
+            reachedEnd = false
+            speaker.clearMessage()
+        }
+    }
+
     func advance() {
         speaker.stop()
         withAnimation(Motion.standard) {
+            goingBack = false
             index += 1
             picked = nil
             missed = []
@@ -216,7 +252,7 @@ final class ConsumeViewModel {
     /// refuses to tick Consume off a pass left part-way through, and "3 de 5"
     /// is the same two numbers. Mirrors the web's `ConsumeProgress`.
     private func note(passed chunk: String? = nil) {
-        seenTotal = max(seenTotal, chunks.count)
+        seenTotal = max(seenTotal, landed)
         session.store.note(
             reading: node.id, idx: index, total: seenTotal,
             // Reaching the last section is not finishing the pass: `finished`

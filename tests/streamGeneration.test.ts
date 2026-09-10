@@ -118,12 +118,41 @@ let splitDeltas = false;
 
 const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
 const isPassage = (prompt: string) => prompt.includes("They highlighted a passage");
+const isConsume = (prompt: string) =>
+  prompt.includes("Consume (first reading) pass");
 
 /** The "ask about this" answer, one top-level object per paragraph. */
 const passageObjs = [
   { p: "The sentence you highlighted is doing one job." },
   { p: "Here is the mechanism behind it, concretely." },
 ];
+
+/** Two reading sections, written the way the streamed Consume prompt asks: one
+ *  top-level object each, every field a whole section must have. */
+const consumeObjs = [0, 1].map((i) => ({
+  kicker: `${i + 1} · What it is`,
+  terms: [{ t: "owner", d: "the binding responsible for the value" }],
+  body: [
+    `Paragraph one of section ${i + 1}, long enough to be split across deltas.`,
+    `Paragraph two of section ${i + 1}, which is where the mechanism lands.`,
+  ],
+  example: {
+    title: "what this demonstrates",
+    steps: ["step one with the work shown", "step two"],
+  },
+  takeaway: `The one line to carry out of section ${i + 1}.`,
+  ask: "and what would happen if the owner outlived the value?",
+  check: {
+    q: `Which of these did section ${i + 1} actually say?`,
+    opts: [
+      { label: "the first plausible misreading", correct: false },
+      { label: "what the section actually said", correct: true },
+      { label: "the second plausible misreading", correct: false },
+    ],
+    right: "yes — that is the sentence.",
+    wrong: "not quite — it was in the second paragraph.",
+  },
+}));
 
 /** Which sequence of top-level objects a given prompt is asking for. */
 function objectsFor(prompt: string): unknown[] {
@@ -136,6 +165,7 @@ function objectsFor(prompt: string): unknown[] {
   if (isJudge(prompt))
     return [{ quality: "near" }, { quality: "near", response: "the streamed critique" }];
   if (isPassage(prompt)) return passageObjs;
+  if (isConsume(prompt)) return consumeObjs;
   return [{}];
 }
 
@@ -160,8 +190,10 @@ beforeAll(async () => {
         ? { quality: "near", response: "the retried critique" }
         : isPassage(prompt)
           ? { answer: ["the retried answer"] }
-          : prompt.includes("Socratic")
-            ? { steps: objects }
+          : isConsume(prompt)
+            ? { chunks: objects }
+            : prompt.includes("Socratic")
+              ? { steps: objects }
             : prompt.includes("Feynman")
               ? { beats: objects }
               : prompt.includes("prerequisite concept map")
@@ -489,6 +521,58 @@ describe("curriculum map + adaptive placement, split prompts", () => {
 });
 
 // ---- "ask about this": the learner's own question about a passage ----------
+
+describe("the reading pass", () => {
+  const params = {
+    topic: "Rust",
+    nodeLabel: "Ownership",
+    prereqLabels: [],
+    interests: "",
+  };
+
+  it("paints a section as it is written, and caches only whole ones", async () => {
+    const { generateConsumeStream } = await import("@/lib/server/generate");
+    const { framesToPayload } = await import("@/lib/server/stream");
+    splitDeltas = true;
+    try {
+      const frames = await drain(generateConsumeStream(params));
+      const drafts = frames.filter((f) => f.partial);
+      const complete = frames.filter((f) => !f.partial);
+
+      // The first section is the longest wait in the app: redraws of it arrive
+      // before it is finished, which is what the screen paints instead of a
+      // placeholder.
+      const first = drafts.filter((f) => f.i === 0);
+      expect(first.length).toBeGreaterThan(0);
+      expect(first[0].at).toBeLessThan(complete[0].at);
+
+      // A draft is prose and nothing that gates — no takeaway (which is what
+      // the client reads to tell a draft from a section), no example, no check.
+      for (const d of first) {
+        const v = d.v as { kicker: string; body: string[]; takeaway: string };
+        expect(v.takeaway).toBe("");
+        expect(v).not.toHaveProperty("check");
+        expect(consumeObjs[0].kicker.startsWith(v.kicker)).toBe(true);
+        for (const [i, p] of v.body.entries())
+          expect(consumeObjs[0].body[i].startsWith(p)).toBe(true);
+      }
+
+      // …and none of it reaches the payload the route caches and both clients
+      // are served: a half-written section filed as a whole one is a reading
+      // that can never be finished.
+      const payload = framesToPayload(
+        frames.map(({ p, i, v, partial }) => ({ p, i: i!, v, partial })),
+        { chunks: { min: 2, max: 5 } },
+      ) as { chunks: Array<{ takeaway: string }> } | null;
+      expect(payload?.chunks).toHaveLength(2);
+      expect(payload?.chunks.map((c) => c.takeaway)).toEqual(
+        consumeObjs.map((c) => c.takeaway),
+      );
+    } finally {
+      splitDeltas = false;
+    }
+  });
+});
 
 describe("passage answers", () => {
   const params = {
