@@ -13,6 +13,7 @@ import {
   streamJsonObjectsProgressive,
 } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
+import { MATH_RULE } from "./common";
 
 export const JUDGE_SYSTEM: ChatMessage = {
   role: "system",
@@ -20,7 +21,8 @@ export const JUDGE_SYSTEM: ChatMessage = {
     "You judge a learner's answer in a mastery-learning app. You are rigorous and anti-sycophantic: " +
     "a wrong answer is named plainly and specifically (quote the wrong part), never affirmed or smoothed over. " +
     "A near-miss earns a hint, never the full answer. Empty, evasive, or off-topic input is never treated as correct. " +
-    "Reply with ONLY one valid JSON object.",
+    "Reply with ONLY one valid JSON object. " +
+    MATH_RULE,
 };
 
 /**

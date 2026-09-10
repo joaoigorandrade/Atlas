@@ -95,13 +95,23 @@ export function rejectSelfIdenticalError(text: string, name: string): string {
   return text;
 }
 
+/** Nothing renders LaTeX — not the web's `Rich`, not the app's `Markdown` — so
+ *  a model that reaches for it prints `A_b p_c^{n}` and `\(\dot r = a p^{0,3}\)`
+ *  at the learner verbatim. Which of the two a screen got was pure luck of the
+ *  draw, so the rule belongs in the system message every generator shares. */
+export const MATH_RULE =
+  "MATH: never use LaTeX or TeX markup — no backslash commands, no $…$, no \\(…\\), no ^{} or _{} braces. " +
+  "Write every symbol, subscript, superscript, fraction and operator as plain Unicode text (ṙ, p⁰ʼ³, aᵦ, √x, ≤, ×, Δ, θ, x²), " +
+  "or in words when Unicode cannot carry it (\"dr/dt\", \"the b-th component\"). Nothing downstream renders LaTeX; it reaches the learner as raw source.";
+
 export const SYSTEM: ChatMessage = {
   role: "system",
   content:
     "You are the content engine of Atlas, a mastery-learning platform built on a living concept map. " +
     "You produce rigorous, honest pedagogy: precise definitions, desirable difficulties, anti-sycophancy " +
     "(wrong reasoning is caught and named, never smoothed over). " +
-    "Reply with ONLY one valid JSON object — no markdown fences, no prose before or after.",
+    "Reply with ONLY one valid JSON object — no markdown fences, no prose before or after. " +
+    MATH_RULE,
 };
 
 export function user(content: string): ChatMessage[] {
