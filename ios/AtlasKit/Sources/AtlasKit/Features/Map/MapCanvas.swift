@@ -56,6 +56,12 @@ final class PreparedGraph {
     /// Edges naming a node the graph doesn't have are dropped here rather than
     /// looked up and skipped sixty times a second.
     let links: [Link]
+    /// The closest two node centres, in graph space. Discs are drawn in screen
+    /// space, so this is what says whether the current scale still has room for
+    /// them — see `drawGraph`.
+    /// ponytail: O(n²) over a map of tens of nodes, once per graph; sort by x
+    /// if maps ever get big enough to feel it.
+    let minSpacing: CGFloat
     private var metrics: [Key: CGSize] = [:]
 
     private struct Key: Hashable {
@@ -73,6 +79,13 @@ final class PreparedGraph {
             guard let a = byId[edge.from], let b = byId[edge.to] else { return nil }
             return Link(a: a, b: b, into: edge.to, dashed: edge.dashed)
         }
+        var closest = CGFloat.greatestFiniteMagnitude
+        for (i, a) in graph.nodes.enumerated() {
+            for b in graph.nodes.dropFirst(i + 1) {
+                closest = min(closest, hypot(a.x - b.x, a.y - b.y))
+            }
+        }
+        minSpacing = closest == .greatestFiniteMagnitude ? 60 : max(closest, 1)
     }
 
     /// Core Text shaping is the expensive half of a label and depends on the
@@ -147,12 +160,20 @@ func drawGraph(
         // inside the scaled transform (`MapCanvas.tsx`) and discs grow with the
         // zoom. On touch a disc is a tap target, so pinching spreads the map
         // apart at a constant 44pt reach instead of shrinking what can be hit.
-        let radius: CGFloat = state == .frontier ? NodeDisc.radius : (node.gap == true ? 11 : isLit ? 13 : 10)
+        // …up to the point where the transform packs the map tighter than a
+        // disc is wide. The post-build preview and the placement result fit a
+        // whole map into a card, the centres land under 30pt apart, and
+        // constant-size discs merge into a blob. Cap by the closest pair rather
+        // than by a "this is a preview" flag: the full-screen map at a real
+        // zoom is already above the cap and is left exactly as it was.
+        let room = prepared.minSpacing * view.scale
+        let wanted: CGFloat = state == .frontier ? NodeDisc.radius : (node.gap == true ? 11 : isLit ? 13 : 10)
+        let radius = min(wanted, max(5, room * 0.42))
         // The frontier's halo is the design's only glow — it is what makes
         // "where do I go next" readable at a glance. One soft disc and a ring,
         // not two stacked discs: two adjacent frontiers used to merge into one
         // amber cloud with no nodes visible inside it.
-        let outer = state == .frontier ? radius * NodeDisc.halo : radius
+        let outer = state == .frontier ? min(radius * NodeDisc.halo, max(6, room * 0.5)) : radius
         if state == .frontier {
             context.fill(circle(point, outer), with: .color(state.color.opacity(0.14)))
             context.stroke(circle(point, outer), with: .color(state.color.opacity(0.30)), lineWidth: 1.5)
