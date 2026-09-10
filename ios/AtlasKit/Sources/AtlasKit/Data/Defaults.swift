@@ -31,6 +31,14 @@ enum Defaults {
         get { UserDefaults.standard.object(forKey: "readAloud") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "readAloud") }
     }
+    /// The pass that was on screen when the app last went away, as
+    /// `topic|node|phase`. Everything *inside* a pass is already on the server —
+    /// the reading's place, the transcript, the mastery — so all a relaunch is
+    /// missing is which screen the learner was on. Empty means the map.
+    static var openSession: String {
+        get { UserDefaults.standard.string(forKey: "openSession") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "openSession") }
+    }
     static var streak: Int {
         get { UserDefaults.standard.integer(forKey: "streak") }
         set { UserDefaults.standard.set(newValue, forKey: "streak") }

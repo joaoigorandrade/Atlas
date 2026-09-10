@@ -11,9 +11,9 @@ import SwiftUI
 @MainActor
 public final class SessionViewModel: Identifiable {
     public let node: ConceptNode
-    public private(set) var phase: Phase { didSet { warmNext(); noteReading() } }
+    public private(set) var phase: Phase { didSet { warmNext(); noteReading(); mark() } }
     /// Set when the last phase hands back — the map takes the screen again.
-    public private(set) var finished = false
+    public private(set) var finished = false { didSet { if finished { Self.forget() } } }
 
     /// The run itself: the phases read their content off it and write their
     /// mastery back through it.
@@ -40,6 +40,32 @@ public final class SessionViewModel: Identifiable {
         if phase != nil, self.phase == .crucible { store.bumpCrucibleRerun(node.id) }
         warmNext()
         noteReading()
+        mark()
+    }
+
+    /// Where the learner is, kept across a relaunch. A pass is the longest
+    /// thing they do here and the app can be killed in the middle of one; the
+    /// work itself is on the server, so remembering the screen is one string.
+    /// Cleared when the pass ends (`finished`) and when the map takes the
+    /// screen back (`SessionView`).
+    private func mark() {
+        Defaults.openSession = [store.topicId ?? "", node.id, phase.rawValue].joined(separator: "|")
+    }
+
+    /// No pass is open. Static so the view can call it as it goes away, when
+    /// the model it belonged to is already on its way out.
+    static func forget() { Defaults.openSession = "" }
+
+    /// The pass to reopen on a cold launch, if the marker still names a node on
+    /// the open map. Nil is the ordinary case: the learner left from the map.
+    @MainActor
+    static func resumable(in store: AtlasStore) -> (ConceptNode, Phase)? {
+        let parts = Defaults.openSession.split(separator: "|", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0] == store.topicId ?? "",
+              let node = store.graph.nodes.first(where: { $0.id == parts[1] }),
+              let phase = Phase(rawValue: String(parts[2]))
+        else { return nil }
+        return (node, phase)
     }
 
     /// A day on the streak is adherence, and opening a screen is not adherence:

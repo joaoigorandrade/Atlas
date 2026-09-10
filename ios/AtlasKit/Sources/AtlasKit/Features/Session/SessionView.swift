@@ -40,6 +40,10 @@ struct SessionView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden()
         .task { if session == nil { session = SessionViewModel(node: node, store: store, phase: phase) } }
+        // The map has the screen again — by the back swipe, the phase bar, or a
+        // finished pass. Whichever it was, there is no pass to reopen next
+        // launch. Backgrounding does not come through here, which is the point.
+        .onDisappear { SessionViewModel.forget() }
     }
 
     @ViewBuilder

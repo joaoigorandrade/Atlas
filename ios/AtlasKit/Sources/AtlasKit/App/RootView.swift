@@ -11,6 +11,10 @@ public struct RootView: View {
     @StateObject private var tabs = AtlasTabNavigator(initialTab: .home)
     /// The splash's own arrival — the one piece of state the shell draws with.
     @State private var settled = false
+    /// The saved pass is replayed once per launch, not once per time the shell
+    /// happens to be rebuilt — signing out and back in starts a new session,
+    /// and that one leaves from the map like any other.
+    @State private var resumed = false
     @Environment(\.scenePhase) private var scenePhase
 
     public init(store: AtlasStore) {
@@ -75,6 +79,9 @@ public struct RootView: View {
                 // such guard and clears history too.
                 tabs.navigators.values.forEach { $0.reset() }
                 tabs.switchTab(to: .home)
+                // Including the pass that was open: the next person to hold the
+                // phone must not be dropped into somebody else's Crucible.
+                SessionViewModel.forget()
                 // The auth screen is about to be rebuilt: it must not open
                 // carrying the notice from a link this learner already dealt with.
                 launch.clearNotice()
@@ -103,6 +110,16 @@ public struct RootView: View {
         .scaleEffect(settled ? 1 : 0.96)
         .opacity(settled ? 1 : 0)
         .task { withAnimation(Motion.enter) { settled = true } }
+    }
+
+    /// Reopen the pass the last launch was in the middle of, over the Mapa tab
+    /// it was pushed from — so backing out of it lands on the map, exactly
+    /// where backing out of it would have landed yesterday.
+    private func resume() {
+        guard !resumed else { return }
+        resumed = true
+        guard let (node, phase) = SessionViewModel.resumable(in: store) else { return }
+        tabs.navigate(to: .session(node, phase: phase), inTab: .map)
     }
 
     /// The library did not load. Said plainly, because the one thing the
@@ -147,6 +164,11 @@ public struct RootView: View {
     private var shell: some View {
         NavigationTabView(tabs)
             .environmentObject(tabs)
+            // A pass the app was killed in the middle of. Everything in it is
+            // on the server — the reading's place, the transcript, the mastery
+            // — so all that was lost was the screen, and a learner who left
+            // mid-Crucible came back to "Boa noite".
+            .task { resume() }
             .tint(Palette.accent)
             // A save that never landed looks exactly like one that did. It says
             // so, permanently, until the retry gets through.
