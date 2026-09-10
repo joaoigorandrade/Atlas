@@ -150,7 +150,14 @@ function draftConsumeSection(raw: unknown, i: number): ConsumeChunk | null {
   if (!kicker.trim() && body.length === 0) return null;
   // Cast because a draft is deliberately missing the fields a whole section
   // must have — it is only ever rendered, never validated, assembled or cached.
-  return { id: `c${i + 1}`, kicker, terms: [], body, takeaway: "", ask: "" } as unknown as ConsumeChunk;
+  return {
+    id: `c${i + 1}`,
+    kicker,
+    terms: [],
+    body,
+    takeaway: "",
+    ask: "",
+  } as unknown as ConsumeChunk;
 }
 
 export function validateConsume(raw: unknown): ConsumeChunk[] {

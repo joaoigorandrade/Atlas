@@ -291,7 +291,8 @@ export function retainQueueLabel(
     const { left, total, doneCount } = retainBudget(session, content);
     return `~${left} min restantes · ${total - doneCount} cartões`;
   }
-  if (session.finished) return over > 0 ? `Budget spent · ${over} waiting` : "Queue clear";
+  if (session.finished)
+    return over > 0 ? `Budget spent · ${over} waiting` : "Queue clear";
   const { left, total, doneCount } = retainBudget(session, content);
   return `~${left} min left · ${total - doneCount} cards`;
 }

@@ -102,7 +102,7 @@ export function rejectSelfIdenticalError(text: string, name: string): string {
 export const MATH_RULE =
   "MATH: never use LaTeX or TeX markup — no backslash commands, no $…$, no \\(…\\), no ^{} or _{} braces. " +
   "Write every symbol, subscript, superscript, fraction and operator as plain Unicode text (ṙ, p⁰ʼ³, aᵦ, √x, ≤, ×, Δ, θ, x²), " +
-  "or in words when Unicode cannot carry it (\"dr/dt\", \"the b-th component\"). Nothing downstream renders LaTeX; it reaches the learner as raw source.";
+  'or in words when Unicode cannot carry it ("dr/dt", "the b-th component"). Nothing downstream renders LaTeX; it reaches the learner as raw source.';
 
 export const SYSTEM: ChatMessage = {
   role: "system",

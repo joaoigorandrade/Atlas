@@ -14,23 +14,23 @@ Files in scope: `Features/Review/*`, `Domain/Retain.swift`, the Retain half of
 ## Headline: the Review tab is dead in production
 
 The screen cannot build a deck for any learner who does not already have cards.
-It shows *"Não conseguimos montar sua revisão agora."* and stays there forever.
+It shows _"Não conseguimos montar sua revisão agora."_ and stays there forever.
 Confirmed live, twice, on the deployed build.
 
-| #  | Finding                                                                                          | Where                                          | Sev          |
-| -- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ------------ |
-| 1  | `RetainContent.forecast` is non-optional; `/api/generate` kind=retain never sends it → every card draft fails to decode, silently | `Domain/Retain.swift:118`, `lib/server/generate/retain.ts:100` | **critical** |
-| 2  | Drafted cards are filed with the server's request-scoped ids `r1…rN`, so the second draft files zero cards | `Data/Warm.swift:418`, vs `useSpiral.ts:1689`  | **critical** |
-| 3  | The deck is re-read from the server before the 2 s debounce has saved the cards just drafted → first visit is always empty | `ReviewViewModel.swift:76`, `AtlasStore.swift:893` | **high**     |
-| 4  | A miss flags the node Shaky only when it was `.mastered`; the web flags any node | `ReviewViewModel.swift:110` vs `useSpiral.ts:1765` | **high**     |
-| 5  | A failure is a dead end — no retry control anywhere on the screen             | `ReviewView.swift:54`                          | high         |
-| 6  | "Nada para revisar ainda. Aprenda um conceito e ele volta aqui." is shown to a learner with a full, not-yet-due deck | `ReviewViewModel.swift:52`                     | high         |
-| 7  | `store.forecast` is fetched on every deck load and never rendered — the whole retention-health panel is missing on iOS | `AtlasStore.swift:33`                          | medium       |
-| 8  | No done-for-today surface. The web ends on streak + nodes lit + a CTA; iOS ends on one grey sentence in the middle of a blank screen | `ReviewView.swift:54` vs `RetainFinished.tsx`  | medium       |
-| 9  | A requeued (missed) card is graded on the server a second time, which the code's own comment says must not happen | `ReviewViewModel.swift:104`                    | medium       |
-| 10 | `recordCalib` truncates its running average; the web rounds — the two clients drift a point per reading | `AtlasStore.swift:475` vs `useRunState.ts:260` | low          |
-| 11 | `dueCount` counts a card with an unparseable `due` as due — an undecodable row inflates the dashboard forever | `AtlasStore.swift:826`                         | low          |
-| 12 | `warmRetain()` re-runs the generation on every app open while cards fail to file; Home never warms it at all, so opening Review from Home is always cold | `MapView.swift:63`                             | low          |
+| #   | Finding                                                                                                                                                  | Where                                                          | Sev          |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------ |
+| 1   | `RetainContent.forecast` is non-optional; `/api/generate` kind=retain never sends it → every card draft fails to decode, silently                        | `Domain/Retain.swift:118`, `lib/server/generate/retain.ts:100` | **critical** |
+| 2   | Drafted cards are filed with the server's request-scoped ids `r1…rN`, so the second draft files zero cards                                               | `Data/Warm.swift:418`, vs `useSpiral.ts:1689`                  | **critical** |
+| 3   | The deck is re-read from the server before the 2 s debounce has saved the cards just drafted → first visit is always empty                               | `ReviewViewModel.swift:76`, `AtlasStore.swift:893`             | **high**     |
+| 4   | A miss flags the node Shaky only when it was `.mastered`; the web flags any node                                                                         | `ReviewViewModel.swift:110` vs `useSpiral.ts:1765`             | **high**     |
+| 5   | A failure is a dead end — no retry control anywhere on the screen                                                                                        | `ReviewView.swift:54`                                          | high         |
+| 6   | "Nada para revisar ainda. Aprenda um conceito e ele volta aqui." is shown to a learner with a full, not-yet-due deck                                     | `ReviewViewModel.swift:52`                                     | high         |
+| 7   | `store.forecast` is fetched on every deck load and never rendered — the whole retention-health panel is missing on iOS                                   | `AtlasStore.swift:33`                                          | medium       |
+| 8   | No done-for-today surface. The web ends on streak + nodes lit + a CTA; iOS ends on one grey sentence in the middle of a blank screen                     | `ReviewView.swift:54` vs `RetainFinished.tsx`                  | medium       |
+| 9   | A requeued (missed) card is graded on the server a second time, which the code's own comment says must not happen                                        | `ReviewViewModel.swift:104`                                    | medium       |
+| 10  | `recordCalib` truncates its running average; the web rounds — the two clients drift a point per reading                                                  | `AtlasStore.swift:475` vs `useRunState.ts:260`                 | low          |
+| 11  | `dueCount` counts a card with an unparseable `due` as due — an undecodable row inflates the dashboard forever                                            | `AtlasStore.swift:826`                                         | low          |
+| 12  | `warmRetain()` re-runs the generation on every app open while cards fail to file; Home never warms it at all, so opening Review from Home is always cold | `MapView.swift:63`                                             | low          |
 
 ### How #1 was confirmed
 
@@ -54,7 +54,7 @@ generations across four app launches. Every one was paid for and thrown away.
 
 ## Brainstorm — value to the learner
 
-What Review is *for* is the one thing the app has that Anki plus a chatbot does
+What Review is _for_ is the one thing the app has that Anki plus a chatbot does
 not: a miss is not a reschedule, it is a node going Shaky on a map and pulling
 attention back. Today the phone loses most of that.
 
@@ -94,8 +94,8 @@ attention back. Today the phone loses most of that.
 ## Round 2 — what the fixes turned up
 
 Fixing #1 exposed the bug underneath it. `ReviewView` keyed its `.task` on
-`store.cards.count` so a new concept would refresh the screen — but *drafting
-cards is what changes that count*, so SwiftUI cancelled the task mid-draft. The
+`store.cards.count` so a new concept would refresh the screen — but _drafting
+cards is what changes that count_, so SwiftUI cancelled the task mid-draft. The
 PUT that files the cards died 8 ms in (surfacing as "Sem conexão · não salvo"),
 and the restarted pass read an empty deck back off the server and settled on
 "fila limpa". Caught in the app's own network log.
@@ -114,7 +114,7 @@ Two more found by driving the fixed deck:
   (1/2 recalled, not 1/1).
 - Cloze halves were concatenated raw: "metáfase,\_\_\_\_\_e telófase." The
   browser lays the blank out as its own element and never had to care; here the
-  string *is* the layout, so it owns the spaces.
+  string _is_ the layout, so it owns the spaces.
 
 And one on the server: the pt-BR forecast counts read "0 cards" — the
 Portuguese copy in `lib/fsrs.ts` interpolated the English word.
@@ -140,7 +140,7 @@ drafted carries **no** scheduler state at all — the scheduler is the server's,
 and `withSchedule` starts it there — so treating a missing `due` as "not due"
 made Home say "Fila limpa" while the Review tab was showing "Cartão 1 de 4" of
 that very topic. Missing state now means a brand-new card, which is due now;
-only a `due` that is *present and unparseable* is excluded. Home and the deck
+only a `due` that is _present and unparseable_ is excluded. Home and the deck
 agree again: "8 cartões pendentes · ~12 min".
 
 Also confirmed on a second, untouched topic (Algebra Linear, 0 cards): the first
@@ -154,7 +154,7 @@ nodes — the exact case the old `r1…rN` scheme collided on.
 `lib/server/job.ts` (707 > 689) and `lib/server/generate/judge.ts` (507 > 499).
 Pre-existing; splitting them is its own change.
 
-## What is *not* broken
+## What is _not_ broken
 
 Checked and correct: the confidence → grade → calibration pass; grade buttons
 carry the scheduler's real intervals from `intervalLabels`; cards, calib and

@@ -118,8 +118,7 @@ let splitDeltas = false;
 
 const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
 const isPassage = (prompt: string) => prompt.includes("They highlighted a passage");
-const isConsume = (prompt: string) =>
-  prompt.includes("Consume (first reading) pass");
+const isConsume = (prompt: string) => prompt.includes("Consume (first reading) pass");
 
 /** The "ask about this" answer, one top-level object per paragraph. */
 const passageObjs = [
@@ -194,15 +193,15 @@ beforeAll(async () => {
             ? { chunks: objects }
             : prompt.includes("Socratic")
               ? { steps: objects }
-            : prompt.includes("Feynman")
-              ? { beats: objects }
-              : prompt.includes("prerequisite concept map")
-                ? tooBroad
-                  ? scopeObj
-                  : graphObj
-                : prompt.includes("Write ONE placement question")
-                  ? diagnosticQuestionObj
-                  : objects[0];
+              : prompt.includes("Feynman")
+                ? { beats: objects }
+                : prompt.includes("prerequisite concept map")
+                  ? tooBroad
+                    ? scopeObj
+                    : graphObj
+                  : prompt.includes("Write ONE placement question")
+                    ? diagnosticQuestionObj
+                    : objects[0];
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
