@@ -135,6 +135,10 @@ model.
 Generation is seconds; a screen entry should be milliseconds. Three layers keep
 it that way, and a new surface must use all three:
 
+**`docs/CONTENT-STORAGE.md` is the contract for all of this** — one shape on
+the wire, one address, one mirror policy per platform. Read it before changing
+how content is stored, addressed or read on either client.
+
 - **`content_cache`** (`lib/server/contentCache.ts`) — every cacheable
   generation is addressed by a SHA-256 of its exact prompt inputs and stored
   shared across users, so the second learner to open a concept pays neither the

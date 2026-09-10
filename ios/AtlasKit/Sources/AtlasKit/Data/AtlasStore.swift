@@ -216,10 +216,6 @@ public final class AtlasStore {
     /// overlap now that the mirror paints before the credential is renewed, so
     /// they join this instead of racing. See `renewOnce`.
     private var renewal: Task<Result<AuthSession, any Error>, Never>?
-    /// The `warm.revision` last written to `run_states.caches`. What keeps the
-    /// generated content out of the upsert until a generation has landed.
-    private var savedWarm = 0
-
     /// The signed-in learner, or nil for the auth screens. Writing it is the one
     /// way the bearer token reaches `AtlasAPI` and the keychain.
     public private(set) var session: AuthSession?
@@ -241,7 +237,38 @@ public final class AtlasStore {
         // The stored preference is the one the model is told, from launch.
         AtlasAPI.language = language
         rederive()
+        // A generation reaches the device mirror as it lands, not on the next
+        // hydrate — the second half of `docs/CONTENT-STORAGE.md` rule 3.
+        warm.onLanded = { [weak self] address, payload in
+            self?.mirror(address, payload)
+        }
     }
+
+    /// Write one landed generation to the mirror.
+    ///
+    /// The address is the row's own — `nodeId|kind|variant` — so it splits
+    /// back into exactly what the mirror stores, which is what having one
+    /// address on both clients buys. Anything that is not a content address
+    /// (the Retain draft's dedupe key) fails the kind check and is skipped.
+    private func mirror(_ address: String, _ payload: JSONValue) {
+        guard let topicId else { return }
+        let parts = address
+            .split(separator: "|", maxSplits: 2, omittingEmptySubsequences: false)
+            .map(String.init)
+        guard parts.count == 3, Self.mirrored.contains(parts[1]) else { return }
+        local.save(
+            [RunStore.ContentItem(
+                nodeId: parts[0], kind: parts[1], variant: parts[2], payload: payload
+            )],
+            topicId: topicId
+        )
+    }
+
+    /// The kinds the mirror holds — every kind that hangs off a node. `retain`
+    /// is absent because what it drafts becomes `cards` rows, not content.
+    private static let mirrored: Set<String> = [
+        "consume", "socratic", "feynman", "connect", "crucible", "model",
+    ]
 
     /// What each node displays as, frontier included. The only way a surface
     /// asks about a node's state.

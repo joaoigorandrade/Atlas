@@ -63,30 +63,21 @@ describe("loadContent", () => {
     expect(caches.crucible.lat).toBeTruthy();
   });
 
-  // What a row actually holds: `recordContent` stores the whole object
-  // `job.run()` returned, envelope and all, and `writeContent` puts the same
-  // thing in the shared cache. The tests above hand in the inner value, which
-  // is why the cast through the envelope went unnoticed until a cached reading
-  // reached the screens as an object and died on `chunks.map`.
-  it("unwraps the envelope the payload is actually stored in", async () => {
+  // The envelope is the server's business now: `renderShape` takes it off in
+  // `/api/v1/topics/:id/content`, so what arrives here is what a screen
+  // renders and this client knows nothing about `chunks` vs `steps` vs
+  // `content`. `tests/renderShape.test.ts` pins the unwrap itself. What is
+  // pinned here is that nothing on this side unwraps a *second* time — a
+  // payload with a `content` field of its own must reach the screen intact.
+  it("takes the payload as the shape its screen renders", async () => {
     answering(
-      items(
-        { kind: "consume", payload: { chunks: [section] } },
-        { kind: "socratic", payload: { steps: [{ id: "s1" }] } },
-        { kind: "feynman", payload: { beats: [{ mustConvey: ["x"] }] } },
-        { kind: "model", variant: "c1:analogy", payload: { beats: [{ label: "a" }] } },
-        { kind: "connect", payload: { content: { centerId: "lat" } } },
-        { kind: "crucible", payload: { content: { problem: "…" } } },
-      ),
+      items({
+        kind: "connect",
+        payload: { centerId: "lat", content: "not an envelope" },
+      }),
     );
     const caches = await loadContent("t1");
-    expect(Array.isArray(caches.consume.lat)).toBe(true);
-    expect(caches.consume.lat).toHaveLength(1);
-    expect(caches.socratic.lat).toHaveLength(1);
-    expect(caches.feynman.lat).toHaveLength(1);
-    expect(caches.models["model:lat:c1:analogy"]).toHaveLength(1);
-    expect(caches.connect.lat).toEqual({ centerId: "lat" });
-    expect(caches.crucible.lat).toEqual({ problem: "…" });
+    expect(caches.connect.lat).toEqual({ centerId: "lat", content: "not an envelope" });
   });
 
   it("keys a walkthrough by its variant, so two lenses are two payloads", async () => {

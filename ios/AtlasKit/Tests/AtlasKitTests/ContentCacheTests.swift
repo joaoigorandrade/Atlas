@@ -23,6 +23,16 @@ private let sectionJSON = JSONValue.object([
     "ask": .string("Pergunte sobre esta passagem"),
 ])
 
+/// An elaboration as the server sends it — the shape the screen renders, with
+/// the generator's `{content: …}` envelope already taken off by `renderShape`.
+private let webJSON = JSONValue.object([
+    "centerId": .string("lat"),
+    "centerLabel": .string("Limites laterais"),
+    "detectNote": .string("conceitual"),
+    "center": .object(["x": .number(0), "y": .number(0)]),
+    "cands": .array([]),
+])
+
 private let beatsJSON = JSONValue.array([
     .object(["label": .string("Passo 1"), "text": .string("Comece pelo lado direito.")]),
 ])
@@ -50,16 +60,39 @@ private func store() -> AtlasStore {
 }
 
 @MainActor
-@Test func theModelsOwnJSONIsWhatIsHeld_notARe_encodeOfIt() {
-    // `terms` and `ask` are rendered by the browser and by nothing here, and
-    // `PhaseContent.swift` is deliberately narrower than the server's shapes.
-    // Holding the payload as it arrived is what keeps them from being lost the
-    // first time a section passes through this client.
+@Test func aPassIsAddressedByItsRow_notByStateThatMoves() {
+    // The address is the row's own — node, kind, variant — so nothing about
+    // the learner's progress can re-address content the topic already owns.
+    // Connect used to be keyed on the pool of concepts they had learned, so
+    // mastering *any* other node re-addressed every web and regenerated it.
     let store = store()
-    store.seedWarm([item("consume", payload: .array([sectionJSON]))])
-    let raw = store.warm.raw[store.key("consume", node)]
-    #expect(raw?.items?.first?.fields?["ask"] != nil)
-    #expect(raw?.items?.first?.fields?["terms"] != nil)
+    store.seedWarm([item("connect", payload: webJSON)])
+    #expect(store.web(node) != nil)
+
+    store.states["other"] = .mastered
+    #expect(store.web(node) != nil)
+}
+
+@MainActor
+@Test func aRedoOfTheCrucibleIsItsOwnRow_notAnOverwrite() {
+    // A redo asks for a problem in a different domain: re-serving the one the
+    // learner solved measures recall, which is what this phase exists not to
+    // measure. So it is content in its own right, at its own variant.
+    let store = store()
+    #expect(store.crucibleVariant(node) == "")
+    store.bumpCrucibleRerun(node.id)
+    #expect(store.crucibleVariant(node) == "r1")
+    #expect(store.address("crucible", node, variant: "r1") == "lat|crucible|r1")
+}
+
+@MainActor
+@Test func bothClientsSpellAnAddressTheSameWay() {
+    // `nodeId|kind|variant` — the `node_content` row's own address, and the
+    // whole of what makes a pass written in the browser open here without a
+    // generation. See docs/CONTENT-STORAGE.md.
+    let store = store()
+    #expect(store.address("consume", node) == "lat|consume|")
+    #expect(store.address("model", node, variant: "c1:analogy") == "lat|model|c1:analogy")
 }
 
 @MainActor
@@ -91,5 +124,5 @@ private func store() -> AtlasStore {
     // one-section concept.
     let store = store()
     store.seedWarm([item("consume", payload: .array([sectionJSON]))])
-    #expect(store.warm.isIncomplete(store.key("consume", node)))
+    #expect(store.warm.isIncomplete(store.address("consume", node)))
 }

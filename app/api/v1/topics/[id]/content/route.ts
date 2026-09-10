@@ -5,6 +5,11 @@
 // nodes it is about to show, and nothing is ever uploaded — the generate route
 // records the content the moment it exists.
 //
+// Every item leaves here in the shape its screen renders — the array, or the
+// object — never the generator's `{chunks: […]}` envelope. That unwrap
+// (`renderShape`) happens on the server so neither client has to know a kind's
+// envelope, and so a stored item and a live stream deliver the same thing.
+//
 // A row holds either a `cache_key` (the usual case: the payload already lives
 // once, for everyone, in the shared `content_cache`) or an inline `payload`
 // (a kind with no stable key, and every row the normalization backfilled).
@@ -21,7 +26,12 @@ import { NextResponse } from "next/server";
 import { logError } from "@/lib/log";
 import { apiError, apiErrorFrom, withRequestId } from "@/lib/server/apiError";
 import { readManyContent } from "@/lib/server/contentCache";
-import { ownsTopic, readContentRows, type ContentAddress } from "@/lib/server/store";
+import {
+  ownsTopic,
+  readContentRows,
+  renderShape,
+  type ContentAddress,
+} from "@/lib/server/store";
 import { caller, isResponse } from "@/lib/server/v1";
 
 type Params = { params: Promise<{ id: string }> };
@@ -63,7 +73,10 @@ export async function GET(request: Request, { params }: Params) {
         nodeId: r.nodeId,
         kind: r.kind,
         variant: r.variant,
-        payload: r.cacheKey ? payloads[r.cacheKey] : r.payload,
+        // Unwrapped here and nowhere else: what leaves this route is the shape
+        // the screen renders, which is the same shape a client assembles from
+        // live stream frames. See `renderShape`.
+        payload: renderShape(r.kind, r.cacheKey ? payloads[r.cacheKey] : r.payload),
       }))
       // A pointer whose shared row has been abandoned by a
       // CONTENT_CACHE_VERSION bump is a miss, not an empty pass — dropping it

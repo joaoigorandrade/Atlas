@@ -228,6 +228,9 @@ than calling `AtlasAPI` from a view model.
   Consume writes Socratic, Socratic writes Feynman, and so on to the Crisol.
 - The cache is emptied whenever the run changes (`open`, `clearRun`) — every key
   names the run and the language it belongs to, and nothing survives a sign-out.
+- **`docs/CONTENT-STORAGE.md` is the contract**, and it is shared with the web:
+  one shape on the wire, one address (`nodeId|kind|variant`), one mirror policy
+  expressed in SwiftData here and in `CacheStorage` there.
 - **Content is never uploaded.** The server records a payload against the topic
   the moment it generates it, so `hydrateContent` only ever reads: what is on
   disk first (the mirror), then `/api/v1/topics/:id/content`. A reading pass

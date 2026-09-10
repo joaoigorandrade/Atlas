@@ -71,7 +71,7 @@ final class ConsumeViewModel {
     init(session: SessionViewModel, api: AtlasAPI) {
         self.session = session
         self.api = api
-        key = session.store.key("consume", session.node)
+        key = session.store.address("consume", session.node)
         let progress = session.store.reading(session.node.id)
         // Where the learner got to, in this browser or the last one. The
         // reading pass is the longest surface in Atlas — coming back to

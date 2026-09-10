@@ -52,7 +52,6 @@ import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
 import {
   bootstrap,
-  loadContent,
   loadTopic,
   patchProfile,
   type Profile,
@@ -67,6 +66,7 @@ import {
   pushRun,
 } from "@/components/atlas/runProjection";
 import { setGenerationTopic } from "@/lib/generationTopic";
+import { hydrateContent } from "@/lib/contentMirror";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
 import type { ErrorContext } from "@/lib/errorCopy";
@@ -444,18 +444,10 @@ export function useRunState(opts: {
       savedCardsRef.current = projectCards(topic.cards);
       savedTopicRef.current = projectTopic(topic);
 
-      // Behind an already-drawn map, and never written back.
+      // Behind an already-drawn map: the device mirror first, then the
+      // network. Never written back — see `hydrateContent`.
       setCachesLoaded(false);
-      withRetry(() => loadContent(topic.id))
-        .then((c) => {
-          applyCaches(c);
-          setCachesLoaded(true);
-        })
-        // Genuinely non-fatal for reading: the map is already drawn and every
-        // phase regenerates (the shared `content_cache` still has them, so it
-        // is a round-trip, not a re-generation). Logged so a persistent failure
-        // is findable, not toasted — nothing the learner can do about it.
-        .catch((err: unknown) => logWarning("load_content_failed", err));
+      void hydrateContent(topic.id, applyCaches).finally(() => setCachesLoaded(true));
     },
     [warm, applyCaches, resetSessions, resetTransient, setScreen],
   );

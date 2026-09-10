@@ -29,21 +29,22 @@ public final class WarmCache {
     /// Everything generated for the open run, by key. A key present with no
     /// task behind it is a finished pass.
     public private(set) var content: [String: any Sendable] = [:]
-    /// The same content as the model wrote it, which is what `run_states.caches`
-    /// holds — see `Landed`. Shared with the browser, so it is stored whole and
-    /// never re-encoded from the decoded half above.
-    public private(set) var raw: [String: JSONValue] = [:]
-    /// Bumped on every write to `raw`. `AtlasStore` compares it against what it
-    /// last uploaded, so the (large) caches column is only sent when a
-    /// generation has actually landed — not on every node drag.
-    public private(set) var revision = 0
+    /// Called with the address and the model's own JSON the moment a whole
+    /// pass lands, so a generation reaches the device mirror as it arrives
+    /// rather than on the next hydrate (`docs/CONTENT-STORAGE.md`, rule 3).
+    /// Never called for a draft: a prefix is not content.
+    ///
+    /// This replaced a second dictionary of every payload, held for the whole
+    /// run so it could be re-uploaded into `run_states.caches`. That column is
+    /// gone, nothing was uploading, and the copy was pure memory.
+    public var onLanded: (@MainActor (String, JSONValue) -> Void)?
     /// The passes still being written. Present means "join me", which is the
     /// whole deduplication: every check below happens between two writes on
     /// the main actor, so two callers can never both start one.
     private var inflight: [String: Task<Error?, Never>] = [:]
     /// Keys whose `content` is a usable prefix rather than a finished pass —
     /// a stream that died after three sections, or a slot still being written.
-    /// On screen, never in `raw`, and never treated as a cache hit.
+    /// On screen, never in the mirror, and never treated as a cache hit.
     private var incomplete: Set<String> = []
     /// Which run the cache is holding. `clear()` bumps it, and every write
     /// checks it: a generation started for the previous map is deliberately
@@ -86,13 +87,18 @@ public final class WarmCache {
         // cycle it makes with `inflight` breaks when the task lands.
         let task = Task<Error?, Never> {
             var landed: [T] = []
+            // The model's own JSON for what has landed so far. Held rather
+            // than written through: the mirror takes whole passes only, and
+            // whether this one is whole is not known until the stream ends.
+            var raw: JSONValue = .null
             do {
                 for try await items in await live() {
                     // A redraw of an item still being written: painted, never
                     // filed. `landed` deliberately does not move.
                     if items.partial { self.draft(key, items.value, era); continue }
                     landed = items.value
-                    self.write(key, items.value, items.raw, era)
+                    raw = items.raw
+                    self.write(key, items.value, era)
                 }
                 // A pass that ended short is a failure that forgot to throw.
                 // Nothing at all hands every later click an empty screen; one
@@ -112,6 +118,9 @@ public final class WarmCache {
             } catch {
                 return self.failed(key, error, keeping: landed.isEmpty ? nil : landed, era)
             }
+            // Whole, and only now: a pass that ended short threw above, so
+            // nothing short of the kind's floor ever reaches the mirror.
+            self.commit(key, raw, era)
             self.inflight[key] = nil
             return nil
         }
@@ -132,7 +141,8 @@ public final class WarmCache {
         let task = Task<Error?, Never> {
             do {
                 let landed = try await once()
-                self.write(key, landed.value, landed.raw, era)
+                self.write(key, landed.value, era)
+                self.commit(key, landed.raw, era)
                 self.inflight[key] = nil
                 return nil
             } catch {
@@ -149,38 +159,46 @@ public final class WarmCache {
     /// and it writes into a dictionary nothing reads any more.
     public func clear() {
         content.removeAll()
-        raw.removeAll()
         inflight.removeAll()
         incomplete.removeAll()
         // Those still-running tasks now belong to a run nobody is looking at.
         generation += 1
-        revision += 1
     }
 
-    /// Put a generation in both halves at once — the only place either is
-    /// written, so the decoded value and the JSON behind it can never disagree.
-    private func write(_ key: String, _ value: any Sendable, _ raw: JSONValue, _ era: Int) {
+    /// Put what has landed on screen. Called per frame while a pass streams,
+    /// so a reader paints on the first section rather than the last.
+    private func write(_ key: String, _ value: any Sendable, _ era: Int) {
         guard era == generation else { return }
         content[key] = value
-        self.raw[key] = raw
         incomplete.remove(key)
-        revision += 1
+    }
+
+    /// Hand a *whole* pass to the mirror — once, at the end.
+    ///
+    /// Not per frame. A stream that died after two of five sections had
+    /// already painted two frames, and writing each one through put a
+    /// truncated pass on disk that the next launch would seed as finished.
+    /// Whole passes only: that is the same rule `failed` enforces in memory.
+    private func commit(_ key: String, _ raw: JSONValue, _ era: Int) {
+        guard era == generation else { return }
+        if case .null = raw { return }
+        onLanded?(key, raw)
     }
 
     /// A slot still being written. It redraws the screen and nothing else: it
-    /// stays out of `raw` so it is never uploaded, and the key stays incomplete
-    /// so it is never served to the next caller as a finished pass.
+    /// never reaches the mirror, and the key stays incomplete so it is never
+    /// served to the next caller as a finished pass.
     private func draft(_ key: String, _ value: any Sendable, _ era: Int) {
         guard era == generation else { return }
         content[key] = value
         incomplete.insert(key)
     }
 
-    /// Adopt content generated somewhere else — the run's shared cache, so a
+    /// Adopt content generated somewhere else — the topic's own rows, so a
     /// reading pass written in the browser opens on the phone without a
-    /// generation. `revision` is deliberately *not* bumped: this is what the
-    /// row already holds, and uploading it back would be a round trip that
-    /// changes nothing.
+    /// generation. `onLanded` is deliberately *not* called: this content came
+    /// *from* the server (and is already in the mirror), so sending it back
+    /// there would be a write that changes nothing.
     /// A whole pass from the shared row beats a prefix this device is holding,
     /// so an incomplete key is seeded over rather than skipped.
     /// `incomplete` is for content the row holds that is short of its kind's
@@ -191,13 +209,12 @@ public final class WarmCache {
     func seed(_ key: String, _ value: any Sendable, _ raw: JSONValue, incomplete short: Bool = false) {
         guard inflight[key] == nil, content[key] == nil || incomplete.contains(key) else { return }
         content[key] = value
-        self.raw[key] = raw
         if short { incomplete.insert(key) } else { incomplete.remove(key) }
     }
 
-    /// Give up on a pass. The key goes cold either way — `raw` is cleared, so
-    /// nothing half-written is uploaded, and the next caller runs the
-    /// generation rather than inheriting this one.
+    /// Give up on a pass. The key goes cold either way, so the next caller
+    /// runs the generation rather than inheriting this one. Nothing
+    /// half-written ever reached the mirror: only `write` files a pass.
     ///
     /// What already landed is a different question from what the cache holds:
     /// those sections have been read, and erasing them takes the learner's
@@ -207,7 +224,6 @@ public final class WarmCache {
     private func failed(_ key: String, _ error: Error, keeping prefix: (any Sendable)?, _ era: Int) -> Error {
         inflight[key] = nil
         guard era == generation else { return error }
-        raw[key] = nil
         content[key] = prefix
         if prefix == nil { incomplete.remove(key) } else { incomplete.insert(key) }
         return error
@@ -246,18 +262,19 @@ public extension AtlasStore {
         ]
     }
 
-    /// Nodes the learner already owns — what Connect may wire into and what a
-    /// Crucible problem may interleave. Mirrors `connectPool`.
+    /// Connect's pool — the nodes the learner already owns, which a web may be
+    /// wired into. Mirrors `connectPool` on the web, filter for filter and
+    /// sort for sort, because it is in the prompt and therefore in the
+    /// server's `content_cache` key: derive it differently on the two clients
+    /// and each pays for the other's web.
     ///
     /// Gap sub-nodes are excluded: a gap the learner opened a pass on is
     /// `.learning`, and offering it back as "a concept you already know" is the
-    /// bug elaboration exists to avoid. The cap and the ordering matter too —
-    /// this list is in the prompt *and* in the cache key, so an unbounded one
-    /// grows both without limit, and most-owned first is the order the model
-    /// should read it in.
+    /// bug elaboration exists to avoid. The cap and the ordering matter for the
+    /// same reason — an unbounded list grows the prompt without limit, and
+    /// most-owned first is the order the model should read it in.
     ///
-    /// It is also what keeps the reader and the filler on the same key: nothing
-    /// a pass writes (a gap node, this node's own state) can move it.
+    /// It is *not* part of the address any more. See `address`.
     func learned(besides node: ConceptNode) -> [ConceptNode] {
         let rank: [NodeState: Int] = [.mastered: 0, .shaky: 1, .learning: 2]
         return graph.nodes
@@ -267,39 +284,63 @@ public extension AtlasStore {
             .map { $0 }
     }
 
-    /// Where a kind's content lives. The run and the language are in the key
-    /// because both change what the model writes; `inputs` carries anything
-    /// else the prompt is built from, so content written for one pool is never
-    /// served for another.
-    func key(_ kind: String, _ node: ConceptNode, _ inputs: String = "") -> String {
-        "\(kind)|\(subject)|\(node.id)|\(language)|\(inputs)"
+    /// The labels a transfer problem may interleave — what the learner has
+    /// actually mastered, in map order, derived exactly as `learnedLabels`
+    /// derives it on the web (the node itself included when it is mastered,
+    /// which a redo is).
+    ///
+    /// Not `learned(besides:)`: that is Connect's pool, which also holds
+    /// `learning` and `shaky` and is capped at eight. The two clients have to
+    /// hash the same prompt inputs or they pay for the same problem twice —
+    /// this list is in the Crucible's `content_cache` key.
+    var masteredLabels: [String] {
+        graph.nodes.filter { $0.gap != true && states[$0.id] == .mastered }.map(\.label)
+    }
+
+    /// Where a kind's content lives: the address of its `node_content` row,
+    /// spelled exactly as the web spells it — see `docs/CONTENT-STORAGE.md`.
+    ///
+    /// The run and the language are deliberately absent. The cache holds one
+    /// run, in one language, and is emptied when either moves, so putting them
+    /// in every key bought nothing. The pool is absent for the same reason it
+    /// is absent from the web's: it shapes the *prompt*, and therefore the
+    /// server's `content_cache` key, but it is not what this content is
+    /// called. It used to be in here, and mastering any concept mid-run
+    /// re-addressed Connect and Crucible — regenerating what the topic
+    /// already owned and what the browser would have re-served.
+    func address(_ kind: String, _ nodeId: String, variant: String = "") -> String {
+        "\(nodeId)|\(kind)|\(variant)"
+    }
+
+    func address(_ kind: String, _ node: ConceptNode, variant: String = "") -> String {
+        address(kind, node.id, variant: variant)
     }
 
     /// What has landed for each kind — the whole reason a phase can open
     /// without a spinner, and what a screen redraws from while one is landing.
     /// Each reader is the twin of the filler below it: same key, same inputs.
-    func chunks(_ node: ConceptNode) -> [ConsumeChunk] { warm.content(key("consume", node)) ?? [] }
-    func steps(_ node: ConceptNode) -> [SocraticStep] { warm.content(key("socratic", node)) ?? [] }
-    func beats(_ node: ConceptNode) -> [FeynmanBeat] { warm.content(key("feynman", node)) ?? [] }
+    func chunks(_ node: ConceptNode) -> [ConsumeChunk] { warm.content(address("consume", node)) ?? [] }
+    func steps(_ node: ConceptNode) -> [SocraticStep] { warm.content(address("socratic", node)) ?? [] }
+    func beats(_ node: ConceptNode) -> [FeynmanBeat] { warm.content(address("feynman", node)) ?? [] }
     /// The rubric on screen is a prefix, not a whole one — a stream that died
     /// short of the floor. `WarmCache.isIncomplete` had no reader anywhere in
     /// the app; this is the phase it matters most to, because a short rubric is
     /// silently a shorter test.
-    func beatsIncomplete(_ node: ConceptNode) -> Bool { warm.isIncomplete(key("feynman", node)) }
+    func beatsIncomplete(_ node: ConceptNode) -> Bool { warm.isIncomplete(address("feynman", node)) }
     func web(_ node: ConceptNode) -> ElaborationContent? {
-        warm.content(key("connect", node, learned(besides: node).ids))
+        warm.content(address("connect", node))
     }
     func problems(_ node: ConceptNode) -> CrucibleContent? {
-        warm.content(key("crucible", node, crucibleInputs(node)))
+        warm.content(address("crucible", node, variant: crucibleVariant(node)))
     }
 
-    /// The pool *and* which time through this is — the two things that decide
-    /// which transfer problem the model writes. One function, because a warm
-    /// and the click after it address the same content only if exactly one
-    /// decides the inputs.
-    private func crucibleInputs(_ node: ConceptNode) -> String {
+    /// Which time through this concept's transfer test this is, as the row's
+    /// own address. The first pass is the node's plain Crucible; a redo is
+    /// content in its own right — the learner should be able to reach the
+    /// problem they solved — so it gets a variant instead of upserting over it.
+    func crucibleVariant(_ node: ConceptNode) -> String {
         let rerun = crucibleRerun[node.id] ?? 0
-        return rerun == 0 ? learned(besides: node).ids : "\(learned(besides: node).ids)|r\(rerun)"
+        return rerun == 0 ? "" : "r\(rerun)"
     }
 
     /// Opening the Crucible again on a concept the learner has already carried
@@ -313,14 +354,14 @@ public extension AtlasStore {
     @discardableResult
     func consume(_ node: ConceptNode) async -> Error? {
         let (api, context) = (api, context(for: node))
-        return await warm.fill(key("consume", node), atLeast: ConsumeSectionBounds.min,
+        return await warm.fill(address("consume", node), atLeast: ConsumeSectionBounds.min,
                                live: { await api.consume(context) })
     }
 
     @discardableResult
     func socratic(_ node: ConceptNode) async -> Error? {
         let (api, context) = (api, context(for: node))
-        return await warm.fill(key("socratic", node), live: { await api.socratic(context) })
+        return await warm.fill(address("socratic", node), live: { await api.socratic(context) })
     }
 
     @discardableResult
@@ -330,13 +371,13 @@ public extension AtlasStore {
         // stream that died after one beat was filed as a complete rubric: the
         // learner taught one sub-point, was told they were done, and the rows
         // the model never wrote could never become gaps.
-        return await warm.fill(key("feynman", node), atLeast: FeynmanBeatBounds.min,
+        return await warm.fill(address("feynman", node), atLeast: FeynmanBeatBounds.min,
                                live: { await api.feynman(context) })
     }
 
-    /// Connect's candidates are the learner's own map, so the pool is part of
-    /// the key: a web drawn before they mastered another concept is not the web
-    /// they should be shown after it.
+    /// Connect's candidates are the learner's own map. The pool shapes the
+    /// prompt — and so the server's cache key — but not the address: this
+    /// node's web is this node's web, exactly as the browser stores it.
     @discardableResult
     func connect(_ node: ConceptNode) async -> Error? {
         let pool = learned(besides: node)
@@ -344,20 +385,23 @@ public extension AtlasStore {
         var context = context(for: node)
         context["pool"] = .array(pool.map { .object(["id": .string($0.id), "label": .string($0.label)]) })
         let (api, sent) = (api, context)
-        return await warm.fill(key("connect", node, pool.ids), once: { try await api.connect(sent) })
+        return await warm.fill(address("connect", node), once: { try await api.connect(sent) })
     }
 
     @discardableResult
     func crucible(_ node: ConceptNode) async -> Error? {
-        let pool = learned(besides: node)
         let rerun = crucibleRerun[node.id] ?? 0
+        let variant = crucibleVariant(node)
         var context = context(for: node)
-        context["masteredLabels"] = .array(pool.map { .string($0.label) })
+        context["masteredLabels"] = .array(masteredLabels.map { .string($0) })
         // Omitted when 0, exactly as the server omits it from the cache key —
         // a first pass keys where it always did.
         if rerun > 0 { context["rerun"] = .number(Double(rerun)) }
+        // The address the server files the problem under. Without it a redo
+        // upserts over the row holding the problem the learner already solved.
+        if !variant.isEmpty { context["variant"] = .string(variant) }
         let (api, sent) = (api, context)
-        return await warm.fill(key("crucible", node, crucibleInputs(node)),
+        return await warm.fill(address("crucible", node, variant: variant),
                                once: { try await api.crucible(sent) })
     }
 
@@ -365,7 +409,7 @@ public extension AtlasStore {
     /// the section and the lens as the inputs — the same walkthrough reopens
     /// instead of being written a second time.
     func lens(_ node: ConceptNode, _ chunk: ConsumeChunk, _ lens: AltKey) -> [ConsumeModelBeat] {
-        warm.content(key("model", node, Self.lensInputs(chunk.id, lens))) ?? []
+        warm.content(address("model", node, variant: Self.lensInputs(chunk.id, lens))) ?? []
     }
 
     @discardableResult
@@ -379,7 +423,7 @@ public extension AtlasStore {
         // `node_content` row.
         context["variant"] = .string(Self.lensInputs(chunk.id, lens))
         let (api, sent) = (api, context)
-        return await warm.fill(key("model", node, Self.lensInputs(chunk.id, lens)),
+        return await warm.fill(address("model", node, variant: Self.lensInputs(chunk.id, lens)),
                                live: { await api.model(sent) })
     }
 
@@ -412,7 +456,13 @@ public extension AtlasStore {
     @discardableResult
     func draftCards(for nodes: [ConceptNode]) async -> Error? {
         guard !nodes.isEmpty else { return nil }
-        let key = "retain|\(subject)|\(language)|\(nodes.ids)"
+        // A request-dedupe key, deliberately *not* a content address: what
+        // this drafts becomes `cards` rows, not a `node_content` payload, and
+        // it has to re-run whenever the uncovered set moves. `WarmCache` is
+        // both the content store and the one-request-per-key registry; this
+        // uses only the second. The `draft:` prefix is what keeps it out of
+        // the address space (see `AtlasStore.mirror`).
+        let key = "draft:retain|\(subject)|\(language)|\(nodes.ids)"
         let (api, topic, budget, interests) = (api, subject, dailyTarget, interests)
         let items = nodes.map { (id: $0.id, label: $0.label, state: states[$0.id] ?? .learning) }
         let error = await warm.fill(key, once: {
@@ -484,59 +534,50 @@ public extension AtlasStore {
     func seedWarm(_ items: [RunStore.ContentItem]) {
         let byId = graph.byId
         for item in items {
-            if item.kind == "model" {
-                seedLens(item, byId)
-                continue
-            }
-            guard let node = byId[item.nodeId] else { continue }
+            // A payload for a node this map does not have — a re-planned gap
+            // this client has not seen yet — is dropped rather than filed
+            // under an address nothing will ask for.
+            guard byId[item.nodeId] != nil else { continue }
+            // The row's own address, not one re-derived from state that has
+            // moved since it was written. That derivation is what used to make
+            // a newly mastered concept re-address Connect and Crucible, and so
+            // regenerate content this topic already owned.
+            let key = address(item.kind, item.nodeId, variant: item.variant)
             switch item.kind {
             // A short pass came from a stream that died before this floor
             // existed. Adopted as a prefix, so it shows the incomplete notice
             // and its retry instead of reading as a one-section concept.
             case "consume":
-                seed(item.kind, node, item.payload, as: [ConsumeChunk].self,
+                seed(key, item.payload, as: [ConsumeChunk].self,
                      shortOf: ConsumeSectionBounds.min)
-            case "socratic": seed(item.kind, node, item.payload, as: [SocraticStep].self)
+            case "socratic": seed(key, item.payload, as: [SocraticStep].self)
             case "feynman":
-                seed(item.kind, node, item.payload, as: [FeynmanBeat].self,
+                seed(key, item.payload, as: [FeynmanBeat].self,
                      shortOf: FeynmanBeatBounds.min)
-            case "connect": seed(item.kind, node, item.payload, as: ElaborationContent.self)
-            case "crucible": seed(item.kind, node, item.payload, as: CrucibleContent.self)
+            case "connect": seed(key, item.payload, as: ElaborationContent.self)
+            case "crucible": seed(key, item.payload, as: CrucibleContent.self)
+            // A walkthrough's address within its node is `<chunkId>:<lens>`;
+            // without one there is no way to tell two lenses apart.
+            case "model":
+                guard !item.variant.isEmpty else { continue }
+                seed(key, item.payload, as: [ConsumeModelBeat].self)
             default: continue
             }
         }
     }
 
-    /// Content the server holds, under the key this client would have written
-    /// it under. Undecodable content is left where it is rather than dropped —
-    /// it is still the browser's to render, and this client simply regenerates.
+    /// Content the server holds, at the address it holds it under. Every
+    /// payload arrives in the shape its screen renders — the server takes the
+    /// generator's envelope off (`renderShape`) — so this decodes what it
+    /// draws and nothing here knows about `chunks` or `steps`.
+    ///
+    /// Undecodable content is left where it is rather than dropped: it is
+    /// still the browser's to render, and this client simply regenerates.
     private func seed<T: Decodable & Sendable>(
-        _ kind: String, _ node: ConceptNode, _ raw: JSONValue, as type: T.Type,
-        shortOf floor: Int = 0
+        _ key: String, _ raw: JSONValue, as type: T.Type, shortOf floor: Int = 0
     ) {
         guard let value = try? raw.decode(T.self) else { return }
-        let short = (raw.items?.count ?? Int.max) < floor
-        warm.seed(key(kind, node, cacheInputs(kind, node)), value, raw, incomplete: short)
-    }
-
-    /// A walkthrough, whose address within its node is `<chunkId>:<lens>` —
-    /// the same `variant` the browser writes.
-    private func seedLens(_ item: RunStore.ContentItem, _ byId: [String: ConceptNode]) {
-        guard let node = byId[item.nodeId], !item.variant.isEmpty,
-              let value = try? item.payload.decode([ConsumeModelBeat].self)
-        else { return }
-        warm.seed(key("model", node, item.variant), value, item.payload)
-    }
-
-    /// The pool half of a key. Connect and Crucible are drawn from what the
-    /// learner already owns, so their content is keyed on it — while the web
-    /// keys on the node alone. Seeding under the *current* pool is what adopts
-    /// its answer: the browser would serve that content again too.
-    private func cacheInputs(_ kind: String, _ node: ConceptNode) -> String {
-        // Crucible carries a rerun index too, but content the server already
-        // holds for a node is its *first* pass's problem — so it seeds where a
-        // first pass reads, which is the pool alone.
-        kind == "connect" || kind == "crucible" ? learned(besides: node).ids : ""
+        warm.seed(key, value, raw, incomplete: (raw.items?.count ?? Int.max) < floor)
     }
 }
 

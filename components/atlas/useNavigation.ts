@@ -7,6 +7,7 @@
 // layer, which is why it sits apart from them.
 
 import { useCallback } from "react";
+import { clearMirror, dropMirror } from "@/lib/contentMirror";
 import { deleteTopic } from "@/lib/persistence";
 import { emptyGraph } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
@@ -62,6 +63,9 @@ export function useNavigation(deps: {
     // Navigate either way: a failed sign-out still means the learner asked to
     // leave, and /login clears the client session on arrival. The unhandled
     // rejection this used to throw left them sitting on the map instead.
+    // The device mirror goes with the session: the next person at this
+    // browser must not open somebody else's reading.
+    void clearMirror();
     supabase.auth
       .signOut()
       .catch((err: unknown) => logWarning("sign_out_failed", err))
@@ -128,6 +132,8 @@ export function useNavigation(deps: {
     setExcluding(true);
     deleteTopic(row.id)
       .then(() => {
+        // The local half of the server's cascade.
+        void dropMirror(row.id);
         if (subject !== runSubject) {
           refreshMaps();
           showToast(tc().excluded(subject));

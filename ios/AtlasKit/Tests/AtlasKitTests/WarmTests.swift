@@ -34,6 +34,17 @@ private func landed(_ items: [String]) -> Landed<[String]> {
     Landed(value: items, raw: .array(items.map(JSONValue.string)))
 }
 
+/// What a cache handed the mirror. `onLanded` fires once per *whole* pass and
+/// never for a draft, so this is the record of what the device would have
+/// written to disk — the property the old `raw` dictionary stood in for.
+@MainActor private final class Mirror {
+    var written: [String] = []
+    init(_ cache: WarmCache) {
+        cache.onLanded = { [self] address, _ in written.append(address) }
+    }
+    func holds(_ address: String) -> Bool { written.contains(address) }
+}
+
 @MainActor
 @Test func aClickJoinsAWarmInsteadOfPayingForASecondGeneration() async {
     let cache = WarmCache()
@@ -87,6 +98,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
 @MainActor
 @Test func aStreamThatDiesMidPassKeepsWhatTheLearnerIsReading() async {
     let cache = WarmCache()
+    let mirror = Mirror(cache)
     // Three sections land and then the connection drops. Those three have been
     // handed to the screen and read; throwing does not take them back.
     let error = await cache.fill("consume|x", live: {
@@ -99,10 +111,11 @@ private func landed(_ items: [String]) -> Landed<[String]> {
     #expect(error != nil)
     let prefix: [String]? = cache.content("consume|x")
     #expect(prefix == ["one", "two"])
-    // But the key is still cold: nothing half-written is uploaded, and the
-    // retry runs the generation again rather than being answered from memory.
+    // But the key is still cold: nothing half-written reaches the mirror, and
+    // the retry runs the generation again rather than being answered from
+    // memory.
     #expect(cache.isIncomplete("consume|x"))
-    #expect(cache.raw["consume|x"] == nil)
+    #expect(mirror.holds("consume|x") == false)
 
     let retried = await cache.fill("consume|x", live: {
         AsyncThrowingStream { continuation in
@@ -119,6 +132,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
 @MainActor
 @Test func aPartialFrameRedrawsTheScreenWithoutEverBeingCached() async {
     let cache = WarmCache()
+    let mirror = Mirror(cache)
     let gate = AsyncStream<Void>.makeStream()
     // The lens sheet's whole point: a beat with a label and no prose yet is
     // worth painting rather than sitting blank through.
@@ -142,9 +156,9 @@ private func landed(_ items: [String]) -> Landed<[String]> {
         drawn = cache.content("model|x")
     }
     #expect(drawn == ["draft"])
-    // Painted, never filed: a half-written beat must not be uploaded to the
-    // shared row, and must not be served to the next caller as a finished one.
-    #expect(cache.raw["model|x"] == nil)
+    // Painted, never filed: a half-written beat must not reach the mirror, and
+    // must not be served to the next caller as a finished one.
+    #expect(mirror.holds("model|x") == false)
     #expect(cache.isIncomplete("model|x"))
 
     gate.continuation.yield()
@@ -152,7 +166,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
     #expect(await running == nil)
     let whole: [String]? = cache.content("model|x")
     #expect(whole == ["beat one"])
-    #expect(cache.raw["model|x"] != nil)
+    #expect(mirror.holds("model|x"))
     #expect(cache.isIncomplete("model|x") == false)
 }
 
@@ -188,6 +202,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
 @MainActor
 @Test func aPassThatStopsShortIsAPrefixAndNotACacheHit() async {
     let cache = WarmCache()
+    let mirror = Mirror(cache)
     let starts = Starts()
     let short: @Sendable () async -> AsyncThrowingStream<Landed<[String]>, Error> = {
         await starts.tick()
@@ -201,9 +216,9 @@ private func landed(_ items: [String]) -> Landed<[String]> {
     // The section that landed is the learner's place in the reading — kept.
     #expect(cache.content("consume|x") == ["one"])
     #expect(cache.isIncomplete("consume|x"))
-    // But never filed as content: a truncated pass uploaded to the shared row
-    // is what re-served it as whole on every later open.
-    #expect(cache.raw["consume|x"] == nil)
+    // But never filed as content: a truncated pass written to the mirror is
+    // what re-served it as whole on every later open.
+    #expect(mirror.holds("consume|x") == false)
 
     // And never served as a hit — the next open regenerates rather than
     // inheriting the prefix.

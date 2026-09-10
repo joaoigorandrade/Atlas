@@ -289,32 +289,14 @@ export function patchProfile(patch: ProfilePatch): Promise<Profile> {
   return call("patchProfile", "/profile", { method: "PATCH", body: patch });
 }
 
-/** One generated payload as it arrives from the content route. */
-interface ContentItem {
+/** One generated payload as it arrives from the content route. Its `payload`
+ *  is the shape its screen renders — the server takes the generator's envelope
+ *  off (`renderShape`). See `docs/CONTENT-STORAGE.md`. */
+export interface ContentItem {
   nodeId: string;
   kind: string;
   variant: string;
   payload: unknown;
-}
-
-/**
- * The generator's envelope, off a stored payload.
- *
- * A row holds what `job.run()` returned — `{chunks: [...]}`, `{steps: [...]}`,
- * `{content: {...}}` — which is the same envelope `lib/api.ts` unwraps on the
- * live path. The read side cast straight through it instead, so a cached
- * reading arrived as an object where the screens expect a list and died on the
- * first `.map`: `chunks.map is not a function`, and the throw took every other
- * node's content with it. None of the three content shapes carries a `content`
- * field of its own, and rows normalized over from the old `caches` column hold
- * the inner value already — so an absent key means this is already unwrapped.
- */
-function inner<T>(payload: unknown, key: string): T {
-  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-    const held = (payload as Record<string, unknown>)[key];
-    if (held !== undefined) return held as T;
-  }
-  return payload as T;
 }
 
 /**
@@ -324,10 +306,10 @@ function inner<T>(payload: unknown, key: string): T {
  * does once, behind an already-drawn map. Narrow it to the nodes and kinds a
  * screen is about to need when that is all you want.
  */
-export async function loadContent(
+export async function loadContentItems(
   id: string,
   at?: { nodes?: string[]; kinds?: string[] },
-): Promise<RunCaches> {
+): Promise<ContentItem[]> {
   const params = new URLSearchParams();
   if (at?.nodes?.length) params.set("nodes", at.nodes.join(","));
   if (at?.kinds?.length) params.set("kinds", at.kinds.join(","));
@@ -336,37 +318,53 @@ export async function loadContent(
     "loadContent",
     `/topics/${id}/content${query ? `?${query}` : ""}`,
   );
+  return items ?? [];
+}
+
+/**
+ * The topic's items, folded into the buckets the screens read.
+ *
+ * A bucket and its key *are* the address: `consume[nodeId]` is
+ * `nodeId|consume|`, and `models` carries the variant because that is the only
+ * kind with two payloads on one node. Nothing else may enter this — a key
+ * derived from anything but (node, kind, variant) is a key that moves when the
+ * learner's progress does, which is what used to make the phone regenerate a
+ * Connect the topic already owned.
+ */
+export function foldContent(items: ContentItem[]): RunCaches {
+  // Every payload arrives in the shape its screen renders — the server takes
+  // the generator's envelope off (`renderShape`), so there is nothing to
+  // unwrap here and no kind-by-kind knowledge of one on this side of the wire.
   const caches = emptyCaches();
   for (const item of items ?? []) {
     switch (item.kind) {
       case "consume":
-        caches.consume[item.nodeId] = inner<ConsumeChunk[]>(item.payload, "chunks");
+        caches.consume[item.nodeId] = item.payload as ConsumeChunk[];
         break;
       case "model":
         // The lens bucket keeps its flat composite key: one node has as many
         // walkthroughs as the learner has opened lenses over its sections.
-        caches.models[`model:${item.nodeId}:${item.variant}`] = inner<ConsumeModelBeat[]>(
-          item.payload,
-          "beats",
-        );
+        caches.models[`model:${item.nodeId}:${item.variant}`] =
+          item.payload as ConsumeModelBeat[];
         break;
       case "socratic":
-        caches.socratic[item.nodeId] = inner<SocraticStep[]>(item.payload, "steps");
+        caches.socratic[item.nodeId] = item.payload as SocraticStep[];
         break;
       case "feynman":
-        caches.feynman[item.nodeId] = inner<FeynmanBeat[]>(item.payload, "beats");
+        caches.feynman[item.nodeId] = item.payload as FeynmanBeat[];
         break;
       case "connect":
-        caches.connect[item.nodeId] = inner<ElaborationContent>(item.payload, "content");
+        caches.connect[item.nodeId] = item.payload as ElaborationContent;
         break;
       case "crucible":
-        caches.crucible[item.nodeId] = inner<CrucibleContent>(item.payload, "content");
+        caches.crucible[item.nodeId] = item.payload as CrucibleContent;
         break;
       case "retain":
-        caches.retain = inner<RetainContent>(item.payload, "content");
+        caches.retain = item.payload as RetainContent;
         break;
     }
   }
+
   // The two payloads whose shape changed under them. See lib/contentMigrate.ts:
   // a row the normalization carried over from the `caches` column may predate
   // either rewrite, and a hit is never re-validated.
@@ -377,4 +375,12 @@ export async function loadContent(
     ),
     feynman: usableRubrics(caches.feynman),
   };
+}
+
+/** Fetch and fold in one call — what a caller with no mirror behind it wants. */
+export async function loadContent(
+  id: string,
+  at?: { nodes?: string[]; kinds?: string[] },
+): Promise<RunCaches> {
+  return foldContent(await loadContentItems(id, at));
 }

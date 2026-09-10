@@ -5,6 +5,42 @@ import { fail } from "@/lib/server/store/shared";
 
 // ----------------------------------------------------------- node content --
 
+/** The slot each generator writes its payload into — the envelope `job.run()`
+ *  returns and `content_cache` therefore stores. See `renderShape`. */
+const SLOT: Record<string, string> = {
+  summary: "summary",
+  consume: "chunks",
+  model: "beats",
+  socratic: "steps",
+  feynman: "beats",
+  connect: "content",
+  crucible: "content",
+  retain: "content",
+};
+
+/**
+ * A stored payload as the screen renders it — the array, or the object, with
+ * the generator's envelope taken off.
+ *
+ * This is the one place that envelope is ever removed, and the reason is that
+ * every client would otherwise have to know it. A stored item now arrives in
+ * exactly the shape a client assembles from live stream frames, so a screen
+ * has one decoder instead of two. The web learned the alternative as
+ * `chunks.map is not a function`; iOS learned it as a `try?` that dropped
+ * every row in silence and regenerated content the topic already owned.
+ *
+ * Rows the normalization backfilled from the old `caches` column hold the
+ * inner value already — so an absent slot means this is unwrapped, not that
+ * it is malformed. See `docs/CONTENT-STORAGE.md`.
+ */
+export function renderShape(kind: string, payload: unknown): unknown {
+  const slot = SLOT[kind];
+  if (!slot || !payload || typeof payload !== "object" || Array.isArray(payload))
+    return payload;
+  const held = (payload as Record<string, unknown>)[slot];
+  return held === undefined ? payload : held;
+}
+
 /** Where a generated payload lives, as a screen asks for it. */
 export interface ContentAddress {
   nodeId: string;
