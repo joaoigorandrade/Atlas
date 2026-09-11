@@ -19,14 +19,14 @@
     "components/session/ConsumeView.tsx": 1226,
     "components/session/CrucibleView.tsx": 866,
     "components/session/FeynmanView.tsx": 1323,
-    "components/session/RetainView.tsx": 884,
+    "components/session/RetainView.tsx": 885,
     "components/session/SocraticView.tsx": 595,
     "lib/api.ts": 766,
     "lib/curriculum/socratic.ts": 473,
     "lib/server/fixtures.ts": 407,
-    "lib/server/generate/judge.ts": 499,
+    "lib/server/generate/judge.ts": 509,
     "lib/server/generate/map.ts": 486,
-    "lib/server/job.ts": 689,
+    "lib/server/job.ts": 707,
     "lib/server/openrouter.ts": 545,
     "lib/speech.ts": 779
   }

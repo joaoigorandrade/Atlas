@@ -8,6 +8,7 @@
 
 import { after } from "next/server";
 import {
+  conceptBoundary,
   displayStates,
   initialStates,
   type ConceptGraph,
@@ -117,6 +118,46 @@ export function recordContent(
 const CURRICULUM_WARM_NODES = Number(process.env.CURRICULUM_WARM_NODES || 12);
 
 /**
+ * The request a frontier warm generates from.
+ *
+ * Exported for one reason: `tests/frontierWarm.test.ts` hashes it against the
+ * request a learner's own click sends and fails if the two ever stop matching.
+ * They stopped matching once already — this omitted the boundary, so every
+ * warm wrote to a row no click would ask for and the whole frontier was
+ * generated twice, once behind the build and once at the tap. Nothing about
+ * that was visible: both requests succeeded, both returned content, and the
+ * bill was the only place it showed.
+ *
+ * Every field here is a cache-key input, and every one is derived the way the
+ * clients derive it (`consumeParams` on the web, `context(for:)` on iOS).
+ */
+export function frontierWarmBody(
+  body: GenerateBody,
+  graph: ConceptGraph,
+  node: ConceptNode,
+  kind: "consume" | "socratic",
+): GenerateBody {
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  /** A node's solid prerequisites — `consume` alone takes them. */
+  const prereqLabels = graph.edges
+    .filter(([, to, dashed]) => to === node.id && !dashed)
+    .map(([from]) => byId.get(from)?.label)
+    .filter((label): label is string => !!label);
+  return {
+    kind,
+    topic: body.topic,
+    interests: body.interests,
+    language: body.language,
+    nodeId: node.id,
+    nodeLabel: node.label,
+    // The map around the concept. Part of the cache key, so it is part of
+    // this — `laterLabels` is non-empty on any map with two concepts on it.
+    ...conceptBoundary(graph, node.id),
+    ...(kind === "consume" ? { prereqLabels } : null),
+  };
+}
+
+/**
  * Generate the first thing the learner will click, before they click it.
  *
  * A fresh map's frontier is the one part of the spiral we can predict with
@@ -145,20 +186,10 @@ export function startCurriculumWarm(
   // drift from it: on a fresh map every state is `unknown`, so `frontier` is
   // exactly the nodes whose prerequisites are already met.
   const display = displayStates(initialStates(graph), graph);
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const frontier = graph.nodes
     .filter((n) => display[n.id] === "frontier")
     .slice(0, CURRICULUM_WARM_NODES);
   if (frontier.length === 0) return;
-
-  /** A node's solid prerequisites, derived exactly as `consumeParams` does on
-   *  the client — the labels are part of the cache key, so a different
-   *  derivation here would write rows nobody ever reads. */
-  const prereqLabels = (node: ConceptNode): string[] =>
-    graph.edges
-      .filter(([, to, dashed]) => to === node.id && !dashed)
-      .map(([from]) => byId.get(from)?.label)
-      .filter((label): label is string => !!label);
 
   after(async () => {
     // The warm is real spend — six calls at the default depth — and nothing
@@ -175,15 +206,7 @@ export function startCurriculumWarm(
         try {
           // Through resolveJob, so these hash to the row the learner's own
           // request will later address.
-          const warm = resolveJob({
-            kind,
-            topic: body.topic,
-            interests: body.interests,
-            language: body.language,
-            nodeId: node.id,
-            nodeLabel: node.label,
-            ...(kind === "consume" ? { prereqLabels: prereqLabels(node) } : null),
-          });
+          const warm = resolveJob(frontierWarmBody(body, graph, node, kind));
           if (!warm.key) continue;
           const record = () =>
             topicId
