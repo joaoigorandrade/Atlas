@@ -211,7 +211,10 @@ export function loadTopic(id: string): Promise<Topic> {
   return call("loadTopic", `/topics/${id}`);
 }
 
-export function createTopic(topic: NewTopic): Promise<Topic> {
+/** The topic, plus whether this call made it: re-running onboarding on a
+ *  subject the learner already has adopts that topic rather than making a
+ *  second one, and only a topic this call *created* may be undone. */
+export function createTopic(topic: NewTopic): Promise<Topic & { created?: boolean }> {
   return call("createTopic", "/topics", { method: "POST", body: topic });
 }
 

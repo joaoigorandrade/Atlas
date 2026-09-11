@@ -9,6 +9,8 @@
 // never a second generation, and never a second charge. A foreground caller
 // arriving while the warm is still queued promotes it and starts it at once.
 
+import { mirrorLanded } from "@/lib/contentMirror";
+
 /** Concurrent background requests. Two keeps the next two phases moving
  *  without competing with a foreground generation for the model's attention. */
 const MAX_CONCURRENT = 2;
@@ -82,6 +84,13 @@ export function createWarmQueue(): WarmQueue {
       (value) => {
         entry.state = "done";
         entry.resolve(value);
+        // The one place every generation lands, whoever asked for it — a click,
+        // a warm, or a click that joined a warm — so it is where the device
+        // mirror is written (`docs/CONTENT-STORAGE.md` rule 3: on both paths,
+        // not only when a hydrate lands). The key is the address; anything that
+        // is not a node's content is skipped there. iOS does this in its own
+        // warm cache, for the same reason.
+        mirrorLanded(key, value);
         active--;
         pump();
       },

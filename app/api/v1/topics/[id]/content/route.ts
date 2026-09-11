@@ -76,11 +76,18 @@ export async function GET(request: Request, { params }: Params) {
         // Unwrapped here and nowhere else: what leaves this route is the shape
         // the screen renders, which is the same shape a client assembles from
         // live stream frames. See `renderShape`.
-        payload: renderShape(r.kind, r.cacheKey ? payloads[r.cacheKey] : r.payload),
+        //
+        // The pointer first, the row's own copy behind it. A shared row can be
+        // gone under a live pointer — a CONTENT_CACHE_VERSION bump abandons
+        // every one of them by design — and that used to empty the topic. The
+        // copy `putContent` keeps is what answers instead of a miss.
+        payload: renderShape(
+          r.kind,
+          (r.cacheKey ? payloads[r.cacheKey] : undefined) ?? r.payload,
+        ),
       }))
-      // A pointer whose shared row has been abandoned by a
-      // CONTENT_CACHE_VERSION bump is a miss, not an empty pass — dropping it
-      // here is what makes the client generate instead of rendering nothing.
+      // Nothing on either side: a real miss, and dropping it here is what makes
+      // the client generate instead of rendering nothing.
       .filter((item) => item.payload !== undefined && item.payload !== null);
 
     return withRequestId(NextResponse.json({ items }), who.requestId);

@@ -10,18 +10,53 @@ about the payloads a model wrote.
 
 ## The three stores
 
-| Store             | Holds                          | Scope                  | Written by      |
-| ----------------- | ------------------------------ | ---------------------- | --------------- |
-| `content_cache`   | the payload bytes, once        | every learner, forever | `/api/generate` |
-| `node_content`    | which topic owns which payload | one topic              | `/api/generate` |
-| the device mirror | a copy of the topic's items    | one device             | the client      |
+| Store             | Holds                             | Scope                  | Written by                      |
+| ----------------- | --------------------------------- | ---------------------- | ------------------------------- |
+| `content_cache`   | the payload bytes, once           | every learner, forever | `/api/generate`                 |
+| `node_content`    | what a topic owns — and its bytes | one topic              | `/api/generate`, `/api/content` |
+| the device mirror | a copy of the topic's items       | one device             | the client                      |
 
 `content_cache` is keyed by a hash of the exact prompt inputs — that is what
-makes the second learner on a topic free. `node_content` is an index into it:
-one row per `(topic, node, kind, variant)`, holding a `cache_key` pointer.
-Neither client writes either one. **Content is never uploaded.** The generate
-route records a payload against the topic the moment it exists, from either
-client, and the clients only ever read.
+makes the second learner on a topic free. `node_content` is one row per
+`(topic, node, kind, variant)`, holding a `cache_key` pointer into it **and a
+copy of the payload**. Neither client writes either one. **Content is never
+uploaded.** The routes record a payload against the topic the moment it exists,
+from either client, and the clients only ever read.
+
+### Why the copy, when the pointer is the whole point
+
+The pointer is still the fast path: the bytes live once for everyone, and a
+topic's whole content is one batched RPC. But a pointer is only a pointer, and
+two things delete what it points at — both of them deliberate:
+
+- the TTL prune, which reclaims rows nothing has read in a season, and
+- a `CONTENT_CACHE_VERSION` bump, which abandons every row in the table by
+  design, because a hit is served without re-validation.
+
+Until the copy existed, either one emptied every topic pointing at those rows.
+A prompt tweak took every learner's reading with it, and the learner the TTL
+was written for — the one coming back after a season — was exactly the one
+whose topic it hollowed out. So:
+
+1. **`putContent` writes the pointer and the payload.** A caller holding only
+   the pointer never blanks a copy the row already has.
+2. **The read prefers the pointer and falls back to the copy**
+   (`/api/v1/topics/:id/content`). One place, the same unwrap either way.
+3. **The prune skips addressed rows** (`prune_content_cache`): a row a
+   `node_content` row points at is not storage to reclaim, however cold.
+
+The invariant those three buy: **a topic keeps its content until the learner
+deletes the topic.** Nothing else may take it.
+
+### And a hit is content too
+
+`/api/generate` has always recorded a cache hit against the topic. `/api/content`
+— the batch warm, which is where most hits happen, one request per map open —
+records them now as well. Content that is only in a browser's memory is content
+the next load regenerates, and it regenerates _silently_: both requests succeed,
+and the bill is the only place it shows. The client stamps every batch item with
+the open topic (`addressed`, `lib/generationTopic.ts`) so the route has somewhere
+to file what it found.
 
 ## Rule 1 — one shape on the wire: the render shape
 
@@ -96,7 +131,9 @@ The five rules:
 
 1. **It is a cache, never a source of truth.** Paint from it, then revalidate
    behind an interactive screen. A mirror that fails costs a round trip, never
-   a screen — every operation is a no-op on error.
+   a screen — every operation is a no-op on error. It **merges**, never
+   replaces: one landed generation writes one item, and a hydrate that comes
+   back short must not take the copy on this device with it.
 2. **It stores what the server sent**, item for item, unmodified. Never a
    rebuild from parts; never a re-encode of something decoded. That is what
    keeps the fields only the _other_ client renders from being stripped.
@@ -149,9 +186,27 @@ share one request, which is only true if they agree.
   for an upload that was retired with the `caches` column. What `raw` was for
   is now covered by rule 3: the item goes to the mirror as it arrived.
 
+## The topic itself
+
+One rule, and it belongs here because breaking it loses content by the topicful
+rather than by the row: **onboarding's undo deletes only what onboarding
+created.**
+
+Creating a topic is an upsert on `(user_id, subject)` — re-running onboarding on
+a subject the learner already has is a rebuild of that topic, not a second one.
+But the build opens the topic _before_ the map is generated (the server-side
+frontier warm needs somewhere to file what it writes) and deletes it again on
+any exit that produces no map: a build error, or a subject too broad to map.
+That undo could not tell a row it had just made from the learner's existing map,
+and the delete cascades — nodes, edges, cards, `node_content`, the device mirror.
+
+`POST /api/v1/topics` answers with `created`, and only a `created` topic may be
+undone. A server that does not say reads as `false` on both clients: an empty
+topic on the dashboard is a blemish, a deleted one is the learner's work.
+
 ## Migration order
 
-Each step ships on its own and leaves the app working. No flag day.
+Each step ships on its own and leaves the app working. No flag day. All done.
 
 1. **Server unwraps** (`content/route.ts` + a test per kind). Zero client
    changes: the web's `inner()` is a no-op on an already-unwrapped payload, and
@@ -160,8 +215,12 @@ Each step ships on its own and leaves the app working. No flag day.
 3. **Both re-key to the address.** iOS drops the pool and the run from its key
    and adopts `variant`; the web's buckets already are the address.
 4. **Web gains the mirror** (`lib/contentMirror.ts`, ~40 lines).
-5. **iOS writes the mirror at generation time** and deletes `raw`/`revision`/
-   `savedWarm`.
+5. **iOS writes the mirror at generation time** (`warm.onLanded`) and deletes
+   `raw`/`revision`/`savedWarm`.
+6. **The web writes it at generation time too** (`mirrorItem`, from the loaders
+   and the batch-hit path in `useGeneration`) — rule 3 point 3 was half-shipped
+   on this side, so everything read in a session was absent from disk until the
+   next load.
 
 Prerequisite, not part of this design but the same principle — one place
 derives a generation's inputs: `lib/server/afterBuild.ts` builds its post-build

@@ -40,9 +40,31 @@ public actor RunStore {
         try await decode(RunEndpoint.topic(id, token: token))
     }
 
-    public func create(_ topic: JSONValue, token: String) async throws -> AtlasRun {
-        try await decode(try RunEndpoint.createTopic(topic, token: token))
+    /// Create the topic — or adopt the learner's existing one.
+    ///
+    /// The server upserts on `(user_id, subject)`, so this is the same call
+    /// whether or not the subject is new, and `created` is the only way to tell
+    /// the two apart. It matters because onboarding deletes the row again when
+    /// a build produces nothing: deleting an *adopted* topic cascades away the
+    /// learner's map, mastery, cards and every generated payload.
+    ///
+    /// Absent (an older server) reads as `false` — the safe default is to leave
+    /// a topic standing, since an empty one on the dashboard is a blemish and a
+    /// deleted one is the learner's work.
+    public func create(_ topic: JSONValue, token: String) async throws -> (run: AtlasRun, created: Bool) {
+        let response = try await send(try RunEndpoint.createTopic(topic, token: token))
+        do {
+            return (
+                try JSONDecoder().decode(AtlasRun.self, from: response.data),
+                (try? JSONDecoder().decode(CreatedFlag.self, from: response.data))?.created ?? false
+            )
+        } catch {
+            throw AtlasError(code: "upstream", message: "could not decode AtlasRun: \(error)")
+        }
     }
+
+    /// Just the one field, read off the same body as the run itself.
+    private struct CreatedFlag: Decodable { let created: Bool? }
 
     /// Apply a batch of node deltas, and remove the nodes that left the map.
     /// The map's only write path.

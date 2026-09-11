@@ -166,14 +166,14 @@ describe("deleting a topic", () => {
 });
 
 describe("generated content", () => {
-  it("stores a pointer into the shared cache, not a second copy", async () => {
+  it("stores the pointer and the payload, so a version bump cannot empty it", async () => {
     const topic = await makeTopic();
     await putContent(
       db(),
       FIXTURE_USER_ID,
       topic.id,
       { nodeId: "a", kind: "model", variant: "c1:eli5" },
-      { cacheKey: "abc123" },
+      { cacheKey: "abc123", payload: { beats: [{ title: "one" }] } },
     );
     const [row] = await readContentRows(db(), topic.id, []);
     expect(row).toMatchObject({
@@ -181,8 +181,23 @@ describe("generated content", () => {
       kind: "model",
       variant: "c1:eli5",
       cacheKey: "abc123",
-      payload: null,
+      payload: { beats: [{ title: "one" }] },
     });
+  });
+
+  it("keeps the payload when a later write carries only the pointer", async () => {
+    const topic = await makeTopic();
+    const at = { nodeId: "a", kind: "consume" };
+    await putContent(db(), FIXTURE_USER_ID, topic.id, at, {
+      cacheKey: "one",
+      payload: { chunks: [{ id: "c1" }] },
+    });
+    // A warm that found the row already in the shared cache knows the address
+    // and nothing else. It must not blank what the topic already owns.
+    await putContent(db(), FIXTURE_USER_ID, topic.id, at, { cacheKey: "two" });
+    const [row] = await readContentRows(db(), topic.id, []);
+    expect(row.cacheKey).toBe("two");
+    expect(row.payload).toEqual({ chunks: [{ id: "c1" }] });
   });
 
   it("replaces the row for an address rather than accumulating them", async () => {

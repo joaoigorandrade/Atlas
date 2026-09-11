@@ -108,7 +108,7 @@ export async function fetchCachedContent(
     const res = await fetch("/api/content", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items: items.map((item) => addressed(item)) }),
     });
     // Still degrades to "no hits" — that is the correct behaviour for a warm
     // nobody is watching. What changes is that it is no longer *invisible*: a

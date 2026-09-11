@@ -67,8 +67,9 @@ const RECORDED = new Set([
  * has never seen it — it is written against their topic here, on the server.
  * No client uploads content any more, and a second device opens warm for free.
  *
- * A `cacheKey` is stored in preference to the payload: the bytes already live
- * once in `content_cache` for everyone, so the topic only needs a pointer.
+ * The pointer and the bytes both: `content_cache` holds the payload once for
+ * everyone and is the fast path, but a version bump abandons every row in it,
+ * so the topic keeps its own copy too. See `putContent`.
  *
  * Best-effort and never awaited by the response path. A learner who has their
  * content must not be made to wait on the bookkeeping that remembers it, and a
@@ -99,7 +100,7 @@ export function recordContent(
         userId,
         topicId,
         { nodeId, kind: job.kind, variant: body.variant ?? "" },
-        job.key ? { cacheKey: job.key } : { payload },
+        { ...(job.key ? { cacheKey: job.key } : null), payload },
       );
     } catch (err) {
       logError("record_content_failed", err, { kind: job.kind, node: nodeId });
@@ -208,28 +209,30 @@ export function startCurriculumWarm(
           // request will later address.
           const warm = resolveJob(frontierWarmBody(body, graph, node, kind));
           if (!warm.key) continue;
-          const record = () =>
+          const record = (payload: unknown) =>
             topicId
               ? putContent(
                   supabase as never,
                   userId,
                   topicId,
                   { nodeId: node.id, kind },
-                  { cacheKey: warm.key! },
+                  { cacheKey: warm.key!, payload },
                 )
               : Promise.resolve();
           // Already generated — by an earlier warm, or by another learner on
           // the same topic. Still record it: the payload exists, so this topic
-          // should own a pointer to it rather than re-deriving one on the
-          // learner's click.
-          if (await readContent(warm.key)) {
-            await record();
+          // should own it rather than re-deriving the address on the learner's
+          // click.
+          const hit = await readContent(warm.key);
+          if (hit) {
+            await record(hit);
             continue;
           }
           const jobId = crypto.randomUUID();
           await logGenerationCalls(supabase, warm, { jobId, topicId });
-          await writeContent(warm.key, warm.kind, await warm.run());
-          await record();
+          const payload = await warm.run();
+          await writeContent(warm.key, warm.kind, payload);
+          await record(payload);
           logEvent("curriculum_warm", { user: userId, kind, node: node.id });
         } catch (err) {
           logError("curriculum_warm_failed", err, { kind, node: node.id });

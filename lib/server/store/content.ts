@@ -98,9 +98,16 @@ export async function readContentRows(
  * topic, on the server, with no upload. That is what retired the `caches`
  * column and its 4-second debounce.
  *
- * `cacheKey` is preferred over `payload`: the shared `content_cache` already
- * holds the bytes once for every learner, so a pointer is all a topic needs.
- * A kind without a stable key stores its payload here instead.
+ * Both the pointer and the bytes are stored when both are known. The pointer
+ * is the fast path — the shared `content_cache` holds the payload once for
+ * every learner, and a batch of pointers is one RPC — but it is only ever a
+ * pointer, and two things delete what it points at: the TTL prune (now fenced
+ * off by `prune_content_cache`) and a `CONTENT_CACHE_VERSION` bump, which
+ * abandons every shared row on purpose. The copy here is what makes "a topic
+ * keeps its content until the learner deletes the topic" true through both.
+ *
+ * A payload is never overwritten with nothing: a caller that has only the
+ * pointer leaves whatever copy the row already holds alone.
  */
 export async function putContent(
   db: SupabaseClient,
@@ -117,7 +124,7 @@ export async function putContent(
       variant: at.variant ?? "",
       user_id: userId,
       cache_key: content.cacheKey ?? null,
-      payload: content.cacheKey ? null : (content.payload ?? null),
+      ...(content.payload === undefined ? null : { payload: content.payload }),
     },
     { onConflict: "topic_id,node_id,kind,variant" },
   );

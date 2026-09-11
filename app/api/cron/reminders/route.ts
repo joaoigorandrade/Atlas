@@ -180,19 +180,35 @@ export async function GET(request: Request) {
 const CACHE_TTL_DAYS = Number(process.env.CONTENT_CACHE_TTL_DAYS || 90);
 
 /** Drop shared cache rows nothing has read in a season. Best-effort: a failed
- *  prune costs storage, never content. */
+ *  prune costs storage, never content.
+ *
+ *  `content_cache` goes through `prune_content_cache`, which skips any row a
+ *  `node_content` row still points at. A blind TTL delete here took the
+ *  reading away from the one learner this TTL was written for — the one coming
+ *  back after a season, whose topic holds pointers and nothing else.
+ *  `speech_cache` has no such index into it: a dropped clip is re-synthesized,
+ *  not lost. */
 async function prune(admin: SupabaseClient, requestId: string): Promise<number> {
   if (CACHE_TTL_DAYS <= 0) return 0;
   const cutoff = new Date(Date.now() - CACHE_TTL_DAYS * 86_400_000).toISOString();
   let dropped = 0;
-  for (const table of ["content_cache", "speech_cache"] as const) {
-    const { data, error } = await admin
-      .from(table)
-      .delete()
-      .lt("last_hit_at", cutoff)
-      .select("key");
-    if (error) logError("cache_prune_failed", error, { table, req: requestId });
-    else dropped += data?.length ?? 0;
-  }
+  const { data: content, error: contentError } = await admin.rpc("prune_content_cache", {
+    cutoff,
+  });
+  if (contentError)
+    logError("cache_prune_failed", contentError, {
+      table: "content_cache",
+      req: requestId,
+    });
+  else dropped += (content as number | null) ?? 0;
+
+  const { data, error } = await admin
+    .from("speech_cache")
+    .delete()
+    .lt("last_hit_at", cutoff)
+    .select("key");
+  if (error)
+    logError("cache_prune_failed", error, { table: "speech_cache", req: requestId });
+  else dropped += data?.length ?? 0;
   return dropped;
 }

@@ -10,10 +10,30 @@
 
 import { useEffect, useMemo } from "react";
 import { fetchCachedContent } from "@/lib/api";
+import { mirrorLanded } from "@/lib/contentMirror";
 import type { ConceptNode, NodeState } from "@/lib/curriculum";
 import type { RunState } from "@/components/atlas/useRunState";
 import type { Generation, WarmKind } from "@/components/atlas/useGeneration";
 import { warmKindsFor } from "@/components/atlas/useGeneration";
+
+/** A batch hit arrives as the generator's envelope (`{chunks: […]}`) — the
+ *  cache row as it was stored — while the mirror holds what a screen renders,
+ *  the way `/api/v1/.../content` unwraps it. One slot per kind, the same table
+ *  the server's `renderShape` uses. `summary` is not mirrored: it lands on the
+ *  node in the graph and is saved with the run. */
+const SLOT: Record<string, string> = {
+  consume: "chunks",
+  socratic: "steps",
+  feynman: "beats",
+  connect: "content",
+  crucible: "content",
+};
+
+function mirrorHit(kind: string, nodeId: string, hit: unknown): void {
+  const slot = SLOT[kind];
+  if (!slot || !hit || typeof hit !== "object") return;
+  mirrorLanded(`${kind}:${nodeId}`, (hit as Record<string, unknown>)[slot]);
+}
 
 export function useWarming(deps: {
   run: RunState;
@@ -100,8 +120,16 @@ export function useWarming(deps: {
         if (cancelled) return;
         items.forEach((item, index) => {
           const hit = hits[index];
-          if (hit !== undefined) applyWarmHit(item.kind, item.node.id, hit);
-          else warmOne(item.kind, item.node);
+          if (hit === undefined) {
+            warmOne(item.kind, item.node);
+            return;
+          }
+          applyWarmHit(item.kind, item.node.id, hit);
+          // The one landing that does not go through the warm queue, so the
+          // mirror is written here instead (`lib/warm.ts` covers every other
+          // one). The route records the same hit against the topic; this is
+          // the device's copy of it.
+          mirrorHit(item.kind, item.node.id, hit);
         });
       });
     }, 600);

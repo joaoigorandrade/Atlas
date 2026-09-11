@@ -11,6 +11,8 @@ import {
   clearMirror,
   dropMirror,
   hydrateContent,
+  mirrorItem,
+  mirrorLanded,
   readMirror,
   writeMirror,
 } from "@/lib/contentMirror";
@@ -70,6 +72,11 @@ function answering(items: ContentItem[] | Error) {
   );
 }
 
+/** No run open — the state the mirror must not write in. */
+function setGenerationTopicToNull(): void {
+  void import("@/lib/generationTopic").then((m) => m.setGenerationTopic(null));
+}
+
 beforeEach(() => installCaches());
 afterEach(() => vi.unstubAllGlobals());
 
@@ -95,6 +102,33 @@ describe("the device mirror", () => {
     expect(await readMirror("t2")).toBeNull();
   });
 
+  it("merges onto what it holds rather than replacing it", async () => {
+    await writeMirror("t1", [reading("lat"), reading("der")]);
+    // One landed generation must not erase the rest of the topic — this is
+    // the write path a generation takes, and it carries one item.
+    await writeMirror("t1", [{ ...reading("lat"), payload: [{ ...section, id: "c2" }] }]);
+    const held = await readMirror("t1");
+    expect(held).toHaveLength(2);
+    expect(held?.find((i) => i.nodeId === "lat")?.payload).toEqual([
+      { ...section, id: "c2" },
+    ]);
+  });
+
+  it("keeps what it holds when the server answers with nothing", async () => {
+    // A version bump abandons every shared row, so a hydrate can come back
+    // empty for a topic this device has content for. Replacing on that answer
+    // destroyed the one copy that could still open the reading.
+    await writeMirror("t1", [reading()]);
+    await writeMirror("t1", []);
+    expect(await readMirror("t1")).toEqual([reading()]);
+  });
+
+  it("takes one generation as it lands", async () => {
+    mirrorItem("t1", reading());
+    // Rule 3: written on both paths — a hydrate landing, and a generation.
+    await vi.waitFor(async () => expect(await readMirror("t1")).toEqual([reading()]));
+  });
+
   it("is a no-op, never a throw, where the browser has no store", async () => {
     // Private mode, an insecure origin, SSR. A mirror that fails must cost a
     // round trip and never a screen.
@@ -102,6 +136,66 @@ describe("the device mirror", () => {
     await expect(writeMirror("t1", [reading()])).resolves.toBeUndefined();
     expect(await readMirror("t1")).toBeNull();
     await expect(clearMirror()).resolves.toBeUndefined();
+  });
+});
+
+describe("a landed generation", () => {
+  // The warm queue's key is the address — it is the one place every
+  // generation settles, whoever asked for it, so it is where the mirror is
+  // written. Nothing else about the queue knows what content is.
+  it("keeps both when two land at once", async () => {
+    // The warm queue runs two at a time by design, and a merge is a read, a
+    // modify and a write: unserialized, the second write threw the first away.
+    const { setGenerationTopic } = await import("@/lib/generationTopic");
+    setGenerationTopic("t-race");
+    mirrorLanded("consume:lat", [section]);
+    mirrorLanded("consume:der", [section]);
+    mirrorLanded("socratic:lat", [{ id: "s1" }]);
+    await vi.waitFor(async () => expect(await readMirror("t-race")).toHaveLength(3));
+    setGenerationTopic(null);
+  });
+
+  it("files each kind under its own address", async () => {
+    const { setGenerationTopic } = await import("@/lib/generationTopic");
+    setGenerationTopic("t1");
+    mirrorLanded("consume:lat", [section]);
+    mirrorLanded("model:lat:c1:eli5", [{ label: "Passo 1" }]);
+    await vi.waitFor(async () => expect(await readMirror("t1")).toHaveLength(2));
+    const held = await readMirror("t1");
+    expect(held).toContainEqual({
+      nodeId: "lat",
+      kind: "consume",
+      variant: "",
+      payload: [section],
+    });
+    expect(held).toContainEqual({
+      nodeId: "lat",
+      kind: "model",
+      variant: "c1:eli5",
+      payload: [{ label: "Passo 1" }],
+    });
+    setGenerationTopic(null);
+  });
+
+  it("skips what is not a node's content", async () => {
+    const { setGenerationTopic } = await import("@/lib/generationTopic");
+    setGenerationTopic("t2");
+    // A summary lands on the node in the graph and is saved with the run; a
+    // Retain draft becomes `cards` rows. Neither is the mirror's business, and
+    // `retain:a,b,c` is not even an address.
+    mirrorLanded("summary:lat", "uma frase");
+    mirrorLanded("retain:lat,der", { cards: [] });
+    mirrorLanded("consume:lat", undefined);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await readMirror("t2")).toBeNull();
+    setGenerationTopic(null);
+  });
+
+  it("holds nothing when no run is open", async () => {
+    setGenerationTopicToNull();
+    mirrorLanded("consume:lat", [section]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await readMirror("t1")).toBeNull();
   });
 });
 

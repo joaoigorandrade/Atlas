@@ -15,6 +15,7 @@ import {
   newRequestId,
   withRequestId,
 } from "@/lib/server/apiError";
+import { recordContent } from "@/lib/server/afterBuild";
 import { readManyContent } from "@/lib/server/contentCache";
 import { BadRequest, resolveJob, type GenerateBody } from "@/lib/server/job";
 import { createClient } from "@/lib/supabase/server";
@@ -43,7 +44,8 @@ export async function POST(request: Request) {
     logError("auth_unavailable", authError, { req: requestId, at: "content" });
     return apiError("upstream", { requestId, status: 503 });
   }
-  if (!claims?.claims?.sub) return apiError("auth", { requestId });
+  const userId = claims?.claims?.sub;
+  if (!userId) return apiError("auth", { requestId });
 
   let body: ContentBody;
   try {
@@ -58,7 +60,7 @@ export async function POST(request: Request) {
   const keyed = items.map((item, index) => {
     try {
       const job = resolveJob(item);
-      return job.key ? { index, key: job.key } : null;
+      return job.key ? { index, key: job.key, item, job } : null;
     } catch (err) {
       // A malformed item is dropped — a warm is best-effort by nature. Anything
       // else used to escape as an uncaught 500 and fail the whole batch.
@@ -83,7 +85,21 @@ export async function POST(request: Request) {
   for (const entry of keyed) {
     if (!entry) continue;
     const payload = found[entry.key];
-    if (payload !== undefined) hits[entry.index] = payload;
+    if (payload === undefined) continue;
+    hits[entry.index] = payload;
+    // A hit here is content the learner now has, exactly as it is on
+    // /api/generate's fast path — so the topic has to own it, or the only
+    // record of it is this browser's memory. Without this a warm-served phase
+    // was absent from `node_content`, and the next load regenerated it the
+    // moment its cache key had moved on (Connect's pool, Crucible's mastered
+    // set, a version bump).
+    recordContent(
+      supabase,
+      entry.item,
+      entry.job,
+      userId,
+      payload as Record<string, unknown>,
+    );
   }
   return withRequestId(NextResponse.json({ hits }), requestId);
 }

@@ -247,12 +247,28 @@ export async function loadTopic(db: SupabaseClient, id: string): Promise<Topic |
  * rebuild of that topic, not a second one — the `(user_id, subject)` unique
  * constraint says so, and a 409 here would only teach the client to invent a
  * subject suffix.
+ *
+ * `created` says which of the two just happened, and it is not bookkeeping:
+ * onboarding opens the topic *before* the map is generated and deletes it
+ * again on any exit that produces no map. Without this flag that undo could
+ * not tell a row it had just made from the learner's existing map of the same
+ * subject — and deleting the second one cascades away their nodes, cards and
+ * every generated payload.
  */
 export async function createTopic(
   db: SupabaseClient,
   userId: string,
   topic: NewTopic,
-): Promise<Topic> {
+): Promise<Topic & { created: boolean }> {
+  // Asked before the upsert, because the upsert cannot answer it afterwards.
+  const { data: existing, error: existingError } = await db
+    .from("topics")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("subject", topic.subject)
+    .maybeSingle();
+  if (existingError) fail("createTopic/existing", existingError);
+
   const { data, error } = await db
     .from("topics")
     .upsert(
@@ -272,7 +288,7 @@ export async function createTopic(
   if (error) fail("createTopic", error);
   const row = data as TopicRow;
   if (topic.graph) await putGraph(db, userId, row.id, topic.graph);
-  return (await loadTopic(db, row.id))!;
+  return { ...(await loadTopic(db, row.id))!, created: !existing };
 }
 
 /** Replace a topic's map. Used by onboarding and by a re-plan that restructures. */

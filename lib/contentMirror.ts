@@ -13,6 +13,7 @@
 // the store is unavailable (Safari private mode, an insecure origin, SSR), so
 // a mirror that fails costs a round trip, never a screen.
 
+import { generationTopic } from "@/lib/generationTopic";
 import { logWarning } from "@/lib/log";
 import {
   foldContent,
@@ -55,16 +56,50 @@ export async function readMirror(topicId: string): Promise<ContentItem[] | null>
   }
 }
 
-/** Mirror what the server just sent — item for item, unmodified. Rebuilding
- *  the answer from the folded caches would drop the fields only the *other*
- *  client renders, which is the bug rule 3 exists to prevent. */
-export async function writeMirror(topicId: string, items: ContentItem[]): Promise<void> {
+/** One item's address — the mirror's own identity for a row, and what makes
+ *  a merge a merge. Same three parts as everywhere else: `nodeId|kind|variant`. */
+const addressOf = (item: ContentItem): string =>
+  `${item.nodeId}|${item.kind}|${item.variant ?? ""}`;
+
+/**
+ * Mirror what the server just sent — item for item, unmodified. Rebuilding
+ * the answer from the folded caches would drop the fields only the *other*
+ * client renders, which is the bug rule 3 exists to prevent.
+ *
+ * Merged onto what is already there, never a wholesale replace. Two callers
+ * need that: a generation landing writes one item and must not erase the rest,
+ * and a hydrate that comes back short — a shared row abandoned by a version
+ * bump, a topic whose content the server could not resolve — must not take the
+ * copy on this device with it. iOS has always merged (`LocalStore.save`); the
+ * web replacing was the asymmetry.
+ */
+export function writeMirror(topicId: string, items: ContentItem[]): Promise<void> {
+  if (items.length === 0) return Promise.resolve();
+  // One writer at a time per topic. A merge is a read, a modify and a write,
+  // and the warm queue lands two generations at once by design — unserialized,
+  // both read the same "before" and the second write threw the first one away.
+  const next = (writing.get(topicId) ?? Promise.resolve()).then(() =>
+    merge(topicId, items),
+  );
+  writing.set(topicId, next);
+  return next;
+}
+
+/** The in-flight write per topic, so the next one queues behind it rather than
+ *  racing it. Never rejects — every operation here is a no-op on error. */
+const writing = new Map<string, Promise<void>>();
+
+async function merge(topicId: string, items: ContentItem[]): Promise<void> {
   const cache = await store();
   if (!cache) return;
   try {
+    const held = (await readMirror(topicId)) ?? [];
+    const merged = new Map(held.map((item) => [addressOf(item), item]));
+    // The incoming copy wins: it is the fresher answer for that address.
+    for (const item of items) merged.set(addressOf(item), item);
     await cache.put(
       at(topicId),
-      new Response(JSON.stringify(items), {
+      new Response(JSON.stringify([...merged.values()]), {
         headers: { "Content-Type": "application/json" },
       }),
     );
@@ -72,6 +107,57 @@ export async function writeMirror(topicId: string, items: ContentItem[]): Promis
     // Quota is the realistic failure. The app is unaffected — this is a cache.
     logWarning("content_mirror_write_failed", err);
   }
+}
+
+/**
+ * One generation, to the mirror, as it lands.
+ *
+ * The second half of rule 3's "written on both paths". The web used to write
+ * the mirror only when a hydrate landed, so everything read in a session was
+ * absent from disk until the next load — the exact bug the rule names ("content
+ * read on the phone yesterday was not there this morning"). iOS has had this as
+ * `warm.onLanded` → `AtlasStore.mirror`; this is the same seam on this side.
+ *
+ * `payload` is what the screen renders, which is also what the content route
+ * sends — the same shape, so a mirrored generation and a hydrated one are
+ * indistinguishable on the way back in. It is stored as it arrived, never
+ * rebuilt from the folded caches (rule 3.2).
+ *
+ * The topic comes from `generationTopic()` rather than an argument for the
+ * reason the generate route's `topicId` does: it is a property of which map is
+ * open, the same for every call, and threading it would touch every caller.
+ */
+export function mirrorItem(topicId: string, item: ContentItem): void {
+  void writeMirror(topicId, [item]);
+}
+
+/**
+ * A landed warm-queue value, to the mirror.
+ *
+ * The queue's key *is* the address — `lib/warm.ts` is the one place every
+ * foreground generation and every background warm settles, so it is the one
+ * place that sees content land whatever asked for it. The key spellings are the
+ * web's own (`useGeneration`'s `warmKey` and `modelKey`); iOS parses its own
+ * `nodeId|kind|variant` in `AtlasStore.mirror` for exactly this.
+ *
+ * Anything that is not a node's content is skipped: `summary` lands on the node
+ * in the graph and is saved with the run, and `retain` drafts `cards` rows.
+ */
+const MIRRORED = new Set(["consume", "socratic", "feynman", "connect", "crucible"]);
+
+export function mirrorLanded(key: string, value: unknown): void {
+  const topicId = generationTopic();
+  if (!topicId || value === undefined || value === null) return;
+  const [kind, nodeId, ...rest] = key.split(":");
+  // `model:<nodeId>:<chunkId>:<lens>` — the one kind with two payloads on one
+  // node, and the only one whose variant is not empty.
+  if (kind === "model") {
+    if (!nodeId || rest.length < 2) return;
+    mirrorItem(topicId, { nodeId, kind, variant: rest.join(":"), payload: value });
+    return;
+  }
+  if (!MIRRORED.has(kind) || !nodeId || rest.length) return;
+  mirrorItem(topicId, { nodeId, kind, variant: "", payload: value });
 }
 
 /** The local half of the server's cascade: a deleted topic takes its content. */

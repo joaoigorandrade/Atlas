@@ -207,6 +207,10 @@ public final class AtlasStore {
     /// — a restore, a map switch, a sign-out. Without it the clear in `signOut`
     /// would upsert an empty map over the row it had just read.
     private var quiet = true
+    /// Whether the open topic's row was created by this build rather than
+    /// adopted from a subject the learner already had. Only the first kind may
+    /// be deleted again — see `abandonTopic`.
+    private var topicWasCreatedHere = false
     private var pendingSave: Task<Void, Never>?
     /// The token renewal in flight, if there is one.
     ///
@@ -806,7 +810,10 @@ public extension AtlasStore {
     /// Take the created row as the open run. Every field here is the store being
     /// filled in rather than the learner working, so it is written quiet.
     private func adoptTopic(_ body: JSONValue, token: String) async {
-        guard let run = try? await runs.create(body, token: token) else { return }
+        guard let made = try? await runs.create(body, token: token) else { return }
+        let run = made.run
+        // Only a row this call created may be undone — see `abandonTopic`.
+        topicWasCreatedHere = made.created
         quiet = true
         topicId = run.id
         loaded = run
@@ -818,10 +825,19 @@ public extension AtlasStore {
     }
 
     /// Undo the row above — a build that produced no map owns nothing.
+    ///
+    /// Undoes *this* build's creation and nothing else. Creating a topic is an
+    /// upsert on `(user_id, subject)`, so re-running onboarding on a subject
+    /// the learner already has hands their existing topic back; deleting that
+    /// one cascades away its map, mastery states, cards and every generated
+    /// payload, and takes the device mirror with it.
     func abandonTopic() async {
         guard let id = topicId, let token = await bearer() else { return }
         topicId = nil
         loaded = nil
+        let mine = topicWasCreatedHere
+        topicWasCreatedHere = false
+        guard mine else { return }
         library.removeAll { $0.id == id }
         local.delete(topicId: id)
         try? await runs.delete(id, token: token)

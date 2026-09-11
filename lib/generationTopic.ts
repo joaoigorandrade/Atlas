@@ -16,6 +16,13 @@ export function setGenerationTopic(id: string | null): void {
   openTopicId = id;
 }
 
+/** The open topic, for the one other thing that is per-run and reaches for it
+ *  ambiently rather than through props: the device mirror, which files a landed
+ *  generation under the run it belongs to. */
+export function generationTopic(): string | null {
+  return openTopicId;
+}
+
 /** A generation body, stamped with where it belongs. */
 export const addressed = (
   body: Record<string, unknown>,
