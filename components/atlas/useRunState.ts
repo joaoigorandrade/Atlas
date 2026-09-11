@@ -185,12 +185,6 @@ export function useRunState(opts: {
   // fetched — nothing renders before then, so a resumed run never flashes the
   // welcome screen. The generated content arrives separately, behind the map.
   const [hydrated, setHydrated] = useState(false);
-  // False only while a saved run's caches are still in flight. The caches
-  // writer is gated on it: without the gate its 4s debounce could fire before
-  // (or instead of, on a failed load) the background read landed, upserting an
-  // empty `caches` object over every rubric, chunk and elaboration the row
-  // held. A run with nothing to load — a map built this session — starts true.
-  const [cachesLoaded, setCachesLoaded] = useState(true);
   /**
    * True once a debounced write has failed every attempt it was given.
    *
@@ -446,8 +440,7 @@ export function useRunState(opts: {
 
       // Behind an already-drawn map: the device mirror first, then the
       // network. Never written back — see `hydrateContent`.
-      setCachesLoaded(false);
-      void hydrateContent(topic.id, applyCaches).finally(() => setCachesLoaded(true));
+      void hydrateContent(topic.id, applyCaches);
     },
     [warm, applyCaches, resetSessions, resetTransient, setScreen],
   );
@@ -720,8 +713,6 @@ export function useRunState(opts: {
     cardsRef,
     formRef,
     hydrated,
-    cachesLoaded,
-    setCachesLoaded,
     saveFailed,
     setSaveFailed,
     runActive,

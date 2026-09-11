@@ -86,7 +86,6 @@ export function useOnboarding(deps: {
     setPositions,
     setSpawnedIds,
     setRunLanguage,
-    setCachesLoaded,
     setTopicId,
     setShakyReason,
     attachGap,
@@ -184,7 +183,6 @@ export function useOnboarding(deps: {
     // `excludeTopic`, they used to survive into the new run's snapshot —
     // persisted under the new subject, keyed by node ids that no longer exist.
     clearRun();
-    setCachesLoaded(true);
     // A new map invalidates every warmed key — the node ids are about to
     // mean something else.
     warm.clear();
@@ -312,7 +310,6 @@ export function useOnboarding(deps: {
     setLiveModel,
     formRef,
     clearRun,
-    setCachesLoaded,
     setTopicId,
     setGraph,
     setRunLanguage,
