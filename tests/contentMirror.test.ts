@@ -26,7 +26,9 @@ function installCaches(): Map<string, Map<string, string>> {
     return Promise.resolve({
       match: (url: string) =>
         Promise.resolve(
-          rows.has(url) ? { json: () => Promise.resolve(JSON.parse(rows.get(url)!)) } : undefined,
+          rows.has(url)
+            ? { json: () => Promise.resolve(JSON.parse(rows.get(url)!)) }
+            : undefined,
         ),
       put: async (url: string, res: Response) => {
         rows.set(url, await res.text());
