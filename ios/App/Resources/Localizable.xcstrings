@@ -437,16 +437,6 @@
         }
       }
     },
-    "A meta de hoje foi cumprida. Ainda há %lld cartões vencidos — eles esperam amanhã, ou aumente sua meta diária." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today’s budget is spent. %lld due cards are still waiting — they keep until tomorrow, or raise your daily target."
-          }
-        }
-      }
-    },
     "A mesma ideia, com as palavras mais simples possíveis." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -454,6 +444,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The same idea, in the simplest words possible."
+          }
+        }
+      }
+    },
+    "A meta de hoje foi cumprida. Ainda há %lld cartões vencidos — eles esperam amanhã, ou aumente sua meta diária." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today’s budget is spent. %lld due cards are still waiting — they keep until tomorrow, or raise your daily target."
           }
         }
       }

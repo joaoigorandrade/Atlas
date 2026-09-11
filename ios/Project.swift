@@ -38,7 +38,14 @@ let project = Project(
             bundleId: "com.joaoigor.atlas",
             deploymentTargets: .iOS("26.0"),
             infoPlist: .extendingDefault(with: [
-                "UILaunchScreen": ["UIColorName": ""],
+                // The static launch screen is a single colour, and a named
+                // one is the only kind that can answer to the appearance —
+                // hence the one colour set in the catalogue. It is `paper` in
+                // both schemes, so the wordmark `RootView` paints over it
+                // arrives out of the launch screen rather than after a flash of
+                // the wrong ground. No `UIUserInterfaceStyle` key on purpose:
+                // omitting it is what lets the app follow the device.
+                "UILaunchScreen": ["UIColorName": "LaunchPaper"],
                 "CFBundleDisplayName": "Atlas",
                 // Voice: without both, the mic beside every free-text answer
                 // kills the app the first time it is pressed.

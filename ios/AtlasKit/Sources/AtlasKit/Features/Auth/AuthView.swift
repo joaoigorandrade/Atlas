@@ -195,7 +195,7 @@ private struct AuthField<Accessory: View>: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
         }
-        .shadow(color: Palette.ink.opacity(0.05), radius: 9, y: 4)
+        .shadow(color: Palette.shade(0.05), radius: 9, y: 4)
     }
 }
 

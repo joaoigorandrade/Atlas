@@ -104,7 +104,7 @@ struct WelcomeView: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
             }
-            .shadow(color: Palette.ink.opacity(0.05), radius: 9, y: 4)
+            .shadow(color: Palette.shade(0.05), radius: 9, y: 4)
         // ponytail: no PDF/ementa upload — it needs a document picker and a
         // multipart POST to /api/extract. Add it when a learner actually has a
         // syllabus on their phone.

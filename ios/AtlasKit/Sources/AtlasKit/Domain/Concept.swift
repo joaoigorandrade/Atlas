@@ -5,14 +5,20 @@ import SwiftUI
 public enum NodeState: String, Codable, Sendable, CaseIterable {
     case unknown, frontier, learning, shaky, mastered, gap
 
+    /// A pair per state, for the same reason `Palette`'s tokens are pairs: the
+    /// six hues are chosen to read against cream, and on the dark ground the
+    /// mid-tones go muddy. The vocabulary does not change — each state simply
+    /// knows its own value in each appearance. `unknown` is the one that goes
+    /// *darker*: it means "not lit yet", which at night is receding, not
+    /// glowing.
     public var color: Color {
         switch self {
-        case .unknown: Color(hex: 0xB3ADA2)
-        case .frontier: Color(hex: 0xC99A2E)
-        case .learning: Color(hex: 0x5B7FBF)
-        case .shaky: Color(hex: 0xBD7038)
-        case .mastered: Color(hex: 0x4C8B63)
-        case .gap: Color(hex: 0xC1574A)
+        case .unknown: adaptive(0xB3ADA2, 0x6A655C)
+        case .frontier: adaptive(0xC99A2E, 0xE3BC5F)
+        case .learning: adaptive(0x5B7FBF, 0x8AA8E0)
+        case .shaky: adaptive(0xBD7038, 0xDE9A61)
+        case .mastered: adaptive(0x4C8B63, 0x74C08F)
+        case .gap: adaptive(0xC1574A, 0xE0887A)
         }
     }
 

@@ -261,7 +261,7 @@ public struct ReviewView: View {
             .frame(maxWidth: .infinity, minHeight: 230, alignment: .top)
             .background(Palette.card, in: .rect(cornerRadius: 18))
             .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
-            .shadow(color: Palette.ink.opacity(0.07), radius: 15, y: 10)
+            .shadow(color: Palette.shade(0.07), radius: 15, y: 10)
         }
         .animation(Motion.standard, value: model.stage)
     }
