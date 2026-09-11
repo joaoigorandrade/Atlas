@@ -37,7 +37,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
 /// What a cache handed the mirror. `onLanded` fires once per *whole* pass and
 /// never for a draft, so this is the record of what the device would have
 /// written to disk — the property the old `raw` dictionary stood in for.
-@MainActor private final class Mirror {
+@MainActor private final class MirrorLog {
     var written: [String] = []
     init(_ cache: WarmCache) {
         cache.onLanded = { [self] address, _ in written.append(address) }
@@ -98,7 +98,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
 @MainActor
 @Test func aStreamThatDiesMidPassKeepsWhatTheLearnerIsReading() async {
     let cache = WarmCache()
-    let mirror = Mirror(cache)
+    let mirror = MirrorLog(cache)
     // Three sections land and then the connection drops. Those three have been
     // handed to the screen and read; throwing does not take them back.
     let error = await cache.fill("consume|x", live: {
@@ -132,7 +132,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
 @MainActor
 @Test func aPartialFrameRedrawsTheScreenWithoutEverBeingCached() async {
     let cache = WarmCache()
-    let mirror = Mirror(cache)
+    let mirror = MirrorLog(cache)
     let gate = AsyncStream<Void>.makeStream()
     // The lens sheet's whole point: a beat with a label and no prose yet is
     // worth painting rather than sitting blank through.
@@ -202,7 +202,7 @@ private func landed(_ items: [String]) -> Landed<[String]> {
 @MainActor
 @Test func aPassThatStopsShortIsAPrefixAndNotACacheHit() async {
     let cache = WarmCache()
-    let mirror = Mirror(cache)
+    let mirror = MirrorLog(cache)
     let starts = Starts()
     let short: @Sendable () async -> AsyncThrowingStream<Landed<[String]>, Error> = {
         await starts.tick()
