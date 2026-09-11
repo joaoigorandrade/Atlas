@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "A meta de hoje foi cumprida. Ainda há 1 cartão vencido — ele espera amanhã, ou aumente sua meta diária." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today’s budget is spent. 1 due card is still waiting — it keeps until tomorrow, or raise your daily target."
+          }
+        }
+      }
+    },
     "Mostrar resposta" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -3,6 +3,7 @@ import {
   CARD_MINUTES,
   retainBudget,
   retainDeck,
+  retainQueueLabel,
   retainReducer,
   retainStart,
   reviewCard,
@@ -176,5 +177,21 @@ describe("retain: a miss comes back once", () => {
     // Three cards at 1.5 min each — the minutes owed grew with the deck.
     expect(retainBudget(s, content).total).toBe(3);
     expect(retainBudget(s, content).spent).toBe(Math.round(CARD_MINUTES));
+  });
+});
+
+describe("retain: the queue chip counts in whole cards", () => {
+  const only: RetainContent = {
+    budgetMin: 6,
+    cards: [
+      { id: "a", type: "recall", source: "Consume", node: "n1", front: "Q", back: "A" },
+    ],
+  };
+  it("says one card, not one cards", () => {
+    // Visible on the live chip the moment the language fix stopped forcing it
+    // to English, where "1 cards" read exactly as badly.
+    expect(retainQueueLabel(retainStart(), only, "pt-BR")).toContain("1 cartão");
+    expect(retainQueueLabel(retainStart(), only, "en")).toContain("1 card");
+    expect(retainQueueLabel(retainStart(), only, "pt-BR")).not.toContain("cartões");
   });
 });

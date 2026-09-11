@@ -54,6 +54,12 @@ public final class ReviewViewModel {
             // server hands over is already cut to the daily minutes, so an
             // empty deck alone could never tell the two apart — `remaining`
             // does. See `retainContentFromStore`.
+            // Two whole sentences rather than one with a plural glued on: the
+            // two languages do not put the pieces in the same order, and
+            // "1 cartões" is what a stem plus a count reads as.
+            if store.deckRemaining == 1 {
+                return String(localized: "A meta de hoje foi cumprida. Ainda há 1 cartão vencido — ele espera amanhã, ou aumente sua meta diária.")
+            }
             if store.deckRemaining > 0 {
                 return String(localized: "A meta de hoje foi cumprida. Ainda há \(store.deckRemaining) cartões vencidos — eles esperam amanhã, ou aumente sua meta diária.")
             }
