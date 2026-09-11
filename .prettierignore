@@ -5,3 +5,8 @@ scratch
 package-lock.json
 tsconfig.tsbuildinfo
 *.dc.html
+
+# Xcode owns these — it rewrites them on every asset change, so prettier
+# formatting them only guarantees the next Xcode write shows up as churn.
+ios/App/Resources/Assets.xcassets
+ios/App/Resources/Localizable.xcstrings
