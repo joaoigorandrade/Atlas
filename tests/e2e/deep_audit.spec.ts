@@ -266,11 +266,10 @@ test.describe("Deep Web Feature Audit", () => {
     await expect(sheet).toBeVisible();
     audit.passedChecks.push("Retain review sheet rendered");
 
-    const conf = sheet.getByTestId("action-confidence-2");
-    if (await conf.isVisible().catch(() => false)) {
-      await conf.click();
-      audit.passedChecks.push("Retain pre-flip confidence tapped");
-    }
+    const flip = sheet.getByTestId("action-flip");
+    await expect(flip).toBeVisible({ timeout: 20_000 });
+    await flip.click();
+    audit.passedChecks.push("Retain card turned over");
 
     const goodBtn = sheet.getByTestId("action-grade-good");
     await expect(goodBtn).toBeVisible({ timeout: 20_000 });

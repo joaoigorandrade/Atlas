@@ -93,7 +93,7 @@ div. Prefer these over text: the app is bilingual and the copy moves.
 | Socratic   | `submit`                                                                    |
 | Feynman    | `begin` · `next` · `submit` · `advance`                                     |
 | Crucible   | `confidence-<i>` · `submit` · `finish`                                      |
-| Retain     | `confidence-<i>` · `grade-<again\|hard\|good\|easy>` · `continue`           |
+| Retain     | `flip` · `grade-<again\|hard\|good\|easy>` · `continue`                     |
 
 Two things that catch people out:
 

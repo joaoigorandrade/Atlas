@@ -447,7 +447,7 @@ export default function AtlasApp({
     advanceFromCrucible,
     exitCrucible,
     enterReview,
-    retainConfidence,
+    retainFlip,
     retainToggleAside,
     retainContinue,
     retainGrade,
@@ -1055,7 +1055,7 @@ export default function AtlasApp({
             litToday={litToday}
             onToggleReminder={onToggleReminder}
             onExit={exitReview}
-            onConfidence={retainConfidence}
+            onFlip={retainFlip}
             onGrade={retainGrade}
             onToggleAside={retainToggleAside}
             onReteach={retainReteach}

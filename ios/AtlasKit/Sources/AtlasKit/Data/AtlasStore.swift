@@ -463,10 +463,22 @@ public extension AtlasStore {
 
 public extension AtlasStore {
     /// Nodes worth drafting cards for — learned at least once, no card yet.
+    ///
+    /// Gaps are excluded, exactly as `retainPlan` excludes them on the web: a
+    /// gap is a concept the learner has *not* met, and drafting review cards
+    /// for one asks them to recall something never taught.
+    ///
+    /// Capped at one draft's worth, because the factory writes about one card
+    /// per node and stops at `retainDraftNodes` — handing it thirty nodes
+    /// returned eight cards over whichever ones the model picked, and left the
+    /// rest uncovered with nothing saying so.
     var uncovered: [ConceptNode] {
         graph.nodes.filter { node in
-            (states[node.id] ?? .unknown).isLearned && !cards.contains { $0.nodeId == node.id }
+            node.gap != true && (states[node.id] ?? .unknown).isLearned
+                && !cards.contains { $0.nodeId == node.id }
         }
+        .prefix(retainDraftNodes)
+        .map { $0 }
     }
 
     /// Load today's deck. The budget, the order and the interval on every grade
@@ -474,7 +486,13 @@ public extension AtlasStore {
     /// How many minutes of review today's deck is built to fill. Half the daily
     /// target, and the *only* place that decides it: the dashboard promises a
     /// session this long, and the deck endpoint is asked for one this long.
-    var reviewBudgetMin: Int { max(1, dailyTarget / 2) }
+    ///
+    /// Clamped to the same 5–15 band `retainPlan` uses on the web. Without the
+    /// clamp a 60-minute target opened a twenty-card deck here and a fifteen-
+    /// card one in a browser — the same run, two different days' work — and the
+    /// two clients missed each other's `content_cache` row, since the budget is
+    /// part of its key.
+    var reviewBudgetMin: Int { min(15, max(5, Int((Double(dailyTarget) / 2).rounded()))) }
 
     func loadDeck() async {
         guard let topicId, let token = await bearer() else { return }

@@ -4,8 +4,8 @@
 // auto-generated from the earlier phases (the tedious step humans skip):
 // atomic, cloze where apt, varied by type (recall / explain-why / application).
 // The queue is honest — framed in *minutes* against the daily target, never a
-// wall of cards — and one card shows at a time: confidence tap (the calibration
-// hook), flip, grade (feeds FSRS). The alive-loop is the difference from "Anki
+// wall of cards — and one card shows at a time: read it, flip it,
+// grade it (feeds FSRS). The alive-loop is the difference from "Anki
 // plus a chatbot": a missed card doesn't just reschedule — it triggers a
 // 30-second Socratic re-explanation right there and flags its node Shaky on the
 // map, so retention failure re-enters Phase 1. Content ships the Linear
@@ -15,6 +15,18 @@ import { CONNECT_COLOR } from "./connect";
 import { CRUCIBLE_COLOR } from "./crucible";
 import { STATE_COLOR } from "./types";
 import { Language } from "@/lib/i18n";
+
+/**
+ * How many nodes one card-draft covers.
+ *
+ * The factory writes about one card per node and is capped at
+ * `RETAIN_CARD_BOUNDS.max` cards, so handing it thirty uncovered nodes did not
+ * produce thirty cards — it produced eight, over whichever nodes the model
+ * happened to pick, and the other twenty-two stayed uncovered with nothing
+ * saying so. Both clients send this many nodes at a time instead, so a draft
+ * covers the nodes it was given and the next pass picks up the rest.
+ */
+export const RETAIN_DRAFT_NODES = 8;
 
 /** The three card kinds — review isn't only fill-in-the-blank. */
 export type ReviewCardType = "recall" | "why" | "apply";
@@ -72,17 +84,6 @@ export function reviewGrades(
   return lang === "pt-BR"
     ? REVIEW_GRADES.map((g) => ({ ...g, label: REVIEW_GRADE_LABEL_PT[g.key] }))
     : REVIEW_GRADES;
-}
-
-/** The pre-flip confidence tap — the calibration hook, least → most solid. */
-export const REVIEW_CONFIDENCE = ["Blank", "Shaky", "Solid"] as const;
-export type ReviewConfidence = 0 | 1 | 2;
-
-const REVIEW_CONFIDENCE_PT = ["Em branco", "Instável", "Sólido"] as const;
-
-/** Language-aware pre-flip confidence tap labels. */
-export function reviewConfidenceLabels(lang: Language = "en"): readonly string[] {
-  return lang === "pt-BR" ? REVIEW_CONFIDENCE_PT : REVIEW_CONFIDENCE;
 }
 
 /** Retention-health forecast tone: due now, softening, or rock-solid. */
@@ -161,18 +162,22 @@ export function reviewAside(lang: Language = "en"): string {
   return lang === "pt-BR" ? REVIEW_ASIDE_PT : REVIEW_ASIDE;
 }
 
-/** The stages of one card: confidence tap → flip → grade, or the fail aside. */
-export type RetainStage = "confidence" | "reveal" | "aside" | "failed";
+/** The stages of one card: question → flip → grade, or the fail aside. */
+export type RetainStage = "question" | "reveal" | "aside" | "failed";
 
 /** The live state of one Retain session — held by AtlasApp, read by the view. */
 export interface RetainSession {
-  /** Index of the card on screen. */
+  /** Index of the card on screen, into `retainDeck` rather than `content.cards`. */
   idx: number;
   stage: RetainStage;
-  /** Confidence tapped before the flip (the calibration hook). */
-  conf: ReviewConfidence | null;
-  /** Grade recorded per card id — drives the honest-queue progress + budget. */
-  done: Record<string, ReviewGrade>;
+  /** Indices into `content.cards` of missed cards sent to the back of the deck,
+   *  in the order they were missed. A miss really does come back — but only
+   *  once, or a card nobody can answer is a pass with no end. */
+  requeued: number[];
+  /** Grade recorded per **deck position**, not per card id: a requeued card
+   *  comes back under the same id, and keying by id lit its second slot on the
+   *  rail with the first answer's colour before it had been answered. */
+  done: Record<number, ReviewGrade>;
   /** True once a missed card has flagged its node Shaky on the map. */
   wroteBack: boolean;
   /** True once the queue is cleared — the done-for-today surface. */
@@ -182,8 +187,8 @@ export interface RetainSession {
 export function retainStart(): RetainSession {
   return {
     idx: 0,
-    stage: "confidence",
-    conf: null,
+    stage: "question",
+    requeued: [],
     done: {},
     wroteBack: false,
     finished: false,
@@ -191,24 +196,36 @@ export function retainStart(): RetainSession {
 }
 
 export type RetainAction =
-  | { type: "confidence"; level: ReviewConfidence }
+  | { type: "flip" }
   | { type: "grade"; grade: ReviewGrade }
   | { type: "toggleAside" }
   | { type: "continue" };
 
+/**
+ * Today's deck: the budgeted cards, then whichever of them were missed. The
+ * requeue is the session's, not the store's — the scheduler has already been
+ * told where the card goes next, and this second trip is the learner getting
+ * one more honest attempt before the pass ends.
+ */
+export function retainDeck(session: RetainSession, content: RetainContent): ReviewCard[] {
+  if (session.requeued.length === 0) return content.cards;
+  return [...content.cards, ...session.requeued.map((i) => content.cards[i])];
+}
+
 /** Move to the next card, or finish the queue when it's the last. */
 function retainAdvance(
   session: RetainSession,
-  done: Record<string, ReviewGrade>,
+  done: Record<number, ReviewGrade>,
   content: RetainContent,
 ): RetainSession {
   const next = session.idx + 1;
-  if (next >= content.cards.length) return { ...session, done, finished: true };
-  return { ...session, idx: next, stage: "confidence", conf: null, done };
+  if (next >= retainDeck(session, content).length)
+    return { ...session, done, finished: true };
+  return { ...session, idx: next, stage: "question", done };
 }
 
 /**
- * The review engine, as a pure transition. Confidence flips the card; a grade
+ * The review engine, as a pure transition. The card flips on request; a grade
  * feeds FSRS and advances — except "Again", which opens the alive-loop (the
  * fail stage with its instant re-explanation). The map write-back (flagging the
  * node Shaky) is a side effect that lives in AtlasApp, exactly as the Crucible's
@@ -220,9 +237,9 @@ export function retainReducer(
   content: RetainContent,
 ): RetainSession {
   switch (action.type) {
-    case "confidence":
-      if (session.stage !== "confidence") return session;
-      return { ...session, conf: action.level, stage: "reveal" };
+    case "flip":
+      if (session.stage !== "question") return session;
+      return { ...session, stage: "reveal" };
     case "toggleAside":
       if (session.stage !== "reveal" && session.stage !== "aside") return session;
       return {
@@ -231,12 +248,23 @@ export function retainReducer(
       };
     case "grade": {
       if (session.stage !== "reveal" && session.stage !== "aside") return session;
-      const card = content.cards[session.idx];
-      const done = { ...session.done, [card.id]: action.grade };
-      // A miss doesn't just reschedule — it opens the alive-loop and flags the
-      // node Shaky (the write-back happens in AtlasApp).
+      const card = reviewCard(session, content);
+      const done = { ...session.done, [session.idx]: action.grade };
+      // A miss doesn't just reschedule — it opens the alive-loop, flags the
+      // node Shaky (the write-back happens in AtlasApp) and sends the card to
+      // the back of today's deck. Only a card on its *first* trip requeues:
+      // `idx` past the budgeted cards is already the second one.
       if (action.grade === "again")
-        return { ...session, stage: "failed", done, wroteBack: !!card.fails };
+        return {
+          ...session,
+          stage: "failed",
+          done,
+          wroteBack: !!card.fails,
+          requeued:
+            session.idx < content.cards.length
+              ? [...session.requeued, session.idx]
+              : session.requeued,
+        };
       return retainAdvance(session, done, content);
     }
     case "continue":
@@ -248,10 +276,17 @@ export function retainReducer(
   }
 }
 
-/** The card on screen (clamped to the generated deck). */
+/** The card on screen (clamped to today's deck). */
 export function reviewCard(session: RetainSession, content: RetainContent): ReviewCard {
-  return content.cards[Math.min(session.idx, content.cards.length - 1)];
+  const deck = retainDeck(session, content);
+  return deck[Math.min(session.idx, deck.length - 1)];
 }
+
+/** Roughly how long one card takes. The queue is budgeted in minutes against
+ *  the daily target, never framed as a wall of cards. Lives here rather than in
+ *  `lib/fsrs.ts` (which re-exports it) because that module imports these types,
+ *  and the budget math below needs the same number the deck was cut with. */
+export const CARD_MINUTES = 1.5;
 
 /** The honest queue's time math — minutes, never a card count. */
 export interface RetainBudget {
@@ -269,12 +304,14 @@ export function retainBudget(
   session: RetainSession,
   content: RetainContent,
 ): RetainBudget {
-  const total = Math.max(1, content.cards.length);
+  const total = Math.max(1, retainDeck(session, content).length);
   const doneCount = session.finished ? total : Object.keys(session.done).length;
-  const perCard = content.budgetMin / total;
-  const spent = Math.round(doneCount * perCard);
-  const left = Math.max(0, content.budgetMin - spent);
-  const pct = Math.min(100, Math.round((spent / content.budgetMin) * 100));
+  // A card costs what a card costs. Dividing the budget by however few cards
+  // happened to be due made a two-card queue claim seven minutes each, which is
+  // the opposite of the honest framing this bar exists for.
+  const spent = Math.round(doneCount * CARD_MINUTES);
+  const left = Math.max(0, Math.round(total * CARD_MINUTES) - spent);
+  const pct = Math.min(100, Math.round((doneCount / total) * 100));
   return { doneCount, total, spent, left, pct };
 }
 
@@ -295,24 +332,4 @@ export function retainQueueLabel(
     return over > 0 ? `Budget spent · ${over} waiting` : "Queue clear";
   const { left, total, doneCount } = retainBudget(session, content);
   return `~${left} min left · ${total - doneCount} cards`;
-}
-
-/**
- * The failure calibration read-back: the confidence tap held against the miss.
- * A "Solid" tap that then missed is the overconfidence Review exists to catch.
- */
-export function retainCalib(session: RetainSession, lang: Language = "en"): string {
-  if (session.stage !== "failed") return "";
-  if (lang === "pt-BR") {
-    if (session.conf === 2)
-      return "Você tocou “Sólido” antes de virar — e errou. Esse excesso de confiança é exatamente o sinal que a Revisão existe para pegar.";
-    if (session.conf === 0)
-      return "Você sinalizou em branco, e estava certo. Bem calibrado — agora vamos fechar isso de verdade.";
-    return "Você se sentiu instável, e estava. O cartão volta para o início da fila e o nó reentra no ciclo.";
-  }
-  if (session.conf === 2)
-    return "You tapped “Solid” before flipping — and missed it. That over-confidence is the exact signal Review is built to catch.";
-  if (session.conf === 0)
-    return "You flagged it blank, and it was. Well-calibrated — now let’s close it for real.";
-  return "You felt shaky, and it was. The card goes back to the front of the queue and the node re-enters the loop.";
 }

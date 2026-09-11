@@ -141,10 +141,17 @@ test.describe("Full Visual Browser Tour", () => {
     await openPhase(page, FIRST_NODE, 5);
     const retainSheet = page.getByTestId("phase-retain");
     await expect(retainSheet).toBeVisible();
-    const felt = retainSheet.getByTestId("action-confidence-2");
-    if (await felt.isVisible().catch(() => false)) await felt.click();
+    await expect(retainSheet.getByTestId("action-flip")).toBeVisible({
+      timeout: 20_000,
+    });
     await page.waitForTimeout(500);
+    // The card's *front* — the screen as the learner meets it.
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "12_phase_retain.png") });
+    await retainSheet.getByTestId("action-flip").click();
+    await page.waitForTimeout(700);
+    await page.screenshot({
+      path: path.join(SCREENSHOT_DIR, "12b_phase_retain_back.png"),
+    });
 
     // 12. Dashboard
     await openRun(page, { [FIRST_NODE]: "mastered" });

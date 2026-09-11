@@ -463,7 +463,11 @@ public extension AtlasStore {
         // uses only the second. The `draft:` prefix is what keeps it out of
         // the address space (see `AtlasStore.mirror`).
         let key = "draft:retain|\(subject)|\(language)|\(nodes.ids)"
-        let (api, topic, budget, interests) = (api, subject, dailyTarget, interests)
+        // The *review* budget, not the raw daily target: the browser asks the
+        // factory for the same number (`retainPlan`), and the budget is part of
+        // the shared `content_cache` key — two clients sending different ones
+        // pay for the same draft twice.
+        let (api, topic, budget, interests) = (api, subject, reviewBudgetMin, interests)
         let items = nodes.map { (id: $0.id, label: $0.label, state: states[$0.id] ?? .learning) }
         let error = await warm.fill(key, once: {
             try await api.retain(topic: topic, budgetMin: budget, nodes: items, interests: interests)

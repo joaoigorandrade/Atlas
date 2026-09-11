@@ -1,8 +1,8 @@
 import Navigation
 import SwiftUI
 
-/// "Revisão" — the daily queue, one card at a time: tap how solid it felt,
-/// flip, grade. A miss opens the alive-loop rather than only rescheduling.
+/// "Revisão" — the daily queue, one card at a time: read it, flip it, grade it.
+/// A miss opens the alive-loop rather than only rescheduling.
 public struct ReviewView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
@@ -120,7 +120,7 @@ public struct ReviewView: View {
     }
 
     /// What the pass was worth — the counts, the streak, and the one line the
-    /// confidence taps finally say out loud.
+    /// grades add up to.
     private func tally(_ model: ReviewViewModel) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
@@ -227,22 +227,17 @@ public struct ReviewView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 switch model.stage {
-                case .confidence:
-                    Kicker("Antes de virar", size: 10).padding(.top, 24)
-                    HStack(spacing: 8) {
-                        ForEach(ReviewConfidence.allCases) { level in
-                            Button { model.tap(level) } label: {
-                                Text(level.label)
-                                    .font(.atlas(.sans, 13.5))
-                                    .foregroundStyle(Palette.inkSoft)
-                                    .frame(maxWidth: .infinity, minHeight: 48)
-                                    .background(Palette.card, in: .rect(cornerRadius: 11))
-                                    .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
-                            }
-                            .pressable()
-                        }
+                case .question:
+                    Button { model.flip() } label: {
+                        Text("Mostrar resposta")
+                            .font(.atlas(.serif, 16))
+                            .foregroundStyle(Palette.accent)
+                            .frame(maxWidth: .infinity, minHeight: Metrics.cta)
+                            .background(Palette.accentBg, in: .rect(cornerRadius: 11))
+                            .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.accent.opacity(0.28), lineWidth: 1) }
                     }
-                    .padding(.top, 10)
+                    .pressable()
+                    .padding(.top, 24)
                 case .reveal:
                     Divider().overlay(Palette.hairline).padding(.vertical, 18)
                     Text(verbatim: card.back)
@@ -280,8 +275,6 @@ public struct ReviewView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Palette.dangerBg, in: .rect(cornerRadius: 10))
             }
-            Text(model.calibrationLine)
-                .font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted).lineSpacing(3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -292,8 +285,8 @@ public struct ReviewView: View {
     private func dock(_ model: ReviewViewModel, _ card: ReviewCard) -> some View {
         Dock {
             switch model.stage {
-            case .confidence:
-                Text("Diga como se sente antes de virar — é o toque que constrói sua curva de calibração.")
+            case .question:
+                Text("Responda de cabeça primeiro — depois vire o cartão.")
                     .font(.atlas(.sans, 12.5))
                     .foregroundStyle(Palette.inkFaint)
                     .multilineTextAlignment(.center)

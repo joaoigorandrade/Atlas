@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "Mostrar resposta" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show answer"
+          }
+        }
+      }
+    },
+    "Responda de cabeça primeiro — depois vire o cartão." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer it in your head first — then turn the card over."
+          }
+        }
+      }
+    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -697,17 +719,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Before you see the problem"
-          }
-        }
-      }
-    },
-    "Antes de virar" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Before you flip"
           }
         }
       }
@@ -1677,17 +1688,6 @@
         }
       }
     },
-    "Diga como se sente antes de virar — é o toque que constrói sua curva de calibração." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Say how it feels before you flip — that tap is what builds your calibration curve."
-          }
-        }
-      }
-    },
     "Diga primeiro o que você quer aprender." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1805,17 +1805,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In progress"
-          }
-        }
-      }
-    },
-    "Em branco" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Blank"
           }
         }
       }
@@ -4369,17 +4358,6 @@
         }
       }
     },
-    "Sólido" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Solid"
-          }
-        }
-      }
-    },
     "Sua fronteira" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5015,17 +4993,6 @@
         }
       }
     },
-    "Você se sentiu instável, e estava. O cartão volta para o fim da fila e o nó reentra no ciclo." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You felt shaky, and you were. The card goes back to the end of the queue and the node re-enters the loop."
-          }
-        }
-      }
-    },
     "Você se sentiu razoavelmente confiante, mas um subconceito não se transferiu. Registre a diferença entre se sentir pronto e estar pronto." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5044,39 +5011,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You flagged low confidence, and the shaky spot was real — that's well-calibrated. Now close it."
-          }
-        }
-      }
-    },
-    "Você sinalizou em branco, e estava certo. Bem calibrado — agora vamos fechar isso de verdade." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You flagged it blank, and you were right. Well calibrated — now let's actually close it."
-          }
-        }
-      }
-    },
-    "Você tocou “Sólido” antes de virar — e errou. Esse excesso de confiança é exatamente o sinal que a Revisão existe para pegar." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You tapped “Solid” before flipping — and missed. That overconfidence is exactly the signal Review exists to catch."
-          }
-        }
-      }
-    },
-    "Você tocou “Sólido” antes de virar em %lld dos que errou — é esse excesso de confiança que a curva de calibração existe para pegar." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You tapped “Solid” before flipping on %lld of the ones you missed — that overconfidence is exactly what the calibration curve exists to catch."
           }
         }
       }

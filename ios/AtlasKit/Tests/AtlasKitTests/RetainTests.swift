@@ -3,9 +3,8 @@ import Testing
 @testable import AtlasKit
 
 /// What Review writes. Layout is layout; these are the parts that lie to the
-/// learner if they drift: the alive-loop a miss opens, the calibration reading
-/// the tap-then-grade pair produces, and the review history that finally earns
-/// Retained.
+/// learner if they drift: the alive-loop a miss opens, and the review history
+/// that finally earns Retained.
 ///
 /// The scheduler itself is deliberately not tested here any more — it does not
 /// live here. This client used to carry a hand-rolled SM-2 while the browser
@@ -48,29 +47,26 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 }
 
 @MainActor
-@Test func aTapThenAGradeIsOneCalibrationReading() {
+@Test func aCardIsOnlyGradedOnceItHasBeenTurnedOver() {
     let owner = store()
     let review = ReviewViewModel(store: owner, deck: [card()])
 
     // Nothing is graded before the card is flipped.
     review.grade(.good)
     #expect(review.results.isEmpty)
+    #expect(review.stage == .question)
 
-    review.tap(.solid)
+    review.flip()
     #expect(review.stage == .reveal)
-    review.grade(.again)
-
-    #expect(owner.calib.first?.id == "lat")
-    #expect(owner.calib.first?.felt == ReviewConfidence.solid.felt)
-    #expect(owner.calib.first?.real == ReviewGrade.again.real)
-    #expect(calibItems(owner.calib, owner.graph).first?.verdict == .over)
+    review.grade(.good)
+    #expect(review.results[0] == .good)
 }
 
 @MainActor
 @Test func aMissReEntersTheSpiralAndComesBackOnce() {
     let owner = store()
     let review = ReviewViewModel(store: owner, deck: [card()])
-    review.tap(.solid)
+    review.flip()
     review.grade(.again)
 
     // The alive-loop: the node is Shaky on the map and the card is at the end
@@ -81,7 +77,7 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
     #expect(review.deck.count == 2)
 
     review.advance()
-    review.tap(.blank)
+    review.flip()
     review.grade(.again)
     // Once. A card nobody can answer is not a session without an end.
     #expect(review.deck.count == 2)
@@ -91,7 +87,7 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 @Test func onlyARealReviewEarnsRetained() {
     let owner = store()
     let review = ReviewViewModel(store: owner, deck: [card()])
-    review.tap(.solid)
+    review.flip()
     review.grade(.good)
 
     #expect(review.finished)
@@ -117,4 +113,31 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
     #expect(items.map(\.verdict) == [.over, .under, .ok])
     // A node that isn't on the map still reads as itself rather than vanishing.
     #expect(items[1].label == "lim")
+}
+
+@MainActor
+@Test func theDraftCoversWhatItIsGivenAndSkipsWhatWasNeverTaught() {
+    let owner = store()
+    owner.graph = ConceptGraph(nodes:
+        (0..<12).map { ConceptNode(id: "n\($0)", label: "Nó \($0)") }
+        + [ConceptNode(id: "lacuna", label: "Lacuna", gap: true)])
+    owner.states = Dictionary(uniqueKeysWithValues:
+        owner.graph.nodes.map { ($0.id, NodeState.mastered) })
+
+    // One draft's worth, and never a gap: a gap is a concept the learner has
+    // not met, so a card asking them to recall it is a card about nothing.
+    #expect(owner.uncovered.count == retainDraftNodes)
+    #expect(!owner.uncovered.contains { $0.id == "lacuna" })
+}
+
+@MainActor
+@Test func theReviewBudgetSitsInTheSameBandTheBrowserUses() {
+    let owner = store()
+    // `retainPlan` on the web: min(15, max(5, round(target / 2))).
+    owner.dailyTarget = 60
+    #expect(owner.reviewBudgetMin == 15)
+    owner.dailyTarget = 4
+    #expect(owner.reviewBudgetMin == 5)
+    owner.dailyTarget = 20
+    #expect(owner.reviewBudgetMin == 10)
 }

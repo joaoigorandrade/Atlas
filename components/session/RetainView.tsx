@@ -2,20 +2,17 @@
 
 import {
   CONNECT_COLOR,
-  CRUCIBLE_COLOR,
   STATE_COLOR,
   retainBudget,
-  retainCalib,
+  retainDeck,
   retainQueueLabel,
   reviewAside,
   reviewCard,
-  reviewConfidenceLabels,
   reviewGrades,
   reviewTypeMeta,
   type AdherenceState,
   type RetainContent,
   type ReviewCard,
-  type ReviewConfidence,
   type ReviewGrade,
   type RetainSession,
 } from "@/lib/curriculum";
@@ -54,8 +51,8 @@ interface RetainViewProps {
   /** Arm / disarm the right-moment reminder from the flame + done surface. */
   onToggleReminder: () => void;
   onExit: () => void;
-  /** Tap confidence before the flip — the calibration hook. */
-  onConfidence: (level: ReviewConfidence) => void;
+  /** Turn the card over. */
+  onFlip: () => void;
   /** Grade after reveal — feeds FSRS (Again opens the alive-loop). */
   onGrade: (grade: ReviewGrade) => void;
   /** Toggle the micro-Socratic aside on a revealed card. */
@@ -75,7 +72,7 @@ export default function RetainView({
   litToday,
   onToggleReminder,
   onExit,
-  onConfidence,
+  onFlip,
   onGrade,
   onToggleAside,
   onReteach,
@@ -83,6 +80,7 @@ export default function RetainView({
   presence,
 }: RetainViewProps) {
   const t = useT(STRINGS);
+  const { language } = useLanguage();
   const card = reviewCard(session, content);
   const budget = retainBudget(session, content);
 
@@ -150,7 +148,7 @@ export default function RetainView({
               background: color.accent,
             }}
           />
-          {retainQueueLabel(session, content)}
+          {retainQueueLabel(session, content, language)}
         </div>
       </div>
 
@@ -185,7 +183,7 @@ export default function RetainView({
                   session={session}
                   content={content}
                   nodeLabel={nodeLabel ?? t.thisNode}
-                  onConfidence={onConfidence}
+                  onFlip={onFlip}
                   onGrade={onGrade}
                   onToggleAside={onToggleAside}
                   onReteach={onReteach}
@@ -217,15 +215,18 @@ function QueueRail({
 }) {
   const t = useT(STRINGS);
   const grades = Object.fromEntries(reviewGrades().map((g) => [g.key, g.color]));
+  // The deck, not the content: a missed card is on the rail twice, and its
+  // second slot stays unanswered until it has actually been answered again.
+  const deck = retainDeck(session, content);
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", gap: 4 }}>
-        {content.cards.map((c, i) => {
-          const graded = session.done[c.id];
+        {deck.map((c, i) => {
+          const graded = session.done[i];
           const current = i === session.idx && !session.finished;
           return (
             <div
-              key={c.id}
+              key={`${c.id}-${i}`}
               style={{
                 flex: 1,
                 height: 4,
@@ -250,13 +251,8 @@ function QueueRail({
           ...kicker(9.5, "0.1em"),
         }}
       >
-        <span>
-          {t.cardOf(
-            Math.min(session.idx + 1, content.cards.length),
-            content.cards.length,
-          )}
-        </span>
-        <span>{t.deckLeft(Math.max(0, content.cards.length - session.idx - 1))}</span>
+        <span>{t.cardOf(Math.min(session.idx + 1, deck.length), deck.length)}</span>
+        <span>{t.deckLeft(Math.max(0, deck.length - session.idx - 1))}</span>
       </div>
     </div>
   );
@@ -333,7 +329,7 @@ function ActiveCard({
   session,
   content,
   nodeLabel,
-  onConfidence,
+  onFlip,
   onGrade,
   onToggleAside,
   onReteach,
@@ -343,7 +339,7 @@ function ActiveCard({
   session: RetainSession;
   content: RetainContent;
   nodeLabel: string;
-  onConfidence: (level: ReviewConfidence) => void;
+  onFlip: () => void;
   onGrade: (grade: ReviewGrade) => void;
   onToggleAside: () => void;
   onReteach: () => void;
@@ -354,7 +350,7 @@ function ActiveCard({
   const reduced = useReducedMotion();
   const type = reviewTypeMeta(card.type, language);
   const grades = reviewGrades(language);
-  const isConfidence = session.stage === "confidence";
+  const isQuestion = session.stage === "question";
   const revealed = session.stage === "reveal" || session.stage === "aside";
   const failed = session.stage === "failed";
   const flipped = revealed || failed;
@@ -385,9 +381,9 @@ function ActiveCard({
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
-      if (isConfidence && "123".includes(e.key)) {
+      if (isQuestion && (e.key === " " || e.key === "Enter")) {
         e.preventDefault();
-        onConfidence((Number(e.key) - 1) as ReviewConfidence);
+        onFlip();
       } else if (revealed && "1234".includes(e.key)) {
         e.preventDefault();
         grade(grades[Number(e.key) - 1].key);
@@ -401,18 +397,9 @@ function ActiveCard({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [
-    isConfidence,
-    revealed,
-    failed,
-    grades,
-    grade,
-    onConfidence,
-    onToggleAside,
-    onContinue,
-  ]);
+  }, [isQuestion, revealed, failed, grades, grade, onFlip, onToggleAside, onContinue]);
 
-  const remaining = content.cards.length - session.idx - 1;
+  const remaining = retainDeck(session, content).length - session.idx - 1;
   const face = {
     gridArea: "1 / 1",
     background: color.card,
@@ -498,7 +485,7 @@ function ActiveCard({
               : "dealIn .42s cubic-bezier(.2,.8,.3,1) both",
           }}
         >
-          {/* Front — the question and the pre-flip confidence tap. */}
+          {/* Front — the question, and the one thing to do with it: turn it over. */}
           <div
             style={{
               ...face,
@@ -510,79 +497,40 @@ function ActiveCard({
             <Question card={card} filled={false} size={26} />
 
             <div style={{ marginTop: "auto", paddingTop: 28 }}>
-              <div
+              <button
+                className="at-press at-lift"
+                data-testid="action-flip"
+                onClick={onFlip}
                 style={{
+                  width: "100%",
                   display: "flex",
-                  alignItems: "baseline",
-                  justifyContent: "space-between",
-                  marginBottom: 11,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  padding: "15px 18px",
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  fontFamily: font.serif,
+                  fontSize: 16,
+                  color: color.accent,
+                  background: color.accentBg,
+                  border: `1px solid rgba(47,107,79,0.28)`,
                 }}
               >
-                <span style={kicker(10, "0.12em")}>{t.beforeFlip}</span>
-                <span style={{ ...kicker(9, "0.08em"), color: color.inkGhost }}>
-                  {t.confHint}
+                {t.showAnswer}
+                <span
+                  style={{
+                    fontFamily: font.mono,
+                    fontSize: 9.5,
+                    color: color.inkGhost,
+                    border: `1px solid ${color.hairlineStrong}`,
+                    borderRadius: 4,
+                    padding: "1px 5px",
+                  }}
+                >
+                  {t.flipKey}
                 </span>
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                {reviewConfidenceLabels(language).map((label, i) => {
-                  const active = session.conf === i;
-                  // Blank → shaky-amber, Solid → mastered-green: the tap is
-                  // read on the same scale the map uses.
-                  const tone = [STATE_COLOR.gap, STATE_COLOR.shaky, STATE_COLOR.mastered][
-                    i
-                  ];
-                  return (
-                    <button
-                      className="at-press at-lift"
-                      key={label}
-                      data-testid={`action-confidence-${i}`}
-                      onClick={() => onConfidence(i as ReviewConfidence)}
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 7,
-                        padding: "14px 12px 12px",
-                        borderRadius: 12,
-                        cursor: "pointer",
-                        fontSize: 15,
-                        fontFamily: font.serif,
-                        background: active ? `${tone}14` : color.cardAlt,
-                        border: `1px solid ${active ? tone : color.hairlineStrong}`,
-                        color: active ? tone : color.inkSoft,
-                      }}
-                    >
-                      {/* Three bars filling left to right: blank, shaky, solid. */}
-                      <span style={{ display: "flex", gap: 3 }}>
-                        {[0, 1, 2].map((b) => (
-                          <span
-                            key={b}
-                            style={{
-                              width: 12,
-                              height: 4,
-                              borderRadius: 2,
-                              background: b <= i ? tone : "rgba(44,40,35,0.14)",
-                              opacity: b <= i ? 1 : 1,
-                              transition: transition("background", "fast"),
-                            }}
-                          />
-                        ))}
-                      </span>
-                      {label}
-                      <span
-                        style={{
-                          fontFamily: font.mono,
-                          fontSize: 9.5,
-                          color: color.inkGhost,
-                        }}
-                      >
-                        {i + 1}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              </button>
               <div
                 style={{
                   marginTop: 9,
@@ -761,29 +709,6 @@ function ActiveCard({
       {/* Failed — the alive-loop: calibration read, instant re-explain, writeback */}
       {failed && (
         <div style={{ marginTop: 16, animation: "fadeUp .3s both" }}>
-          <div
-            style={{
-              background: color.cardAlt,
-              border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 12,
-              padding: "15px 18px",
-              marginBottom: 14,
-            }}
-          >
-            <div
-              style={{
-                ...kicker(9.5, "0.1em"),
-                color: CRUCIBLE_COLOR.accent,
-                marginBottom: 7,
-              }}
-            >
-              {t.confidenceVsResult}
-            </div>
-            <div style={{ fontSize: 14, lineHeight: 1.58, color: color.inkSoft }}>
-              {retainCalib(session, language)}
-            </div>
-          </div>
-
           <div
             style={{
               borderLeft: `3px solid ${STATE_COLOR.learning}`,

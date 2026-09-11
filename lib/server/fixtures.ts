@@ -254,7 +254,7 @@ const retainContent = (body: GenerateBody, v: Vars): RetainContent => ({
     {
       id: "r1",
       type: "recall",
-      source: `your reading pass on ${v.labels[0]}`,
+      source: "Consume",
       node: v.ids[0],
       cloze: [`${v.labels[0]} states `, " that the rest of the topic leans on."],
       answer: "the rule",
@@ -265,7 +265,7 @@ const retainContent = (body: GenerateBody, v: Vars): RetainContent => ({
     {
       id: "r2",
       type: "why",
-      source: `your teach-back on ${v.labels[1]}`,
+      source: "Feynman",
       node: v.ids[1],
       front: `Why does ${v.labels[1]} hold?`,
       back: "Because it follows from the step before it, given the same requirement.",

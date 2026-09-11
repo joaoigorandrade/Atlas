@@ -32,6 +32,7 @@ import {
   recordMisconception,
   recurringMisconceptions,
   removeNode,
+  RETAIN_DRAFT_NODES,
   retainReducer,
   retainStart,
   reviewCard,
@@ -50,7 +51,6 @@ import {
   type FeynmanBeat,
   type GapSpec,
   type NodeState,
-  type ReviewConfidence,
   type ReviewGrade,
   type SocraticAction,
   type SocraticStep,
@@ -90,13 +90,6 @@ const MOMENTUM_WEEKS = 3;
 
 /** Confidence tap → a felt-% reading for the calibration curve. */
 const CRUCIBLE_FELT: Record<number, number> = { 0: 35, 1: 65, 2: 90 };
-const REVIEW_FELT: Record<number, number> = { 0: 20, 1: 55, 2: 88 };
-const GRADE_REAL: Record<ReviewGrade, number> = {
-  again: 25,
-  hard: 55,
-  good: 75,
-  easy: 95,
-};
 
 export function useSpiral(deps: {
   run: RunState;
@@ -1615,9 +1608,12 @@ export function useSpiral(deps: {
         !n.gap &&
         ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
     );
-    const uncovered = touched.filter(
-      (n) => !cardsRef.current.some((c) => c.nodeId === n.id),
-    );
+    // One draft covers one draft's worth of nodes. Sending every uncovered node
+    // asked for more cards than the factory will ever return, so the surplus
+    // nodes were silently dropped by whichever ones the model chose to write.
+    const uncovered = touched
+      .filter((n) => !cardsRef.current.some((c) => c.nodeId === n.id))
+      .slice(0, RETAIN_DRAFT_NODES);
     return {
       budgetMin,
       touched,
@@ -1717,10 +1713,10 @@ export function useSpiral(deps: {
     setScreen,
   ]);
 
-  const retainConfidence = (level: ReviewConfidence) => {
+  const retainFlip = () => {
     setRetain((prev) => {
       if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "confidence", level }, retainContentRef.current);
+      return retainReducer(prev, { type: "flip" }, retainContentRef.current);
     });
   };
 
@@ -1741,26 +1737,28 @@ export function useSpiral(deps: {
   /**
    * Grade a card — feeds FSRS and advances. "Again" is the alive-loop: the
    * fail stage opens and the card's node is flagged Shaky, so retention
-   * failure re-enters Phase 1. The pre-flip confidence tap, held against the
-   * grade, becomes a live calibration reading.
+   * failure re-enters Phase 1.
    */
   const retainGrade = (grade: ReviewGrade) => {
     const cur = retainRef.current;
     const content = retainContentRef.current;
     if (!cur || !content) return;
     const card = reviewCard(cur, content);
+    // A card on its second trip through today's deck was already graded and
+    // rescheduled; grading it again would schedule off a state this pass no
+    // longer knows. The second answer only moves what the screen says about it.
+    const firstTrip = cur.idx < content.cards.length;
     setRetain(retainReducer(cur, { type: "grade", grade }, content));
     // Real FSRS (#21): the scheduler computes the card's next due date.
-    setCards((prev) =>
-      prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
-    );
+    if (firstTrip)
+      setCards((prev) =>
+        prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
+      );
     // Real review history — what finally earns "Retained ✓" (#13).
     if (grade === "good" || grade === "easy")
       setReviewedNodes((prev) =>
         prev.includes(card.node) ? prev : [...prev, card.node],
       );
-    if (cur.conf !== null)
-      recordCalib(card.node, REVIEW_FELT[cur.conf], GRADE_REAL[grade]);
     if (grade === "again" && card.fails) {
       setStates((prev) =>
         prev[card.node] === "shaky" ? prev : { ...prev, [card.node]: "shaky" },
@@ -2108,7 +2106,7 @@ export function useSpiral(deps: {
     exitCrucible,
     retainPlan,
     enterReview,
-    retainConfidence,
+    retainFlip,
     retainToggleAside,
     retainContinue,
     retainGrade,

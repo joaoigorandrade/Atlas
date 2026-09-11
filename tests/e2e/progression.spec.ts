@@ -179,14 +179,36 @@ test("retain: grading the day's queue writes the card store", async ({ page }) =
   const sheet = page.getByTestId("phase-retain");
   await expect(sheet).toBeVisible();
 
-  // Confidence tap (the pre-flip "felt"), then flip, then grade.
-  const felt = sheet.getByTestId("action-confidence-2");
-  if (await felt.isVisible().catch(() => false)) await felt.click();
+  // Read the front, turn it over, grade it.
+  await sheet.getByTestId("action-flip").click();
   const good = sheet.getByTestId("action-grade-good");
   await expect(good).toBeVisible({ timeout: 20_000 });
   await good.click();
 
   await persisted(page, (s) => ((s.cards ?? []) as unknown[]).length > 0);
+});
+
+test("retain: a missed card comes back at the end of the same pass", async ({ page }) => {
+  await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
+  await openPhase(page, FIRST_NODE, 5);
+
+  const sheet = page.getByTestId("phase-retain");
+  await expect(sheet).toBeVisible();
+  await sheet.getByTestId("action-flip").click();
+  await expect(sheet.getByTestId("action-grade-again")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  // Two cards in the fixture deck; missing the first makes it three.
+  await expect(sheet.getByText(/Card 1 of 2|Card 1 de 2/)).toBeVisible();
+  await sheet.getByTestId("action-grade-again").click();
+  await sheet.getByTestId("action-continue").click();
+  await expect(sheet.getByText(/Card 2 of 3|Card 2 de 3/)).toBeVisible();
+
+  // …and the third slot really is the one that was missed.
+  await sheet.getByTestId("action-flip").click();
+  await sheet.getByTestId("action-grade-good").click();
+  await expect(sheet.getByText(/Card 3 of 3|Card 3 de 3/)).toBeVisible();
 });
 
 test("persistence: a reload restores the run exactly", async ({ page }) => {

@@ -10,13 +10,14 @@ import {
   mapNodeBounds,
   validateGraphPart,
   validateMapConcept,
+  RETAIN_CARD_BOUNDS,
   retainCardBounds,
   validateRetain,
   validateScopeOffer,
   validateSocratic,
   validateSummary,
 } from "@/lib/server/generate";
-import { graphFromMapNodes } from "@/lib/curriculum";
+import { graphFromMapNodes, RETAIN_DRAFT_NODES } from "@/lib/curriculum";
 import { migrateConsume, type LegacyConsumeChunk } from "@/lib/contentMigrate";
 
 // ---- curriculum map: DAG + scoping --------------------------------------------
@@ -726,6 +727,14 @@ describe("validateRetain", () => {
 });
 
 describe("retainCardBounds", () => {
+  it("never asks for more cards than a draft's worth of nodes", () => {
+    // Both clients slice their uncovered nodes to `RETAIN_DRAFT_NODES` before
+    // calling, precisely because the band stops there — asking for thirty
+    // returned eight over whichever nodes the model picked.
+    expect(RETAIN_CARD_BOUNDS.max).toBe(RETAIN_DRAFT_NODES);
+    expect(retainCardBounds(RETAIN_DRAFT_NODES * 4).max).toBe(RETAIN_DRAFT_NODES);
+  });
+
   it("asks for about one card per node in rotation", () => {
     expect(retainCardBounds(5)).toEqual({ min: 4, max: 6 });
   });

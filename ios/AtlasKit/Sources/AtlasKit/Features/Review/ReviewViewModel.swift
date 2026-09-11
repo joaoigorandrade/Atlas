@@ -4,19 +4,18 @@ import SwiftUI
 /// Screen 19 — one pass over the day's deck, plus how that deck came to exist.
 ///
 /// It owns three things: which card is on screen, what a grade writes back (the
-/// scheduler, the review history that finally earns Retained, the calibration
-/// reading, and the Shaky flag a miss hangs on the node), and the one-off card
-/// draft for nodes that have never been reviewed. Mirrors `retainReducer` plus
-/// the write-backs `useSpiral` keeps beside it.
+/// scheduler, the review history that finally earns Retained, and the Shaky
+/// flag a miss hangs on the node), and the one-off card draft for nodes that
+/// have never been reviewed. Mirrors `retainReducer` plus the write-backs
+/// `useSpiral` keeps beside it.
 @Observable
 @MainActor
 public final class ReviewViewModel {
-    public enum Stage { case confidence, reveal, failed }
+    public enum Stage { case question, reveal, failed }
 
     public private(set) var deck: [ReviewCard]
     public private(set) var index = 0
-    public private(set) var stage: Stage = .confidence
-    public private(set) var confidence: ReviewConfidence?
+    public private(set) var stage: Stage = .question
     /// The grade each card got, keyed by its **position** in the deck — a
     /// missed card comes back with the same id, and keying by id lit its
     /// second slot on the rail red before the learner had answered it.
@@ -91,22 +90,15 @@ public final class ReviewViewModel {
     public var gradedCount: Int { results.count }
     public var recalledCount: Int { results.values.count { $0 == .good || $0 == .easy } }
 
-    /// The calibration read for the whole pass — the tap-before-flip finally
-    /// saying something out loud. Nil when the pass was too short to mean much.
+    /// What the pass came to. Nil when it was too short to mean much.
     public var passVerdict: String? {
         guard gradedCount >= 2 else { return nil }
         let missed = gradedCount - recalledCount
         if missed == 0 {
             return String(localized: "Você recordou todos. Se algum pareceu fácil demais, o intervalo dele acabou de crescer.")
         }
-        if overconfident > 0 {
-            return String(localized: "Você tocou “Sólido” antes de virar em \(overconfident) dos que errou — é esse excesso de confiança que a curva de calibração existe para pegar.")
-        }
         return String(localized: "Você errou \(missed). Eles voltam cedo, e os nós deles reentraram no ciclo.")
     }
-
-    /// Misses this pass that were preceded by a "Sólido" tap.
-    private var overconfident = 0
 
     /// The concept a missed card belongs to — what "reensinar agora" opens.
     public var failedNode: ConceptNode? {
@@ -143,13 +135,11 @@ public final class ReviewViewModel {
     private func reset(to deck: [ReviewCard]) {
         self.deck = deck
         index = 0
-        stage = .confidence
-        confidence = nil
+        stage = .question
         results = [:]
         requeued = []
         finished = deck.isEmpty
         message = ""
-        overconfident = 0
     }
 
     /// Try again after a failure. Generation is flaky by nature and the only
@@ -161,14 +151,14 @@ public final class ReviewViewModel {
 
     // MARK: - The pass
 
-    public func tap(_ level: ReviewConfidence) {
-        guard stage == .confidence else { return }
-        confidence = level
+    /// Turn the card over.
+    public func flip() {
+        guard stage == .question else { return }
         stage = .reveal
     }
 
-    /// Grade the card on screen: the scheduler moves it, the tap before the
-    /// flip becomes a calibration reading, and a miss flags its node Shaky.
+    /// Grade the card on screen: the scheduler moves it, and a miss flags its
+    /// node Shaky.
     public func grade(_ grade: ReviewGrade) {
         guard stage == .reveal, let card else { return }
         // The scheduler is the server's; the card leaves this deck immediately
@@ -181,11 +171,9 @@ public final class ReviewViewModel {
         if !requeued.contains(card.id) { store.grade(card, grade) }
         results[index] = grade
         store.markActiveToday()
-        if let confidence { store.recordCalib(card.node, felt: confidence.felt, real: grade.real) }
         // Real review history is what earns "Retido ✓" — mastered alone doesn't.
         if grade == .good || grade == .easy { store.reviewed.insert(card.node) }
         guard grade == .again else { return advance() }
-        if confidence == .solid { overconfident += 1 }
         // Any node a card keeps alive goes Shaky on a miss, not only a mastered
         // one — `useSpiral` has always flagged every node, and a Learning node
         // that just failed its own card is exactly what Shaky is for.
@@ -205,8 +193,7 @@ public final class ReviewViewModel {
     public func advance() {
         guard index + 1 < deck.count else { return finished = true }
         index += 1
-        stage = .confidence
-        confidence = nil
+        stage = .question
     }
 
     /// A cloze card is its two halves around the blank; everything else asks
@@ -218,18 +205,5 @@ public final class ReviewViewModel {
         // own element. Here the string is the layout, so it owns the spaces.
         return cloze[0].trimmingCharacters(in: .whitespaces) + " ______ "
             + cloze[1].trimmingCharacters(in: .whitespaces)
-    }
-
-    /// The failure read-back: the tap held against the miss. A "Sólido" that
-    /// then missed is the overconfidence the whole surface exists to catch.
-    public var calibrationLine: LocalizedStringKey {
-        switch confidence {
-        case .solid:
-            "Você tocou “Sólido” antes de virar — e errou. Esse excesso de confiança é exatamente o sinal que a Revisão existe para pegar."
-        case .blank:
-            "Você sinalizou em branco, e estava certo. Bem calibrado — agora vamos fechar isso de verdade."
-        default:
-            "Você se sentiu instável, e estava. O cartão volta para o fim da fila e o nó reentra no ciclo."
-        }
     }
 }

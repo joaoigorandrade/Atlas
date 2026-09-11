@@ -10,17 +10,23 @@ import {
   str,
   user,
 } from "./common";
-import { RetainContent, ReviewCard } from "@/lib/curriculum";
+import { RETAIN_DRAFT_NODES, RetainContent, ReviewCard } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
 
 const CARD_TYPES = ["recall", "why", "apply"] as const;
 
+/** The phases a card can be attributed to. Constrained rather than free text:
+ *  the provenance line reads "from your {source} session", so a model that
+ *  answers with a sentence ("your reading pass on Foundations") writes the
+ *  learner a line with "your" in it twice. */
+const CARD_SOURCES = ["Consume", "Socratic", "Feynman", "Connect", "Crucible"] as const;
+
 /** How many cards one Retain draft may carry, whatever the rotation looks like.
  *  The band the prompt asks for is narrower and derived per request — see
  *  `retainCardBounds` — since the honest count is roughly one card per node the
  *  learner actually has in rotation. */
-export const RETAIN_CARD_BOUNDS = { min: 3, max: 8 } as const;
+export const RETAIN_CARD_BOUNDS = { min: 3, max: RETAIN_DRAFT_NODES } as const;
 
 /** The band to ask this particular draft for: about one card per node in
  *  rotation, clamped into `RETAIN_CARD_BOUNDS`. A three-node rotation asking
@@ -78,7 +84,7 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
       const card: ReviewCard = {
         id: `r${i + 1}`,
         type,
-        source: str(c.source, `cards[${i}].source`),
+        source: oneOf(c.source, CARD_SOURCES, `cards[${i}].source`),
         node,
         // A cloze card's answer IS its back; models routinely omit `back`
         // there, and rejecting that blocked the whole Review queue.
@@ -134,7 +140,7 @@ Return JSON:
   "cards": [   // ${band.min}-${band.max} cards; mix of types; "recall" cards use cloze, "why"/"apply" use front
     {
       "type": "recall" | "why" | "apply",
-      "source": "Consume" | "Socratic" | "Feynman" | "Connect" | "Crucible",   // which phase plausibly drafted it
+      "source": "Consume" | "Socratic" | "Feynman" | "Connect" | "Crucible",   // exactly one of these five words — which phase plausibly drafted it
       "node": "a node id from the list",
       "cloze": ["text before the blank ", " text after the blank"],   // recall only
       "answer": "what fills the blank",                                 // recall only

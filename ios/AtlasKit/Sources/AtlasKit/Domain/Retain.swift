@@ -63,29 +63,6 @@ public enum ReviewGrade: String, CaseIterable, Sendable, Identifiable {
     }
 }
 
-/// The pre-flip confidence tap — the calibration hook, least → most solid.
-public enum ReviewConfidence: Int, CaseIterable, Sendable, Identifiable {
-    case blank, shaky, solid
-    public var id: Int { rawValue }
-
-    var label: LocalizedStringKey {
-        switch self {
-        case .blank: "Em branco"
-        case .shaky: "Instável"
-        case .solid: "Sólido"
-        }
-    }
-
-    /// Stated confidence, as the curve reads it — `REVIEW_FELT` on the web.
-    var felt: Int {
-        switch self {
-        case .blank: 20
-        case .shaky: 55
-        case .solid: 88
-        }
-    }
-}
-
 /// One card in today's deck, as the server sends it.
 ///
 /// `fsrs` here is the four interval labels — what "Bom" would actually
@@ -153,6 +130,11 @@ public struct RetainContent: Decodable, Sendable {
         }
     }
 }
+
+/// How many nodes one card-draft covers — `RETAIN_DRAFT_NODES` on the web.
+/// The factory writes about one card per node and is capped there, so asking it
+/// to cover more nodes than this drops the surplus silently.
+public let retainDraftNodes = 8
 
 /// Roughly how long one card takes — the queue is budgeted in minutes against
 /// the daily target, never framed as a wall of cards.

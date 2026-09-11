@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  CARD_MINUTES,
+  retainBudget,
+  retainDeck,
+  retainReducer,
+  retainStart,
+  reviewCard,
+  type RetainAction,
+  type RetainContent,
+  type RetainSession,
+  type ReviewCard,
+} from "@/lib/curriculum";
+import {
   dueCards,
   forecastRows,
   gradeStoredCard,
@@ -103,5 +115,66 @@ describe("withSchedule — a card minted by a client that has no scheduler", () 
   it("leaves a graded card's own state alone", () => {
     const graded = gradeStoredCard(card("a"), "good", now);
     expect(withSchedule([graded], now)[0].fsrs.due).toBe(graded.fsrs.due);
+  });
+});
+
+// ---- the pass over today's deck ------------------------------------------
+
+describe("retain: a miss comes back once", () => {
+  const deckCard = (id: string): ReviewCard => ({
+    id,
+    type: "recall",
+    source: "Consume",
+    node: "n1",
+    front: `Q ${id}`,
+    back: `A ${id}`,
+    fails: true,
+  });
+  const content: RetainContent = {
+    budgetMin: 6,
+    cards: [deckCard("a"), deckCard("b")],
+  };
+  const step = (s: RetainSession, a: RetainAction) => retainReducer(s, a, content);
+
+  it("sends the missed card to the back of the deck, and only once", () => {
+    let s = retainStart();
+    expect(retainDeck(s, content).length).toBe(2);
+
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
+    expect(s.stage).toBe("failed");
+    // Three slots now: a, b, and a's second trip.
+    expect(retainDeck(s, content).length).toBe(3);
+    expect(reviewCard(s, content).id).toBe("a");
+
+    s = step(s, { type: "continue" });
+    expect(reviewCard(s, content).id).toBe("b");
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "good" });
+    expect(reviewCard(s, content).id).toBe("a");
+
+    // Missing it a second time does not grow the deck again — a card nobody
+    // can answer would be a pass with no end.
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
+    expect(retainDeck(s, content).length).toBe(3);
+    s = step(s, { type: "continue" });
+    expect(s.finished).toBe(true);
+  });
+
+  it("grades by deck position, so the second trip does not repaint the first", () => {
+    let s = retainStart();
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
+    s = step(s, { type: "continue" });
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "good" });
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "good" });
+    // Slot 0 keeps the miss it earned; slot 2 is the same card, answered.
+    expect(s.done[0]).toBe("again");
+    expect(s.done[2]).toBe("good");
+  });
+
+  it("budgets the requeued card as real work", () => {
+    let s = retainStart();
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
+    // Three cards at 1.5 min each — the minutes owed grew with the deck.
+    expect(retainBudget(s, content).total).toBe(3);
+    expect(retainBudget(s, content).spent).toBe(Math.round(CARD_MINUTES));
   });
 });

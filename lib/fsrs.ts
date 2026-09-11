@@ -12,6 +12,7 @@ import {
   type Card as FsrsCard,
   type Grade,
 } from "ts-fsrs";
+import { CARD_MINUTES } from "@/lib/curriculum";
 import type {
   ForecastRow,
   RetainContent,
@@ -142,8 +143,9 @@ export function dueCards(cards: StoredCard[], now: Date = new Date()): StoredCar
     .sort((a, b) => Date.parse(a.fsrs.due) - Date.parse(b.fsrs.due));
 }
 
-/** Honest queue math: ~1 minute per card, capped to the daily budget. */
-export const CARD_MINUTES = 1.5;
+// The per-card minute lives with the budget math it feeds (`retainBudget`),
+// and is re-exported here because every scheduling caller reaches for it.
+export { CARD_MINUTES };
 
 /** The interval on a grade button, in the learner's language.
  *
