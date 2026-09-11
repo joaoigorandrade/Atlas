@@ -72,16 +72,13 @@ func adaptive(_ light: UInt32, _ dark: UInt32,
     })
 }
 
-/// The three faces. `serif` is the family name of the variable
-/// `App/Resources/Fonts/Newsreader.ttf` listed in `UIAppFonts` — CoreText
-/// exposes its named cuts, so `.weight()` resolves to a real one. `sans` and
-/// `mono` are still unbundled PostScript names: `Font.custom` falls back to the
-/// system face when a file is missing, which is a silent visual regression —
-/// check the render, not the build.
+/// The three faces. All three ship as variable TTFs in `App/Resources/Fonts/`
+/// listed in `UIAppFonts` — CoreText exposes their named cuts, so `.weight()`
+/// resolves to a real cut instead of a synthetic one.
 public enum Face: String {
     case serif = "Newsreader"
-    case sans = "InstrumentSans-Regular"
-    case mono = "SplineSansMono-Regular"
+    case sans = "Instrument Sans"
+    case mono = "Spline Sans Mono"
 }
 
 public extension Font {
