@@ -98,11 +98,24 @@ final class SocraticViewModel {
         done ? socraticOutcome(resolutions, gap: gapPass) : nil
     }
 
+    /// Whether this concept has already been handed back to its reading by an
+    /// earlier flagged pass — the gap node that hand-off hangs is the record.
+    /// Read here only so the ending says where it is actually going;
+    /// `settleSocratic` is what decides it.
+    private var handedBackBefore: Bool {
+        session.store.graph.nodes.contains { $0.id == socraticGapId(node.id) }
+    }
+
     /// The one line the learner reads before they tap on. A pass that ends is
     /// otherwise indistinguishable from a pass that was earned.
     var doneLine: LocalizedStringKey {
         switch outcome {
-        case .flagged: "Apoiando-se em respostas prontas — vamos reforçar a base primeiro."
+        case .flagged:
+            // A second flag is not "read it again" — they did. It is the
+            // foundations underneath, which is what the map now carries.
+            handedBackBefore && !gapPass
+                ? "Ainda apoiado nas respostas prontas — deixei a base marcada como lacuna no mapa."
+                : "Apoiando-se em respostas prontas — vamos reforçar a base primeiro."
         case .assisted: "Compreensão construída — com uma ajuda pelo caminho."
         default:
             gapPass
@@ -112,11 +125,13 @@ final class SocraticViewModel {
     }
 
     /// Where the CTA actually goes. A flagged regular pass doesn't hand off, it
-    /// hands *back* — into the reading.
+    /// hands *back* — into the reading, once. A concept already sent back ends
+    /// on the map instead, at the gap it left there.
     var advanceLabel: LocalizedStringKey {
         switch (outcome, gapPass) {
         case (.flagged, true): "Voltar ao mapa →"
-        case (.flagged, false): "Reler isto primeiro · Consume →"
+        case (.flagged, false):
+            handedBackBefore ? "Abrir a lacuna no mapa →" : "Reler isto primeiro · Consume →"
         case (_, true): "Fechar a lacuna · voltar ao mapa →"
         default: "Seguir para o Feynman →"
         }
@@ -237,10 +252,42 @@ final class SocraticViewModel {
     /// Read the tutor's last turn out loud, or stop reading it.
     func toggleReadAloud() {
         guard let spoken else { return }
+        // The other half of the same handover: whatever is being said into the
+        // mic goes into the field and the session is given back, or the clip
+        // plays into a session still configured to record.
+        dictation.flush()
         speaker.toggle([spoken], api: api)
     }
 
     func stopReadAloud() { speaker.stop() }
+
+    /// Open the mic. The clip stops first: a read-aloud still playing owns the
+    /// audio session, and the recogniser cannot record over it.
+    func listen() {
+        guard !dictation.listening else { return }
+        speaker.stop()
+        dictation.toggle { [weak self] in self?.dictated($0) }
+    }
+
+    /// Stop and keep what was heard, or start again and say more — what the
+    /// voice sheet's one control does.
+    func toggleMic() {
+        if dictation.listening { dictation.flush() } else { listen() }
+    }
+
+    /// The turn is the learner's: a probe is on screen, nothing is in flight,
+    /// and the pass is not over. What the voice sheet opens itself on.
+    var awaitingAnswer: Bool {
+        !log.isEmpty && !awaiting && !judging && !done && !failed
+    }
+
+    /// Both halves of the voice handed back at once — the way off this screen.
+    /// A clip parked in its own sleep keeps speaking over the map, and a mic
+    /// left open keeps the audio session on `.record` for whatever comes next.
+    func leave() {
+        speaker.stop()
+        dictation.flush()
+    }
 
     /// The CTA. Where it goes is the outcome's call, not the button's.
     func advance() {

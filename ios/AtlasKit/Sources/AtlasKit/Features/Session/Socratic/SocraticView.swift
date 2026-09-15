@@ -8,6 +8,17 @@ struct SocraticView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
     @State private var model: SocraticViewModel?
+    /// The learner asked for the keyboard. Socratic opens on the mic — this is
+    /// a conversation, and talking is how a learner reaches for words they have
+    /// not rehearsed — and the choice sticks for the rest of the pass.
+    @State private var typing = false
+    /// The voice sheet. It opens itself whenever the turn comes back to the
+    /// learner, and pulling it down is how they ask for the keyboard.
+    @State private var speaking = false
+    /// The sheet was closed by the screen — a sent answer, a hint, a tell —
+    /// rather than dragged down. Without this the two are the same event, and
+    /// every send would read as "I would rather type".
+    @State private var closedByApp = false
 
     var body: some View {
         Group {
@@ -31,7 +42,7 @@ struct SocraticView: View {
             // sleep otherwise keeps speaking over the map the learner just
             // went back to.
             PhaseBar(.socratic, title: model.node.label,
-                     back: { model.stopReadAloud(); navigator.pop() }) {
+                     back: { model.leave(); navigator.pop() }) {
                 HStack(spacing: 2) {
                     if store.readAloudOn { speaker(model) }
                     helpDial(model)
@@ -61,10 +72,49 @@ struct SocraticView: View {
                 Dock { CTAButton("Tentar de novo", tint: Phase.socratic.tint) { Task { await model.retry() } } }
             } else if model.done {
                 doneDock(model)
-            } else if !model.log.isEmpty && !model.awaiting {
-                answerDock(model)
+            } else if !model.log.isEmpty && !model.awaiting && !speaking {
+                // Voice unless the learner asked otherwise — or unless they
+                // turned dictation off in settings (screen 13), which is the
+                // same request made once for the whole app. While the sheet is
+                // up it *is* the dock, so nothing is drawn under it.
+                if voice {
+                    voiceDock(model).transition(.opacity)
+                } else {
+                    answerDock(model).transition(.opacity)
+                }
             }
         }
+        // The turn came back to the learner, so the mic comes back with it.
+        // `initial` matters: on a pass whose first probe is already cached the
+        // turn is theirs before this is ever installed.
+        .onChange(of: model.awaitingAnswer, initial: true) { _, mine in
+            if mine && voice { speak(model) }
+        }
+        .onChange(of: speaking) { _, open in
+            guard !open else { return }
+            // Dragged down rather than closed by a send: the learner is asking
+            // for the keyboard, which is the only other way to answer.
+            if closedByApp { closedByApp = false } else { typing = true }
+        }
+        .sheet(isPresented: $speaking) {
+            SocraticVoiceSheet(model: model, close: { closedByApp = true; speaking = false },
+                               keyboard: { closedByApp = true; speaking = false; typing = true })
+                .presentationDetents([.height(SocraticVoiceSheet.height), .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Palette.paper)
+                // The conversation stays live behind it — the learner can scroll
+                // back to what they are answering without giving up the mic.
+                .presentationBackgroundInteraction(.enabled(upThrough: .height(SocraticVoiceSheet.height)))
+        }
+    }
+
+    /// Voice is the composer unless the learner turned dictation off for the
+    /// whole app, or asked for the keyboard on this pass.
+    private var voice: Bool { store.dictationOn && !typing }
+
+    private func speak(_ model: SocraticViewModel) {
+        model.stopReadAloud()
+        speaking = true
     }
 
     /// Read the tutor's last turn out loud. Socratic is the one phase that is
@@ -142,9 +192,6 @@ struct SocraticView: View {
                     if !model.message.isEmpty {
                         Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
                     }
-                    if let trouble = model.dictation.trouble {
-                        Text(verbatim: trouble.sentence).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
-                    }
                     if !model.speaker.message.isEmpty {
                         Text(verbatim: model.speaker.message)
                             .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
@@ -158,6 +205,11 @@ struct SocraticView: View {
             // top of the paper: one probe on a fresh pass used to float at the
             // top of the screen with the whole page empty under it.
             .defaultScrollAnchor(.bottom)
+            // …and the composer is the sheet, so the turn being answered has to
+            // sit above it rather than under it.
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: speaking ? SocraticVoiceSheet.height : 0)
+            }
             .animation(Motion.standard, value: model.log.count)
             .animation(Motion.snap, value: model.judging)
             .animation(Motion.snap, value: model.awaiting)
@@ -246,49 +298,45 @@ struct SocraticView: View {
         }
     }
 
-    /// One composer, not three boxes: the field carries its own mic and the
-    /// send sits beside it, so the row reads as a single control.
+    // MARK: - Answering
+
+    /// Voice mode's dock. The composer itself is the sheet — this is the way
+    /// back into it when the sheet is not up, and the way out to the keyboard.
+    private func voiceDock(_ model: SocraticViewModel) -> some View {
+        Dock {
+            escapes(model)
+            HStack(spacing: 10) {
+                CTAButton("Falar", tint: Phase.socratic.tint) { speak(model) }
+                    .disabled(model.judging)
+                modeButton(model, toVoice: false)
+            }
+        }
+    }
+
+    /// The typed composer: one row — the mic, the field, the send. The mic is
+    /// the way back to voice, so the dock never needs a third row to offer it.
     private func answerDock(_ model: SocraticViewModel) -> some View {
         @Bindable var model = model
         return Dock {
-            VStack(spacing: 10) {
-            // The only way off a probe used to be typing something the judge
-            // graded `correct` or `lost`. Both of these spend material the
-            // generation already wrote: `hint` and `tell`.
-            HStack(spacing: 8) {
-                GhostButton("Estou travado") { model.stuck() }
-                    .disabled(!model.canEscape)
-                GhostButton("Só me conte") { model.tell() }
-                    .disabled(!model.canEscape)
-            }
-            HStack(alignment: .bottom, spacing: 8) {
-                HStack(alignment: .bottom, spacing: 0) {
-                    TextField("Responda com suas palavras…", text: $model.answer, axis: .vertical)
-                        .font(.atlas(.serif, 15))
-                        .lineLimit(1...5)
-                        .padding(.leading, 18)
-                        .padding(.trailing, store.dictationOn ? 4 : 18)
-                        .padding(.vertical, 13)
-                    // Voice is a setting (screen 13); the mic only exists when
-                    // the learner asked for it, same as `AnswerEditor`.
-                    if store.dictationOn {
-                        MicButton(dictation: model.dictation, tint: Phase.socratic.tint) { model.dictated($0) }
-                            .frame(width: Metrics.tap, height: Metrics.tap)
-                            .padding(.trailing, 3)
-                    }
-                }
-                .background(Palette.card, in: .capsule)
-                .overlay { Capsule().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+            escapes(model)
+            HStack(alignment: .bottom, spacing: 6) {
+                // Voice is a setting (screen 13): a learner who turned dictation
+                // off is not offered it back one screen at a time.
+                if store.dictationOn { modeButton(model, toVoice: true) }
+                TextField("Responda com suas palavras…", text: $model.answer, axis: .vertical)
+                    .font(.atlas(.serif, 15))
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Palette.card, in: .capsule)
+                    .overlay { Capsule().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                 Button {
-                    // Whatever is still being said goes into the field before
-                    // it is read, or the spoken half of the answer is lost.
-                    model.dictation.flush()
                     Task { await model.send() }
                 } label: {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(model.canSend ? Palette.accentInk : Palette.inkGhost)
-                        .frame(width: 50, height: 50)
+                        .frame(width: Metrics.tap, height: Metrics.tap)
                         .background(model.canSend ? Phase.socratic.tint : Palette.chipBg, in: .circle)
                 }
                 .pressable()
@@ -296,8 +344,58 @@ struct SocraticView: View {
                 .accessibilityLabel("Enviar resposta")
                 .disabled(!model.canSend)
             }
-            .animation(Motion.snap, value: store.dictationOn)
-            }
         }
+    }
+
+    /// The only way off a probe used to be typing something the judge graded
+    /// `correct` or `lost`. Both of these spend material the generation already
+    /// wrote: `hint` and `tell`.
+    private func escapes(_ model: SocraticViewModel) -> some View {
+        HStack(spacing: 8) {
+            escape("Estou travado") { model.stuck() }
+            escape("Só me conte") { model.tell() }
+            Spacer(minLength: 0)
+        }
+        .disabled(!model.canEscape)
+        .opacity(model.canEscape ? 1 : 0.4)
+        .animation(Motion.standard, value: model.canEscape)
+    }
+
+    /// An escape is an aside, not an offer: it reads at the weight of the
+    /// support dial above it, and leaves the composer the only lit thing here.
+    private func escape(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.atlas(.sans, 13))
+                .foregroundStyle(Palette.inkMuted)
+                .lineLimit(2)
+                .padding(.horizontal, 13)
+                .frame(minHeight: 34)
+                .background(Palette.chipBg, in: .capsule)
+                // The pill is the drawing; the tap target is the design's
+                // minimum around it.
+                .frame(minHeight: Metrics.tap)
+                .contentShape(.rect)
+        }
+        .pressable()
+    }
+
+    /// Swap composers. Whatever was being said goes into the field on the way
+    /// across, so the half-spoken answer survives the switch — and asking for
+    /// the mic back opens the sheet rather than a button that opens the sheet.
+    private func modeButton(_ model: SocraticViewModel, toVoice: Bool) -> some View {
+        Button {
+            model.dictation.flush()
+            withAnimation(Motion.snap) { typing = !toVoice }
+            if toVoice { speak(model) }
+        } label: {
+            Image(systemName: toVoice ? "mic" : "keyboard")
+                .font(.system(size: 17))
+                .foregroundStyle(Palette.inkMuted)
+                .frame(width: Metrics.tap, height: Metrics.tap)
+                .contentShape(.rect)
+        }
+        .pressable()
+        .accessibilityLabel(toVoice ? "Falar" : "Prefiro escrever")
     }
 }

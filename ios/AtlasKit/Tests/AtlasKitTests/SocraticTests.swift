@@ -100,6 +100,37 @@ private func probe(_ id: String, spare: Bool = false) -> JSONValue {
 }
 
 @MainActor
+@Test func aSecondPassToldThroughEndsOnTheMapRatherThanBackInTheReading() async {
+    let store = store()
+    script(store, [probe("s1"), probe("s2")])
+    // The reading has already been handed back once, which is exactly what the
+    // gap under the node records. Sending them through it again is a corridor
+    // with no exit: same reading, same probes, same verdict, forever.
+    let (first, firstPass) = pass(store)
+    await firstPass.load()
+    firstPass.tell()
+    firstPass.tell()
+    firstPass.advance()
+    #expect(first.phase == .consume)
+
+    // The learner re-read and came back — the second pass is a Socratic one.
+    let session = SessionViewModel(node: store.graph.nodes[0], store: store, phase: .socratic)
+    let model = SocraticViewModel(session: session, api: store.api)
+    await model.load()
+    model.tell()
+    model.tell()
+    #expect(model.outcome == .flagged)
+    // The ending says where it is actually going before the learner taps it.
+    #expect(model.advanceLabel == "Abrir a lacuna no mapa →")
+    model.advance()
+    // The map takes the screen, and the reading is not reopened a second time.
+    #expect(session.finished)
+    #expect(session.phase == .socratic)
+    #expect(store.reading("lat")?.handedOff == true)
+    #expect(store.states["gap-soc-lat"] == .gap)
+}
+
+@MainActor
 @Test func aGapReconstructedUnaidedLeavesTheMap() async {
     let store = store(gap: true)
     script(store, [probe("s1")])

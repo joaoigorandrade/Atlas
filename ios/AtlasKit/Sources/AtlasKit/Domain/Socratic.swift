@@ -26,6 +26,11 @@ public enum SocraticOutcome: String, Sendable {
 /// Mirrors `SOCRATIC_STEPS`.
 public let socraticStepEstimate = 4
 
+/// The gap a flagged pass hangs under the concept. Named in one place because
+/// it is also the record that this node has *already* been sent back to its
+/// reading once — see `SessionViewModel.settleSocratic`.
+public func socraticGapId(_ nodeId: String) -> String { "gap-soc-\(nodeId)" }
+
 /// Whether a pass earned its ending. A gap pass closes only on a clean
 /// `told == 0` — hint-assisted still counts as reconstructed, told outright
 /// does not. Mirrors `socraticOutcome`.

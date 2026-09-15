@@ -144,12 +144,27 @@ public final class Dictation {
     }
 
     public private(set) var listening = false
+    /// What the recogniser has heard so far, live. The delivery contract is
+    /// unchanged — the field only gets the words on stop — but a composer whose
+    /// primary control is a mic has to show them landing, or the learner is
+    /// talking at a button with no way to tell whether it is listening.
+    public private(set) var heard = ""
+    /// How loud the mic is hearing them right now, 0…1. Published for the one
+    /// surface that draws it: a waveform animated by a timer looks identical
+    /// whether the mic is open or dead, which is the failure this control
+    /// actually has.
+    public private(set) var level: Double = 0
     public private(set) var trouble: Trouble?
     /// Between the tap and the permission reply there is no engine to stop and
     /// nothing on screen yet — but a second tap must not start a second one:
     /// two `installTap`s on the same bus is an ObjC exception, not an error.
     private var starting = false
-    private let engine = AVAudioEngine()
+    /// Built for each run and thrown away with it. A single long-lived engine
+    /// caches the hardware format it first saw, and read-aloud — which this
+    /// phase has beside the mic — moves the session off `.record` and back
+    /// under it. `installTap` on a stale format is an ObjC exception, not an
+    /// error: the app dies where a Swift `throw` would have been drawn.
+    private var engine: AVAudioEngine?
     private var task: SFSpeechRecognitionTask?
     private var transcript = ""
     /// Where the transcription goes. Held for the whole run so the recogniser
@@ -195,6 +210,17 @@ public final class Dictation {
         }
     }
 
+    /// One buffer's RMS on a 0…1 scale. Speech sits around -40…-10 dBFS, so the
+    /// raw amplitude would leave the bars flat: the curve is what makes an
+    /// ordinary voice fill them.
+    private nonisolated static func loudness(_ buffer: AVAudioPCMBuffer) -> Double {
+        guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
+        var sum: Float = 0
+        for index in 0..<Int(buffer.frameLength) { sum += samples[index] * samples[index] }
+        let decibels = 20 * log10(max((sum / Float(buffer.frameLength)).squareRoot(), 1e-7))
+        return min(max(Double(decibels + 50) / 50, 0), 1)
+    }
+
     private static func speechAllowed() async -> Bool {
         await withCheckedContinuation { resume in
             // The TCC reply lands on a background queue, so the closure must
@@ -214,6 +240,7 @@ public final class Dictation {
 
     private func listen(_ recognizer: SFSpeechRecognizer) {
         transcript = ""
+        heard = ""
         // The buffer request is handed to an audio-thread tap and to the
         // recognizer's own queue; neither is Sendable and both are the API's
         // documented use, so the crossing is stated rather than hidden.
@@ -222,19 +249,54 @@ public final class Dictation {
         // the running transcript is what `end` has to read, since the final
         // result lands after the task is finished.
         request.shouldReportPartialResults = true
-        try? AVAudioSession.sharedInstance().setCategory(.record, mode: .measurement, options: .duckOthers)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        // Recording is a session the app has to be *given*, and it is refused
+        // often enough to matter — a call, another app holding the mic, a
+        // read-aloud clip still playing out of this very screen. Refused, the
+        // session stays on whatever category it had, and every line below
+        // reads a microphone that isn't there. The failure was swallowed by
+        // `try?` before, so the screen kept going into the crash.
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            return giveUp(.engine)
+        }
+        // Only now, with the session actually on `.record`: the input node is
+        // born holding whatever the hardware was doing when it was first
+        // asked, and one born under `.playback` reports a mic that cannot be
+        // tapped.
+        let engine = AVAudioEngine()
+        self.engine = engine
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         // The backstop for the exception above: a format with no rate and no
-        // channels is what a mic the app cannot use reports.
-        guard format.sampleRate > 0, format.channelCount > 0 else { return giveUp(.denied) }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+        // channels is what a mic the app cannot use reports. Both sides of the
+        // node are checked — `installTap` asserts on the *hardware* format,
+        // which can be the invalid one while the output side still looks sane.
+        let hardware = input.inputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0,
+              hardware.sampleRate > 0, hardware.channelCount > 0 else { return giveUp(.denied) }
+        // `@Sendable` is the whole fix, not a formality. `AVAudioNodeTapBlock`
+        // carries no annotation of its own, so a closure written here inherits
+        // this class's `@MainActor` — and an isolated closure is compiled with
+        // a `dispatch_assert_queue(main)` preamble. The tap runs on the audio
+        // render thread, which trips that assertion the instant the first
+        // buffer arrives: "BUG IN CLIENT OF LIBDISPATCH: Block was not
+        // expected to execute on queue", a trap rather than an error. Marked
+        // `@Sendable`, the closure is `nonisolated` and the check is gone —
+        // which is correct, since it only touches the request.
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { @Sendable buffer, _ in
             request.append(buffer)
+            // One `Double` crosses back, roughly forty times a second — the
+            // buffer itself never leaves the render thread.
+            let loudness = Self.loudness(buffer)
+            Task { @MainActor in self.level = loudness }
         }
         engine.prepare()
         guard (try? engine.start()) != nil else {
             input.removeTap(onBus: 0)
+            self.engine = nil
             return giveUp(.engine)
         }
         starting = false
@@ -245,7 +307,7 @@ public final class Dictation {
             let text = result?.bestTranscription.formattedString
             let (failed, final) = (error != nil, result?.isFinal ?? false)
             Task { @MainActor in
-                if let text { self.transcript = text }
+                if let text { self.transcript = text; self.heard = text }
                 // The recogniser ends on its own on a network drop and at
                 // Apple's ~one-minute cap on a single utterance. Nothing would
                 // fire again: the mic would keep breathing over an engine
@@ -262,17 +324,24 @@ public final class Dictation {
     }
 
     private func end(deliver: Bool) {
-        engine.stop()
-        engine.inputNode.removeTap(onBus: 0)
+        if let engine {
+            engine.stop()
+            engine.inputNode.removeTap(onBus: 0)
+            self.engine = nil
+        }
         task?.finish()
         task = nil
         listening = false
         starting = false
+        level = 0
         // Give the shared session back, or read-aloud on the next screen plays
         // into a session still configured to record.
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         let said = transcript.trimmed
         transcript = ""
+        // Cleared with the run, or the live line and the delivered answer draw
+        // the same sentence twice.
+        heard = ""
         let deliverTo = onText
         onText = nil
         if deliver, !said.isEmpty { deliverTo?(said) }

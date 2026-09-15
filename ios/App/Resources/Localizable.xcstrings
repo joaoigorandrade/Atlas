@@ -5102,6 +5102,83 @@
           }
         }
       }
+    },
+    "Abrir a lacuna no mapa →" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the gap on the map →"
+          }
+        }
+      }
+    },
+    "Ainda apoiado nas respostas prontas — deixei a base marcada como lacuna no mapa." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still leaning on the ready-made answers — I've marked the foundations as a gap on the map."
+          }
+        }
+      }
+    },
+    "Falar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speak"
+          }
+        }
+      }
+    },
+    "Ouvindo… toque para terminar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening… tap to finish"
+          }
+        }
+      }
+    },
+    "Prefiro escrever" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'd rather type"
+          }
+        }
+      }
+    },
+    "Toque e responda com suas palavras" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap and answer in your own words"
+          }
+        }
+      }
+    },
+    "Toque para continuar falando" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to keep talking"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

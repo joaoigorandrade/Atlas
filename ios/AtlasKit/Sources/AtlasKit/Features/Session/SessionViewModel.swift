@@ -158,16 +158,29 @@ public final class SessionViewModel: Identifiable {
         // Feynman's and the Crucible's. Promote it to a generated one if
         // "foundations" ever needs richer framing.
         let spec = GapSpec(
-            id: "gap-soc-\(node.id)",
+            id: socraticGapId(node.id),
             label: String(localized: "\(node.label) — fundamentos"),
             reason: String(localized: "Apoiou-se na resposta pronta mais de uma vez na passagem Socrática"),
             dx: -140, dy: 150
         )
+        // Whether this concept has already been handed back once. The gap node
+        // is the marker and no second piece of state is needed: it is hung here
+        // the first time a pass is told through, and it comes off the map when
+        // the learner finally reconstructs it — which is exactly when a future
+        // flagged pass has earned a fresh re-read.
+        let handedBackBefore = store.graph.nodes.contains { $0.id == spec.id }
         store.graph = spawnGap(store.graph, parentId: node.id, spec)
         store.states[spec.id] = .gap
         // The flag on its own would be passive. A pass that had to be told
         // through is a reading that didn't land, so the hand-off runs backwards
         // — into the reading, reopened at the top with nothing collapsed.
+        //
+        // Once. Sending them back a second time is a corridor with no exit:
+        // the same reading, the same probes, the same verdict, forever. The
+        // second flag says the reading is not what is missing, so the pass ends
+        // on the map with the foundations gap under the concept — the node the
+        // learner can actually open and close.
+        guard !handedBackBefore else { return finished = true }
         store.reopen(reading: node.id)
         phase = .consume
     }
