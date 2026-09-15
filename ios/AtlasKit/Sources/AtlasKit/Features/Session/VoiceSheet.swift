@@ -2,59 +2,98 @@ import SwiftUI
 
 /// Answering out loud, as its own surface.
 ///
-/// Socratic is the one phase that is genuinely a conversation, and talking is
-/// how a learner reaches for an explanation they have never rehearsed. So the
-/// composer is not a field with a mic beside it — it is this sheet: the mic is
-/// already open when it arrives, the bars say it is hearing them, and what it
-/// heard is a *draft* they can fix before the judge reads it.
+/// Socratic and Feynman are the two phases that ask for an explanation in the
+/// learner's own words, and talking is how a learner reaches for one they have
+/// never rehearsed. So voice is not a mic beside a field — it is this sheet:
+/// the mic is already open when it arrives, the bars say it is hearing them,
+/// and what it heard is a *draft* they can fix before the judge reads it.
 ///
-/// It opens itself whenever the turn comes back to the learner (`SocraticView`)
-/// and pulling it down is how they ask for the keyboard instead.
-struct SocraticVoiceSheet: View {
-    /// The detent, named here because the transcript behind has to inset by
-    /// exactly this much — a probe the learner is answering must not sit under
-    /// the sheet they are answering it in.
+/// Pulling it down is how they ask for the keyboard instead.
+struct VoiceSheet: View {
+    /// The detent, named here because whatever is behind has to inset by
+    /// exactly this much — the thing being answered must not sit under the
+    /// sheet it is being answered in.
     static let height: CGFloat = 356
 
-    let model: SocraticViewModel
-    /// The sheet closing itself — a sent answer, a hint, a tell. Distinct from
-    /// the learner dragging it down, which is a request for the keyboard.
-    let close: () -> Void
+    /// An escape hatch the phase offers while the sheet is up. Both of
+    /// Socratic's spend material the generation already wrote; Feynman's asks
+    /// for the freeze nudge. All of them land *behind* the sheet, so the
+    /// action closes it.
+    struct Escape: Identifiable {
+        let id = UUID()
+        let title: LocalizedStringKey
+        let action: () -> Void
+        init(_ title: LocalizedStringKey, action: @escaping () -> Void) {
+            self.title = title; self.action = action
+        }
+    }
+
+    let dictation: Dictation
+    let tint: Color
+    /// The draft. The recogniser writes into it through the phase's own
+    /// `listen`, and the learner fixes it the moment the mic stops.
+    @Binding var text: String
+    let placeholder: LocalizedStringKey
+    let sendTitle: LocalizedStringKey
+    /// Something is already in flight — a judge reading, a rubric still being
+    /// written. Words are not enough to send on their own.
+    let busy: Bool
+    let escapes: [Escape]
+    let escapesEnabled: Bool
+    /// Open the mic. Idempotent: the phase decides what else has to stop first
+    /// (Socratic hands the audio session back from a read-aloud).
+    let listen: () -> Void
+    let send: () -> Void
     /// The keyboard, asked for out loud rather than by dragging.
     let keyboard: () -> Void
 
+    init(dictation: Dictation, tint: Color, text: Binding<String>,
+         placeholder: LocalizedStringKey, sendTitle: LocalizedStringKey, busy: Bool,
+         escapes: [Escape] = [], escapesEnabled: Bool = true,
+         listen: @escaping () -> Void, send: @escaping () -> Void, keyboard: @escaping () -> Void) {
+        self.dictation = dictation; self.tint = tint; _text = text
+        self.placeholder = placeholder; self.sendTitle = sendTitle; self.busy = busy
+        self.escapes = escapes; self.escapesEnabled = escapesEnabled
+        self.listen = listen; self.send = send; self.keyboard = keyboard
+    }
+
     var body: some View {
         VStack(spacing: 14) {
-            VoiceWave(level: model.dictation.level, active: model.dictation.listening)
+            VoiceWave(level: dictation.level, active: dictation.listening, tint: tint)
             Text(status)
                 .font(.atlas(.sans, 13))
                 .foregroundStyle(Palette.inkFaint)
                 .multilineTextAlignment(.center)
             draft
-            if let trouble = model.dictation.trouble {
+            if let trouble = dictation.trouble {
                 Text(verbatim: trouble.sentence)
                     .font(.atlas(.sans, 12.5))
                     .foregroundStyle(Palette.amberInk)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // Both spend material the generation already wrote, and both put
-            // something on the transcript the learner has to read — so they
-            // close the sheet on the way out.
-            HStack(spacing: 8) {
-                escapeChip("Estou travado") { escape { model.stuck() } }
-                escapeChip("Só me conte") { escape { model.tell() } }
-                Spacer(minLength: 0)
+            if !escapes.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(escapes) { hatch in
+                        escapeChip(hatch.title) { dictation.flush(); hatch.action() }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .disabled(!escapesEnabled)
+                .opacity(escapesEnabled ? 1 : 0.4)
+                .animation(Motion.standard, value: escapesEnabled)
             }
-            .disabled(!model.canEscape)
-            .opacity(model.canEscape ? 1 : 0.4)
-            .animation(Motion.standard, value: model.canEscape)
             // The mic, the send, and the way out to the keyboard: one row of
             // controls under the draft, rather than a stack of three.
             HStack(spacing: 10) {
                 micButton
-                CTAButton("Enviar resposta", tint: Phase.socratic.tint) { send() }
-                    .disabled(!sendable)
+                CTAButton(sendTitle, tint: tint) {
+                    // Whatever is still being said goes in before it is read,
+                    // or the spoken half of the answer is lost.
+                    dictation.flush()
+                    send()
+                }
+                .disabled(!sendable)
                 Button(action: keyboard) {
                     Image(systemName: "keyboard")
                         .font(.system(size: 17))
@@ -74,8 +113,8 @@ struct SocraticVoiceSheet: View {
         // The mic is what this sheet is. Opening it opens the mic, so the
         // learner talks instead of hunting for a second button — and closing it
         // hands the audio session back, whichever way it was closed.
-        .onAppear { model.listen() }
-        .onDisappear { model.dictation.flush() }
+        .onAppear { listen() }
+        .onDisappear { dictation.flush() }
     }
 
     /// An escape is an aside, not an offer — the same weight it carries in the
@@ -101,21 +140,21 @@ struct SocraticVoiceSheet: View {
     private var draft: some View {
         ZStack(alignment: .topLeading) {
             if said.isEmpty {
-                Text("Responda com suas palavras…")
+                Text(placeholder)
                     .font(.atlas(.serif, 16))
                     .foregroundStyle(Palette.inkGhost)
                     .padding(.horizontal, 19)
                     .padding(.vertical, 19)
                     .allowsHitTesting(false)
             }
-            TextEditor(text: Binding(get: { said }, set: { model.answer = $0 }))
+            TextEditor(text: Binding(get: { said }, set: { text = $0 }))
                 .font(.atlas(.serif, 16))
                 .lineSpacing(3)
-                .foregroundStyle(model.dictation.listening ? Palette.inkMuted : Palette.ink)
+                .foregroundStyle(dictation.listening ? Palette.inkMuted : Palette.ink)
                 .scrollContentBackground(.hidden)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
-                .disabled(model.dictation.listening)
+                .disabled(dictation.listening)
         }
         .frame(minHeight: 96, maxHeight: .infinity)
         .background(Palette.card, in: .rect(cornerRadius: 12))
@@ -125,14 +164,14 @@ struct SocraticVoiceSheet: View {
     /// Stop, or start again and say more. The one control whose state has to
     /// read from across the room, so it swaps glyph and breathes while it runs.
     private var micButton: some View {
-        let listening = model.dictation.listening
-        return Button { model.toggleMic() } label: {
+        let listening = dictation.listening
+        return Button { listening ? dictation.flush() : listen() } label: {
             Image(systemName: listening ? "stop.fill" : "mic.fill")
                 .font(.system(size: 21))
                 .foregroundStyle(listening ? Palette.accentInk : Palette.inkSoft)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: Metrics.cta, height: Metrics.cta)
-                .background(listening ? Phase.socratic.tint : Palette.chipBg, in: .circle)
+                .background(listening ? tint : Palette.chipBg, in: .circle)
                 .overlay { Circle().strokeBorder(listening ? .clear : Palette.hairlineStrong, lineWidth: 1) }
         }
         .pressable()
@@ -144,38 +183,23 @@ struct SocraticVoiceSheet: View {
     }
 
     /// The answer as it stands: what is already in the draft plus whatever the
-    /// recogniser is hearing right now, joined the way `dictated` will join
+    /// recogniser is hearing right now, joined the way the phase will join
     /// them — so stopping the mic changes this text's colour and nothing else.
     private var said: String {
-        let live = model.dictation.heard.trimmed
-        guard !live.isEmpty else { return model.answer }
-        return model.answer.isEmpty ? live : model.answer + " " + live
+        let live = dictation.heard.trimmed
+        guard !live.isEmpty else { return text }
+        return text.isEmpty ? live : text + " " + live
     }
 
     /// Sendable the moment there are words, including words still being spoken:
-    /// the flush below hands them over first, so a learner who has finished
+    /// the flush above hands them over first, so a learner who has finished
     /// talking never has to stop the mic and then find the button.
-    private var sendable: Bool { !model.judging && !said.trimmed.isEmpty }
+    private var sendable: Bool { !busy && !said.trimmed.isEmpty }
 
     private var status: LocalizedStringKey {
-        if model.dictation.listening { return "Ouvindo… toque para terminar" }
-        if !model.answer.trimmed.isEmpty { return "Toque para continuar falando" }
+        if dictation.listening { return "Ouvindo… toque para terminar" }
+        if !text.trimmed.isEmpty { return "Toque para continuar falando" }
         return "Toque e responda com suas palavras"
-    }
-
-    private func send() {
-        // Whatever is still being said goes in before it is read, or the spoken
-        // half of the answer is lost.
-        model.dictation.flush()
-        close()
-        Task { await model.send() }
-    }
-
-    /// A hint or a tell lands on the transcript, which is behind this sheet.
-    private func escape(_ spend: () -> Void) {
-        model.dictation.flush()
-        spend()
-        close()
     }
 }
 
@@ -191,13 +215,14 @@ private let voiceWaveBars = 32
 private struct VoiceWave: View {
     let level: Double
     let active: Bool
+    let tint: Color
     @State private var bars = [Double](repeating: 0, count: voiceWaveBars)
 
     var body: some View {
         HStack(spacing: 3) {
             ForEach(bars.indices, id: \.self) { index in
                 Capsule()
-                    .fill(Phase.socratic.tint.opacity(active ? 0.3 + bars[index] * 0.7 : 0.16))
+                    .fill(tint.opacity(active ? 0.3 + bars[index] * 0.7 : 0.16))
                     .frame(width: 3, height: 4 + bars[index] * 44)
             }
         }

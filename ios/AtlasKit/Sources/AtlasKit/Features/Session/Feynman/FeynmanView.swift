@@ -10,6 +10,10 @@ struct FeynmanView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
     @State private var model: FeynmanViewModel?
+    /// Teaching it back out loud. Feynman is a long explanation in the
+    /// learner's own words — the phase voice serves most — so the mic is a
+    /// surface of its own rather than a button on the box.
+    @State private var speaking = false
 
     var body: some View {
         Group {
@@ -77,10 +81,31 @@ struct FeynmanView: View {
                 // Two controls side by side is a phone-width assumption; at the
                 // accessibility sizes it is the thing that shears the labels.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) { stuck(model); submit(model) }
-                    VStack(spacing: 10) { submit(model); stuck(model) }
+                    HStack(spacing: 10) { talk(model); stuck(model); submit(model) }
+                    VStack(spacing: 10) {
+                        submit(model)
+                        HStack(spacing: 10) { talk(model); stuck(model); Spacer(minLength: 0) }
+                    }
                 }
             }
+        }
+        .sheet(isPresented: $speaking) {
+            @Bindable var model = model
+            VoiceSheet(
+                dictation: model.dictation,
+                tint: Phase.feynman.tint,
+                text: $model.explanation,
+                placeholder: "Explique com suas próprias palavras — como se eu nunca tivesse ouvido falar",
+                sendTitle: model.submitTitle,
+                busy: model.judging || !model.ready,
+                escapes: model.scaffolded ? [] : [.init("Estou travado") { speaking = false; model.scaffold() }],
+                listen: { model.listen() },
+                send: { speaking = false; model.submit() },
+                keyboard: { speaking = false }
+            )
+            .presentationDetents([.height(VoiceSheet.height), .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Palette.paper)
         }
     }
 
@@ -119,16 +144,47 @@ struct FeynmanView: View {
                          placeholder: String(localized: "Explique com suas próprias palavras — como se eu nunca tivesse ouvido falar"),
                          dictation: model.dictation,
                          fills: !typeSize.isAccessibilitySize,
+                         voice: false,
                          tint: Phase.feynman.tint)
                 .padding(.top, 16)
                 .padding(.bottom, 20)
         }
     }
 
+    /// The nudge is an aside, not an offer — it reads at chip weight so the
+    /// submit is the only lit thing in the dock.
     @ViewBuilder
     private func stuck(_ model: FeynmanViewModel) -> some View {
         if !model.scaffolded {
-            GhostButton("Estou travado") { model.scaffold() }
+            Button { model.scaffold() } label: {
+                Text("Estou travado")
+                    .font(.atlas(.sans, 13))
+                    .foregroundStyle(Palette.inkMuted)
+                    .lineLimit(2)
+                    .padding(.horizontal, 13)
+                    .frame(minHeight: 34)
+                    .background(Palette.chipBg, in: .capsule)
+                    .frame(minHeight: Metrics.tap)
+                    .contentShape(.rect)
+            }
+            .pressable()
+        }
+    }
+
+    /// The way into the voice sheet. Voice is a setting (screen 13): a learner
+    /// who turned dictation off is not offered it back one screen at a time.
+    @ViewBuilder
+    private func talk(_ model: FeynmanViewModel) -> some View {
+        if store.dictationOn {
+            Button { speaking = true } label: {
+                Image(systemName: "mic")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Palette.inkMuted)
+                    .frame(width: Metrics.tap, height: Metrics.tap)
+                    .contentShape(.rect)
+            }
+            .pressable()
+            .accessibilityLabel("Ditar resposta")
         }
     }
 

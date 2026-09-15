@@ -166,6 +166,17 @@ final class FeynmanViewModel {
 
     func retry() async { await load() }
 
+    /// Open the mic, writing what it hears onto the end of the explanation.
+    /// Idempotent — the voice sheet opens on it, and its own control toggles.
+    func listen() {
+        guard !dictation.listening else { return }
+        dictation.toggle { [weak self] in self?.dictated($0) }
+    }
+
+    func dictated(_ text: String) {
+        explanation += explanation.isEmpty ? text : " \(text)"
+    }
+
     /// Leaving the screen with the judge still reading. The pass is saved; the
     /// verdict is not owed to anyone.
     func leave() {

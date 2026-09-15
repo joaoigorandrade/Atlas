@@ -97,15 +97,37 @@ struct SocraticView: View {
             if closedByApp { closedByApp = false } else { typing = true }
         }
         .sheet(isPresented: $speaking) {
-            SocraticVoiceSheet(model: model, close: { closedByApp = true; speaking = false },
-                               keyboard: { closedByApp = true; speaking = false; typing = true })
-                .presentationDetents([.height(SocraticVoiceSheet.height), .large])
+            @Bindable var model = model
+            VoiceSheet(
+                dictation: model.dictation,
+                tint: Phase.socratic.tint,
+                text: $model.answer,
+                placeholder: "Responda com suas palavras…",
+                sendTitle: "Enviar resposta",
+                busy: model.judging,
+                escapes: [
+                    .init("Estou travado") { close(); model.stuck() },
+                    .init("Só me conte") { close(); model.tell() },
+                ],
+                escapesEnabled: model.canEscape,
+                listen: { model.listen() },
+                send: { close(); Task { await model.send() } },
+                keyboard: { close(); typing = true }
+            )
+                .presentationDetents([.height(VoiceSheet.height), .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Palette.paper)
                 // The conversation stays live behind it — the learner can scroll
                 // back to what they are answering without giving up the mic.
-                .presentationBackgroundInteraction(.enabled(upThrough: .height(SocraticVoiceSheet.height)))
+                .presentationBackgroundInteraction(.enabled(upThrough: .height(VoiceSheet.height)))
         }
+    }
+
+    /// The screen closing the sheet — a sent answer, a hint, a tell. Distinct
+    /// from the learner dragging it down, which is a request for the keyboard.
+    private func close() {
+        closedByApp = true
+        speaking = false
     }
 
     /// Voice is the composer unless the learner turned dictation off for the
@@ -208,7 +230,7 @@ struct SocraticView: View {
             // …and the composer is the sheet, so the turn being answered has to
             // sit above it rather than under it.
             .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: speaking ? SocraticVoiceSheet.height : 0)
+                Color.clear.frame(height: speaking ? VoiceSheet.height : 0)
             }
             .animation(Motion.standard, value: model.log.count)
             .animation(Motion.snap, value: model.judging)

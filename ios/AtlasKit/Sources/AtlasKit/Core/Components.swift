@@ -417,15 +417,20 @@ public struct AnswerEditor: View {
     /// here died with the card it was drawn in (Feynman rebuilds one per beat)
     /// and took the learner's spoken answer with it.
     private let dictation: Dictation
+    /// The box draws its own mic. Off for a phase that answers out loud in the
+    /// voice sheet instead — two ways into the same recogniser is two things
+    /// to explain, and one of them is always the wrong one to reach for.
+    private let voice: Bool
     /// Voice is a setting, and screen 13 owns it — one read here covers every
     /// phase that asks the learner to write.
     @Environment(AtlasStore.self) private var store
 
     public init(text: Binding<String>, placeholder: String, dictation: Dictation,
-                minHeight: CGFloat = 150, fills: Bool = false, tint: Color = Palette.accent) {
+                minHeight: CGFloat = 150, fills: Bool = false, voice: Bool = true,
+                tint: Color = Palette.accent) {
         _text = text; self.placeholder = placeholder; self.dictation = dictation
         _minHeight = ScaledMetric(wrappedValue: minHeight)
-        self.fills = fills; self.tint = tint
+        self.fills = fills; self.voice = voice; self.tint = tint
     }
 
     public var body: some View {
@@ -446,7 +451,7 @@ public struct AnswerEditor: View {
                     .frame(minHeight: minHeight, maxHeight: fills ? .infinity : nil)
             }
             .frame(maxHeight: fills ? .infinity : nil)
-            if store.dictationOn {
+            if store.dictationOn && voice {
                 HStack(alignment: .center, spacing: 8) {
                     if let trouble = dictation.trouble {
                         Text(verbatim: trouble.sentence)
