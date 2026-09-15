@@ -1918,21 +1918,21 @@ export function useSpiral(deps: {
     setConsume((prev) => (prev ? { ...prev, finished: true, recap: true } : prev));
   };
 
-  /** The recap's CTA — the actual hand-off into Socratic (Phase 3a). */
-  const beginSocraticFromConsume = () => {
-    const nodeId = consumeRef.current?.nodeId;
+  /** Leaving a finished reading forwards — the recap's two CTAs. The rung
+   *  closes here as well as in `exitConsume`: this is the path a learner
+   *  actually takes, and closing it only on the way *back* to the map left the
+   *  ledger empty, so the rail kept offering a reading already finished. */
+  const leaveConsume = (go: (node: ConceptNode) => void) => {
+    const s = consumeRef.current;
     setConsume(null);
-    if (!nodeId) return;
-    const node = graphRef.current.nodes.find((n) => n.id === nodeId);
-    if (node) enterSocratic(node);
+    const node = s && graphRef.current.nodes.find((n) => n.id === s.nodeId);
+    if (!node) return setScreen("map");
+    if (s.finished) completePhase(node, "consume");
+    go(node);
   };
 
-  const consumeSkipCrucible = () => {
-    const node = graphRef.current.nodes.find((n) => n.id === consume?.nodeId);
-    setConsume(null);
-    if (node) enterCrucible(node);
-    else setScreen("map");
-  };
+  const beginSocraticFromConsume = () => leaveConsume(enterSocratic);
+  const consumeSkipCrucible = () => leaveConsume(enterCrucible);
 
   /** "Review prerequisite" — routes to the weakest direct prereq (shaky over
    *  merely learning) via the same session each state opens from the map. */

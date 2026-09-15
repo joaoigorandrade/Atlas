@@ -48,8 +48,23 @@ export async function applyNodeDeltas(
     ...(d.feynmanProgress !== undefined ? { feynman_progress: d.feynmanProgress } : null),
     ...(d.connectProgress !== undefined ? { connect_progress: d.connectProgress } : null),
   }));
-  const { error } = await db.from("nodes").upsert(rows, { onConflict: "topic_id,id" });
-  if (error) fail("applyNodeDeltas", error);
+  // One upsert per column shape. PostgREST pads a batch out to the *union* of
+  // its rows' keys, filling what a row doesn't name with NULL — so sending a
+  // freshly spawned gap (no `kind`, no `phase_plan`) alongside a node that
+  // carries both wrote NULL into two NOT NULL columns and 502'd the whole
+  // batch, wedging every later write for that run. Grouping keeps each
+  // statement homogeneous, so an unnamed column falls to its default.
+  const shapes = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = Object.keys(row).sort().join(",");
+    const group = shapes.get(key);
+    if (group) group.push(row);
+    else shapes.set(key, [row]);
+  }
+  for (const group of shapes.values()) {
+    const { error } = await db.from("nodes").upsert(group, { onConflict: "topic_id,id" });
+    if (error) fail("applyNodeDeltas", error);
+  }
 
   const edges = deltas.flatMap((d) =>
     (d.prereqs ?? []).map((from) => ({
