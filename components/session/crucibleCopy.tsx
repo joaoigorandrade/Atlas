@@ -41,6 +41,17 @@ export const STRINGS = {
       </>
     ),
     markMastered: "Mark Mastered · back to map →",
+    // The same close, on a node that jumped the queue: Crucible is the last
+    // gate but not the only one, and `stateFromPlan` lifts a node only when
+    // every gate in its plan is done. Promising Mastered here was a lie the
+    // map then contradicted.
+    transferConfirmedPartialBody: (
+      <>
+        You applied it in a framing you were never handed. Crucible is ticked off — this
+        node lifts to <b>Mastered</b> once the rest of its spiral is done.
+      </>
+    ),
+    markCrucibleDone: "Mark Crucible done · back to map →",
     difficultyLadder: "Difficulty ladder",
     drawnFromMap: "Drawn from your map",
     interleaveNote:
@@ -87,6 +98,13 @@ export const STRINGS = {
       </>
     ),
     markMastered: "Marcar como Dominado · voltar ao mapa →",
+    transferConfirmedPartialBody: (
+      <>
+        Você aplicou isso numa moldura que nunca tinha recebido. O Crucible está fechado —
+        este nó sobe para <b>Dominado</b> quando o resto da espiral estiver feito.
+      </>
+    ),
+    markCrucibleDone: "Marcar Crucible como feito · voltar ao mapa →",
     difficultyLadder: "Escada de dificuldade",
     drawnFromMap: "Puxado do seu mapa",
     interleaveNote:

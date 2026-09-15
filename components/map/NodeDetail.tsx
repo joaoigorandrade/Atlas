@@ -420,10 +420,14 @@ function NodeDetailBody({
           >
             {plan.map((id, i) => {
               const name = phaseLabel(id);
+              // Done because the ledger says so, not because it sits left of
+              // the current rung: jumping ahead closes a phase out of order.
+              // The positional test stays for Retain — closed by review
+              // history, so never in `phasesDone`.
               const status =
                 currentPhase < 0
                   ? "locked"
-                  : i < currentPhase
+                  : phasesDone?.includes(id) || i < currentPhase
                     ? "done"
                     : i === currentPhase
                       ? "current"

@@ -13,6 +13,7 @@ import {
   freshAdherence,
   markTodayMet,
   paceStatus,
+  crucibleMasters,
   phaseIndex,
   planGates,
   primaryPhase,
@@ -900,6 +901,30 @@ describe("primaryPhase — what the CTA opens is what the CTA says", () => {
 
   it("has nothing to open once the plan is finished", () => {
     expect(primaryPhase(plan, planGates(plan), "mastered")).toBeUndefined();
+  });
+});
+
+// ---- what the Crucible is allowed to promise ---------------------------------
+
+describe("crucibleMasters", () => {
+  const nodes = [{ id: "n", kind: "concept" as const }];
+  const done = (...p: string[]) => ({ n: p as never });
+
+  it("lifts the node when Crucible is the last gate left", () => {
+    expect(
+      crucibleMasters(nodes, "n", done("consume", "socratic", "feynman", "connect")),
+    ).toBe(true);
+  });
+
+  it("does not lift a node that jumped the queue", () => {
+    // "I know this →" and the rail's skip nudge both open the Crucible early.
+    // Passing it closes that rung and nothing else, so the closing copy must
+    // not promise Mastered — the map would contradict it on the next screen.
+    expect(crucibleMasters(nodes, "n", done("consume"))).toBe(false);
+  });
+
+  it("promises nothing about a node it cannot find", () => {
+    expect(crucibleMasters(nodes, "gone", {})).toBe(true);
   });
 });
 

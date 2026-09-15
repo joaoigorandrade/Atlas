@@ -160,6 +160,29 @@ export function phaseSkipNudge(phase: PhaseId, lang: Language = "en"): string {
   return (lang === "pt-BR" ? PHASE_SKIP_NUDGE_PT : PHASE_SKIP_NUDGE)[phase];
 }
 
+/**
+ * Does closing Crucible master this node, or does it still owe earlier gates?
+ *
+ * Crucible is the last gate in every plan but not the only one, and
+ * `stateFromPlan` lifts a node only when all of them are done — so a learner
+ * who jumped ahead passes the Crucible and stays Learning. The Crucible's
+ * closing copy has to say which of the two happened. Retain is excluded for
+ * the same reason `planGates` excludes it: review history closes it, not a
+ * session.
+ */
+export function crucibleMasters(
+  nodes: readonly { id: string; kind?: NodeKind; phasePlan?: readonly PhaseId[] }[],
+  nodeId: string | undefined,
+  phasesDone: PhasesDoneMap,
+): boolean {
+  const node = nodes.find((n) => n.id === nodeId);
+  if (!node) return true;
+  const done = phasesDone[node.id] ?? [];
+  return phasePlan(node).every(
+    (p) => p === "retain" || p === "crucible" || done.includes(p),
+  );
+}
+
 /** A phase's product label — English in both languages, by design. */
 export function phaseLabel(phase: PhaseId): string {
   return PHASE_DEFS[phase].label;

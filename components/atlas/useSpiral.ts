@@ -1244,21 +1244,22 @@ export function useSpiral(deps: {
 
   // ---- Connect (Phase 4 · Elaboration) ---------------------------------
 
-  // Connect can skip straight to the Crucible, which is defined in the section
-  // below — the ref keeps that hand-off out of a forward reference.
+  // Connect can skip straight to the Crucible, defined below — the ref keeps
+  // that hand-off out of a forward reference.
   const enterCrucibleRef = useRef<(node: ConceptNode) => void>(() => {});
 
-  /**
-   * Open the Connect surface on a node, generating its elaboration content
-   * first if needed. Candidates are drawn from nodes the learner has actually
-   * touched — the links are personal and true, never generic trivia.
-   */
+  /** Open the Connect surface on a node, generating its elaboration content
+   *  first if needed. Candidates are drawn from nodes the learner has actually
+   *  touched — the links are personal and true, never generic trivia. */
   const enterConnect = useCallback(
     (node: ConceptNode) => {
-      // Nothing touched yet means nothing true to wire into: skip the phase
-      // rather than ask the learner to link concepts they have never met.
+      // Nothing touched yet means nothing true to wire into: skip the phase,
+      // but close its rung on the way past or `stateFromPlan` can never lift
+      // the node — which left a map's first node stuck on Learning forever.
       if (connectParams(node).pool.length === 0) {
         showToast(tc().nothingToWire(node.label));
+        completePhase(node, "connect", "connect-complete");
+        setShakyReason(node.id, "connect-complete");
         enterCrucibleRef.current(node);
         return;
       }
@@ -1293,6 +1294,8 @@ export function useSpiral(deps: {
       warmNext,
       tc,
       connectParams,
+      completePhase,
+      setShakyReason,
       generate,
       loadConnect,
       showToast,

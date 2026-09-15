@@ -128,6 +128,13 @@ export function Figure({
         const span = Math.abs((layer.get(e.to) ?? 0) - (layer.get(e.from) ?? 0));
         const cx = (ax + bx) / 2 + (span > 1 ? 34 : 0);
         const cy = (ay + by) / 2;
+        // Which side of its apex the label hangs on. They all used to hang
+        // left, so two whose apexes landed near each other printed on top of
+        // one another — the arms of a fan-out, and a bowed skip-edge beside
+        // the straight chain. Leaning each label the way its edge leans
+        // separates both.
+        const leansRight = bx > ax || span > 1;
+        const lx = (ax + 2 * cx + bx) / 4;
         return (
           <g key={`e${i}`}>
             <path
@@ -139,9 +146,9 @@ export function Figure({
             />
             {e.label && (
               <text
-                x={(ax + 2 * cx + bx) / 4 - 4}
+                x={leansRight ? lx + 4 : lx - 4}
                 y={(ay + 2 * cy + by) / 4 + 3}
-                textAnchor="end"
+                textAnchor={leansRight ? "start" : "end"}
                 fontFamily={font.mono}
                 fontSize={9.5}
                 fill={color.inkMuted}

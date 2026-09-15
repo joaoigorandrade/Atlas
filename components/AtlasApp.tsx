@@ -6,6 +6,7 @@ import {
   DIAGNOSTIC_COUNT,
   localDay,
   markTodayMet,
+  crucibleMasters,
   orderedFrontier,
   reviewCard,
   rolloverAdherence,
@@ -665,16 +666,12 @@ export default function AtlasApp({
 
   /**
    * Wrap one session sheet so a throw inside it costs that sheet and nothing
-   * else.
-   *
-   * This is the whole reason `ErrorBoundary` exists here. `AtlasApp` holds the
-   * entire run in memory — graph, mastery states, every generated cache — and
-   * persists it on a debounce, so before this an unhandled render error in any
-   * phase view took all of it down to Next's default error page. Now the map is
-   * still behind you and the way back is a button.
-   *
-   * `resetKeys` on the open sheet and the selected node means leaving and
-   * re-entering clears the caught error without a reload.
+   * else. This is the whole reason `ErrorBoundary` exists here: `AtlasApp`
+   * holds the entire run in memory and persists it on a debounce, so before
+   * this an unhandled render error in any phase view took all of it down to
+   * Next's default error page. Now the map is still behind you and the way
+   * back is a button. `resetKeys` on the open sheet and the selected node
+   * means leaving and re-entering clears the error without a reload.
    */
   const sheetBoundary = (children: ReactNode) => (
     <ErrorBoundary
@@ -1038,6 +1035,7 @@ export default function AtlasApp({
             onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
             onRetry={() => dispatchCrucible({ type: "retry" })}
             onFinish={advanceFromCrucible}
+            lifts={crucibleMasters(graph.nodes, crucible.nodeId, phasesDone)}
           />,
         )}
 

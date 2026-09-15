@@ -430,6 +430,7 @@ export default function ConsumeView({
     );
   }
 
+  const drawn = chunks.some((c) => c.figure);
   return (
     <Sheet presence={presence} data-testid="phase-consume" aria-label="Consume — {title}">
       {/* Header */}
@@ -606,10 +607,9 @@ export default function ConsumeView({
             }}
           >
             {/* While still streaming, `chunks.length` is a running count, not
-                the pass's final section count — fall back to the no-count
-                phrasing rather than announcing a number that's about to
-                change. */}
-            {t.intro(streaming ? 0 : chunks.length)} {t.introTail}
+                the final section count — fall back to the no-count phrasing
+                rather than announce a number about to change. */}
+            {t.intro(streaming ? 0 : chunks.length, drawn)} {t.introTail}
           </p>
 
           {/* The very first open of a fresh node: the screen is already up,

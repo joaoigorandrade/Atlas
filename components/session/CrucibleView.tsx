@@ -48,6 +48,8 @@ interface CrucibleViewProps {
   onRetry: () => void;
   /** Transfer confirmed — close the gap and lift the node to Mastered. */
   onFinish: () => void;
+  /** Does closing Crucible master the node, or does it still owe earlier gates? */
+  lifts: boolean;
 }
 
 export default function CrucibleView({
@@ -61,6 +63,7 @@ export default function CrucibleView({
   onToggleReExplain,
   onRetry,
   onFinish,
+  lifts,
   presence,
 }: CrucibleViewProps) {
   const t = useT(STRINGS);
@@ -221,6 +224,7 @@ export default function CrucibleView({
                     onToggleReExplain={onToggleReExplain}
                     onRetry={onRetry}
                     onFinish={onFinish}
+                    lifts={lifts}
                   />
                 ) : (
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -414,12 +418,14 @@ function Diagnostic({
   onToggleReExplain,
   onRetry,
   onFinish,
+  lifts,
 }: {
   content: CrucibleContent;
   session: CrucibleSession;
   onToggleReExplain: () => void;
   onRetry: () => void;
   onFinish: () => void;
+  lifts: boolean;
 }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -665,7 +671,7 @@ function Diagnostic({
                   lineHeight: 1.55,
                 }}
               >
-                {t.transferConfirmedBody}
+                {lifts ? t.transferConfirmedBody : t.transferConfirmedPartialBody}
               </div>
             </div>
           </div>
@@ -685,7 +691,7 @@ function Diagnostic({
               boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
             }}
           >
-            {t.markMastered}
+            {lifts ? t.markMastered : t.markCrucibleDone}
           </button>
         </>
       )}
