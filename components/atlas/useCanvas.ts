@@ -5,6 +5,7 @@
 // AtlasApp (Phase 2.1); everything it needs from the run arrives as arguments.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { layout } from "@/lib/theme";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { NodeState } from "@/lib/curriculum";
 import { useLanguage } from "@/lib/i18n";
@@ -137,14 +138,25 @@ export function useCanvas(opts: {
   }, [showToast, setSelectedId, displayRef, setPositions, language]);
 
   /** Put a node in the middle of the screen at a readable zoom. */
+  /**
+   * Bring a node into view — into the *free* band, not the middle of the
+   * window. The plan rail (262) and the node detail (356) are opaque and
+   * always up above 1280, so centring on `innerWidth / 2` parked the node the
+   * learner had just selected underneath one of them; the lit node of a fresh
+   * map opened behind the rail every time.
+   */
   const centerOn = useCallback(
     (id: string) => {
       const pos = positionsRef.current[id];
       if (!pos) return;
       const scale = 0.85;
+      const { innerWidth: w, innerHeight: h } = window;
+      const rails = w >= layout.railsMin;
+      const free = w - layout.leftRail - layout.nodePanel;
+      const cx = rails ? layout.leftRail + free / 2 : w / 2;
       setView({
-        x: window.innerWidth / 2 - pos.x * scale,
-        y: window.innerHeight / 2 - pos.y * scale,
+        x: cx - pos.x * scale,
+        y: layout.topBar + (h - layout.topBar) / 2 - pos.y * scale,
         scale,
       });
     },

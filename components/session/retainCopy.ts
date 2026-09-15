@@ -16,7 +16,7 @@ export const STRINGS = {
     finishedBody:
       "Short, winnable, and it lit something up — the feeling that pulls you back tomorrow. FSRS has already scheduled every card for its next optimal moment.",
     litUpToday: (labels: string) => `Lit up today · ${labels}`,
-    dayStreak: "day streak",
+    dayStreak: (n: number) => (n === 1 ? "day streak" : "day streak"),
     todayIn: "today, in",
     nodesAlive: "nodes alive",
     freezesBanked: (n: number) =>
@@ -56,13 +56,15 @@ export const STRINGS = {
     doneForToday: "Terminado por hoje",
     queueClear: "Fila zerada. Você terminou num nó verde.",
     budgetSpent: (n: number) =>
-      `A meta de hoje foi cumprida. Ainda há ${n} cartão${n === 1 ? "" : "es"} vencido${n === 1 ? "" : "s"} esperando.`,
+      `A meta de hoje foi cumprida. Ainda ${
+        n === 1 ? "há 1 cartão vencido" : `há ${n} cartões vencidos`
+      } esperando.`,
     budgetSpentBody:
       "A fila não está limpa — os minutos do dia acabaram, que é justamente para isso que eles são orçados. O resto espera amanhã, ou aumente sua meta diária para pegá-los agora.",
     finishedBody:
       "Curto, vencível, e acendeu alguma coisa — a sensação que te traz de volta amanhã. O FSRS já agendou cada card para seu próximo momento ideal.",
     litUpToday: (labels: string) => `Acendeu hoje · ${labels}`,
-    dayStreak: "dias seguidos",
+    dayStreak: (n: number) => (n === 1 ? "dia seguido" : "dias seguidos"),
     todayIn: "hoje, dominados",
     nodesAlive: "nós vivos",
     freezesBanked: (n: number) =>
@@ -93,7 +95,7 @@ export const STRINGS = {
     gradeHint: "teclas 1–4",
     asideKey: "E",
     cardOf: (i: number, n: number) => `Card ${i} de ${n}`,
-    deckLeft: (n: number) => `${n} restantes no baralho`,
+    deckLeft: (n: number) => `${n} restante${n === 1 ? "" : "s"} no baralho`,
     fsrsNote:
       "O FSRS prevê a lembrança de cada card e o mostra no seu espaçamento ideal — não em passos fixos do SM-2.",
   },

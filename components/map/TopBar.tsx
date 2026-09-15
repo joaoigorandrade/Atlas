@@ -16,6 +16,9 @@ const STRINGS = {
     queueDue: (cards: number) =>
       `${cards} cards due now — framed in minutes, not a card wall`,
     reviewClear: "Review · clear ✓",
+    reviewWaiting: (cards: number) => `Review · budget spent, ${cards} waiting`,
+    queueWaiting: (cards: number) =>
+      `Today's budget is spent — ${cards} card${cards === 1 ? "" : "s"} still due`,
     reviewMinutes: (min: number) => `Review · ~${min} min`,
     profileWith: (email: string) => `Profile · ${email}`,
     profile: "Profile",
@@ -28,6 +31,9 @@ const STRINGS = {
     queueDue: (cards: number) =>
       `${cards} cartões vencidos agora — em minutos, não um mural de cartões`,
     reviewClear: "Revisão · limpa ✓",
+    reviewWaiting: (cards: number) => `Revisão · meta cumprida, ${cards} esperando`,
+    queueWaiting: (cards: number) =>
+      `A meta de hoje foi cumprida — ainda ${cards === 1 ? "há 1 cartão vencido" : `há ${cards} cartões vencidos`}`,
     reviewMinutes: (min: number) => `Revisão · ~${min} min`,
     profileWith: (email: string) => `Perfil · ${email}`,
     profile: "Perfil",
@@ -174,7 +180,16 @@ export default function TopBar({
       <StreakFlame adherence={adherence} onToggleReminder={onToggleReminder} />
       <HoverHint
         place="bottom"
-        hint={adherence.metToday ? t.queueClear : t.queueDue(queue.cards)}
+        hint={
+          // "Clear" has to mean the queue is empty, not merely that the daily
+          // budget is spent: this chip used to say so with cards still due,
+          // while the review screen's own chip said the opposite.
+          !queue.cards
+            ? t.queueClear
+            : adherence.metToday
+              ? t.queueWaiting(queue.cards)
+              : t.queueDue(queue.cards)
+        }
       >
         <button
           className="at-press"
@@ -200,7 +215,11 @@ export default function TopBar({
               background: color.accent,
             }}
           />
-          {adherence.metToday ? t.reviewClear : t.reviewMinutes(queue.minutes)}
+          {!queue.cards
+            ? t.reviewClear
+            : adherence.metToday
+              ? t.reviewWaiting(queue.cards)
+              : t.reviewMinutes(queue.minutes)}
         </button>
       </HoverHint>
       <HoverHint place="bottom" hint={userEmail ? t.profileWith(userEmail) : t.profile}>

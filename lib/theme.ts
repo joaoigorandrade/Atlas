@@ -30,6 +30,20 @@ export const color = {
   hairlineStrong: "rgba(44,40,35,0.14)",
 } as const;
 
+/**
+ * The map screen's fixed furniture. The top bar, the plan rail and the node
+ * detail are absolutely positioned at these sizes, and `centerOn` subtracts
+ * them to put a node where the learner can actually see it — a selected node
+ * used to open underneath the rail because this was three separate literals.
+ */
+export const layout = {
+  topBar: 58,
+  leftRail: 262,
+  nodePanel: 356,
+  /** Below this the rails collapse to toggles and stop reserving their width. */
+  railsMin: 1280,
+} as const;
+
 export const font = {
   serif: "var(--font-serif), Newsreader, serif",
   sans: "var(--font-sans), 'Instrument Sans', system-ui, sans-serif",

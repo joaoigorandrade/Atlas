@@ -19,7 +19,7 @@ import {
   type NodeState,
   type ShakyReason,
 } from "@/lib/curriculum";
-import { color, font, kicker, motion, transition } from "@/lib/theme";
+import { color, font, kicker, layout, motion, transition } from "@/lib/theme";
 import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -270,10 +270,10 @@ function NodeDetailBody({
       aria-label="Concept detail"
       style={{
         position: "absolute",
-        top: 58,
+        top: layout.topBar,
         bottom: 0,
         right: 0,
-        width: 356,
+        width: layout.nodePanel,
         background: isGap ? "rgba(250,243,241,0.97)" : "rgba(248,246,240,0.97)",
         borderLeft: isGap ? `2px solid ${stateColor}` : `1px solid ${color.hairline}`,
         padding: "28px 26px",

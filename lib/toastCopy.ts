@@ -17,6 +17,7 @@ const EN = {
   locked: "Locked — learn the highlighted path first",
   clearPrereqs: "Clear its prerequisites first",
   sessionHint: "Session · double-click a glowing frontier node to begin",
+  everythingMastered: "Every concept on this map is mastered — Review is what keeps it.",
 
   // Onboarding / maps
   nameTopicFirst: "Name a topic first — the map is generated from it",
@@ -89,6 +90,8 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     locked: "Bloqueado — percorra primeiro o caminho destacado",
     clearPrereqs: "Conclua os pré-requisitos primeiro",
     sessionHint: "Sessão · dê dois cliques num nó brilhante da fronteira para começar",
+    everythingMastered:
+      "Todo conceito deste mapa está dominado — a Revisão é o que mantém isso.",
 
     nameTopicFirst: "Dê um nome ao tema primeiro — o mapa é gerado a partir dele",
     nameTopicNext: "Dê um nome ao tema para construir seu próximo mapa.",

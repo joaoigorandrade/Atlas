@@ -105,8 +105,19 @@ export function useNavigation(deps: {
   };
   const enterProfile = () => setScreen("profile");
   const openMap = useCallback(() => setScreen("map"), [setScreen]);
-  /** "+ New map" — onboarding builds a new run alongside whatever's saved. */
-  const newMap = useCallback(() => setScreen("welcome"), [setScreen]);
+  /**
+   * "+ New map" — onboarding builds a new run alongside whatever's saved.
+   *
+   * The topic is cleared on the way in. It used to carry over as the input's
+   * *value*, so the screen that asks "what do you want to learn?" opened
+   * pre-answered with the last map's subject, one click away from building a
+   * duplicate of a map the learner already has. Everything else on the form —
+   * goal, interests, daily target — is a preference worth keeping.
+   */
+  const newMap = useCallback(() => {
+    setForm((prev) => ({ ...prev, topic: "" }));
+    setScreen("welcome");
+  }, [setScreen, setForm]);
 
   /**
    * "Exclude this topic" on a dashboard map card (confirmed there first): the

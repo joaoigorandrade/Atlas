@@ -35,14 +35,14 @@ export function WorkedExample({ example }: { example: ConsumeExample }) {
         <Rich text={example.title} />
       </div>
       <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
-        {example.steps.map((s, i) => (
+        {(example?.steps ?? []).map((s, i) => (
           <li
             key={i}
             style={{
               display: "flex",
               gap: 11,
               alignItems: "baseline",
-              marginBottom: i === example.steps.length - 1 ? 0 : 10,
+              marginBottom: i === (example?.steps ?? []).length - 1 ? 0 : 10,
             }}
           >
             <span

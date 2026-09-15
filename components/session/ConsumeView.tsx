@@ -181,7 +181,7 @@ export default function ConsumeView({
   // for sections not yet written — close enough to plan a skim vs. a read.
   const wordsOf = (c: ConsumeChunk) =>
     c.body.join(" ").split(/\s+/).filter(Boolean).length +
-    c.example.steps.join(" ").split(/\s+/).filter(Boolean).length;
+    (c.example?.steps ?? []).join(" ").split(/\s+/).filter(Boolean).length;
   const readWords = chunks
     .slice(0, session.idx + 1)
     .reduce((sum, c) => sum + wordsOf(c), 0);

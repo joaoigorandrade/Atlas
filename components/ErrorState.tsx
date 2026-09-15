@@ -42,7 +42,7 @@ export function ErrorState({
   retryLabel?: string;
   onRetry?: () => void;
   secondary?: { label: string; onClick: () => void };
-  /** Sits inside a sheet rather than filling the screen. */
+  /** Sits inside a sheet — a smaller headline than the full-screen state. */
   compact?: boolean;
 }): ReactNode {
   const t = useT(STRINGS);
@@ -56,9 +56,12 @@ export function ErrorState({
         justifyContent: "center",
         gap: 12,
         maxWidth: 460,
-        margin: compact ? "0" : "0 auto",
-        padding: compact ? "34px 4px" : "72px 40px",
-        minHeight: compact ? undefined : "60vh",
+        // `compact` is the crashed-session fallback. It still fills the sheet
+        // it replaced: hung at the corner with the map showing behind it, a
+        // handled error read as a render failure.
+        margin: "0 auto",
+        padding: compact ? "72px 32px" : "72px 40px",
+        minHeight: compact ? "70vh" : "60vh",
         animation: `fadeUp ${motion.duration.slow}ms ${motion.ease.enter} both`,
       }}
     >

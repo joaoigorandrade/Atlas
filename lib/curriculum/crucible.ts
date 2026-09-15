@@ -132,7 +132,6 @@ export function crucibleStart(nodeId: string): CrucibleSession {
 export type CrucibleAction =
   | { type: "confidence"; level: ConfidenceLevel }
   | { type: "attempt"; value: string }
-  | { type: "sample" }
   /** The server judge's grading of the actual attempt (#27). `transfer` may be
    *  empty when only the pass/partial verdict has streamed in. */
   | { type: "result"; outcome: CrucibleOutcome; transfer: TransferRow[] }
@@ -153,17 +152,17 @@ export type CrucibleAction =
 export function crucibleReducer(
   session: CrucibleSession,
   action: CrucibleAction,
-  content: CrucibleContent,
+  /** The problem set this session is grading against. Unread since the demo
+   *  "fill a sample attempt" affordance was removed, and kept because callers
+   *  refuse to dispatch without it — a session with no content to grade has
+   *  nothing to reduce. */
+  _content: CrucibleContent,
 ): CrucibleSession {
   switch (action.type) {
     case "confidence":
       return { ...session, conf: action.level, stage: "work" };
     case "attempt":
       return { ...session, attempt: action.value };
-    case "sample": {
-      const prob = crucibleProblem(session, content);
-      return prob ? { ...session, attempt: prob.sample } : session;
-    }
     case "result":
       // The judge graded the real attempt — pass/partial is earned, not
       // scripted, and the diagnostic rows are grounded in what was written.

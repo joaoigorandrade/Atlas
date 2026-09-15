@@ -715,7 +715,7 @@ function TeachPage({
             </button>
           )}
           <div style={{ flex: 1 }} />
-          <span style={{ ...kicker(10), color: color.inkGhost }}>
+          <span style={{ ...kicker(10), color: color.inkMuted }}>
             {t.remaining(beats.length - answered)}
           </span>
           <Advance

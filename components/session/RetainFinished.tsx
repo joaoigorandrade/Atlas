@@ -119,7 +119,9 @@ export default function Finished({
           >
             {adherence.streak}
           </div>
-          <div style={{ ...kicker(10, "0.08em"), marginTop: 2 }}>{t.dayStreak}</div>
+          <div style={{ ...kicker(10, "0.08em"), marginTop: 2 }}>
+            {t.dayStreak(adherence.streak)}
+          </div>
         </div>
         <div
           style={{

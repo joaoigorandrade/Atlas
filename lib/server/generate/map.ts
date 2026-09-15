@@ -292,7 +292,7 @@ Pick by what the learner must be able to DO, not by subject area. When two fit, 
 export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a learner who has never met this concept what it actually is and what it lets them do — concrete and specific to this topic. Never restate the label ("Gradient Descent is about gradient descent"), never describe the concept's role in the map or its difficulty, never start with "This concept".`;
 
 const mapRules = (ask: [number, number]) =>
-  `Rules: labels are 1-3 words, title case. ${SUMMARY_RULE}
+  `Rules: labels are 1-3 words, capitalized the way the output language capitalizes a heading — English title case, but sentence case in languages that do not title-case (pt-BR: "Reações dependentes da luz", never "Reações Dependentes Da Luz"). ${SUMMARY_RULE}
 ${KIND_RULE}
 ${sizeRule({
   unit: "concepts",

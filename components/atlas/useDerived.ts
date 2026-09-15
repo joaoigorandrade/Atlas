@@ -323,7 +323,7 @@ export function useDerived(deps: {
     .filter(Boolean);
 
   const profileStats: ProfileStat[] = [
-    { value: `${adherence.streak}`, label: t.dayStreak, accent: true },
+    { value: `${adherence.streak}`, label: t.dayStreak(adherence.streak), accent: true },
     { value: `${masteredCount}`, label: t.conceptsMastered },
     { value: `${frontierTotal}`, label: t.onTheFrontier },
     { value: `${masteryPct}%`, label: t.mapMastered },

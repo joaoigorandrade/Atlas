@@ -8,7 +8,7 @@ import { InlineError } from "@/components/ErrorState";
 
 const STRINGS = {
   en: {
-    dayStreak: "day streak",
+    dayStreak: (n: number) => (n === 1 ? "day streak" : "day streak"),
     profile: "Profile",
     frontierIntro: (n: number) =>
       `You're on the frontier of ${n} concept${n === 1 ? "" : "s"}. Pick up where you left off.`,
@@ -47,7 +47,7 @@ const STRINGS = {
     excludeCancel: "Keep it",
   },
   "pt-BR": {
-    dayStreak: "dias de sequência",
+    dayStreak: (n: number) => (n === 1 ? "dia de sequência" : "dias de sequência"),
     profile: "Perfil",
     frontierIntro: (n: number) =>
       `Você está na fronteira de ${n} conceito${n === 1 ? "" : "s"}. Continue de onde parou.`,
@@ -79,7 +79,7 @@ const STRINGS = {
     mapsRetry: "Tentar de novo",
     complete: "Completo",
     inProgress: "Em andamento",
-    justStarted: "Recém-iniciado",
+    justStarted: "Novo",
     masteredPct: (pct: number) => `${pct}% dominado`,
     onFrontier: (n: number) => `${n} na fronteira`,
     exclude: "Excluir este tópico",
@@ -246,7 +246,7 @@ export default function DashboardScreen({
             }}
           />
           <span style={{ fontWeight: 600, color: color.ink }}>{streak}</span>{" "}
-          {t.dayStreak}
+          {t.dayStreak(streak)}
         </div>
         <button
           className="at-press"
@@ -679,7 +679,7 @@ function MapCard({
               display: "flex",
               justifyContent: "space-between",
               fontSize: 12.5,
-              color: color.inkFaint,
+              color: color.inkMuted,
             }}
           >
             <span>{t.masteredPct(map.masteryPct)}</span>

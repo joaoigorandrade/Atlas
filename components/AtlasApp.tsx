@@ -16,7 +16,7 @@ import {
 import { createWarmQueue } from "@/lib/warm";
 import { type Language, languageAction, useLanguage } from "@/lib/i18n";
 import { InkRule } from "@/components/Pending";
-import { color, font } from "@/lib/theme";
+import { color, font, layout } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, Topic } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
@@ -63,6 +63,7 @@ import OfflineBanner from "@/components/OfflineBanner";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
 
 import RailToggle from "@/components/map/RailToggle";
+import CanvasHint from "@/components/map/CanvasHint";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 
@@ -351,14 +352,27 @@ export default function AtlasApp({
     resetTransient,
   });
 
-  /**
-   * The node the "Start here →" / "Jump to frontier" affordances target:
-   * the top of the goal-ordered plan, not merely the leftmost lit node.
-   */
+  /** What "Start here →" / "Jump to frontier" target: the top of the goal-ordered
+   *  plan, or — the plan holds `frontier` nodes only, and a run has none from the
+   *  moment its lit node turns `learning` — the leftmost node with work left in
+   *  it. Null here is what made the rail's primary button a silent no-op. */
+  /** Search dims every non-match; a match behind a rail has to be moved to. */
+  const onSearch = (q: string) => {
+    setQuery(q);
+    const term = q.trim().toLowerCase();
+    const hit = graphRef.current.nodes.find((n) => n.label.toLowerCase().includes(term));
+    if (term && hit) centerOn(hit.id);
+  };
+
   const frontierTargetId = useCallback(() => {
     const plan = orderedFrontier(displayRef.current, graphRef.current, form.goal);
-    return plan[0]?.node.id ?? null;
-  }, [form.goal, graphRef]);
+    if (plan[0]) return plan[0].node.id;
+    const display = displayRef.current;
+    const inFlight = graphRef.current.nodes.filter((n) =>
+      ["learning", "shaky", "gap"].includes(display[n.id] ?? "unknown"),
+    );
+    return inFlight.sort((a, b) => a.x - b.x)[0]?.id ?? null;
+  }, [form.goal, graphRef, displayRef]);
 
   // Onboarding: topic in, map out, placement answered.
   const {
@@ -646,7 +660,7 @@ export default function AtlasApp({
       </div>
     );
   }
-  const narrow = vw < 1280;
+  const narrow = vw < layout.railsMin;
   const errorStrings = ERROR_STRINGS[language];
 
   /**
@@ -761,7 +775,7 @@ export default function AtlasApp({
         <>
           <TopBar
             query={query}
-            onQuery={setQuery}
+            onQuery={onSearch}
             onSurface={onSurface}
             adherence={adherence}
             queue={queue}
@@ -834,20 +848,7 @@ export default function AtlasApp({
               )}
             </>
           )}
-          <div
-            style={{
-              position: "absolute",
-              bottom: 18,
-              left: !narrow || railOpen ? 280 : 18,
-              fontFamily: font.mono,
-              fontSize: 11,
-              color: color.inkGhost,
-              zIndex: 12,
-            }}
-          >
-            scroll to zoom · drag canvas to pan · drag a node to move · double-click a lit
-            node to begin
-          </div>
+          <CanvasHint left={!narrow || railOpen ? 280 : 18} />
         </>
       )}
 
@@ -1033,7 +1034,6 @@ export default function AtlasApp({
             onExit={exitCrucible}
             onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}
             onAttempt={(value) => dispatchCrucible({ type: "attempt", value })}
-            onSample={() => dispatchCrucible({ type: "sample" })}
             onSubmit={crucibleSubmit}
             onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
             onRetry={() => dispatchCrucible({ type: "retry" })}

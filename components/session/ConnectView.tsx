@@ -205,7 +205,7 @@ export default function ConnectView({
         <div style={{ flex: 1 }} />
         <span style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}>
           Consume → Socratic → Feynman → <b style={{ color: VIOLET }}>Connect</b> →
-          Crucible → Retain
+          Crucible → Retained
         </span>
       </div>
 

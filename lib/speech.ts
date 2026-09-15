@@ -56,7 +56,7 @@ export function altParagraphs(text: string): string[] {
  */
 export function segmentsForChunk(c: ConsumeChunk, altText?: string | null): string[] {
   const prose = altText ? altParagraphs(altText) : c.body;
-  return [prose, [c.example.title, ...c.example.steps], [c.takeaway]]
+  return [prose, [c.example?.title ?? "", ...(c.example?.steps ?? [])], [c.takeaway]]
     .flat()
     .map((s) => s.trim())
     .filter(Boolean);

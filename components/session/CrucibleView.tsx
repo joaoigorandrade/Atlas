@@ -40,8 +40,6 @@ interface CrucibleViewProps {
   onConfidence: (level: ConfidenceLevel) => void;
   /** Edit the workspace attempt. */
   onAttempt: (value: string) => void;
-  /** Drop a sample attempt into the workspace (a demo affordance). */
-  onSample: () => void;
   /** Submit the attempt — a wrong one is still diagnostic. */
   onSubmit: () => void;
   /** Toggle the 30-second Socratic re-explanation aimed at the gap. */
@@ -59,7 +57,6 @@ export default function CrucibleView({
   onExit,
   onConfidence,
   onAttempt,
-  onSample,
   onSubmit,
   onToggleReExplain,
   onRetry,
@@ -122,7 +119,7 @@ export default function CrucibleView({
         <div style={{ flex: 1 }} />
         <span style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}>
           Consume → Socratic → Feynman → Connect → <b style={{ color: RUST }}>Crucible</b>{" "}
-          → Retain
+          → Retained
         </span>
       </div>
 
@@ -255,20 +252,6 @@ export default function CrucibleView({
                       ) : (
                         t.submitAttempt
                       )}
-                    </button>
-                    <button
-                      className="at-press"
-                      onClick={onSample}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        fontSize: 13,
-                        color: color.inkGhost,
-                        cursor: "pointer",
-                        textDecoration: "underline",
-                      }}
-                    >
-                      {t.fillSample}
                     </button>
                   </div>
                 )}
@@ -404,17 +387,21 @@ function Problem({
       >
         <Rich text={problem.q} />
       </div>
-      <div
+      {/* Behind a disclosure: the nudge names the approach, and printing it
+          beside the problem spends the desirable difficulty this rung exists
+          to create before the learner has tried anything. */}
+      <details
         style={{
           borderLeft: `3px solid ${CRUCIBLE_COLOR.border}`,
           padding: "3px 0 3px 14px",
           fontSize: 13.5,
-          color: color.inkFaint,
+          color: color.inkMuted,
           lineHeight: 1.5,
         }}
       >
-        {t.nudge(problem.hint)}
-      </div>
+        <summary style={{ cursor: "pointer", ...kicker(10.5) }}>{t.nudgeAsk}</summary>
+        <div style={{ marginTop: 8 }}>{t.nudge(problem.hint)}</div>
+      </details>
     </div>
   );
 }

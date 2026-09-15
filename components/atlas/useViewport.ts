@@ -4,6 +4,7 @@
 // The app-wide gate below 768 is rendered by AtlasApp off `vw`.
 
 import { useEffect, useState } from "react";
+import { layout } from "@/lib/theme";
 
 export function useViewport() {
   const [vw, setVw] = useState(1440);
@@ -15,7 +16,7 @@ export function useViewport() {
       const w = window.innerWidth;
       if (w === 0) return; // hidden/backgrounded surface — keep the last real width
       setVw(w);
-      if (w < 1280) {
+      if (w < layout.railsMin) {
         setRailOpen(false);
         setDetailOpen(false);
       } else {

@@ -16,7 +16,7 @@ const IGNITE_MS = motion.duration.deliberate;
 
 const STRINGS = {
   en: {
-    dayStreak: "day streak",
+    dayStreak: (n: number) => (n === 1 ? "day streak" : "day streak"),
     freezesBanked: (n: number) =>
       `${n} freeze${n === 1 ? "" : "s"} banked — each absorbs a missed day`,
     dayFreeze: "Missed — a freeze absorbed it, streak held",
@@ -30,7 +30,7 @@ const STRINGS = {
     reminder: "Reminder",
   },
   "pt-BR": {
-    dayStreak: "dias de sequência",
+    dayStreak: (n: number) => (n === 1 ? "dia de sequência" : "dias de sequência"),
     freezesBanked: (n: number) =>
       `${n} proteç${n === 1 ? "ão" : "ões"} guardada${n === 1 ? "" : "s"} — cada uma absorve um dia perdido`,
     dayFreeze: "Faltou — uma proteção absorveu, sequência mantida",
@@ -122,7 +122,7 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
         </span>
         <span>
           <span style={{ fontWeight: 600, color: color.ink }}>{adherence.streak}</span>{" "}
-          {t.dayStreak}
+          {t.dayStreak(adherence.streak)}
         </span>
         {adherence.freezes > 0 && (
           <span
@@ -215,7 +215,7 @@ function Popover({
           {adherence.streak}
         </span>
         <span style={{ ...kicker(10, "0.1em"), color: color.inkMuted }}>
-          {t.dayStreak}
+          {t.dayStreak(adherence.streak)}
         </span>
       </div>
 

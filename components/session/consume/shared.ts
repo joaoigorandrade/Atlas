@@ -90,7 +90,7 @@ export const STRINGS = {
   },
   "pt-BR": {
     back: "← Mapa",
-    sessionLabel: "Sessão · Consumir",
+    sessionLabel: "Sessão · Consume",
     iKnowThis: "Já sei isso →",
     kicker: "Leitura fundamentada, com dupla codificação",
     intro: (n: number) =>

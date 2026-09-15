@@ -1399,23 +1399,23 @@ export function useSpiral(deps: {
         return [...byId.values()];
       });
     }
-    if (node) {
-      completePhase(node, "connect", "connect-complete");
-      setShakyReason(node.id, "connect-complete");
-    }
+    if (node) completePhase(node, "connect", "connect-complete");
     // Finished — the parked copy has nothing left to come back to.
     setConnectProgress((prev) => {
       if (!prev[connect.nodeId]) return prev;
       const { [connect.nodeId]: _done, ...rest } = prev;
       return rest;
     });
-    setScreen("map");
     setConnect(null);
-    if (node) {
-      setSelectedId(node.id);
-      later(() => centerOn(node.id), 30);
-      showToast(tc().cardsDrafted(drafted.length));
-    }
+    if (!node) return setScreen("map");
+    setShakyReason(node.id, "connect-complete");
+    setSelectedId(node.id);
+    showToast(tc().cardsDrafted(drafted.length));
+    // "Continue to the Crucible →" used to land on the map, leaving the node
+    // reading "Try again · Crucible" for a phase it had never shown.
+    if (phasePlan(node).includes("crucible")) return enterCrucibleRef.current(node);
+    setScreen("map");
+    later(() => centerOn(node.id), 30);
   };
 
   // ---- Crucible (Phase 5 · application / transfer) ---------------------
@@ -2064,7 +2064,7 @@ export function useSpiral(deps: {
 
   const jumpFrontier = () => {
     const target = frontierTargetId();
-    if (!target) return;
+    if (!target) return showToast(tc().everythingMastered);
     setSelectedId(target);
     centerOn(target);
   };

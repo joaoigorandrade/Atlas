@@ -13,13 +13,13 @@ export const STRINGS = {
     kickerWorkspace: "Workspace · a wrong attempt is diagnostic",
     judgingAttempt: "Judging your attempt",
     submitAttempt: "Submit attempt",
-    fillSample: "fill a sample attempt",
     kickerCalibration: "Calibration · before you see it",
     confidenceQuestion:
       "How sure are you that you can apply this in a situation you’ve never seen?",
     confidenceBody:
       "We record this now, then compare it to what actually happens. The gap between the two is the most useful thing here.",
     nudge: (hint: string) => `Nudge · ${hint}`,
+    nudgeAsk: "Stuck? open one nudge",
     kickerTransferDiagnostic: "Transfer diagnostic · what carried over",
     kickerConfidenceVsResult: "Confidence vs. result",
     gapWrittenTitle: "A gap was written back to your map.",
@@ -58,13 +58,13 @@ export const STRINGS = {
     kickerWorkspace: "Espaço de trabalho · uma tentativa errada é diagnóstica",
     judgingAttempt: "Julgando sua tentativa",
     submitAttempt: "Enviar tentativa",
-    fillSample: "preencher uma tentativa de exemplo",
     kickerCalibration: "Calibração · antes de ver",
     confidenceQuestion:
       "Quão seguro você está de que consegue aplicar isso numa situação que nunca viu?",
     confidenceBody:
       "Registramos isso agora e depois comparamos com o que realmente acontece. A distância entre os dois é a coisa mais útil aqui.",
     nudge: (hint: string) => `Dica · ${hint}`,
+    nudgeAsk: "Travou? abrir uma dica",
     kickerTransferDiagnostic: "Diagnóstico de transferência · o que se transferiu",
     kickerConfidenceVsResult: "Confiança vs. resultado",
     gapWrittenTitle: "Uma lacuna foi registrada no seu mapa.",

@@ -143,8 +143,8 @@ export function Figure({
                 y={(ay + 2 * cy + by) / 4 + 3}
                 textAnchor="end"
                 fontFamily={font.mono}
-                fontSize={8}
-                fill={color.inkFaint}
+                fontSize={9.5}
+                fill={color.inkMuted}
                 stroke={color.card}
                 strokeWidth={3}
                 paintOrder="stroke"

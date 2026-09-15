@@ -100,7 +100,10 @@ export function SectionCheck({
                 <button
                   className="at-press"
                   key={o.label}
-                  data-testid={`action-check-${oi}`}
+                  // Only the live check is addressable: an answered section
+                  // keeps its options on screen, and carrying the same testid
+                  // there made every `action-check-N` match twice.
+                  data-testid={passed ? undefined : `action-check-${oi}`}
                   onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
                   disabled={passed}
                   style={{

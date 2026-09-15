@@ -26,7 +26,7 @@ import type { Language } from "@/lib/i18n";
  *  a component: `retainContentFromStore` builds them before any render. */
 const FORECAST_STRINGS = {
   en: {
-    dueNow: "Due now",
+    dueNow: "Due in all — today’s deck included",
     thisWeek: "Coming up this week",
     rockSolid: "Rock-solid",
     cards: (n: number) => `${n} card${n === 1 ? "" : "s"}`,
@@ -36,7 +36,7 @@ const FORECAST_STRINGS = {
     months: (n: number) => `${n} mo`,
   },
   "pt-BR": {
-    dueNow: "Para agora",
+    dueNow: "Vencidos ao todo — a fila de hoje inclusa",
     thisWeek: "Chegando esta semana",
     rockSolid: "Consolidado",
     cards: (n: number) => `${n} ${n === 1 ? "cartão" : "cartões"}`,

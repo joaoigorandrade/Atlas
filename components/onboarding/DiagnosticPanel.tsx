@@ -351,19 +351,15 @@ export default function DiagnosticPanel({
               );
             })}
           </div>
-          <div
-            style={{
-              marginTop: 26,
-              fontSize: 13,
-              color: color.inkFaint,
-              lineHeight: 1.5,
-            }}
-          >
-            <Rich text={shown.note} />
-          </div>
-
           {picked && (
             <div style={{ marginTop: 22, animation: "fadeUp 0.35s both" }}>
+              {/* What the answer changed about the map. It used to render with
+                  the options still unanswered, where a sentence like "this
+                  places ATP and O₂ before the Calvin cycle" reads as the
+                  answer key. */}
+              <div style={{ fontSize: 13, color: color.inkMuted, lineHeight: 1.5 }}>
+                <Rich text={shown.note} />
+              </div>
               <div
                 style={{
                   fontFamily: font.mono,
@@ -371,7 +367,7 @@ export default function DiagnosticPanel({
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   color: correct ? color.accent : color.amberInk,
-                  marginBottom: 6,
+                  margin: "14px 0 6px",
                 }}
               >
                 {correct ? t.right : slipped ? t.slip : t.wrong}

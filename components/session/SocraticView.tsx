@@ -21,55 +21,7 @@ import Sheet from "@/components/Sheet";
 import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
-const STRINGS = {
-  en: {
-    back: "← Map",
-    sessionLabel: "Session · Socratic",
-    scaffolding: "Scaffolding",
-    breadcrumbLead: "Construct the idea · I catch wrong turns, I don’t smooth them over",
-    judgeFailed: "That answer didn’t get graded — nothing was lost.",
-    judgeRetry: "Grade it again",
-    doneGap: "Sub-point rebuilt — this gap can close.",
-    doneUnderstood: "Understanding established — you reconstructed it unaided.",
-    doneAssisted: "Understanding built — with a nudge along the way.",
-    doneFlagged: "Leaning on being told — let's shore up the basics first.",
-    advanceGap: "Close the gap · back to the map →",
-    advanceTeach: "Teach it back · Feynman →",
-    advanceBack: "Back to the map →",
-    advanceReread: "Re-read this first · Consume →",
-    yourAnswer: "Your answer — in your own words",
-    placeholderJudging: "Reading your answer…",
-    placeholderWriting: "Writing the next probe…",
-    placeholderAnswer: "Type what you think — wrong turns get caught, not judged",
-    send: "Send",
-    stuck: "I’m stuck · more help",
-    tellMe: "Just tell me",
-  },
-  "pt-BR": {
-    back: "← Mapa",
-    judgeFailed: "Essa resposta não foi avaliada — nada foi perdido.",
-    judgeRetry: "Avaliar de novo",
-    sessionLabel: "Sessão · Socrático",
-    scaffolding: "Apoio",
-    breadcrumbLead: "Construa a ideia · eu flagro raciocínios errados, não deixo passar",
-    doneGap: "Subponto reconstruído — essa lacuna pode se fechar.",
-    doneUnderstood: "Compreensão estabelecida — você reconstruiu isso sozinho.",
-    doneAssisted: "Compreensão construída — com uma ajuda pelo caminho.",
-    doneFlagged: "Dependendo de respostas prontas — vamos reforçar a base primeiro.",
-    advanceGap: "Fechar a lacuna · voltar ao mapa →",
-    advanceTeach: "Ensinar de volta · Feynman →",
-    advanceBack: "Voltar ao mapa →",
-    advanceReread: "Reler primeiro · Consumir →",
-    yourAnswer: "Sua resposta — com suas próprias palavras",
-    placeholderJudging: "Lendo sua resposta…",
-    placeholderWriting: "Escrevendo a próxima pergunta…",
-    placeholderAnswer:
-      "Digite o que você pensa — raciocínios errados são flagrados, não julgados",
-    send: "Enviar",
-    stuck: "Estou travado · mais ajuda",
-    tellMe: "Só me conte",
-  },
-} as const;
+import { STRINGS } from "@/components/session/socraticCopy";
 
 // Socratic borrows the shared state colors: learning blue for the phase label,
 // mastered green for "understanding established", the scaffolding warmth from
@@ -519,6 +471,7 @@ function Turn({
   retryLabel: string;
   onRetry?: () => void;
 }) {
+  const t = useT(STRINGS);
   if (turn.role === "learner") {
     return (
       <div
@@ -553,14 +506,16 @@ function Turn({
         <div
           style={{
             fontFamily: font.mono,
-            fontSize: 9.5,
+            fontSize: 10.5,
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            color: color.inkGhost,
+            // inkMuted, not inkGhost: this names the move the probe is making,
+            // which is content, and ghost at 9.5px sat around 2.3:1.
+            color: color.inkMuted,
             marginBottom: 6,
           }}
         >
-          {turn.move}
+          {t.move[turn.move]}
         </div>
       )}
       <div

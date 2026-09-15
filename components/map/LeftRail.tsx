@@ -10,7 +10,7 @@ import {
   type PaceStatus,
   type PlanEntry,
 } from "@/lib/curriculum";
-import { color, font, kicker, transition } from "@/lib/theme";
+import { color, font, kicker, layout, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import { useCountUp } from "@/lib/motion";
 import HoverHint from "@/components/HoverHint";
@@ -119,10 +119,10 @@ export default function LeftRail({
     <div
       style={{
         position: "absolute",
-        top: 58,
+        top: layout.topBar,
         bottom: 0,
         left: 0,
-        width: 262,
+        width: layout.leftRail,
         background: "rgba(248,246,240,0.94)",
         borderRight: `1px solid ${color.hairline}`,
         padding: "26px 22px",
