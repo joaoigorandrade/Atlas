@@ -170,7 +170,12 @@ function assemble(
     // from the node's generated coordinates; both are seeded here so the two
     // clients cannot disagree about where a node is.
     out.positions[n.id] = { x: n.x, y: n.y };
-    if (n.shaky_reason) out.shakyReasons[n.id] = n.shaky_reason;
+    // Only on a node that is actually Shaky. The reason used to be inert copy
+    // — state was the input — so nothing cleared it when a flagged node later
+    // went green, and prod carries rows that are `mastered` with a
+    // `crucible-fail` on them. Now that state is *derived*, loading one of
+    // those would re-derive the node Shaky the next time it finished a phase.
+    if (n.shaky_reason && n.state === "shaky") out.shakyReasons[n.id] = n.shaky_reason;
     if (n.reviewed) out.reviewedNodes.push(n.id);
     if (n.phases_done?.length) out.phasesDone[n.id] = n.phases_done;
     if (n.consume_progress) out.consumeProgress[n.id] = n.consume_progress;
