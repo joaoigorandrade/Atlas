@@ -17,6 +17,7 @@ import {
   validateSocratic,
   validateSummary,
 } from "@/lib/server/generate";
+import { kindNote } from "@/lib/server/generate/common";
 import { graphFromMapNodes, RETAIN_DRAFT_NODES } from "@/lib/curriculum";
 import { migrateConsume, type LegacyConsumeChunk } from "@/lib/contentMigrate";
 
@@ -756,5 +757,44 @@ describe("mapNodeBounds", () => {
     expect(mid.ask[1]).toBeLessThan(high.ask[0]);
     // A top-20% map must be able to validate below the full map's floor.
     expect(low.min).toBeLessThan(mapNodeBounds().min);
+  });
+});
+
+// ---- the per-kind prompt lever ---------------------------------------------
+// The half of the catalogue that isn't the ladder: which phases a node runs is
+// one lever, and how a phase is *written* for that kind is the other. It had no
+// coverage of either sort — fixture mode ignores `nodeKind`, so the e2e suite
+// can only prove the kind reaches the wire, not that it changes anything.
+
+describe("kindNote", () => {
+  it("says nothing for `concept`, so an existing map's prompts are unchanged", () => {
+    // Byte-identical is the requirement, not merely similar: it is what lets
+    // the cache key omit `concept` and keep every row already written.
+    for (const phase of ["consume", "connect", "crucible"] as const) {
+      expect(kindNote("concept", phase)).toBe("");
+      expect(kindNote(undefined, phase)).toBe("");
+    }
+  });
+
+  it("tells a fact not to explain, and a principle to draw the mechanism", () => {
+    expect(kindNote("fact", "consume")).toMatch(/FACT/);
+    expect(kindNote("fact", "consume")).toMatch(/NO figure/i);
+    expect(kindNote("principle", "consume")).toMatch(/FIGURE IS REQUIRED/i);
+    expect(kindNote("procedure", "consume")).toMatch(/WORKED EXAMPLE/i);
+  });
+
+  it("gives every note its own blank lines, so it can't fuse with the prose", () => {
+    // It is interpolated straight into a template between two other blocks.
+    const note = kindNote("procedure", "crucible");
+    expect(note.startsWith("\n")).toBe(true);
+    expect(note.endsWith("\n")).toBe(true);
+  });
+
+  it("leaves Connect and Crucible alone for a fact", () => {
+    // Deliberate, and the sharpest open question in the catalogue: a fact has
+    // nothing to elaborate or transfer, so the notes are empty — but the plan
+    // still makes the learner run both phases. See the ladder, not the note.
+    expect(kindNote("fact", "connect")).toBe("");
+    expect(kindNote("fact", "crucible")).toBe("");
   });
 });

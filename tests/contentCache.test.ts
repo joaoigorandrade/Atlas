@@ -170,4 +170,27 @@ describe("the curriculum warm addresses the learner's own rows", () => {
       resolveJob({ ...warmConsume, prereqLabels: ["Bindings"] }).key,
     );
   });
+
+  // `nodeKind` changes the prompt (`kindNote`), so it has to be in the key —
+  // but `concept` is what every node was before kinds existed, and keying on
+  // it would have orphaned every row already in `content_cache`. That is the
+  // whole reason there was no CONTENT_CACHE_VERSION bump with the catalogue.
+  it("keys `concept` to the same row a request from before kinds wrote", () => {
+    expect(resolveJob({ ...warmConsume, nodeKind: "concept" }).key).toBe(
+      resolveJob(warmConsume).key,
+    );
+  });
+
+  it("keys an unrecognised kind as `concept` rather than forking the cache", () => {
+    expect(
+      resolveJob({ ...warmConsume, nodeKind: "wharrgarbl" } as typeof warmConsume).key,
+    ).toBe(resolveJob(warmConsume).key);
+  });
+
+  it("separates the kinds that actually change the prompt", () => {
+    const keys = (["fact", "procedure", "principle"] as const).map(
+      (nodeKind) => resolveJob({ ...warmConsume, nodeKind }).key,
+    );
+    expect(new Set([...keys, resolveJob(warmConsume).key]).size).toBe(4);
+  });
 });

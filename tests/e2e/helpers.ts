@@ -130,22 +130,40 @@ const LEDGER: Record<string, PhaseId[]> = {
   mastered: ["consume", "socratic", "feynman", "connect", "crucible"],
 };
 
-/** The captured rows with `states` forced onto the matching nodes. */
-function withStates(tables: Tables, states: Record<string, string>): Tables {
+/** What a spec forces onto one node: a display state (the common case, which
+ *  brings its implied ledger with it) or raw column overrides, for the cases
+ *  that are *about* the columns — a kind, a plan, a half-finished ledger. */
+export type NodePatch = string | Record<string, unknown>;
+
+/** The captured rows with `patches` forced onto the matching nodes. */
+function withStates(tables: Tables, patches: Record<string, NodePatch>): Tables {
   return {
     ...tables,
     nodes: (tables.nodes ?? []).map((node) => {
-      const forced = states[node.id as string];
-      return forced
+      const forced = patches[node.id as string];
+      if (!forced) return node;
+      return typeof forced === "string"
         ? { ...node, state: forced, phases_done: LEDGER[forced] ?? [] }
-        : node;
+        : { ...node, ...forced };
     }),
   };
 }
 
+/** The node rows as they are actually stored — what a spec asserts against
+ *  when the question is "did this reach the database", not "what is on screen".
+ *  Read through the same route the seed writes to, so it is the rows `store/`
+ *  would serve. */
+export async function readNodeRows(
+  request: APIRequestContext,
+): Promise<Array<Record<string, unknown>>> {
+  const res = await request.get(`${SEED}?table=nodes`);
+  const body = (await res.json()) as { rows?: Array<Record<string, unknown>> };
+  return body.rows ?? [];
+}
+
 export async function openRun(
   page: Page,
-  states: Record<string, string> = {},
+  states: Record<string, NodePatch> = {},
 ): Promise<Run> {
   if (!cached()) {
     // A run left behind by an earlier spec would open on the map, and

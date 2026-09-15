@@ -654,6 +654,7 @@ function NodeDetailBody({
       {displayState === "frontier" && (
         <button
           className="at-press"
+          data-testid="action-skip-known"
           onClick={() => onSkipKnown(node)}
           style={{
             width: "100%",

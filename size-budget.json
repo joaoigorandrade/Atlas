@@ -11,7 +11,7 @@
     "components/atlas/useSpiral.ts": 2152,
     "components/map/LeftRail.tsx": 452,
     "components/map/MapCanvas.tsx": 471,
-    "components/map/NodeDetail.tsx": 705,
+    "components/map/NodeDetail.tsx": 706,
     "components/map/StreakFlame.tsx": 441,
     "components/onboarding/DiagnosticPanel.tsx": 500,
     "components/onboarding/WelcomeScreen.tsx": 450,
