@@ -91,6 +91,17 @@ test("consume: reading the pass through moves the node off unknown", async ({ pa
   );
   // Read to the end, and recorded as such — the whole point of the mirror.
   expect((snap.consumeProgress as Progress)[FIRST_NODE].idx).toBeGreaterThan(0);
+
+  // Taking the hand-off is the path a learner actually takes out of a finished
+  // reading, and it has to close the rung. It used to close only on the way
+  // *back* to the map, so a learner who followed the CTA left Consume
+  // unfinished in the ledger and the rail kept offering it for ever.
+  await recap.getByTestId("action-begin-socratic").click();
+  const after = await persisted(
+    page,
+    (s) => ((s.phasesDone as Record<string, string[]>)?.[FIRST_NODE] ?? []).length > 0,
+  );
+  expect((after.phasesDone as Record<string, string[]>)[FIRST_NODE]).toContain("consume");
 });
 
 test("socratic: three answered probes advance the node", async ({ page }) => {

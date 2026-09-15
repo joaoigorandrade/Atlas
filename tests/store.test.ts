@@ -90,6 +90,44 @@ describe("a run, stored as rows", () => {
     expect(loaded?.graph.edges).toContainEqual(["b", "b-gap", false]);
   });
 
+  it("never mixes column shapes in one upsert", async () => {
+    // PostgREST pads a batch out to the union of its rows' keys and writes
+    // NULL where a row is silent, so a spawned gap (no `kind`, no
+    // `phase_plan`) travelling beside a full node wrote NULL into two NOT NULL
+    // columns — a 502 that wedged every later write for that run. The fixture
+    // tables merge per row and can't reproduce that, so the property pinned
+    // here is the one that prevents it: every statement is homogeneous.
+    const topic = await makeTopic();
+    const client = db();
+    const batches: Array<Array<Record<string, unknown>>> = [];
+    const from = client.from.bind(client);
+    client.from = ((table: string) => {
+      const table_ = from(table);
+      if (table !== "nodes") return table_;
+      const upsert = table_.upsert.bind(table_);
+      table_.upsert = ((
+        rows: Array<Record<string, unknown>>,
+        opts: Parameters<typeof upsert>[1],
+      ) => {
+        batches.push(rows);
+        return upsert(rows, opts);
+      }) as typeof table_.upsert;
+      return table_;
+    }) as typeof client.from;
+
+    await applyNodeDeltas(client, FIXTURE_USER_ID, topic.id, [
+      { id: "a", kind: "fact", phasePlan: ["consume", "retain"], state: "learning" },
+      { id: "b-gap", state: "gap", isGap: true, label: "Gap" },
+    ]);
+    expect(batches.length).toBe(2);
+    for (const rows of batches) {
+      const shapes = new Set(rows.map((r) => Object.keys(r).sort().join(",")));
+      expect(shapes.size).toBe(1);
+    }
+    const loaded = await loadTopic(db(), topic.id);
+    expect(loaded?.graph.nodes.find((n) => n.id === "b-gap")?.gap).toBe(true);
+  });
+
   it("takes a resolved gap's edges out with it", async () => {
     const topic = await makeTopic();
     await deleteNodes(db(), topic.id, ["b"]);
