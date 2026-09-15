@@ -328,9 +328,12 @@ export function useDerived(deps: {
     { value: `${frontierTotal}`, label: t.onTheFrontier },
     { value: `${masteryPct}%`, label: t.mapMastered },
   ];
-  const reviewSummary = adherence.metToday
+  // "Clear" has to mean the queue is empty, not that the budget is spent.
+  const reviewSummary = !queue.cards
     ? t.queueClear
-    : t.queueDue(queue.cards, queue.minutes);
+    : adherence.metToday
+      ? t.queueWaiting(queue.cards)
+      : t.queueDue(queue.cards, queue.minutes);
 
   return {
     isMap,

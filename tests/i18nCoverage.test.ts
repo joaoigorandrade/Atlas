@@ -5,6 +5,8 @@ import { TOAST_STRINGS } from "@/lib/toastCopy";
 import { STRINGS as DASHBOARD_STRINGS } from "@/components/atlas/dashboardCopy";
 import { STRINGS as RETAIN_STRINGS } from "@/components/session/retainCopy";
 import { STRINGS as CRUCIBLE_STRINGS } from "@/components/session/crucibleCopy";
+import { STRINGS as DASHBOARD_SCREEN_STRINGS } from "@/components/dashboardScreenCopy";
+import { STRINGS as SOCRATIC_STRINGS } from "@/components/session/socraticCopy";
 
 // The bug this file exists to catch: a lang-aware helper (`confidenceLevels`,
 // `reviewAside`, `goals`, …) exists and is *ignored* at the call site, which
@@ -66,6 +68,8 @@ describe("i18n coverage", () => {
     ["dashboard", DASHBOARD_STRINGS],
     ["retain", RETAIN_STRINGS],
     ["crucible", CRUCIBLE_STRINGS],
+    ["dashboard screen", DASHBOARD_SCREEN_STRINGS],
+    ["socratic", SOCRATIC_STRINGS],
   ])("builds every %s line in both languages", (_name, table) => {
     for (const lang of ["en", "pt-BR"] as const) {
       const entries = table[lang] as Record<string, unknown>;

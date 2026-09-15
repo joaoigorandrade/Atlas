@@ -5,92 +5,7 @@ import { STATE_COLOR, type DailyQueue } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InlineError } from "@/components/ErrorState";
-
-const STRINGS = {
-  en: {
-    dayStreak: (n: number) => (n === 1 ? "day streak" : "day streak"),
-    profile: "Profile",
-    frontierIntro: (n: number) =>
-      `You're on the frontier of ${n} concept${n === 1 ? "" : "s"}. Pick up where you left off.`,
-    fullyMastered: "Your map is fully mastered. Keep the memories fresh with review.",
-    todaysReview: "Today’s review",
-    queueClear: "Queue clear ✓",
-    cardsDue: (n: number) => `${n} card${n === 1 ? "" : "s"} due`,
-    nothingDueYet: "Nothing due yet",
-    metTodayBody:
-      "You've met today's target. New cards surface as memories start to fade.",
-    cardsDueBody: (min: number) =>
-      `~${min} min · timed to the moment these memories are about to fade.`,
-    nothingDueBody: "Learn a concept to the end and it starts feeding the review queue.",
-    startReview: "Start review →",
-    yourFrontier: "Your frontier",
-    allCaughtUp: "All caught up",
-    frontierBody: (subject: string) =>
-      `The next concept you're ready to learn in ${subject}.`,
-    frontierDoneBody: (subject: string) => `Every concept in ${subject} is under way.`,
-    openMap: "Open the map →",
-    yourMaps: "Your maps",
-    newMap: "+ New map",
-    mapsFailed: "Couldn’t load your maps — they’re safe, this is just the list.",
-    mapsRetry: "Try again",
-    complete: "Complete",
-    inProgress: "In progress",
-    justStarted: "Just started",
-    masteredPct: (pct: number) => `${pct}% mastered`,
-    onFrontier: (n: number) => `${n} on frontier`,
-    exclude: "Exclude this topic",
-    excludeKicker: "Exclude topic",
-    excludeAsk: (subject: string) => `Exclude “${subject}”?`,
-    excludeBody:
-      "The map, its mastery states, its cards and everything generated for it are deleted. Your streak stays. This can't be undone.",
-    excludeConfirm: "Exclude",
-    excludeCancel: "Keep it",
-  },
-  "pt-BR": {
-    dayStreak: (n: number) => (n === 1 ? "dia de sequência" : "dias de sequência"),
-    profile: "Perfil",
-    frontierIntro: (n: number) =>
-      `Você está na fronteira de ${n} conceito${n === 1 ? "" : "s"}. Continue de onde parou.`,
-    fullyMastered:
-      "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão.",
-    todaysReview: "Revisão de hoje",
-    queueClear: "Fila limpa ✓",
-    cardsDue: (n: number) =>
-      `${n} cartã${n === 1 ? "o" : "os"} pendente${n === 1 ? "" : "s"}`,
-    nothingDueYet: "Nada pendente ainda",
-    metTodayBody:
-      "Você cumpriu a meta de hoje. Novos cartões surgem à medida que as memórias começam a desvanecer.",
-    cardsDueBody: (min: number) =>
-      `~${min} min · no momento exato em que essas memórias estão prestes a desvanecer.`,
-    nothingDueBody:
-      "Aprenda um conceito até o fim e ele passa a alimentar a fila de revisão.",
-    startReview: "Iniciar revisão →",
-    yourFrontier: "Sua fronteira",
-    allCaughtUp: "Tudo em dia",
-    frontierBody: (subject: string) =>
-      `O próximo conceito que você está pronto para aprender em ${subject}.`,
-    frontierDoneBody: (subject: string) =>
-      `Todo conceito em ${subject} está em andamento.`,
-    openMap: "Abrir o mapa →",
-    yourMaps: "Seus mapas",
-    newMap: "+ Novo mapa",
-    mapsFailed:
-      "Não deu para carregar seus mapas — eles estão seguros, isto é só a lista.",
-    mapsRetry: "Tentar de novo",
-    complete: "Completo",
-    inProgress: "Em andamento",
-    justStarted: "Novo",
-    masteredPct: (pct: number) => `${pct}% dominado`,
-    onFrontier: (n: number) => `${n} na fronteira`,
-    exclude: "Excluir este tópico",
-    excludeKicker: "Excluir tópico",
-    excludeAsk: (subject: string) => `Excluir “${subject}”?`,
-    excludeBody:
-      "O mapa, seus estados de domínio, seus cartões e tudo que foi gerado para ele são apagados. Sua sequência permanece. Não dá para desfazer.",
-    excludeConfirm: "Excluir",
-    excludeCancel: "Manter",
-  },
-} as const;
+import { STRINGS } from "@/components/dashboardScreenCopy";
 
 /** One card's worth of a saved map — the "Your maps" grid. */
 export interface MapCardSummary {
@@ -349,10 +264,10 @@ export default function DashboardScreen({
                   marginBottom: 6,
                 }}
               >
-                {metToday
-                  ? t.queueClear
-                  : queue.cards > 0
-                    ? t.cardsDue(queue.cards)
+                {queue.cards > 0
+                  ? t.cardsDue(queue.cards)
+                  : metToday
+                    ? t.queueClear
                     : t.nothingDueYet}
               </div>
               <div
@@ -363,11 +278,13 @@ export default function DashboardScreen({
                   lineHeight: 1.5,
                 }}
               >
-                {metToday
-                  ? t.metTodayBody
-                  : queue.cards > 0
-                    ? t.cardsDueBody(queue.minutes)
-                    : t.nothingDueBody}
+                {metToday && queue.cards > 0
+                  ? t.metTodayWaiting(queue.cards)
+                  : metToday
+                    ? t.metTodayBody
+                    : queue.cards > 0
+                      ? t.cardsDueBody(queue.minutes)
+                      : t.nothingDueBody}
               </div>
               <div style={{ fontSize: 13.5, color: color.accent, fontWeight: 600 }}>
                 {t.startReview}
