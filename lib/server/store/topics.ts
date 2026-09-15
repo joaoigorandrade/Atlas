@@ -26,6 +26,8 @@ import type {
   MisconceptionRecord,
   ModalityTally,
   ProgressState,
+  NodeKind,
+  PhaseId,
   ShakyReason,
   SocraticSession,
 } from "@/lib/curriculum";
@@ -76,6 +78,9 @@ type NodeRow = {
   state: ProgressState;
   shaky_reason: ShakyReason | null;
   reviewed: boolean;
+  kind: NodeKind;
+  phase_plan: PhaseId[];
+  phases_done: PhaseId[];
   consume_progress: ConsumeProgress | null;
   socratic_progress: SocraticSession | null;
   feynman_progress: FeynmanSession | null;
@@ -97,7 +102,7 @@ export type CardRow = {
 const TOPIC_COLUMNS =
   "id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at";
 const NODE_COLUMNS =
-  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, consume_progress, socratic_progress, feynman_progress, connect_progress";
+  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress";
 export const CARD_COLUMNS = "topic_id, id, node_id, type, source, content, fsrs";
 
 /** A card row as the screens hold it. The content fields travel as one object
@@ -137,6 +142,7 @@ function assemble(
     states: {},
     positions: {},
     shakyReasons: {},
+    phasesDone: {},
     reviewedNodes: [],
     consumeProgress: {},
     socraticProgress: {},
@@ -154,6 +160,8 @@ function assemble(
       x: n.x,
       y: n.y,
       ...(n.summary ? { summary: n.summary } : null),
+      ...(n.kind ? { kind: n.kind } : null),
+      ...(n.phase_plan?.length ? { phasePlan: n.phase_plan } : null),
       ...(n.is_gap ? { gap: true } : null),
     };
     out.graph.nodes.push(node);
@@ -164,6 +172,7 @@ function assemble(
     out.positions[n.id] = { x: n.x, y: n.y };
     if (n.shaky_reason) out.shakyReasons[n.id] = n.shaky_reason;
     if (n.reviewed) out.reviewedNodes.push(n.id);
+    if (n.phases_done?.length) out.phasesDone[n.id] = n.phases_done;
     if (n.consume_progress) out.consumeProgress[n.id] = n.consume_progress;
     if (n.socratic_progress) out.socraticProgress[n.id] = n.socratic_progress;
     if (n.feynman_progress) out.feynmanProgress[n.id] = n.feynman_progress;

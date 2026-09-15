@@ -3,7 +3,7 @@ import { FIRST_NODE, openPhase, openRun, SECOND_NODE } from "./helpers";
 
 test("retain: the day's queue is built from learned nodes", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
-  await openPhase(page, FIRST_NODE, 5);
+  await openPhase(page, FIRST_NODE, "retain");
 
   const sheet = page.getByTestId("phase-retain");
   await expect(sheet).toBeVisible();

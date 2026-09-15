@@ -8,6 +8,7 @@ import {
   type ConceptNode,
   type ConsumeProgress,
   type NodeState,
+  type PhasesDoneMap,
   type ShakyReason,
 } from "@/lib/curriculum";
 import { color, font, motion, transition } from "@/lib/theme";
@@ -59,6 +60,9 @@ interface MapCanvasProps {
   consumeProgress?: Record<string, ConsumeProgress>;
   reviewedNodes?: string[];
   shakyReasons?: Record<string, ShakyReason>;
+  /** Which phases each node has finished — the peek's "next" line derives
+   *  from it, same as the rail's. */
+  phasesDone?: PhasesDoneMap;
   query: string;
   onWheel: (e: WheelEvent) => void;
   onCanvasDown: (e: React.MouseEvent) => void;
@@ -86,6 +90,7 @@ export default function MapCanvas({
   consumeProgress,
   reviewedNodes,
   shakyReasons,
+  phasesDone,
   query,
   onWheel,
   onCanvasDown,
@@ -156,6 +161,7 @@ export default function MapCanvas({
       display,
       edges,
       reviewed: reviewedNodes?.includes(node.id) ?? false,
+      phasesDone: phasesDone?.[node.id],
       shakyReason: shakyReasons?.[node.id],
       consumeProgress: consumeProgress?.[node.id],
       // Kept inside the canvas so a node near an edge doesn't push its card
@@ -177,6 +183,7 @@ export default function MapCanvas({
     edges,
     reviewedNodes,
     shakyReasons,
+    phasesDone,
     consumeProgress,
     box,
   ]);

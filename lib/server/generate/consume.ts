@@ -4,6 +4,7 @@ import {
   boundaryNote,
   fail,
   interestNote,
+  kindNote,
   languageNote,
   obj,
   sizeRule,
@@ -20,6 +21,7 @@ import {
 import { Language } from "@/lib/i18n";
 import { generateJson, streamJsonObjectsProgressive } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
+import type { NodeKind } from "@/lib/curriculum";
 
 export function validateFigure(raw: unknown, name: string): ConsumeFigure {
   const f = obj(raw, name);
@@ -171,6 +173,7 @@ export function validateConsume(raw: unknown): ConsumeChunk[] {
 }
 
 function consumeContext(params: {
+  nodeKind?: NodeKind;
   topic: string;
   nodeLabel: string;
   prereqLabels: string[];
@@ -213,10 +216,11 @@ Rules for the prose:
   ORDER, not a checklist of five sections — a small concept covers several of
   those beats inside one section.
 - Name the common misconception explicitly and say why it is wrong.
-${boundaryNote(params)}${languageNote(language)}`;
+${boundaryNote(params)}${kindNote(params.nodeKind, "consume")}${languageNote(language)}`;
 }
 
 export async function generateConsume(params: {
+  nodeKind?: NodeKind;
   topic: string;
   nodeLabel: string;
   prereqLabels: string[];
@@ -261,6 +265,7 @@ Return JSON:
  * common failure mode (format non-compliance) upstream of this point.
  */
 export async function* generateConsumeStream(params: {
+  nodeKind?: NodeKind;
   topic: string;
   nodeLabel: string;
   prereqLabels: string[];

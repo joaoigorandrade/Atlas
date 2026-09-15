@@ -58,7 +58,7 @@ test.describe("Full Visual Browser Tour", () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "05_node_detail.png") });
 
     // 5. Phase 0: Consume (Reading pass)
-    await openPhase(page, FIRST_NODE, 0);
+    await openPhase(page, FIRST_NODE, "consume");
     const consumeSheet = page.getByTestId("phase-consume");
     await expect(consumeSheet).toBeVisible();
     await page.waitForTimeout(800);
@@ -103,7 +103,7 @@ test.describe("Full Visual Browser Tour", () => {
 
     // 8. Phase 2: Feynman
     await openRun(page, { [FIRST_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, 2);
+    await openPhase(page, FIRST_NODE, "feynman");
     const feynmanSheet = page.getByTestId("phase-feynman");
     await expect(feynmanSheet).toBeVisible();
     await feynmanSheet.getByTestId("action-begin").click();
@@ -115,7 +115,7 @@ test.describe("Full Visual Browser Tour", () => {
 
     // 9. Phase 3: Connect
     await openRun(page, { [FIRST_NODE]: "learning", [SECOND_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, 3);
+    await openPhase(page, FIRST_NODE, "connect");
     const connectSheet = page.getByTestId("phase-connect");
     await expect(connectSheet).toBeVisible();
     await page.waitForTimeout(600);
@@ -123,7 +123,7 @@ test.describe("Full Visual Browser Tour", () => {
 
     // 10. Phase 4: Crucible
     await openRun(page, { [FIRST_NODE]: "shaky", [SECOND_NODE]: "mastered" });
-    await openPhase(page, FIRST_NODE, 4);
+    await openPhase(page, FIRST_NODE, "crucible");
     const crucibleSheet = page.getByTestId("phase-crucible");
     await expect(crucibleSheet).toBeVisible();
     const conf = crucibleSheet.getByTestId("action-confidence-2");
@@ -138,7 +138,7 @@ test.describe("Full Visual Browser Tour", () => {
 
     // 11. Phase 5: Retain (Flashcards)
     await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
-    await openPhase(page, FIRST_NODE, 5);
+    await openPhase(page, FIRST_NODE, "retain");
     const retainSheet = page.getByTestId("phase-retain");
     await expect(retainSheet).toBeVisible();
     await expect(retainSheet.getByTestId("action-flip")).toBeVisible({

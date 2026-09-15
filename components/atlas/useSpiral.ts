@@ -15,7 +15,10 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import {
-  PHASES,
+  phaseIndex,
+  phaseLabel,
+  phasePlan,
+  primaryPhase,
   SOCRATIC_STEPS,
   connectCards,
   connectReducer,
@@ -28,7 +31,6 @@ import {
   feynmanStart,
   markTodayMet,
   preferredModality,
-  readingPhaseIndex,
   recordMisconception,
   recurringMisconceptions,
   removeNode,
@@ -42,6 +44,7 @@ import {
   socraticStart,
   type AltKey,
   type ConceptNode,
+  type PhaseId,
   type ConnectAction,
   type ConsumeChunk,
   type ConsumeModelBeat,
@@ -75,6 +78,7 @@ import {
   fetchSocraticStream,
   type FeynmanJudgement,
 } from "@/lib/api";
+import { usePhaseLedger } from "@/components/atlas/phaseLedger";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
 import type { Screen } from "@/components/atlas/screen";
@@ -159,6 +163,9 @@ export function useSpiral(deps: {
     setLitToday,
     setReviewedNodes,
     reviewedNodes,
+    setPhasesDone,
+    phasesDoneRef,
+    shakyReasonsRef,
     setMisconceptions,
     misconceptionsRef,
     setModalityTally,
@@ -232,6 +239,17 @@ export function useSpiral(deps: {
     loadCrucible,
   } = gen;
 
+  // The phase ledger — what each node has finished, and the mastery state
+  // derived from it. Its own module: every handler below calls into it from
+  // inside a `useCallback`, so these have to be stable.
+  const { completePhase, markStarted, warmNext, completeWholePlan } = usePhaseLedger({
+    phasesDoneRef,
+    setPhasesDone,
+    shakyReasonsRef,
+    setStates,
+    warmOne,
+  });
+
   // ---- map actions ------------------------------------------------------
 
   /**
@@ -269,7 +287,7 @@ export function useSpiral(deps: {
         setScreen("consume");
         // Reading takes minutes; the questioning pass that follows can be
         // written in that time.
-        warmOne("socratic", node);
+        warmNext(node, "consume");
       };
       if (consumeCacheRef.current[node.id]) {
         open();
@@ -331,13 +349,13 @@ export function useSpiral(deps: {
         });
     },
     [
+      warmNext,
       tc,
       consumeParams,
       generate,
       loadConsume,
       showError,
       warm,
-      warmOne,
       setConsume,
       setLiveConsume,
       consumeCacheRef,
@@ -656,12 +674,12 @@ export function useSpiral(deps: {
    */
   const exitConsume = () => {
     const s = consumeRef.current;
-    if (s && (s.idx >= 1 || s.finished)) {
-      setStates((prev) =>
-        prev[s.nodeId] === "unknown" || prev[s.nodeId] === undefined
-          ? { ...prev, [s.nodeId]: "learning" }
-          : prev,
-      );
+    const node = s && graphRef.current.nodes.find((n) => n.id === s.nodeId);
+    if (s && node) {
+      // Reading it through closes the rung. Leaving part-way through doesn't,
+      // but it is still real progress and the map should say so.
+      if (s.finished) completePhase(node, "consume");
+      else if (s.idx >= 1) markStarted(node);
     }
     setScreen("map");
   };
@@ -679,11 +697,7 @@ export function useSpiral(deps: {
       // carries spare probes past the plan, and only a struggling learner ever
       // spends them (`socraticReducer`). So a session opens on the plan.
       const open = (steps: SocraticStep[], total = socraticPlan(steps)) => {
-        setStates((prev) =>
-          prev[node.id] === "unknown" || prev[node.id] === undefined
-            ? { ...prev, [node.id]: "learning" }
-            : prev,
-        );
+        markStarted(node);
         // The reading handed off. Without this, a node whose pass was read to
         // the end and then left for the map is indistinguishable from one
         // that went on to be questioned — see `readingPhaseIndex`.
@@ -707,7 +721,7 @@ export function useSpiral(deps: {
         setScreen("socratic");
         // Socratic hands straight off to Feynman — warm it now rather than
         // waiting on the general pass's settle delay to notice the state flip.
-        warmOne("feynman", node);
+        warmNext(node, "socratic");
       };
       const cached = socraticCacheRef.current[node.id];
       if (cached) {
@@ -785,18 +799,18 @@ export function useSpiral(deps: {
         });
     },
     [
+      warmNext,
+      markStarted,
       tc,
       generate,
       loadSocratic,
       socraticParams,
       showError,
       warm,
-      warmOne,
       setLiveSocratic,
       setSocratic,
       setConsumeProgress,
       setSocraticCache,
-      setStates,
       socraticCacheRef,
       socraticProgressRef,
       warmKey,
@@ -999,7 +1013,7 @@ export function useSpiral(deps: {
         setScreen("feynman");
         // Feynman hands straight off to Connect — and the pool Connect keys on
         // doesn't move during a teach-back, so warming it here always lands.
-        warmOne("connect", node);
+        warmNext(node, "feynman");
       };
       if (feynmanCacheRef.current[node.id]) {
         open();
@@ -1062,13 +1076,13 @@ export function useSpiral(deps: {
         });
     },
     [
+      warmNext,
       tc,
       feynmanParams,
       generate,
       loadFeynman,
       showError,
       warm,
-      warmOne,
       setFeynman,
       setLiveFeynman,
       feynmanCacheRef,
@@ -1261,7 +1275,7 @@ export function useSpiral(deps: {
         setScreen("connect");
         // Connect ends by handing the node to the Crucible, and the mastered
         // set its problem keys on doesn't change in between.
-        warmOne("crucible", node);
+        warmNext(node, "connect");
       };
       if (connectCacheRef.current[node.id]) {
         open();
@@ -1276,12 +1290,12 @@ export function useSpiral(deps: {
       );
     },
     [
+      warmNext,
       tc,
       connectParams,
       generate,
       loadConnect,
       showToast,
-      warmOne,
       setConnect,
       connectCacheRef,
       connectProgressRef,
@@ -1333,6 +1347,7 @@ export function useSpiral(deps: {
       return rest;
     });
     if (node) {
+      completePhase(node, "feynman");
       enterConnect(node);
       if (specs.length)
         showToast(tc().gapsAttached(specs.length, node.label), tc().mapUpdated);
@@ -1385,11 +1400,7 @@ export function useSpiral(deps: {
       });
     }
     if (node) {
-      setStates((prev) =>
-        prev[node.id] === "learning" || prev[node.id] === "unknown"
-          ? { ...prev, [node.id]: "shaky" }
-          : prev,
-      );
+      completePhase(node, "connect", "connect-complete");
       setShakyReason(node.id, "connect-complete");
     }
     // Finished — the parked copy has nothing left to come back to.
@@ -1567,12 +1578,20 @@ export function useSpiral(deps: {
         return nextIds;
       });
     }
-    setStates((prev) => {
-      const nextStates = { ...prev };
-      if (gapId) delete nextStates[gapId];
-      if (node) nextStates[node.id] = "mastered";
-      return nextStates;
-    });
+    if (gapId)
+      setStates((prev) => {
+        const nextStates = { ...prev };
+        delete nextStates[gapId];
+        return nextStates;
+      });
+    // The transfer held, so the Crucible rung closes. What that makes the node
+    // is `stateFromPlan`'s call, not a literal written here — which is the
+    // whole point: this used to be the only path to green in the app, so a
+    // plan without a Crucible in it could never reach it.
+    if (node) {
+      setShakyReason(node.id, null);
+      completePhase(node, "crucible", null);
+    }
     setScreen("map");
     setCrucible(null);
     if (node) {
@@ -1880,6 +1899,8 @@ export function useSpiral(deps: {
       enterSession(node);
       return;
     }
+    // Reasoned through unaided — the rung closes and the next one opens.
+    completePhase(node, "socratic");
     enterFeynman(node);
   };
 
@@ -1941,34 +1962,54 @@ export function useSpiral(deps: {
     } else setSelectedId(id);
   };
 
+  /**
+   * Open a phase of a node's own plan. One table, so adding a phase is one
+   * entry rather than another `if` in three different dispatchers — which is
+   * what the five string comparisons below used to be, and why the ladder they
+   * guarded had become unreachable.
+   *
+   * These are closures over the hook's refs, which is why the table is built
+   * here and not in `PHASE_DEFS`.
+   */
+  const enterPhase: Record<PhaseId, (node: ConceptNode) => void> = {
+    consume: enterSession,
+    socratic: enterSocratic,
+    feynman: enterFeynman,
+    connect: enterConnect,
+    crucible: enterCrucible,
+    // Retain isn't entered on a node — it's the shared review queue.
+    retain: () => enterReview(),
+  };
+
   const onPrimaryAction = (node: ConceptNode, displayState: NodeState) => {
-    switch (displayState) {
-      case "frontier":
-        enterSession(node);
-        break;
-      case "learning": {
-        // A node that went Learning on a part-read reading pass resumes it
-        // — the map's own CTA says "Resume reading", and sending them to
-        // Feynman instead would be teaching back something half-read.
-        const progress = consumeProgressRef.current[node.id];
-        if (progress && !progress.finished) enterSession(node);
-        else enterFeynman(node);
-        break;
-      }
-      case "shaky":
-        enterCrucible(node);
-        break;
-      case "mastered":
-        enterReview();
-        break;
-      case "gap":
-        // The targeted Socratic micro-pass the spec promises (#12) —
-        // completing it removes the gap node from the map.
-        enterSocratic(node);
-        break;
-      default:
-        showToast(tc().clearPrereqs);
+    if (displayState === "unknown") {
+      showToast(tc().clearPrereqs);
+      return;
     }
+    // The targeted Socratic micro-pass the spec promises (#12) — completing it
+    // removes the gap node from the map. A gap runs no plan of its own.
+    if (displayState === "gap") {
+      enterSocratic(node);
+      return;
+    }
+    // A node with a part-read reading pass resumes it, whatever the plan says
+    // comes next — the map's own CTA says "Resume reading", and sending them
+    // on would be teaching back something half-read.
+    const progress = consumeProgressRef.current[node.id];
+    if (progress && !progress.finished) {
+      enterSession(node);
+      return;
+    }
+    // Otherwise: the rung this node actually owes. Nothing here knows which
+    // phase that is — that is the point, and it is the same function the CTA
+    // reads to name itself, so the button can't promise a different one.
+    const next = primaryPhase(
+      phasePlan(node),
+      phasesDoneRef.current[node.id],
+      displayState,
+    );
+    if (next) enterPhase[next](node);
+    else enterReview();
   };
 
   /**
@@ -1977,56 +2018,33 @@ export function useSpiral(deps: {
    * the pace math immediately eases.
    */
   const skipKnown = (node: ConceptNode) => {
-    setStates((prev) => ({ ...prev, [node.id]: "mastered" }));
+    // Pruning is the learner asserting the whole plan, not just its last rung.
+    completeWholePlan(node);
+    setShakyReason(node.id, null);
     showToast(tc().pruned(node.label), tc().mapUpdated);
   };
 
   const onPhaseAction = (node: ConceptNode, displayState: NodeState, idx: number) => {
-    // The same index NodeDetail draws, reading progress included — a row
-    // that shows as current has to behave as current.
-    const current = readingPhaseIndex(
+    const plan = phasePlan(node);
+    // The same index NodeDetail draws — a row that shows as current has to
+    // behave as current.
+    const current = phaseIndex(
+      plan,
+      phasesDoneRef.current[node.id],
       displayState,
       reviewedNodes.includes(node.id),
-      consumeProgressRef.current[node.id],
     );
     if (current < 0) return;
-    const phase = PHASES[idx];
-    if (phase === "Consume") {
-      // Re-reading is a first-class action, and on a part-read node it is
-      // the resume. Neither used to open anything: Consume fell through to
-      // a "re-doing…" toast.
-      enterSession(node);
-      return;
+    const phase = plan[idx];
+    if (!phase) return;
+    // Every phase opens from its own row, done or not: re-reading and re-doing
+    // are first-class actions. Only the jump-ahead needs saying out loud, and
+    // the nudge has already said it.
+    if (idx > current) {
+      markStarted(node);
+      showToast(tc().jumpingAhead(phaseLabel(phase), node.label));
     }
-    if (phase === "Socratic") {
-      enterSocratic(node);
-      return;
-    }
-    if (phase === "Feynman") {
-      enterFeynman(node);
-      return;
-    }
-    if (phase === "Connect") {
-      enterConnect(node);
-      return;
-    }
-    if (phase === "Crucible") {
-      enterCrucible(node);
-      return;
-    }
-    if (idx === current) {
-      onPrimaryAction(node, displayState);
-    } else if (idx < current) {
-      // Secondary action: any completed phase stays open for a re-do.
-      if (phase === "Retained") enterReview();
-      else showToast(tc().redoing(phase, node.label));
-    } else {
-      // The learner jumped the recommended step — allowed, already nudged.
-      setStates((prev) =>
-        prev[node.id] === "unknown" ? { ...prev, [node.id]: "learning" } : prev,
-      );
-      showToast(tc().jumpingAhead(phase, node.label));
-    }
+    enterPhase[phase](node);
   };
 
   const onSurface = (surface: Surface) => {
@@ -2037,9 +2055,10 @@ export function useSpiral(deps: {
     }
     const node = graphRef.current.nodes.find((n) => n.id === selectedId);
     const state = node ? displayRef.current[node.id] : undefined;
-    if (node && state === "frontier") enterSession(node);
-    else if (node && state === "learning") enterFeynman(node);
-    else if (node && state === "shaky") enterCrucible(node);
+    // Routed through the same function as the node's own CTA. They used to
+    // disagree: this one ignored a part-read reading pass, so the rail sent a
+    // half-read node to Feynman while its CTA resumed the reading.
+    if (node && state && state !== "unknown") onPrimaryAction(node, state);
     else showToast(tc().sessionHint);
   };
 

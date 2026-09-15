@@ -39,6 +39,7 @@ const run = (over: Record<string, unknown> = {}) =>
     states: {},
     positions: {},
     shakyReasons: {},
+    phasesDone: {},
     reviewedNodes: [],
     consumeProgress: {},
     socraticProgress: {},
@@ -110,6 +111,9 @@ describe("projectNodes", () => {
       shakyReason: null,
       consumeProgress: null,
       reviewed: false,
+      // Mastery state is derived from this, so an empty ledger has to travel
+      // as an empty ledger — a dropped key would read as "unchanged".
+      phasesDone: [],
     });
   });
 

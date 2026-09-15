@@ -7,6 +7,7 @@ import {
   boundaryNote,
   fail,
   interestNote,
+  kindNote,
   languageNote,
   obj,
   oneOf,
@@ -17,6 +18,7 @@ import {
 import { CrucibleContent } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
+import type { NodeKind } from "@/lib/curriculum";
 
 const RUNGS: Record<Language, Array<{ label: string }>> = {
   en: [
@@ -127,6 +129,7 @@ const rerunNote = (rerun: number): string =>
     : "";
 
 export async function generateCrucible(params: {
+  nodeKind?: NodeKind;
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -153,7 +156,7 @@ export async function generateCrucible(params: {
 Force the knowledge into a NOVEL context it was never taught in — that's the truest mastery signal.
 Concepts the learner already owns, to interleave: ${masteredLabels.join(", ") || "the concept's own prerequisites"}.
 ${interestNote(interests)}${rerunNote(rerun)}
-${boundaryNote(params)}
+${boundaryNote(params)}${kindNote(params.nodeKind, "crucible")}
 
 Return JSON:
 {

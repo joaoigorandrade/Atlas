@@ -53,9 +53,11 @@ import {
   MODEL_BEAT_BOUNDS,
   PARETO_DEFAULT,
   PARETO_LEVELS,
+  asNodeKind,
   type AltKey,
   type DiagnosticDifficulty,
   type GoalKind,
+  type NodeKind,
 } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion" | "passage";
@@ -78,6 +80,11 @@ export interface GenerateBody {
   nodeId?: string;
   variant?: string;
   nodeLabel?: string;
+  /** What kind of thing the concept is — it changes how a phase is written
+   *  (`kindNote`), so it is part of the cache key. Omitted when `concept`,
+   *  which is what every node was before kinds existed: every row already in
+   *  `content_cache` keeps its address and no VERSION bump is owed. */
+  nodeKind?: NodeKind;
   prereqLabels?: string[];
   /** The map around the concept — see `boundary` / `boundaryNote`. */
   priorLabels?: string[];
@@ -174,6 +181,14 @@ const boundary = (
     ...(priorLabels.length ? { priorLabels } : {}),
     ...(laterLabels.length ? { laterLabels } : {}),
   };
+};
+
+/** The node's kind, omitted when it is the default — same trick as `boundary`,
+ *  and for the same reason: a request from before kinds existed must key to
+ *  the row it already wrote. */
+const nodeKindOf = (body: GenerateBody): { nodeKind?: NodeKind } => {
+  const k = asNodeKind(body.nodeKind);
+  return k === "concept" ? {} : { nodeKind: k };
 };
 
 const labels = (v: unknown, max: number = CAPS.listItems): string[] =>
@@ -367,6 +382,7 @@ function buildJob(body: GenerateBody): Job {
         interests,
         language,
         ...boundary(body),
+        ...nodeKindOf(body),
       };
       return {
         kind: "consume",
@@ -501,7 +517,7 @@ function buildJob(body: GenerateBody): Job {
       if (pool.length === 0) throw badRequest("pool must list prior nodes");
       return cacheable(
         "connect",
-        { topic, nodeId, nodeLabel, pool, interests, language },
+        { topic, nodeId, nodeLabel, pool, interests, language, ...nodeKindOf(body) },
         async (p) => ({
           content: await generateConnect(p),
         }),
@@ -529,6 +545,7 @@ function buildJob(body: GenerateBody): Job {
           language,
           ...boundary(body),
           ...(rerun ? { rerun } : {}),
+          ...nodeKindOf(body),
         },
         async (p) => ({ content: await generateCrucible(p) }),
       );

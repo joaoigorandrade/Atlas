@@ -11,6 +11,7 @@
 // read back. Writes go straight to the tables, because forcing a node to
 // `mastered` is the one thing no route will do for you.
 
+import type { PhaseId } from "@/lib/curriculum";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
@@ -118,13 +119,26 @@ function cached(): Tables | null {
   return captured;
 }
 
+/** The ledger each forced state implies — the same mapping the catalogue
+ *  migration backfills with. Forcing `state` alone would seed an impossible
+ *  world: a `mastered` node whose record says it has finished nothing, whose
+ *  rail then reads "Consume next". */
+const LEDGER: Record<string, PhaseId[]> = {
+  frontier: [],
+  learning: ["consume"],
+  shaky: ["consume", "socratic", "feynman", "connect"],
+  mastered: ["consume", "socratic", "feynman", "connect", "crucible"],
+};
+
 /** The captured rows with `states` forced onto the matching nodes. */
 function withStates(tables: Tables, states: Record<string, string>): Tables {
   return {
     ...tables,
     nodes: (tables.nodes ?? []).map((node) => {
       const forced = states[node.id as string];
-      return forced ? { ...node, state: forced } : node;
+      return forced
+        ? { ...node, state: forced, phases_done: LEDGER[forced] ?? [] }
+        : node;
     }),
   };
 }
@@ -154,18 +168,24 @@ export async function openRun(
   return (await readRun(page.request))!;
 }
 
-/** Select a node and open one phase of its spiral, nudge and all. */
+/**
+ * Select a node and open one phase of its spiral, nudge and all.
+ *
+ * Addressed by phase *id*, not by rung index: plans vary in length per node
+ * kind, so `action-phase-2` is Feynman on one node and something else on the
+ * next. `data-phase` is the stable handle.
+ */
 export async function openPhase(
   page: Page,
   nodeId: string,
-  phaseIndex: number,
+  phase: PhaseId,
 ): Promise<void> {
   // Enter, not click: a node chip lives inside a panned/zoomed canvas and can
   // sit under the plan rail. Selecting by keyboard is both the accessible path
   // and the one that does not depend on where the canvas happens to be.
   await page.getByTestId(`node-${nodeId}`).press("Enter");
   await expect(page.getByTestId("panel-node")).toHaveAttribute("data-node", nodeId);
-  await page.getByTestId(`action-phase-${phaseIndex}`).click();
+  await page.locator(`[data-phase="${phase}"]`).click();
   // Jumping ahead of the recommended phase asks first — take the skip.
   const confirm = page.getByTestId("action-skip-confirm");
   if (await confirm.isVisible().catch(() => false)) await confirm.click();

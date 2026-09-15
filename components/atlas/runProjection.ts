@@ -21,6 +21,7 @@ import type {
   MisconceptionRecord,
   ModalityTally,
   OnboardingForm,
+  PhasesDoneMap,
   ShakyReason,
   SocraticSession,
   StateMap,
@@ -43,6 +44,7 @@ export function projectNodes(run: {
   states: StateMap;
   positions: Record<string, { x: number; y: number }>;
   shakyReasons: Record<string, ShakyReason>;
+  phasesDone: PhasesDoneMap;
   reviewedNodes: string[];
   consumeProgress: Record<string, ConsumeProgress>;
   socraticProgress: Record<string, SocraticSession>;
@@ -68,6 +70,14 @@ export function projectNodes(run: {
       state,
       shakyReason: run.shakyReasons[node.id] ?? null,
       reviewed: reviewed.has(node.id),
+      // Written once by the map generation and never again, but they still go
+      // through the diff: a node the server has never seen has to carry them
+      // on its first write or it comes back kind-less and plan-less.
+      kind: node.kind,
+      phasePlan: node.phasePlan,
+      // The record mastery state is derived from — the one progress field that
+      // must never be dropped from a delta.
+      phasesDone: run.phasesDone[node.id] ?? [],
       consumeProgress: run.consumeProgress[node.id] ?? null,
       socraticProgress: run.socraticProgress[node.id] ?? null,
       feynmanProgress: run.feynmanProgress[node.id] ?? null,

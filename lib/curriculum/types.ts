@@ -6,6 +6,7 @@
 // here anymore.
 
 import type { Language } from "@/lib/i18n";
+import type { NodeKind, PhaseId } from "./phases";
 
 export type NodeState =
   "unknown" | "frontier" | "learning" | "shaky" | "mastered" | "gap";
@@ -28,6 +29,19 @@ export interface ConceptNode {
   summary?: string;
   /** Seed progress state (generated maps start everything `unknown`). */
   state: ProgressState;
+  /** What kind of thing this concept is — which decides how it's practised.
+   *  Written by the map generation; absent on a run built before kinds
+   *  existed, and everything treats a missing kind as `concept`, which is
+   *  exactly what every node was then. */
+  kind?: NodeKind;
+  /** The phases this node runs, resolved from `kind` at map-build time and
+   *  frozen here. Stored rather than recomputed so shipping a new catalogue
+   *  can't rewrite a run already in progress.
+   *
+   *  Which of them the learner has *finished* is not here: that's progress,
+   *  and it lives in the parallel `PhasesDoneMap` beside `shakyReasons` and
+   *  `reviewedNodes`, so completing a phase doesn't rewrite the graph. */
+  phasePlan?: readonly PhaseId[];
   /** Generation (topological depth) — controls staged reveal during the diagnostic. */
   g: number;
   /** Week the node first lit up (0 = placement diagnostic) — drives the momentum replay. */
@@ -198,40 +212,6 @@ export function shakyLine(
   ];
 }
 
-export const PHASES = [
-  "Consume",
-  "Socratic",
-  "Feynman",
-  "Connect",
-  "Crucible",
-  "Retained",
-] as const;
-
-export type Phase = (typeof PHASES)[number];
-
-/**
- * The gentle skip flag: what's still unfinished when the learner jumps past
- * the recommended next phase. Keyed by the phase being skipped over.
- */
-export const PHASE_SKIP_NUDGE: Record<Phase, string> = {
-  Consume: "You haven't read this yet — want to?",
-  Socratic: "You haven't reasoned this out yet — want to?",
-  Feynman: "You haven't taught this back yet — want to?",
-  Connect: "You haven't linked this into your map yet — want to?",
-  Crucible: "You haven't applied this in a novel context yet — want to?",
-  Retained: "This isn't in your review rotation yet — want to?",
-};
-
-const PHASE_SKIP_NUDGE_PT: Record<Phase, string> = {
-  Consume: "Você ainda não leu isso — quer ler?",
-  Socratic: "Você ainda não raciocinou sobre isso — quer tentar?",
-  Feynman: "Você ainda não ensinou isso de volta — quer tentar?",
-  Connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",
-  Crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?",
-  Retained: "Isso ainda não está na sua rotação de revisão — quer adicionar?",
-};
-
-/** Language-aware phase-skip nudge. */
-export function phaseSkipNudge(phase: Phase, lang: Language = "en"): string {
-  return (lang === "pt-BR" ? PHASE_SKIP_NUDGE_PT : PHASE_SKIP_NUDGE)[phase];
-}
+// The phase catalogue — `PhaseId`, `PHASE_DEFS`, `PHASE_PLAN`, the skip nudge —
+// lives in `./phases`, and the node's own plan is a field on `ConceptNode`
+// below. It used to be a fixed six-tuple here, indexed by mastery state.

@@ -216,6 +216,7 @@ export default function AtlasApp({
     setAdherence,
     litToday,
     shakyReasons,
+    phasesDone,
     reviewedNodes,
     cardsRef,
     formRef,
@@ -727,6 +728,7 @@ export default function AtlasApp({
           consumeProgress={consumeProgress}
           reviewedNodes={reviewedNodes}
           shakyReasons={shakyReasons}
+          phasesDone={phasesDone}
           query={query}
           onWheel={onWheel}
           onCanvasDown={onCanvasDown}
@@ -797,6 +799,7 @@ export default function AtlasApp({
             edges={graph.edges}
             display={display}
             reviewed={selectedNode ? reviewedNodes.includes(selectedNode.id) : false}
+            phasesDone={selectedNode ? phasesDone[selectedNode.id] : undefined}
             shakyReason={selectedNode ? shakyReasons[selectedNode.id] : undefined}
             consumeProgress={selectedNode ? consumeProgress[selectedNode.id] : undefined}
             // A node with no sentence of its own has one on the way (the warm

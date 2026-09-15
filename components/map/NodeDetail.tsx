@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  PHASES,
   STATE_COLOR,
+  phaseIndex,
+  phaseLabel,
+  phasePlan,
   phaseSkipNudge,
-  readingPhaseIndex,
+  primaryPhase,
   readingProgress,
   shakyLine,
   stateConfidence,
   stateLabel,
   type ConceptEdge,
   type ConceptNode,
+  type PhaseId,
   type ConsumeProgress,
   type NodeState,
   type ShakyReason,
@@ -25,14 +28,16 @@ import { SkeletonBars } from "@/components/Pending";
 
 const STRINGS = {
   en: {
+    // The phase half comes from the node's own plan (`primaryPhase`) — a fixed
+    // "Continue · Feynman" named a phase the button no longer opens.
     cta: {
-      frontier: "Begin · Consume",
-      learning: "Continue · Feynman",
-      shaky: "Re-attempt · Crucible",
-      mastered: "Review now",
-      gap: "Fix this gap",
-      unknown: "Locked",
-    } as Record<NodeState, string>,
+      frontier: (phase: string) => `Begin · ${phase}`,
+      learning: (phase: string) => `Continue · ${phase}`,
+      shaky: (phase: string) => `Re-attempt · ${phase}`,
+      mastered: () => "Review now",
+      gap: () => "Fix this gap",
+      unknown: () => "Locked",
+    } as Record<NodeState, (phase: string) => string>,
     phaseSpiral: "Phase spiral",
     next: "next",
     redo: "redo",
@@ -52,13 +57,13 @@ const STRINGS = {
   },
   "pt-BR": {
     cta: {
-      frontier: "Começar · Consume",
-      learning: "Continuar · Feynman",
-      shaky: "Tentar de novo · Crucible",
-      mastered: "Revisar agora",
-      gap: "Corrigir esta lacuna",
-      unknown: "Bloqueado",
-    } as Record<NodeState, string>,
+      frontier: (phase: string) => `Começar · ${phase}`,
+      learning: (phase: string) => `Continuar · ${phase}`,
+      shaky: (phase: string) => `Tentar de novo · ${phase}`,
+      mastered: () => "Revisar agora",
+      gap: () => "Corrigir esta lacuna",
+      unknown: () => "Bloqueado",
+    } as Record<NodeState, (phase: string) => string>,
     phaseSpiral: "Espiral de fases",
     next: "próximo",
     redo: "refazer",
@@ -88,6 +93,9 @@ interface NodeDetailProps {
   display: Record<string, NodeState>;
   /** Real review history exists for this node — gates "Retained ✓" (#13). */
   reviewed: boolean;
+  /** Which phases of this node's plan the learner has finished. Mastery state
+   *  is derived from it, and so is which rung of the plan reads as current. */
+  phasesDone?: readonly PhaseId[];
   /** How the node became Shaky, when it is — selects honest copy (#14). */
   shakyReason?: ShakyReason;
   /** This node's own sentence is missing and is being written right now — the
@@ -147,6 +155,7 @@ function NodeDetailBody({
   edges,
   display,
   reviewed,
+  phasesDone,
   shakyReason,
   consumeProgress,
   summaryWriting,
@@ -159,14 +168,21 @@ function NodeDetailBody({
   const { language } = useLanguage();
   const labelOf = (id: string) => nodes.find((n) => n.id === id)?.label ?? id;
   const stateColor = STATE_COLOR[displayState];
-  const currentPhase = readingPhaseIndex(displayState, reviewed, consumeProgress);
+  // This node's own ladder — its stored plan, not one fixed list for the whole
+  // map. Rung count and rung meaning both vary by what kind of thing it is.
+  const plan = phasePlan(node);
+  const currentPhase = phaseIndex(plan, phasesDone, displayState, reviewed);
+  // What the primary button opens — and therefore what it has to be called.
+  const ctaPhase = primaryPhase(plan, phasesDone, displayState);
+  const ctaPhaseLabel = ctaPhase ? phaseLabel(ctaPhase) : "";
   // A phase closing is a small win and should read as one. Keyed on the node so
-  // clicking through to a different concept doesn't stamp its whole history.
+  // clicking through to a different concept doesn't stamp its whole history,
+  // and on the phase id as well as the index, so a plan change can't stamp.
   const justClosed = useCelebrate(
-    `${node.id}:${currentPhase}`,
+    `${node.id}:${plan[currentPhase - 1] ?? ""}:${currentPhase}`,
     (next, prev) => {
-      const [id, at] = next.split(":");
-      const [wasId, wasAt] = prev.split(":");
+      const [id, , at] = next.split(":");
+      const [wasId, , wasAt] = prev.split(":");
       return id === wasId && Number(at) > Number(wasAt);
     },
     { ms: STAMP_MS },
@@ -402,7 +418,8 @@ function NodeDetailBody({
               marginBottom: 24,
             }}
           >
-            {PHASES.map((name, i) => {
+            {plan.map((id, i) => {
+              const name = phaseLabel(id);
               const status =
                 currentPhase < 0
                   ? "locked"
@@ -423,7 +440,9 @@ function NodeDetailBody({
                   className="at-press"
                   key={name}
                   data-testid={`action-phase-${i}`}
-                  data-phase={name}
+                  // The stable handle: `action-phase-${i}` means a different
+                  // phase per node once plan lengths vary.
+                  data-phase={id}
                   disabled={!clickable}
                   onClick={() =>
                     isJump ? setPendingSkip(i) : onPhaseAction(node, displayState, i)
@@ -557,7 +576,7 @@ function NodeDetailBody({
                   marginBottom: 11,
                 }}
               >
-                {phaseSkipNudge(PHASES[currentPhase], language)}
+                {phaseSkipNudge(plan[currentPhase], language)}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
@@ -578,7 +597,7 @@ function NodeDetailBody({
                     cursor: "pointer",
                   }}
                 >
-                  {t.doFirst(PHASES[currentPhase])}
+                  {t.doFirst(phaseLabel(plan[currentPhase]))}
                 </button>
                 <button
                   className="at-press"
@@ -598,7 +617,7 @@ function NodeDetailBody({
                     textDecoration: "underline",
                   }}
                 >
-                  {t.skipTo(PHASES[pendingSkip])}
+                  {t.skipTo(phaseLabel(plan[pendingSkip]))}
                 </button>
               </div>
             </div>
@@ -629,7 +648,7 @@ function NodeDetailBody({
       >
         {/* A part-read node's primary action is to get back into the reading,
             not to start something new. */}
-        {reading ? t.resumeReading : t.cta[displayState]}
+        {reading ? t.resumeReading : t.cta[displayState](ctaPhaseLabel)}
       </button>
 
       {displayState === "frontier" && (

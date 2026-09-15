@@ -154,6 +154,10 @@ export function frontierWarmBody(
     // The map around the concept. Part of the cache key, so it is part of
     // this — `laterLabels` is non-empty on any map with two concepts on it.
     ...conceptBoundary(graph, node.id),
+    // Also part of the cache key for consume (it changes the prompt through
+    // `kindNote`), so the server-side warm must send it or it writes a row
+    // the client's click will never look in.
+    nodeKind: node.kind,
     ...(kind === "consume" ? { prereqLabels } : null),
   };
 }

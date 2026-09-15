@@ -4,6 +4,7 @@
 // gap offsets are computed here, never trusted from the model.
 
 // ---- tiny validation helpers (throw readable errors for the retry loop) ----
+import type { NodeKind } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 import type { ChatMessage } from "@/lib/server/openrouter";
 
@@ -202,3 +203,56 @@ export function boundaryNote(params: {
   );
   return lines.join("\n") + "\n";
 }
+
+/**
+ * How this kind of concept wants this phase written.
+ *
+ * The second lever. Which phases a node runs is half of it; a phase that every
+ * plan contains still has to be written differently for a definition than for
+ * a procedure — a `fact` does not want a worked example, and a `procedure`'s
+ * worked example IS the material.
+ *
+ * `concept` returns "" everywhere on purpose: it is what every node was before
+ * kinds existed, so an existing map's prompts are byte-identical and its cached
+ * rows stay valid. That is also why `nodeKind` is omitted from the cache key
+ * when it is `concept` (see `job.ts`) — no VERSION bump, no abandoned table.
+ *
+ * ponytail: Retain is missing on purpose. One deck spans many nodes, so a
+ * single `nodeKind` cannot describe it — wire it when `retain`'s `nodes` list
+ * carries a kind per node.
+ */
+export function kindNote(
+  kind: NodeKind | undefined,
+  phase: "consume" | "connect" | "crucible",
+): string {
+  const note = kind && kind !== "concept" ? KIND_NOTES[kind][phase] : "";
+  return note ? `\n${note}\n` : "";
+}
+
+const KIND_NOTES: Record<
+  Exclude<NodeKind, "concept">,
+  Record<"consume" | "connect" | "crucible", string>
+> = {
+  fact: {
+    consume:
+      "THIS CONCEPT IS A FACT — an arbitrary association with nothing to reason from. Write 1-2 short sections and a hook that makes it stick. No worked example and NO figure: there is no structure to draw. Explanation is wasted here; the learner's job is to remember it.",
+    connect: "",
+    crucible: "",
+  },
+  procedure: {
+    consume:
+      "THIS CONCEPT IS A PROCEDURE — an ordered sequence the learner must be able to carry out. The WORKED EXAMPLE is the material, not an illustration hung off it: show the steps being run, in order, on a real case, and say what each step is for. A figure is worth it only if it carries the order.",
+    connect:
+      "THIS CONCEPT IS A PROCEDURE. Link on SELECTION — which procedure applies when, and what distinguishes the cases where this one is right from the ones where a neighbouring procedure is.",
+    crucible:
+      "THIS CONCEPT IS A PROCEDURE. The problem must require the learner to SELECT this procedure, not merely run it: give a situation where choosing correctly is the hard part, not the arithmetic.",
+  },
+  principle: {
+    consume:
+      "THIS CONCEPT IS A PRINCIPLE — a causal relation or multi-stage mechanism. Give the mechanism and its derivation, not just the statement. A FIGURE IS REQUIRED and must carry the causal chain: each node a stage, each edge what that stage hands the next.",
+    connect:
+      "THIS CONCEPT IS A PRINCIPLE. Link on COMPOSITION — which principles combine with this one, and which appear to contradict it and why they don't.",
+    crucible:
+      "THIS CONCEPT IS A PRINCIPLE. Give a novel situation the principle PREDICTS, and ask for the prediction — not for a restatement of the relation.",
+  },
+};

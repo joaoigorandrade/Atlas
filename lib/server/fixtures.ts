@@ -23,7 +23,9 @@ import type {
   MapNode,
   RetainContent,
   SocraticStep,
+  NodeKind,
 } from "@/lib/curriculum";
+import { PHASE_PLAN } from "@/lib/curriculum";
 import { FIXTURES } from "@/lib/fixtureMode";
 import { fixtureTable } from "@/lib/server/fixtureTables";
 import type { GenerateBody } from "@/lib/server/job";
@@ -59,13 +61,20 @@ function vars(body: GenerateBody): Vars {
 
 // ---- the map ---------------------------------------------------------------
 
-const MAP: Array<[string, string, string[]]> = [
-  ["foundations", "Foundations", []],
-  ["notation", "Notation", ["foundations"]],
-  ["core-rule", "The core rule", ["notation"]],
-  ["worked-cases", "Worked cases", ["core-rule"]],
-  ["edge-cases", "Edge cases", ["core-rule"]],
-  ["putting-it-together", "Putting it together", ["worked-cases", "edge-cases"]],
+/** Every kind is represented, so fixture mode exercises the per-kind ladder
+ *  and the per-kind prompt rather than only the `concept` path. */
+const MAP: Array<[string, string, string[], NodeKind]> = [
+  ["foundations", "Foundations", [], "concept"],
+  ["notation", "Notation", ["foundations"], "fact"],
+  ["core-rule", "The core rule", ["notation"], "principle"],
+  ["worked-cases", "Worked cases", ["core-rule"], "procedure"],
+  ["edge-cases", "Edge cases", ["core-rule"], "concept"],
+  [
+    "putting-it-together",
+    "Putting it together",
+    ["worked-cases", "edge-cases"],
+    "procedure",
+  ],
 ];
 
 /** Column = topological depth, row = position within it — the same left-to-right
@@ -73,7 +82,7 @@ const MAP: Array<[string, string, string[]]> = [
 function mapNodes(): MapNode[] {
   const depth = new Map<string, number>();
   const rows = new Map<number, number>();
-  return MAP.map(([id, label, prereqs]) => {
+  return MAP.map(([id, label, prereqs, kind]) => {
     const g = prereqs.reduce((d, p) => Math.max(d, (depth.get(p) ?? 0) + 1), 0);
     depth.set(id, g);
     const row = rows.get(g) ?? 0;
@@ -82,6 +91,8 @@ function mapNodes(): MapNode[] {
       id,
       label,
       summary: `What ${label.toLowerCase()} is, in one line.`,
+      kind,
+      phasePlan: PHASE_PLAN[kind],
       prereqs,
       state: "unknown" as const,
       g,

@@ -5,7 +5,10 @@ import {
   ConceptNode,
   GoalKind,
   MapNode,
+  NodeKind,
   PARETO_DEFAULT,
+  PHASE_PLAN,
+  asNodeKind,
   graphFromMapNodes,
 } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
@@ -36,7 +39,7 @@ const GOAL_HINT: Record<GoalKind, string> = {
 
 /** Column layout from topological depth — deterministic, draggable afterwards. */
 function layoutGraph(
-  rawNodes: Array<{ id: string; label: string; summary?: string }>,
+  rawNodes: Array<{ id: string; label: string; summary?: string; kind: NodeKind }>,
   edges: ConceptEdge[],
 ): ConceptNode[] {
   const ids = new Set(rawNodes.map((n) => n.id));
@@ -73,6 +76,11 @@ function layoutGraph(
       id: n.id,
       label: n.label,
       summary: n.summary,
+      kind: n.kind,
+      // Resolved here, once, and stored on the node. Recomputing it on every
+      // read would mean shipping a new catalogue silently re-cut the ladder
+      // under a run already in progress.
+      phasePlan: PHASE_PLAN[n.kind],
       state: "unknown" as const,
       g: d + 1,
       week: 0,
@@ -114,7 +122,7 @@ export function validateGraphPart(
   raw: unknown,
   bounds: { min: number; max: number } = mapNodeBounds(),
 ): {
-  nodes: Array<{ id: string; label: string; summary?: string }>;
+  nodes: Array<{ id: string; label: string; summary?: string; kind: NodeKind }>;
   edges: ConceptEdge[];
 } {
   const root = obj(raw, "payload");
@@ -132,6 +140,10 @@ export function validateGraphPart(
       // A missing sentence costs one node its rail copy, not the learner their
       // whole map — the rail falls back to the state line.
       summary: n.summary ? str(n.summary, `nodes[${i}].summary`) : undefined,
+      // Defaulted, never failed: one bad discriminator must not cost a whole
+      // map, and "concept" is exactly the behaviour every node had before
+      // kinds existed.
+      kind: asNodeKind(n.kind),
     };
   });
   const edges: ConceptEdge[] = [];
@@ -255,9 +267,24 @@ If (and only if) the topic is far too broad for one coherent concept map (e.g. "
 }
 
 const graphShape = (ask: [number, number]) => `{
-  "nodes": [{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is"}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
+  "nodes": [{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle"}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
   "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
 }`;
+
+/**
+ * What kind of thing each concept is — which decides how it gets practised.
+ *
+ * The discriminator is what the learner must be able to *do*, never the
+ * subject area: "photosynthesis" and "how a bill becomes law" are both
+ * `principle`. Ambiguity resolves to `concept`, which is what every node was
+ * before kinds existed, so a bad pick costs nothing.
+ */
+export const KIND_RULE = `"kind" is exactly one of:
+  "fact" — an arbitrary association with nothing to reason from: a date, a symbol, a constant, a term's name. Knowing it IS remembering it.
+  "concept" — a class with defining attributes, members and non-members. The learner must be able to tell instances from near-misses.
+  "procedure" — an ordered sequence the learner carries out to produce an outcome. The learner must be able to run it, not just describe it.
+  "principle" — a causal relation or multi-stage mechanism. The learner must be able to predict what happens when one part changes.
+Pick by what the learner must be able to DO, not by subject area. When two fit, choose "concept".`;
 
 /** The summary rule, shared by the single-shot and streamed map prompts: it is
  *  the only thing the detail rail says about the topic itself, so it has to
@@ -266,6 +293,7 @@ export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a
 
 const mapRules = (ask: [number, number]) =>
   `Rules: labels are 1-3 words, title case. ${SUMMARY_RULE}
+${KIND_RULE}
 ${sizeRule({
   unit: "concepts",
   min: ask[0],
@@ -291,7 +319,12 @@ function layoutMapNodes(mapNodes: MapNode[]): MapNode[] {
   const { edges } = graphFromMapNodes(mapNodes);
   return withPrereqs(
     layoutGraph(
-      mapNodes.map(({ id, label, summary }) => ({ id, label, summary })),
+      mapNodes.map(({ id, label, summary, kind }) => ({
+        id,
+        label,
+        summary,
+        kind: asNodeKind(kind),
+      })),
       edges,
     ),
     edges,
@@ -318,7 +351,7 @@ export async function generateMap(
   const raw = await generateJson<
     | { scopes: ScopeOffer[] }
     | {
-        nodes: Array<{ id: string; label: string; summary?: string }>;
+        nodes: Array<{ id: string; label: string; summary?: string; kind: NodeKind }>;
         edges: ConceptEdge[];
       }
   >(
@@ -348,7 +381,7 @@ export function validateMapConcept(
   raw: unknown,
   index: number,
   seen: Set<string>,
-): { id: string; label: string; summary?: string; prereqs: string[] } {
+): { id: string; label: string; summary?: string; kind: NodeKind; prereqs: string[] } {
   const c = obj(raw, `concept[${index}]`);
   const id = str(c.id, `concept[${index}].id`)
     .toLowerCase()
@@ -368,6 +401,9 @@ export function validateMapConcept(
     // Soft, like the single-shot validator: a concept that arrives without its
     // sentence still lands on the map.
     summary: c.summary ? str(c.summary, `concept[${index}].summary`) : undefined,
+    // Same softness: an unrecognised discriminator becomes `concept`, which is
+    // what every node was before kinds existed.
+    kind: asNodeKind(c.kind),
     prereqs,
   };
 }
@@ -404,7 +440,7 @@ export async function* generateMapStream(params: MapParams): AsyncGenerator<Stre
 
     const stream = streamJsonObjects<
       | { scopes: ScopeOffer[] }
-      | { id: string; label: string; summary?: string; prereqs: string[] }
+      | { id: string; label: string; summary?: string; kind: NodeKind; prereqs: string[] }
     >(
       user(
         `${mapContext(params)}
@@ -448,6 +484,7 @@ least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
       // re-space and never cross.
       const node: MapNode = {
         ...item,
+        phasePlan: PHASE_PLAN[item.kind],
         state: "unknown",
         g: d + 1,
         week: 0,

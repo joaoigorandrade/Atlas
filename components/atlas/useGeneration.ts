@@ -213,6 +213,7 @@ export function useGeneration(opts_: {
       interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
+      nodeKind: node.kind,
     }),
     [prereqLabelsOf, boundaryOf, formRef, languageRef],
   );
@@ -295,6 +296,7 @@ export function useGeneration(opts_: {
         pool,
         interests: formRef.current.interests,
         language: languageRef.current,
+        nodeKind: node.kind,
       };
     },
     [formRef, graphRef, statesRef, languageRef],
@@ -309,6 +311,7 @@ export function useGeneration(opts_: {
       interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
+      nodeKind: node.kind,
     }),
     [learnedLabels, boundaryOf, formRef, languageRef],
   );

@@ -3,7 +3,7 @@ import { FIRST_NODE, openPhase, openRun } from "./helpers";
 
 test("consume: the reading pass opens on material", async ({ page }) => {
   await openRun(page);
-  await openPhase(page, FIRST_NODE, 0);
+  await openPhase(page, FIRST_NODE, "consume");
 
   const sheet = page.getByTestId("phase-consume");
   await expect(sheet).toBeVisible();

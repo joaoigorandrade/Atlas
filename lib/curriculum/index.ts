@@ -3,6 +3,7 @@
 // All *content* is generated per topic by the AI through `/api/generate`;
 // this module holds only types, tokens, and logic.
 
+export * from "./phases";
 export * from "./types";
 export * from "./consume";
 export * from "./socratic";

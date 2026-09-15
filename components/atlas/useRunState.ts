@@ -42,6 +42,7 @@ import {
   type ModalityTally,
   type OnboardingForm,
   type RetainContent,
+  type PhasesDoneMap,
   type ShakyReason,
   type SocraticSession,
   type SocraticStep,
@@ -179,6 +180,11 @@ export function useRunState(opts: {
   const [shakyReasons, setShakyReasons] = useState<Record<string, ShakyReason>>({});
   // Nodes with at least one review graded good+ — gates "Retained ✓" (#13).
   const [reviewedNodes, setReviewedNodes] = useState<string[]>([]);
+  // Which phases of its own plan each node has finished, in completion order.
+  // Mastery state is *derived* from this (`stateFromPlan`) rather than stored
+  // alongside it, which is what lets a four-phase plan with no Crucible in it
+  // reach `mastered` the same way an eight-phase one does.
+  const [phasesDone, setPhasesDone] = useState<PhasesDoneMap>({});
   // The persisted FSRS card store (#21) — the review queue's single source.
   const [cards, setCards] = useState<StoredCard[]>([]);
   // False until the saved run's CORE (graph, states, positions) has been
@@ -233,13 +239,25 @@ export function useRunState(opts: {
   feynmanProgressRef.current = feynmanProgress;
   const connectProgressRef = useRef(connectProgress);
   connectProgressRef.current = connectProgress;
+  const phasesDoneRef = useRef(phasesDone);
+  phasesDoneRef.current = phasesDone;
+  const shakyReasonsRef = useRef(shakyReasons);
+  shakyReasonsRef.current = shakyReasons;
   const misconceptionsRef = useRef(misconceptions);
   misconceptionsRef.current = misconceptions;
 
   // ---- the mutators the phases reach for ---------------------------------
 
-  const setShakyReason = useCallback((id: string, reason: ShakyReason) => {
-    setShakyReasons((prev) => ({ ...prev, [id]: reason }));
+  /** `null` clears it — a node that stopped being shaky. That matters now that
+   *  mastery state is *derived*: a reason left behind after the gate it
+   *  describes was finally passed would keep re-deriving the node as Shaky. */
+  const setShakyReason = useCallback((id: string, reason: ShakyReason | null) => {
+    setShakyReasons((prev) => {
+      if (reason) return { ...prev, [id]: reason };
+      if (!(id in prev)) return prev;
+      const { [id]: _cleared, ...rest } = prev;
+      return rest;
+    });
   }, []);
 
   /** Merge a felt/real reading into the live calibration set (running average). */
@@ -352,6 +370,7 @@ export function useRunState(opts: {
     setMisconceptions([]);
     setCalibSamples([]);
     setShakyReasons({});
+    setPhasesDone({});
     setReviewedNodes([]);
     setCards([]);
     setLitToday([]);
@@ -423,6 +442,7 @@ export function useRunState(opts: {
       setLitToday(topic.litToday);
       setCalibSamples(topic.calibSamples);
       setShakyReasons(topic.shakyReasons);
+      setPhasesDone(topic.phasesDone);
       setReviewedNodes(topic.reviewedNodes);
       setCards(topic.cards);
       setConsumeProgress(topic.consumeProgress);
@@ -558,6 +578,7 @@ export function useRunState(opts: {
       states,
       positions,
       shakyReasons,
+      phasesDone,
       reviewedNodes,
       consumeProgress,
       socraticProgress,
@@ -609,6 +630,7 @@ export function useRunState(opts: {
     calibSamples,
     litToday,
     shakyReasons,
+    phasesDone,
     reviewedNodes,
     cards,
     consumeProgress,
@@ -706,6 +728,10 @@ export function useRunState(opts: {
     setCalibSamples,
     shakyReasons,
     setShakyReasons,
+    shakyReasonsRef,
+    phasesDone,
+    setPhasesDone,
+    phasesDoneRef,
     reviewedNodes,
     setReviewedNodes,
     cards,

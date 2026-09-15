@@ -36,6 +36,9 @@ import type {
   ProgressState,
   RetainContent,
   ReviewGrade,
+  PhasesDoneMap,
+  NodeKind,
+  PhaseId,
   ShakyReason,
   SocraticSession,
   SocraticStep,
@@ -72,6 +75,7 @@ export interface Topic {
   states: StateMap;
   positions: Record<string, { x: number; y: number }>;
   shakyReasons: Record<string, ShakyReason>;
+  phasesDone: PhasesDoneMap;
   reviewedNodes: string[];
   consumeProgress: Record<string, ConsumeProgress>;
   socraticProgress: Record<string, SocraticSession>;
@@ -95,6 +99,12 @@ export interface NodeDelta {
   /** `null` clears it — a node that stopped being shaky. */
   shakyReason?: ShakyReason | null;
   reviewed?: boolean;
+  /** What kind of thing the concept is, and the ladder that follows from it.
+   *  Both are written once, when the map generation creates the node. */
+  kind?: NodeKind;
+  phasePlan?: readonly PhaseId[];
+  /** Finished phases, in order — mastery state is derived from this. */
+  phasesDone?: readonly PhaseId[];
   consumeProgress?: ConsumeProgress | null;
   socraticProgress?: SocraticSession | null;
   feynmanProgress?: FeynmanSession | null;

@@ -14,6 +14,13 @@ import {
   markTodayMet,
   paceStatus,
   phaseIndex,
+  planGates,
+  primaryPhase,
+  LEGACY_PHASE_PLAN,
+  NODE_KINDS,
+  PHASE_DEFS,
+  PHASE_ORDER,
+  PHASE_PLAN,
   removeNode,
   rolloverAdherence,
   socraticOutcome,
@@ -802,9 +809,97 @@ describe("map state", () => {
   });
 
   it("phaseIndex gates Retained on real review history (#13)", () => {
-    expect(phaseIndex("mastered", false)).toBe(5);
-    expect(phaseIndex("mastered", true)).toBe(6);
-    expect(phaseIndex("shaky", false)).toBe(4);
+    const plan = LEGACY_PHASE_PLAN;
+    const gates = planGates(plan);
+    expect(phaseIndex(plan, gates, "mastered", false)).toBe(plan.length - 1);
+    expect(phaseIndex(plan, gates, "mastered", true)).toBe(plan.length);
+    expect(phaseIndex(plan, gates.slice(0, -1), "shaky", false)).toBe(
+      plan.indexOf("crucible"),
+    );
+  });
+});
+
+// ---- the phase catalogue ----------------------------------------------------
+// These three are load-bearing and silent when broken: a plan that violates
+// any of them still renders, it just renders something wrong.
+
+describe("PHASE_PLAN invariants", () => {
+  it("every plan is a subsequence of the canonical order", () => {
+    // What keeps a phase index monotone and the rail left-to-right.
+    for (const kind of NODE_KINDS) {
+      const positions = PHASE_PLAN[kind].map((p) => PHASE_ORDER.indexOf(p));
+      expect(positions).not.toContain(-1);
+      expect([...positions]).toEqual([...positions].sort((a, b) => a - b));
+    }
+  });
+
+  it("every plan starts at Consume and ends at Retain", () => {
+    // The warm chain needs a known first and last, and index 0 must be the
+    // reading pass for the part-read case to mean anything.
+    for (const kind of NODE_KINDS) {
+      const plan = PHASE_PLAN[kind];
+      expect(plan[0]).toBe("consume");
+      expect(plan[plan.length - 1]).toBe("retain");
+    }
+  });
+
+  it("every phase in the catalogue has at least one home", () => {
+    // A phase no plan contains is dead code — which is why a new phase enters
+    // PHASE_ORDER only in the release that implements it.
+    const homed = new Set(NODE_KINDS.flatMap((k) => [...PHASE_PLAN[k]]));
+    for (const id of PHASE_ORDER) expect(homed.has(id)).toBe(true);
+  });
+
+  it("names every phase it defines, and defines every phase it names", () => {
+    expect(Object.keys(PHASE_DEFS).sort()).toEqual([...PHASE_ORDER].sort());
+  });
+
+  it("gives no two phases the same signal", () => {
+    // The admission test for the catalogue: a candidate that adds no new
+    // signal is a setting, not a phase.
+    const signals = PHASE_ORDER.map((id) => PHASE_DEFS[id].signal);
+    expect(new Set(signals).size).toBe(signals.length);
+  });
+
+  it("still runs today's six rungs for every kind", () => {
+    // R0 is a no-op to a learner. A phase joins a plan in the release that
+    // builds it, never before — so until then every kind runs the old ladder.
+    for (const kind of NODE_KINDS)
+      expect([...PHASE_PLAN[kind]]).toEqual([...LEGACY_PHASE_PLAN]);
+  });
+
+  it("gates mastery on everything but Retain", () => {
+    expect([...planGates(LEGACY_PHASE_PLAN)]).toEqual([
+      "consume",
+      "socratic",
+      "feynman",
+      "connect",
+      "crucible",
+    ]);
+  });
+});
+
+describe("primaryPhase — what the CTA opens is what the CTA says", () => {
+  const plan = LEGACY_PHASE_PLAN;
+
+  it("names the next unfinished rung, not a fixed one per state", () => {
+    // The bug it exists to stop: a Learning node that has only read the pass
+    // opens Socratic, and the button used to call that "Continue · Feynman".
+    expect(primaryPhase(plan, [], "frontier")).toBe("consume");
+    expect(primaryPhase(plan, ["consume"], "learning")).toBe("socratic");
+    expect(primaryPhase(plan, ["consume", "socratic"], "learning")).toBe("feynman");
+  });
+
+  it("sends a Shaky node back to the last gate even with a full ledger", () => {
+    // A review miss flags a fully-finished node Shaky, and every shaky line in
+    // the app says re-attempt the Crucible — falling through to the review
+    // queue would contradict the copy the learner is reading.
+    expect(primaryPhase(plan, planGates(plan), "shaky")).toBe("crucible");
+    expect(primaryPhase(plan, planGates(plan).slice(0, -1), "shaky")).toBe("crucible");
+  });
+
+  it("has nothing to open once the plan is finished", () => {
+    expect(primaryPhase(plan, planGates(plan), "mastered")).toBeUndefined();
   });
 });
 

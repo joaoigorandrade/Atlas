@@ -38,6 +38,9 @@ export async function applyNodeDeltas(
     ...(d.state !== undefined ? { state: d.state } : null),
     ...(d.shakyReason !== undefined ? { shaky_reason: d.shakyReason } : null),
     ...(d.reviewed !== undefined ? { reviewed: d.reviewed } : null),
+    ...(d.kind !== undefined ? { kind: d.kind } : null),
+    ...(d.phasePlan !== undefined ? { phase_plan: d.phasePlan } : null),
+    ...(d.phasesDone !== undefined ? { phases_done: d.phasesDone } : null),
     ...(d.consumeProgress !== undefined ? { consume_progress: d.consumeProgress } : null),
     ...(d.socraticProgress !== undefined
       ? { socratic_progress: d.socraticProgress }

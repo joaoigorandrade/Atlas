@@ -7,9 +7,9 @@
 // as mastery. Content ships the design's sample confidence-vs-performance set so
 // the curve → per-node breakdown → "jump to its Crucible" loop is real.
 import { CONNECT_COLOR } from "./connect";
-import { ConsumeProgress } from "./consume";
+import type { PhaseId } from "./phases";
 import { GapSpec, StateMap } from "./replan";
-import { ConceptEdge, NodeState, STATE_COLOR } from "./types";
+import { ConceptEdge, NodeState, ProgressState, STATE_COLOR, ShakyReason } from "./types";
 import { Language } from "@/lib/i18n";
 
 /** One calibration sample: stated confidence (felt) vs. first-try result (real), 0–100. */
@@ -164,50 +164,97 @@ export function calibUnderLine(items: CalibItem[], lang: Language = "en"): strin
 }
 
 /**
- * Which phase a node is on, given its mastery state (-1 = locked).
- * Mastered alone doesn't grant Retained ✓ — `reviewed` (real review history:
- * a card for this node graded good or better) is what completes the spiral (#13).
+ * The mastery state a node's *record of finished phases* implies.
+ *
+ * This is the inversion. State used to be the input and phase the derived
+ * value, which is why the ladder had to be the same six rungs for every node
+ * and why `mastered` was reachable only by passing Crucible. Now the node
+ * stores what was done and state falls out of it, so a four-phase plan with no
+ * Crucible in it reaches `mastered` the same way an eight-phase one does.
+ *
+ * `frontier` is not produced here and never stored — it stays derived from
+ * prerequisites by `displayStates`. A node with nothing done is `unknown`,
+ * which is what displays as frontier once its prereqs are met.
  */
-export function phaseIndex(state: NodeState, reviewed: boolean): number {
-  switch (state) {
-    case "frontier":
-      return 0;
-    case "learning":
-      return 2;
-    case "shaky":
-      return 4;
-    case "mastered":
-      return reviewed ? 6 : 5;
-    default:
-      return -1;
-  }
+export function stateFromPlan(
+  plan: readonly PhaseId[],
+  done: readonly PhaseId[] = [],
+  opts: {
+    /** How the last gate failed, if it did. Keeps a finished plan Shaky. */
+    shaky?: ShakyReason;
+    /** Work that has begun but finished no phase — a part-read Consume pass.
+     *  Without it a learner who read two sections and left would drop back to
+     *  displaying as frontier, and that progress is real. */
+    started?: boolean;
+  } = {},
+): ProgressState {
+  // Retain is the one rung mastery does not wait on. It is not something the
+  // learner *does* in a session — it is weeks of review history — so a node
+  // goes green when the last real gate closes and only then starts earning
+  // Retained ✓. Requiring it here would mean no node was ever mastered until
+  // it had been reviewed, which is not what green has meant.
+  if (planGates(plan).every((p) => done.includes(p)))
+    return opts.shaky ? "shaky" : "mastered";
+  if (opts.shaky) return "shaky";
+  return done.length || opts.started ? "learning" : "unknown";
+}
+
+/** The phases of a plan that actually gate mastery — everything but Retain. */
+export function planGates(plan: readonly PhaseId[]): readonly PhaseId[] {
+  return plan.filter((p) => p !== "retain");
 }
 
 /**
- * `phaseIndex`, corrected by what the learner has actually done.
+ * Which phase of its own plan a node is on — an index into `plan`, `-1` when
+ * locked, and `plan.length` when the spiral is closed. That past-the-end value
+ * is load-bearing: `NodeHoverCard` tests for it to say "nothing left to do".
  *
- * A node goes Learning the moment a reading pass is left part-way through, and
- * that progress is real — the map should show it. But the state alone maps to
- * phase 2 (Feynman), which would tick off both Consume *and* Socratic on the
- * strength of two sections read. Learning used to be reachable only by
- * entering Socratic, which is what made that mapping true; it isn't anymore.
- *
- * So the reading record gets the last word where it has one:
- *   still reading            → Consume is the current phase
- *   read it, never went on   → Socratic is
- *   anything else            → the state-derived answer stands
+ * Mastered alone doesn't grant Retained ✓ — `reviewed` (real review history: a
+ * card for this node graded good or better) is what completes the spiral (#13),
+ * so a `mastered` node that has never been reviewed sits *on* the last rung
+ * rather than past it.
  */
-export function readingPhaseIndex(
-  state: NodeState,
-  reviewed: boolean,
-  progress?: ConsumeProgress,
+export function phaseIndex(
+  plan: readonly PhaseId[],
+  done: readonly PhaseId[] = [],
+  state?: NodeState,
+  reviewed = false,
 ): number {
-  if (state === "learning" && progress) {
-    if (!progress.finished) return 0;
-    if (!progress.handedOff) return 1;
-  }
-  return phaseIndex(state, reviewed);
+  if (state === "unknown" || state === "gap") return -1;
+  // Retain is finished by review history, not by a session, so `reviewed` is
+  // what ticks that rung off. Everything else is ticked off by having been done.
+  const next = plan.findIndex((p) => !(p === "retain" ? reviewed : done.includes(p)));
+  return next >= 0 ? next : plan.length;
 }
+
+/**
+ * The phase a node's primary CTA opens — and therefore the one it must name.
+ * Label and action both read this, or the button promises a phase it doesn't
+ * open, which is what a fixed per-state label ("Continue · Feynman") did the
+ * moment plans stopped being one shared six-tuple.
+ *
+ * `undefined` means nothing is left to open and the CTA is the review queue.
+ * Shaky is the exception to "first unfinished phase": every shaky line says
+ * re-attempt the Crucible, so a full ledger re-opens the plan's last gate.
+ */
+export function primaryPhase(
+  plan: readonly PhaseId[],
+  done: readonly PhaseId[] = [],
+  state?: NodeState,
+): PhaseId | undefined {
+  const next = plan.find((p) => p !== "retain" && !done.includes(p));
+  if (next) return next;
+  return state === "shaky" ? planGates(plan).at(-1) : undefined;
+}
+
+// `readingPhaseIndex` is gone. It existed to correct a *state*-derived index
+// with the reading record — state alone said Feynman on the strength of two
+// sections read, so the reading pass had to argue its way back to Consume.
+// With the plan-derived index there is nothing to correct: Consume enters
+// `phasesDone` when the pass finishes, so a part-read node's first unfinished
+// phase already *is* Consume. The one thing the reading record still decides is
+// whether a node with nothing finished looks started, which is
+// `stateFromPlan`'s `started` option.
 
 export type DiagnosticEffect = "mastered" | "shaky";
 

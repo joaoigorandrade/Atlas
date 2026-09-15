@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   HELP_COLOR,
-  PHASES,
+  PHASE_ORDER,
+  phaseLabel,
   STATE_COLOR,
   helpLabels,
   socraticOutcome,
@@ -156,7 +157,9 @@ export default function SocraticView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [session.log.length, lastText]);
 
-  const breadcrumb = PHASES.slice(0, 6).join(" → ");
+  // ponytail: one plan for every node today, so the catalogue is the
+  // breadcrumb. Take the node's own `phasePlan` as a prop once plans differ.
+  const breadcrumb = PHASE_ORDER.map(phaseLabel).join(" → ");
   // What the pass earned (#C) — only meaningful once it's done.
   const outcome = session.done ? socraticOutcome(session, gapMode) : null;
   const doneColor = outcome === "flagged" ? STATE_COLOR.shaky : GREEN;

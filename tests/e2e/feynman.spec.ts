@@ -3,7 +3,7 @@ import { FIRST_NODE, openPhase, openRun } from "./helpers";
 
 test("feynman: the teach-back opens without showing the rubric", async ({ page }) => {
   await openRun(page);
-  await openPhase(page, FIRST_NODE, 2);
+  await openPhase(page, FIRST_NODE, "feynman");
 
   const sheet = page.getByTestId("phase-feynman");
   await expect(sheet).toBeVisible();

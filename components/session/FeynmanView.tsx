@@ -3,7 +3,8 @@
 import { useCallback, useState } from "react";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import {
-  PHASES,
+  PHASE_ORDER,
+  phaseLabel,
   STATE_COLOR,
   VERDICT_COLOR,
   feynmanClean,
@@ -231,7 +232,9 @@ export default function FeynmanView({
     onTeachAgain();
   }, [onTeachAgain]);
 
-  const breadcrumb = PHASES.slice(0, 6).join(" → ");
+  // ponytail: one plan for every node today, so the catalogue is the
+  // breadcrumb. Take the node's own `phasePlan` as a prop once plans differ.
+  const breadcrumb = PHASE_ORDER.map(phaseLabel).join(" → ");
 
   return (
     <Sheet presence={presence} data-testid="phase-feynman" aria-label="Feynman — {title}">

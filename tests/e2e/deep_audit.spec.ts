@@ -145,7 +145,7 @@ test.describe("Deep Web Feature Audit", () => {
   }) => {
     attachAuditListeners(page, audit);
     await openRun(page, { [FIRST_NODE]: "frontier" });
-    await openPhase(page, FIRST_NODE, 0);
+    await openPhase(page, FIRST_NODE, "consume");
 
     const sheet = page.getByTestId("phase-consume");
     await expect(sheet).toBeVisible();
@@ -180,7 +180,7 @@ test.describe("Deep Web Feature Audit", () => {
   test("4. Phase 1 (Socratic): Probes, Text Submission, Feedback", async ({ page }) => {
     attachAuditListeners(page, audit);
     await openRun(page, { [FIRST_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, 1);
+    await openPhase(page, FIRST_NODE, "socratic");
 
     const sheet = page.getByTestId("phase-socratic");
     await expect(sheet).toBeVisible();
@@ -201,7 +201,7 @@ test.describe("Deep Web Feature Audit", () => {
   test("5. Phase 2 (Feynman): Teach-back, Rubric, Gap Detection", async ({ page }) => {
     attachAuditListeners(page, audit);
     await openRun(page, { [FIRST_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, 2);
+    await openPhase(page, FIRST_NODE, "feynman");
 
     const sheet = page.getByTestId("phase-feynman");
     await expect(sheet).toBeVisible();
@@ -225,7 +225,7 @@ test.describe("Deep Web Feature Audit", () => {
   test("6. Phase 3 (Connect): Concept Relationships & Linking", async ({ page }) => {
     attachAuditListeners(page, audit);
     await openRun(page, { [FIRST_NODE]: "learning", [SECOND_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, 3);
+    await openPhase(page, FIRST_NODE, "connect");
 
     const sheet = page.getByTestId("phase-connect");
     await expect(sheet).toBeVisible();
@@ -235,7 +235,7 @@ test.describe("Deep Web Feature Audit", () => {
   test("7. Phase 4 (Crucible): Transfer Problem & Calibration", async ({ page }) => {
     attachAuditListeners(page, audit);
     await openRun(page, { [FIRST_NODE]: "shaky", [SECOND_NODE]: "mastered" });
-    await openPhase(page, FIRST_NODE, 4);
+    await openPhase(page, FIRST_NODE, "crucible");
 
     const sheet = page.getByTestId("phase-crucible");
     await expect(sheet).toBeVisible();
@@ -260,7 +260,7 @@ test.describe("Deep Web Feature Audit", () => {
   }) => {
     attachAuditListeners(page, audit);
     await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
-    await openPhase(page, FIRST_NODE, 5);
+    await openPhase(page, FIRST_NODE, "retain");
 
     const sheet = page.getByTestId("phase-retain");
     await expect(sheet).toBeVisible();

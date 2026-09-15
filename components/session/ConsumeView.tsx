@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SkeletonBars } from "@/components/Pending";
 import { InlineError } from "@/components/ErrorState";
 import {
-  PHASES,
+  PHASE_ORDER,
+  phaseLabel,
   altControls,
   type AltKey,
   type ConsumeChunk,
@@ -170,7 +171,9 @@ export default function ConsumeView({
   // preference doesn't count as reaching for it — it's a default they set once.
   const simpleFlag = simpleCount >= 3 && session.preferred !== "simpler";
 
-  const breadcrumb = PHASES.slice(0, 6).join(" → ");
+  // ponytail: one plan for every node today, so the catalogue is the
+  // breadcrumb. Take the node's own `phasePlan` as a prop once plans differ.
+  const breadcrumb = PHASE_ORDER.map(phaseLabel).join(" → ");
 
   // Honest time-left estimate: word count of what's left, at ~200wpm.
   // ponytail: while still streaming we don't yet know the pass's true length

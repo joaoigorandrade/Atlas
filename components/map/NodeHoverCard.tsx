@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  PHASES,
   STATE_COLOR,
   meetsPrereq,
-  readingPhaseIndex,
+  phaseIndex,
+  phaseLabel,
+  phasePlan,
+  primaryPhase,
   readingProgress,
   shakyLine,
   stateConfidence,
   stateLabel,
   type ConceptEdge,
   type ConceptNode,
+  type PhaseId,
   type ConsumeProgress,
   type NodeState,
   type ProgressState,
@@ -54,6 +57,9 @@ export interface NodeHoverCardProps {
   edges: ConceptEdge[];
   /** Real review history for this node — the spiral's last tick (#13). */
   reviewed: boolean;
+  /** Which phases of this node's plan the learner has finished. Mastery state
+   *  is derived from it, and so is which rung of the plan reads as current. */
+  phasesDone?: readonly PhaseId[];
   shakyReason?: ShakyReason;
   consumeProgress?: ConsumeProgress;
   /** Screen-space centre of the node chip, in canvas pixels. */
@@ -103,6 +109,7 @@ function Body({
   display,
   edges,
   reviewed,
+  phasesDone,
   shakyReason,
   consumeProgress,
   x,
@@ -122,7 +129,9 @@ function Body({
   const unlocks = edges.filter(([from, , dashed]) => from === node.id && !dashed).length;
   const gaps = edges.filter(([from, , dashed]) => from === node.id && dashed).length;
 
-  const phase = readingPhaseIndex(displayState, reviewed, consumeProgress);
+  const plan = phasePlan(node);
+  const phase = phaseIndex(plan, phasesDone, displayState, reviewed);
+  const nextUp = primaryPhase(plan, phasesDone, displayState);
   const reading =
     consumeProgress && !consumeProgress.finished && consumeProgress.total > 0
       ? readingProgress(consumeProgress)
@@ -144,9 +153,11 @@ function Body({
       ? t.prereqsMet(met, prereqIds.length)
       : phase < 0
         ? t.locked
-        : phase >= PHASES.length
-          ? t.inReview
-          : t.next(PHASES[phase]);
+        : // Same function the rail's CTA names itself from, so the peek can't
+          // promise a phase the click won't open.
+          nextUp
+          ? t.next(phaseLabel(nextUp))
+          : t.inReview;
 
   const facts = [
     reading ? t.reading(reading.read, reading.total) : null,

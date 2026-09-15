@@ -6,7 +6,9 @@ import {
   emptyConsumeProgress,
   phaseIndex,
   preferredModality,
-  readingPhaseIndex,
+  planGates,
+  stateFromPlan,
+  LEGACY_PHASE_PLAN,
   readingProgress,
   type ConsumeProgress,
   type ModalityTally,
@@ -65,44 +67,58 @@ describe("readingProgress", () => {
   });
 });
 
-// ---- the phase spiral, corrected by what was actually read -----------------
+// ---- the phase spiral, derived from what the learner has finished ---------
 
-describe("readingPhaseIndex", () => {
-  it("keeps Consume current while the reading is unfinished", () => {
-    // The state alone says Feynman — which would tick off both Consume and
-    // Socratic on the strength of two sections read.
-    expect(phaseIndex("learning", false)).toBe(2);
-    expect(readingPhaseIndex("learning", false, progress({ idx: 1, total: 5 }))).toBe(0);
+describe("phaseIndex over a node's own plan", () => {
+  const PLAN = LEGACY_PHASE_PLAN;
+
+  it("points at Consume while the reading is unfinished", () => {
+    // Consume only enters `phasesDone` when the pass is read through, so a
+    // part-read node's first unfinished phase already is Consume. This is
+    // what `readingPhaseIndex` used to have to argue back to from state.
+    expect(phaseIndex(PLAN, [], "learning")).toBe(0);
   });
 
-  it("moves to Socratic once the pass is read but not handed off", () => {
-    expect(
-      readingPhaseIndex(
-        "learning",
-        false,
-        progress({ idx: 4, total: 5, finished: true }),
-      ),
-    ).toBe(1);
+  it("moves on once the reading pass is recorded as done", () => {
+    expect(phaseIndex(PLAN, ["consume"], "learning")).toBe(1);
   });
 
-  it("defers to the state once Socratic actually opened", () => {
-    expect(
-      readingPhaseIndex(
-        "learning",
-        false,
-        progress({ idx: 4, total: 5, finished: true, handedOff: true }),
-      ),
-    ).toBe(2);
+  it("stays on the last rung until real review history exists (#13)", () => {
+    const done = planGates(PLAN);
+    expect(phaseIndex(PLAN, done, "mastered", false)).toBe(PLAN.length - 1);
+    expect(phaseIndex(PLAN, done, "mastered", true)).toBe(PLAN.length);
   });
 
-  it("leaves every other state exactly where phaseIndex puts it", () => {
-    const p = progress({ idx: 0, total: 5 });
-    for (const state of ["unknown", "frontier", "shaky", "mastered", "gap"] as const)
-      expect(readingPhaseIndex(state, false, p)).toBe(phaseIndex(state, false));
+  it("reports locked for a node that cannot be entered", () => {
+    expect(phaseIndex(PLAN, [], "unknown")).toBe(-1);
+    expect(phaseIndex(PLAN, [], "gap")).toBe(-1);
+  });
+});
+
+describe("stateFromPlan", () => {
+  it("keeps a part-read node out of frontier without finishing a phase", () => {
+    expect(stateFromPlan(LEGACY_PHASE_PLAN, [])).toBe("unknown");
+    expect(stateFromPlan(LEGACY_PHASE_PLAN, [], { started: true })).toBe("learning");
   });
 
-  it("falls back to the state when the node has no reading record", () => {
-    expect(readingPhaseIndex("learning", false, undefined)).toBe(2);
+  it("goes green when the last gate closes, not when Retain does", () => {
+    const gates = planGates(LEGACY_PHASE_PLAN);
+    expect(stateFromPlan(LEGACY_PHASE_PLAN, gates)).toBe("mastered");
+    expect(stateFromPlan(LEGACY_PHASE_PLAN, gates.slice(0, -1))).toBe("learning");
+  });
+
+  it("holds a finished plan at shaky while a reason stands", () => {
+    const gates = planGates(LEGACY_PHASE_PLAN);
+    expect(stateFromPlan(LEGACY_PHASE_PLAN, gates, { shaky: "crucible-fail" })).toBe(
+      "shaky",
+    );
+  });
+
+  it("reaches mastered through a plan with no Crucible in it", () => {
+    // The whole point of the inversion: green was reachable only by passing
+    // Crucible, because exactly one line in `useSpiral` wrote it.
+    const plan = ["consume", "socratic", "retain"] as const;
+    expect(stateFromPlan(plan, ["consume", "socratic"])).toBe("mastered");
   });
 });
 

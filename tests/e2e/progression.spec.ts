@@ -61,7 +61,7 @@ async function scrollToCheck(page: Page) {
 
 test("consume: reading the pass through moves the node off unknown", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "frontier" });
-  await openPhase(page, FIRST_NODE, 0);
+  await openPhase(page, FIRST_NODE, "consume");
 
   const sheet = page.getByTestId("phase-consume");
   await expect(sheet).toBeVisible();
@@ -95,7 +95,7 @@ test("consume: reading the pass through moves the node off unknown", async ({ pa
 
 test("socratic: three answered probes advance the node", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "frontier" });
-  await openPhase(page, FIRST_NODE, 1);
+  await openPhase(page, FIRST_NODE, "socratic");
 
   const sheet = page.getByTestId("phase-socratic");
   await expect(sheet).toBeVisible();
@@ -119,7 +119,7 @@ test("socratic: three answered probes advance the node", async ({ page }) => {
 
 test("feynman: a judged teach-back spawns the gap it found", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "learning" });
-  await openPhase(page, FIRST_NODE, 2);
+  await openPhase(page, FIRST_NODE, "feynman");
 
   const sheet = page.getByTestId("phase-feynman");
   await expect(sheet).toBeVisible();
@@ -152,7 +152,7 @@ test("feynman: a judged teach-back spawns the gap it found", async ({ page }) =>
 
 test("crucible: a graded attempt records a calibration reading", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "shaky", [SECOND_NODE]: "mastered" });
-  await openPhase(page, FIRST_NODE, 4);
+  await openPhase(page, FIRST_NODE, "crucible");
 
   const sheet = page.getByTestId("phase-crucible");
   await expect(sheet).toBeVisible();
@@ -174,7 +174,7 @@ test("crucible: a graded attempt records a calibration reading", async ({ page }
 
 test("retain: grading the day's queue writes the card store", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
-  await openPhase(page, FIRST_NODE, 5);
+  await openPhase(page, FIRST_NODE, "retain");
 
   const sheet = page.getByTestId("phase-retain");
   await expect(sheet).toBeVisible();
@@ -190,7 +190,7 @@ test("retain: grading the day's queue writes the card store", async ({ page }) =
 
 test("retain: a missed card comes back at the end of the same pass", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
-  await openPhase(page, FIRST_NODE, 5);
+  await openPhase(page, FIRST_NODE, "retain");
 
   const sheet = page.getByTestId("phase-retain");
   await expect(sheet).toBeVisible();

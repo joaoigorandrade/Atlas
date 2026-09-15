@@ -52,7 +52,7 @@ ceilings never rise. Adding a genuinely new large file means editing
 
 - `app/` — App Router shell only (layout, fonts, global keyframes). Pages stay thin; screens live in `components/`.
 - `components/AtlasApp.tsx` — the shell: it composes the hooks in `components/atlas/` and renders. It holds no logic of its own.
-- `components/atlas/` — where the cross-screen state actually lives, one hook per owner: `useRunState` (everything persisted — graph, mastery states, positions, cards, cached generations), `useSessionState` (what is open and what is streaming), `useGeneration` (the one seam every foreground generation goes through), `useSpiral` (the six phases as **one** state machine — they transition into each other, so splitting per phase would push every transition through another ref), `useOnboarding`, `useWarming`, `useDerived` (the view model), `useNavigation`, `useCanvas`, `useToast`, `useViewport`. Anything a hook returns that a dependency array names **must be stable** — an unstable identity here re-hydrates the whole app every render.
+- `components/atlas/` — where the cross-screen state actually lives, one hook per owner: `useRunState` (everything persisted — graph, mastery states, positions, cards, cached generations), `useSessionState` (what is open and what is streaming), `useGeneration` (the one seam every foreground generation goes through), `useSpiral` (the phases as **one** state machine — they transition into each other, so splitting per phase would push every transition through another ref; `phaseLedger` is the one piece split out, because it is bookkeeping rather than a surface and every handler calls it from inside a `useCallback`), `useOnboarding`, `useWarming`, `useDerived` (the view model), `useNavigation`, `useCanvas`, `useToast`, `useViewport`. Anything a hook returns that a dependency array names **must be stable** — an unstable identity here re-hydrates the whole app every render.
 - `components/onboarding/`, `components/map/`, `components/session/` — presentational screens; they receive state + callbacks as props and hold no app state.
 - `lib/curriculum/` (barrel at `lib/curriculum.ts`'s old import path, `@/lib/curriculum`) — the mastery-state vocabulary, session engines (pure reducers), and the re-planning model (gap spawning, goal ordering, pace math), split per phase plus `types`, `adherence`, `calibration`, `replan`. Types and logic only — no domain data lives here.
 - `lib/theme.ts` — design tokens. Never hard-code a color/font that has a token.
@@ -85,9 +85,55 @@ with a Portuguese string and no English one is unfinished, on either client.
   an interpolation carry only a value.
 - Phase names (Consume, Socratic, Feynman, Connect, Crucible, Retained) are
   product vocabulary and stay English in both languages. Everything a learner
-  reads around them is translated.
+  reads around them is translated. They live in `PHASE_DEFS`
+  (`lib/curriculum/phases.ts`); a new phase adds its label there and to
+  `PHASE_SKIP_NUDGE`, which is `Record<PhaseId, string>` so TypeScript catches
+  a missing one.
 - On iOS the mechanism is different — a String Catalogue, not a lookup table —
   and `ios/AGENTS.md` §Copy is the rule there. The requirement is the same one.
+
+## The phase catalogue
+
+A node does not run a fixed spiral. It carries a **kind** — `fact`, `concept`,
+`procedure` or `principle` (Merrill, with Process folded into Principle) —
+written by the map generation, and a **phase plan** resolved from that kind at
+build time and _stored on the node_. `lib/curriculum/phases.ts` holds the
+catalogue: `PHASE_ORDER` (canonical order), `PHASE_DEFS` (label + the signal
+each phase extracts) and `PHASE_PLAN` (kind → plan).
+
+Two rules make the whole thing work:
+
+- **State is derived from the plan, not the other way round.** A node stores
+  which phases it has finished (`phasesDone`, a parallel map beside
+  `shakyReasons` and `reviewedNodes`) and `stateFromPlan`
+  (`lib/curriculum/calibration.ts`) says what that makes it. It used to be the
+  reverse — `phaseIndex(state, reviewed)` indexed a fixed six-tuple — which is
+  why every node ran the same six rungs and why exactly one line in `useSpiral`
+  could write `mastered`. Nothing writes a mastery literal any more; handlers
+  call `completePhase(node, phase)` on `phaseLedger` and the state falls out.
+  Retain is the exception: it is closed by `reviewed` (real review history),
+  not by a session, so `planGates()` excludes it from what gates mastery.
+- **A plan is frozen at build.** Editing `PHASE_PLAN` ships a new ladder for
+  maps built after it and cannot re-cut a run already in progress. A phase
+  joins `PHASE_ORDER` only in the release that implements it, so the catalogue
+  is never inconsistent with what exists.
+
+Three invariants are pinned by tests in `tests/curriculum.test.ts` and are
+silent when broken: every plan is a subsequence of `PHASE_ORDER`, every plan
+starts at Consume and ends at Retain, and every phase has at least one home.
+
+Kind is also the **second lever**: `kindNote(kind, phase)`
+(`lib/server/generate/common.ts`) changes how a phase that every plan contains
+is written — a `fact` gets no worked example and no figure, a `procedure`'s
+worked example _is_ the material, a `principle` must carry its causal chain in
+a figure. It returns `""` for `concept`, which is what every node was before
+kinds existed, and for the same reason `nodeKind` is omitted from the cache key
+when it is `concept` (`job.ts`) — so no existing `content_cache` row was
+orphaned and no `VERSION` bump was owed.
+
+The rail is driven by `data-phase` (the phase id), never by
+`action-phase-${i}`: plans vary in length, so index N is a different phase on a
+different node.
 
 ## AI content generation
 

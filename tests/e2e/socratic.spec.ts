@@ -3,7 +3,7 @@ import { FIRST_NODE, openPhase, openRun } from "./helpers";
 
 test("socratic: a probe is asked, answered, and judged", async ({ page }) => {
   await openRun(page);
-  await openPhase(page, FIRST_NODE, 1);
+  await openPhase(page, FIRST_NODE, "socratic");
 
   const sheet = page.getByTestId("phase-socratic");
   await expect(sheet).toBeVisible();

@@ -3,7 +3,7 @@ import { FIRST_NODE, openPhase, openRun, SECOND_NODE } from "./helpers";
 
 test("crucible: a novel transfer problem is posed", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
-  await openPhase(page, "core-rule", 4);
+  await openPhase(page, "core-rule", "crucible");
 
   const sheet = page.getByTestId("phase-crucible");
   await expect(sheet).toBeVisible();
