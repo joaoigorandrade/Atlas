@@ -87,8 +87,13 @@ export function verdictPrefix(count: number) {
           verdict: oneOf(row.verdict, VERDICTS, "verdict"),
           ...(quote ? { quote } : null),
         });
-      // Still a prefix of a prefix: drop the slot and wait for the rest.
-      if (rows.size < count) throw whole;
+      // Still a prefix of a prefix: drop the slot and wait for the rest. Its
+      // own message, not the validator's — this is the ordinary path for every
+      // row but the last, and re-throwing "verdicts must be an array" puts
+      // `count - 1` lines that look like a broken judge on the error dashboard
+      // each time one works. (It cost this investigation an afternoon.)
+      if (rows.size < count)
+        throw new Error(`verdict row ${i} buffered — ${rows.size} of ${count} so far`);
       return {
         verdicts: Array.from({ length: count }, (_, at) => rows.get(at)!),
       };
