@@ -42,6 +42,24 @@ export const JUDGE_SYSTEM: ChatMessage = {
  * `generateJson` still produces it, and the client patches the streamed
  * placeholder with the real thing. The verdict is never invented locally.
  */
+/**
+ * The verdict prefix the three rubric judges (Feynman, Recall, Perform) ask
+ * for as object 1.
+ *
+ * Spelled out to the point of nagging, because the terse version cost a whole
+ * second model call on every graded answer: shown `[{"i": 0, ...}, ...one per
+ * rubric row]` next to the words "NOT wrapped in an array", the model resolved
+ * the tension by streaming one top-level object PER ROW. Those validated as
+ * neither the full judgement nor the prefix, so every slot was dropped, the
+ * stream ended having produced nothing, and the fallback re-ran the judge
+ * single-shot. Two calls, ~12s instead of ~8s, on the three phases that grade
+ * against a rubric — and invisible, because the fallback always succeeded.
+ */
+export const VERDICT_FIRST_SHAPE =
+  `{"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one entry per rubric row]}` +
+  ` — ONE object holding every row inside its "verdicts" array, in rubric order.` +
+  ` Never one object per row.`;
+
 export async function* judgeStream<T extends object>(
   messages: ChatMessage[],
   spec: {
@@ -59,8 +77,9 @@ export async function* judgeStream<T extends object>(
           ...m,
           content: `${m.content}
 
-Write TWO SEPARATE top-level JSON objects, one after another — NOT wrapped in
-an array, no markdown fences, nothing before/after/between them.
+Write TWO SEPARATE top-level JSON objects, one after another — do not wrap the
+PAIR in an array, no markdown fences, nothing before/after/between them. Two
+objects exactly: never one object per list item.
 
 First, immediately, the verdict alone: ${spec.firstShape}
 Then the full object described above (it repeats the verdict and adds the rest).`,
@@ -400,7 +419,7 @@ export function judgeFeynmanStream(
 ): AsyncGenerator<StreamFrame> {
   const count = params.rubric.length;
   return judgeStream<FeynmanJudgement>(feynmanJudgeMessages(params), {
-    firstShape: `{"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one per rubric row]}`,
+    firstShape: VERDICT_FIRST_SHAPE,
     first: (raw) => ({ verdicts: validateFeynmanVerdicts(raw, count) }),
     full: validateFeynmanJudgement(count),
     label: "judge-feynman",

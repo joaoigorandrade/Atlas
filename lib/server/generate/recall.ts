@@ -24,6 +24,7 @@ import {
 import {
   JUDGE_SYSTEM,
   judgeStream,
+  VERDICT_FIRST_SHAPE,
   validateFeynmanJudgement,
   validateFeynmanVerdicts,
   type FeynmanJudgement,
@@ -167,7 +168,7 @@ export function judgeRecallStream(
 ): AsyncGenerator<StreamFrame> {
   const count = params.rubric.length;
   return judgeStream<FeynmanJudgement>(recallJudgeMessages(params), {
-    firstShape: `{"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one per rubric row]}`,
+    firstShape: VERDICT_FIRST_SHAPE,
     first: (raw) => ({ verdicts: validateFeynmanVerdicts(raw, count) }),
     full: validateFeynmanJudgement(count),
     label: "judge-recall",

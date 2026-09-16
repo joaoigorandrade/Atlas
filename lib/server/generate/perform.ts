@@ -22,6 +22,7 @@ import {
 import {
   JUDGE_SYSTEM,
   judgeStream,
+  VERDICT_FIRST_SHAPE,
   validateFeynmanJudgement,
   validateFeynmanVerdicts,
   type FeynmanJudgement,
@@ -169,7 +170,7 @@ export function judgePerformStream(
 ): AsyncGenerator<StreamFrame> {
   const count = params.rubric.length;
   return judgeStream<FeynmanJudgement>(performJudgeMessages(params), {
-    firstShape: `{"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one per step]}`,
+    firstShape: VERDICT_FIRST_SHAPE,
     first: (raw) => ({ verdicts: validateFeynmanVerdicts(raw, count) }),
     full: validateFeynmanJudgement(count),
     label: "judge-perform",
