@@ -12,6 +12,7 @@ export * from "./socratic";
 export * from "./feynman";
 export * from "./connect";
 export * from "./crucible";
+export * from "./recite";
 export * from "./retain";
 export * from "./judge";
 export * from "./choice";

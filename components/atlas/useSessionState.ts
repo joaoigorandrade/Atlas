@@ -20,6 +20,7 @@ import type {
   CrucibleSession,
   FeynmanBeat,
   FeynmanSession,
+  ReciteSession,
   RetainSession,
   SocraticSession,
   SocraticStep,
@@ -62,6 +63,10 @@ export function useSessionState() {
   } | null>(null);
   const [connect, setConnect] = useState<ConnectSession | null>(null);
   const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
+  // One slot for the whole recite family (Recall · Perform): the session
+  // carries which phase it is, so a second slot would only be a second thing
+  // to reset. Same arrangement waits for the deck family.
+  const [recite, setRecite] = useState<ReciteSession | null>(null);
   const [retain, setRetain] = useState<RetainSession | null>(null);
 
   const consumeRef = useRef(consume);
@@ -80,6 +85,8 @@ export function useSessionState() {
   crucibleRef.current = crucible;
   const retainRef = useRef(retain);
   retainRef.current = retain;
+  const reciteRef = useRef(recite);
+  reciteRef.current = recite;
   /** The reading pass on screen — committed sections, or the streaming ones
    *  standing in for them. Assigned once `consumeChunks` is derived. */
   const consumeChunksRef = useRef<ConsumeChunk[]>([]);
@@ -102,6 +109,7 @@ export function useSessionState() {
     setLiveFeynman(null);
     setConnect(null);
     setCrucible(null);
+    setRecite(null);
     setRetain(null);
   }, []);
 
@@ -131,6 +139,9 @@ export function useSessionState() {
     crucible,
     setCrucible,
     crucibleRef,
+    recite,
+    setRecite,
+    reciteRef,
     retain,
     setRetain,
     retainRef,

@@ -325,8 +325,11 @@ Return JSON: {"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", 
   ];
 }
 
-/** The verdict rows alone — the smallest thing that opens the Gap Report. */
-function validateFeynmanVerdicts(raw: unknown, count: number): FeynmanVerdictRow[] {
+/** The verdict rows alone — the Gap Report's opener, and `recite.ts`'s too. */
+export function validateFeynmanVerdicts(
+  raw: unknown,
+  count: number,
+): FeynmanVerdictRow[] {
   const root = obj(raw, "payload");
   // The cap allows duplicates through: a repeated index is a real thing models
   // do, the dedup below is what handles it, and capping at `count` here would

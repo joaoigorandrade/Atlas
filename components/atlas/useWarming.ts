@@ -27,6 +27,7 @@ const SLOT: Record<string, string> = {
   feynman: "beats",
   connect: "content",
   crucible: "content",
+  recall: "content",
 };
 
 function mirrorHit(kind: string, nodeId: string, hit: unknown): void {

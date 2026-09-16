@@ -26,6 +26,8 @@ import {
   type FeynmanBeat,
   type NodeKind,
   type PhaseId,
+  type ReciteContent,
+  type RecitePhase,
   type SocraticStep,
   type NodeState,
 } from "@/lib/curriculum";
@@ -39,8 +41,10 @@ import {
   fetchConsumeModel,
   fetchCrucible,
   fetchFeynman,
+  fetchRecite,
   fetchSocratic,
   fetchSummary,
+  reciteRequest,
   socraticRequest,
   summaryRequest,
   WarmDeclined,
@@ -106,6 +110,7 @@ export function useGeneration(opts_: {
     feynmanCacheRef,
     connectCacheRef,
     crucibleCacheRef,
+    reciteCacheRef,
     setGraph,
     setSummaryFailed,
     setConsumeCache,
@@ -114,6 +119,7 @@ export function useGeneration(opts_: {
     setFeynmanCache,
     setConnectCache,
     setCrucibleCache,
+    setReciteCache,
   } = run;
 
   // ---- generation plumbing ---------------------------------------------
@@ -328,6 +334,35 @@ export function useGeneration(opts_: {
     [learnedLabels, boundaryOf, formRef, languageRef],
   );
 
+  /**
+   * The recite family (Recall · Perform). One builder for the whole family:
+   * the phase is a field, so the two never share a cache row and neither
+   * needs its own copy of this.
+   */
+  const reciteParams = useCallback(
+    (node: ConceptNode, phase: RecitePhase) => ({
+      phase,
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      ...boundaryOf(node.id),
+      nodeKind: node.kind,
+    }),
+    [boundaryOf, formRef, languageRef],
+  );
+
+  const loadRecite = useCallback(
+    async (node: ConceptNode, phase: RecitePhase, prefetch = false) => {
+      const content = await fetchRecite(reciteParams(node, phase), opts(prefetch));
+      const key = `${phase}:${node.id}`;
+      setReciteCache((prev) => (prev[key] ? prev : { ...prev, [key]: content }));
+      return content;
+    },
+    [reciteParams, setReciteCache],
+  );
+
   /** Warm-queue / in-memory cache address for one node's surface. */
   const warmKey = (kind: WarmKind, nodeId: string) => `${kind}:${nodeId}`;
 
@@ -462,6 +497,8 @@ export function useGeneration(opts_: {
           return !!connectCacheRef.current[nodeId];
         case "crucible":
           return !!crucibleCacheRef.current[nodeId];
+        case "recall":
+          return !!reciteCacheRef.current[`${kind}:${nodeId}`];
       }
     },
     [
@@ -470,6 +507,7 @@ export function useGeneration(opts_: {
       crucibleCacheRef,
       feynmanCacheRef,
       graphRef,
+      reciteCacheRef,
       socraticCacheRef,
     ],
   );
@@ -498,6 +536,8 @@ export function useGeneration(opts_: {
         }
         case "crucible":
           return crucibleRequest(crucibleParams(node));
+        case "recall":
+          return reciteRequest(reciteParams(node, kind));
       }
     },
     [
@@ -507,6 +547,7 @@ export function useGeneration(opts_: {
       feynmanParams,
       connectParams,
       crucibleParams,
+      reciteParams,
     ],
   );
 
@@ -535,6 +576,15 @@ export function useGeneration(opts_: {
         return put(setConnectCache, p.content as ElaborationContent | undefined);
       case "crucible":
         return put(setCrucibleCache, p.content as CrucibleContent | undefined);
+      case "recall": {
+        // Keyed by phase as well as node, so one map holds the whole family —
+        // hence its own put rather than the node-keyed one above.
+        const content = p.content as ReciteContent | undefined;
+        if (!content) return;
+        const key = `${kind}:${nodeId}`;
+        setReciteCache((prev) => (prev[key] ? prev : { ...prev, [key]: content }));
+        return;
+      }
     }
   };
 
@@ -557,6 +607,8 @@ export function useGeneration(opts_: {
           return warm.warm(key, () => loadConnect(node, true));
         case "crucible":
           return warm.warm(key, () => loadCrucible(node, true));
+        case "recall":
+          return warm.warm(key, () => loadRecite(node, kind, true));
       }
     },
     [
@@ -569,6 +621,7 @@ export function useGeneration(opts_: {
       loadFeynman,
       loadConnect,
       loadCrucible,
+      loadRecite,
     ],
   );
 
@@ -586,6 +639,7 @@ export function useGeneration(opts_: {
     feynmanParams,
     connectParams,
     crucibleParams,
+    reciteParams,
     warmKey,
     opts,
     applySummary,
@@ -597,6 +651,7 @@ export function useGeneration(opts_: {
     loadFeynman,
     loadConnect,
     loadCrucible,
+    loadRecite,
     isCached,
     requestFor,
     applyWarmHit,

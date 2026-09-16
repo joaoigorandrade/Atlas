@@ -34,6 +34,7 @@ import type {
   MisconceptionRecord,
   ModalityTally,
   ProgressState,
+  ReciteContent,
   RetainContent,
   ReviewGrade,
   PhaseProgress,
@@ -161,6 +162,11 @@ export interface RunCaches {
   feynman: Record<string, FeynmanBeat[]>;
   connect: Record<string, ElaborationContent>;
   crucible: Record<string, CrucibleContent>;
+  /** The recite family (Recall · Perform), keyed `<phase>:<nodeId>`. One
+   *  bucket rather than one per phase: the payload shape is the same, and a
+   *  field per phase would mean editing this contract on both clients every
+   *  time the catalogue grows. */
+  recite: Record<string, ReciteContent>;
   retain: RetainContent | null;
 }
 
@@ -171,6 +177,7 @@ export const emptyCaches = (): RunCaches => ({
   feynman: {},
   connect: {},
   crucible: {},
+  recite: {},
   retain: null,
 });
 
@@ -380,6 +387,9 @@ export function foldContent(items: ContentItem[]): RunCaches {
         break;
       case "crucible":
         caches.crucible[item.nodeId] = item.payload as CrucibleContent;
+        break;
+      case "recall":
+        caches.recite[`${item.kind}:${item.nodeId}`] = item.payload as ReciteContent;
         break;
       case "retain":
         caches.retain = item.payload as RetainContent;

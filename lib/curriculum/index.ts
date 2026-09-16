@@ -10,6 +10,7 @@ export * from "./socratic";
 export * from "./feynman";
 export * from "./connect";
 export * from "./crucible";
+export * from "./recite";
 export * from "./retain";
 export * from "./adherence";
 export * from "./calibration";

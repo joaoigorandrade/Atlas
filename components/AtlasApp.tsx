@@ -37,6 +37,7 @@ import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
+import ReciteView from "@/components/session/ReciteView";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
@@ -98,6 +99,7 @@ export default function AtlasApp({
     feynman,
     connect,
     crucible,
+    recite,
     retain,
     reset: resetSessions,
   } = sessions;
@@ -468,6 +470,10 @@ export default function AtlasApp({
     crucibleSubmit,
     advanceFromCrucible,
     exitCrucible,
+    dispatchRecite,
+    reciteSubmit,
+    advanceFromRecite,
+    exitRecite,
     enterReview,
     retainFlip,
     retainToggleAside,
@@ -544,6 +550,7 @@ export default function AtlasApp({
     feynmanBeats,
     connectContent,
     crucibleContent,
+    reciteContent,
     displayName,
     initials,
     greeting,
@@ -1047,6 +1054,28 @@ export default function AtlasApp({
             onRetry={() => dispatchCrucible({ type: "retry" })}
             onFinish={advanceFromCrucible}
             lifts={crucibleMasters(graph.nodes, crucible.nodeId, phasesDone)}
+          />,
+        )}
+
+      {/* The recite family — Recall, and Perform once it exists. One branch:
+          the session says which phase it is, and the screen name matches it. */}
+      {openSheet === recite?.phase &&
+        recite &&
+        reciteContent &&
+        sheetBoundary(
+          <ReciteView
+            presence={sheet.state}
+            title={graph.nodes.find((n) => n.id === recite.nodeId)?.label ?? "Concept"}
+            plan={planOf(recite.nodeId)}
+            content={reciteContent}
+            session={recite}
+            judging={judging}
+            onExit={exitRecite}
+            onWrite={(value) => dispatchRecite({ type: "write", value })}
+            onScaffold={() => dispatchRecite({ type: "scaffold" })}
+            onSubmit={reciteSubmit}
+            onAgain={() => dispatchRecite({ type: "again" })}
+            onAdvance={advanceFromRecite}
           />,
         )}
 

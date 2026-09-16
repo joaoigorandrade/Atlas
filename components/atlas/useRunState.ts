@@ -34,6 +34,7 @@ import {
   type ConsumeProgress,
   type ConnectSession,
   type CrucibleContent,
+  type ReciteContent,
   type ElaborationContent,
   type FeynmanBeat,
   type FeynmanSession,
@@ -134,6 +135,9 @@ export function useRunState(opts: {
     {},
   );
   const [crucibleCache, setCrucibleCache] = useState<Record<string, CrucibleContent>>({});
+  // The recite family (Recall · Perform), keyed `<phase>:<nodeId>` — one map
+  // for the whole family, since every one of them holds the same payload.
+  const [reciteCache, setReciteCache] = useState<Record<string, ReciteContent>>({});
   // Model views (a lens opened over one section of the reading), keyed by
   // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
   // one lens on the section that didn't land, not twenty across the pass.
@@ -227,6 +231,8 @@ export function useRunState(opts: {
   connectCacheRef.current = connectCache;
   const crucibleCacheRef = useRef(crucibleCache);
   crucibleCacheRef.current = crucibleCache;
+  const reciteCacheRef = useRef(reciteCache);
+  reciteCacheRef.current = reciteCache;
   const retainContentRef = useRef(retainContent);
   retainContentRef.current = retainContent;
   const consumeProgressRef = useRef(consumeProgress);
@@ -354,6 +360,7 @@ export function useRunState(opts: {
     setFeynmanCache({});
     setConnectCache({});
     setCrucibleCache({});
+    setReciteCache({});
     setRetainContent(null);
   }, []);
 
@@ -396,6 +403,7 @@ export function useRunState(opts: {
     setFeynmanCache(merge(c.feynman));
     setConnectCache(merge(c.connect));
     setCrucibleCache(merge(c.crucible));
+    setReciteCache(merge(c.recite));
     setRetainContent((prev) => prev ?? c.retain);
   }, []);
 
@@ -416,6 +424,7 @@ export function useRunState(opts: {
       setFeynmanCache({});
       setConnectCache({});
       setCrucibleCache({});
+      setReciteCache({});
       setRetainContent(null);
 
       // The run's language wins over the device's. UI language is detected
@@ -697,6 +706,9 @@ export function useRunState(opts: {
     setConnectCache,
     connectCacheRef,
     crucibleCache,
+    reciteCache,
+    setReciteCache,
+    reciteCacheRef,
     setCrucibleCache,
     crucibleCacheRef,
     retainContent,

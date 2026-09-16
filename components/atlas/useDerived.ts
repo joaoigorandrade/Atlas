@@ -85,6 +85,7 @@ export function useDerived(deps: {
     feynmanCache,
     connectCache,
     crucibleCache,
+    reciteCache,
   } = run;
   const {
     consume,
@@ -96,6 +97,7 @@ export function useDerived(deps: {
     liveFeynman,
     connect,
     crucible,
+    recite,
     consumeChunksRef,
   } = sessions;
 
@@ -246,6 +248,11 @@ export function useDerived(deps: {
     : undefined;
   const connectContent = connect ? connectCache[connect.nodeId] : undefined;
   const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
+  // Keyed by phase as well as node — one cache map holds the whole recite
+  // family, so the session says which row of it is on screen.
+  const reciteContent = recite
+    ? reciteCache[`${recite.phase}:${recite.nodeId}`]
+    : undefined;
 
   // ---- Home (dashboard) + profile derived ------------------------------
 
@@ -361,6 +368,7 @@ export function useDerived(deps: {
     feynmanBeats,
     connectContent,
     crucibleContent,
+    reciteContent,
     displayName,
     initials,
     greeting,

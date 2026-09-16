@@ -21,6 +21,7 @@ import type {
   ElaborationContent,
   FeynmanBeat,
   MapNode,
+  ReciteContent,
   RetainContent,
   SocraticStep,
   NodeKind,
@@ -308,10 +309,33 @@ const modelBeats = (v: Vars): ConsumeModelBeat[] =>
     text: `${["First, hold the section's claim still.", "Then apply it to the case in front of you.", "What you are left with is the takeaway, arrived at rather than asserted."][i]} (${v.nodeLabel})`,
   }));
 
+/** The recite family's blank page — a brief, a scaffold, and a rubric the
+ *  learner never sees. One fixture for both phases: they differ in their
+ *  prompt, and a fixture exists to drive the surface, not to judge the copy. */
+const reciteContent = (phase: string, v: Vars): ReciteContent => ({
+  nodeId: v.nodeId,
+  nodeLabel: v.nodeLabel,
+  brief:
+    phase === "perform"
+      ? `Work this case end to end: apply ${v.nodeLabel} where its requirement holds, and show each step.`
+      : `From memory, write down everything you can still produce about ${v.nodeLabel}.`,
+  scaffold: `Start from the one requirement ${v.nodeLabel} needs before it applies.`,
+  rubric: [0, 1, 2].map((i) => ({
+    id: `rc-${phase}-${v.nodeId}-${i + 1}`,
+    point: ["The requirement", "The rule itself", "What it rules out"][i],
+    mustConvey: [
+      [`that ${v.nodeLabel} needs its requirement met first`],
+      [`the rule ${v.nodeLabel} states, in the learner's own words`],
+      ["one case the rule excludes, and why"],
+    ][i],
+  })),
+});
+
 function judgement(body: GenerateBody): Record<string, unknown> {
   switch (body.mode) {
     case "choice":
       return { index: 0, response: "You named the mechanism." };
+    case "recall":
     case "feynman":
       return {
         // One ruling per rubric row: a row left unjudged spawns no gap, and the
@@ -375,6 +399,8 @@ export function fixturePayload(
       return { content: connectContent(v) };
     case "crucible":
       return { content: crucibleContent(v) };
+    case "recall":
+      return { content: reciteContent(kind, v) };
     case "retain":
       return { content: retainContent(body, v) };
     case "judge":

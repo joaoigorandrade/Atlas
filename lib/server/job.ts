@@ -22,6 +22,7 @@ import {
   generateMapStream,
   generatePassage,
   generatePassageStream,
+  generateRecite,
   generateRetain,
   generateSocratic,
   generateSocraticStream,
@@ -32,6 +33,8 @@ import {
   judgeCrucibleStream,
   judgeFeynman,
   judgeFeynmanStream,
+  judgeRecite,
+  judgeReciteStream,
   judgeSocratic,
   judgeSocraticStream,
   mapNodeBounds,
@@ -54,10 +57,12 @@ import {
   PARETO_DEFAULT,
   PARETO_LEVELS,
   asNodeKind,
+  RECITE_PHASES,
   type AltKey,
   type DiagnosticDifficulty,
   type GoalKind,
   type NodeKind,
+  type RecitePhase,
 } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion" | "passage";
@@ -116,13 +121,17 @@ export interface GenerateBody {
   section?: string;
   selection?: string;
   // judge fields
-  mode?: "socratic" | "feynman" | "crucible" | "choice";
+  /** A recite phase is its own judge mode — `RecitePhase` rather than two
+   *  literals, so a phase joining the family needs no edit here. */
+  mode?: "socratic" | "feynman" | "crucible" | "choice" | RecitePhase;
   question?: string;
   options?: string[];
   reference?: string;
   answer?: string;
-  /** judge-feynman: the rubric the whole explanation is diffed against. */
+  /** judge-feynman / judge-recite: the rubric the answer is diffed against. */
   rubric?: Array<{ subPoint: string; mustConvey: string[] }>;
+  /** judge-recite: the brief the learner actually worked from. */
+  brief?: string;
   problem?: string;
   hint?: string;
   /** judge-crucible: the learner revealed the reframe before answering. */
@@ -197,6 +206,30 @@ const labels = (v: unknown, max: number = CAPS.listItems): string[] =>
         .filter((x): x is string => typeof x === "string")
         .slice(0, max)
         .map((x) => x.slice(0, CAPS.nodeLabel))
+    : [];
+
+/** A judge rubric off the wire, capped — shared by the Feynman and recite
+ *  modes, which grade the same row shape. */
+const reciteRubric = (
+  body: GenerateBody,
+): Array<{ subPoint: string; mustConvey: string[] }> =>
+  Array.isArray(body.rubric)
+    ? body.rubric
+        .filter(
+          (r) =>
+            typeof r === "object" &&
+            r !== null &&
+            typeof r.subPoint === "string" &&
+            Array.isArray(r.mustConvey),
+        )
+        .slice(0, CAPS.listItems)
+        .map((r) => ({
+          subPoint: r.subPoint.slice(0, CAPS.nodeLabel * 2),
+          mustConvey: r.mustConvey
+            .filter((m): m is string => typeof m === "string")
+            .slice(0, 4)
+            .map((m) => m.slice(0, CAPS.nodeLabel * 4)),
+        }))
     : [];
 
 export interface Job {
@@ -551,6 +584,28 @@ function buildJob(body: GenerateBody): Job {
       );
     }
 
+    // The recite family (`recall`, and `perform` once it exists): a blank page
+    // graded against a rubric. One case, because the phases differ in their
+    // prompt rather than in their plumbing — `phase` is part of the cache key,
+    // so the two never collide.
+    case "recall": {
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      return cacheable(
+        body.kind,
+        {
+          phase: body.kind,
+          topic,
+          nodeId,
+          nodeLabel,
+          interests,
+          language,
+          ...boundary(body),
+          ...nodeKindOf(body),
+        },
+        async (p) => ({ content: await generateRecite(p) }),
+      );
+    }
+
     case "retain": {
       const nodes = Array.isArray(body.nodes)
         ? body.nodes
@@ -674,29 +729,30 @@ function buildJob(body: GenerateBody): Job {
         );
       }
       if (body.mode === "feynman") {
-        const rubric = Array.isArray(body.rubric)
-          ? body.rubric
-              .filter(
-                (r) =>
-                  typeof r === "object" &&
-                  r !== null &&
-                  typeof r.subPoint === "string" &&
-                  Array.isArray(r.mustConvey),
-              )
-              .slice(0, CAPS.listItems)
-              .map((r) => ({
-                subPoint: r.subPoint.slice(0, CAPS.nodeLabel * 2),
-                mustConvey: r.mustConvey
-                  .filter((m): m is string => typeof m === "string")
-                  .slice(0, 4)
-                  .map((m) => m.slice(0, CAPS.nodeLabel * 4)),
-              }))
-          : [];
+        const rubric = reciteRubric(body);
         if (!rubric.length) throw badRequest("rubric is required");
         const p = { topic, nodeLabel, rubric, explanation: answer, language };
         return uncached(
           async () => ({ judgement: await judgeFeynman(p) }),
           () => judgeFeynmanStream(p),
+        );
+      }
+      if (RECITE_PHASES.includes(body.mode as RecitePhase)) {
+        if (!nodeLabel) throw badRequest("nodeLabel is required");
+        const rubric = reciteRubric(body);
+        if (!rubric.length) throw badRequest("rubric is required");
+        const p = {
+          frame: body.mode as RecitePhase,
+          topic,
+          nodeLabel,
+          brief: s(body.brief).slice(0, CAPS.freeText),
+          rubric,
+          explanation: answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgeRecite(p) }),
+          () => judgeReciteStream(p),
         );
       }
       if (body.mode === "crucible") {

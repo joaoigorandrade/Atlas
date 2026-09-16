@@ -80,6 +80,7 @@ import {
   type FeynmanJudgement,
 } from "@/lib/api";
 import { usePhaseLedger } from "@/components/atlas/phaseLedger";
+import { useRecite } from "@/components/atlas/useRecite";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
 import type { Screen } from "@/components/atlas/screen";
@@ -243,13 +244,33 @@ export function useSpiral(deps: {
   // The phase ledger — what each node has finished, and the mastery state
   // derived from it. Its own module: every handler below calls into it from
   // inside a `useCallback`, so these have to be stable.
-  const { completePhase, markStarted, warmNext, completeWholePlan } = usePhaseLedger({
+  const ledger = usePhaseLedger({
     phasesDoneRef,
     setPhasesDone,
     shakyReasonsRef,
     setStates,
     warmOne,
   });
+  const { completePhase, markStarted, warmNext, completeWholePlan } = ledger;
+
+  // The recite family (Recall · Perform) — its own hook, because it is entered
+  // from the plan and exits to the map, and transitions into no other phase.
+  // See `useRecite` for why that is the line the split follows.
+  const { enterRecite, dispatchRecite, reciteSubmit, advanceFromRecite, exitRecite } =
+    useRecite({
+      run,
+      sessions,
+      gen,
+      toast,
+      ledger,
+      languageRef,
+      setSelectedId,
+      setScreen,
+      centerOn,
+      later,
+      judgingRef,
+      setJudging,
+    });
 
   // ---- map actions ------------------------------------------------------
 
@@ -2016,6 +2037,7 @@ export function useSpiral(deps: {
     feynman: enterFeynman,
     connect: enterConnect,
     crucible: enterCrucible,
+    recall: (node) => enterRecite(node, "recall"),
     // Retain isn't entered on a node — it's the shared review queue.
     retain: () => enterReview(),
   };
@@ -2162,6 +2184,11 @@ export function useSpiral(deps: {
     crucibleSubmit,
     advanceFromCrucible,
     exitCrucible,
+    enterRecite,
+    dispatchRecite,
+    reciteSubmit,
+    advanceFromRecite,
+    exitRecite,
     retainPlan,
     enterReview,
     retainFlip,

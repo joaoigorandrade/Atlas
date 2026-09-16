@@ -15,6 +15,7 @@ export type Screen =
   | "feynman"
   | "connect"
   | "crucible"
+  | "recall"
   | "review"
   | "calibration";
 
@@ -25,6 +26,7 @@ export const SHEET_SCREENS = new Set<Screen>([
   "feynman",
   "connect",
   "crucible",
+  "recall",
   "review",
   "calibration",
   "settings",

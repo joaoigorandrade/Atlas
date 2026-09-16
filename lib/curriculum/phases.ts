@@ -44,7 +44,7 @@ export function asNodeKind(raw: unknown): NodeKind {
  * full target order, with the unbuilt ones marked:
  *
  *   consume · discriminate† · socratic · predict† · trace† · feynman ·
- *   perform† · drill† · connect · crucible · recall† · retain
+ *   perform† · drill† · connect · crucible · recall · retain
  */
 export const PHASE_ORDER = [
   "consume",
@@ -52,6 +52,7 @@ export const PHASE_ORDER = [
   "feynman",
   "connect",
   "crucible",
+  "recall",
   "retain",
 ] as const;
 
@@ -76,6 +77,7 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
   feynman: { label: "Feynman", signal: "unaided production" },
   connect: { label: "Connect", signal: "elaborative encoding" },
   crucible: { label: "Crucible", signal: "transfer" },
+  recall: { label: "Recall", signal: "unaided retrieval" },
   retain: { label: "Retained", signal: "durability" },
 };
 
@@ -90,9 +92,9 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  * Each unbuilt phase slots into the rows that want it in the release that
  * builds it, so this table is never inconsistent with `PHASE_ORDER`:
  *
- *   fact       consume · discriminate† · drill† · connect · recall† · retain
+ *   fact       consume · discriminate† · drill† · connect · recall · retain
  *   concept    consume · discriminate† · socratic · feynman · connect ·
- *              crucible · recall† · retain
+ *              crucible · recall · retain
  *   procedure  consume · trace† · feynman · perform† · drill† · connect ·
  *              crucible · retain
  *   principle  consume · socratic · predict† · trace† · feynman · connect ·
@@ -112,9 +114,11 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  */
 export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
   // Nothing to reason about: read it, wire it into the map, keep it alive.
-  fact: ["consume", "connect", "retain"],
-  concept: ["consume", "socratic", "feynman", "connect", "crucible", "retain"],
-  // A procedure is run, not argued with — no Socratic pass.
+  fact: ["consume", "connect", "recall", "retain"],
+  concept: ["consume", "socratic", "feynman", "connect", "crucible", "recall", "retain"],
+  // A procedure is run, not argued with — no Socratic pass. No Recall either:
+  // what it owes is execution, and reciting the steps from memory is the
+  // rehearsal a procedure most easily fakes.
   procedure: ["consume", "feynman", "connect", "crucible", "retain"],
   principle: ["consume", "socratic", "feynman", "connect", "crucible", "retain"],
 };
@@ -177,6 +181,7 @@ export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
   feynman: "You haven't taught this back yet — want to?",
   connect: "You haven't linked this into your map yet — want to?",
   crucible: "You haven't applied this in a novel context yet — want to?",
+  recall: "You haven't retrieved this cold yet — want to?",
   retain: "This isn't in your review rotation yet — want to?",
 };
 
@@ -186,6 +191,7 @@ const PHASE_SKIP_NUDGE_PT: Record<PhaseId, string> = {
   feynman: "Você ainda não ensinou isso de volta — quer tentar?",
   connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",
   crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?",
+  recall: "Você ainda não recuperou isso de memória — quer tentar?",
   retain: "Isso ainda não está na sua rotação de revisão — quer adicionar?",
 };
 

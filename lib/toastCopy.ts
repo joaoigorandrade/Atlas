@@ -76,6 +76,9 @@ const EN = {
   wakingStudent: (label: string) => `Waking the naive student for ${label}…`,
   findingWires: (label: string) => `Finding what ${label} wires into…`,
   forgingProblem: (label: string) => `Forging a problem ${label} was never taught in…`,
+  // The recite family's overlay line — one for the whole family, since what
+  // is being written is a brief and a rubric either way.
+  writingPass: (label: string) => `Setting the blank page for ${label}…`,
   draftingCards: "Drafting cards from what you've learned…",
 
   // The synthetic Socratic gap written onto the map — no model wrote this one.
@@ -152,6 +155,7 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     findingWires: (label: string) => `Procurando com o que ${label} se conecta…`,
     forgingProblem: (label: string) =>
       `Forjando um problema em que ${label} nunca foi ensinado…`,
+    writingPass: (label: string) => `Preparando a página em branco de ${label}…`,
     draftingCards: "Escrevendo cards a partir do que você aprendeu…",
 
     socraticGapLabel: (label: string) => `${label} — fundamentos`,

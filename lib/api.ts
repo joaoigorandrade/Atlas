@@ -14,6 +14,9 @@ import type {
   FeynmanBeat,
   GoalKind,
   MapNode,
+  NodeKind,
+  ReciteContent,
+  RecitePhase,
   RetainContent,
   SocraticStep,
 } from "@/lib/curriculum";
@@ -557,6 +560,30 @@ export async function fetchCrucible(
     .content;
 }
 
+/** The recite family (`recall`, and `perform` once it exists): one request
+ *  builder, since the phases differ only in which brief and rubric come back. */
+export const reciteRequest = (params: {
+  phase: RecitePhase;
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => {
+  const { phase, ...rest } = params;
+  return { kind: phase, ...rest };
+};
+
+export async function fetchRecite(
+  params: Parameters<typeof reciteRequest>[0],
+  opts?: FetchOpts,
+): Promise<ReciteContent> {
+  return (await post<{ content: ReciteContent }>(reciteRequest(params), opts)).content;
+}
+
 export const retainRequest = (params: {
   topic: string;
   budgetMin: number;
@@ -693,6 +720,24 @@ export function fetchJudgeCrucible(
   onVerdict?: (partial: Partial<CrucibleJudgement>) => void,
 ): Promise<CrucibleJudgement> {
   return judge({ kind: "judge", mode: "crucible", ...params }, onVerdict);
+}
+
+/** Grades a recite pass (Recall · Perform) against its rubric. Same verdict
+ *  rows as the Feynman report, which is why it shares that judgement type. */
+export function fetchJudgeRecite(
+  params: {
+    frame: RecitePhase;
+    topic: string;
+    nodeLabel: string;
+    brief: string;
+    rubric: Array<{ subPoint: string; mustConvey: string[] }>;
+    answer: string;
+    language?: Language;
+  },
+  onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
+): Promise<FeynmanJudgement> {
+  const { frame, ...rest } = params;
+  return judge({ kind: "judge", mode: frame, ...rest }, onVerdict);
 }
 
 /** Maps a free-text answer onto a closed option list (the open-ended half of
