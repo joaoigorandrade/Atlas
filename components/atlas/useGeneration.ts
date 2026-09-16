@@ -533,6 +533,7 @@ export function useGeneration(opts_: {
         case "crucible":
           return !!crucibleCacheRef.current[nodeId];
         case "recall":
+        case "perform":
           return !!reciteCacheRef.current[`${kind}:${nodeId}`];
         case "discriminate":
         case "predict":
@@ -578,6 +579,7 @@ export function useGeneration(opts_: {
         case "crucible":
           return crucibleRequest(crucibleParams(node));
         case "recall":
+        case "perform":
           return reciteRequest(reciteParams(node, kind));
         case "discriminate":
         case "predict":
@@ -625,7 +627,8 @@ export function useGeneration(opts_: {
         return put(setCrucibleCache, p.content as CrucibleContent | undefined);
       // Both families key by phase as well as node, so one map holds each of
       // them — hence their own put rather than the node-keyed one above.
-      case "recall": {
+      case "recall":
+      case "perform": {
         const content = p.content as ReciteContent | undefined;
         if (!content) return;
         const key = `${kind}:${nodeId}`;
@@ -665,6 +668,7 @@ export function useGeneration(opts_: {
         case "crucible":
           return warm.warm(key, () => loadCrucible(node, true));
         case "recall":
+        case "perform":
           return warm.warm(key, () => loadRecite(node, kind, true));
         case "discriminate":
         case "predict":

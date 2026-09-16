@@ -4,8 +4,9 @@ Atlas is a learning platform built around a living concept map (see `docs/SPEC.m
 for the full product spec, `README.md` for the overview). The onboarding flow
 (welcome → building → diagnostic → map), Phase 1 (Plan — the map's
 re-planning behavior: gap spawning, goal-conditioned ordering, pace warnings,
-skip pruning), and the session phases (Consume, Discriminate, Socratic,
-Predict, Trace, Feynman, Drill, Connect, Crucible, Recall, Retain) are implemented; all content is AI-generated per topic via
+skip pruning), and the session phases (all twelve: Consume, Discriminate,
+Socratic, Predict, Trace, Feynman, Perform, Drill, Connect, Crucible, Recall,
+Retain) are implemented; all content is AI-generated per topic via
 OpenRouter (see "AI content generation" below).
 
 ## Stack
@@ -84,7 +85,7 @@ with a Portuguese string and no English one is unfinished, on either client.
   don't put the pieces in the same order. Write both sentences whole, and let
   an interpolation carry only a value.
 - Phase names (Consume, Discriminate, Socratic, Predict, Trace, Feynman,
-  Drill, Connect, Crucible, Recall, Retained) are
+  Perform, Drill, Connect, Crucible, Recall, Retained) are
   product vocabulary and stay English in both languages. Everything a learner
   reads around them is translated. They live in `PHASE_DEFS`
   (`lib/curriculum/phases.ts`); a new phase adds its label there and to
@@ -143,7 +144,8 @@ map at onboarding (`kind: "curriculum"`, streamed one concept at a time in
 prerequisite order; the placement questions follow one at a time as
 `diagnosticQuestion`, since each one's difficulty depends on the last answer),
 and each phase's material on first entry (`consume`, `discriminate`, `socratic`,
-`predict`, `trace`, `feynman`, `drill`, `connect`, `crucible`, `recall`, `retain`), cached per node for the run in
+`predict`, `trace`, `feynman`, `perform`, `drill`, `connect`, `crucible`,
+`recall`, `retain`), cached per node for the run in
 `AtlasApp`.
 One kind is smaller than a phase: `summary` writes the single sentence the node
 rail says about a concept, and exists only as a backfill — a generated map

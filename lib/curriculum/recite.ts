@@ -24,21 +24,23 @@ import { Language } from "@/lib/i18n";
  *
  *  Only phases that are *built* appear here, for the same reason `PHASE_ORDER`
  *  holds only built phases: a member with no plan, no prompt and no screen
- *  behind it is a type that lies. `perform` joins this list in the release
- *  that implements it, and everything keyed on it — the colour, the copy, the
- *  prompt brief, the judge frame — is a `Record<RecitePhase, …>`, so
- *  TypeScript names every one of them on the day. */
-export const RECITE_PHASES = ["recall"] as const;
+ *  behind it is a type that lies. `perform` joined on the day it shipped, and
+ *  everything keyed on it — the colour, the copy, the prompt brief, the judge
+ *  frame — is a `Record<RecitePhase, …>`, which is what named every table that
+ *  owed it a row. */
+export const RECITE_PHASES = ["recall", "perform"] as const;
 export type RecitePhase = (typeof RECITE_PHASES)[number];
 
 export function isRecitePhase(phase: PhaseId): phase is RecitePhase {
   return (RECITE_PHASES as readonly string[]).includes(phase);
 }
 
-/** Per-phase accent. Recall borrows Retain's cool grey-blue: it is retrieval,
- *  the same family as review. */
+/** Per-phase accent. Recall borrows Retain's cool grey-blue — it is retrieval,
+ *  the same family as review; Perform takes a working green, the colour of
+ *  something being done rather than discussed. */
 export const RECITE_COLOR: Record<RecitePhase, { accent: string; soft: string }> = {
   recall: { accent: "#5a6b86", soft: "rgba(90,107,134,0.08)" },
+  perform: { accent: "#3f7d5f", soft: "rgba(63,125,95,0.08)" },
 };
 
 /** One rubric row — what a complete answer has to contain. Never shown before
@@ -166,6 +168,12 @@ const RECITE_COPY = {
       passed: "Retrieved cold — that is the signal review is built on.",
       missed: "Some of it did not come back unaided. That is the finding.",
     },
+    perform: {
+      kicker: "Perform",
+      lead: "Carry it out on this case, the way you would for real.",
+      passed: "Executed under real conditions — the procedure is yours.",
+      missed: "The run came apart somewhere. The report says where.",
+    },
   },
   "pt-BR": {
     recall: {
@@ -173,6 +181,12 @@ const RECITE_COPY = {
       lead: "De memória, sem nada na sua frente.",
       passed: "Recuperado do zero — é esse o sinal em que a revisão se apoia.",
       missed: "Parte disso não voltou sozinha. Essa é a descoberta.",
+    },
+    perform: {
+      kicker: "Perform",
+      lead: "Execute neste caso, do jeito que você faria de verdade.",
+      passed: "Executado em condições reais — o procedimento é seu.",
+      missed: "A execução se perdeu em algum ponto. O relatório diz onde.",
     },
   },
 } as const;

@@ -359,7 +359,10 @@ function judgement(body: GenerateBody): Record<string, unknown> {
   switch (body.mode) {
     case "choice":
       return { index: 0, response: "You named the mechanism." };
+    // The recite pair grades on the Feynman verdict rows — one ruling per
+    // rubric row — so all three answer from the same shape.
     case "recall":
+    case "perform":
     case "feynman":
       return {
         // One ruling per rubric row: a row left unjudged spawns no gap, and the
@@ -429,6 +432,7 @@ export function fixturePayload(
     case "drill":
       return { content: deckContent(kind, v) };
     case "recall":
+    case "perform":
       return { content: reciteContent(kind, v) };
     case "retain":
       return { content: retainContent(body, v) };

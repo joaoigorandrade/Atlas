@@ -45,6 +45,12 @@ const BRIEFS: Record<RecitePhase, { ask: string; row: string; brief: string }> =
     brief:
       "the one line on the blank page telling the learner what to write down from memory — no hints, no structure, no list of what to cover",
   },
+  perform: {
+    ask: "an EXECUTION pass: the learner is given one real case and carries the procedure out on it end to end, showing their work the way they would for real",
+    row: "one thing a correct run of this procedure ON THE GIVEN CASE has to show — a step actually carried out, an intermediate result, a check applied. Not 'understands step 2': what step 2 produces here",
+    brief:
+      "the one line naming the concrete case to run the procedure on — a specific, self-contained case with real values or a real situation, stated in a sentence or two. Never say which steps to use",
+  },
 };
 
 export function validateRecite(phase: RecitePhase, nodeId: string, nodeLabel: string) {
@@ -151,6 +157,13 @@ const RECITE_FRAME: Record<
       "came back wrong: they retrieved something, and what they retrieved is incorrect",
     voice:
       "Speak plainly about what was retrieved and what was not. Retrieval is the signal here, not eloquence: a terse, correct answer is a good one, and a fluent answer missing a row is still missing it.",
+  },
+  perform: {
+    did: "carried the procedure out, end to end, on the concrete case they were given for",
+    skipped: "was never carried out — the step is missing from the run",
+    confused: "was carried out incorrectly: the step ran, and its result is wrong",
+    voice:
+      "Speak as someone checking the work. Say where the run holds and where it breaks, naming the step and what it produced. A correct method with one wrong intermediate result is still a failed run of that step, and nothing else.",
   },
 };
 

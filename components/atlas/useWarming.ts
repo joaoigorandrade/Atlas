@@ -31,6 +31,7 @@ const SLOT: Record<string, string> = {
   drill: "content",
   predict: "content",
   trace: "content",
+  perform: "content",
   recall: "content",
 };
 

@@ -187,7 +187,7 @@ test.describe("the phase catalogue, end to end", () => {
     // with the *same* ledger owe different rungs, so nothing about the state
     // can name the button. `core-rule` is a principle and owes Socratic;
     // `worked-cases` is a procedure, which runs no Socratic pass at all and
-    // owes Feynman.
+    // owes Trace — a mechanism is followed before it is argued with.
     await openRun(page, {
       "core-rule": { state: "learning", phases_done: ["consume"] },
       "worked-cases": { state: "learning", phases_done: ["consume"] },
@@ -198,7 +198,7 @@ test.describe("the phase catalogue, end to end", () => {
       "data-node",
       "worked-cases",
     );
-    await expect(page.getByTestId("action-primary")).toContainText("Feynman");
+    await expect(page.getByTestId("action-primary")).toContainText("Trace");
 
     await page.getByTestId("node-core-rule").press("Enter");
     await expect(page.getByTestId("panel-node")).toHaveAttribute(
@@ -219,11 +219,23 @@ test.describe("the phase catalogue, end to end", () => {
     // the CTA fell through to the review queue — contradicting the copy the
     // learner is reading one line above the button.
     await openRun(page, {
+      // A full ledger means every gate of *this node's own plan* — it is a
+      // procedure, so that is the procedure ladder, not the legacy six. With
+      // anything missing the CTA would rightly open that rung instead, and
+      // this test would be asserting the wrong thing.
       "putting-it-together": {
         state: "shaky",
         shaky_reason: "review-miss",
         reviewed: true,
-        phases_done: ["consume", "socratic", "feynman", "connect", "crucible"],
+        phases_done: [
+          "consume",
+          "trace",
+          "feynman",
+          "perform",
+          "drill",
+          "connect",
+          "crucible",
+        ],
       },
       "worked-cases": "mastered",
       "edge-cases": "mastered",

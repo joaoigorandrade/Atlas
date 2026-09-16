@@ -897,6 +897,7 @@ describe("PHASE_PLAN invariants", () => {
       "consume",
       "trace",
       "feynman",
+      "perform",
       "drill",
       "connect",
       "crucible",
@@ -932,6 +933,37 @@ describe("PHASE_PLAN invariants", () => {
     expect(PHASE_PLAN.concept).toContain("discriminate");
     expect(PHASE_PLAN.fact).toContain("discriminate");
     expect(PHASE_PLAN.concept.indexOf("discriminate")).toBe(1);
+  });
+
+  it("asks only a procedure to execute", () => {
+    // Perform grades a procedure actually run on a case. Nothing else is a
+    // thing you carry out: a fact is had, a concept is told apart, a principle
+    // is a mechanism you forecast and walk. The pairing with Drill is the
+    // point — run it correctly, then run it fast, in that order.
+    expect(PHASE_PLAN.procedure).toContain("perform");
+    for (const kind of ["fact", "concept", "principle"] as const)
+      expect(PHASE_PLAN[kind]).not.toContain("perform");
+    const plan = PHASE_PLAN.procedure;
+    expect(plan.indexOf("perform")).toBeLessThan(plan.indexOf("drill"));
+  });
+
+  it("is the whole catalogue, with every phase built", () => {
+    // The end of the growth to twelve. `PHASE_ORDER` holds only built phases,
+    // so this assertion is also the statement that nothing is pending.
+    expect([...PHASE_ORDER]).toEqual([
+      "consume",
+      "discriminate",
+      "socratic",
+      "predict",
+      "trace",
+      "feynman",
+      "perform",
+      "drill",
+      "connect",
+      "crucible",
+      "recall",
+      "retain",
+    ]);
   });
 
   it("puts Trace ahead of Feynman on both kinds that run it", () => {
@@ -1070,7 +1102,7 @@ describe("crucibleMasters", () => {
       crucibleMasters(
         nodes,
         "n",
-        done("consume", "trace", "feynman", "drill", "connect"),
+        done("consume", "trace", "feynman", "perform", "drill", "connect"),
       ),
     ).toBe(true);
   });

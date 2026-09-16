@@ -37,14 +37,12 @@ export function asNodeKind(raw: unknown): NodeKind {
  * `PHASE_DEFS[id].signal`). A candidate that adds no new signal is a setting,
  * not a phase.
  *
- * This list holds only phases that are *built*. The catalogue is growing to
- * twelve, and each new one is inserted here at its canonical position by the
- * release that implements it — so `PHASE_PLAN` is never inconsistent with what
- * exists, and the "every phase has a home" invariant stays meaningful. The
- * full target order, with the unbuilt ones marked:
- *
- *   consume · discriminate · socratic · predict · trace · feynman ·
- *   perform† · drill · connect · crucible · recall · retain
+ * This list holds only phases that are *built*, which is now all twelve of
+ * them. Each was inserted here at its canonical position by the release that
+ * implemented it, so `PHASE_PLAN` was never inconsistent with what existed and
+ * the "every phase has a home" invariant stayed meaningful throughout. A
+ * thirteenth would arrive the same way, and only if it extracts a signal none
+ * of these twelve already does.
  */
 export const PHASE_ORDER = [
   "consume",
@@ -53,6 +51,7 @@ export const PHASE_ORDER = [
   "predict",
   "trace",
   "feynman",
+  "perform",
   "drill",
   "connect",
   "crucible",
@@ -82,6 +81,7 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
   predict: { label: "Predict", signal: "forecast before the answer" },
   trace: { label: "Trace", signal: "following a mechanism step by step" },
   feynman: { label: "Feynman", signal: "unaided production" },
+  perform: { label: "Perform", signal: "execution under real conditions" },
   drill: { label: "Drill", signal: "speed and automaticity" },
   connect: { label: "Connect", signal: "elaborative encoding" },
   crucible: { label: "Crucible", signal: "transfer" },
@@ -96,14 +96,12 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  * never recomputed — editing this table ships a new ladder for maps built after
  * it, and cannot rewrite a run already in progress.
  *
- * The rows below are the target ladders *restricted to the phases that exist*.
- * Each unbuilt phase slots into the rows that want it in the release that
- * builds it, so this table is never inconsistent with `PHASE_ORDER`:
+ * These are the four target ladders, complete — every phase they name exists.
  *
  *   fact       consume · discriminate · drill · connect · recall · retain
  *   concept    consume · discriminate · socratic · feynman · connect ·
  *              crucible · recall · retain
- *   procedure  consume · trace · feynman · perform† · drill · connect ·
+ *   procedure  consume · trace · feynman · perform · drill · connect ·
  *              crucible · retain
  *   principle  consume · socratic · predict · trace · feynman · connect ·
  *              crucible · retain
@@ -136,10 +134,20 @@ export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
     "recall",
     "retain",
   ],
-  // A procedure is run, not argued with — no Socratic pass. No Recall either:
-  // what it owes is execution, and reciting the steps from memory is the
-  // rehearsal a procedure most easily fakes.
-  procedure: ["consume", "trace", "feynman", "drill", "connect", "crucible", "retain"],
+  // A procedure is executed, not argued with — no Socratic pass, and no Recall
+  // either: reciting its steps from memory is the rehearsal a procedure most
+  // easily fakes. Watch it run, say what each step is for, run it yourself on
+  // a real case, then run it fast.
+  procedure: [
+    "consume",
+    "trace",
+    "feynman",
+    "perform",
+    "drill",
+    "connect",
+    "crucible",
+    "retain",
+  ],
   // A principle is a mechanism, so the test is whether it FORECASTS: say what
   // happens before being shown, then explain why it had to.
   principle: [
@@ -213,6 +221,7 @@ export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
   predict: "You haven't forecast this yet — want to?",
   trace: "You haven't walked this through step by step yet — want to?",
   feynman: "You haven't taught this back yet — want to?",
+  perform: "You haven't run this on a real case yet — want to?",
   drill: "You haven't made these calls at speed yet — want to?",
   connect: "You haven't linked this into your map yet — want to?",
   crucible: "You haven't applied this in a novel context yet — want to?",
@@ -227,6 +236,7 @@ const PHASE_SKIP_NUDGE_PT: Record<PhaseId, string> = {
   predict: "Você ainda não previu isso — quer tentar?",
   trace: "Você ainda não percorreu isso passo a passo — quer tentar?",
   feynman: "Você ainda não ensinou isso de volta — quer tentar?",
+  perform: "Você ainda não executou isso num caso real — quer tentar?",
   drill: "Você ainda não fez essas decisões no ritmo — quer tentar?",
   connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",
   crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?",

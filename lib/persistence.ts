@@ -394,6 +394,7 @@ export function foldContent(items: ContentItem[]): RunCaches {
         caches.crucible[item.nodeId] = item.payload as CrucibleContent;
         break;
       case "recall":
+      case "perform":
         caches.recite[`${item.kind}:${item.nodeId}`] = item.payload as ReciteContent;
         break;
       case "discriminate":

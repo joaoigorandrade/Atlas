@@ -614,7 +614,8 @@ function buildJob(body: GenerateBody): Job {
     // graded against a rubric. One case, because the phases differ in their
     // prompt rather than in their plumbing — `phase` is part of the cache key,
     // so the two never collide.
-    case "recall": {
+    case "recall":
+    case "perform": {
       if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       return cacheable(
         body.kind,

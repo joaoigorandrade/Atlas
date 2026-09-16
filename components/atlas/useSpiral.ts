@@ -2053,6 +2053,7 @@ export function useSpiral(deps: {
     predict: (node) => enterDeck(node, "predict"),
     trace: (node) => enterDeck(node, "trace"),
     feynman: enterFeynman,
+    perform: (node) => enterRecite(node, "perform"),
     drill: (node) => enterDeck(node, "drill"),
     connect: enterConnect,
     crucible: enterCrucible,
