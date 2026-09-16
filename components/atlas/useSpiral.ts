@@ -2051,6 +2051,7 @@ export function useSpiral(deps: {
     discriminate: (node) => enterDeck(node, "discriminate"),
     socratic: enterSocratic,
     predict: (node) => enterDeck(node, "predict"),
+    trace: (node) => enterDeck(node, "trace"),
     feynman: enterFeynman,
     drill: (node) => enterDeck(node, "drill"),
     connect: enterConnect,

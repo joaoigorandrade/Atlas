@@ -425,6 +425,7 @@ export function fixturePayload(
       return { content: crucibleContent(v) };
     case "discriminate":
     case "predict":
+    case "trace":
     case "drill":
       return { content: deckContent(kind, v) };
     case "recall":

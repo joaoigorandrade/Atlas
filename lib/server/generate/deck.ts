@@ -47,6 +47,13 @@ const BRIEFS: Record<
       "2-4 candidate outcomes. The wrong ones are what the learner predicts when they hold the relation backwards, ignore a condition, or expect the effect to be linear when it is not — real forecasts, not absurdities",
     why: "the causal chain that made this outcome the one that had to happen: which stage hands what to the next. Never a restatement of the outcome",
   },
+  trace: {
+    ask: "a TRACE pass: the learner walks the mechanism (or the procedure) one stage at a time, saying at each stage what it hands the next. The items are the LINKS OF ONE CHAIN, in order, on a single running case — item 2 continues from where item 1 ended, and so on to the end",
+    item: "the state the case has reached by this point in the chain, written as what the previous stage produced. Item 1 sets up the case; every later one begins from the answer to the one before it and never repeats it",
+    options:
+      "2-4 candidate next stages. The wrong ones skip a stage, reverse two that are order-dependent, or carry forward a quantity the previous stage actually changed — the ways a chain is really misremembered",
+    why: "why this stage follows from the previous one: what it consumes, what it produces, and what would break if it ran out of order",
+  },
   drill: {
     ask: "a DRILL pass: the same small call made over and over until it stops being derived and starts being known. The learner is timed, so every item must be answerable in a few seconds by someone who has the concept, and impossible to guess by someone who does not",
     item: "leave this out — a drill item is its prompt and nothing else. Return no context field",

@@ -18,6 +18,7 @@ const SLOT: Record<string, string> = {
   discriminate: "content",
   drill: "content",
   predict: "content",
+  trace: "content",
   recall: "content",
   retain: "content",
 };

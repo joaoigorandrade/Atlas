@@ -591,6 +591,7 @@ function buildJob(body: GenerateBody): Job {
     // in their plumbing, and `phase` is part of the key so no two collide.
     case "discriminate":
     case "predict":
+    case "trace":
     case "drill": {
       if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       return cacheable(

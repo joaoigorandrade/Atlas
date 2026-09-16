@@ -536,6 +536,7 @@ export function useGeneration(opts_: {
           return !!reciteCacheRef.current[`${kind}:${nodeId}`];
         case "discriminate":
         case "predict":
+        case "trace":
         case "drill":
           return !!deckCacheRef.current[`${kind}:${nodeId}`];
       }
@@ -580,6 +581,7 @@ export function useGeneration(opts_: {
           return reciteRequest(reciteParams(node, kind));
         case "discriminate":
         case "predict":
+        case "trace":
         case "drill":
           return deckRequest(deckParams(node, kind));
       }
@@ -632,6 +634,7 @@ export function useGeneration(opts_: {
       }
       case "discriminate":
       case "predict":
+      case "trace":
       case "drill": {
         const content = p.content as DeckContent | undefined;
         if (!content) return;
@@ -665,6 +668,7 @@ export function useGeneration(opts_: {
           return warm.warm(key, () => loadRecite(node, kind, true));
         case "discriminate":
         case "predict":
+        case "trace":
         case "drill":
           return warm.warm(key, () => loadDeck(node, kind, true));
       }

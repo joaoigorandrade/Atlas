@@ -398,6 +398,7 @@ export function foldContent(items: ContentItem[]): RunCaches {
         break;
       case "discriminate":
       case "predict":
+      case "trace":
       case "drill":
         caches.deck[`${item.kind}:${item.nodeId}`] = item.payload as DeckContent;
         break;

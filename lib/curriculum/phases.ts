@@ -43,7 +43,7 @@ export function asNodeKind(raw: unknown): NodeKind {
  * exists, and the "every phase has a home" invariant stays meaningful. The
  * full target order, with the unbuilt ones marked:
  *
- *   consume · discriminate · socratic · predict · trace† · feynman ·
+ *   consume · discriminate · socratic · predict · trace · feynman ·
  *   perform† · drill · connect · crucible · recall · retain
  */
 export const PHASE_ORDER = [
@@ -51,6 +51,7 @@ export const PHASE_ORDER = [
   "discriminate",
   "socratic",
   "predict",
+  "trace",
   "feynman",
   "drill",
   "connect",
@@ -79,6 +80,7 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
   discriminate: { label: "Discriminate", signal: "boundary" },
   socratic: { label: "Socratic", signal: "reasoning under questioning" },
   predict: { label: "Predict", signal: "forecast before the answer" },
+  trace: { label: "Trace", signal: "following a mechanism step by step" },
   feynman: { label: "Feynman", signal: "unaided production" },
   drill: { label: "Drill", signal: "speed and automaticity" },
   connect: { label: "Connect", signal: "elaborative encoding" },
@@ -101,9 +103,9 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  *   fact       consume · discriminate · drill · connect · recall · retain
  *   concept    consume · discriminate · socratic · feynman · connect ·
  *              crucible · recall · retain
- *   procedure  consume · trace† · feynman · perform† · drill · connect ·
+ *   procedure  consume · trace · feynman · perform† · drill · connect ·
  *              crucible · retain
- *   principle  consume · socratic · predict · trace† · feynman · connect ·
+ *   principle  consume · socratic · predict · trace · feynman · connect ·
  *              crucible · retain
  *
  * Why they differ: a fact has nothing to reason from — tell it from its
@@ -137,13 +139,14 @@ export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
   // A procedure is run, not argued with — no Socratic pass. No Recall either:
   // what it owes is execution, and reciting the steps from memory is the
   // rehearsal a procedure most easily fakes.
-  procedure: ["consume", "feynman", "drill", "connect", "crucible", "retain"],
+  procedure: ["consume", "trace", "feynman", "drill", "connect", "crucible", "retain"],
   // A principle is a mechanism, so the test is whether it FORECASTS: say what
   // happens before being shown, then explain why it had to.
   principle: [
     "consume",
     "socratic",
     "predict",
+    "trace",
     "feynman",
     "connect",
     "crucible",
@@ -208,6 +211,7 @@ export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
   discriminate: "You haven't told this apart from its neighbours yet — want to?",
   socratic: "You haven't reasoned this out yet — want to?",
   predict: "You haven't forecast this yet — want to?",
+  trace: "You haven't walked this through step by step yet — want to?",
   feynman: "You haven't taught this back yet — want to?",
   drill: "You haven't made these calls at speed yet — want to?",
   connect: "You haven't linked this into your map yet — want to?",
@@ -221,6 +225,7 @@ const PHASE_SKIP_NUDGE_PT: Record<PhaseId, string> = {
   discriminate: "Você ainda não distinguiu isso dos vizinhos — quer tentar?",
   socratic: "Você ainda não raciocinou sobre isso — quer tentar?",
   predict: "Você ainda não previu isso — quer tentar?",
+  trace: "Você ainda não percorreu isso passo a passo — quer tentar?",
   feynman: "Você ainda não ensinou isso de volta — quer tentar?",
   drill: "Você ainda não fez essas decisões no ritmo — quer tentar?",
   connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",

@@ -25,7 +25,7 @@ import { Language } from "@/lib/i18n";
 
 /** The phases this engine runs, built ones only — see `RECITE_PHASES` for why
  *  a member here without a screen behind it would be a type that lies. */
-export const DECK_PHASES = ["discriminate", "predict", "drill"] as const;
+export const DECK_PHASES = ["discriminate", "predict", "trace", "drill"] as const;
 export type DeckPhase = (typeof DECK_PHASES)[number];
 
 export function isDeckPhase(phase: PhaseId): phase is DeckPhase {
@@ -37,6 +37,7 @@ export function isDeckPhase(phase: PhaseId): phase is DeckPhase {
 export const DECK_COLOR: Record<DeckPhase, { accent: string; soft: string }> = {
   discriminate: { accent: "#4f6f8f", soft: "rgba(79,111,143,0.08)" },
   predict: { accent: "#6b5f96", soft: "rgba(107,95,150,0.08)" },
+  trace: { accent: "#3f7d6d", soft: "rgba(63,125,109,0.08)" },
   drill: { accent: "#a3672f", soft: "rgba(163,103,47,0.08)" },
 };
 
@@ -57,6 +58,9 @@ export const DECK_SHAPE: Record<
 > = {
   discriminate: { timed: false, chain: false },
   predict: { timed: false, chain: false },
+  // The one phase the chain is for: each answered step stays on screen,
+  // because what it established is the input to the next one.
+  trace: { timed: false, chain: true },
   drill: { timed: true, chain: false },
 };
 
@@ -204,6 +208,12 @@ const DECK_COPY = {
       passed: "The mechanism forecasts for you. That is what having one is for.",
       missed: "Some of these went the other way. The reasons say what you left out.",
     },
+    trace: {
+      kicker: "Trace",
+      lead: "One step at a time. What does this one hand the next?",
+      passed: "You can walk it end to end. The chain is yours, not just its ends.",
+      missed: "The chain breaks somewhere above. The reasons say at which step.",
+    },
     drill: {
       kicker: "Drill",
       lead: "The same call, made without stopping to derive it.",
@@ -224,6 +234,12 @@ const DECK_COPY = {
       lead: "Diga o que acontece antes de ver. Comprometa-se.",
       passed: "O mecanismo prevê por você. É para isso que serve ter um.",
       missed: "Alguns foram para o outro lado. Os motivos dizem o que ficou de fora.",
+    },
+    trace: {
+      kicker: "Trace",
+      lead: "Um passo de cada vez. O que este entrega ao próximo?",
+      passed: "Você percorre de ponta a ponta. A cadeia é sua, não só as pontas.",
+      missed: "A cadeia quebra em algum ponto acima. Os motivos dizem em qual passo.",
     },
     drill: {
       kicker: "Drill",

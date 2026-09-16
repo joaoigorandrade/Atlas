@@ -895,6 +895,7 @@ describe("PHASE_PLAN invariants", () => {
     ]);
     expect([...PHASE_PLAN.procedure]).toEqual([
       "consume",
+      "trace",
       "feynman",
       "drill",
       "connect",
@@ -905,6 +906,7 @@ describe("PHASE_PLAN invariants", () => {
       "consume",
       "socratic",
       "predict",
+      "trace",
       "feynman",
       "connect",
       "crucible",
@@ -930,6 +932,22 @@ describe("PHASE_PLAN invariants", () => {
     expect(PHASE_PLAN.concept).toContain("discriminate");
     expect(PHASE_PLAN.fact).toContain("discriminate");
     expect(PHASE_PLAN.concept.indexOf("discriminate")).toBe(1);
+  });
+
+  it("puts Trace ahead of Feynman on both kinds that run it", () => {
+    // A procedure and a principle are both chains, and the ordering is the
+    // claim: you follow the mechanism before you are asked to explain it
+    // unaided. Teaching back a chain you have never walked is exactly the
+    // fluent recitation Feynman exists to catch.
+    for (const kind of ["procedure", "principle"] as const) {
+      const plan = PHASE_PLAN[kind];
+      expect(plan).toContain("trace");
+      expect(plan.indexOf("trace")).toBeLessThan(plan.indexOf("feynman"));
+    }
+    // A fact has no chain to walk, and a concept is told apart rather than
+    // stepped through.
+    for (const kind of ["fact", "concept"] as const)
+      expect(PHASE_PLAN[kind]).not.toContain("trace");
   });
 
   it("asks only a principle to forecast", () => {
@@ -1049,7 +1067,11 @@ describe("crucibleMasters", () => {
 
   it("lifts the node when Crucible is the last gate left", () => {
     expect(
-      crucibleMasters(nodes, "n", done("consume", "feynman", "drill", "connect")),
+      crucibleMasters(
+        nodes,
+        "n",
+        done("consume", "trace", "feynman", "drill", "connect"),
+      ),
     ).toBe(true);
   });
 
