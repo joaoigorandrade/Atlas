@@ -20,9 +20,13 @@ import type {
   DiagnosticQuestion,
   ElaborationContent,
   FeynmanBeat,
-  DeckContent,
+  DiscriminateContent,
+  DrillContent,
   MapNode,
-  ReciteContent,
+  PerformContent,
+  PredictContent,
+  RecallContent,
+  TraceContent,
   RetainContent,
   SocraticStep,
   NodeKind,
@@ -310,48 +314,113 @@ const modelBeats = (v: Vars): ConsumeModelBeat[] =>
     text: `${["First, hold the section's claim still.", "Then apply it to the case in front of you.", "What you are left with is the takeaway, arrived at rather than asserted."][i]} (${v.nodeLabel})`,
   }));
 
-/** The deck family's run of items. Four options, a rotating answer index and
- *  a real `why` on each, so the fixture exercises the reveal and the "not
- *  every item answers to the same index" guard rather than only the happy
- *  path. */
-const deckContent = (phase: string, v: Vars): DeckContent => ({
+// The six phases of the catalogue's growth to twelve. Each fixture is written
+// against its own shape, so fixture mode exercises the real per-phase surface
+// rather than one payload wearing six names — which is exactly the drift these
+// phases were split apart to avoid.
+
+const discriminateContent = (v: Vars): DiscriminateContent => ({
   nodeId: v.nodeId,
   nodeLabel: v.nodeLabel,
-  items: [0, 1, 2, 3].map((i) => ({
-    id: `dk-${phase}-${v.nodeId}-${i + 1}`,
-    context: `Case ${i + 1}: a situation where the requirement ${
-      i % 2 ? "does not hold" : "holds"
+  ask: "Which reading best classifies this case?",
+  // Alternating instances and near-misses, so the over-inclusion clause in
+  // `discriminatePassed` has something real to measure.
+  cases: [0, 1, 2, 3].map((i) => ({
+    id: `dc-${v.nodeId}-${i + 1}`,
+    candidate: `Case ${i + 1}: a situation where the requirement ${
+      i % 2 ? "is absent" : "holds"
     }, described without naming anything.`,
-    prompt: `Is this ${v.nodeLabel}?`,
-    options: [
-      `Yes — this is ${v.nodeLabel}`,
-      "No — the requirement is missing",
-      "No — this is the neighbouring idea",
+    readings: [
+      `This is ${v.nodeLabel}`,
+      "The requirement is missing",
+      "The neighbouring idea",
     ],
     answerIndex: i % 2 ? 1 : 0,
-    why: `The requirement ${i % 2 ? "is absent here" : "is met here"}, and that is what decides it.`,
+    decidedBy: `The requirement ${i % 2 ? "is absent here" : "is met here"}, and that is what decides it.`,
+    isInstance: i % 2 === 0,
   })),
 });
 
-/** The recite family's blank page — a brief, a scaffold, and a rubric the
- *  learner never sees. One fixture for both phases: they differ in their
- *  prompt, and a fixture exists to drive the surface, not to judge the copy. */
-const reciteContent = (phase: string, v: Vars): ReciteContent => ({
+const predictContent = (v: Vars): PredictContent => ({
   nodeId: v.nodeId,
   nodeLabel: v.nodeLabel,
-  brief:
-    phase === "perform"
-      ? `Work this case end to end: apply ${v.nodeLabel} where its requirement holds, and show each step.`
-      : `From memory, write down everything you can still produce about ${v.nodeLabel}.`,
+  setups: [0, 1, 2, 3].map((i) => ({
+    id: `pd-${v.nodeId}-${i + 1}`,
+    situation: `Setup ${i + 1}: the conditions ${v.nodeLabel} governs are set, and one of them is ${i % 2 ? "raised" : "lowered"}.`,
+    outcomes: [
+      "It moves the way the rule says",
+      "It moves the opposite way",
+      "Nothing changes",
+    ],
+    answerIndex: i % 2,
+    because:
+      "The requirement carries the change through to the outcome, one stage at a time.",
+  })),
+});
+
+const traceContent = (v: Vars): TraceContent => ({
+  nodeId: v.nodeId,
+  nodeLabel: v.nodeLabel,
+  scenario: `One run of ${v.nodeLabel}, followed from the point where its requirement is first met.`,
+  stages: [0, 1, 2, 3].map((i) => ({
+    id: `tr-${v.nodeId}-${i + 1}`,
+    reached: `Stage ${i + 1}: the run has produced what stage ${i} handed on.`,
+    nexts: [
+      `It hands stage ${i + 2} its input`,
+      "It repeats the previous stage",
+      "It skips ahead",
+    ],
+    answerIndex: i % 2,
+    handsOn:
+      "This stage consumes the last one's output and produces the next one's input.",
+  })),
+});
+
+const drillContent = (v: Vars): DrillContent => ({
+  nodeId: v.nodeId,
+  nodeLabel: v.nodeLabel,
+  // Five reps: enough that `drillMedianMs` has a real middle value.
+  reps: [0, 1, 2, 3, 4].map((i) => ({
+    id: `dr-${v.nodeId}-${i + 1}`,
+    prompt: `Rep ${i + 1}: what does ${v.nodeLabel} give for case ${i + 1}?`,
+    answers: ["The stated value", "Twice the stated value", "Half of it"],
+    answerIndex: i % 2,
+    rule: "Read the requirement first; the value follows from it directly.",
+  })),
+});
+
+const recallContent = (v: Vars): RecallContent => ({
+  nodeId: v.nodeId,
+  nodeLabel: v.nodeLabel,
+  brief: `From memory, write down everything you can still produce about ${v.nodeLabel}.`,
   scaffold: `Start from the one requirement ${v.nodeLabel} needs before it applies.`,
   rubric: [0, 1, 2].map((i) => ({
-    id: `rc-${phase}-${v.nodeId}-${i + 1}`,
+    id: `rc-${v.nodeId}-${i + 1}`,
     point: ["The requirement", "The rule itself", "What it rules out"][i],
-    mustConvey: [
+    mustRetrieve: [
       [`that ${v.nodeLabel} needs its requirement met first`],
       [`the rule ${v.nodeLabel} states, in the learner's own words`],
       ["one case the rule excludes, and why"],
     ][i],
+  })),
+});
+
+const performContent = (v: Vars): PerformContent => ({
+  nodeId: v.nodeId,
+  nodeLabel: v.nodeLabel,
+  task: `Work this case end to end: apply ${v.nodeLabel} where its requirement holds, with the values given, and show each step.`,
+  scaffold: "Establish whether the requirement is met before you apply anything.",
+  steps: [0, 1, 2].map((i) => ({
+    id: `pf-${v.nodeId}-${i + 1}`,
+    step: ["Requirement checked", "Rule applied", "Result stated"][i],
+    mustShow: [
+      ["that the requirement is met on this case"],
+      ["the rule carried out on the given values"],
+      ["the result, with its units"],
+    ][i],
+    // The last step is the skippable one, so a fixture run exercises both
+    // halves of `performPassed` rather than only the all-good path.
+    loadBearing: i < 2,
   })),
 });
 
@@ -427,13 +496,17 @@ export function fixturePayload(
     case "crucible":
       return { content: crucibleContent(v) };
     case "discriminate":
+      return { content: discriminateContent(v) };
     case "predict":
+      return { content: predictContent(v) };
     case "trace":
+      return { content: traceContent(v) };
     case "drill":
-      return { content: deckContent(kind, v) };
+      return { content: drillContent(v) };
     case "recall":
+      return { content: recallContent(v) };
     case "perform":
-      return { content: reciteContent(kind, v) };
+      return { content: performContent(v) };
     case "retain":
       return { content: retainContent(body, v) };
     case "judge":

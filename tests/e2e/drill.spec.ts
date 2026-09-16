@@ -20,20 +20,23 @@ test("drill: the clock is reported, and correctness is what closes the rung", as
 
   const sheet = page.getByTestId("phase-drill");
   await expect(sheet).toBeVisible();
-  await sheet.getByTestId("action-mode-choices").click();
+  // Drill is the one phase that opens on the closed form: routing a timed rep
+  // through a judge round-trip would measure the network, not the learner.
+  await expect(sheet.getByTestId("action-pick-0")).toBeVisible();
+  await expect(sheet.getByTestId("rep-clock")).toBeVisible();
 
   // Deliberately unhurried: every item is answered correctly, slowly enough
   // that a speed gate would fail the run. The rung must still close.
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     await page.waitForTimeout(400);
     await sheet.getByTestId(`action-pick-${i % 2}`).click();
     await sheet.getByTestId("action-next").click();
   }
 
-  await expect(sheet.getByTestId("deck-score")).toBeVisible();
-  // The signal the phase exists for is on the closing panel — a deck that
-  // measured nothing would be Discriminate with a different prompt.
-  await expect(sheet.getByText(/a call, typically|por decisão/)).toBeVisible();
+  await expect(sheet.getByTestId("phase-score")).toBeVisible();
+  // The signal the phase exists for. Without it Drill would be Discriminate
+  // with a different prompt, which is the thing it was split apart to not be.
+  await expect(sheet.getByTestId("drill-pace")).toBeVisible();
   await sheet.getByTestId("action-finish").click();
 
   await expect(async () => {

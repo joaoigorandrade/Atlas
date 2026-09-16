@@ -19,9 +19,13 @@ import type {
   ConsumeModelBeat,
   CrucibleSession,
   FeynmanBeat,
-  DeckSession,
+  DiscriminateSession,
+  DrillSession,
   FeynmanSession,
-  ReciteSession,
+  PerformSession,
+  PredictSession,
+  RecallSession,
+  TraceSession,
   RetainSession,
   SocraticSession,
   SocraticStep,
@@ -64,11 +68,14 @@ export function useSessionState() {
   } | null>(null);
   const [connect, setConnect] = useState<ConnectSession | null>(null);
   const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
-  // One slot for the whole recite family (Recall · Perform): the session
-  // carries which phase it is, so a second slot would only be a second thing
-  // to reset. The deck family below is the same arrangement.
-  const [recite, setRecite] = useState<ReciteSession | null>(null);
-  const [deck, setDeck] = useState<DeckSession | null>(null);
+  // The six phases the catalogue added in its growth to twelve. One slot
+  // each, like every phase before them.
+  const [discriminate, setDiscriminate] = useState<DiscriminateSession | null>(null);
+  const [predict, setPredict] = useState<PredictSession | null>(null);
+  const [trace, setTrace] = useState<TraceSession | null>(null);
+  const [drill, setDrill] = useState<DrillSession | null>(null);
+  const [recall, setRecall] = useState<RecallSession | null>(null);
+  const [perform, setPerform] = useState<PerformSession | null>(null);
   const [retain, setRetain] = useState<RetainSession | null>(null);
 
   const consumeRef = useRef(consume);
@@ -87,10 +94,18 @@ export function useSessionState() {
   crucibleRef.current = crucible;
   const retainRef = useRef(retain);
   retainRef.current = retain;
-  const reciteRef = useRef(recite);
-  reciteRef.current = recite;
-  const deckRef = useRef(deck);
-  deckRef.current = deck;
+  const discriminateRef = useRef(discriminate);
+  discriminateRef.current = discriminate;
+  const predictRef = useRef(predict);
+  predictRef.current = predict;
+  const traceRef = useRef(trace);
+  traceRef.current = trace;
+  const drillRef = useRef(drill);
+  drillRef.current = drill;
+  const recallRef = useRef(recall);
+  recallRef.current = recall;
+  const performRef = useRef(perform);
+  performRef.current = perform;
   /** The reading pass on screen — committed sections, or the streaming ones
    *  standing in for them. Assigned once `consumeChunks` is derived. */
   const consumeChunksRef = useRef<ConsumeChunk[]>([]);
@@ -113,8 +128,12 @@ export function useSessionState() {
     setLiveFeynman(null);
     setConnect(null);
     setCrucible(null);
-    setRecite(null);
-    setDeck(null);
+    setDiscriminate(null);
+    setPredict(null);
+    setTrace(null);
+    setDrill(null);
+    setRecall(null);
+    setPerform(null);
     setRetain(null);
   }, []);
 
@@ -144,12 +163,24 @@ export function useSessionState() {
     crucible,
     setCrucible,
     crucibleRef,
-    recite,
-    setRecite,
-    reciteRef,
-    deck,
-    setDeck,
-    deckRef,
+    discriminate,
+    setDiscriminate,
+    discriminateRef,
+    predict,
+    setPredict,
+    predictRef,
+    trace,
+    setTrace,
+    traceRef,
+    drill,
+    setDrill,
+    drillRef,
+    recall,
+    setRecall,
+    recallRef,
+    perform,
+    setPerform,
+    performRef,
     retain,
     setRetain,
     retainRef,

@@ -76,11 +76,14 @@ const EN = {
   wakingStudent: (label: string) => `Waking the naive student for ${label}…`,
   findingWires: (label: string) => `Finding what ${label} wires into…`,
   forgingProblem: (label: string) => `Forging a problem ${label} was never taught in…`,
-  // The recite family's overlay line — one for the whole family, since what
-  // is being written is a brief and a rubric either way.
-  writingPass: (label: string) => `Setting the blank page for ${label}…`,
-  // The deck family's overlay line — a run of cases to sort, either way.
+  // One line per phase, because the wait is the only thing the learner sees
+  // of what is coming and each of these is coming to do something different.
   sortingCases: (label: string) => `Collecting the cases that bound ${label}…`,
+  settingUpForecast: (label: string) => `Setting up what ${label} has to predict…`,
+  layingChain: (label: string) => `Laying out the chain ${label} runs…`,
+  rackingReps: (label: string) => `Racking up reps on ${label}…`,
+  blankPage: (label: string) => `Clearing the page for ${label}…`,
+  settingCase: (label: string) => `Setting a case to run ${label} on…`,
   draftingCards: "Drafting cards from what you've learned…",
 
   // The synthetic Socratic gap written onto the map — no model wrote this one.
@@ -157,8 +160,12 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     findingWires: (label: string) => `Procurando com o que ${label} se conecta…`,
     forgingProblem: (label: string) =>
       `Forjando um problema em que ${label} nunca foi ensinado…`,
-    writingPass: (label: string) => `Preparando a página em branco de ${label}…`,
     sortingCases: (label: string) => `Reunindo os casos que delimitam ${label}…`,
+    settingUpForecast: (label: string) => `Montando o que ${label} tem de prever…`,
+    layingChain: (label: string) => `Traçando a cadeia que ${label} percorre…`,
+    rackingReps: (label: string) => `Preparando as repetições de ${label}…`,
+    blankPage: (label: string) => `Limpando a página para ${label}…`,
+    settingCase: (label: string) => `Preparando um caso para executar ${label}…`,
     draftingCards: "Escrevendo cards a partir do que você aprendeu…",
 
     socraticGapLabel: (label: string) => `${label} — fundamentos`,

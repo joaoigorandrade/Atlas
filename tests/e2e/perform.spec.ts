@@ -22,22 +22,24 @@ test("perform: its own surface, its own brief, its own rung", async ({ page }) =
 
   const sheet = page.getByTestId("phase-perform");
   await expect(sheet).toBeVisible();
-  // Not Recall's screen, and not Recall's brief.
+  // Its own screen and its own surface. Perform keeps the case on screen —
+  // it is not a memory test — where Recall gives a blank page and withholds
+  // everything.
   await expect(page.getByTestId("phase-recall")).toHaveCount(0);
-  await expect(sheet.getByText(/Carry it out|Execute neste caso/)).toBeVisible();
-  // The rubric is withheld here for the same reason it is in Recall.
-  await expect(sheet.getByTestId("recite-score")).toHaveCount(0);
+  await expect(sheet.getByTestId("perform-task")).toBeVisible();
+  await expect(sheet.getByTestId("perform-verdict")).toHaveCount(0);
 
   await sheet
     .getByTestId("field-answer")
     .fill("Step one holds, so step two applies and gives the stated result.");
   await sheet.getByTestId("action-submit").click();
 
-  await expect(sheet.getByTestId("recite-score")).toBeVisible({ timeout: 20_000 });
+  await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
   await sheet.getByTestId("action-finish").click();
 
-  // The fixture judge rules one row of three good — below the two-thirds bar —
-  // so the rung stays open, exactly as it does for Recall.
+  // The fixture judge rules step one good and the rest confused. Execution
+  // takes no partial credit — any wrong step is a failed run — so the rung
+  // stays open, and for a stricter reason than Recall's.
   await expect(async () => {
     const row = (await readNodeRows(page.request)).find((r) => r.id === "worked-cases")!;
     expect(row.phases_done).not.toContain("perform");

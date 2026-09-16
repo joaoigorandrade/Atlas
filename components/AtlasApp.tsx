@@ -37,8 +37,12 @@ import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
-import DeckView from "@/components/session/DeckView";
-import ReciteView from "@/components/session/ReciteView";
+import DiscriminateView from "@/components/session/DiscriminateView";
+import PredictView from "@/components/session/PredictView";
+import TraceView from "@/components/session/TraceView";
+import DrillView from "@/components/session/DrillView";
+import RecallView from "@/components/session/RecallView";
+import PerformView from "@/components/session/PerformView";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
@@ -100,8 +104,12 @@ export default function AtlasApp({
     feynman,
     connect,
     crucible,
-    recite,
-    deck,
+    discriminate,
+    predict,
+    trace,
+    drill,
+    recall,
+    perform,
     retain,
     reset: resetSessions,
   } = sessions;
@@ -472,13 +480,26 @@ export default function AtlasApp({
     crucibleSubmit,
     advanceFromCrucible,
     exitCrucible,
-    dispatchRecite,
-    reciteSubmit,
-    advanceFromRecite,
-    exitRecite,
-    dispatchDeck,
-    advanceFromDeck,
-    exitDeck,
+    dispatchDiscriminate,
+    advanceFromDiscriminate,
+    exitDiscriminate,
+    dispatchPredict,
+    advanceFromPredict,
+    exitPredict,
+    dispatchTrace,
+    advanceFromTrace,
+    exitTrace,
+    dispatchDrill,
+    advanceFromDrill,
+    exitDrill,
+    dispatchRecall,
+    recallSubmit,
+    advanceFromRecall,
+    exitRecall,
+    dispatchPerform,
+    performSubmit,
+    advanceFromPerform,
+    exitPerform,
     enterReview,
     retainFlip,
     retainToggleAside,
@@ -555,8 +576,12 @@ export default function AtlasApp({
     feynmanBeats,
     connectContent,
     crucibleContent,
-    reciteContent,
-    deckContent,
+    discriminateContent,
+    predictContent,
+    traceContent,
+    drillContent,
+    recallContent,
+    performContent,
     displayName,
     initials,
     greeting,
@@ -1063,45 +1088,120 @@ export default function AtlasApp({
           />,
         )}
 
-      {/* The deck family — Discriminate, with Predict · Trace · Drill to come.
-          One branch, keyed on the session's own phase, same as recite. */}
-      {openSheet === deck?.phase &&
-        deck &&
-        deckContent &&
+      {/* The six phases of the catalogue's growth to twelve. One branch each:
+          each owns its own screen, its own content shape and its own grader. */}
+      {openSheet === "discriminate" &&
+        discriminate &&
+        discriminateContent &&
         sheetBoundary(
-          <DeckView
+          <DiscriminateView
             presence={sheet.state}
             topic={form.topic}
-            title={graph.nodes.find((n) => n.id === deck.nodeId)?.label ?? "Concept"}
-            plan={planOf(deck.nodeId)}
-            content={deckContent}
-            session={deck}
-            onExit={exitDeck}
-            onAnswer={(index, read) => dispatchDeck({ type: "answer", index, read })}
-            onNext={() => dispatchDeck({ type: "next" })}
-            onAdvance={advanceFromDeck}
+            title={
+              graph.nodes.find((n) => n.id === discriminate.nodeId)?.label ?? "Concept"
+            }
+            plan={planOf(discriminate.nodeId)}
+            content={discriminateContent}
+            session={discriminate}
+            onExit={exitDiscriminate}
+            onCall={(index, read) => dispatchDiscriminate({ type: "call", index, read })}
+            onNext={() => dispatchDiscriminate({ type: "next" })}
+            onAdvance={advanceFromDiscriminate}
           />,
         )}
 
-      {/* The recite family — Recall, and Perform once it exists. One branch:
-          the session says which phase it is, and the screen name matches it. */}
-      {openSheet === recite?.phase &&
-        recite &&
-        reciteContent &&
+      {openSheet === "predict" &&
+        predict &&
+        predictContent &&
         sheetBoundary(
-          <ReciteView
+          <PredictView
             presence={sheet.state}
-            title={graph.nodes.find((n) => n.id === recite.nodeId)?.label ?? "Concept"}
-            plan={planOf(recite.nodeId)}
-            content={reciteContent}
-            session={recite}
+            topic={form.topic}
+            title={graph.nodes.find((n) => n.id === predict.nodeId)?.label ?? "Concept"}
+            plan={planOf(predict.nodeId)}
+            content={predictContent}
+            session={predict}
+            onExit={exitPredict}
+            onSure={(level) => dispatchPredict({ type: "sure", level })}
+            onCommit={(index, read) => dispatchPredict({ type: "commit", index, read })}
+            onNext={() => dispatchPredict({ type: "next" })}
+            onAdvance={advanceFromPredict}
+          />,
+        )}
+
+      {openSheet === "trace" &&
+        trace &&
+        traceContent &&
+        sheetBoundary(
+          <TraceView
+            presence={sheet.state}
+            topic={form.topic}
+            title={graph.nodes.find((n) => n.id === trace.nodeId)?.label ?? "Concept"}
+            plan={planOf(trace.nodeId)}
+            content={traceContent}
+            session={trace}
+            onExit={exitTrace}
+            onStep={(index, read) => dispatchTrace({ type: "step", index, read })}
+            onNext={() => dispatchTrace({ type: "next" })}
+            onAdvance={advanceFromTrace}
+          />,
+        )}
+
+      {openSheet === "drill" &&
+        drill &&
+        drillContent &&
+        sheetBoundary(
+          <DrillView
+            presence={sheet.state}
+            topic={form.topic}
+            title={graph.nodes.find((n) => n.id === drill.nodeId)?.label ?? "Concept"}
+            plan={planOf(drill.nodeId)}
+            content={drillContent}
+            session={drill}
+            onExit={exitDrill}
+            onAnswer={(index) => dispatchDrill({ type: "answer", index })}
+            onNext={() => dispatchDrill({ type: "next" })}
+            onAdvance={advanceFromDrill}
+          />,
+        )}
+
+      {openSheet === "recall" &&
+        recall &&
+        recallContent &&
+        sheetBoundary(
+          <RecallView
+            presence={sheet.state}
+            title={graph.nodes.find((n) => n.id === recall.nodeId)?.label ?? "Concept"}
+            plan={planOf(recall.nodeId)}
+            content={recallContent}
+            session={recall}
             judging={judging}
-            onExit={exitRecite}
-            onWrite={(value) => dispatchRecite({ type: "write", value })}
-            onScaffold={() => dispatchRecite({ type: "scaffold" })}
-            onSubmit={reciteSubmit}
-            onAgain={() => dispatchRecite({ type: "again" })}
-            onAdvance={advanceFromRecite}
+            onExit={exitRecall}
+            onWrite={(value) => dispatchRecall({ type: "write", value })}
+            onCue={() => dispatchRecall({ type: "cue" })}
+            onSubmit={recallSubmit}
+            onAgain={() => dispatchRecall({ type: "again" })}
+            onAdvance={advanceFromRecall}
+          />,
+        )}
+
+      {openSheet === "perform" &&
+        perform &&
+        performContent &&
+        sheetBoundary(
+          <PerformView
+            presence={sheet.state}
+            title={graph.nodes.find((n) => n.id === perform.nodeId)?.label ?? "Concept"}
+            plan={planOf(perform.nodeId)}
+            content={performContent}
+            session={perform}
+            judging={judging}
+            onExit={exitPerform}
+            onWork={(value) => dispatchPerform({ type: "work", value })}
+            onNudge={() => dispatchPerform({ type: "nudge" })}
+            onSubmit={performSubmit}
+            onRerun={() => dispatchPerform({ type: "rerun" })}
+            onAdvance={advanceFromPerform}
           />,
         )}
 

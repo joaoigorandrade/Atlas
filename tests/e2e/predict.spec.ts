@@ -20,15 +20,19 @@ test("predict: the outcome is not on screen until the forecast is committed", as
   const sheet = page.getByTestId("phase-predict");
   await expect(sheet).toBeVisible();
   // The situation is shown; the outcome and the causal chain behind it are not.
-  await expect(sheet.getByTestId("deck-context")).toBeVisible();
-  await expect(sheet.getByTestId("deck-right")).toHaveCount(0);
-  await expect(sheet.getByTestId("deck-wrong")).toHaveCount(0);
+  await expect(sheet.getByTestId("setup-situation")).toBeVisible();
+  await expect(sheet.getByTestId("forecast-held")).toHaveCount(0);
+  await expect(sheet.getByTestId("forecast-broke")).toHaveCount(0);
 
-  await sheet.getByTestId("action-mode-choices").click();
   for (let i = 0; i < 4; i++) {
+    // Confidence first: the forecast controls do not appear until it is in,
+    // because a rating taken after the outcome is not a calibration reading.
+    await expect(sheet.getByTestId("action-mode-choices")).toHaveCount(0);
+    await sheet.getByTestId("action-sure-1").click();
+    await sheet.getByTestId("action-mode-choices").click();
     await sheet.getByTestId(`action-pick-${i % 2}`).click();
-    // Only now, and one item at a time.
-    await expect(sheet.getByTestId("deck-right")).toBeVisible();
+    // Only now, and one setup at a time.
+    await expect(sheet.getByTestId("forecast-held")).toBeVisible();
     await sheet.getByTestId("action-next").click();
   }
 

@@ -34,8 +34,12 @@ import {
   type ConsumeProgress,
   type ConnectSession,
   type CrucibleContent,
-  type DeckContent,
-  type ReciteContent,
+  type DiscriminateContent,
+  type DrillContent,
+  type PerformContent,
+  type PredictContent,
+  type RecallContent,
+  type TraceContent,
   type ElaborationContent,
   type FeynmanBeat,
   type FeynmanSession,
@@ -136,11 +140,16 @@ export function useRunState(opts: {
     {},
   );
   const [crucibleCache, setCrucibleCache] = useState<Record<string, CrucibleContent>>({});
-  // The recite family (Recall · Perform), keyed `<phase>:<nodeId>` — one map
-  // for the whole family, since every one of them holds the same payload.
-  const [reciteCache, setReciteCache] = useState<Record<string, ReciteContent>>({});
-  // The deck family (Discriminate · Predict · Trace · Drill), same arrangement.
-  const [deckCache, setDeckCache] = useState<Record<string, DeckContent>>({});
+  // The six phases added in the catalogue's growth to twelve — one cache
+  // each, keyed by node like every phase before them.
+  const [discriminateCache, setDiscriminateCache] = useState<
+    Record<string, DiscriminateContent>
+  >({});
+  const [predictCache, setPredictCache] = useState<Record<string, PredictContent>>({});
+  const [traceCache, setTraceCache] = useState<Record<string, TraceContent>>({});
+  const [drillCache, setDrillCache] = useState<Record<string, DrillContent>>({});
+  const [recallCache, setRecallCache] = useState<Record<string, RecallContent>>({});
+  const [performCache, setPerformCache] = useState<Record<string, PerformContent>>({});
   // Model views (a lens opened over one section of the reading), keyed by
   // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
   // one lens on the section that didn't land, not twenty across the pass.
@@ -234,10 +243,18 @@ export function useRunState(opts: {
   connectCacheRef.current = connectCache;
   const crucibleCacheRef = useRef(crucibleCache);
   crucibleCacheRef.current = crucibleCache;
-  const reciteCacheRef = useRef(reciteCache);
-  reciteCacheRef.current = reciteCache;
-  const deckCacheRef = useRef(deckCache);
-  deckCacheRef.current = deckCache;
+  const discriminateCacheRef = useRef(discriminateCache);
+  discriminateCacheRef.current = discriminateCache;
+  const predictCacheRef = useRef(predictCache);
+  predictCacheRef.current = predictCache;
+  const traceCacheRef = useRef(traceCache);
+  traceCacheRef.current = traceCache;
+  const drillCacheRef = useRef(drillCache);
+  drillCacheRef.current = drillCache;
+  const recallCacheRef = useRef(recallCache);
+  recallCacheRef.current = recallCache;
+  const performCacheRef = useRef(performCache);
+  performCacheRef.current = performCache;
   const retainContentRef = useRef(retainContent);
   retainContentRef.current = retainContent;
   const consumeProgressRef = useRef(consumeProgress);
@@ -365,8 +382,12 @@ export function useRunState(opts: {
     setFeynmanCache({});
     setConnectCache({});
     setCrucibleCache({});
-    setReciteCache({});
-    setDeckCache({});
+    setDiscriminateCache({});
+    setPredictCache({});
+    setTraceCache({});
+    setDrillCache({});
+    setRecallCache({});
+    setPerformCache({});
     setRetainContent(null);
   }, []);
 
@@ -409,8 +430,12 @@ export function useRunState(opts: {
     setFeynmanCache(merge(c.feynman));
     setConnectCache(merge(c.connect));
     setCrucibleCache(merge(c.crucible));
-    setReciteCache(merge(c.recite));
-    setDeckCache(merge(c.deck));
+    setDiscriminateCache(merge(c.discriminate));
+    setPredictCache(merge(c.predict));
+    setTraceCache(merge(c.trace));
+    setDrillCache(merge(c.drill));
+    setRecallCache(merge(c.recall));
+    setPerformCache(merge(c.perform));
     setRetainContent((prev) => prev ?? c.retain);
   }, []);
 
@@ -431,8 +456,12 @@ export function useRunState(opts: {
       setFeynmanCache({});
       setConnectCache({});
       setCrucibleCache({});
-      setReciteCache({});
-      setDeckCache({});
+      setDiscriminateCache({});
+      setPredictCache({});
+      setTraceCache({});
+      setDrillCache({});
+      setRecallCache({});
+      setPerformCache({});
       setRetainContent(null);
 
       // The run's language wins over the device's. UI language is detected
@@ -714,12 +743,24 @@ export function useRunState(opts: {
     setConnectCache,
     connectCacheRef,
     crucibleCache,
-    reciteCache,
-    setReciteCache,
-    reciteCacheRef,
-    deckCache,
-    setDeckCache,
-    deckCacheRef,
+    discriminateCache,
+    setDiscriminateCache,
+    discriminateCacheRef,
+    predictCache,
+    setPredictCache,
+    predictCacheRef,
+    traceCache,
+    setTraceCache,
+    traceCacheRef,
+    drillCache,
+    setDrillCache,
+    drillCacheRef,
+    recallCache,
+    setRecallCache,
+    recallCacheRef,
+    performCache,
+    setPerformCache,
+    performCacheRef,
     setCrucibleCache,
     crucibleCacheRef,
     retainContent,

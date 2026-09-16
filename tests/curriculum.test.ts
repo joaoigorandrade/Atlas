@@ -24,14 +24,29 @@ import {
   PHASE_PLAN,
   removeNode,
   rolloverAdherence,
-  deckMedianMs,
-  deckPassed,
-  deckReducer,
-  deckStart,
-  recitePassed,
-  reciteReducer,
-  reciteScore,
-  reciteStart,
+  discriminateFalsePositives,
+  discriminatePassed,
+  discriminateReducer,
+  discriminateStart,
+  drillLabored,
+  drillMedianMs,
+  drillPassed,
+  drillReducer,
+  drillStart,
+  performPassed,
+  performReducer,
+  performStart,
+  predictOverconfident,
+  predictReducer,
+  predictStart,
+  recallPassed,
+  recallReducer,
+  recallScore,
+  recallStart,
+  traceBreak,
+  tracePassed,
+  traceReducer,
+  traceStart,
   shakyLine,
   socraticOutcome,
   socraticReducer,
@@ -1129,110 +1144,241 @@ describe("crucibleMasters", () => {
   });
 });
 
-// ---- the deck engine (Discriminate) --------------------------------------------
+// ---- the six phases of the catalogue's growth to twelve -----------------------
+// Each owns its own gate, and the gates differ on purpose: what counts as
+// passing a retrieval is not what counts as passing a run, and neither is what
+// counts as having walked a chain. These pin the differences, because a gate
+// that quietly became a shared two-thirds threshold would be the six phases
+// collapsing back into two with extra files.
 
-describe("deck", () => {
+describe("discriminate", () => {
   const content = {
     nodeId: "n",
     nodeLabel: "The rule",
-    items: [0, 1, 2].map((i) => ({
-      id: `i${i}`,
-      prompt: "Is this it?",
-      options: ["yes", "no"],
+    ask: "Which is it?",
+    cases: [0, 1, 2, 3].map((i) => ({
+      id: `c${i}`,
+      candidate: `case ${i}`,
+      readings: ["it is", "it is not"],
       answerIndex: i % 2,
-      why: "because",
+      decidedBy: "the requirement",
+      // Even cases are instances, odd ones are near-misses.
+      isInstance: i % 2 === 0,
     })),
   };
-  const run = (picks: number[], t0 = 0) =>
-    picks.reduce(
-      (s, pick, i) =>
-        deckReducer(
-          deckReducer(
-            s,
-            { type: "answer", index: pick, now: t0 + i * 2000 + 1000 },
-            content,
-          ),
-          { type: "next", now: t0 + (i + 1) * 2000 },
+  const run = (calls: number[]) =>
+    calls.reduce(
+      (acc, call) =>
+        discriminateReducer(
+          discriminateReducer(acc, { type: "call", index: call }, content),
+          { type: "next" },
           content,
         ),
-      deckStart("n", "discriminate", t0),
+      discriminateStart("n"),
     );
 
-  it("will not let an answer be changed once it is committed", () => {
-    // The one thing a boundary test may never allow: tapping through the
-    // options until the reveal turns green.
-    const once = deckReducer(
-      deckStart("n", "discriminate"),
-      { type: "answer", index: 1 },
+  it("will not let a call be changed once it is committed", () => {
+    // Cycling the readings until the reveal turns green is not a boundary test.
+    const once = discriminateReducer(
+      discriminateStart("n"),
+      { type: "call", index: 1 },
       content,
     );
-    const twice = deckReducer(once, { type: "answer", index: 0 }, content);
-    expect(twice.picks.i0).toBe(1);
+    expect(discriminateReducer(once, { type: "call", index: 0 }, content).calls.c0).toBe(
+      1,
+    );
   });
 
-  it("does not advance past an item that was never answered", () => {
-    // The reveal is the payoff for having committed; skipping it would make
-    // the run a reading of the answers.
-    const start = deckStart("n", "discriminate");
-    expect(deckReducer(start, { type: "next" }, content).index).toBe(0);
+  it("fails a learner who waves near-misses through, however good the score", () => {
+    // The phase's own standard, and the reason it does not share a gate with
+    // its siblings: calling everything an instance scores whatever fraction of
+    // the run happens to be instances, by luck rather than by the boundary.
+    const all = run([0, 0, 0, 0]);
+    expect(discriminateFalsePositives(all, content)).toHaveLength(2);
+    expect(discriminatePassed(all, content)).toBe(false);
   });
 
-  it("passes on two thirds right, and not on less", () => {
-    expect(deckPassed(run([0, 1, 0]), content)).toBe(true);
-    expect(deckPassed(run([0, 1, 1]), content)).toBe(true);
-    expect(deckPassed(run([0, 0, 1]), content)).toBe(false);
-  });
-
-  it("reports the median time per call, not the mean", () => {
-    // One interrupted item must not describe the run — which is the whole
-    // reason a timed phase reads the median.
-    const s = run([0, 1, 0]);
-    expect(deckMedianMs(s, content)).toBe(1000);
+  it("passes a run that gets the boundary right", () => {
+    expect(discriminatePassed(run([0, 1, 0, 1]), content)).toBe(true);
   });
 });
 
-// ---- the recite engine (Recall) ------------------------------------------------
-
-describe("recite", () => {
+describe("predict", () => {
   const content = {
     nodeId: "n",
     nodeLabel: "The rule",
-    brief: "Write down everything you can still produce.",
-    scaffold: "Start from the requirement.",
-    rubric: [
-      { id: "a", point: "The requirement", mustConvey: ["it must hold first"] },
-      { id: "b", point: "The rule", mustConvey: ["what it states"] },
-      { id: "c", point: "The exclusion", mustConvey: ["one case it rules out"] },
-    ],
+    setups: [0, 1].map((i) => ({
+      id: `s${i}`,
+      situation: `setup ${i}`,
+      outcomes: ["holds", "reverses"],
+      answerIndex: 0,
+      because: "the chain",
+    })),
   };
-  const reported = (verdicts: Record<string, "good" | "skipped" | "confused">) => ({
-    ...reciteStart("n", "recall"),
+
+  it("takes the confidence before the forecast and locks it after", () => {
+    // A rating given after the outcome is visible is not a calibration
+    // reading, so the reducer refuses it rather than the view hiding it.
+    const rated = predictReducer(predictStart("n"), { type: "sure", level: 2 }, content);
+    const committed = predictReducer(rated, { type: "commit", index: 1 }, content);
+    const after = predictReducer(committed, { type: "sure", level: 0 }, content);
+    expect(after.sureness.s0).toBe(2);
+  });
+
+  it("surfaces the forecasts held with certainty and still wrong", () => {
+    const s = predictReducer(
+      predictReducer(predictStart("n"), { type: "sure", level: 2 }, content),
+      { type: "commit", index: 1 },
+      content,
+    );
+    expect(predictOverconfident(s, content).map((x) => x.id)).toEqual(["s0"]);
+  });
+});
+
+describe("trace", () => {
+  const content = {
+    nodeId: "n",
+    nodeLabel: "The rule",
+    scenario: "one run",
+    stages: [0, 1, 2].map((i) => ({
+      id: `t${i}`,
+      reached: `stage ${i}`,
+      nexts: ["forward", "backward"],
+      answerIndex: 0,
+      handsOn: "the next input",
+    })),
+  };
+  const walk = (steps: number[]) =>
+    steps.reduce(
+      (acc, step) =>
+        traceReducer(
+          traceReducer(acc, { type: "step", index: step }, content),
+          { type: "next" },
+          content,
+        ),
+      traceStart("n"),
+    );
+
+  it("gates on an unbroken chain, not on a fraction correct", () => {
+    // Two of three right passes only if they are the FIRST two: a run that
+    // broke at the first link and guessed the rest has not followed anything.
+    expect(tracePassed(walk([0, 0, 1]), content)).toBe(true);
+    expect(tracePassed(walk([1, 0, 0]), content)).toBe(false);
+  });
+
+  it("reports where the chain first broke", () => {
+    expect(traceBreak(walk([0, 1, 0]), content)).toBe(1);
+    expect(traceBreak(walk([0, 0, 0]), content)).toBe(-1);
+  });
+});
+
+describe("drill", () => {
+  const content = {
+    nodeId: "n",
+    nodeLabel: "The rule",
+    reps: [0, 1, 2].map((i) => ({
+      id: `r${i}`,
+      prompt: `rep ${i}`,
+      answers: ["a", "b"],
+      answerIndex: 0,
+      rule: "the rule",
+    })),
+  };
+  const drill = (ms: number[]) =>
+    ms.reduce(
+      (acc, gap, i) =>
+        drillReducer(
+          drillReducer(acc, { type: "answer", index: 0, now: i * 100000 + gap }, content),
+          { type: "next", now: (i + 1) * 100000 },
+          content,
+        ),
+      drillStart("n", 0),
+    );
+
+  it("reports the median rep, not the mean", () => {
+    // One interrupted rep must not describe the run.
+    expect(drillMedianMs(drill([1000, 2000, 60000]), content)).toBe(2000);
+  });
+
+  it("names the reps that were right but slow", () => {
+    // The finding only Drill can produce: correct, and still being derived.
+    const s = drill([1000, 30000, 1000]);
+    expect(drillLabored(s, content).map((r) => r.id)).toEqual(["r1"]);
+    // ...and it is a finding, not a failure. Speed is reported, never gated.
+    expect(drillPassed(s, content)).toBe(true);
+  });
+});
+
+describe("recall", () => {
+  const content = {
+    nodeId: "n",
+    nodeLabel: "The rule",
+    brief: "write it down",
+    scaffold: "start here",
+    rubric: ["a", "b", "c"].map((id) => ({ id, point: id, mustRetrieve: [id] })),
+  };
+  const reported = (v: Record<string, "good" | "skipped" | "confused">) => ({
+    ...recallStart("n"),
     reported: true,
-    verdicts,
+    retrieved: v,
   });
 
-  it("passes on two thirds of the rubric, and not on less", () => {
-    // The gate the whole phase turns on: `advanceFromRecite` closes the rung
-    // only when this is true, so a learner who read the report and pressed
-    // Continue must not be able to take a node green on a blank page.
-    expect(recitePassed(reported({ a: "good", b: "good" }), content)).toBe(true);
-    expect(recitePassed(reported({ a: "good" }), content)).toBe(false);
-    expect(recitePassed(reported({}), content)).toBe(false);
+  it("takes partial credit — memory is graded, not all-or-nothing", () => {
+    expect(recallPassed(reported({ a: "good", b: "good" }), content)).toBe(true);
+    expect(recallPassed(reported({ a: "good" }), content)).toBe(false);
   });
 
-  it("scores only the rows that actually landed", () => {
+  it("scores only what actually came back", () => {
     expect(
-      reciteScore(reported({ a: "good", b: "confused", c: "skipped" }), content),
+      recallScore(reported({ a: "good", b: "confused", c: "skipped" }), content),
     ).toBe(1);
   });
 
-  it("writing it again leaves nothing of the first attempt behind", () => {
-    // Production from nothing is the phase. Keeping the previous answer in the
-    // box turns the retry into an edit of a report they have now read.
-    const after = reciteReducer(reported({ a: "good", b: "good", c: "good" }), {
-      type: "again",
-    });
-    expect(after).toEqual(reciteStart("n", "recall"));
+  it("writing it again leaves nothing of the first attempt", () => {
+    const again = recallReducer(reported({ a: "good" }), { type: "again" });
+    expect(again).toEqual(recallStart("n"));
+  });
+});
+
+describe("perform", () => {
+  const content = {
+    nodeId: "n",
+    nodeLabel: "The procedure",
+    task: "this case",
+    scaffold: "start here",
+    steps: [
+      { id: "s1", step: "one", mustShow: ["x"], loadBearing: true },
+      { id: "s2", step: "two", mustShow: ["y"], loadBearing: true },
+      { id: "s3", step: "check", mustShow: ["z"], loadBearing: false },
+    ],
+  };
+  const reported = (v: Record<string, "good" | "skipped" | "confused">) => ({
+    ...performStart("n"),
+    reported: true,
+    ran: v,
+  });
+
+  it("fails on any wrong step, however much else was right", () => {
+    // Execution takes no partial credit, and this is where it parts company
+    // with Recall: a run with a wrong intermediate result is a failed run.
+    expect(
+      performPassed(reported({ s1: "good", s2: "confused", s3: "good" }), content),
+    ).toBe(false);
+  });
+
+  it("requires every load-bearing step to have actually been carried out", () => {
+    expect(performPassed(reported({ s1: "good", s2: "skipped" }), content)).toBe(false);
+  });
+
+  it("lets a skipped check through — a thinner run, not a wrong one", () => {
+    expect(
+      performPassed(reported({ s1: "good", s2: "good", s3: "skipped" }), content),
+    ).toBe(true);
+  });
+
+  it("re-running clears the work and keeps the case", () => {
+    const again = performReducer(reported({ s1: "good" }), { type: "rerun" });
+    expect(again).toEqual(performStart("n"));
   });
 });
 

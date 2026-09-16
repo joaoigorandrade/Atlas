@@ -80,8 +80,12 @@ import {
   type FeynmanJudgement,
 } from "@/lib/api";
 import { usePhaseLedger } from "@/components/atlas/phaseLedger";
-import { useDeck } from "@/components/atlas/useDeck";
-import { useRecite } from "@/components/atlas/useRecite";
+import { useDiscriminate } from "@/components/atlas/useDiscriminate";
+import { usePredict } from "@/components/atlas/usePredict";
+import { useTrace } from "@/components/atlas/useTrace";
+import { useDrill } from "@/components/atlas/useDrill";
+import { useRecall } from "@/components/atlas/useRecall";
+import { usePerform } from "@/components/atlas/usePerform";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
 import type { Screen } from "@/components/atlas/screen";
@@ -254,28 +258,12 @@ export function useSpiral(deps: {
   });
   const { completePhase, markStarted, warmNext, completeWholePlan } = ledger;
 
-  // The recite family (Recall · Perform) — its own hook, because it is entered
-  // from the plan and exits to the map, and transitions into no other phase.
-  // See `useRecite` for why that is the line the split follows.
-  const { enterRecite, dispatchRecite, reciteSubmit, advanceFromRecite, exitRecite } =
-    useRecite({
-      run,
-      sessions,
-      gen,
-      toast,
-      ledger,
-      languageRef,
-      setSelectedId,
-      setScreen,
-      centerOn,
-      later,
-      judgingRef,
-      setJudging,
-    });
-
-  // The deck family (Discriminate · Predict · Trace · Drill) — split out on
-  // the same line, and for the same reason.
-  const { enterDeck, dispatchDeck, advanceFromDeck, exitDeck } = useDeck({
+  // The six phases the catalogue added in its growth to twelve, one hook
+  // each. Split out of this module on the `phaseLedger` precedent: the spiral
+  // is one state machine because its phases transition *into each other*, and
+  // none of these do — each is entered from the node's plan, grades one thing,
+  // and exits to the map.
+  const phaseDeps = {
     run,
     sessions,
     gen,
@@ -285,7 +273,38 @@ export function useSpiral(deps: {
     setScreen,
     centerOn,
     later,
+  };
+  const judgeDeps = { languageRef, judgingRef, setJudging };
+
+  const {
+    enterDiscriminate,
+    dispatchDiscriminate,
+    advanceFromDiscriminate,
+    exitDiscriminate,
+  } = useDiscriminate({ ...phaseDeps });
+
+  const { enterPredict, dispatchPredict, advanceFromPredict, exitPredict } = usePredict({
+    ...phaseDeps,
   });
+
+  const { enterTrace, dispatchTrace, advanceFromTrace, exitTrace } = useTrace({
+    ...phaseDeps,
+  });
+
+  const { enterDrill, dispatchDrill, advanceFromDrill, exitDrill } = useDrill({
+    ...phaseDeps,
+  });
+
+  const { enterRecall, dispatchRecall, recallSubmit, advanceFromRecall, exitRecall } =
+    useRecall({ ...phaseDeps, ...judgeDeps });
+
+  const {
+    enterPerform,
+    dispatchPerform,
+    performSubmit,
+    advanceFromPerform,
+    exitPerform,
+  } = usePerform({ ...phaseDeps, ...judgeDeps });
 
   // ---- map actions ------------------------------------------------------
 
@@ -2048,16 +2067,16 @@ export function useSpiral(deps: {
    */
   const enterPhase: Record<PhaseId, (node: ConceptNode) => void> = {
     consume: enterSession,
-    discriminate: (node) => enterDeck(node, "discriminate"),
+    discriminate: enterDiscriminate,
     socratic: enterSocratic,
-    predict: (node) => enterDeck(node, "predict"),
-    trace: (node) => enterDeck(node, "trace"),
+    predict: enterPredict,
+    trace: enterTrace,
     feynman: enterFeynman,
-    perform: (node) => enterRecite(node, "perform"),
-    drill: (node) => enterDeck(node, "drill"),
+    perform: enterPerform,
+    drill: enterDrill,
     connect: enterConnect,
     crucible: enterCrucible,
-    recall: (node) => enterRecite(node, "recall"),
+    recall: enterRecall,
     // Retain isn't entered on a node — it's the shared review queue.
     retain: () => enterReview(),
   };
@@ -2204,15 +2223,32 @@ export function useSpiral(deps: {
     crucibleSubmit,
     advanceFromCrucible,
     exitCrucible,
-    enterRecite,
-    dispatchRecite,
-    reciteSubmit,
-    advanceFromRecite,
-    exitRecite,
-    enterDeck,
-    dispatchDeck,
-    advanceFromDeck,
-    exitDeck,
+    enterDiscriminate,
+    dispatchDiscriminate,
+    advanceFromDiscriminate,
+    exitDiscriminate,
+    enterPredict,
+    dispatchPredict,
+    advanceFromPredict,
+    exitPredict,
+    enterTrace,
+    dispatchTrace,
+    advanceFromTrace,
+    exitTrace,
+    enterDrill,
+    dispatchDrill,
+    advanceFromDrill,
+    exitDrill,
+    enterRecall,
+    dispatchRecall,
+    recallSubmit,
+    advanceFromRecall,
+    exitRecall,
+    enterPerform,
+    dispatchPerform,
+    performSubmit,
+    advanceFromPerform,
+    exitPerform,
     retainPlan,
     enterReview,
     retainFlip,

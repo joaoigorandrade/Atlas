@@ -19,11 +19,11 @@ test.describe("discriminate", () => {
 
     const sheet = page.getByTestId("phase-discriminate");
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByTestId("deck-context")).toBeVisible();
+    await expect(sheet.getByTestId("case-candidate")).toBeVisible();
     // The reveal, the verdict and the reason are all withheld until an answer
     // is committed — otherwise the item is a recognition task.
-    await expect(sheet.getByTestId("deck-right")).toHaveCount(0);
-    await expect(sheet.getByTestId("deck-wrong")).toHaveCount(0);
+    await expect(sheet.getByTestId("call-right")).toHaveCount(0);
+    await expect(sheet.getByTestId("call-wrong")).toHaveCount(0);
     await expect(sheet.getByTestId("action-next")).toHaveCount(0);
     // Own words is the default; the closed form is the alternative.
     await expect(sheet.getByTestId("field-answer")).toBeVisible();
@@ -44,11 +44,11 @@ test.describe("discriminate", () => {
     // index" guard requires of a real one.
     for (let i = 0; i < 4; i++) {
       await sheet.getByTestId(`action-pick-${i % 2}`).click();
-      await expect(sheet.getByTestId("deck-right")).toBeVisible();
+      await expect(sheet.getByTestId("call-right")).toBeVisible();
       await sheet.getByTestId("action-next").click();
     }
 
-    await expect(sheet.getByTestId("deck-score")).toBeVisible();
+    await expect(sheet.getByTestId("phase-score")).toBeVisible();
     await sheet.getByTestId("action-finish").click();
 
     await expect(async () => {

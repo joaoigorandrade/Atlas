@@ -28,14 +28,18 @@ import type {
   ConsumeModelBeat,
   ConsumeProgress,
   CrucibleContent,
-  DeckContent,
+  DiscriminateContent,
+  DrillContent,
   ElaborationContent,
   FeynmanBeat,
   FeynmanSession,
   MisconceptionRecord,
   ModalityTally,
+  PerformContent,
+  PredictContent,
   ProgressState,
-  ReciteContent,
+  RecallContent,
+  TraceContent,
   RetainContent,
   ReviewGrade,
   PhaseProgress,
@@ -163,14 +167,14 @@ export interface RunCaches {
   feynman: Record<string, FeynmanBeat[]>;
   connect: Record<string, ElaborationContent>;
   crucible: Record<string, CrucibleContent>;
-  /** The recite family (Recall · Perform), keyed `<phase>:<nodeId>`. One
-   *  bucket rather than one per phase: the payload shape is the same, and a
-   *  field per phase would mean editing this contract on both clients every
-   *  time the catalogue grows. */
-  recite: Record<string, ReciteContent>;
-  /** The deck family (Discriminate · Predict · Trace · Drill), keyed
-   *  `<phase>:<nodeId>` — one bucket, same reasoning as `recite`. */
-  deck: Record<string, DeckContent>;
+  // The six phases of the catalogue's growth to twelve. Each keyed by node
+  // id, exactly like the eight before them.
+  discriminate: Record<string, DiscriminateContent>;
+  predict: Record<string, PredictContent>;
+  trace: Record<string, TraceContent>;
+  drill: Record<string, DrillContent>;
+  recall: Record<string, RecallContent>;
+  perform: Record<string, PerformContent>;
   retain: RetainContent | null;
 }
 
@@ -181,8 +185,12 @@ export const emptyCaches = (): RunCaches => ({
   feynman: {},
   connect: {},
   crucible: {},
-  recite: {},
-  deck: {},
+  discriminate: {},
+  predict: {},
+  trace: {},
+  drill: {},
+  recall: {},
+  perform: {},
   retain: null,
 });
 
@@ -393,15 +401,23 @@ export function foldContent(items: ContentItem[]): RunCaches {
       case "crucible":
         caches.crucible[item.nodeId] = item.payload as CrucibleContent;
         break;
-      case "recall":
-      case "perform":
-        caches.recite[`${item.kind}:${item.nodeId}`] = item.payload as ReciteContent;
-        break;
       case "discriminate":
+        caches.discriminate[item.nodeId] = item.payload as DiscriminateContent;
+        break;
       case "predict":
+        caches.predict[item.nodeId] = item.payload as PredictContent;
+        break;
       case "trace":
+        caches.trace[item.nodeId] = item.payload as TraceContent;
+        break;
       case "drill":
-        caches.deck[`${item.kind}:${item.nodeId}`] = item.payload as DeckContent;
+        caches.drill[item.nodeId] = item.payload as DrillContent;
+        break;
+      case "recall":
+        caches.recall[item.nodeId] = item.payload as RecallContent;
+        break;
+      case "perform":
+        caches.perform[item.nodeId] = item.payload as PerformContent;
         break;
       case "retain":
         caches.retain = item.payload as RetainContent;

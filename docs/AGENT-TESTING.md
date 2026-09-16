@@ -105,6 +105,13 @@ Two things that catch people out:
   the reading first. `scrollToCheck` in `tests/e2e/progression.spec.ts` does it.
 - **An answered check stays on screen, disabled.** Target
   `[data-testid="action-check-1"]:not([disabled])`, not `.last()`.
+- **The six newest phases each have their own surface and their own testids.**
+  They are not one screen wearing six names: Predict gates its answer controls
+  behind `action-sure-<i>`, Drill opens on the closed form and shows a live
+  `rep-clock`, Trace keeps `chain-link-<i>` above the open stage, and Recall
+  and Perform report rows (`recall-row-<verdict>`, `perform-step-<verdict>`)
+  rather than a score. `phase-progress` and `phase-score` are the two handles
+  they do share.
 
 The screen graph, in the order a run walks it:
 

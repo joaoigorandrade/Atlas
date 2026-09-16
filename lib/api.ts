@@ -8,18 +8,20 @@ import type {
   ConsumeChunk,
   ConsumeModelBeat,
   CrucibleContent,
-  DeckContent,
-  DeckPhase,
   DiagnosticDifficulty,
+  DiscriminateContent,
+  DrillContent,
   DiagnosticQuestion,
   ElaborationContent,
   FeynmanBeat,
   GoalKind,
   MapNode,
   NodeKind,
-  ReciteContent,
-  RecitePhase,
+  PerformContent,
+  PredictContent,
+  RecallContent,
   RetainContent,
+  TraceContent,
   SocraticStep,
 } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode, toAtlasError } from "@/lib/errors";
@@ -562,10 +564,11 @@ export async function fetchCrucible(
     .content;
 }
 
-/** The deck family (`discriminate`, and predict · trace · drill as they land):
- *  one request builder, since the phases differ only in what the items are. */
-export const deckRequest = (params: {
-  phase: DeckPhase;
+// The six phases of the catalogue's growth to twelve. One request builder and
+// one fetcher each: they take the same inputs, but each returns its own shape,
+// and a shared builder would be a place for two of them to drift into one.
+
+export const discriminateRequest = (params: {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -574,22 +577,17 @@ export const deckRequest = (params: {
   nodeKind?: NodeKind;
   priorLabels?: string[];
   laterLabels?: string[];
-}) => {
-  const { phase, ...rest } = params;
-  return { kind: phase, ...rest };
-};
+}) => ({ kind: "discriminate", ...params });
 
-export async function fetchDeck(
-  params: Parameters<typeof deckRequest>[0],
+export async function fetchDiscriminate(
+  params: Parameters<typeof discriminateRequest>[0],
   opts?: FetchOpts,
-): Promise<DeckContent> {
-  return (await post<{ content: DeckContent }>(deckRequest(params), opts)).content;
+): Promise<DiscriminateContent> {
+  return (await post<{ content: DiscriminateContent }>(discriminateRequest(params), opts))
+    .content;
 }
 
-/** The recite family (`recall`, and `perform` once it exists): one request
- *  builder, since the phases differ only in which brief and rubric come back. */
-export const reciteRequest = (params: {
-  phase: RecitePhase;
+export const predictRequest = (params: {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -598,16 +596,85 @@ export const reciteRequest = (params: {
   nodeKind?: NodeKind;
   priorLabels?: string[];
   laterLabels?: string[];
-}) => {
-  const { phase, ...rest } = params;
-  return { kind: phase, ...rest };
-};
+}) => ({ kind: "predict", ...params });
 
-export async function fetchRecite(
-  params: Parameters<typeof reciteRequest>[0],
+export async function fetchPredict(
+  params: Parameters<typeof predictRequest>[0],
   opts?: FetchOpts,
-): Promise<ReciteContent> {
-  return (await post<{ content: ReciteContent }>(reciteRequest(params), opts)).content;
+): Promise<PredictContent> {
+  return (await post<{ content: PredictContent }>(predictRequest(params), opts)).content;
+}
+
+export const traceRequest = (params: {
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => ({ kind: "trace", ...params });
+
+export async function fetchTrace(
+  params: Parameters<typeof traceRequest>[0],
+  opts?: FetchOpts,
+): Promise<TraceContent> {
+  return (await post<{ content: TraceContent }>(traceRequest(params), opts)).content;
+}
+
+export const drillRequest = (params: {
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => ({ kind: "drill", ...params });
+
+export async function fetchDrill(
+  params: Parameters<typeof drillRequest>[0],
+  opts?: FetchOpts,
+): Promise<DrillContent> {
+  return (await post<{ content: DrillContent }>(drillRequest(params), opts)).content;
+}
+
+export const recallRequest = (params: {
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => ({ kind: "recall", ...params });
+
+export async function fetchRecall(
+  params: Parameters<typeof recallRequest>[0],
+  opts?: FetchOpts,
+): Promise<RecallContent> {
+  return (await post<{ content: RecallContent }>(recallRequest(params), opts)).content;
+}
+
+export const performRequest = (params: {
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => ({ kind: "perform", ...params });
+
+export async function fetchPerform(
+  params: Parameters<typeof performRequest>[0],
+  opts?: FetchOpts,
+): Promise<PerformContent> {
+  return (await post<{ content: PerformContent }>(performRequest(params), opts)).content;
 }
 
 export const retainRequest = (params: {
@@ -748,22 +815,37 @@ export function fetchJudgeCrucible(
   return judge({ kind: "judge", mode: "crucible", ...params }, onVerdict);
 }
 
-/** Grades a recite pass (Recall · Perform) against its rubric. Same verdict
- *  rows as the Feynman report, which is why it shares that judgement type. */
-export function fetchJudgeRecite(
+/** Grades a cold retrieval against its rubric. Shares the Feynman judgement
+ *  shape — one ruling per row — because a rubric diff renders the same way
+ *  wherever it comes from; the grading behind it is Recall's own. */
+export function fetchJudgeRecall(
   params: {
-    frame: RecitePhase;
     topic: string;
     nodeLabel: string;
     brief: string;
+    cued?: boolean;
     rubric: Array<{ subPoint: string; mustConvey: string[] }>;
     answer: string;
     language?: Language;
   },
   onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
 ): Promise<FeynmanJudgement> {
-  const { frame, ...rest } = params;
-  return judge({ kind: "judge", mode: frame, ...rest }, onVerdict);
+  return judge({ kind: "judge", mode: "recall", ...params }, onVerdict);
+}
+
+/** Checks a run against the case it was carried out on. */
+export function fetchJudgePerform(
+  params: {
+    topic: string;
+    nodeLabel: string;
+    task: string;
+    rubric: Array<{ subPoint: string; mustConvey: string[] }>;
+    answer: string;
+    language?: Language;
+  },
+  onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
+): Promise<FeynmanJudgement> {
+  return judge({ kind: "judge", mode: "perform", ...params }, onVerdict);
 }
 
 /** Maps a free-text answer onto a closed option list (the open-ended half of

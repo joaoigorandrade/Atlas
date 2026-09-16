@@ -20,7 +20,7 @@ test.describe("recall", () => {
     await expect(sheet).toBeVisible();
     // The whole diagnostic: what the learner never thinks to write is the
     // finding, so nothing the rubric names may be on screen before they write.
-    await expect(sheet.getByTestId("recite-score")).toHaveCount(0);
+    await expect(sheet.getByTestId("phase-score")).toHaveCount(0);
     await expect(sheet.getByText("The requirement")).toHaveCount(0);
     await expect(sheet.getByTestId("field-answer")).toBeVisible();
   });
@@ -39,7 +39,7 @@ test.describe("recall", () => {
     await sheet.getByTestId("field-answer").fill("It is written the way the rule says.");
     await sheet.getByTestId("action-submit").click();
 
-    await expect(sheet.getByTestId("recite-score")).toBeVisible({ timeout: 20_000 });
+    await expect(sheet.getByTestId("phase-score")).toBeVisible({ timeout: 20_000 });
     await sheet.getByTestId("action-finish").click();
 
     await expect(async () => {

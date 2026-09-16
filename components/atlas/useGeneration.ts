@@ -26,10 +26,12 @@ import {
   type FeynmanBeat,
   type NodeKind,
   type PhaseId,
-  type DeckContent,
-  type DeckPhase,
-  type ReciteContent,
-  type RecitePhase,
+  type DiscriminateContent,
+  type PredictContent,
+  type TraceContent,
+  type DrillContent,
+  type RecallContent,
+  type PerformContent,
   type SocraticStep,
   type NodeState,
 } from "@/lib/curriculum";
@@ -42,14 +44,22 @@ import {
   fetchConsume,
   fetchConsumeModel,
   fetchCrucible,
-  fetchDeck,
+  fetchDiscriminate,
+  fetchDrill,
   fetchFeynman,
-  fetchRecite,
+  fetchPerform,
+  fetchPredict,
+  fetchRecall,
+  fetchTrace,
   fetchSocratic,
   fetchSummary,
-  deckRequest,
-  reciteRequest,
+  discriminateRequest,
+  drillRequest,
+  performRequest,
+  predictRequest,
+  recallRequest,
   socraticRequest,
+  traceRequest,
   summaryRequest,
   WarmDeclined,
 } from "@/lib/api";
@@ -114,8 +124,12 @@ export function useGeneration(opts_: {
     feynmanCacheRef,
     connectCacheRef,
     crucibleCacheRef,
-    reciteCacheRef,
-    deckCacheRef,
+    discriminateCacheRef,
+    predictCacheRef,
+    traceCacheRef,
+    drillCacheRef,
+    recallCacheRef,
+    performCacheRef,
     setGraph,
     setSummaryFailed,
     setConsumeCache,
@@ -124,8 +138,12 @@ export function useGeneration(opts_: {
     setFeynmanCache,
     setConnectCache,
     setCrucibleCache,
-    setReciteCache,
-    setDeckCache,
+    setDiscriminateCache,
+    setPredictCache,
+    setTraceCache,
+    setDrillCache,
+    setRecallCache,
+    setPerformCache,
   } = run;
 
   // ---- generation plumbing ---------------------------------------------
@@ -340,14 +358,13 @@ export function useGeneration(opts_: {
     [learnedLabels, boundaryOf, formRef, languageRef],
   );
 
-  /**
-   * The recite family (Recall · Perform). One builder for the whole family:
-   * the phase is a field, so the two never share a cache row and neither
-   * needs its own copy of this.
-   */
-  const reciteParams = useCallback(
-    (node: ConceptNode, phase: RecitePhase) => ({
-      phase,
+  // The six phases the catalogue added in its growth to twelve. Each takes
+  // the same inputs and returns its own shape, so each gets its own params
+  // builder and loader — one shared pair would be the seam two of them
+  // eventually collapse through.
+
+  const discriminateParams = useCallback(
+    (node: ConceptNode) => ({
       topic: formRef.current.topic,
       nodeId: node.id,
       nodeLabel: node.label,
@@ -359,24 +376,19 @@ export function useGeneration(opts_: {
     [boundaryOf, formRef, languageRef],
   );
 
-  const loadRecite = useCallback(
-    async (node: ConceptNode, phase: RecitePhase, prefetch = false) => {
-      const content = await fetchRecite(reciteParams(node, phase), opts(prefetch));
-      const key = `${phase}:${node.id}`;
-      setReciteCache((prev) => (prev[key] ? prev : { ...prev, [key]: content }));
+  const loadDiscriminate = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchDiscriminate(discriminateParams(node), opts(prefetch));
+      setDiscriminateCache((prev) =>
+        prev[node.id] ? prev : { ...prev, [node.id]: content },
+      );
       return content;
     },
-    [reciteParams, setReciteCache],
+    [discriminateParams, setDiscriminateCache],
   );
 
-  /**
-   * The deck family (Discriminate · Predict · Trace · Drill). One builder for
-   * the family, for the same reason `reciteParams` is one: the phase is a
-   * field, so the members never share a cache row.
-   */
-  const deckParams = useCallback(
-    (node: ConceptNode, phase: DeckPhase) => ({
-      phase,
+  const predictParams = useCallback(
+    (node: ConceptNode) => ({
       topic: formRef.current.topic,
       nodeId: node.id,
       nodeLabel: node.label,
@@ -388,14 +400,101 @@ export function useGeneration(opts_: {
     [boundaryOf, formRef, languageRef],
   );
 
-  const loadDeck = useCallback(
-    async (node: ConceptNode, phase: DeckPhase, prefetch = false) => {
-      const content = await fetchDeck(deckParams(node, phase), opts(prefetch));
-      const key = `${phase}:${node.id}`;
-      setDeckCache((prev) => (prev[key] ? prev : { ...prev, [key]: content }));
+  const loadPredict = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchPredict(predictParams(node), opts(prefetch));
+      setPredictCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
       return content;
     },
-    [deckParams, setDeckCache],
+    [predictParams, setPredictCache],
+  );
+
+  const traceParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      ...boundaryOf(node.id),
+      nodeKind: node.kind,
+    }),
+    [boundaryOf, formRef, languageRef],
+  );
+
+  const loadTrace = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchTrace(traceParams(node), opts(prefetch));
+      setTraceCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
+      return content;
+    },
+    [traceParams, setTraceCache],
+  );
+
+  const drillParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      ...boundaryOf(node.id),
+      nodeKind: node.kind,
+    }),
+    [boundaryOf, formRef, languageRef],
+  );
+
+  const loadDrill = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchDrill(drillParams(node), opts(prefetch));
+      setDrillCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
+      return content;
+    },
+    [drillParams, setDrillCache],
+  );
+
+  const recallParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      ...boundaryOf(node.id),
+      nodeKind: node.kind,
+    }),
+    [boundaryOf, formRef, languageRef],
+  );
+
+  const loadRecall = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchRecall(recallParams(node), opts(prefetch));
+      setRecallCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
+      return content;
+    },
+    [recallParams, setRecallCache],
+  );
+
+  const performParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      ...boundaryOf(node.id),
+      nodeKind: node.kind,
+    }),
+    [boundaryOf, formRef, languageRef],
+  );
+
+  const loadPerform = useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetchPerform(performParams(node), opts(prefetch));
+      setPerformCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
+      return content;
+    },
+    [performParams, setPerformCache],
   );
 
   /** Warm-queue / in-memory cache address for one node's surface. */
@@ -532,25 +631,33 @@ export function useGeneration(opts_: {
           return !!connectCacheRef.current[nodeId];
         case "crucible":
           return !!crucibleCacheRef.current[nodeId];
-        case "recall":
-        case "perform":
-          return !!reciteCacheRef.current[`${kind}:${nodeId}`];
         case "discriminate":
+          return !!discriminateCacheRef.current[nodeId];
         case "predict":
+          return !!predictCacheRef.current[nodeId];
         case "trace":
+          return !!traceCacheRef.current[nodeId];
         case "drill":
-          return !!deckCacheRef.current[`${kind}:${nodeId}`];
+          return !!drillCacheRef.current[nodeId];
+        case "recall":
+          return !!recallCacheRef.current[nodeId];
+        case "perform":
+          return !!performCacheRef.current[nodeId];
       }
     },
     [
       connectCacheRef,
       consumeCacheRef,
       crucibleCacheRef,
-      deckCacheRef,
       feynmanCacheRef,
       graphRef,
-      reciteCacheRef,
       socraticCacheRef,
+      discriminateCacheRef,
+      predictCacheRef,
+      traceCacheRef,
+      drillCacheRef,
+      recallCacheRef,
+      performCacheRef,
     ],
   );
 
@@ -578,14 +685,18 @@ export function useGeneration(opts_: {
         }
         case "crucible":
           return crucibleRequest(crucibleParams(node));
-        case "recall":
-        case "perform":
-          return reciteRequest(reciteParams(node, kind));
         case "discriminate":
+          return discriminateRequest(discriminateParams(node));
         case "predict":
+          return predictRequest(predictParams(node));
         case "trace":
+          return traceRequest(traceParams(node));
         case "drill":
-          return deckRequest(deckParams(node, kind));
+          return drillRequest(drillParams(node));
+        case "recall":
+          return recallRequest(recallParams(node));
+        case "perform":
+          return performRequest(performParams(node));
       }
     },
     [
@@ -595,8 +706,12 @@ export function useGeneration(opts_: {
       feynmanParams,
       connectParams,
       crucibleParams,
-      reciteParams,
-      deckParams,
+      discriminateParams,
+      predictParams,
+      traceParams,
+      drillParams,
+      recallParams,
+      performParams,
     ],
   );
 
@@ -625,26 +740,18 @@ export function useGeneration(opts_: {
         return put(setConnectCache, p.content as ElaborationContent | undefined);
       case "crucible":
         return put(setCrucibleCache, p.content as CrucibleContent | undefined);
-      // Both families key by phase as well as node, so one map holds each of
-      // them — hence their own put rather than the node-keyed one above.
-      case "recall":
-      case "perform": {
-        const content = p.content as ReciteContent | undefined;
-        if (!content) return;
-        const key = `${kind}:${nodeId}`;
-        setReciteCache((prev) => (prev[key] ? prev : { ...prev, [key]: content }));
-        return;
-      }
       case "discriminate":
+        return put(setDiscriminateCache, p.content as DiscriminateContent | undefined);
       case "predict":
+        return put(setPredictCache, p.content as PredictContent | undefined);
       case "trace":
-      case "drill": {
-        const content = p.content as DeckContent | undefined;
-        if (!content) return;
-        const key = `${kind}:${nodeId}`;
-        setDeckCache((prev) => (prev[key] ? prev : { ...prev, [key]: content }));
-        return;
-      }
+        return put(setTraceCache, p.content as TraceContent | undefined);
+      case "drill":
+        return put(setDrillCache, p.content as DrillContent | undefined);
+      case "recall":
+        return put(setRecallCache, p.content as RecallContent | undefined);
+      case "perform":
+        return put(setPerformCache, p.content as PerformContent | undefined);
     }
   };
 
@@ -667,14 +774,18 @@ export function useGeneration(opts_: {
           return warm.warm(key, () => loadConnect(node, true));
         case "crucible":
           return warm.warm(key, () => loadCrucible(node, true));
-        case "recall":
-        case "perform":
-          return warm.warm(key, () => loadRecite(node, kind, true));
         case "discriminate":
+          return warm.warm(key, () => loadDiscriminate(node, true));
         case "predict":
+          return warm.warm(key, () => loadPredict(node, true));
         case "trace":
+          return warm.warm(key, () => loadTrace(node, true));
         case "drill":
-          return warm.warm(key, () => loadDeck(node, kind, true));
+          return warm.warm(key, () => loadDrill(node, true));
+        case "recall":
+          return warm.warm(key, () => loadRecall(node, true));
+        case "perform":
+          return warm.warm(key, () => loadPerform(node, true));
       }
     },
     [
@@ -687,8 +798,12 @@ export function useGeneration(opts_: {
       loadFeynman,
       loadConnect,
       loadCrucible,
-      loadRecite,
-      loadDeck,
+      loadDiscriminate,
+      loadPredict,
+      loadTrace,
+      loadDrill,
+      loadRecall,
+      loadPerform,
     ],
   );
 
@@ -706,8 +821,12 @@ export function useGeneration(opts_: {
     feynmanParams,
     connectParams,
     crucibleParams,
-    reciteParams,
-    deckParams,
+    discriminateParams,
+    predictParams,
+    traceParams,
+    drillParams,
+    recallParams,
+    performParams,
     warmKey,
     opts,
     applySummary,
@@ -719,8 +838,12 @@ export function useGeneration(opts_: {
     loadFeynman,
     loadConnect,
     loadCrucible,
-    loadRecite,
-    loadDeck,
+    loadDiscriminate,
+    loadPredict,
+    loadTrace,
+    loadDrill,
+    loadRecall,
+    loadPerform,
     isCached,
     requestFor,
     applyWarmHit,

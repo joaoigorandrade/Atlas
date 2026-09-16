@@ -85,8 +85,12 @@ export function useDerived(deps: {
     feynmanCache,
     connectCache,
     crucibleCache,
-    reciteCache,
-    deckCache,
+    discriminateCache,
+    predictCache,
+    traceCache,
+    drillCache,
+    recallCache,
+    performCache,
   } = run;
   const {
     consume,
@@ -98,8 +102,12 @@ export function useDerived(deps: {
     liveFeynman,
     connect,
     crucible,
-    recite,
-    deck,
+    discriminate,
+    predict,
+    trace,
+    drill,
+    recall,
+    perform,
     consumeChunksRef,
   } = sessions;
 
@@ -250,12 +258,14 @@ export function useDerived(deps: {
     : undefined;
   const connectContent = connect ? connectCache[connect.nodeId] : undefined;
   const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
-  // Keyed by phase as well as node — one cache map holds the whole recite
-  // family, so the session says which row of it is on screen.
-  const reciteContent = recite
-    ? reciteCache[`${recite.phase}:${recite.nodeId}`]
+  const discriminateContent = discriminate
+    ? discriminateCache[discriminate.nodeId]
     : undefined;
-  const deckContent = deck ? deckCache[`${deck.phase}:${deck.nodeId}`] : undefined;
+  const predictContent = predict ? predictCache[predict.nodeId] : undefined;
+  const traceContent = trace ? traceCache[trace.nodeId] : undefined;
+  const drillContent = drill ? drillCache[drill.nodeId] : undefined;
+  const recallContent = recall ? recallCache[recall.nodeId] : undefined;
+  const performContent = perform ? performCache[perform.nodeId] : undefined;
 
   // ---- Home (dashboard) + profile derived ------------------------------
 
@@ -371,8 +381,12 @@ export function useDerived(deps: {
     feynmanBeats,
     connectContent,
     crucibleContent,
-    reciteContent,
-    deckContent,
+    discriminateContent,
+    predictContent,
+    traceContent,
+    drillContent,
+    recallContent,
+    performContent,
     displayName,
     initials,
     greeting,

@@ -15,7 +15,8 @@ import {
   generateConsumeModelStream,
   generateConsumeStream,
   generateCrucible,
-  generateDeck,
+  generateDiscriminate,
+  generateDrill,
   generateDiagnosticQuestion,
   generateFeynman,
   generateFeynmanStream,
@@ -23,7 +24,10 @@ import {
   generateMapStream,
   generatePassage,
   generatePassageStream,
-  generateRecite,
+  generatePerform,
+  generatePredict,
+  generateRecall,
+  generateTrace,
   generateRetain,
   generateSocratic,
   generateSocraticStream,
@@ -34,8 +38,10 @@ import {
   judgeCrucibleStream,
   judgeFeynman,
   judgeFeynmanStream,
-  judgeRecite,
-  judgeReciteStream,
+  judgePerform,
+  judgePerformStream,
+  judgeRecall,
+  judgeRecallStream,
   judgeSocratic,
   judgeSocraticStream,
   mapNodeBounds,
@@ -58,12 +64,10 @@ import {
   PARETO_DEFAULT,
   PARETO_LEVELS,
   asNodeKind,
-  RECITE_PHASES,
   type AltKey,
   type DiagnosticDifficulty,
   type GoalKind,
   type NodeKind,
-  type RecitePhase,
 } from "@/lib/curriculum";
 
 export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion" | "passage";
@@ -122,17 +126,18 @@ export interface GenerateBody {
   section?: string;
   selection?: string;
   // judge fields
-  /** A recite phase is its own judge mode — `RecitePhase` rather than two
-   *  literals, so a phase joining the family needs no edit here. */
-  mode?: "socratic" | "feynman" | "crucible" | "choice" | RecitePhase;
+  mode?: "socratic" | "feynman" | "crucible" | "choice" | "recall" | "perform";
   question?: string;
   options?: string[];
   reference?: string;
   answer?: string;
   /** judge-feynman / judge-recite: the rubric the answer is diffed against. */
   rubric?: Array<{ subPoint: string; mustConvey: string[] }>;
-  /** judge-recite: the brief the learner actually worked from. */
+  /** judge-recall: the brief they worked from, and whether they took the cue. */
   brief?: string;
+  cued?: boolean;
+  /** judge-perform: the case the run was carried out on. */
+  task?: string;
   problem?: string;
   hint?: string;
   /** judge-crucible: the learner revealed the reframe before answering. */
@@ -209,9 +214,10 @@ const labels = (v: unknown, max: number = CAPS.listItems): string[] =>
         .map((x) => x.slice(0, CAPS.nodeLabel))
     : [];
 
-/** A judge rubric off the wire, capped — shared by the Feynman and recite
- *  modes, which grade the same row shape. */
-const reciteRubric = (
+/** A judge rubric off the wire, capped. Shared by every mode that diffs an
+ *  answer against rows — Feynman, Recall and Perform — because the *wire*
+ *  shape is the same even where the grading is not. */
+const rubricRows = (
   body: GenerateBody,
 ): Array<{ subPoint: string; mustConvey: string[] }> =>
   Array.isArray(body.rubric)
@@ -585,19 +591,14 @@ function buildJob(body: GenerateBody): Job {
       );
     }
 
-    // The deck family (`discriminate`, and predict · trace · drill as they
-    // land): a short run of committed-then-revealed items. One case for the
-    // same reason the recite family has one — they differ in their brief, not
-    // in their plumbing, and `phase` is part of the key so no two collide.
-    case "discriminate":
-    case "predict":
-    case "trace":
-    case "drill": {
+    // The four item phases. Each generates its own shape — cases, setups,
+    // stages, reps — so each gets its own case here rather than one arm with a
+    // phase field: the payloads are genuinely different, not one table renamed.
+    case "discriminate": {
       if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       return cacheable(
-        body.kind,
+        "discriminate",
         {
-          phase: body.kind,
           topic,
           nodeId,
           nodeLabel,
@@ -606,21 +607,15 @@ function buildJob(body: GenerateBody): Job {
           ...boundary(body),
           ...nodeKindOf(body),
         },
-        async (p) => ({ content: await generateDeck(p) }),
+        async (p) => ({ content: await generateDiscriminate(p) }),
       );
     }
 
-    // The recite family (`recall`, and `perform` once it exists): a blank page
-    // graded against a rubric. One case, because the phases differ in their
-    // prompt rather than in their plumbing — `phase` is part of the cache key,
-    // so the two never collide.
-    case "recall":
-    case "perform": {
+    case "predict": {
       if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       return cacheable(
-        body.kind,
+        "predict",
         {
-          phase: body.kind,
           topic,
           nodeId,
           nodeLabel,
@@ -629,7 +624,75 @@ function buildJob(body: GenerateBody): Job {
           ...boundary(body),
           ...nodeKindOf(body),
         },
-        async (p) => ({ content: await generateRecite(p) }),
+        async (p) => ({ content: await generatePredict(p) }),
+      );
+    }
+
+    case "trace": {
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      return cacheable(
+        "trace",
+        {
+          topic,
+          nodeId,
+          nodeLabel,
+          interests,
+          language,
+          ...boundary(body),
+          ...nodeKindOf(body),
+        },
+        async (p) => ({ content: await generateTrace(p) }),
+      );
+    }
+
+    case "drill": {
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      return cacheable(
+        "drill",
+        {
+          topic,
+          nodeId,
+          nodeLabel,
+          interests,
+          language,
+          ...boundary(body),
+          ...nodeKindOf(body),
+        },
+        async (p) => ({ content: await generateDrill(p) }),
+      );
+    }
+
+    case "recall": {
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      return cacheable(
+        "recall",
+        {
+          topic,
+          nodeId,
+          nodeLabel,
+          interests,
+          language,
+          ...boundary(body),
+          ...nodeKindOf(body),
+        },
+        async (p) => ({ content: await generateRecall(p) }),
+      );
+    }
+
+    case "perform": {
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      return cacheable(
+        "perform",
+        {
+          topic,
+          nodeId,
+          nodeLabel,
+          interests,
+          language,
+          ...boundary(body),
+          ...nodeKindOf(body),
+        },
+        async (p) => ({ content: await generatePerform(p) }),
       );
     }
 
@@ -756,7 +819,7 @@ function buildJob(body: GenerateBody): Job {
         );
       }
       if (body.mode === "feynman") {
-        const rubric = reciteRubric(body);
+        const rubric = rubricRows(body);
         if (!rubric.length) throw badRequest("rubric is required");
         const p = { topic, nodeLabel, rubric, explanation: answer, language };
         return uncached(
@@ -764,22 +827,43 @@ function buildJob(body: GenerateBody): Job {
           () => judgeFeynmanStream(p),
         );
       }
-      if (RECITE_PHASES.includes(body.mode as RecitePhase)) {
+      // Recall and Perform grade the same verdict rows and nothing else in
+      // common: one reads a retrieval, the other checks a run against the case
+      // it was given. Separate modes, separate prompts, separate labels in the
+      // generation log.
+      if (body.mode === "recall") {
         if (!nodeLabel) throw badRequest("nodeLabel is required");
-        const rubric = reciteRubric(body);
+        const rubric = rubricRows(body);
         if (!rubric.length) throw badRequest("rubric is required");
         const p = {
-          frame: body.mode as RecitePhase,
           topic,
           nodeLabel,
           brief: s(body.brief).slice(0, CAPS.freeText),
           rubric,
-          explanation: answer,
+          cued: body.cued === true,
+          written: answer,
           language,
         };
         return uncached(
-          async () => ({ judgement: await judgeRecite(p) }),
-          () => judgeReciteStream(p),
+          async () => ({ judgement: await judgeRecall(p) }),
+          () => judgeRecallStream(p),
+        );
+      }
+      if (body.mode === "perform") {
+        if (!nodeLabel) throw badRequest("nodeLabel is required");
+        const rubric = rubricRows(body);
+        if (!rubric.length) throw badRequest("rubric is required");
+        const p = {
+          topic,
+          nodeLabel,
+          task: s(body.task).slice(0, CAPS.freeText),
+          rubric,
+          work: answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgePerform(p) }),
+          () => judgePerformStream(p),
         );
       }
       if (body.mode === "crucible") {

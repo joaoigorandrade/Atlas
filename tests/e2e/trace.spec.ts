@@ -21,21 +21,27 @@ test("trace: each answered step stays on screen as the chain builds", async ({
 
   const sheet = page.getByTestId("phase-trace");
   await expect(sheet).toBeVisible();
+  const progress = sheet.getByTestId("phase-progress");
+  await expect(progress).toHaveText(/1 (of|de) 4/);
+
   // Nothing behind the learner yet — the chain starts empty.
-  const chain = sheet.locator("[data-testid='deck-progress']");
-  await expect(chain).toHaveText(/1 (of|de) 4/);
+  await expect(sheet.getByTestId("chain-link-0")).toHaveCount(0);
 
   await sheet.getByTestId("action-mode-choices").click();
   await sheet.getByTestId("action-pick-0").click();
   await sheet.getByTestId("action-next").click();
-  await expect(chain).toHaveText(/2 (of|de) 4/);
+  await expect(progress).toHaveText(/2 (of|de) 4/);
+  // What the answered stage established is now on screen, because it is the
+  // input to the one being asked.
+  await expect(sheet.getByTestId("chain-link-0")).toBeVisible();
 
   for (let i = 1; i < 4; i++) {
+    await sheet.getByTestId("action-mode-choices").click();
     await sheet.getByTestId(`action-pick-${i % 2}`).click();
     await sheet.getByTestId("action-next").click();
   }
 
-  await expect(sheet.getByTestId("deck-score")).toBeVisible();
+  await expect(sheet.getByTestId("phase-score")).toBeVisible();
   await sheet.getByTestId("action-finish").click();
 
   await expect(async () => {

@@ -124,6 +124,24 @@ Three invariants are pinned by tests in `tests/curriculum.test.ts` and are
 silent when broken: every plan is a subsequence of `PHASE_ORDER`, every plan
 starts at Consume and ends at Retain, and every phase has at least one home.
 
+Every phase is **purpose-built**: its own reducer in `lib/curriculum/<phase>.ts`,
+its own generator and validator in `lib/server/generate/<phase>.ts`, its own
+grader, its own palette and its own screen. Not a prompt profile over another
+phase's engine — a phase that is another phase with a new prompt extracts no
+new signal, so it is a setting, not a phase. What the twelve _do_ share is
+plumbing: `generate()`, the warm queue, `phaseLedger`, and `PhaseShell` (the
+58-pixel header and the ladder along the bottom). The line is that layout and
+transport are shared; reducers, content shapes and gates are not.
+
+The gates differ on purpose, and `tests/curriculum.test.ts` pins each one.
+Recall takes partial credit because memory is partial; Perform takes none,
+because a run with a wrong intermediate result is a failed run; Trace wants an
+_unbroken_ prefix rather than a fraction, since a run that broke at the first
+link and guessed the rest followed nothing; Discriminate adds a cap on
+over-inclusion, because calling every case an instance scores by luck rather
+than by the boundary. A gate that quietly became a shared two-thirds threshold
+is the twelve collapsing back into a few with extra files.
+
 Kind is also the **second lever**: `kindNote(kind, phase)`
 (`lib/server/generate/common.ts`) changes how a phase that every plan contains
 is written — a `fact` gets no worked example and no figure, a `procedure`'s
