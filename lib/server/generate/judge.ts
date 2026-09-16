@@ -42,23 +42,59 @@ export const JUDGE_SYSTEM: ChatMessage = {
  * `generateJson` still produces it, and the client patches the streamed
  * placeholder with the real thing. The verdict is never invented locally.
  */
-/**
- * The verdict prefix the three rubric judges (Feynman, Recall, Perform) ask
- * for as object 1.
- *
- * Spelled out to the point of nagging, because the terse version cost a whole
- * second model call on every graded answer: shown `[{"i": 0, ...}, ...one per
- * rubric row]` next to the words "NOT wrapped in an array", the model resolved
- * the tension by streaming one top-level object PER ROW. Those validated as
- * neither the full judgement nor the prefix, so every slot was dropped, the
- * stream ended having produced nothing, and the fallback re-ran the judge
- * single-shot. Two calls, ~12s instead of ~8s, on the three phases that grade
- * against a rubric — and invisible, because the fallback always succeeded.
- */
+/** What the three rubric judges (Feynman, Recall, Perform) ask for as object 1. */
 export const VERDICT_FIRST_SHAPE =
   `{"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one entry per rubric row]}` +
   ` — ONE object holding every row inside its "verdicts" array, in rubric order.` +
   ` Never one object per row.`;
+
+/**
+ * Reads object 1 for the three rubric judges, in either shape the model
+ * actually sends.
+ *
+ * It was asked for `{"verdicts": [...]}` and sent one top-level object *per
+ * row* instead — `{"i":0,…}` `{"i":1,…}` — which is a fair reading of an
+ * example array printed under the words "NOT wrapped in an array". Each row
+ * validated as neither the full judgement nor the verdict prefix, so every
+ * slot was dropped and the stream ended having produced nothing: a whole
+ * streamed generation billed and thrown away on every graded answer, and no
+ * early verdict, on the three phases that grade against a rubric. Rewording
+ * the prompt did not move it — the model streams rows either way — so the
+ * reader accepts rows.
+ *
+ * Stateful, so one per stream: rows accumulate by index and nothing is
+ * returned until every rubric row has a ruling. Partial arrays never leave
+ * here, which is what keeps `validateFeynmanVerdicts`'s coverage rule — no row
+ * silently unjudged — true of the prefix as well as the full object.
+ */
+export function verdictPrefix(count: number) {
+  const rows = new Map<number, FeynmanVerdictRow>();
+  return (raw: unknown): { verdicts: FeynmanVerdictRow[] } => {
+    try {
+      return { verdicts: validateFeynmanVerdicts(raw, count) };
+    } catch (whole) {
+      // Not the array shape. A single row is the other thing it can be;
+      // anything else is an object nobody asked for, and the caller's own
+      // error is the more useful one to report for it.
+      const row = obj(raw, "payload");
+      const i = typeof row.i === "number" ? Math.trunc(row.i) : NaN;
+      if (!Number.isFinite(i) || i < 0 || i >= count) throw whole;
+      const quote = typeof row.quote === "string" ? row.quote.trim().slice(0, 200) : "";
+      // First ruling per index wins, exactly as the array path dedups.
+      if (!rows.has(i))
+        rows.set(i, {
+          i,
+          verdict: oneOf(row.verdict, VERDICTS, "verdict"),
+          ...(quote ? { quote } : null),
+        });
+      // Still a prefix of a prefix: drop the slot and wait for the rest.
+      if (rows.size < count) throw whole;
+      return {
+        verdicts: Array.from({ length: count }, (_, at) => rows.get(at)!),
+      };
+    }
+  };
+}
 
 export async function* judgeStream<T extends object>(
   messages: ChatMessage[],
@@ -420,7 +456,7 @@ export function judgeFeynmanStream(
   const count = params.rubric.length;
   return judgeStream<FeynmanJudgement>(feynmanJudgeMessages(params), {
     firstShape: VERDICT_FIRST_SHAPE,
-    first: (raw) => ({ verdicts: validateFeynmanVerdicts(raw, count) }),
+    first: verdictPrefix(count),
     full: validateFeynmanJudgement(count),
     label: "judge-feynman",
   });

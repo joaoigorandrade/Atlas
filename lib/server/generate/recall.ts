@@ -24,9 +24,9 @@ import {
 import {
   JUDGE_SYSTEM,
   judgeStream,
+  verdictPrefix,
   VERDICT_FIRST_SHAPE,
   validateFeynmanJudgement,
-  validateFeynmanVerdicts,
   type FeynmanJudgement,
 } from "./judge";
 import type { NodeKind, RecallContent } from "@/lib/curriculum";
@@ -169,7 +169,7 @@ export function judgeRecallStream(
   const count = params.rubric.length;
   return judgeStream<FeynmanJudgement>(recallJudgeMessages(params), {
     firstShape: VERDICT_FIRST_SHAPE,
-    first: (raw) => ({ verdicts: validateFeynmanVerdicts(raw, count) }),
+    first: verdictPrefix(count),
     full: validateFeynmanJudgement(count),
     label: "judge-recall",
   });

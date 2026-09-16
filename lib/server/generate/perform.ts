@@ -22,9 +22,9 @@ import {
 import {
   JUDGE_SYSTEM,
   judgeStream,
+  verdictPrefix,
   VERDICT_FIRST_SHAPE,
   validateFeynmanJudgement,
-  validateFeynmanVerdicts,
   type FeynmanJudgement,
 } from "./judge";
 import type { NodeKind, PerformContent } from "@/lib/curriculum";
@@ -171,7 +171,7 @@ export function judgePerformStream(
   const count = params.rubric.length;
   return judgeStream<FeynmanJudgement>(performJudgeMessages(params), {
     firstShape: VERDICT_FIRST_SHAPE,
-    first: (raw) => ({ verdicts: validateFeynmanVerdicts(raw, count) }),
+    first: verdictPrefix(count),
     full: validateFeynmanJudgement(count),
     label: "judge-perform",
   });
