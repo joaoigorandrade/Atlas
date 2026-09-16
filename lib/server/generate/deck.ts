@@ -40,6 +40,13 @@ const BRIEFS: Record<
       "3-4 candidate readings of this case: the correct one, plus the neighbouring concepts a learner actually confuses it with. Name real neighbours from this topic, never 'none of the above' and never an obviously silly option — a distractor nobody would pick tests nothing",
     why: "what in THIS case decides it: the specific feature present or missing that puts it on one side of the boundary. Never 'because it matches the definition'",
   },
+  drill: {
+    ask: "a DRILL pass: the same small call made over and over until it stops being derived and starts being known. The learner is timed, so every item must be answerable in a few seconds by someone who has the concept, and impossible to guess by someone who does not",
+    item: "leave this out — a drill item is its prompt and nothing else. Return no context field",
+    options:
+      "2-3 short answers, a few words each. The wrong ones are the slips a learner makes when they are going fast: the off-by-one, the swapped pair, the neighbouring case — never a leisurely conceptual distractor",
+    why: "the one-line rule that produces the answer directly, phrased so that next time it fires instead of being worked out",
+  },
 };
 
 export function validateDeck(phase: DeckPhase, nodeId: string, nodeLabel: string) {
@@ -115,7 +122,7 @@ Return JSON:
 {
   "items": [
     { "context": "${f.item}",
-      "prompt": "the question asked about it, the same short question each time",
+      "prompt": "the question asked, in the same short form each time",
       "options": ["${f.options}"],
       "answerIndex": 0,
       "why": "${f.why}" },

@@ -14,6 +14,7 @@ export type Screen =
   | "discriminate"
   | "socratic"
   | "feynman"
+  | "drill"
   | "connect"
   | "crucible"
   | "recall"
@@ -26,6 +27,7 @@ export const SHEET_SCREENS = new Set<Screen>([
   "discriminate",
   "socratic",
   "feynman",
+  "drill",
   "connect",
   "crucible",
   "recall",

@@ -535,6 +535,7 @@ export function useGeneration(opts_: {
         case "recall":
           return !!reciteCacheRef.current[`${kind}:${nodeId}`];
         case "discriminate":
+        case "drill":
           return !!deckCacheRef.current[`${kind}:${nodeId}`];
       }
     },
@@ -577,6 +578,7 @@ export function useGeneration(opts_: {
         case "recall":
           return reciteRequest(reciteParams(node, kind));
         case "discriminate":
+        case "drill":
           return deckRequest(deckParams(node, kind));
       }
     },
@@ -626,7 +628,8 @@ export function useGeneration(opts_: {
         setReciteCache((prev) => (prev[key] ? prev : { ...prev, [key]: content }));
         return;
       }
-      case "discriminate": {
+      case "discriminate":
+      case "drill": {
         const content = p.content as DeckContent | undefined;
         if (!content) return;
         const key = `${kind}:${nodeId}`;
@@ -658,6 +661,7 @@ export function useGeneration(opts_: {
         case "recall":
           return warm.warm(key, () => loadRecite(node, kind, true));
         case "discriminate":
+        case "drill":
           return warm.warm(key, () => loadDeck(node, kind, true));
       }
     },

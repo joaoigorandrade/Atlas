@@ -16,6 +16,7 @@ const SLOT: Record<string, string> = {
   connect: "content",
   crucible: "content",
   discriminate: "content",
+  drill: "content",
   recall: "content",
   retain: "content",
 };

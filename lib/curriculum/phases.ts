@@ -44,13 +44,14 @@ export function asNodeKind(raw: unknown): NodeKind {
  * full target order, with the unbuilt ones marked:
  *
  *   consume · discriminate · socratic · predict† · trace† · feynman ·
- *   perform† · drill† · connect · crucible · recall · retain
+ *   perform† · drill · connect · crucible · recall · retain
  */
 export const PHASE_ORDER = [
   "consume",
   "discriminate",
   "socratic",
   "feynman",
+  "drill",
   "connect",
   "crucible",
   "recall",
@@ -77,6 +78,7 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
   discriminate: { label: "Discriminate", signal: "boundary" },
   socratic: { label: "Socratic", signal: "reasoning under questioning" },
   feynman: { label: "Feynman", signal: "unaided production" },
+  drill: { label: "Drill", signal: "speed and automaticity" },
   connect: { label: "Connect", signal: "elaborative encoding" },
   crucible: { label: "Crucible", signal: "transfer" },
   recall: { label: "Recall", signal: "unaided retrieval" },
@@ -94,10 +96,10 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  * Each unbuilt phase slots into the rows that want it in the release that
  * builds it, so this table is never inconsistent with `PHASE_ORDER`:
  *
- *   fact       consume · discriminate · drill† · connect · recall · retain
+ *   fact       consume · discriminate · drill · connect · recall · retain
  *   concept    consume · discriminate · socratic · feynman · connect ·
  *              crucible · recall · retain
- *   procedure  consume · trace† · feynman · perform† · drill† · connect ·
+ *   procedure  consume · trace† · feynman · perform† · drill · connect ·
  *              crucible · retain
  *   principle  consume · socratic · predict† · trace† · feynman · connect ·
  *              crucible · retain
@@ -117,7 +119,7 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
 export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
   // Nothing to reason from: tell it from its neighbours, wire it into the map,
   // retrieve it cold, keep it alive.
-  fact: ["consume", "discriminate", "connect", "recall", "retain"],
+  fact: ["consume", "discriminate", "drill", "connect", "recall", "retain"],
   // A concept IS a classification, so telling instances from near-misses is
   // not a warm-up for the ladder — it is the thing being learned.
   concept: [
@@ -133,7 +135,7 @@ export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
   // A procedure is run, not argued with — no Socratic pass. No Recall either:
   // what it owes is execution, and reciting the steps from memory is the
   // rehearsal a procedure most easily fakes.
-  procedure: ["consume", "feynman", "connect", "crucible", "retain"],
+  procedure: ["consume", "feynman", "drill", "connect", "crucible", "retain"],
   principle: ["consume", "socratic", "feynman", "connect", "crucible", "retain"],
 };
 
@@ -194,6 +196,7 @@ export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
   discriminate: "You haven't told this apart from its neighbours yet — want to?",
   socratic: "You haven't reasoned this out yet — want to?",
   feynman: "You haven't taught this back yet — want to?",
+  drill: "You haven't made these calls at speed yet — want to?",
   connect: "You haven't linked this into your map yet — want to?",
   crucible: "You haven't applied this in a novel context yet — want to?",
   recall: "You haven't retrieved this cold yet — want to?",
@@ -205,6 +208,7 @@ const PHASE_SKIP_NUDGE_PT: Record<PhaseId, string> = {
   discriminate: "Você ainda não distinguiu isso dos vizinhos — quer tentar?",
   socratic: "Você ainda não raciocinou sobre isso — quer tentar?",
   feynman: "Você ainda não ensinou isso de volta — quer tentar?",
+  drill: "Você ainda não fez essas decisões no ritmo — quer tentar?",
   connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",
   crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?",
   recall: "Você ainda não recuperou isso de memória — quer tentar?",

@@ -25,16 +25,18 @@ import { Language } from "@/lib/i18n";
 
 /** The phases this engine runs, built ones only — see `RECITE_PHASES` for why
  *  a member here without a screen behind it would be a type that lies. */
-export const DECK_PHASES = ["discriminate"] as const;
+export const DECK_PHASES = ["discriminate", "drill"] as const;
 export type DeckPhase = (typeof DECK_PHASES)[number];
 
 export function isDeckPhase(phase: PhaseId): phase is DeckPhase {
   return (DECK_PHASES as readonly string[]).includes(phase);
 }
 
-/** Per-phase accent. Discriminate takes a boundary-drawing slate blue. */
+/** Per-phase accent. Discriminate takes a boundary-drawing slate blue; Drill
+ *  a warmer copper, the colour of something being worn smooth. */
 export const DECK_COLOR: Record<DeckPhase, { accent: string; soft: string }> = {
   discriminate: { accent: "#4f6f8f", soft: "rgba(79,111,143,0.08)" },
+  drill: { accent: "#a3672f", soft: "rgba(163,103,47,0.08)" },
 };
 
 /**
@@ -53,6 +55,7 @@ export const DECK_SHAPE: Record<
   }
 > = {
   discriminate: { timed: false, chain: false },
+  drill: { timed: true, chain: false },
 };
 
 /** One item: something to judge, a closed form to judge it into, and the
@@ -193,6 +196,12 @@ const DECK_COPY = {
       passed: "You can tell it from its neighbours. That is what having it means.",
       missed: "The boundary is still soft in places. The reasons above say where.",
     },
+    drill: {
+      kicker: "Drill",
+      lead: "The same call, made without stopping to derive it.",
+      passed: "It comes without working for it. That is what automatic means.",
+      missed: "Still being reasoned out rather than known. Run it again.",
+    },
   },
   "pt-BR": {
     discriminate: {
@@ -201,6 +210,12 @@ const DECK_COPY = {
       passed: "Você distingue isso dos vizinhos. É isso que significa ter o conceito.",
       missed:
         "A fronteira ainda está solta em alguns pontos. Os motivos acima dizem onde.",
+    },
+    drill: {
+      kicker: "Drill",
+      lead: "A mesma decisão, sem parar para deduzir.",
+      passed: "Sai sem esforço. É isso que significa estar automático.",
+      missed: "Ainda está sendo deduzido em vez de sabido. Rode de novo.",
     },
   },
 } as const;

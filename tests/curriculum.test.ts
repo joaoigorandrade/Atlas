@@ -878,6 +878,7 @@ describe("PHASE_PLAN invariants", () => {
     expect([...PHASE_PLAN.fact]).toEqual([
       "consume",
       "discriminate",
+      "drill",
       "connect",
       "recall",
       "retain",
@@ -895,6 +896,7 @@ describe("PHASE_PLAN invariants", () => {
     expect([...PHASE_PLAN.procedure]).toEqual([
       "consume",
       "feynman",
+      "drill",
       "connect",
       "crucible",
       "retain",
@@ -920,6 +922,16 @@ describe("PHASE_PLAN invariants", () => {
     expect(PHASE_PLAN.concept).toContain("discriminate");
     expect(PHASE_PLAN.fact).toContain("discriminate");
     expect(PHASE_PLAN.concept.indexOf("discriminate")).toBe(1);
+  });
+
+  it("gives the two kinds that need it a rung for automaticity", () => {
+    // A fact and a procedure both fail the same way under time pressure: the
+    // answer is derived rather than known. Drill is the only rung that grades
+    // that, which is why it is the one phase those two ladders share and a
+    // `principle` — which is meant to be reasoned through — never runs.
+    expect(PHASE_PLAN.fact).toContain("drill");
+    expect(PHASE_PLAN.procedure).toContain("drill");
+    expect(PHASE_PLAN.principle).not.toContain("drill");
   });
 
   it("asks a procedure to run, not to recite", () => {
@@ -1018,7 +1030,9 @@ describe("crucibleMasters", () => {
   const done = (...p: string[]) => ({ n: p as never });
 
   it("lifts the node when Crucible is the last gate left", () => {
-    expect(crucibleMasters(nodes, "n", done("consume", "feynman", "connect"))).toBe(true);
+    expect(
+      crucibleMasters(nodes, "n", done("consume", "feynman", "drill", "connect")),
+    ).toBe(true);
   });
 
   it("does not lift a node that still owes a rung after the Crucible", () => {
