@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import {
-  PHASE_ORDER,
+  type PhaseId,
   phaseLabel,
   STATE_COLOR,
   VERDICT_COLOR,
@@ -159,6 +159,9 @@ interface FeynmanViewProps {
   beats: FeynmanBeat[];
   /** The node being taught back — titles the view. */
   title: string;
+  /** The node's own ladder — the breadcrumb draws this, not the catalogue,
+   *  since a `fact` and a `principle` no longer run the same rungs. */
+  plan: readonly PhaseId[];
   /** The subject — context for judging open-ended fix-pass answers. */
   topic: string;
   session: FeynmanSession;
@@ -184,6 +187,7 @@ interface FeynmanViewProps {
 
 export default function FeynmanView({
   title,
+  plan,
   topic,
   beats,
   session,
@@ -232,9 +236,7 @@ export default function FeynmanView({
     onTeachAgain();
   }, [onTeachAgain]);
 
-  // ponytail: one plan for every node today, so the catalogue is the
-  // breadcrumb. Take the node's own `phasePlan` as a prop once plans differ.
-  const breadcrumb = PHASE_ORDER.map(phaseLabel).join(" → ");
+  const breadcrumb = plan.map(phaseLabel).join(" → ");
 
   return (
     <Sheet presence={presence} data-testid="phase-feynman" aria-label="Feynman — {title}">

@@ -24,6 +24,7 @@ import {
   PHASE_PLAN,
   removeNode,
   rolloverAdherence,
+  shakyLine,
   socraticOutcome,
   socraticReducer,
   socraticPlan,
@@ -32,6 +33,7 @@ import {
   recordMisconception,
   recurringMisconceptions,
   spawnGap,
+  stateFromPlan,
   stepDifficulty,
   type ConceptGraph,
   type CrucibleContent,
@@ -862,11 +864,67 @@ describe("PHASE_PLAN invariants", () => {
     expect(new Set(signals).size).toBe(signals.length);
   });
 
-  it("still runs today's six rungs for every kind", () => {
-    // R0 is a no-op to a learner. A phase joins a plan in the release that
-    // builds it, never before — so until then every kind runs the old ladder.
+  it("runs a genuinely different ladder per kind", () => {
+    // The headline, spelled out rather than derived — a table this small is
+    // worth asserting literally, since a typo in it is a ladder shipped.
+    expect([...PHASE_PLAN.fact]).toEqual(["consume", "connect", "retain"]);
+    expect([...PHASE_PLAN.concept]).toEqual([...LEGACY_PHASE_PLAN]);
+    expect([...PHASE_PLAN.procedure]).toEqual([
+      "consume",
+      "feynman",
+      "connect",
+      "crucible",
+      "retain",
+    ]);
+    expect([...PHASE_PLAN.principle]).toEqual([...LEGACY_PHASE_PLAN]);
+  });
+
+  it("gives a fact no rung that asks it to reason", () => {
+    // The rationale, as a test: a fact is an arbitrary association. There is
+    // nothing to reason out, teach back, or transfer — so Socratic, Feynman
+    // and the Crucible are not a lighter version of its ladder, they are the
+    // wrong ladder. Drill and Recall take their place when they exist.
+    for (const phase of ["socratic", "feynman", "crucible"] as const)
+      expect(PHASE_PLAN.fact).not.toContain(phase);
+  });
+
+  it("gives a procedure no Socratic pass", () => {
+    // A procedure is executed, not argued with: questioning it produces talk
+    // about the steps rather than the steps. Feynman stays — saying what each
+    // step is for is the part that catches a memorised sequence.
+    expect(PHASE_PLAN.procedure).not.toContain("socratic");
+    expect(PHASE_PLAN.procedure).toContain("feynman");
+  });
+
+  it("leaves no kind without a gate to close", () => {
+    // A plan whose only gate is Consume would go green on a reading. Every
+    // kind owes at least one rung that grades something.
     for (const kind of NODE_KINDS)
-      expect([...PHASE_PLAN[kind]]).toEqual([...LEGACY_PHASE_PLAN]);
+      expect(planGates(PHASE_PLAN[kind]).length).toBeGreaterThan(1);
+  });
+
+  it("gives a Connect-ending plan no reason to sit Shaky", () => {
+    // The trap the Connect handler guards: writing `connect-complete` on a
+    // plan whose last gate IS Connect derives Shaky, `primaryPhase` re-opens
+    // Connect, and finishing it writes the reason again — a loop with no
+    // exit. The fact ladder is the plan that shape applies to.
+    const plan = PHASE_PLAN.fact;
+    expect(planGates(plan).at(-1)).toBe("connect");
+    expect(stateFromPlan(plan, planGates(plan))).toBe("mastered");
+    expect(stateFromPlan(plan, planGates(plan), { shaky: "connect-complete" })).toBe(
+      "shaky",
+    );
+    expect(primaryPhase(plan, planGates(plan), "shaky")).toBe("connect");
+  });
+
+  it("names the plan's own last gate in the copy that sends you back to it", () => {
+    // Every shaky line used to say "the Crucible", which a `fact` never runs.
+    expect(shakyLine("review-miss", "en", PHASE_PLAN.concept)).toContain("Crucible");
+    expect(shakyLine("review-miss", "en", PHASE_PLAN.fact)).toContain("Connect");
+    expect(shakyLine("review-miss", "en", PHASE_PLAN.fact)).not.toContain("Crucible");
+    // No plan — the state legend describes the state, not a node.
+    expect(shakyLine("review-miss", "en")).toContain("Crucible");
+    expect(shakyLine("review-miss", "pt-BR", PHASE_PLAN.fact)).toContain("Connect");
   });
 
   it("gates mastery on everything but Retain", () => {

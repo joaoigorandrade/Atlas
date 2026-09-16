@@ -47,6 +47,7 @@ export async function applyNodeDeltas(
       : null),
     ...(d.feynmanProgress !== undefined ? { feynman_progress: d.feynmanProgress } : null),
     ...(d.connectProgress !== undefined ? { connect_progress: d.connectProgress } : null),
+    ...(d.phaseProgress !== undefined ? { phase_progress: d.phaseProgress } : null),
   }));
   // One upsert per column shape. PostgREST pads a batch out to the *union* of
   // its rows' keys, filling what a row doesn't name with NULL — so sending a

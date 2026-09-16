@@ -7,7 +7,7 @@
 // as mastery. Content ships the design's sample confidence-vs-performance set so
 // the curve → per-node breakdown → "jump to its Crucible" loop is real.
 import { CONNECT_COLOR } from "./connect";
-import type { PhaseId } from "./phases";
+import { planGates, type PhaseId } from "./phases";
 import { GapSpec, StateMap } from "./replan";
 import { ConceptEdge, NodeState, ProgressState, STATE_COLOR, ShakyReason } from "./types";
 import { Language } from "@/lib/i18n";
@@ -197,11 +197,6 @@ export function stateFromPlan(
     return opts.shaky ? "shaky" : "mastered";
   if (opts.shaky) return "shaky";
   return done.length || opts.started ? "learning" : "unknown";
-}
-
-/** The phases of a plan that actually gate mastery — everything but Retain. */
-export function planGates(plan: readonly PhaseId[]): readonly PhaseId[] {
-  return plan.filter((p) => p !== "retain");
 }
 
 /**

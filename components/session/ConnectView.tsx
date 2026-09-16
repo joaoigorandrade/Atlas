@@ -8,6 +8,8 @@ import {
   connectReady,
   mnemonicToolName,
   mnemonicToolsOff,
+  phaseLabel,
+  type PhaseId,
   type ConnectSession,
   type ElaborationContent,
   type ElaborationLink,
@@ -117,6 +119,9 @@ interface ConnectViewProps {
   /** The elaboration content for this node (concept web, links, mnemonics). */
   content: ElaborationContent;
   session: ConnectSession;
+  /** The node's own ladder — the breadcrumb draws this, not the catalogue,
+   *  since a `fact` and a `principle` no longer run the same rungs. */
+  plan: readonly PhaseId[];
   onExit: () => void;
   /** Open a candidate's linking prompt. */
   onSelect: (id: string) => void;
@@ -135,6 +140,7 @@ interface ConnectViewProps {
 }
 
 export default function ConnectView({
+  plan,
   content,
   session,
   onExit,
@@ -204,8 +210,16 @@ export default function ConnectView({
         </div>
         <div style={{ flex: 1 }} />
         <span style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}>
-          Consume → Socratic → Feynman → <b style={{ color: VIOLET }}>Connect</b> →
-          Crucible → Retained
+          {plan.map((p, i) => (
+            <span key={p}>
+              {i ? " → " : ""}
+              {p === "connect" ? (
+                <b style={{ color: VIOLET }}>{phaseLabel(p)}</b>
+              ) : (
+                phaseLabel(p)
+              )}
+            </span>
+          ))}
         </span>
       </div>
 
@@ -384,6 +398,7 @@ export default function ConnectView({
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <button
               className="at-press"
+              data-testid="action-finish"
               onClick={onFinish}
               disabled={!ready}
               style={{
@@ -508,6 +523,7 @@ function ConceptWeb({
           <button
             className="at-press"
             key={c.id}
+            data-testid={`action-candidate-${c.id}`}
             onClick={() => onSelect(c.id)}
             aria-pressed={on}
             style={{
@@ -637,6 +653,7 @@ function LinkingPrompt({
       >
         <textarea
           value={draft}
+          data-testid="field-connection"
           onChange={(e) => onDraft(cand.id, e.target.value)}
           placeholder={t.connectionPlaceholder}
           style={{
@@ -685,6 +702,7 @@ function LinkingPrompt({
       ) : null}
       <button
         className="at-press"
+        data-testid="action-confirm-link"
         onClick={() => onConfirm(cand.id)}
         style={{
           marginTop: 14,

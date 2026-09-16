@@ -6,7 +6,7 @@
 // here anymore.
 
 import type { Language } from "@/lib/i18n";
-import type { NodeKind, PhaseId } from "./phases";
+import { phaseLabel, planGates, type NodeKind, type PhaseId } from "./phases";
 
 export type NodeState =
   "unknown" | "frontier" | "learning" | "shaky" | "mastered" | "gap";
@@ -152,7 +152,7 @@ export const STATE_CONFIDENCE: Record<NodeState, string> = {
   learning:
     "Understanding is forming. Teach it back next to surface the parts you're still hand-waving.",
   shaky:
-    "You feel solid here, but your last application failed. That's fluency, not mastery — re-attempt the Crucible.",
+    "You feel solid here, but your last application failed. That's fluency, not mastery — re-attempt {gate}.",
   unknown: "Locked. Clear the prerequisites below and this lights up on your frontier.",
   gap: "Spawned from a detected failure. A targeted Socratic pass closes just this sub-point.",
 };
@@ -165,15 +165,35 @@ const STATE_CONFIDENCE_PT: Record<NodeState, string> = {
   learning:
     "A compreensão está se formando. Ensine de volta em seguida para revelar as partes que você ainda está enrolando.",
   shaky:
-    "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente o Crisol de novo.",
+    "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente {gate} de novo.",
   unknown:
     "Bloqueado. Resolva os pré-requisitos abaixo e isso se acende na sua fronteira.",
   gap: "Originado de uma falha detectada. Uma passagem Socrática direcionada fecha só esse subponto.",
 };
 
-/** Language-aware state-confidence copy. */
-export function stateConfidence(state: NodeState, lang: Language = "en"): string {
-  return (lang === "pt-BR" ? STATE_CONFIDENCE_PT : STATE_CONFIDENCE)[state];
+/**
+ * The phase a "go prove it" line points at: the node's last gate. That is the
+ * Crucible on every plan that has one, and Connect on a plan that stops there
+ * — the copy used to name the Crucible unconditionally, which promised a
+ * phase a `fact` never runs. `phaseLabel` is English in both languages by
+ * design (AGENTS.md §"Both languages, always").
+ */
+function gate(plan?: readonly PhaseId[]): string {
+  return phaseLabel(planGates(plan ?? []).at(-1) ?? "crucible");
+}
+
+/** Language-aware state-confidence copy. `plan` names the gate the Shaky line
+ *  sends the learner back to; the state legend passes none and gets the
+ *  default, since it is describing the state, not a node. */
+export function stateConfidence(
+  state: NodeState,
+  lang: Language = "en",
+  plan?: readonly PhaseId[],
+): string {
+  return (lang === "pt-BR" ? STATE_CONFIDENCE_PT : STATE_CONFIDENCE)[state].replaceAll(
+    "{gate}",
+    gate(plan),
+  );
 }
 
 /** How a node became Shaky — selects an honest confidence line (#14). */
@@ -181,35 +201,35 @@ export type ShakyReason =
   "connect-complete" | "diagnostic-hesitation" | "crucible-fail" | "review-miss";
 
 export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
-  "connect-complete":
-    "Understood and connected — now prove it transfers in the Crucible.",
+  "connect-complete": "Understood and connected — now prove it transfers in {gate}.",
   "diagnostic-hesitation":
-    "You hesitated on this in the placement diagnostic — it's probably fragile. A Crucible attempt shows whether it holds.",
+    "You hesitated on this in the placement diagnostic — it's probably fragile. A {gate} attempt shows whether it holds.",
   "crucible-fail":
-    "You feel solid here, but your last application failed. That's fluency, not mastery — re-attempt the Crucible.",
+    "You feel solid here, but your last application failed. That's fluency, not mastery — re-attempt {gate}.",
   "review-miss":
-    "A review card on this slipped — retention is softening. Re-attempt the Crucible to firm it back up.",
+    "A review card on this slipped — retention is softening. Re-attempt {gate} to firm it back up.",
 };
 
 const SHAKY_REASON_COPY_PT: Record<ShakyReason, string> = {
   "connect-complete":
-    "Compreendido e conectado — agora prove que isso se transfere no Crisol.",
+    "Compreendido e conectado — agora prove que isso se transfere em {gate}.",
   "diagnostic-hesitation":
-    "Você hesitou nisso no diagnóstico de posicionamento — provavelmente é frágil. Uma tentativa no Crisol mostra se resiste.",
+    "Você hesitou nisso no diagnóstico de posicionamento — provavelmente é frágil. Uma tentativa em {gate} mostra se resiste.",
   "crucible-fail":
-    "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente o Crisol de novo.",
+    "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente {gate} de novo.",
   "review-miss":
-    "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente o Crisol de novo para firmar de novo.",
+    "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente {gate} de novo para firmar de novo.",
 };
 
 /** The Shaky confidence line, honest about how the node got there. */
 export function shakyLine(
   reason: ShakyReason | undefined,
   lang: Language = "en",
+  plan?: readonly PhaseId[],
 ): string {
   return (lang === "pt-BR" ? SHAKY_REASON_COPY_PT : SHAKY_REASON_COPY)[
     reason ?? "crucible-fail"
-  ];
+  ].replaceAll("{gate}", gate(plan));
 }
 
 // The phase catalogue — `PhaseId`, `PHASE_DEFS`, `PHASE_PLAN`, the skip nudge —

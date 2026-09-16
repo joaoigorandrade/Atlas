@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   HELP_COLOR,
-  PHASE_ORDER,
+  type PhaseId,
   phaseLabel,
   STATE_COLOR,
   helpLabels,
@@ -35,6 +35,9 @@ interface SocraticViewProps {
   presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
+  /** The node's own ladder — the breadcrumb draws this, not the catalogue,
+   *  since a `fact` and a `principle` no longer run the same rungs. */
+  plan: readonly PhaseId[];
   session: SocraticSession;
   /** True while the server judge is classifying the typed answer (#25). */
   judging: boolean;
@@ -70,6 +73,7 @@ function toneColor(tone: SocraticTurn["tone"]): string {
 
 export default function SocraticView({
   title,
+  plan,
   session,
   judging,
   gapMode,
@@ -109,9 +113,7 @@ export default function SocraticView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [session.log.length, lastText]);
 
-  // ponytail: one plan for every node today, so the catalogue is the
-  // breadcrumb. Take the node's own `phasePlan` as a prop once plans differ.
-  const breadcrumb = PHASE_ORDER.map(phaseLabel).join(" → ");
+  const breadcrumb = plan.map(phaseLabel).join(" → ");
   // What the pass earned (#C) — only meaningful once it's done.
   const outcome = session.done ? socraticOutcome(session, gapMode) : null;
   const doneColor = outcome === "flagged" ? STATE_COLOR.shaky : GREEN;

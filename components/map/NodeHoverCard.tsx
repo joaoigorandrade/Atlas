@@ -143,8 +143,8 @@ function Body({
   const line =
     node.summary?.trim() ||
     (displayState === "shaky"
-      ? shakyLine(shakyReason, language)
-      : stateConfidence(displayState, language));
+      ? shakyLine(shakyReason, language, plan)
+      : stateConfidence(displayState, language, plan));
 
   // The one thing worth saying about where this node stands: the phase it is
   // owed, or the reason it can't be entered at all.

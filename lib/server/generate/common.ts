@@ -4,7 +4,7 @@
 // gap offsets are computed here, never trusted from the model.
 
 // ---- tiny validation helpers (throw readable errors for the retry loop) ----
-import type { NodeKind } from "@/lib/curriculum";
+import type { NodeKind, PhaseId } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 import type { ChatMessage } from "@/lib/server/openrouter";
 
@@ -221,23 +221,20 @@ export function boundaryNote(params: {
  * single `nodeKind` cannot describe it — wire it when `retain`'s `nodes` list
  * carries a kind per node.
  */
-export function kindNote(
-  kind: NodeKind | undefined,
-  phase: "consume" | "connect" | "crucible",
-): string {
-  const note = kind && kind !== "concept" ? KIND_NOTES[kind][phase] : "";
+export function kindNote(kind: NodeKind | undefined, phase: PhaseId): string {
+  const note = kind && kind !== "concept" ? (KIND_NOTES[kind][phase] ?? "") : "";
   return note ? `\n${note}\n` : "";
 }
 
+/** Per-kind prompt guidance, by phase. Partial by design: a phase no kind
+ *  wants to steer has no row, and every kind falls through to "". */
 const KIND_NOTES: Record<
   Exclude<NodeKind, "concept">,
-  Record<"consume" | "connect" | "crucible", string>
+  Partial<Record<PhaseId, string>>
 > = {
   fact: {
     consume:
       "THIS CONCEPT IS A FACT — an arbitrary association with nothing to reason from. Write 1-2 short sections and a hook that makes it stick. No worked example and NO figure: there is no structure to draw. Explanation is wasted here; the learner's job is to remember it.",
-    connect: "",
-    crucible: "",
   },
   procedure: {
     consume:

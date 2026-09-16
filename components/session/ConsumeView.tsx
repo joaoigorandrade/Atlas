@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SkeletonBars } from "@/components/Pending";
 import { InlineError } from "@/components/ErrorState";
 import {
-  PHASE_ORDER,
+  type PhaseId,
   phaseLabel,
   altControls,
   type AltKey,
@@ -34,6 +34,9 @@ interface ConsumeViewProps {
   presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
+  /** The node's own ladder — the breadcrumb draws this, not the catalogue,
+   *  since a `fact` and a `principle` no longer run the same rungs. */
+  plan: readonly PhaseId[];
   /** The generated reading pass for this node — sections already streamed
    *  in, more may still be on the way while `streaming` is true. */
   chunks: ConsumeChunk[];
@@ -75,6 +78,7 @@ interface ConsumeViewProps {
 
 export default function ConsumeView({
   title,
+  plan,
   chunks,
   streaming = false,
   session,
@@ -171,9 +175,10 @@ export default function ConsumeView({
   // preference doesn't count as reaching for it — it's a default they set once.
   const simpleFlag = simpleCount >= 3 && session.preferred !== "simpler";
 
-  // ponytail: one plan for every node today, so the catalogue is the
-  // breadcrumb. Take the node's own `phasePlan` as a prop once plans differ.
-  const breadcrumb = PHASE_ORDER.map(phaseLabel).join(" → ");
+  const breadcrumb = plan.map(phaseLabel).join(" → ");
+  // The recap's forward CTA names the rung this node actually owes next —
+  // Consume is index 0 of every plan, and what follows it is per-kind.
+  const nextLabel = phaseLabel(plan[1] ?? "retain");
 
   // Honest time-left estimate: word count of what's left, at ~200wpm.
   // ponytail: while still streaming we don't yet know the pass's true length
@@ -291,7 +296,7 @@ export default function ConsumeView({
               margin: "0 0 18px",
             }}
           >
-            {t.recapLead}
+            {t.recapLead(nextLabel)}
           </p>
           <div
             style={{
@@ -407,7 +412,7 @@ export default function ConsumeView({
                 boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
               }}
             >
-              {t.recapBegin}
+              {t.recapBegin(nextLabel)}
             </button>
             <button
               className="at-press"
@@ -1118,7 +1123,7 @@ export default function ConsumeView({
                         }
                       >
                         {isLast
-                          ? t.finishBeginSocratic
+                          ? t.finishBegin(nextLabel)
                           : t.continueSection(sectionName(chunks[i + 1].kicker))}
                       </button>
                     </div>

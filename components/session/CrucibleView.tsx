@@ -8,6 +8,8 @@ import {
   crucibleCurrentRung,
   crucibleProblem,
   confidenceLevels,
+  phaseLabel,
+  type PhaseId,
   type ConfidenceLevel,
   type CrucibleContent,
   type CrucibleSession,
@@ -33,6 +35,9 @@ interface CrucibleViewProps {
   /** The transfer content for this node (problem ladder, interleaved draws, gap). */
   content: CrucibleContent;
   session: CrucibleSession;
+  /** The node's own ladder — the breadcrumb draws this, not the catalogue,
+   *  since a `fact` and a `principle` no longer run the same rungs. */
+  plan: readonly PhaseId[];
   /** True while the server judge grades the actual attempt (#27). */
   judging: boolean;
   onExit: () => void;
@@ -53,6 +58,7 @@ interface CrucibleViewProps {
 }
 
 export default function CrucibleView({
+  plan,
   content,
   session,
   judging,
@@ -121,8 +127,16 @@ export default function CrucibleView({
         </div>
         <div style={{ flex: 1 }} />
         <span style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}>
-          Consume → Socratic → Feynman → Connect → <b style={{ color: RUST }}>Crucible</b>{" "}
-          → Retained
+          {plan.map((p, i) => (
+            <span key={p}>
+              {i ? " → " : ""}
+              {p === "crucible" ? (
+                <b style={{ color: RUST }}>{phaseLabel(p)}</b>
+              ) : (
+                phaseLabel(p)
+              )}
+            </span>
+          ))}
         </span>
       </div>
 

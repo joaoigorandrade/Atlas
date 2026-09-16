@@ -207,8 +207,8 @@ function NodeDetailBody({
   const summary = node.summary?.trim();
   const stateLine =
     displayState === "shaky"
-      ? shakyLine(shakyReason, language)
-      : stateConfidence(displayState, language);
+      ? shakyLine(shakyReason, language, plan)
+      : stateConfidence(displayState, language, plan);
 
   // A tapped ahead-of-recommendation phase awaiting the gentle skip nudge.
   const [pendingSkip, setPendingSkip] = useState<number | null>(null);

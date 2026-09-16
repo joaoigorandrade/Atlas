@@ -32,15 +32,6 @@ const KIND_OF: Record<string, NodeKind> = {
   "putting-it-together": "procedure",
 };
 
-const LEGACY: PhaseId[] = [
-  "consume",
-  "socratic",
-  "feynman",
-  "connect",
-  "crucible",
-  "retain",
-];
-
 test.describe("the phase catalogue, end to end", () => {
   test("every generated node carries a kind and the plan that follows from it", async ({
     page,
@@ -118,7 +109,9 @@ test.describe("the phase catalogue, end to end", () => {
       await page.getByTestId(`node-${id}`).press("Enter");
       await expect(page.getByTestId("panel-node")).toHaveAttribute("data-node", id);
       const rail = page.locator('[data-testid="panel-node"] [data-phase]');
-      await expect(rail, `${id} draws its whole plan`).toHaveCount(LEGACY.length);
+      await expect(rail, `${id} draws its whole plan`).toHaveCount(
+        PHASE_PLAN[KIND_OF[id]].length,
+      );
       expect(
         await rail.evaluateAll((els) => els.map((e) => e.dataset.phase)),
         `${id} draws its plan in catalogue order`,
@@ -169,38 +162,49 @@ test.describe("the phase catalogue, end to end", () => {
   }) => {
     // The inversion, on a non-`concept` node: the old code wrote `learning` as
     // a literal, so a kind whose plan differed could never have derived it.
-    // `notation` is a `fact`, and its one prerequisite is mastered — so it
-    // derives frontier from a stored `unknown`, which is the only way a real
-    // run ever reaches frontier. Forcing the string into the row instead would
-    // seed a state the app never stores.
-    await openRun(page, { foundations: "mastered", notation: { state: "unknown" } });
-    await expect(page.getByTestId("node-notation")).toHaveAttribute(
+    // `core-rule` is a `principle`, and its one prerequisite is mastered — so
+    // it derives frontier from a stored `unknown`, which is the only way a
+    // real run ever reaches frontier. Forcing the string into the row instead
+    // would seed a state the app never stores.
+    await openRun(page, { notation: "mastered", "core-rule": { state: "unknown" } });
+    await expect(page.getByTestId("node-core-rule")).toHaveAttribute(
       "data-state",
       "frontier",
     );
 
-    await openPhase(page, "notation", "socratic");
+    await openPhase(page, "core-rule", "socratic");
     await expect(page.getByTestId("phase-socratic")).toBeVisible();
 
     await expect(async () => {
-      const row = (await readNodeRows(page.request)).find((r) => r.id === "notation")!;
+      const row = (await readNodeRows(page.request)).find((r) => r.id === "core-rule")!;
       expect(row.state).toBe("learning");
     }).toPass({ timeout: 15_000 });
   });
 
   test("the primary CTA names the phase it opens", async ({ page }) => {
-    // The bug: a fixed per-state label ("Continue · Feynman") while the click
-    // walked the node's own plan. A node that has only read the pass owes
-    // Socratic, and the button used to call that Feynman.
+    // The bug: a fixed per-state label while the click walked the node's own
+    // plan. Sharper now that the plans differ — two nodes in the *same* state
+    // with the *same* ledger owe different rungs, so nothing about the state
+    // can name the button. `core-rule` is a principle and owes Socratic;
+    // `worked-cases` is a procedure, which runs no Socratic pass at all and
+    // owes Feynman.
     await openRun(page, {
+      "core-rule": { state: "learning", phases_done: ["consume"] },
       "worked-cases": { state: "learning", phases_done: ["consume"] },
     });
+
     await page.getByTestId("node-worked-cases").press("Enter");
     await expect(page.getByTestId("panel-node")).toHaveAttribute(
       "data-node",
       "worked-cases",
     );
+    await expect(page.getByTestId("action-primary")).toContainText("Feynman");
 
+    await page.getByTestId("node-core-rule").press("Enter");
+    await expect(page.getByTestId("panel-node")).toHaveAttribute(
+      "data-node",
+      "core-rule",
+    );
     const cta = page.getByTestId("action-primary");
     await expect(cta).toContainText("Socratic");
     await cta.click();
@@ -293,6 +297,53 @@ test.describe("the phase catalogue, end to end", () => {
       expect(row.state).toBe("shaky");
       expect(row.phases_done).not.toContain("crucible");
     }).toPass({ timeout: 20_000 });
+  });
+
+  test("a plan that ends at Connect goes green there, not into a loop", async ({
+    page,
+  }) => {
+    // The trap the `fact` ladder would otherwise ship. Closing Connect used to
+    // write `connect-complete` unconditionally, which derives Shaky; the CTA
+    // then re-opens the plan's last gate — which, on a plan whose last gate IS
+    // Connect, is the rung just finished. Closing it again writes the reason
+    // again: a loop with no exit.
+    //
+    // Driven on `foundations` with a forced three-rung plan rather than on the
+    // fixture's `fact`, because `foundations` is the one node with no
+    // prerequisites: nothing else on the map is touched, so the pass takes its
+    // nothing-to-wire exit and closes the rung without a generated candidate
+    // pool to negotiate. The plan shape is what this is about, not the kind.
+    const untouched = { state: "unknown", phases_done: [] };
+    await openRun(page, {
+      foundations: {
+        state: "learning",
+        phases_done: ["consume"],
+        phase_plan: ["consume", "connect", "retain"],
+      },
+      notation: untouched,
+      "core-rule": untouched,
+      "worked-cases": untouched,
+      "edge-cases": untouched,
+      "putting-it-together": untouched,
+    });
+
+    await openPhase(page, "foundations", "connect");
+
+    await expect(page.getByTestId("node-foundations")).toHaveAttribute(
+      "data-state",
+      "mastered",
+    );
+    await expect(async () => {
+      const row = (await readNodeRows(page.request)).find((r) => r.id === "foundations")!;
+      expect(row.state, "Connect is the last gate — closing it is green").toBe(
+        "mastered",
+      );
+      expect(
+        row.shaky_reason,
+        "and there is no later gate to be shaky about",
+      ).toBeFalsy();
+      expect(row.phases_done).toContain("connect");
+    }).toPass({ timeout: 15_000 });
   });
 
   test("pruning a node completes its whole plan, not just its last rung", async ({

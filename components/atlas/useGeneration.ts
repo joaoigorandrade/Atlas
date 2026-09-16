@@ -21,7 +21,11 @@ import {
   type ConsumeChunk,
   type CrucibleContent,
   type ElaborationContent,
+  phasePlan,
+  primaryPhase,
   type FeynmanBeat,
+  type NodeKind,
+  type PhaseId,
   type SocraticStep,
   type NodeState,
 } from "@/lib/curriculum";
@@ -46,28 +50,36 @@ import type { ErrorContext } from "@/lib/errorCopy";
 import type { createWarmQueue } from "@/lib/warm";
 import type { RunState } from "@/components/atlas/useRunState";
 
-/** The generated surfaces the warm queue can fetch ahead of a click. */
-export type WarmKind =
-  "summary" | "consume" | "socratic" | "feynman" | "connect" | "crucible";
+/** The generated surfaces the warm queue can fetch ahead of a click. Every
+ *  phase but Retain, which is the shared review queue rather than a per-node
+ *  generation, plus the rail's own one-line summary. */
+export type WarmKind = "summary" | Exclude<PhaseId, "retain">;
 
 /**
- * What to have ready for a node in a given state, in the order the learner
- * will reach it. Two kinds deep is the useful window: far enough ahead that
- * the next two clicks are instant, near enough that a warm is rarely wasted.
+ * What to have ready for a node, in the order the learner will reach it. Two
+ * kinds deep is the useful window: far enough ahead that the next two clicks
+ * are instant, near enough that a warm is rarely wasted.
+ *
+ * Reads the node's own plan rather than mapping state → a fixed pair off the
+ * legacy ladder. That mapping pre-generated a Socratic pass for every frontier
+ * node — and a `fact` never runs one, so it was paid for and thrown away.
  */
-export function warmKindsFor(state: NodeState | undefined): WarmKind[] {
-  switch (state) {
-    case "frontier":
-      return ["consume", "socratic"];
-    case "learning":
-      return ["feynman", "connect"];
-    case "shaky":
-      return ["crucible"];
-    case "gap":
-      return ["socratic"];
-    default:
-      return [];
-  }
+export function warmKindsFor(
+  node: { kind?: NodeKind; phasePlan?: readonly PhaseId[] },
+  state: NodeState | undefined,
+  done: readonly PhaseId[] = [],
+): WarmKind[] {
+  // A gap runs no plan of its own — one targeted Socratic pass closes it.
+  if (state === "gap") return ["socratic"];
+  // Locked: nothing to warm until its prerequisites clear.
+  if (state === undefined || state === "unknown") return [];
+  const plan = phasePlan(node);
+  const next = primaryPhase(plan, done, state);
+  if (!next) return [];
+  return plan
+    .slice(plan.indexOf(next))
+    .filter((p): p is Exclude<PhaseId, "retain"> => p !== "retain")
+    .slice(0, 2);
 }
 
 export type Generation = ReturnType<typeof useGeneration>;

@@ -86,26 +86,49 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  * never recomputed — editing this table ships a new ladder for maps built after
  * it, and cannot rewrite a run already in progress.
  *
- * All four rows are identical today, and that is the point: the catalogue ships
- * before the phases that make the rows differ, so nothing a learner sees moves.
- * Each release adds its phase to the rows whose kind wants it.
+ * The rows below are the target ladders *restricted to the phases that exist*.
+ * Each unbuilt phase slots into the rows that want it in the release that
+ * builds it, so this table is never inconsistent with `PHASE_ORDER`:
+ *
+ *   fact       consume · discriminate† · drill† · connect · recall† · retain
+ *   concept    consume · discriminate† · socratic · feynman · connect ·
+ *              crucible · recall† · retain
+ *   procedure  consume · trace† · feynman · perform† · drill† · connect ·
+ *              crucible · retain
+ *   principle  consume · socratic · predict† · trace† · feynman · connect ·
+ *              crucible · retain
+ *
+ * Why they differ: a fact has nothing to reason from — tell it from its
+ * neighbours, drill it, wire it, retrieve it cold. A concept is a
+ * classification, so discriminating instances is the whole job. A procedure is
+ * executed — watch it run, run it, run it fast, choose it under pressure. A
+ * principle is a mechanism — forecast it, walk its causal chain, explain it.
  *
  * Three invariants, each pinned by a test in `tests/curriculum.test.ts`:
  *   1. every plan is a subsequence of PHASE_ORDER
  *   2. `consume` and `retain` are in every plan (the warm chain needs a known
- *      first and last; `readingPhaseIndex` needs Consume at index 0)
+ *      first and last; the part-read case needs Consume at index 0)
  *   3. every phase has at least one home — one that doesn't is dead code
  */
 export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
-  fact: PHASE_ORDER,
-  concept: PHASE_ORDER,
-  procedure: PHASE_ORDER,
-  principle: PHASE_ORDER,
+  // Nothing to reason about: read it, wire it into the map, keep it alive.
+  fact: ["consume", "connect", "retain"],
+  concept: ["consume", "socratic", "feynman", "connect", "crucible", "retain"],
+  // A procedure is run, not argued with — no Socratic pass.
+  procedure: ["consume", "feynman", "connect", "crucible", "retain"],
+  principle: ["consume", "socratic", "feynman", "connect", "crucible", "retain"],
 };
 
-/** Today's ladder, and the `phase_plan` every pre-catalogue row was defaulted
- *  to by the migration. Kept as its own name so the backfill check and the
- *  "R0 is a no-op" test assert against something explicit. */
+/** The phases of a plan that actually gate mastery — everything but Retain,
+ *  which is closed by weeks of review history rather than by a session. */
+export function planGates(plan: readonly PhaseId[]): readonly PhaseId[] {
+  return plan.filter((p) => p !== "retain");
+}
+
+/** The pre-catalogue ladder, and the `phase_plan` every row built before it was
+ *  defaulted to by the migration. Kept as its own name so the backfill check
+ *  has something explicit to assert against — it is also, unchanged, what
+ *  `concept` and `principle` still run. */
 export const LEGACY_PHASE_PLAN: readonly PhaseId[] = [
   "consume",
   "socratic",
@@ -122,6 +145,17 @@ export const LEGACY_PHASE_PLAN: readonly PhaseId[] = [
  * the same reason `shakyReasons` and `reviewedNodes` are parallel maps.
  */
 export type PhasesDoneMap = Record<string, readonly PhaseId[]>;
+
+/**
+ * A node's parked sessions for the phases built *after* the catalogue, keyed
+ * by phase id (`nodes.phase_progress`). The four pre-catalogue phases keep
+ * their own `*_progress` columns; everything new lands here, so a phase is a
+ * key rather than an eight-file hand edit plus a migration.
+ *
+ * `unknown` because each phase's session shape is its own — the phase's
+ * reducer is the only thing that knows how to read its slot back.
+ */
+export type PhaseProgress = Partial<Record<PhaseId, unknown>>;
 
 /** The plan a node runs: its stored one, else its kind's. A node with neither
  *  is one the client invented this tick (a spawned gap), and gap nodes render

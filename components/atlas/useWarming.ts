@@ -49,7 +49,7 @@ export function useWarming(deps: {
   warmRetain: () => void;
 }) {
   const { run, gen, display, allFrontier, selectedId, isMap, warmRetain } = deps;
-  const { graph, states, cards, hydrated } = run;
+  const { graph, states, cards, hydrated, phasesDone } = run;
   const { isCached, requestFor, applyWarmHit, warmOne } = gen;
 
   // ---- the warm pass ----------------------------------------------------
@@ -86,11 +86,11 @@ export function useWarming(deps: {
       // whose map already wrote one — and gap sub-nodes, which are their own
       // explanation — ask for nothing.
       const kinds: WarmKind[] = node.summary || node.gap ? [] : ["summary"];
-      kinds.push(...warmKindsFor(display[id]));
+      kinds.push(...warmKindsFor(node, display[id], phasesDone[id]));
       if (kinds.length) targets.push({ node, kinds });
     }
     return targets;
-  }, [hydrated, graph, display, selectedId, allFrontier]);
+  }, [hydrated, graph, display, phasesDone, selectedId, allFrontier]);
 
   // A signature over the plan, so the pass runs when the plan really changes
   // rather than on every render that touches the graph.

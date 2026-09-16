@@ -7,6 +7,7 @@ import {
   localDay,
   markTodayMet,
   crucibleMasters,
+  phasePlan,
   orderedFrontier,
   reviewCard,
   rolloverAdherence,
@@ -423,6 +424,11 @@ export default function AtlasApp({
    * extra — `warm.warm` dedupes by key, so the click joins this request
    * instead of making a second one — and buys back that settle.
    */
+  /** A session sheet's breadcrumb draws the node's own ladder, not the
+   *  catalogue — a `fact` and a `principle` no longer run the same rungs. */
+  const planOf = (nodeId: string) =>
+    phasePlan(graph.nodes.find((n) => n.id === nodeId) ?? {});
+
   const hoverNode = (id: string | null) => {
     setHoverId(id);
     if (!id) return;
@@ -432,7 +438,7 @@ export default function AtlasApp({
     // still missing its sentence starts writing one on the hover rather than
     // on the click that may not come for another half second.
     if (!node.summary) warmOne("summary", node);
-    const kind = warmKindsFor(displayRef.current[id])[0];
+    const kind = warmKindsFor(node, displayRef.current[id], phasesDone[id])[0];
     if (kind) warmOne(kind, node);
   };
 
@@ -929,6 +935,7 @@ export default function AtlasApp({
           <ConsumeView
             presence={sheet.state}
             title={graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"}
+            plan={planOf(consume.nodeId)}
             chunks={consumeChunks}
             streaming={consumeStreaming}
             session={consume}
@@ -963,6 +970,7 @@ export default function AtlasApp({
           <SocraticView
             presence={sheet.state}
             title={graph.nodes.find((n) => n.id === socratic.nodeId)?.label ?? "Concept"}
+            plan={planOf(socratic.nodeId)}
             session={socratic}
             judging={judging}
             gapMode={graph.nodes.find((n) => n.id === socratic.nodeId)?.gap ?? false}
@@ -984,6 +992,7 @@ export default function AtlasApp({
             presence={sheet.state}
             topic={form.topic}
             title={graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"}
+            plan={planOf(feynman.nodeId)}
             beats={feynmanBeats}
             session={feynman}
             judging={judging}
@@ -1008,6 +1017,7 @@ export default function AtlasApp({
             presence={sheet.state}
             content={connectContent}
             session={connect}
+            plan={planOf(connect.nodeId)}
             onExit={exitConnect}
             onSelect={(id) => dispatchConnect({ type: "select", id })}
             onDraft={(id, value) => dispatchConnect({ type: "draft", id, value })}
@@ -1027,6 +1037,7 @@ export default function AtlasApp({
             presence={sheet.state}
             content={crucibleContent}
             session={crucible}
+            plan={planOf(crucible.nodeId)}
             judging={judging}
             onExit={exitCrucible}
             onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}

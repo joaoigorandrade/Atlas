@@ -18,6 +18,7 @@ import {
   phaseIndex,
   phaseLabel,
   phasePlan,
+  planGates,
   primaryPhase,
   SOCRATIC_STEPS,
   connectCards,
@@ -1248,6 +1249,22 @@ export function useSpiral(deps: {
   // that hand-off out of a forward reference.
   const enterCrucibleRef = useRef<(node: ConceptNode) => void>(() => {});
 
+  /**
+   * Closing the Connect rung, from either exit — the finished pass and the
+   * nothing-to-wire skip. "Now prove it transfers" only means something while
+   * the plan still has a gate that can prove it: on a plan that *ends* at
+   * Connect the reason is a trap, since `primaryPhase` re-opens the last gate
+   * and closing it writes the reason again. Such a plan is finished here.
+   */
+  const completeConnect = useCallback(
+    (node: ConceptNode) => {
+      const owes = planGates(phasePlan(node)).at(-1) !== "connect";
+      completePhase(node, "connect", owes ? "connect-complete" : undefined);
+      if (owes) setShakyReason(node.id, "connect-complete");
+    },
+    [completePhase, setShakyReason],
+  );
+
   /** Open the Connect surface on a node, generating its elaboration content
    *  first if needed. Candidates are drawn from nodes the learner has actually
    *  touched — the links are personal and true, never generic trivia. */
@@ -1258,9 +1275,8 @@ export function useSpiral(deps: {
       // the node — which left a map's first node stuck on Learning forever.
       if (connectParams(node).pool.length === 0) {
         showToast(tc().nothingToWire(node.label));
-        completePhase(node, "connect", "connect-complete");
-        setShakyReason(node.id, "connect-complete");
-        enterCrucibleRef.current(node);
+        completeConnect(node);
+        if (phasePlan(node).includes("crucible")) enterCrucibleRef.current(node);
         return;
       }
       const open = () => {
@@ -1294,8 +1310,7 @@ export function useSpiral(deps: {
       warmNext,
       tc,
       connectParams,
-      completePhase,
-      setShakyReason,
+      completeConnect,
       generate,
       loadConnect,
       showToast,
@@ -1402,7 +1417,7 @@ export function useSpiral(deps: {
         return [...byId.values()];
       });
     }
-    if (node) completePhase(node, "connect", "connect-complete");
+    if (node) completeConnect(node);
     // Finished — the parked copy has nothing left to come back to.
     setConnectProgress((prev) => {
       if (!prev[connect.nodeId]) return prev;
@@ -1411,7 +1426,6 @@ export function useSpiral(deps: {
     });
     setConnect(null);
     if (!node) return setScreen("map");
-    setShakyReason(node.id, "connect-complete");
     setSelectedId(node.id);
     showToast(tc().cardsDrafted(drafted.length));
     // "Continue to the Crucible →" used to land on the map, leaving the node
@@ -1934,8 +1948,23 @@ export function useSpiral(deps: {
     go(node);
   };
 
-  const beginSocraticFromConsume = () => leaveConsume(enterSocratic);
-  const consumeSkipCrucible = () => leaveConsume(enterCrucible);
+  /** Forward out of the reading, but only into a phase this node actually
+   *  runs — the recap's two CTAs jumped to Socratic and the Crucible whatever
+   *  the plan said. Anything else lands on the rung the node owes. */
+  const leaveConsumeTo = (phase: PhaseId, go: (node: ConceptNode) => void) =>
+    leaveConsume((node) => {
+      if (phasePlan(node).includes(phase)) return go(node);
+      const next = primaryPhase(
+        phasePlan(node),
+        phasesDoneRef.current[node.id],
+        displayRef.current[node.id],
+      );
+      if (next) enterPhase[next](node);
+      else setScreen("map");
+    });
+
+  const beginSocraticFromConsume = () => leaveConsumeTo("socratic", enterSocratic);
+  const consumeSkipCrucible = () => leaveConsumeTo("crucible", enterCrucible);
 
   /** "Review prerequisite" — routes to the weakest direct prereq (shaky over
    *  merely learning) via the same session each state opens from the map. */
@@ -1950,8 +1979,15 @@ export function useSpiral(deps: {
       setScreen("map");
       return;
     }
-    if (statesRef.current[weakest.id] === "shaky") enterCrucible(weakest);
-    else enterFeynman(weakest);
+    // The weakest prereq's *own* plan decides where reviewing it lands — a
+    // shaky `fact` has no Crucible and a `procedure` no Socratic pass.
+    const next = primaryPhase(
+      phasePlan(weakest),
+      phasesDoneRef.current[weakest.id],
+      displayRef.current[weakest.id],
+    );
+    if (next) enterPhase[next](weakest);
+    else setScreen("map");
   };
 
   const onNodeDoubleClick = (id: string) => {

@@ -28,6 +28,7 @@ import type {
   ProgressState,
   NodeKind,
   PhaseId,
+  PhaseProgress,
   ShakyReason,
   SocraticSession,
 } from "@/lib/curriculum";
@@ -85,6 +86,7 @@ type NodeRow = {
   socratic_progress: SocraticSession | null;
   feynman_progress: FeynmanSession | null;
   connect_progress: ConnectSession | null;
+  phase_progress: PhaseProgress | null;
 };
 
 type EdgeRow = { topic_id: string; from_id: string; to_id: string; dashed: boolean };
@@ -102,7 +104,7 @@ export type CardRow = {
 const TOPIC_COLUMNS =
   "id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at";
 const NODE_COLUMNS =
-  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress";
+  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress";
 export const CARD_COLUMNS = "topic_id, id, node_id, type, source, content, fsrs";
 
 /** A card row as the screens hold it. The content fields travel as one object
@@ -148,6 +150,7 @@ function assemble(
     socraticProgress: {},
     feynmanProgress: {},
     connectProgress: {},
+    phaseProgress: {},
     cards: [],
   };
   for (const n of nodes) {
@@ -182,6 +185,9 @@ function assemble(
     if (n.socratic_progress) out.socraticProgress[n.id] = n.socratic_progress;
     if (n.feynman_progress) out.feynmanProgress[n.id] = n.feynman_progress;
     if (n.connect_progress) out.connectProgress[n.id] = n.connect_progress;
+    // One key per parked post-catalogue phase; `{}` from the column default.
+    if (n.phase_progress && Object.keys(n.phase_progress).length)
+      out.phaseProgress[n.id] = n.phase_progress;
   }
   for (const e of edges)
     out.graph.edges.push([e.from_id, e.to_id, e.dashed] as ConceptEdge);

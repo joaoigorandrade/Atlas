@@ -36,6 +36,7 @@ import type {
   ProgressState,
   RetainContent,
   ReviewGrade,
+  PhaseProgress,
   PhasesDoneMap,
   NodeKind,
   PhaseId,
@@ -81,6 +82,11 @@ export interface Topic {
   socraticProgress: Record<string, SocraticSession>;
   feynmanProgress: Record<string, FeynmanSession>;
   connectProgress: Record<string, ConnectSession>;
+  /** Every *other* phase's resumable session, node id → phase id → session.
+   *  The four maps above are the pre-catalogue columns and keep their own
+   *  shape; a phase built after the catalogue lands here instead, so adding
+   *  one is a key rather than a migration. */
+  phaseProgress: Record<string, PhaseProgress>;
   cards: StoredCard[];
 }
 
@@ -109,6 +115,9 @@ export interface NodeDelta {
   socraticProgress?: SocraticSession | null;
   feynmanProgress?: FeynmanSession | null;
   connectProgress?: ConnectSession | null;
+  /** Every post-catalogue phase's parked session for this node, whole — the
+   *  jsonb map is replaced, not merged, so one delta says what is parked. */
+  phaseProgress?: PhaseProgress;
   /** Prerequisites to attach — only meaningful for a node being created. */
   prereqs?: string[];
 }
