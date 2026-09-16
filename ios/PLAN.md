@@ -70,6 +70,8 @@ which is what the design's copy already says.
 ## Screens
 
 Twenty artboards, in the order they should be built. Each row is one screen file.
+The six phases the catalogue added below have no artboard yet: they are styled
+from `Theme.swift`'s tokens and their web siblings, and each owes one.
 
 | #   | Screen                                                     | Mobile shape the design fixes                                                                         |
 | --- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -90,6 +92,12 @@ Twenty artboards, in the order they should be built. Each row is one screen file
 | 18  | Crisol                                                     | problem block, work area, submit + hint dock                                                          |
 | 19  | Revisão                                                    | card deck with stacked backs, self-rating before flip, four-grade dock                                |
 | 20  | Calibração                                                 | calibration curve, then the reading _below_ it (the 268pt rail becomes a header icon)                 |
+| 21  | Discriminate                                               | case card, one shared question, readings as choices, the deciding feature after the commit           |
+| 22  | Predict                                                    | situation, the confidence scale _first_, outcomes only after it, then the causal chain               |
+| 23  | Trace                                                      | the running case pinned, the chain already walked, one stage's choices, what it hands on             |
+| 24  | Drill                                                      | a live clock in the bar, bare prompt, short answers, the rule that fires                             |
+| 25  | Recall                                                     | blank page and one brief, the cue behind a ghost button, the rubric only in the report               |
+| 26  | Perform                                                    | the case pinned over a full-height work area, the nudge behind a ghost button, a per-step run report |
 
 Tabs are **Início · Mapa · Revisão · Perfil**. Session is not a tab — it is not a
 destination without a selected node, so every phase is pushed from the map.
@@ -138,6 +146,28 @@ destination without a selected node, so every phase is pushed from the map.
    Início is the day's two decisions (what is due, what the frontier is),
    Perfil the run's four numbers, and Configurações owns goal, daily target,
    content language, the two voice switches, the exports and account deletion.
+
+7. **The phase catalogue** (21–26) (done): the inversion, then the six phases
+   that make the four ladders differ. A node carries its `kind` and its
+   `phase_plan`, and mastery state is *derived* from `phases_done`
+   (`stateFromPlan`) rather than written — `Phase` is a catalogue of twelve, not
+   a ladder of six, and every rail, hand-off, warm and nudge reads the node's
+   own plan. `readingPhaseIndex` is gone: it existed to correct a state-derived
+   index, and a plan-derived one has nothing to correct.
+
+   Each new phase is purpose-built, so each grades what only it can: Discriminate
+   fails an over-inclusive run however high the score, Trace wants an unbroken
+   *prefix* rather than a fraction, Perform takes no partial credit, Recall does,
+   Drill measures pace and reports it without gating on it, and Predict takes a
+   confidence before the forecast and files it on the calibration curve.
+
+   Deliberately short of the web: the four commit-then-reveal phases are
+   closed-choice here, where the browser asks for an open answer first and maps
+   it onto an option with the `choice` judge. The gate and the signal are the
+   same either way; what the phone does not yet measure is production. The
+   upgrade is one `api.judge("choice", …)` per screen. `phase_progress` is also
+   unwired on both clients — none of the six parks a session, so the column has
+   no writer to build a home for yet.
 
    Deliberately short of the web: SM-2 rather than FSRS (`Retain.swift` says
    what that costs), a streak that any work ticks and a missed day resets, one

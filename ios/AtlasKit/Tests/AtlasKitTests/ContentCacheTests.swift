@@ -126,3 +126,26 @@ private func store() -> AtlasStore {
     store.seedWarm([item("consume", payload: .array([sectionJSON]))])
     #expect(store.warm.isIncomplete(store.address("consume", node)))
 }
+
+/// The shared `content_cache` key is a hash of the prompt inputs, and the node's
+/// kind is one of them — every generator asks for guidance by kind. The browser
+/// has sent it since the catalogue landed; this client did not, so a `procedure`
+/// node hashed to one row from a phone and another from a browser: the same pass
+/// generated and billed twice, written to two different standards.
+@MainActor
+@Test func theContextCarriesTheNodesKindSoBothClientsHashTheSameRow() {
+    let store = AtlasStore(
+        api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!),
+        auth: AtlasAuth(),
+        graph: ConceptGraph(nodes: [
+            ConceptNode(id: "p", label: "Titulação", kind: .procedure),
+            ConceptNode(id: "old", label: "Antiga"),
+        ]),
+        states: [:],
+        subject: "Química"
+    )
+    #expect(store.context(for: store.graph.nodes[0])["nodeKind"] == .string("procedure"))
+    // A node written before kinds existed sends none — which is exactly what the
+    // server omits from the key for a `concept`, so its row is still a hit.
+    #expect(store.context(for: store.graph.nodes[1])["nodeKind"] == nil)
+}

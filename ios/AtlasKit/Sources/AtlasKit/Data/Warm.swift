@@ -250,7 +250,15 @@ public extension AtlasStore {
         // shared `caches` column, so a narrow boundary here is what the browser
         // then serves for that node too.
         let boundary = graph.boundary(of: node.id)
-        return [
+        // The node's kind is part of the *prompt* — every generator asks for
+        // guidance by kind (`kindNote`) — and therefore part of the server's
+        // `content_cache` key. The browser has sent it since the catalogue
+        // landed and this client did not, so a `procedure` node hashed to one
+        // row from a phone and another from a browser: the same pass generated
+        // and billed twice, written to two different standards. The server omits
+        // a `concept` from the key itself (`nodeKindOf`), so a row written
+        // before kinds existed is still a hit.
+        var context: [String: JSONValue] = [
             "topic": .string(subject),
             "nodeId": .string(node.id),
             "nodeLabel": .string(node.label),
@@ -260,6 +268,8 @@ public extension AtlasStore {
             "priorLabels": .array(boundary.prior.map { .string($0) }),
             "laterLabels": .array(boundary.later.map { .string($0) }),
         ]
+        if let kind = node.kind { context["nodeKind"] = .string(kind.rawValue) }
+        return context
     }
 
     /// Connect's pool — the nodes the learner already owns, which a web may be
@@ -334,6 +344,16 @@ public extension AtlasStore {
         warm.content(address("crucible", node, variant: crucibleVariant(node)))
     }
 
+    // The six the catalogue's growth to twelve added. One reader and one filler
+    // each, named for what the phase actually holds — a run of cases is not a
+    // run of reps, and neither is a rubric.
+    func cases(_ node: ConceptNode) -> DiscriminateContent? { warm.content(address("discriminate", node)) }
+    func setups(_ node: ConceptNode) -> PredictContent? { warm.content(address("predict", node)) }
+    func chain(_ node: ConceptNode) -> TraceContent? { warm.content(address("trace", node)) }
+    func reps(_ node: ConceptNode) -> DrillContent? { warm.content(address("drill", node)) }
+    func blankPage(_ node: ConceptNode) -> RecallContent? { warm.content(address("recall", node)) }
+    func runCase(_ node: ConceptNode) -> PerformContent? { warm.content(address("perform", node)) }
+
     /// Which time through this concept's transfer test this is, as the row's
     /// own address. The first pass is the node's plain Crucible; a redo is
     /// content in its own right — the learner should be able to reach the
@@ -405,6 +425,42 @@ public extension AtlasStore {
                                once: { try await api.crucible(sent) })
     }
 
+    @discardableResult
+    func discriminate(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("discriminate", node), once: { try await api.discriminate(sent) })
+    }
+
+    @discardableResult
+    func predict(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("predict", node), once: { try await api.predict(sent) })
+    }
+
+    @discardableResult
+    func trace(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("trace", node), once: { try await api.trace(sent) })
+    }
+
+    @discardableResult
+    func drill(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("drill", node), once: { try await api.drill(sent) })
+    }
+
+    @discardableResult
+    func recall(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("recall", node), once: { try await api.recall(sent) })
+    }
+
+    @discardableResult
+    func perform(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("perform", node), once: { try await api.perform(sent) })
+    }
+
     /// The beats of one lens over one section. Keyed like everything else, with
     /// the section and the lens as the inputs — the same walkthrough reopens
     /// instead of being written a second time.
@@ -443,6 +499,12 @@ public extension AtlasStore {
             case "feynman": await feynman(node)
             case "connect": await connect(node)
             case "crucible": await crucible(node)
+            case "discriminate": await discriminate(node)
+            case "predict": await predict(node)
+            case "trace": await trace(node)
+            case "drill": await drill(node)
+            case "recall": await recall(node)
+            case "perform": await perform(node)
             default: break
             }
         }
@@ -560,6 +622,12 @@ public extension AtlasStore {
                      shortOf: FeynmanBeatBounds.min)
             case "connect": seed(key, item.payload, as: ElaborationContent.self)
             case "crucible": seed(key, item.payload, as: CrucibleContent.self)
+            case "discriminate": seed(key, item.payload, as: DiscriminateContent.self)
+            case "predict": seed(key, item.payload, as: PredictContent.self)
+            case "trace": seed(key, item.payload, as: TraceContent.self)
+            case "drill": seed(key, item.payload, as: DrillContent.self)
+            case "recall": seed(key, item.payload, as: RecallContent.self)
+            case "perform": seed(key, item.payload, as: PerformContent.self)
             // A walkthrough's address within its node is `<chunkId>:<lens>`;
             // without one there is no way to tell two lenses apart.
             case "model":

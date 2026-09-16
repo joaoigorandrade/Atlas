@@ -67,6 +67,9 @@ public final class OnboardingViewModel {
     /// Why the placement flipped each node Shaky. Committed with the states so
     /// the drawer can say what the miss was, exactly as the web does.
     private var shakyReasons: [String: ShakyReason] = [:]
+    /// The phase ledger the placement writes alongside the states above — what
+    /// mastery is derived from, and what the run is committed with.
+    private var phasesDone: PhasesDoneMap = [:]
     /// The run has been handed to the store. `finish()` is reachable from more
     /// than one dock button, and the second call must not upsert a second time
     /// over a run the learner has already started working in.
@@ -283,6 +286,16 @@ public final class OnboardingViewModel {
             maxCorrect = question.difficulty
         }
         states = applyDiagnosticEffect(states, effect, nodeId: question.nodeId, edges: graph.edges)
+        // And the record the state is derived from. Writing one without the
+        // other is what leaves a node reading Dominado over a rail with nothing
+        // ticked — the placement is the only surface that grants mastery the
+        // learner did not walk to, so it is the only one that has to say what it
+        // is claiming they finished.
+        let byId = graph.byId
+        phasesDone = applyDiagnosticLedger(
+            phasesDone, effect, nodeId: question.nodeId, edges: graph.edges,
+            plan: { byId[$0]?.plan ?? legacyPhasePlan }
+        )
         if effect == .shaky {
             shakyReasons[question.nodeId] = .diagnosticHesitation
             if let gap = question.gap { pendingGaps.append((question.nodeId, gap)) }
@@ -351,6 +364,7 @@ public final class OnboardingViewModel {
         }
         store.graph = map
         store.states = states
+        store.phasesDone = phasesDone
         store.shakyReasons = shakyReasons
         // Normalised, because `subject` is half the row's primary key and the web
         // app writes `form.topic.trim()`: a topic typed with a stray space here

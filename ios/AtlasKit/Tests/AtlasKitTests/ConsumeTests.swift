@@ -168,13 +168,18 @@ private func check(correct: [Bool]) -> JSONValue {
 }
 
 @MainActor
-@Test func aRedoCanNeverLandOnTheReviewPhase() {
+@Test func aRedoCanNeverLandOnAPhaseTheNodeDoesNotRun() {
     let store = store()
-    // `.retained` belongs to the Review tab. This shell hides the tab bar, the
-    // nav bar and the back button, so a route that asked for it here would push
-    // a screen with no way out.
-    let pass = SessionViewModel(node: store.graph.nodes[0], store: store, phase: .retained)
-    #expect(pass.phase == .crucible)
+    let node = store.graph.nodes[0]
+    // Retido belongs to the Review tab. This shell hides the tab bar, the nav
+    // bar and the back button, so a route that asked for it here would push a
+    // screen with no way out.
+    #expect(SessionViewModel(node: node, store: store, phase: .retain).phase == .consume)
+    // And a phase this node's plan does not contain at all is not a redo of
+    // anything — it opens on what the node is actually owed.
+    #expect(SessionViewModel(node: node, store: store, phase: .perform).phase == .consume)
+    // A rung the node does run is a real redo.
+    #expect(SessionViewModel(node: node, store: store, phase: .crucible).phase == .crucible)
 }
 
 @MainActor

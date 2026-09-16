@@ -38,7 +38,7 @@ struct ConnectView: View {
                 Waiting("Ainda não há nada no seu mapa para conectar a este conceito. Volte quando outros estiverem acesos.",
                         spinning: false)
                 Dock {
-                    CTAButton("Seguir para o Crisol →", tint: Palette.crucibleInk) { model.skip() }
+                    CTAButton(model.handOffLabel, tint: model.handOffTint) { model.skip() }
                 }
             } else if let content = model.content {
                 ScrollView {
@@ -81,7 +81,7 @@ struct ConnectView: View {
                                 .font(.atlas(.sans, 12.5))
                                 .foregroundStyle(Palette.inkMuted)
                         }
-                        CTAButton("Seguir para o Crisol →", tint: Palette.crucibleInk) { model.advance() }
+                        CTAButton(model.handOffLabel, tint: model.handOffTint) { model.advance() }
                             .disabled(!model.ready)
                     }
                 }

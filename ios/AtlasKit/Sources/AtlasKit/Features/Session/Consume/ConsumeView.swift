@@ -366,7 +366,7 @@ struct ConsumeView: View {
                 CTAButton("Escrevendo a próxima seção…", tint: Palette.inkGhost) {}
                     .disabled(true)
             } else {
-                CTAButton("Seguir para o Socrático →") { model.finish() }
+                CTAButton(model.handOffLabel, tint: model.handOffTint) { model.finish() }
                     .disabled(!model.passed)
             }
         }

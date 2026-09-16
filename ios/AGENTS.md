@@ -97,8 +97,11 @@ and a kind that matters more than a laptop build should stay there.
   drifted.
 - Mastery colours come from `NodeState.color` — never invent a state or a colour
   for one.
-- Phase colours (Consume green, Socratic/Feynman blue, Connect purple, Crisol
-  red) are carried by the CTA's `tint` and the header kicker, nothing else.
+- Phase colours are carried by the CTA's `tint` and the header kicker, nothing
+  else. Each one lives on `Phase.tint` and is lifted from its own web phase
+  module (`DISCRIMINATE_COLOR` in lib/curriculum/discriminate.ts, and so on),
+  which is where a phase accent lives there — so there is nothing in
+  `lib/theme.ts` to mirror, and `Palette` carries the pair.
 - **The mobile design's own decisions, which are not negotiable per screen:**
   side rails become bottom sheets; every two-column desktop grid stacks; a screen
   has at most one `Dock`; the tab bar is Início · Mapa · Revisão · Perfil and
@@ -113,15 +116,19 @@ Sources/AtlasKit/
   App/        the shell — RootView, AtlasTab (the four tabs), AtlasRoute
               (everything that is pushed or presented), LaunchViewModel
   Core/       Theme, Components, Speech, Support (ErrorCopy and two one-liners)
-  Domain/     the vocabulary and the pure functions — Concept, Diagnostic,
-              Calibration, Retain, PhaseContent. No I/O, no SwiftUI state.
+  Domain/     the vocabulary and the pure functions — Concept, Phases, Diagnostic,
+              Calibration, Retain, PhaseContent, and one file per phase the
+              catalogue added (Discriminate, Predict, Trace, Drill, Recall,
+              Perform) — mirroring `lib/curriculum/<phase>.ts` one for one.
+              No I/O, no SwiftUI state.
   Data/       AtlasAPI + AtlasEndpoint + NDJSONStream, AtlasAuth + SessionStore,
               RunStore + AtlasRun (the `/api/v1` client and its wire shapes),
               Local/LocalStore (the SwiftData mirror), Secrets (uncommitted),
               AtlasStore + Defaults, Warm (the generation cache), Fixtures
   Features/   one folder per surface, each holding its view(s) and view model:
               Auth, Onboarding, Home, Map, Review, Profile,
-              Session/{Consume,Socratic,Feynman,Connect,Crucible}
+              Session/{Consume,Discriminate,Socratic,Predict,Trace,Feynman,
+                       Perform,Drill,Connect,Crucible,Recall}
 ```
 
 ## Composition
@@ -178,6 +185,34 @@ AtlasNavigator`, `AtlasTabNavigator` for a tab change) — `navigate(to:)` to
   the link opens Safari instead of the app. It is a notice and not a place. A link that names a screen goes through the package's
   `DeepLinkHandler` into an `AtlasRoute`, never through a second `onOpenURL`.
 
+## The phase catalogue
+
+The root `AGENTS.md` §"The phase catalogue" is the rule; this is how it is
+spelled in Swift. `Domain/Phases.swift` is the port of `lib/curriculum/phases.ts`
+and `Domain/Calibration.swift` carries the three derivations.
+
+- **`Phase`'s raw values are the wire ids, not the labels.** `phases_done` and
+  `phase_plan` travel as `consume`, `discriminate`, … `retain`; the product name
+  is `Phase.label`, which is the one place `retain` becomes `Retained`.
+- **State is derived from the ledger, never written.** A screen calls
+  `store.completePhase(node, phase)` (or `markShaky`, `markStarted`,
+  `completeWholePlan`) and `stateFromPlan` decides what the node now is.
+  Nothing assigns `states[id] = .mastered`. That literal is why the Crucible was
+  the only path to green, and a plan without one could never reach it.
+- **Every rail, hand-off and nudge reads the node's own plan.** `node.plan`,
+  `node.phase(after:)`, `planGates`, `primaryPhase`. A hard-coded next phase is
+  a button that promises a rung the node does not run.
+- **Decoding is lenient in both directions.** An unknown `kind` reads as
+  `concept`; a `phase_plan` naming a phase this build has no screen for drops
+  that rung. A client one release behind draws a shorter ladder — it never
+  refuses the map.
+- **Every phase is purpose-built**, here as on the web: its own content structs
+  and reducer in `Domain/`, its own view and view model in `Features/Session/`,
+  its own gate. Four of the twelve commit-then-reveal and look alike on screen;
+  that is chrome (`PhaseBar`, `ChoiceRow`, `SegmentBar`, `Dock`), and chrome is
+  the only thing they share. A phase that is another phase with a new prompt
+  extracts no new signal, so it is a setting, not a phase.
+
 ## State
 
 - `AtlasStore` is the one owner of everything persisted — graph, mastery states,
@@ -222,10 +257,12 @@ than calling `AtlasAPI` from a view model.
   the inputs — the boundary, the Connect pool, the language. Compute a pool
   twice and you pay for the generation twice. That is also why the pool is part
   of the key: `key(kind, node, inputs)`.
-- **Who warms what.** The map warms the head of the frontier's reading pass and
-  drafts the day's review cards; the node drawer warms whatever phase the node
-  is owed; a session warms one phase ahead (`SessionViewModel.warmNext`), so
-  Consume writes Socratic, Socratic writes Feynman, and so on to the Crisol.
+- **Who warms what.** The map warms the head of each frontier node's own plan
+  and drafts the day's review cards; the node drawer warms whatever phase the
+  node is owed; a session warms one phase ahead **in that node's plan**
+  (`SessionViewModel.warmNext`). Never the catalogue's order: a `procedure`
+  reading its Trace pass used to warm — and pay for — a Socratic pass it never
+  runs.
 - The cache is emptied whenever the run changes (`open`, `clearRun`) — every key
   names the run and the language it belongs to, and nothing survives a sign-out.
 - **`docs/CONTENT-STORAGE.md` is the contract**, and it is shared with the web:
@@ -338,8 +375,10 @@ to remember. Nothing about localisation is declared in `Package.swift`.
 - **Plural agreement belongs to the catalogue.** No `\(n == 1 ? "" : "s")` in
   Swift: give the key a `plural` variation in both languages (the two don't
   pluralise on the same rule, and English `%lld d` doesn't inflect at all).
-- **Phase names stay English in both languages** — Consume, Socratic, Feynman,
-  Connect, Crucible, Retained are product vocabulary. The prose around them is
+- **Phase names stay English in both languages** — all twelve of them are
+  product vocabulary, and `Phase.label` is the one place they are spelled.
+  Never `phase.rawValue`: that is the wire id (`retain`), not the name a learner
+  reads (`Retained`). The prose around them is
   translated: `Crisol · aplicação` → `Crucible · application`.
 - `Info.plist` copy — the two usage descriptions — lives in
   `App/Resources/InfoPlist.xcstrings`, with the Portuguese in `Project.swift` as

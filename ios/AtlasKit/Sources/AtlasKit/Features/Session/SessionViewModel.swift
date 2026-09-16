@@ -28,12 +28,13 @@ public final class SessionViewModel: Identifiable {
     public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil) {
         self.node = node
         self.store = store
-        // `.retained` belongs to the Review tab: this shell has no screen for
-        // it and no bar to leave one by, so a redo that asks for it is clamped
-        // to the last phase the spiral actually runs.
-        let last = Phase.allCases.count - 2
-        let asked = Phase.allCases.firstIndex(of: phase ?? store.owedPhase(node)) ?? 0
-        self.phase = Phase.allCases[max(0, min(asked, last))]
+        // Clamped to this node's own plan, not to a shared six-tuple. Retido
+        // belongs to the Review tab — this shell has no screen for it and no bar
+        // to leave one by — so a redo that asks for it, or for a phase the node
+        // does not run at all, opens on what the node is actually owed.
+        let gates = planGates(node.plan)
+        let asked = phase ?? store.owedPhase(node)
+        self.phase = gates.contains(asked) ? asked : (gates.first ?? .consume)
         // Before the first warm, so the warm and the click after it address the
         // same problem: a redo of the Crucible asks for a new one rather than
         // re-serving the transfer the learner has already carried through.
@@ -79,14 +80,18 @@ public final class SessionViewModel: Identifiable {
     /// not learning it, and it must not unlock the next one. The rule this
     /// function already stated for the streak is the right one for the map too:
     /// the first thing the learner actually does is the evidence.
+    ///
+    /// `markStarted` rather than a `.learning` literal: the state is derived
+    /// from the ledger now, and "begun, nothing finished" is a flag that
+    /// derivation takes, not a state to write over it.
     public func markWorked() {
         store.markActiveToday()
-        if (store.states[node.id] ?? .unknown) == .unknown { store.states[node.id] = .learning }
+        store.markStarted(node)
     }
 
     /// The reading record the spiral reads back. Opening Consume is what
     /// creates it — without that, a node marked Learning above and then left
-    /// would claim both Consume and Socratic (`readingPhaseIndex`). Reaching
+    /// would claim both Consume and Socratic. Reaching
     /// Socratic is the hand-off, and the only thing that ends the reading.
     private func noteReading() {
         switch phase {
@@ -99,10 +104,28 @@ public final class SessionViewModel: Identifiable {
     /// Speculate one phase ahead. A learner reading a pass is exactly when the
     /// next one should be written — so by the time they tap Continue the
     /// content is a state change rather than a round trip.
+    ///
+    /// One phase ahead *in this node's plan*. The hand-offs used to be the
+    /// catalogue's own order, which is why a `procedure` reading its Trace pass
+    /// warmed — and paid for — a Socratic pass it never runs.
     private func warmNext() {
-        guard let kind = phase.next?.kind else { return }
+        guard let kind = node.phase(after: phase)?.kind else { return }
         store.warmUp(kind, for: node)
     }
+
+    /// The phase this one hands to in the node's own plan, or nil when the
+    /// phase on screen is the plan's last gate.
+    public var handOff: Phase? { node.phase(after: phase) }
+
+    /// What a hand-off CTA says and is tinted by. Three of them named the
+    /// Crisol or the Socrático outright, which promises a phase a `fact` and a
+    /// `procedure` never run — the button has to name the phase it opens.
+    public var handOffLabel: LocalizedStringKey {
+        guard let handOff else { return "Concluir e voltar ao mapa →" }
+        return "Seguir para \(handOff.label) →"
+    }
+
+    public var handOffTint: Color { handOff?.tint ?? NodeState.mastered.color }
 
     /// The context every kind on this node shares. Built by the store, never
     /// here: a warm and the click after it address the same content only if
@@ -113,11 +136,26 @@ public final class SessionViewModel: Identifiable {
     /// Crucible problem may interleave. Mirrors `CONNECT_POOL_STATES`.
     public var learnedElsewhere: [ConceptNode] { store.learned(besides: node) }
 
-    /// The next phase in the spiral. Past the Crucible there is no next: the
-    /// pass is over and the map takes the screen back.
-    public func advance() {
+    /// The phase closes and the next one in this node's plan opens. Past the
+    /// plan's last gate there is no next: the pass is over and the map takes the
+    /// screen back.
+    ///
+    /// Closing the rung is what mastery is derived from — `completePhase` writes
+    /// the record and lets `stateFromPlan` decide what the node now is. Before
+    /// that, five screens each wrote their own literal, and the Crucible was the
+    /// only path to green: a plan without one could never reach it.
+    public func advance() { advance(passed: true) }
+
+    /// The same hand-off, for a phase that grades itself. The rung closes only
+    /// on a run that actually cleared its own gate — reading the report is not
+    /// passing the phase, and the six the catalogue added each set a different
+    /// bar (an unbroken prefix, no wrong step, two thirds, two thirds and no
+    /// over-inclusion). A failed run still walks on; it leaves its rung open,
+    /// which is what keeps the node short of Mastered.
+    public func advance(passed: Bool) {
         markWorked()
-        guard let next = phase.next else { return finished = true }
+        if passed { store.completePhase(node, phase) }
+        guard let next = node.phase(after: phase) else { return finished = true }
         phase = next
     }
 
@@ -149,11 +187,10 @@ public final class SessionViewModel: Identifiable {
             finished = true
             return
         }
-        guard outcome == .flagged else {
-            guard let next = phase.next else { return finished = true }
-            phase = next
-            return
-        }
+        // Reasoned through — assisted or unaided — closes the rung and opens the
+        // next one. A flagged pass does not: being told the answer is not having
+        // reasoned it out, and the rung stays open.
+        guard outcome == .flagged else { return advance() }
         // ponytail: a synthetic gap — no model-authored label or reason, unlike
         // Feynman's and the Crucible's. Promote it to a generated one if
         // "foundations" ever needs richer framing.
@@ -187,12 +224,15 @@ public final class SessionViewModel: Identifiable {
 
     /// Connect closes: the concept is understood and wired, but nothing has
     /// proven it transfers. That is exactly Shaky — `connect-complete`.
+    ///
+    /// Only while the plan still has a gate that *can* prove it. On a plan that
+    /// ends at Connect the reason is a trap: `primaryPhase` re-opens the last
+    /// gate when a node is Shaky, and closing that gate writes the reason again
+    /// — a loop with no way out. Such a plan is simply finished here, and the
+    /// state `advance` derives is Mastered.
     public func finishConnect() {
-        let state = store.states[node.id] ?? .unknown
-        if state == .unknown || state == .learning {
-            store.states[node.id] = .shaky
-            store.shakyReasons[node.id] = .connectComplete
-        }
+        guard planGates(node.plan).last != .connect else { return }
+        store.shakyReasons[node.id] = .connectComplete
     }
 
     /// The one path to green, and the one path to a spawned gap.
@@ -207,8 +247,7 @@ public final class SessionViewModel: Identifiable {
         // streak and, on an untouched node, never even went Learning.
         markWorked()
         guard judgement.passed else {
-            store.states[node.id] = .shaky
-            store.shakyReasons[node.id] = .crucibleFail
+            store.markShaky(node, .crucibleFail)
             let named = GapSpec(
                 id: gap.id,
                 label: judgement.gapLabel ?? gap.label,
@@ -237,7 +276,11 @@ public final class SessionViewModel: Identifiable {
             store.graph = graph
             store.states[gap.id] = nil
         }
-        store.states[node.id] = .mastered
+        // The transfer held, so the Crucible rung closes and the reason it
+        // carried is cleared. What that makes the node is `stateFromPlan`'s
+        // call, not a literal written here — which is the whole point: this used
+        // to be the only path to green in the app.
+        store.completePhase(node, .crucible, shaky: .some(nil))
     }
 
     /// A teach-back leaves its unresolved sub-points on the map: a beat the

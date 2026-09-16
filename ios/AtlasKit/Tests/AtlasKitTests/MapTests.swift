@@ -87,10 +87,13 @@ import Testing
     #expect(shown["cadeia"] == .frontier)
     #expect(shown["epsilon"] == .gap)
     #expect(shown["seq"] == .unknown)
-    #expect(phaseIndex(.frontier) == 0)
-    #expect(phaseIndex(.mastered) == 5)
-    #expect(phaseIndex(.mastered, reviewed: true) == 6)
-    #expect(phaseIndex(.unknown) == -1)
+    // The fixture nodes carry no kind, so they run the `concept` ladder — which
+    // is what every node ran before the catalogue, and the plan a row with no
+    // `phase_plan` still falls back to.
+    let cadeia = Fixtures.graph.nodes.first { $0.id == "cadeia" }!
+    #expect(cadeia.plan == phasePlans[.concept])
+    #expect(phaseIndex(cadeia.plan, [], state: .frontier) == 0)
+    #expect(phaseIndex(cadeia.plan, [], state: .unknown) == -1)
 }
 
 /// The edge index moved out of the renderer, so the drop-a-dangling-edge rule

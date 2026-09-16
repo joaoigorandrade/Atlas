@@ -6,8 +6,12 @@ import Testing
 /// the map, and what order the phases run in. Everything else on screens 14-18
 /// is layout — this is the part that lies to the learner if it drifts.
 
-@MainActor private func store(_ states: StateMap = [:]) -> AtlasStore {
-    AtlasStore(
+/// `done` seeds "cadeia"'s phase ledger — the record mastery is derived from.
+/// A state with no ledger behind it is not a state a real node reaches: the
+/// catalogue migration backfills one for every run in flight, precisely so a
+/// mastered node cannot be walked backwards by the next phase it closes.
+@MainActor private func store(_ states: StateMap = [:], done: [Phase] = []) -> AtlasStore {
+    let store = AtlasStore(
         api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!),
         auth: AtlasAuth(),
         graph: ConceptGraph(
@@ -20,12 +24,22 @@ import Testing
         states: states,
         subject: "Cálculo I"
     )
+    if !done.isEmpty { store.phasesDone["cadeia"] = done }
+    return store
+}
+
+/// Every gate of the `concept` ladder but the Crucible — what a node that has
+/// worked its way up to the transfer test actually carries.
+private func upToCrucible() -> [Phase] {
+    planGates(phasePlans[.concept]!).filter { $0 != .crucible }
 }
 
 /// A pass on "Regra da cadeia", plus the store it writes to — the writes are
 /// the whole point of these tests, so both come back.
-@MainActor private func session(_ states: StateMap = [:]) -> (SessionViewModel, AtlasStore) {
-    let store = store(states)
+@MainActor private func session(
+    _ states: StateMap = [:], done: [Phase] = []
+) -> (SessionViewModel, AtlasStore) {
+    let store = store(states, done: done)
     return (SessionViewModel(node: store.graph.nodes[1], store: store), store)
 }
 
@@ -59,25 +73,79 @@ import Testing
 }
 
 @MainActor
-@Test func theSpiralRunsInOrderAndEndsAfterTheCrucible() {
-    let (pass, _) = session()
+@Test func theSpiralRunsTheNodesOwnPlanAndEndsAtItsLastGate() {
+    // No kind on the node, so it runs `concept`'s ladder — which is what a row
+    // with no `phase_plan` falls back to, and which is *not* the six rungs every
+    // node used to run.
+    let (pass, store) = session()
+    let gates = planGates(phasePlans[.concept]!)
     #expect(pass.phase == .consume)
-    for expected in [Phase.socratic, .feynman, .connect, .crucible] {
+    for expected in gates.dropFirst() {
         pass.advance()
         #expect(pass.phase == expected)
     }
-    // Retained is not a session phase: past the Crucible the map takes over.
+    // Retido is not a session phase: past the plan's last gate the map takes
+    // over, and every rung behind it is in the ledger.
     pass.advance()
     #expect(pass.finished)
-    #expect(pass.phase == .crucible)
+    #expect(pass.phase == gates.last)
+    #expect(store.phasesDone["cadeia"] == gates)
+    // Which is exactly what makes it green, with no literal written anywhere.
+    #expect(store.states["cadeia"] == .mastered)
+}
+
+@MainActor
+@Test func aProcedureWalksItsOwnLadderRatherThanAConceptsOne() {
+    let store = AtlasStore(
+        api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!),
+        auth: AtlasAuth(),
+        graph: ConceptGraph(nodes: [
+            ConceptNode(id: "t", label: "Titulação", kind: .procedure),
+        ]),
+        states: [:],
+        subject: "Química"
+    )
+    let pass = SessionViewModel(node: store.graph.nodes[0], store: store)
+    #expect(pass.phase == .consume)
+    pass.advance()
+    // Trace, not Socratic: a procedure is executed, not argued with.
+    #expect(pass.phase == .trace)
 }
 
 @MainActor
 @Test func connectLeavesTheNodeShakyRatherThanGreen() {
     let (pass, store) = session(["lat": .mastered])
     pass.finishConnect()
+    pass.advance()
     // Understood and wired, but nothing has proven it transfers yet.
     #expect(store.states["cadeia"] == .shaky)
+    #expect(store.shakyReasons["cadeia"] == .connectComplete)
+}
+
+/// The dead end the inversion could have shipped: "now prove it transfers" only
+/// means something while the plan still has a gate that can prove it. On a plan
+/// that *ends* at Connect the reason is a trap — a Shaky node re-opens its last
+/// gate, and closing that gate would write the reason again, forever.
+@MainActor
+@Test func aPlanThatEndsAtConnectIsFinishedByItRatherThanTrapped() {
+    let store = AtlasStore(
+        api: AtlasAPI(baseURL: URL(string: "https://atlas.test")!),
+        auth: AtlasAuth(),
+        graph: ConceptGraph(nodes: [
+            ConceptNode(id: "n", label: "Curto", phasePlan: [.consume, .connect, .retain]),
+        ]),
+        states: [:],
+        subject: "Cálculo I"
+    )
+    let node = store.graph.nodes[0]
+    store.phasesDone["n"] = [.consume]
+    let pass = SessionViewModel(node: node, store: store, phase: .connect)
+    pass.finishConnect()
+    pass.advance()
+    #expect(store.shakyReasons["n"] == nil)
+    #expect(store.states["n"] == .mastered)
+    // And nothing is re-opened: the CTA has no gate left to send them back to.
+    #expect(primaryPhase(node.plan, store.phasesDone["n"] ?? [], state: .mastered) == nil)
 }
 
 @MainActor
@@ -97,7 +165,19 @@ import Testing
     // A gap hangs on a dashed edge: it must never lock anything below it.
     #expect(failedStore.graph.edges.contains { $0.to == gap.id && $0.dashed })
 
-    let (passed, passedStore) = session(["lat": .mastered])
+    // A node that jumped straight here: the transfer holds, the rung closes —
+    // and it is still Learning, because its earlier gates are still open. The
+    // Crucible used to be the one place `.mastered` was written, so passing it
+    // promoted a node that had skipped the whole ladder.
+    let (jumped, jumpedStore) = session(["lat": .mastered])
+    jumped.settleCrucible(
+        CrucibleJudgement(outcome: "pass", transfer: [], gapLabel: nil, gapReason: nil, reExplain: nil),
+        gap: gap
+    )
+    #expect(jumpedStore.states["cadeia"] == .learning)
+    #expect(jumpedStore.phasesDone["cadeia"] == [.crucible])
+
+    let (passed, passedStore) = session(["lat": .mastered], done: upToCrucible())
     passed.settleCrucible(
         CrucibleJudgement(outcome: "partial", transfer: [], gapLabel: nil, gapReason: nil, reExplain: nil),
         gap: gap
@@ -136,12 +216,13 @@ import Testing
 
 @MainActor
 @Test func aRedoOpensTheRequestedPhaseAndRunsForwardFromThere() {
-    let owned = store(["cadeia": .mastered])
+    let owned = store(["cadeia": .mastered], done: planGates(phasePlans[.concept]!))
     let redo = SessionViewModel(node: owned.graph.nodes[1], store: owned, phase: .feynman)
     #expect(redo.phase == .feynman)
     redo.advance()
     #expect(redo.phase == .connect)
-    // Redoing an earlier phase doesn't walk the node's mastery backwards.
+    // Redoing an earlier phase doesn't walk the node's mastery backwards: the
+    // rung was already in the ledger, and closing it again is a no-op.
     #expect(owned.states["cadeia"] == .mastered)
 }
 

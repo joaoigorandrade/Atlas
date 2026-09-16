@@ -181,7 +181,7 @@ struct NodeDetailView: View {
                 .frame(width: 24, height: 24)
                 .background(row.isCurrent ? model.state.color.opacity(0.14) : .clear, in: .circle)
                 .overlay { Circle().strokeBorder(row.done || row.isCurrent ? row.tint : Palette.hairlineStrong, lineWidth: 1) }
-            Text(verbatim: row.phase.rawValue)
+            Text(verbatim: row.phase.label)
                 .font(.atlas(.serif, 15, weight: row.isCurrent ? .semibold : .regular))
                 .foregroundStyle(row.done || row.isCurrent ? Palette.ink : Palette.inkGhost)
             Spacer(minLength: 0)
@@ -204,7 +204,7 @@ struct NodeDetailView: View {
     /// than a pass — the same fork `onPhaseAction` takes on the web.
     private func open(_ phase: Phase, _ model: NodeDetailViewModel) {
         model.pendingSkip = nil
-        if phase == .retained {
+        if phase == .retain {
             navigator.dismissSheet()
             tabs.switchTab(to: .review)
         } else {
@@ -223,7 +223,7 @@ struct NodeDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Button { open(owed, model) } label: {
-                    Text("Fazer \(owed.rawValue) primeiro")
+                    Text("Fazer \(owed.label) primeiro")
                         .font(.atlas(.sans, 13, weight: .semibold))
                         .foregroundStyle(Palette.accentInk)
                         .padding(.horizontal, 13)
@@ -232,7 +232,7 @@ struct NodeDetailView: View {
                 }
                 .pressable()
                 Button { open(target, model) } label: {
-                    Text("Pular para \(target.rawValue) →")
+                    Text("Pular para \(target.label) →")
                         .font(.atlas(.sans, 13))
                         .foregroundStyle(Palette.amberInk)
                         .underline()

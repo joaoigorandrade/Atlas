@@ -92,7 +92,12 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
 
     #expect(review.finished)
     #expect(owner.reviewed.contains("lat"))
-    #expect(phaseIndex(.mastered, reviewed: owner.reviewed.contains("lat")) == 6)
+    // Being Mastered alone leaves Retido owed — a real review is what ticks the
+    // last rung of the node's own plan.
+    let plan = phasePlans[.concept]!
+    #expect(phaseIndex(plan, planGates(plan), state: .mastered) == plan.count - 1)
+    #expect(phaseIndex(plan, planGates(plan), state: .mastered,
+                       reviewed: owner.reviewed.contains("lat")) == plan.count)
     // The card leaves today's deck the moment it is graded; where it goes next
     // is the server's answer, not this client's.
     #expect(owner.deck.isEmpty)

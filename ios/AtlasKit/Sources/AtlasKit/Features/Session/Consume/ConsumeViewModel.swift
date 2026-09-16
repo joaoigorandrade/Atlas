@@ -89,6 +89,11 @@ final class ConsumeViewModel {
     var chunk: ConsumeChunk? { chunks[safe: index] }
     var next: ConsumeChunk? { chunks[safe: index + 1] }
 
+    /// What the hand-off off the last section says. It named the Socrático
+    /// outright, and a `procedure` hands the reading to Trace.
+    var handOffLabel: LocalizedStringKey { session.handOffLabel }
+    var handOffTint: Color { session.handOffTint }
+
     /// The pass stopped part-way: what landed is on screen and worth keeping,
     /// but there is more of it that never arrived. The notice belongs under the
     /// last section that landed — that is where the reading actually ran out.
@@ -256,7 +261,7 @@ final class ConsumeViewModel {
         session.store.note(
             reading: node.id, idx: index, total: seenTotal,
             // Reaching the last section is not finishing the pass: `finished`
-            // is what `readingPhaseIndex` ticks Consume off by, so writing it
+            // is what the spiral ticks Consume off by, so writing it
             // on arrival marked the reading done for a learner who had not
             // answered its check — and the way back in became "Refazer",
             // which throws the whole pass away. Mirrors the web, where only

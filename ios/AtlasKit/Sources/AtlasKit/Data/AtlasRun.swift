@@ -31,6 +31,11 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     public var states: StateMap
     public var positions: [String: Point]
     public var shakyReasons: [String: ShakyReason]
+    /// Which phases each node has finished, keyed by node id — the record
+    /// mastery state is *derived* from (`stateFromPlan`). A parallel map for the
+    /// same reason `shakyReasons` is one: closing a phase must not rewrite the
+    /// graph.
+    public var phasesDone: PhasesDoneMap
     public var reviewedNodes: [String]
     /// The browser's reading records, keyed by node id — held as JSON because
     /// this client reads two of each and writes four, and the rest (lenses,
@@ -70,7 +75,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         case id, subject, goal, interests, paretoPct, examDate, language
         case calibSamples, litToday, updatedAt, graph, states, positions
-        case shakyReasons, reviewedNodes, consumeProgress, socraticProgress
+        case shakyReasons, phasesDone, reviewedNodes, consumeProgress, socraticProgress
         case feynmanProgress, connectProgress, misconceptions, cards
     }
 
@@ -90,6 +95,12 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         states = (try? c.decode(StateMap.self, forKey: .states)) ?? [:]
         positions = (try? c.decode([String: Point].self, forKey: .positions)) ?? [:]
         shakyReasons = (try? c.decode([String: ShakyReason].self, forKey: .shakyReasons)) ?? [:]
+        // A phase this build has no screen for is dropped rather than decoded —
+        // the same leniency `ConceptNode` reads `phase_plan` with, and for the
+        // same reason: a client one release behind draws a shorter ladder
+        // instead of refusing the run.
+        phasesDone = ((try? c.decode([String: [String]].self, forKey: .phasesDone)) ?? [:])
+            .mapValues { $0.compactMap(Phase.init(rawValue:)) }
         reviewedNodes = (try? c.decode([String].self, forKey: .reviewedNodes)) ?? []
         consumeProgress = (try? c.decode([String: JSONValue].self, forKey: .consumeProgress)) ?? [:]
         socraticProgress = (try? c.decode([String: JSONValue].self, forKey: .socraticProgress)) ?? [:]
@@ -184,6 +195,16 @@ public struct NodeDelta: Encodable, Sendable {
     public var y: Double?
     public var isGap: Bool?
     public var state: NodeState?
+    /// The kind and the ladder it resolved to. Sent only for a node this client
+    /// created — a spawned gap — because everything else already carries them
+    /// and re-sending a plan on every drag is the write amplification the delta
+    /// exists to avoid.
+    public var kind: NodeKind?
+    public var phasePlan: [Phase]?
+    /// The phases finished on this node. The one *derived-from* field the
+    /// client owns: state is computed from it, so a save that carried the state
+    /// and not the ledger would re-derive a different state on the next open.
+    public var phasesDone: [Phase]?
     /// Sent as `null` to clear it — a node that stopped being shaky.
     public var shakyReason: ShakyReason??
     public var reviewed: Bool?
@@ -211,6 +232,9 @@ public struct NodeDelta: Encodable, Sendable {
         try c.encodeIfPresent(y, forKey: .y)
         try c.encodeIfPresent(isGap, forKey: .isGap)
         try c.encodeIfPresent(state, forKey: .state)
+        try c.encodeIfPresent(kind, forKey: .kind)
+        try c.encodeIfPresent(phasePlan, forKey: .phasePlan)
+        try c.encodeIfPresent(phasesDone, forKey: .phasesDone)
         // Double optional: absent means "leave it", `.some(nil)` means "clear
         // it". Collapsing the two would make un-shaking a node impossible.
         if let shakyReason { try c.encode(shakyReason, forKey: .shakyReason) }
@@ -223,7 +247,7 @@ public struct NodeDelta: Encodable, Sendable {
     }
 
     private enum Key: String, CodingKey {
-        case id, label, summary, g, week, x, y, isGap, state, shakyReason
+        case id, label, summary, g, week, x, y, isGap, state, kind, phasePlan, phasesDone, shakyReason
         case reviewed, consumeProgress, socraticProgress, feynmanProgress
         case connectProgress, prereqs
     }

@@ -23,6 +23,13 @@ public final class AtlasStore {
     /// wherever `.shaky` is; shared with the browser through the run row.
     public var shakyReasons: [String: ShakyReason] = [:] { didSet { saveSoon() } }
 
+    /// Which phases each node has finished, keyed by node id — the phase
+    /// ledger, and the thing mastery state is now *derived* from. Written only
+    /// through `completePhase`, which derives the state in the same tick: a
+    /// screen that set `states[id]` directly would leave the two disagreeing,
+    /// and the next open would re-derive over whatever it wrote.
+    public var phasesDone: PhasesDoneMap = [:] { didSet { saveSoon() } }
+
     /// Every review card drafted for this run. The generation is a card
     /// factory; `deck` below is the queue it feeds, and the scheduler that
     /// orders that queue runs on the server — see `Retain.swift`.
@@ -49,7 +56,7 @@ public final class AtlasStore {
     var crucibleRerun: [String: Int] = [:]
 
     /// The web's `consumeProgress`, held as JSON and keyed by node id. This
-    /// client reads four of its fields (`readingPhaseIndex`, and where the
+    /// client reads four of its fields (whether the pass finished, and where the
     /// learner got to) and writes five; the browser's reader owns the rest —
     /// lenses, collapses, terms — so a record is *merged* into rather than
     /// replaced. See `note(reading:)`.
@@ -324,13 +331,14 @@ public extension AtlasStore {
     }
 
     /// The phase a session on this node would open on, and so the one worth
-    /// warming before the tap. Clamped short of `.retained`, which the Review
-    /// tab owns and the spiral shell has no screen for.
+    /// warming before the tap. Always a phase the node's own plan contains —
+    /// and never Retido, which the Review tab owns and the spiral shell has no
+    /// screen for. A node with nothing left to open falls back to its first
+    /// rung, which is what a redo of a finished ladder means.
     func owedPhase(_ node: ConceptNode) -> Phase {
-        let owed = readingPhaseIndex(
-            display[node.id] ?? .unknown, reviewed: reviewed.contains(node.id), reading(node.id)
-        )
-        return Phase.allCases[max(0, min(owed, Phase.allCases.count - 2))]
+        primaryPhase(node.plan, phasesDone[node.id] ?? [], state: display[node.id] ?? .unknown)
+            ?? planGates(node.plan).first
+            ?? .consume
     }
 
     /// Write the fields this client owns into a node's record, leaving every
@@ -365,6 +373,59 @@ public extension AtlasStore {
             record[key] = record[key] ?? fallback
         }
         consumeProgress[id] = .object(record)
+    }
+
+    /// A phase closed. Record it, and let mastery state fall out of the record —
+    /// the port of `phaseLedger.ts`.
+    ///
+    /// What it replaced: five screens each writing their own mastery literal —
+    /// `.learning` on opening a pass, `.shaky` after Connect, `.mastered` in
+    /// exactly one place after the Crucible. That is why every node on every map
+    /// ran the same six rungs, and why a plan without a Crucible in it could
+    /// never go green.
+    ///
+    /// `shaky` is passed when the phase closed on a failed gate, and
+    /// `.some(nil)` to clear a reason this phase has now cleared. Left off, the
+    /// node's existing reason stands — so re-doing an unrelated phase can't
+    /// silently promote a node past a Crucible it is still failing.
+    func completePhase(_ node: ConceptNode, _ phase: Phase, shaky: ShakyReason?? = nil) {
+        var done = phasesDone[node.id] ?? []
+        if !done.contains(phase) { done.append(phase) }
+        phasesDone[node.id] = done
+        let reason: ShakyReason?
+        switch shaky {
+        case .some(let value): reason = value
+        case .none: reason = shakyReasons[node.id]
+        }
+        shakyReasons[node.id] = reason
+        states[node.id] = stateFromPlan(node.plan, done, shaky: reason)
+    }
+
+    /// A gate failed, or a review slipped: record why the node is Shaky and
+    /// re-derive from the ledger. Nothing writes `.shaky` as a literal any more
+    /// — `stateFromPlan` returns it for any ledger once a reason is on the node,
+    /// which is what keeps state and the record of finished phases from
+    /// disagreeing about the same node.
+    func markShaky(_ node: ConceptNode, _ reason: ShakyReason) {
+        shakyReasons[node.id] = reason
+        states[node.id] = stateFromPlan(node.plan, phasesDone[node.id] ?? [], shaky: reason)
+    }
+
+    /// Work begun on a node that has finished no phase yet — a part-read reading
+    /// pass. Without it, two sections in reads as "never started" and the node
+    /// drops back to displaying as frontier.
+    func markStarted(_ node: ConceptNode) {
+        let state = states[node.id] ?? .unknown
+        guard state == .unknown else { return }
+        states[node.id] = stateFromPlan(node.plan, phasesDone[node.id] ?? [], started: true)
+    }
+
+    /// The learner asserting they already own the concept: the whole plan, not
+    /// just its last rung, so the frontier re-derives past it.
+    func completeWholePlan(_ node: ConceptNode) {
+        phasesDone[node.id] = node.plan
+        shakyReasons[node.id] = nil
+        states[node.id] = .mastered
     }
 
     /// Put the reading back to the top, unread. What a flagged Socratic pass
@@ -735,6 +796,7 @@ public extension AtlasStore {
         graph = run.graph
         states = run.states
         shakyReasons = run.shakyReasons
+        phasesDone = run.phasesDone
         interests = run.interests
         goal = run.goal
         paretoPct = run.paretoPct
@@ -994,6 +1056,11 @@ public extension AtlasStore {
                 // straight copy with the node's generated seed as the fallback.
                 "state": .string((states[node.id] ?? node.state).rawValue),
                 "shakyReason": shakyReasons[node.id].map { .string($0.rawValue) } ?? .null,
+                // The ledger is in the projection because it is a *stored*
+                // field and state is derived from it: a save that carried the
+                // state and not the record it came from would re-derive a
+                // different state the next time the run was opened.
+                "phasesDone": .array((phasesDone[node.id] ?? []).map { .string($0.rawValue) }),
                 "reviewed": .bool(reviewed.contains(node.id)),
                 "consumeProgress": consumeProgress[node.id] ?? .null,
                 "socraticProgress": socraticProgress[node.id] ?? .null,
@@ -1110,6 +1177,7 @@ public extension AtlasStore {
                 delta.isGap = node.gap == true
                 delta.state = states[node.id] ?? node.state
                 delta.shakyReason = .some(shakyReasons[node.id])
+                delta.phasesDone = phasesDone[node.id] ?? []
                 delta.reviewed = reviewed.contains(node.id)
                 delta.consumeProgress = consumeProgress[node.id]
                 delta.socraticProgress = socraticProgress[node.id]
@@ -1121,6 +1189,12 @@ public extension AtlasStore {
                 // whole change replaced.
                 if savedNodes[node.id] == nil {
                     delta.prereqs = graph.edges.filter { $0.to == node.id }.map(\.from)
+                    // Both columns are NOT NULL with a default, and a delta that
+                    // names neither lets the default stand — which is what a
+                    // spawned gap wants. A node that carries them says so once,
+                    // on the write that creates the row, and never again.
+                    delta.kind = node.kind
+                    delta.phasePlan = node.phasePlan
                 }
                 deltas.append(delta)
             }
@@ -1169,6 +1243,7 @@ public extension AtlasStore {
             library[index].states = states
             library[index].cards = cards
             library[index].shakyReasons = shakyReasons
+            library[index].phasesDone = phasesDone
             library[index].reviewedNodes = reviewed.sorted()
             library[index].consumeProgress = consumeProgress
             library[index].socraticProgress = socraticProgress
@@ -1249,6 +1324,7 @@ public extension AtlasStore {
         graph = ConceptGraph()
         states = [:]
         shakyReasons = [:]
+        phasesDone = [:]
         subject = ""
         interests = ""
         paretoPct = paretoLevels[0]
@@ -1271,6 +1347,8 @@ public extension AtlasStore {
         session = Fixtures.session
         graph = Fixtures.graph
         states = Fixtures.states
+        phasesDone = Fixtures.phasesDone
+        shakyReasons = ["lat": .connectComplete]
         subject = Fixtures.subject
         calib = Fixtures.calib
         // The deck directly, not the card store: fixture mode makes no request,

@@ -52,7 +52,14 @@ public struct MapView: View {
         // what the learner can start next, which is a handful of nodes, not a
         // list that needs a cap of its own.
         .task(id: store.frontier.map(\.id).joined()) {
-            for node in store.frontier { store.warmUp("consume", for: node) }
+            // The head of each frontier node's *own* plan. Every plan starts at
+            // Consume today, so this is the same request — but a hardcoded kind
+            // is what the catalogue exists to stop, and the day a ladder starts
+            // elsewhere this warms the phase the node actually opens on.
+            for node in store.frontier {
+                guard let first = planGates(node.plan).first?.kind else { continue }
+                store.warmUp(first, for: node)
+            }
         }
         // Not keyed on the frontier: the day's deck is drawn from the nodes
         // with no card yet, which has nothing to do with which two are at the

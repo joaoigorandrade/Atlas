@@ -66,12 +66,18 @@ public enum ShakyReason: String, Codable, Sendable {
 
     /// `shakyLine` on the web, minus the language switch — the app is drawn in
     /// one language at a time and `Localizable.xcstrings` is where that lives.
-    public var line: LocalizedStringKey {
+    ///
+    /// `gate` is the phase a "go prove it" line points at: the node's own last
+    /// gate. That is the Crucible on every plan that has one, and Connect on a
+    /// plan that stops there — these four sentences named the Crisol
+    /// unconditionally, which promised a phase a `fact` never runs.
+    public func line(gate: Phase) -> LocalizedStringKey {
+        let gate = gate.label
         switch self {
-        case .connectComplete: "Compreendido e conectado — agora prove que isso se transfere no Crisol."
-        case .diagnosticHesitation: "Você hesitou nisso no nivelamento — provavelmente é frágil. Uma tentativa no Crisol mostra se resiste."
-        case .crucibleFail: "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente o Crisol de novo."
-        case .reviewMiss: "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente o Crisol de novo para firmar."
+        case .connectComplete: return "Compreendido e conectado — agora prove que isso se transfere em \(gate)."
+        case .diagnosticHesitation: return "Você hesitou nisso no nivelamento — provavelmente é frágil. Uma tentativa em \(gate) mostra se resiste."
+        case .crucibleFail: return "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente \(gate) de novo."
+        case .reviewMiss: return "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente \(gate) de novo para firmar."
         }
     }
 }
@@ -88,13 +94,28 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
     public var x: Double
     public var y: Double
     public var gap: Bool?
+    /// What kind of thing this concept is — which decides how it is practised.
+    /// Written by the map generation; absent on a run built before kinds
+    /// existed, and everything treats a missing kind as `concept`, which is
+    /// exactly what every node was then.
+    public var kind: NodeKind?
+    /// The phases this node runs, resolved from `kind` at map-build time and
+    /// frozen on the row. Stored rather than recomputed so shipping a new
+    /// catalogue can't rewrite a run already in progress.
+    ///
+    /// Which of them the learner has *finished* is not here: that is progress,
+    /// and it lives in the parallel `PhasesDoneMap` beside `shakyReasons` and
+    /// `reviewedNodes`, so completing a phase doesn't rewrite the graph.
+    public var phasePlan: [Phase]?
 
     public init(
         id: String, label: String, summary: String? = nil, state: NodeState = .unknown,
-        g: Int = 0, week: Int = 0, x: Double = 0, y: Double = 0, gap: Bool? = nil
+        g: Int = 0, week: Int = 0, x: Double = 0, y: Double = 0, gap: Bool? = nil,
+        kind: NodeKind? = nil, phasePlan: [Phase]? = nil
     ) {
         self.id = id; self.label = label; self.summary = summary; self.state = state
         self.g = g; self.week = week; self.x = x; self.y = y; self.gap = gap
+        self.kind = kind; self.phasePlan = phasePlan
     }
 
     /// Written by hand because a generated map omits what it has nothing to say
@@ -111,6 +132,14 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
         x = try c.decodeIfPresent(Double.self, forKey: .x) ?? 0
         y = try c.decodeIfPresent(Double.self, forKey: .y) ?? 0
         gap = try c.decodeIfPresent(Bool.self, forKey: .gap)
+        // Both are lenient on purpose: a kind this build does not know reads as
+        // `concept`, and a plan naming a phase it has no screen for is dropped
+        // rather than decoded into a rail with a rung nothing can open. A
+        // client one release behind draws a shorter ladder; it does not refuse
+        // the map.
+        kind = (try? c.decodeIfPresent(String.self, forKey: .kind)).map { asNodeKind($0) }
+        phasePlan = (try? c.decodeIfPresent([String].self, forKey: .phasePlan))?
+            .compactMap(Phase.init(rawValue:))
     }
 }
 
@@ -288,68 +317,6 @@ public extension ConceptGraph {
     }
 }
 
-/// The spiral, mirroring `PHASES` in `lib/curriculum/types.ts`. Order is the
-/// vocabulary — a phase's index is what `phaseIndex` returns.
-public enum Phase: String, CaseIterable, Sendable, Identifiable {
-    case consume = "Consume", socratic = "Socratic", feynman = "Feynman"
-    case connect = "Connect", crucible = "Crucible", retained = "Retained"
-    public var id: String { rawValue }
-}
-
-public extension Phase {
-    /// The generated kind this phase renders — what has to be ready before it
-    /// opens. Retido reads review cards, which are drafted per node rather
-    /// than per phase, so it names none.
-    var kind: String? { self == .retained ? nil : rawValue.lowercased() }
-
-    /// The next phase of the spiral, or nil at the end of it. Retido is not a
-    /// phase a pass walks into — a review is its own screen — so the Crisol is
-    /// where the spiral stops, exactly as `advance()` reads it.
-    var next: Phase? {
-        guard let index = Phase.allCases.firstIndex(of: self), index + 1 < Phase.allCases.count - 1 else { return nil }
-        return Phase.allCases[index + 1]
-    }
-
-    /// The phase colour, carried by the CTA's tint and the header kicker and
-    /// nothing else. Socratic and Feynman share one — they are the same half of
-    /// the spiral, and the design draws them in the same blue.
-    var tint: Color {
-        switch self {
-        case .consume: Palette.accent
-        case .socratic, .feynman: NodeState.learning.color
-        case .connect: Palette.connectInk
-        case .crucible: Palette.crucibleInk
-        case .retained: NodeState.mastered.color
-        }
-    }
-
-    /// The header kicker the design writes above the node's name.
-    var kicker: LocalizedStringKey {
-        switch self {
-        case .consume: "Consume · leitura"
-        case .socratic: "Socratic · sessão"
-        case .feynman: "Feynman · ensine de volta"
-        case .connect: "Connect · elaboração"
-        case .crucible: "Crisol · aplicação"
-        case .retained: "Retido · revisão"
-        }
-    }
-
-    /// The gentle push back when a learner taps a phase ahead of the one they
-    /// are owed. Mirrors `PHASE_SKIP_NUDGE_PT` in `lib/curriculum/types.ts` —
-    /// it names the phase they'd be skipping, not the one they tapped.
-    var skipNudge: LocalizedStringKey {
-        switch self {
-        case .consume: "Você ainda não leu isso — quer ler?"
-        case .socratic: "Você ainda não raciocinou sobre isso — quer tentar?"
-        case .feynman: "Você ainda não ensinou isso de volta — quer tentar?"
-        case .connect: "Você ainda não ligou isso ao seu mapa — quer tentar?"
-        case .crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?"
-        case .retained: "Isso ainda não está na sua rotação de revisão — quer adicionar?"
-        }
-    }
-}
-
 /// The fields of the web's `ConsumeProgress` this client reads. The rest of the
 /// record belongs to the browser's reader and rides through untouched — see
 /// `AtlasStore.consumeProgress`.
@@ -377,38 +344,6 @@ public struct ReadingProgress: Sendable {
         self.checks = checks
         self.finished = finished
         self.handedOff = handedOff
-    }
-}
-
-/// `phaseIndex`, corrected by what the learner actually read. Mirrors
-/// `readingPhaseIndex` in `lib/curriculum/calibration.ts`.
-///
-/// A node goes Learning the moment a session opens on it, and that is real —
-/// but the state alone maps to Feynman, which would tick off Consume *and*
-/// Socratic on the strength of having opened a screen. So the reading record
-/// gets the last word where it has one: still reading → Consume, read it and
-/// never went on → Socratic, anything else → the state-derived answer.
-public func readingPhaseIndex(
-    _ state: NodeState, reviewed: Bool = false, _ progress: ReadingProgress?
-) -> Int {
-    if state == .learning, let progress {
-        if !progress.finished { return 0 }
-        if !progress.handedOff { return 1 }
-    }
-    return phaseIndex(state, reviewed: reviewed)
-}
-
-/// Which phase a node is on, `-1` for locked. Mirrors `phaseIndex` in
-/// `lib/curriculum/calibration.ts`: mastered alone doesn't grant Retained, a
-/// real review does. Every caller goes through `readingPhaseIndex` — this is
-/// the state half of the answer, not the whole one.
-public func phaseIndex(_ state: NodeState, reviewed: Bool = false) -> Int {
-    switch state {
-    case .frontier: 0
-    case .learning: 2
-    case .shaky: 4
-    case .mastered: reviewed ? 6 : 5
-    default: -1
     }
 }
 

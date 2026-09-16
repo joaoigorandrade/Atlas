@@ -123,3 +123,36 @@ import Testing
     #expect(throws: (any Error).self) { try JSONDecoder().decode(DiagnosticQuestion.self, from: json(2)) }
     #expect(throws: (any Error).self) { try JSONDecoder().decode(DiagnosticQuestion.self, from: json(-1)) }
 }
+
+/// The placement is the one surface that grants mastery the learner never
+/// walked to, so it is the one that has to write the *record* mastery is derived
+/// from. A state written without a ledger is a node that reads Dominado over a
+/// rail with nothing ticked — and it is a fresh row that needs backfilling the
+/// moment it lands.
+@Test func thePlacementWritesTheLedgerItsStatesAreDerivedFrom() {
+    let edges = [ConceptEdge("a", "b")]
+    let plans: [String: [Phase]] = [
+        "a": phasePlans[.concept]!,
+        "b": phasePlans[.procedure]!,
+    ]
+    let plan: (String) -> [Phase] = { plans[$0] ?? legacyPhasePlan }
+
+    // Correct: the concept and its whole prerequisite chain, each ticked through
+    // its *own* plan — knowing something is evidence for what it stands on.
+    let owned = applyDiagnosticLedger([:], .mastered, nodeId: "b", edges: edges, plan: plan)
+    #expect(owned["b"] == phasePlans[.procedure])
+    #expect(owned["a"] == phasePlans[.concept])
+    for (id, done) in owned {
+        #expect(stateFromPlan(plan(id), done) == .mastered)
+    }
+
+    // A genuine miss: every gate but the last, so the node is owed precisely the
+    // gate its `diagnostic-hesitation` line promises, and no more.
+    let shaky = applyDiagnosticLedger([:], .shaky, nodeId: "b", edges: edges, plan: plan)
+    let gates = planGates(phasePlans[.procedure]!)
+    #expect(shaky["b"] == gates.dropLast())
+    #expect(primaryPhase(plan("b"), shaky["b"]!, state: .shaky) == gates.last)
+    // The chain below a miss is untouched: it is the likeliest place the reason
+    // is hiding, and ticking it would hide that for good.
+    #expect(shaky["a"] == nil)
+}

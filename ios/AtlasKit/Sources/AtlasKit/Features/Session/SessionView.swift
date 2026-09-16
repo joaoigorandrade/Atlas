@@ -50,15 +50,21 @@ struct SessionView: View {
     private func phase(_ session: SessionViewModel) -> some View {
         switch session.phase {
         case .consume: ConsumeView(session: session)
+        case .discriminate: DiscriminateView(session: session)
         case .socratic: SocraticView(session: session)
+        case .predict: PredictView(session: session)
+        case .trace: TraceView(session: session)
         case .feynman: FeynmanView(session: session)
+        case .perform: PerformView(session: session)
+        case .drill: DrillView(session: session)
         case .connect: ConnectView(session: session)
         case .crucible: CrucibleView(session: session)
-        // Unreachable by construction: `SessionViewModel` clamps to `.crucible`,
-        // because Review owns `.retained` and this shell hides the tab bar, the
-        // nav bar and the back button — a screen here without a `PhaseBar` is a
-        // screen with no way out.
-        case .retained: Color.clear
+        case .recall: RecallView(session: session)
+        // Unreachable by construction: `SessionViewModel` clamps to the node's
+        // own gates, and Retido is never one of them — Review owns it, and this
+        // shell hides the tab bar, the nav bar and the back button, so a screen
+        // here without a `PhaseBar` is a screen with no way out.
+        case .retain: Color.clear
         }
     }
 }

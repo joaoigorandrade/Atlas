@@ -12,6 +12,12 @@ public enum Fixtures {
     public static let subject = "Cálculo I"
 
     /// The map from the design's artboard, positions and all.
+    ///
+    /// Three nodes carry a `kind`, so the drawer's rail can be looked at running
+    /// three different ladders; the rest carry none, which is the fallback a row
+    /// written before the catalogue still takes. Fixture mode makes no request,
+    /// so the phases themselves are not reachable here — the map and the node
+    /// sheet are what it exists for.
     public static let graph = ConceptGraph(
         nodes: [
             ConceptNode(id: "lim", label: "Limites", summary: "O valor de que uma função se aproxima.", g: 0, x: 162, y: 62),
@@ -20,11 +26,11 @@ public enum Fixtures {
             ConceptNode(id: "comp", label: "Composição", summary: "Encaixar uma função dentro de outra.", g: 1, x: 138, y: 158),
             ConceptNode(id: "lat", label: "Limites laterais", summary: "O que acontece à esquerda e à direita de um ponto.", g: 2, x: 228, y: 178),
             ConceptNode(id: "cadeia", label: "Regra da cadeia", summary: "Como derivar uma composição de funções — a regra que transforma f(g(x)) em um produto de duas taxas de variação.", g: 3, x: 196, y: 268),
-            ConceptNode(id: "produto", label: "Regra do produto", summary: "A derivada de um produto de duas funções.", g: 3, x: 316, y: 236),
-            ConceptNode(id: "assintota", label: "Assíntotas", summary: "Retas de que o gráfico se aproxima sem tocar.", g: 4, x: 246, y: 344),
+            ConceptNode(id: "produto", label: "Regra do produto", summary: "A derivada de um produto de duas funções.", g: 3, x: 316, y: 236, kind: .procedure),
+            ConceptNode(id: "assintota", label: "Assíntotas", summary: "Retas de que o gráfico se aproxima sem tocar.", g: 4, x: 246, y: 344, kind: .principle),
             ConceptNode(id: "epsilon", label: "Definição ε-δ", summary: "A definição formal de limite.", g: 4, x: 118, y: 300, gap: true),
             ConceptNode(id: "seq", label: "Sequências", summary: "Limites de listas infinitas de números.", g: 5, x: 60, y: 358),
-            ConceptNode(id: "otim", label: "Otimização", summary: "Achar máximos e mínimos com derivadas.", g: 5, x: 318, y: 392),
+            ConceptNode(id: "otim", label: "Otimização", summary: "Achar máximos e mínimos com derivadas.", g: 5, x: 318, y: 392, kind: .procedure),
         ],
         edges: [
             ConceptEdge("der", "lim"), ConceptEdge("der", "comp"), ConceptEdge("lim", "cont"),
@@ -44,6 +50,24 @@ public enum Fixtures {
         "der": .mastered, "lim": .mastered, "cont": .mastered,
         "comp": .learning, "lat": .shaky, "epsilon": .gap,
     ]
+
+    /// The phase ledger behind those states — the record they are now *derived*
+    /// from. Without it the demo contradicts itself: a node reading Instável
+    /// with nothing finished is a state no real run reaches, because the
+    /// catalogue migration backfills a ledger for every row in flight. These are
+    /// that backfill, node for node.
+    public static let phasesDone: PhasesDoneMap = {
+        let plan = phasePlans[.concept] ?? []
+        let gates = planGates(plan)
+        return [
+            "der": gates, "lim": gates, "cont": gates,
+            // Read, nothing else — the part-way pass the reading record used to
+            // have to argue for.
+            "comp": [.consume],
+            // Understood and wired; the transfer is what is still owed.
+            "lat": [.consume, .discriminate, .socratic, .feynman, .connect],
+        ]
+    }()
 
     /// A deck due right now, so screens 19 and 20 are reachable without a
     /// generation — fixture mode makes no request.

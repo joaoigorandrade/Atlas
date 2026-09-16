@@ -305,10 +305,7 @@ struct FeynmanView: View {
     }
 
     private func advance(_ model: FeynmanViewModel) -> some View {
-        CTAButton(model.gapCount == 0
-                  ? "Diff limpo · Connect →"
-                  : "Anexar \(model.gapCount) e continuar →",
-                  tint: Palette.connectInk) { model.advance() }
+        CTAButton(model.advanceLabel, tint: model.advanceTint) { model.advance() }
     }
 
     /// The judge's reaction is written *in the voice of someone who has never

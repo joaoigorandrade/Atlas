@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import AtlasKit
 
@@ -64,15 +65,99 @@ import Testing
     #expect(orderedFrontier(shown, graph, .mastery).map(\.id) == ["wide", "deep"])
 }
 
-/// Opening a session marks a node Learning, which alone reads as Feynman. The
-/// reading record is what keeps the spiral honest about that.
-@Test func readingRecordCorrectsThePhase() {
-    #expect(readingPhaseIndex(.learning, nil) == 2)
-    #expect(readingPhaseIndex(.learning, ReadingProgress(finished: false, handedOff: false)) == 0)
-    #expect(readingPhaseIndex(.learning, ReadingProgress(finished: true, handedOff: false)) == 1)
-    #expect(readingPhaseIndex(.learning, ReadingProgress(finished: true, handedOff: true)) == 2)
-    // Every other state is the state's answer, reading or not.
-    #expect(readingPhaseIndex(.shaky, ReadingProgress(finished: false, handedOff: false)) == 4)
+/// The inversion itself: state is *derived* from the record of finished phases,
+/// so a plan with no Crucible in it reaches Mastered the same way one with a
+/// Crucible does. This is what `readingPhaseIndex` and five hand-written mastery
+/// literals used to stand in the way of.
+@Test func stateIsDerivedFromTheLedger() {
+    let plan = phasePlans[.fact]!
+
+    #expect(stateFromPlan(plan, []) == .unknown)
+    // Begun and nothing finished is real progress — without the flag a learner
+    // two sections into the reading drops back to displaying as frontier.
+    #expect(stateFromPlan(plan, [], started: true) == .learning)
+    #expect(stateFromPlan(plan, [.consume]) == .learning)
+
+    // Every *gate* done is Mastered. Retain is not a gate: it is weeks of review
+    // history, not something the learner does in a session, so waiting on it
+    // would mean no node was ever green until it had been reviewed.
+    let gates: [Phase] = [.consume, .discriminate, .drill, .connect, .recall]
+    #expect(stateFromPlan(plan, gates) == .mastered)
+    #expect(!gates.contains(.retain))
+    // A reason on the node holds it Shaky however full the ledger is.
+    #expect(stateFromPlan(plan, gates, shaky: .crucibleFail) == .shaky)
+}
+
+/// A `fact` never runs the Crucible, and this is the test that says the ladder
+/// it *does* run can still be finished. Before the inversion the Crucible was
+/// the only path to green.
+@Test func aFactLadderReachesMasteredWithoutACrucible() {
+    let fact = ConceptNode(id: "f", label: "Fato", kind: .fact)
+    #expect(!fact.plan.contains(.crucible))
+    #expect(!fact.plan.contains(.socratic))
+    // Every plan is a subsequence of the catalogue's canonical order, which is
+    // what keeps a phase index monotone and the rail left to right.
+    for kind in NodeKind.allCases {
+        let plan = phasePlans[kind]!
+        let positions = plan.compactMap { Phase.allCases.firstIndex(of: $0) }
+        #expect(positions == positions.sorted())
+        #expect(plan.first == .consume)
+        #expect(plan.last == .retain)
+    }
+    // And every phase in the catalogue has at least one home — one that does not
+    // is dead code with a screen behind it.
+    for phase in Phase.allCases {
+        #expect(NodeKind.allCases.contains { phasePlans[$0]!.contains(phase) })
+    }
+}
+
+/// The rung a node is on, and the one its CTA opens, both come from its own
+/// plan. A Shaky node is the exception to "first unfinished": it is owed its
+/// plan's last gate again, which is what every shaky line promises.
+@Test func theOwedPhaseFollowsTheNodesOwnPlan() {
+    let procedure = ConceptNode(id: "p", label: "Procedimento", kind: .procedure)
+    let plan = procedure.plan
+
+    #expect(primaryPhase(plan, [], state: .unknown) == .consume)
+    #expect(primaryPhase(plan, [.consume], state: .learning) == .trace)
+    // Not Socratic, which a `procedure` does not run at all.
+    #expect(primaryPhase(plan, [.consume], state: .learning) != .socratic)
+    #expect(primaryPhase(planGates(plan), planGates(plan), state: .shaky) == .crucible)
+    // Nothing left to open: the CTA is the review queue, not a seventh rung.
+    #expect(primaryPhase(plan, planGates(plan), state: .mastered) == nil)
+
+    #expect(phaseIndex(plan, [], state: .unknown) == -1)
+    #expect(phaseIndex(plan, [.consume], state: .learning) == 1)
+    // Mastered alone does not grant Retido ✓ — a real review does, so the node
+    // sits *on* the last rung rather than past it.
+    #expect(phaseIndex(plan, planGates(plan), state: .mastered) == plan.count - 1)
+    #expect(phaseIndex(plan, planGates(plan), state: .mastered, reviewed: true) == plan.count)
+}
+
+/// The catalogue's own rule: a phase earns its place by extracting a signal no
+/// other phase can. Two phases with one signal is a setting wearing a rung's
+/// clothes, and the web pins this the same way.
+@Test func noTwoPhasesClaimTheSameSignal() {
+    let signals = Phase.allCases.map(\.signal)
+    #expect(Set(signals).count == signals.count)
+}
+
+/// A node whose row predates the catalogue carries no plan, and a client one
+/// release behind can be handed a plan naming a phase it has no screen for.
+/// Neither may refuse the map.
+@Test func anUnknownPlanDegradesRatherThanThrows() throws {
+    let wire = """
+    {"id":"n","label":"N","kind":"telepathy","phasePlan":["consume","teleport","retain"]}
+    """
+    let node = try JSONDecoder().decode(ConceptNode.self, from: Data(wire.utf8))
+    // An unknown kind is `concept`, which is what every node was before kinds.
+    #expect(node.kind == .concept)
+    // The rung this build cannot open is dropped; the rest of the ladder stands.
+    #expect(node.phasePlan == [.consume, .retain])
+
+    let bare = try JSONDecoder().decode(ConceptNode.self, from: Data(#"{"id":"n","label":"N"}"#.utf8))
+    #expect(bare.phasePlan == nil)
+    #expect(bare.plan == phasePlans[.concept])
 }
 
 /// The teaching boundary: every ancestor is prior, everything else on the map

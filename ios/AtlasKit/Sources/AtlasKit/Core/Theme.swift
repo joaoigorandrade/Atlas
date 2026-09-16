@@ -40,6 +40,30 @@ public enum Palette {
     public static let connectInk = adaptive(0x8C6B9E, 0xBFA0D0)
     public static let connectBg = adaptive(0xF4EEF7, 0x241E2A)
     public static let connectBorder = adaptive(0x8C6B9E, 0xBFA0D0, opacity: 0.35, darkOpacity: 0.45)
+    // The six the catalogue's growth to twelve added. Same rule and same source
+    // as the two below: each is lifted from its own web phase module
+    // (`DISCRIMINATE_COLOR` in lib/curriculum/discriminate.ts, and so on), which
+    // is where a phase accent lives there, so there is nothing in lib/theme.ts
+    // to mirror. The dark half is this platform's, built the way every other
+    // pair here is — the web has no dark mode to keep in step with yet.
+    public static let discriminateInk = adaptive(0x4F6F8F, 0x8FAFCF)
+    public static let discriminateBg = adaptive(0x4F6F8F, 0x8FAFCF, opacity: 0.08, darkOpacity: 0.14)
+    public static let discriminateBorder = adaptive(0x4F6F8F, 0x8FAFCF, opacity: 0.32, darkOpacity: 0.42)
+    public static let predictInk = adaptive(0x6B5F96, 0xA79FD0)
+    public static let predictBg = adaptive(0x6B5F96, 0xA79FD0, opacity: 0.08, darkOpacity: 0.14)
+    public static let predictBorder = adaptive(0x6B5F96, 0xA79FD0, opacity: 0.32, darkOpacity: 0.42)
+    public static let traceInk = adaptive(0x3F7D6D, 0x74BFA9)
+    public static let traceBg = adaptive(0x3F7D6D, 0x74BFA9, opacity: 0.08, darkOpacity: 0.14)
+    public static let traceBorder = adaptive(0x3F7D6D, 0x74BFA9, opacity: 0.32, darkOpacity: 0.42)
+    public static let performInk = adaptive(0x3F7D5F, 0x74BF96)
+    public static let performBg = adaptive(0x3F7D5F, 0x74BF96, opacity: 0.08, darkOpacity: 0.14)
+    public static let performBorder = adaptive(0x3F7D5F, 0x74BF96, opacity: 0.32, darkOpacity: 0.42)
+    public static let drillInk = adaptive(0xA3672F, 0xD89F63)
+    public static let drillBg = adaptive(0xA3672F, 0xD89F63, opacity: 0.08, darkOpacity: 0.14)
+    public static let drillBorder = adaptive(0xA3672F, 0xD89F63, opacity: 0.32, darkOpacity: 0.42)
+    public static let recallInk = adaptive(0x5A6B86, 0x9AABC6)
+    public static let recallBg = adaptive(0x5A6B86, 0x9AABC6, opacity: 0.08, darkOpacity: 0.14)
+    public static let recallBorder = adaptive(0x5A6B86, 0x9AABC6, opacity: 0.32, darkOpacity: 0.42)
     public static let crucibleInk = adaptive(0xA23B34, 0xE08078)
     public static let crucibleBg = adaptive(0xA23B34, 0xE08078, opacity: 0.08, darkOpacity: 0.14)
     public static let crucibleBorder = adaptive(0xA23B34, 0xE08078, opacity: 0.28, darkOpacity: 0.38)

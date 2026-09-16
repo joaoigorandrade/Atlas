@@ -334,6 +334,17 @@ final class FeynmanViewModel {
         save()
     }
 
+    /// The CTA off the Gap Report. It names the phase this node's plan actually
+    /// opens next rather than Connect, which a `procedure`'s ladder does reach
+    /// and a redo of a finished one does not.
+    var advanceLabel: LocalizedStringKey {
+        guard gapCount == 0 else { return "Anexar \(gapCount) e continuar →" }
+        guard let next = session.handOff else { return "Diff limpo · voltar ao mapa →" }
+        return "Diff limpo · \(next.label) →"
+    }
+
+    var advanceTint: Color { session.handOffTint }
+
     // MARK: - Leaving
 
     /// The gaps as they finally stand go on the map, and the pass is closed.

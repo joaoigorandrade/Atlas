@@ -133,7 +133,7 @@ final class SocraticViewModel {
         case (.flagged, false):
             handedBackBefore ? "Abrir a lacuna no mapa →" : "Reler isto primeiro · Consume →"
         case (_, true): "Fechar a lacuna · voltar ao mapa →"
-        default: "Seguir para o Feynman →"
+        default: session.handOffLabel
         }
     }
 

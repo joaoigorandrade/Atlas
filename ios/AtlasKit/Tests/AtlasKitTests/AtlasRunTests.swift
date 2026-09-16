@@ -113,3 +113,42 @@ private func decoded() throws -> AtlasRun {
     // one prerequisite is mastered, so it is what the learner can start next.
     #expect(run.frontierCount == 1)
 }
+
+/// The ledger has to round-trip, or state is derived from a record the server
+/// never got. It is the one *derived-from* field this client owns: a save that
+/// carried the state and not the record behind it would re-derive a different
+/// state the next time the run was opened.
+@Test func theRunCarriesTheLedgerAndEachNodesPlan() throws {
+    let wire = """
+    {"id":"t","subject":"Química","goal":"exam","interests":"","paretoPct":20,
+     "examDate":"","calibSamples":[],"litToday":[],"updatedAt":"",
+     "graph":{"nodes":[
+       {"id":"a","label":"Titulação","kind":"procedure",
+        "phasePlan":["consume","trace","feynman","perform","drill","connect","crucible","retain"]},
+       {"id":"b","label":"Antiga"}],"edges":[]},
+     "states":{"a":"learning","b":"mastered"},"positions":{},"shakyReasons":{},
+     "phasesDone":{"a":["consume","trace"],
+                   "b":["consume","socratic","feynman","connect","crucible"]},
+     "reviewedNodes":[],"consumeProgress":{},"socraticProgress":{},
+     "feynmanProgress":{},"connectProgress":{},"misconceptions":[],"cards":[]}
+    """
+    let run = try JSONDecoder().decode(AtlasRun.self, from: Data(wire.utf8))
+    #expect(run.phasesDone["a"] == [.consume, .trace])
+    #expect(run.graph.nodes[0].kind == .procedure)
+    #expect(run.graph.nodes[0].plan.contains(.perform))
+    // A node written before the catalogue carries neither, and falls back to the
+    // ladder every node ran then — the backfilled ledger still lines up with it.
+    #expect(run.graph.nodes[1].kind == nil)
+    #expect(run.graph.nodes[1].plan == phasePlans[.concept])
+    #expect(stateFromPlan(run.graph.nodes[1].plan, run.phasesDone["b"] ?? []) == .learning)
+
+    // And the delta is what carries it back. `phasesDone` on every node that
+    // changed; `kind` and `phasePlan` only on one this client created, because
+    // the columns are NOT NULL with a default a spawned gap wants to keep.
+    var delta = NodeDelta(id: "a")
+    delta.phasesDone = [.consume, .trace]
+    let sent = try JSONSerialization.jsonObject(with: JSONEncoder().encode(delta)) as! [String: Any]
+    #expect(sent["phasesDone"] as? [String] == ["consume", "trace"])
+    #expect(sent["kind"] == nil)
+    #expect(sent["phasePlan"] == nil)
+}

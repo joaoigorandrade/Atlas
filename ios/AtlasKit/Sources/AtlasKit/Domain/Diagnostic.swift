@@ -158,6 +158,35 @@ public func applyDiagnosticEffect(
     return next
 }
 
+/// The same write, as a *ledger* entry — because mastery is derived from the
+/// record now, and a state written without one is a node that reads as Dominado
+/// over a rail with nothing ticked. The placement is the one surface that writes
+/// mastery without the learner finishing a phase, so it is the one place that
+/// has to say what it is claiming they finished:
+///
+/// - correct → the whole plan, exactly as "já sei isso" claims it.
+/// - a genuine miss → every gate but the last, so the node is owed precisely the
+///   gate its `diagnostic-hesitation` line promises, and no more.
+///
+/// This mirrors what the catalogue migration backfilled for runs already in
+/// flight; without it every placement writes a fresh row that needs backfilling
+/// again.
+public func applyDiagnosticLedger(
+    _ phasesDone: PhasesDoneMap,
+    _ effect: DiagnosticEffect,
+    nodeId: String,
+    edges: [ConceptEdge],
+    plan: (String) -> [Phase]
+) -> PhasesDoneMap {
+    var next = phasesDone
+    guard effect == .mastered else {
+        next[nodeId] = planGates(plan(nodeId)).dropLast()
+        return next
+    }
+    for id in ancestors(of: nodeId, edges) { next[id] = plan(id) }
+    return next
+}
+
 /// Every ancestor of `id` along prerequisite edges, including itself.
 public func ancestors(of id: String, _ edges: [ConceptEdge]) -> Set<String> {
     var reverse: [String: [String]] = [:]

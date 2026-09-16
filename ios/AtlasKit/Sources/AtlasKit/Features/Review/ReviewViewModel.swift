@@ -183,9 +183,9 @@ public final class ReviewViewModel {
         // Any node a card keeps alive goes Shaky on a miss, not only a mastered
         // one — `useSpiral` has always flagged every node, and a Learning node
         // that just failed its own card is exactly what Shaky is for.
-        if store.states[card.node] != .shaky, (store.states[card.node] ?? .unknown).isLearned {
-            store.states[card.node] = .shaky
-            store.shakyReasons[card.node] = .reviewMiss
+        if store.states[card.node] != .shaky, (store.states[card.node] ?? .unknown).isLearned,
+           let node = store.graph.byId[card.node] {
+            store.markShaky(node, .reviewMiss)
         }
         // A miss really does come back at the end of the deck — but only once,
         // or a card nobody can answer is a session with no end. This copy is

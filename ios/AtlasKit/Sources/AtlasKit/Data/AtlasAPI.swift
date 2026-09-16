@@ -301,6 +301,36 @@ public actor AtlasAPI {
         try await whole("crucible", context)
     }
 
+    // The six the catalogue's growth to twelve added. Each is answered whole —
+    // a run of cases, of setups, of stages or of reps is one object the server
+    // validates together, and half a boundary test is not a shorter test, it is
+    // a different one. One method per kind rather than a generic over the four
+    // that look alike: the payloads are genuinely different shapes, and the
+    // judge each one ends in is different too.
+    public func discriminate(_ context: [String: JSONValue]) async throws -> Landed<DiscriminateContent> {
+        try await whole("discriminate", context)
+    }
+
+    public func predict(_ context: [String: JSONValue]) async throws -> Landed<PredictContent> {
+        try await whole("predict", context)
+    }
+
+    public func trace(_ context: [String: JSONValue]) async throws -> Landed<TraceContent> {
+        try await whole("trace", context)
+    }
+
+    public func drill(_ context: [String: JSONValue]) async throws -> Landed<DrillContent> {
+        try await whole("drill", context)
+    }
+
+    public func recall(_ context: [String: JSONValue]) async throws -> Landed<RecallContent> {
+        try await whole("recall", context)
+    }
+
+    public func perform(_ context: [String: JSONValue]) async throws -> Landed<PerformContent> {
+        try await whole("perform", context)
+    }
+
     /// `{ content: … }` in, the content decoded *and* kept — the cache stores
     /// the object the model wrote, which is the same one the web stores.
     private func whole<T: Decodable & Sendable>(
