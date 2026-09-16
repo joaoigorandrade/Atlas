@@ -15,6 +15,7 @@
 
 import {
   migrateConsume,
+  usableShapes,
   usableRubrics,
   type LegacyConsumeChunk,
 } from "@/lib/contentMigrate";
@@ -428,8 +429,16 @@ export function foldContent(items: ContentItem[]): RunCaches {
   // The two payloads whose shape changed under them. See lib/contentMigrate.ts:
   // a row the normalization carried over from the `caches` column may predate
   // either rewrite, and a hit is never re-validated.
+  // The six newest phases have no shape guard on the way in, so they get one
+  // here — see `usableShapes`. Each names the array its screen reads first.
   return {
     ...caches,
+    discriminate: usableShapes(caches.discriminate, "cases"),
+    predict: usableShapes(caches.predict, "setups"),
+    trace: usableShapes(caches.trace, "stages"),
+    drill: usableShapes(caches.drill, "reps"),
+    recall: usableShapes(caches.recall, "rubric"),
+    perform: usableShapes(caches.perform, "steps"),
     consume: migrateConsume(
       caches.consume as unknown as Record<string, LegacyConsumeChunk[]>,
     ),

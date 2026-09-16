@@ -66,3 +66,34 @@ export function usableRubrics(
     ),
   );
 }
+
+/**
+ * Drop stored payloads whose shape is not the one their renderer reads.
+ *
+ * `node_content` is addressed by (topic, node, kind, variant) and is *not*
+ * version-guarded the way `content_cache` is — so a row survives a change to
+ * the shape it holds, and a hit is handed to the client without re-validation.
+ * The six phases of the catalogue's growth to twelve shipped first as two
+ * shared family shapes and were then split into six of their own; every row
+ * written in between holds a payload the new screen cannot read. On production
+ * that showed up as the phase opening to the error boundary — "this screen hit
+ * a snag" — with no way for the learner to get past it.
+ *
+ * Dropping the row is the whole fix: the phase regenerates on entry, which is
+ * what it would have done had the row never existed. Same reasoning as
+ * `usableRubrics`, which drops the pre-rewrite teach-back scripts.
+ *
+ * The check is deliberately the field the renderer dereferences first, not a
+ * deep validation — a payload with the right array is a payload the screen can
+ * open, and anything subtler belongs in the validator on the way in.
+ */
+export function usableShapes<T>(
+  cached: Record<string, T> | undefined,
+  field: string,
+): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(cached ?? {}).filter(([, payload]) =>
+      Array.isArray((payload as Record<string, unknown> | null)?.[field]),
+    ),
+  );
+}

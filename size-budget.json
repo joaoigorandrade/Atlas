@@ -27,7 +27,7 @@
     "lib/api.ts": 925,
     "lib/curriculum/calibration.ts": 440,
     "lib/curriculum/socratic.ts": 473,
-    "lib/persistence.ts": 450,
+    "lib/persistence.ts": 460,
     "lib/server/fixtures.ts": 555,
     "lib/server/generate/judge.ts": 512,
     "lib/server/generate/map.ts": 523,
