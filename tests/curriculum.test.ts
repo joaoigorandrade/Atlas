@@ -24,6 +24,10 @@ import {
   PHASE_PLAN,
   removeNode,
   rolloverAdherence,
+  deckMedianMs,
+  deckPassed,
+  deckReducer,
+  deckStart,
   recitePassed,
   reciteReducer,
   reciteScore,
@@ -871,9 +875,16 @@ describe("PHASE_PLAN invariants", () => {
   it("runs a genuinely different ladder per kind", () => {
     // The headline, spelled out rather than derived — a table this small is
     // worth asserting literally, since a typo in it is a ladder shipped.
-    expect([...PHASE_PLAN.fact]).toEqual(["consume", "connect", "recall", "retain"]);
+    expect([...PHASE_PLAN.fact]).toEqual([
+      "consume",
+      "discriminate",
+      "connect",
+      "recall",
+      "retain",
+    ]);
     expect([...PHASE_PLAN.concept]).toEqual([
       "consume",
+      "discriminate",
       "socratic",
       "feynman",
       "connect",
@@ -899,6 +910,16 @@ describe("PHASE_PLAN invariants", () => {
     for (const phase of ["socratic", "feynman", "crucible"] as const)
       expect(PHASE_PLAN.fact).not.toContain(phase);
     expect(PHASE_PLAN.fact).toContain("recall");
+  });
+
+  it("makes discriminating instances a concept's own rung, not a warm-up", () => {
+    // A concept is a classification. Telling an instance from a near-miss is
+    // the thing being learned, which is why it sits right behind the reading
+    // rather than being folded into it — and why a `fact` runs it too: an
+    // arbitrary association is still confusable with its neighbours.
+    expect(PHASE_PLAN.concept).toContain("discriminate");
+    expect(PHASE_PLAN.fact).toContain("discriminate");
+    expect(PHASE_PLAN.concept.indexOf("discriminate")).toBe(1);
   });
 
   it("asks a procedure to run, not to recite", () => {
@@ -1019,6 +1040,68 @@ describe("crucibleMasters", () => {
 
   it("promises nothing about a node it cannot find", () => {
     expect(crucibleMasters(nodes, "gone", {})).toBe(true);
+  });
+});
+
+// ---- the deck engine (Discriminate) --------------------------------------------
+
+describe("deck", () => {
+  const content = {
+    nodeId: "n",
+    nodeLabel: "The rule",
+    items: [0, 1, 2].map((i) => ({
+      id: `i${i}`,
+      prompt: "Is this it?",
+      options: ["yes", "no"],
+      answerIndex: i % 2,
+      why: "because",
+    })),
+  };
+  const run = (picks: number[], t0 = 0) =>
+    picks.reduce(
+      (s, pick, i) =>
+        deckReducer(
+          deckReducer(
+            s,
+            { type: "answer", index: pick, now: t0 + i * 2000 + 1000 },
+            content,
+          ),
+          { type: "next", now: t0 + (i + 1) * 2000 },
+          content,
+        ),
+      deckStart("n", "discriminate", t0),
+    );
+
+  it("will not let an answer be changed once it is committed", () => {
+    // The one thing a boundary test may never allow: tapping through the
+    // options until the reveal turns green.
+    const once = deckReducer(
+      deckStart("n", "discriminate"),
+      { type: "answer", index: 1 },
+      content,
+    );
+    const twice = deckReducer(once, { type: "answer", index: 0 }, content);
+    expect(twice.picks.i0).toBe(1);
+  });
+
+  it("does not advance past an item that was never answered", () => {
+    // The reveal is the payoff for having committed; skipping it would make
+    // the run a reading of the answers.
+    const start = deckStart("n", "discriminate");
+    expect(deckReducer(start, { type: "next" }, content).index).toBe(0);
+  });
+
+  it("passes on two thirds right, and not on less", () => {
+    expect(deckPassed(run([0, 1, 0]), content)).toBe(true);
+    expect(deckPassed(run([0, 1, 1]), content)).toBe(true);
+    expect(deckPassed(run([0, 0, 1]), content)).toBe(false);
+  });
+
+  it("reports the median time per call, not the mean", () => {
+    // One interrupted item must not describe the run — which is the whole
+    // reason a timed phase reads the median.
+    const s = run([0, 1, 0]);
+    expect(deckMedianMs(s, content)).toBe(1000);
   });
 });
 

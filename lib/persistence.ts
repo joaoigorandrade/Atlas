@@ -28,6 +28,7 @@ import type {
   ConsumeModelBeat,
   ConsumeProgress,
   CrucibleContent,
+  DeckContent,
   ElaborationContent,
   FeynmanBeat,
   FeynmanSession,
@@ -167,6 +168,9 @@ export interface RunCaches {
    *  field per phase would mean editing this contract on both clients every
    *  time the catalogue grows. */
   recite: Record<string, ReciteContent>;
+  /** The deck family (Discriminate · Predict · Trace · Drill), keyed
+   *  `<phase>:<nodeId>` — one bucket, same reasoning as `recite`. */
+  deck: Record<string, DeckContent>;
   retain: RetainContent | null;
 }
 
@@ -178,6 +182,7 @@ export const emptyCaches = (): RunCaches => ({
   connect: {},
   crucible: {},
   recite: {},
+  deck: {},
   retain: null,
 });
 
@@ -390,6 +395,9 @@ export function foldContent(items: ContentItem[]): RunCaches {
         break;
       case "recall":
         caches.recite[`${item.kind}:${item.nodeId}`] = item.payload as ReciteContent;
+        break;
+      case "discriminate":
+        caches.deck[`${item.kind}:${item.nodeId}`] = item.payload as DeckContent;
         break;
       case "retain":
         caches.retain = item.payload as RetainContent;

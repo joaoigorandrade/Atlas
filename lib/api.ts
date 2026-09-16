@@ -8,6 +8,8 @@ import type {
   ConsumeChunk,
   ConsumeModelBeat,
   CrucibleContent,
+  DeckContent,
+  DeckPhase,
   DiagnosticDifficulty,
   DiagnosticQuestion,
   ElaborationContent,
@@ -558,6 +560,30 @@ export async function fetchCrucible(
 ): Promise<CrucibleContent> {
   return (await post<{ content: CrucibleContent }>(crucibleRequest(params), opts))
     .content;
+}
+
+/** The deck family (`discriminate`, and predict · trace · drill as they land):
+ *  one request builder, since the phases differ only in what the items are. */
+export const deckRequest = (params: {
+  phase: DeckPhase;
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => {
+  const { phase, ...rest } = params;
+  return { kind: phase, ...rest };
+};
+
+export async function fetchDeck(
+  params: Parameters<typeof deckRequest>[0],
+  opts?: FetchOpts,
+): Promise<DeckContent> {
+  return (await post<{ content: DeckContent }>(deckRequest(params), opts)).content;
 }
 
 /** The recite family (`recall`, and `perform` once it exists): one request

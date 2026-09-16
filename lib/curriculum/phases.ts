@@ -43,11 +43,12 @@ export function asNodeKind(raw: unknown): NodeKind {
  * exists, and the "every phase has a home" invariant stays meaningful. The
  * full target order, with the unbuilt ones marked:
  *
- *   consume · discriminate† · socratic · predict† · trace† · feynman ·
+ *   consume · discriminate · socratic · predict† · trace† · feynman ·
  *   perform† · drill† · connect · crucible · recall · retain
  */
 export const PHASE_ORDER = [
   "consume",
+  "discriminate",
   "socratic",
   "feynman",
   "connect",
@@ -73,6 +74,7 @@ export type PhaseId = (typeof PHASE_ORDER)[number];
  */
 export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
   consume: { label: "Consume", signal: "exposure" },
+  discriminate: { label: "Discriminate", signal: "boundary" },
   socratic: { label: "Socratic", signal: "reasoning under questioning" },
   feynman: { label: "Feynman", signal: "unaided production" },
   connect: { label: "Connect", signal: "elaborative encoding" },
@@ -92,8 +94,8 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  * Each unbuilt phase slots into the rows that want it in the release that
  * builds it, so this table is never inconsistent with `PHASE_ORDER`:
  *
- *   fact       consume · discriminate† · drill† · connect · recall · retain
- *   concept    consume · discriminate† · socratic · feynman · connect ·
+ *   fact       consume · discriminate · drill† · connect · recall · retain
+ *   concept    consume · discriminate · socratic · feynman · connect ·
  *              crucible · recall · retain
  *   procedure  consume · trace† · feynman · perform† · drill† · connect ·
  *              crucible · retain
@@ -113,9 +115,21 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  *   3. every phase has at least one home — one that doesn't is dead code
  */
 export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
-  // Nothing to reason about: read it, wire it into the map, keep it alive.
-  fact: ["consume", "connect", "recall", "retain"],
-  concept: ["consume", "socratic", "feynman", "connect", "crucible", "recall", "retain"],
+  // Nothing to reason from: tell it from its neighbours, wire it into the map,
+  // retrieve it cold, keep it alive.
+  fact: ["consume", "discriminate", "connect", "recall", "retain"],
+  // A concept IS a classification, so telling instances from near-misses is
+  // not a warm-up for the ladder — it is the thing being learned.
+  concept: [
+    "consume",
+    "discriminate",
+    "socratic",
+    "feynman",
+    "connect",
+    "crucible",
+    "recall",
+    "retain",
+  ],
   // A procedure is run, not argued with — no Socratic pass. No Recall either:
   // what it owes is execution, and reciting the steps from memory is the
   // rehearsal a procedure most easily fakes.
@@ -177,6 +191,7 @@ export function phasePlan(node: {
  */
 export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
   consume: "You haven't read this yet — want to?",
+  discriminate: "You haven't told this apart from its neighbours yet — want to?",
   socratic: "You haven't reasoned this out yet — want to?",
   feynman: "You haven't taught this back yet — want to?",
   connect: "You haven't linked this into your map yet — want to?",
@@ -187,6 +202,7 @@ export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
 
 const PHASE_SKIP_NUDGE_PT: Record<PhaseId, string> = {
   consume: "Você ainda não leu isso — quer ler?",
+  discriminate: "Você ainda não distinguiu isso dos vizinhos — quer tentar?",
   socratic: "Você ainda não raciocinou sobre isso — quer tentar?",
   feynman: "Você ainda não ensinou isso de volta — quer tentar?",
   connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",

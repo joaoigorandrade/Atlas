@@ -85,16 +85,17 @@ div. Prefer these over text: the app is bilingual and the copy moves.
 
 `action-<verb>` in full:
 
-| Where      | Controls                                                                    |
-| ---------- | --------------------------------------------------------------------------- |
-| onboarding | `build` · `goal-<key>` · `take-placement` · `answer-<i>` · `next` · `start` |
-| map        | `primary` · `phase-<i>` · `skip-confirm` · `skip-cancel`                    |
-| Consume    | `check-<i>` · `continue` · `finish` · `begin-socratic`                      |
-| Socratic   | `submit`                                                                    |
-| Feynman    | `begin` · `next` · `submit` · `advance`                                     |
-| Crucible   | `confidence-<i>` · `submit` · `finish`                                      |
-| Recall     | `submit` · `scaffold` · `finish` · `again` · `exit`                         |
-| Retain     | `flip` · `grade-<again\|hard\|good\|easy>` · `continue`                     |
+| Where        | Controls                                                                    |
+| ------------ | --------------------------------------------------------------------------- |
+| onboarding   | `build` · `goal-<key>` · `take-placement` · `answer-<i>` · `next` · `start` |
+| map          | `primary` · `phase-<i>` · `skip-confirm` · `skip-cancel`                    |
+| Consume      | `check-<i>` · `continue` · `finish` · `begin-socratic`                      |
+| Socratic     | `submit`                                                                    |
+| Feynman      | `begin` · `next` · `submit` · `advance`                                     |
+| Crucible     | `confidence-<i>` · `submit` · `finish`                                      |
+| Discriminate | `mode-<open\|choices>` · `pick-<i>` · `next` · `finish` · `exit`            |
+| Recall       | `submit` · `scaffold` · `finish` · `again` · `exit`                         |
+| Retain       | `flip` · `grade-<again\|hard\|good\|easy>` · `continue`                     |
 
 Two things that catch people out:
 

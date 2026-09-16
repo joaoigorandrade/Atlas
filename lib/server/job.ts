@@ -15,6 +15,7 @@ import {
   generateConsumeModelStream,
   generateConsumeStream,
   generateCrucible,
+  generateDeck,
   generateDiagnosticQuestion,
   generateFeynman,
   generateFeynmanStream,
@@ -581,6 +582,28 @@ function buildJob(body: GenerateBody): Job {
           ...nodeKindOf(body),
         },
         async (p) => ({ content: await generateCrucible(p) }),
+      );
+    }
+
+    // The deck family (`discriminate`, and predict · trace · drill as they
+    // land): a short run of committed-then-revealed items. One case for the
+    // same reason the recite family has one — they differ in their brief, not
+    // in their plumbing, and `phase` is part of the key so no two collide.
+    case "discriminate": {
+      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+      return cacheable(
+        body.kind,
+        {
+          phase: body.kind,
+          topic,
+          nodeId,
+          nodeLabel,
+          interests,
+          language,
+          ...boundary(body),
+          ...nodeKindOf(body),
+        },
+        async (p) => ({ content: await generateDeck(p) }),
       );
     }
 

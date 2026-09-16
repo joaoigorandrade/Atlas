@@ -37,6 +37,7 @@ import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
+import DeckView from "@/components/session/DeckView";
 import ReciteView from "@/components/session/ReciteView";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
@@ -100,6 +101,7 @@ export default function AtlasApp({
     connect,
     crucible,
     recite,
+    deck,
     retain,
     reset: resetSessions,
   } = sessions;
@@ -474,6 +476,9 @@ export default function AtlasApp({
     reciteSubmit,
     advanceFromRecite,
     exitRecite,
+    dispatchDeck,
+    advanceFromDeck,
+    exitDeck,
     enterReview,
     retainFlip,
     retainToggleAside,
@@ -551,6 +556,7 @@ export default function AtlasApp({
     connectContent,
     crucibleContent,
     reciteContent,
+    deckContent,
     displayName,
     initials,
     greeting,
@@ -1054,6 +1060,26 @@ export default function AtlasApp({
             onRetry={() => dispatchCrucible({ type: "retry" })}
             onFinish={advanceFromCrucible}
             lifts={crucibleMasters(graph.nodes, crucible.nodeId, phasesDone)}
+          />,
+        )}
+
+      {/* The deck family — Discriminate, with Predict · Trace · Drill to come.
+          One branch, keyed on the session's own phase, same as recite. */}
+      {openSheet === deck?.phase &&
+        deck &&
+        deckContent &&
+        sheetBoundary(
+          <DeckView
+            presence={sheet.state}
+            topic={form.topic}
+            title={graph.nodes.find((n) => n.id === deck.nodeId)?.label ?? "Concept"}
+            plan={planOf(deck.nodeId)}
+            content={deckContent}
+            session={deck}
+            onExit={exitDeck}
+            onAnswer={(index, read) => dispatchDeck({ type: "answer", index, read })}
+            onNext={() => dispatchDeck({ type: "next" })}
+            onAdvance={advanceFromDeck}
           />,
         )}
 

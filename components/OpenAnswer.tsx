@@ -68,6 +68,7 @@ export function AnswerModeToggle({
           <button
             className="at-press"
             key={key}
+            data-testid={`action-mode-${key}`}
             onClick={() => onMode(key)}
             style={{
               padding: "4px 10px",
@@ -135,6 +136,7 @@ export function OpenAnswer({
   return (
     <div>
       <textarea
+        data-testid="field-answer"
         value={text}
         disabled={judging}
         rows={rows}
@@ -163,6 +165,7 @@ export function OpenAnswer({
       <MicButton value={text} onChange={setText} disabled={judging} accent={accent} />
       <button
         className="at-press"
+        data-testid="action-submit"
         onClick={submit}
         disabled={judging || !text.trim()}
         style={{

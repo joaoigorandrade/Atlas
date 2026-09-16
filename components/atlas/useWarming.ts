@@ -27,6 +27,7 @@ const SLOT: Record<string, string> = {
   feynman: "beats",
   connect: "content",
   crucible: "content",
+  discriminate: "content",
   recall: "content",
 };
 

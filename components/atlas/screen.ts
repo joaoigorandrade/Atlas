@@ -11,6 +11,7 @@ export type Screen =
   | "settings"
   | "map"
   | "consume"
+  | "discriminate"
   | "socratic"
   | "feynman"
   | "connect"
@@ -22,6 +23,7 @@ export type Screen =
 /** Screens that render as a full-screen `Sheet` over the map. */
 export const SHEET_SCREENS = new Set<Screen>([
   "consume",
+  "discriminate",
   "socratic",
   "feynman",
   "connect",

@@ -20,6 +20,7 @@ import type {
   DiagnosticQuestion,
   ElaborationContent,
   FeynmanBeat,
+  DeckContent,
   MapNode,
   ReciteContent,
   RetainContent,
@@ -309,6 +310,29 @@ const modelBeats = (v: Vars): ConsumeModelBeat[] =>
     text: `${["First, hold the section's claim still.", "Then apply it to the case in front of you.", "What you are left with is the takeaway, arrived at rather than asserted."][i]} (${v.nodeLabel})`,
   }));
 
+/** The deck family's run of items. Four options, a rotating answer index and
+ *  a real `why` on each, so the fixture exercises the reveal and the "not
+ *  every item answers to the same index" guard rather than only the happy
+ *  path. */
+const deckContent = (phase: string, v: Vars): DeckContent => ({
+  nodeId: v.nodeId,
+  nodeLabel: v.nodeLabel,
+  items: [0, 1, 2, 3].map((i) => ({
+    id: `dk-${phase}-${v.nodeId}-${i + 1}`,
+    context: `Case ${i + 1}: a situation where the requirement ${
+      i % 2 ? "does not hold" : "holds"
+    }, described without naming anything.`,
+    prompt: `Is this ${v.nodeLabel}?`,
+    options: [
+      `Yes — this is ${v.nodeLabel}`,
+      "No — the requirement is missing",
+      "No — this is the neighbouring idea",
+    ],
+    answerIndex: i % 2 ? 1 : 0,
+    why: `The requirement ${i % 2 ? "is absent here" : "is met here"}, and that is what decides it.`,
+  })),
+});
+
 /** The recite family's blank page — a brief, a scaffold, and a rubric the
  *  learner never sees. One fixture for both phases: they differ in their
  *  prompt, and a fixture exists to drive the surface, not to judge the copy. */
@@ -399,6 +423,8 @@ export function fixturePayload(
       return { content: connectContent(v) };
     case "crucible":
       return { content: crucibleContent(v) };
+    case "discriminate":
+      return { content: deckContent(kind, v) };
     case "recall":
       return { content: reciteContent(kind, v) };
     case "retain":

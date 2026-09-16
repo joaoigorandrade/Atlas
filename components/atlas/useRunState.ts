@@ -34,6 +34,7 @@ import {
   type ConsumeProgress,
   type ConnectSession,
   type CrucibleContent,
+  type DeckContent,
   type ReciteContent,
   type ElaborationContent,
   type FeynmanBeat,
@@ -138,6 +139,8 @@ export function useRunState(opts: {
   // The recite family (Recall · Perform), keyed `<phase>:<nodeId>` — one map
   // for the whole family, since every one of them holds the same payload.
   const [reciteCache, setReciteCache] = useState<Record<string, ReciteContent>>({});
+  // The deck family (Discriminate · Predict · Trace · Drill), same arrangement.
+  const [deckCache, setDeckCache] = useState<Record<string, DeckContent>>({});
   // Model views (a lens opened over one section of the reading), keyed by
   // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
   // one lens on the section that didn't land, not twenty across the pass.
@@ -233,6 +236,8 @@ export function useRunState(opts: {
   crucibleCacheRef.current = crucibleCache;
   const reciteCacheRef = useRef(reciteCache);
   reciteCacheRef.current = reciteCache;
+  const deckCacheRef = useRef(deckCache);
+  deckCacheRef.current = deckCache;
   const retainContentRef = useRef(retainContent);
   retainContentRef.current = retainContent;
   const consumeProgressRef = useRef(consumeProgress);
@@ -361,6 +366,7 @@ export function useRunState(opts: {
     setConnectCache({});
     setCrucibleCache({});
     setReciteCache({});
+    setDeckCache({});
     setRetainContent(null);
   }, []);
 
@@ -404,6 +410,7 @@ export function useRunState(opts: {
     setConnectCache(merge(c.connect));
     setCrucibleCache(merge(c.crucible));
     setReciteCache(merge(c.recite));
+    setDeckCache(merge(c.deck));
     setRetainContent((prev) => prev ?? c.retain);
   }, []);
 
@@ -425,6 +432,7 @@ export function useRunState(opts: {
       setConnectCache({});
       setCrucibleCache({});
       setReciteCache({});
+      setDeckCache({});
       setRetainContent(null);
 
       // The run's language wins over the device's. UI language is detected
@@ -709,6 +717,9 @@ export function useRunState(opts: {
     reciteCache,
     setReciteCache,
     reciteCacheRef,
+    deckCache,
+    setDeckCache,
+    deckCacheRef,
     setCrucibleCache,
     crucibleCacheRef,
     retainContent,

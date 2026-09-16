@@ -86,6 +86,7 @@ export function useDerived(deps: {
     connectCache,
     crucibleCache,
     reciteCache,
+    deckCache,
   } = run;
   const {
     consume,
@@ -98,6 +99,7 @@ export function useDerived(deps: {
     connect,
     crucible,
     recite,
+    deck,
     consumeChunksRef,
   } = sessions;
 
@@ -253,6 +255,7 @@ export function useDerived(deps: {
   const reciteContent = recite
     ? reciteCache[`${recite.phase}:${recite.nodeId}`]
     : undefined;
+  const deckContent = deck ? deckCache[`${deck.phase}:${deck.nodeId}`] : undefined;
 
   // ---- Home (dashboard) + profile derived ------------------------------
 
@@ -369,6 +372,7 @@ export function useDerived(deps: {
     connectContent,
     crucibleContent,
     reciteContent,
+    deckContent,
     displayName,
     initials,
     greeting,

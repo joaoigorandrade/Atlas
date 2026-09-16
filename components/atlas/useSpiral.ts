@@ -80,6 +80,7 @@ import {
   type FeynmanJudgement,
 } from "@/lib/api";
 import { usePhaseLedger } from "@/components/atlas/phaseLedger";
+import { useDeck } from "@/components/atlas/useDeck";
 import { useRecite } from "@/components/atlas/useRecite";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
@@ -271,6 +272,20 @@ export function useSpiral(deps: {
       judgingRef,
       setJudging,
     });
+
+  // The deck family (Discriminate · Predict · Trace · Drill) — split out on
+  // the same line, and for the same reason.
+  const { enterDeck, dispatchDeck, advanceFromDeck, exitDeck } = useDeck({
+    run,
+    sessions,
+    gen,
+    toast,
+    ledger,
+    setSelectedId,
+    setScreen,
+    centerOn,
+    later,
+  });
 
   // ---- map actions ------------------------------------------------------
 
@@ -2033,6 +2048,7 @@ export function useSpiral(deps: {
    */
   const enterPhase: Record<PhaseId, (node: ConceptNode) => void> = {
     consume: enterSession,
+    discriminate: (node) => enterDeck(node, "discriminate"),
     socratic: enterSocratic,
     feynman: enterFeynman,
     connect: enterConnect,
@@ -2189,6 +2205,10 @@ export function useSpiral(deps: {
     reciteSubmit,
     advanceFromRecite,
     exitRecite,
+    enterDeck,
+    dispatchDeck,
+    advanceFromDeck,
+    exitDeck,
     retainPlan,
     enterReview,
     retainFlip,

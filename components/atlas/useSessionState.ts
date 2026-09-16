@@ -19,6 +19,7 @@ import type {
   ConsumeModelBeat,
   CrucibleSession,
   FeynmanBeat,
+  DeckSession,
   FeynmanSession,
   ReciteSession,
   RetainSession,
@@ -65,8 +66,9 @@ export function useSessionState() {
   const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
   // One slot for the whole recite family (Recall · Perform): the session
   // carries which phase it is, so a second slot would only be a second thing
-  // to reset. Same arrangement waits for the deck family.
+  // to reset. The deck family below is the same arrangement.
   const [recite, setRecite] = useState<ReciteSession | null>(null);
+  const [deck, setDeck] = useState<DeckSession | null>(null);
   const [retain, setRetain] = useState<RetainSession | null>(null);
 
   const consumeRef = useRef(consume);
@@ -87,6 +89,8 @@ export function useSessionState() {
   retainRef.current = retain;
   const reciteRef = useRef(recite);
   reciteRef.current = recite;
+  const deckRef = useRef(deck);
+  deckRef.current = deck;
   /** The reading pass on screen — committed sections, or the streaming ones
    *  standing in for them. Assigned once `consumeChunks` is derived. */
   const consumeChunksRef = useRef<ConsumeChunk[]>([]);
@@ -110,6 +114,7 @@ export function useSessionState() {
     setConnect(null);
     setCrucible(null);
     setRecite(null);
+    setDeck(null);
     setRetain(null);
   }, []);
 
@@ -142,6 +147,9 @@ export function useSessionState() {
     recite,
     setRecite,
     reciteRef,
+    deck,
+    setDeck,
+    deckRef,
     retain,
     setRetain,
     retainRef,

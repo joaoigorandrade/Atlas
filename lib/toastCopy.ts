@@ -79,6 +79,8 @@ const EN = {
   // The recite family's overlay line — one for the whole family, since what
   // is being written is a brief and a rubric either way.
   writingPass: (label: string) => `Setting the blank page for ${label}…`,
+  // The deck family's overlay line — a run of cases to sort, either way.
+  sortingCases: (label: string) => `Collecting the cases that bound ${label}…`,
   draftingCards: "Drafting cards from what you've learned…",
 
   // The synthetic Socratic gap written onto the map — no model wrote this one.
@@ -156,6 +158,7 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     forgingProblem: (label: string) =>
       `Forjando um problema em que ${label} nunca foi ensinado…`,
     writingPass: (label: string) => `Preparando a página em branco de ${label}…`,
+    sortingCases: (label: string) => `Reunindo os casos que delimitam ${label}…`,
     draftingCards: "Escrevendo cards a partir do que você aprendeu…",
 
     socraticGapLabel: (label: string) => `${label} — fundamentos`,
