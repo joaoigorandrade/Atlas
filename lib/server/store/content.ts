@@ -6,8 +6,12 @@ import { fail } from "@/lib/server/store/shared";
 // ----------------------------------------------------------- node content --
 
 /** The slot each generator writes its payload into — the envelope `job.run()`
- *  returns and `content_cache` therefore stores. See `renderShape`. */
-const SLOT: Record<string, string> = {
+ *  returns and `content_cache` therefore stores. See `renderShape`.
+ *
+ *  Exported so a test can pin it against `CACHEABLE_KINDS`: a kind missing
+ *  from here is served to a client still wearing its envelope, which is the
+ *  silent version of the same drift that left six kinds unrecorded. */
+export const SLOT: Record<string, string> = {
   summary: "summary",
   consume: "chunks",
   model: "beats",

@@ -15,7 +15,7 @@ import {
   type ConceptNode,
 } from "@/lib/curriculum";
 import { logError, logEvent } from "@/lib/log";
-import { readContent, writeContent } from "@/lib/server/contentCache";
+import { CACHEABLE_KINDS, readContent, writeContent } from "@/lib/server/contentCache";
 import { ownsTopic, putContent } from "@/lib/server/store";
 import { resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import type { createClient } from "@/lib/supabase/server";
@@ -42,22 +42,28 @@ export async function logGenerationCalls(
   if (error) logError("generation_log_insert_failed", error, { req: opts.requestId });
 }
 
-/** Kinds whose payload belongs to a node of a topic.
+/**
+ * Kinds whose payload belongs to a node of a topic — every cacheable kind but
+ * the map itself.
  *
- *  `curriculum` is absent on purpose: the map is not content hanging off a
- *  node, it *is* the nodes, and it lands in the `nodes` and `edges` tables.
- *  The uncacheable kinds (`judge`, `diagnosticQuestion`, `passage`) are absent
- *  because each one answers one learner's own words and is never replayed. */
-const RECORDED = new Set([
-  "summary",
-  "consume",
-  "model",
-  "socratic",
-  "feynman",
-  "connect",
-  "crucible",
-  "retain",
-]);
+ * *Derived*, not listed. This was a hand-kept `Set` of strings, and when the
+ * phase catalogue grew from six phases to twelve the six new kinds were never
+ * added to it: they generated, they cached, and not one row was filed against
+ * the topic. A `CONTENT_CACHE_VERSION` bump or the 90-day TTL prune would then
+ * have taken that content away from the learner it was written for and
+ * re-billed them for it — exactly the failure `putContent` keeping the payload
+ * beside the pointer exists to prevent. Found by walking a real map on
+ * production; pinned now by a test, and structurally by this line.
+ *
+ * `curriculum` is the one exclusion, and not an oversight: the map is not
+ * content hanging off a node, it *is* the nodes, and it lands in `nodes` and
+ * `edges`. The uncacheable kinds (`judge`, `diagnosticQuestion`, `passage`)
+ * never reach here — each answers one learner's own words and is never
+ * replayed.
+ */
+export const RECORDED_KINDS: ReadonlySet<string> = new Set(
+  CACHEABLE_KINDS.filter((kind) => kind !== "curriculum"),
+);
 
 /**
  * Record that this topic now has this content.
@@ -83,7 +89,7 @@ export function recordContent(
   payload: Record<string, unknown>,
 ): void {
   const topicId = body.topicId;
-  if (!topicId || !RECORDED.has(job.kind)) return;
+  if (!topicId || !RECORDED_KINDS.has(job.kind)) return;
   // `retain` is drafted from the set of nodes with no card yet, so it is
   // topic-wide and files under the empty node id — the same address the
   // normalization backfill gave it.

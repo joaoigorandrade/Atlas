@@ -10,7 +10,10 @@
 // `try? decode` drops the row and quietly regenerates content the topic owns.
 
 import { describe, expect, it } from "vitest";
-import { renderShape } from "@/lib/server/store";
+import { renderShape, SLOT } from "@/lib/server/store";
+import { CACHEABLE_KINDS } from "@/lib/server/contentCache";
+import { RECORDED_KINDS } from "@/lib/server/afterBuild";
+import { PHASE_ORDER } from "@/lib/curriculum";
 
 const section = { id: "c1", kicker: "1 · O que é", body: ["…"], takeaway: "t" };
 
@@ -54,5 +57,48 @@ describe("renderShape", () => {
     // The route drops those; this must not throw on the way there.
     expect(renderShape("consume", undefined)).toBeUndefined();
     expect(renderShape("consume", null)).toBeNull();
+  });
+});
+
+// ---- the drift this file could not see ---------------------------------------
+// Both tables below are enumerations of "every cacheable kind", and both used
+// to be maintained by hand beside a union type that could not check them. When
+// the phase catalogue grew from six phases to twelve, `RECORDED` was not
+// updated: the six new kinds generated, cached, and were never filed against
+// the topic — so a CONTENT_CACHE_VERSION bump or the TTL prune would have
+// taken that content back from the learner it was written for and re-billed
+// them for it. Nothing failed, nothing logged; it was found by walking a real
+// map on production.
+//
+// `RECORDED` is derived from `CACHEABLE_KINDS` now, so that particular drift
+// is structurally impossible. These pin the rest: a new cacheable kind gets a
+// slot, and stays recordable.
+
+describe("every cacheable kind is wired all the way through", () => {
+  const recordable = CACHEABLE_KINDS.filter((k) => k !== "curriculum");
+
+  it("has a payload slot, so nothing is served still wearing its envelope", () => {
+    // `curriculum` is exempt: its payload is the flat `nodes` list itself, and
+    // `renderShape` rightly passes an unslotted kind through untouched.
+    const missing = recordable.filter((kind) => !SLOT[kind]);
+    expect(missing, "kinds with no renderShape slot").toEqual([]);
+  });
+
+  it("is filed against the topic that generated it", () => {
+    // The assertion that would have caught it. `recordContent` skips any kind
+    // outside this set, and a skipped kind is content the learner loses on the
+    // next prune.
+    const unrecorded = recordable.filter((kind) => !RECORDED_KINDS.has(kind));
+    expect(unrecorded, "cacheable kinds never written to node_content").toEqual([]);
+  });
+
+  it("covers all twelve phases of the catalogue", () => {
+    // Phases are the kinds a learner actually waits on. Every one but Retain
+    // is per-node and cacheable under its own phase id; Retain is the shared
+    // queue and is cacheable too.
+    const missing = PHASE_ORDER.filter(
+      (phase) => !(CACHEABLE_KINDS as readonly string[]).includes(phase),
+    );
+    expect(missing, "phases with no cacheable generation").toEqual([]);
   });
 });
