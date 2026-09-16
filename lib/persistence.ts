@@ -397,6 +397,7 @@ export function foldContent(items: ContentItem[]): RunCaches {
         caches.recite[`${item.kind}:${item.nodeId}`] = item.payload as ReciteContent;
         break;
       case "discriminate":
+      case "predict":
       case "drill":
         caches.deck[`${item.kind}:${item.nodeId}`] = item.payload as DeckContent;
         break;

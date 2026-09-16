@@ -901,7 +901,15 @@ describe("PHASE_PLAN invariants", () => {
       "crucible",
       "retain",
     ]);
-    expect([...PHASE_PLAN.principle]).toEqual([...LEGACY_PHASE_PLAN]);
+    expect([...PHASE_PLAN.principle]).toEqual([
+      "consume",
+      "socratic",
+      "predict",
+      "feynman",
+      "connect",
+      "crucible",
+      "retain",
+    ]);
   });
 
   it("gives a fact no rung that asks it to reason", () => {
@@ -922,6 +930,16 @@ describe("PHASE_PLAN invariants", () => {
     expect(PHASE_PLAN.concept).toContain("discriminate");
     expect(PHASE_PLAN.fact).toContain("discriminate");
     expect(PHASE_PLAN.concept.indexOf("discriminate")).toBe(1);
+  });
+
+  it("asks only a principle to forecast", () => {
+    // A principle is a mechanism, and the test of having one is whether it
+    // predicts. Nothing else on the map claims to: a fact has no mechanism, a
+    // concept classifies rather than forecasts, and a procedure's forecast is
+    // just running it — which is what Perform grades.
+    expect(PHASE_PLAN.principle).toContain("predict");
+    for (const kind of ["fact", "concept", "procedure"] as const)
+      expect(PHASE_PLAN[kind]).not.toContain("predict");
   });
 
   it("gives the two kinds that need it a rung for automaticity", () => {

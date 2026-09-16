@@ -590,6 +590,7 @@ function buildJob(body: GenerateBody): Job {
     // same reason the recite family has one — they differ in their brief, not
     // in their plumbing, and `phase` is part of the key so no two collide.
     case "discriminate":
+    case "predict":
     case "drill": {
       if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       return cacheable(

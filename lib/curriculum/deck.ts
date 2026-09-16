@@ -25,7 +25,7 @@ import { Language } from "@/lib/i18n";
 
 /** The phases this engine runs, built ones only — see `RECITE_PHASES` for why
  *  a member here without a screen behind it would be a type that lies. */
-export const DECK_PHASES = ["discriminate", "drill"] as const;
+export const DECK_PHASES = ["discriminate", "predict", "drill"] as const;
 export type DeckPhase = (typeof DECK_PHASES)[number];
 
 export function isDeckPhase(phase: PhaseId): phase is DeckPhase {
@@ -36,6 +36,7 @@ export function isDeckPhase(phase: PhaseId): phase is DeckPhase {
  *  a warmer copper, the colour of something being worn smooth. */
 export const DECK_COLOR: Record<DeckPhase, { accent: string; soft: string }> = {
   discriminate: { accent: "#4f6f8f", soft: "rgba(79,111,143,0.08)" },
+  predict: { accent: "#6b5f96", soft: "rgba(107,95,150,0.08)" },
   drill: { accent: "#a3672f", soft: "rgba(163,103,47,0.08)" },
 };
 
@@ -55,6 +56,7 @@ export const DECK_SHAPE: Record<
   }
 > = {
   discriminate: { timed: false, chain: false },
+  predict: { timed: false, chain: false },
   drill: { timed: true, chain: false },
 };
 
@@ -196,6 +198,12 @@ const DECK_COPY = {
       passed: "You can tell it from its neighbours. That is what having it means.",
       missed: "The boundary is still soft in places. The reasons above say where.",
     },
+    predict: {
+      kicker: "Predict",
+      lead: "Say what happens before you are shown. Commit to it.",
+      passed: "The mechanism forecasts for you. That is what having one is for.",
+      missed: "Some of these went the other way. The reasons say what you left out.",
+    },
     drill: {
       kicker: "Drill",
       lead: "The same call, made without stopping to derive it.",
@@ -210,6 +218,12 @@ const DECK_COPY = {
       passed: "Você distingue isso dos vizinhos. É isso que significa ter o conceito.",
       missed:
         "A fronteira ainda está solta em alguns pontos. Os motivos acima dizem onde.",
+    },
+    predict: {
+      kicker: "Predict",
+      lead: "Diga o que acontece antes de ver. Comprometa-se.",
+      passed: "O mecanismo prevê por você. É para isso que serve ter um.",
+      missed: "Alguns foram para o outro lado. Os motivos dizem o que ficou de fora.",
     },
     drill: {
       kicker: "Drill",

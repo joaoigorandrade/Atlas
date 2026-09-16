@@ -40,6 +40,13 @@ const BRIEFS: Record<
       "3-4 candidate readings of this case: the correct one, plus the neighbouring concepts a learner actually confuses it with. Name real neighbours from this topic, never 'none of the above' and never an obviously silly option — a distractor nobody would pick tests nothing",
     why: "what in THIS case decides it: the specific feature present or missing that puts it on one side of the boundary. Never 'because it matches the definition'",
   },
+  predict: {
+    ask: "a PREDICTION pass: the learner is given a situation the concept governs and must say what HAPPENS before being shown — the forecast is the test, and it is worthless once the answer is visible",
+    item: "one concrete situation the concept governs, with whatever values or conditions the forecast turns on, stated plainly. Never hint at the outcome, and never use a case worked in the reading",
+    options:
+      "2-4 candidate outcomes. The wrong ones are what the learner predicts when they hold the relation backwards, ignore a condition, or expect the effect to be linear when it is not — real forecasts, not absurdities",
+    why: "the causal chain that made this outcome the one that had to happen: which stage hands what to the next. Never a restatement of the outcome",
+  },
   drill: {
     ask: "a DRILL pass: the same small call made over and over until it stops being derived and starts being known. The learner is timed, so every item must be answerable in a few seconds by someone who has the concept, and impossible to guess by someone who does not",
     item: "leave this out — a drill item is its prompt and nothing else. Return no context field",

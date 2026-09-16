@@ -29,6 +29,7 @@ const SLOT: Record<string, string> = {
   crucible: "content",
   discriminate: "content",
   drill: "content",
+  predict: "content",
   recall: "content",
 };
 
