@@ -164,7 +164,10 @@ public func applyDiagnosticEffect(
 /// mastery without the learner finishing a phase, so it is the one place that
 /// has to say what it is claiming they finished:
 ///
-/// - correct → the whole plan, exactly as "já sei isso" claims it.
+/// - correct → every gate, exactly as "já sei isso" claims it. Gates, not the
+///   whole plan: `retain` is closed by weeks of review history, never by a
+///   session, so a placement that wrote it would be claiming something the
+///   learner cannot have done and nothing can undo.
 /// - a genuine miss → every gate but the last, so the node is owed precisely the
 ///   gate its `diagnostic-hesitation` line promises, and no more.
 ///
@@ -183,7 +186,7 @@ public func applyDiagnosticLedger(
         next[nodeId] = planGates(plan(nodeId)).dropLast()
         return next
     }
-    for id in ancestors(of: nodeId, edges) { next[id] = plan(id) }
+    for id in ancestors(of: nodeId, edges) { next[id] = planGates(plan(id)) }
     return next
 }
 

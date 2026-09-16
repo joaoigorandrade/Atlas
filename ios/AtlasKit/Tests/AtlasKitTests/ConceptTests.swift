@@ -158,6 +158,16 @@ import Testing
     let bare = try JSONDecoder().decode(ConceptNode.self, from: Data(#"{"id":"n","label":"N"}"#.utf8))
     #expect(bare.phasePlan == nil)
     #expect(bare.plan == phasePlans[.concept])
+
+    // A row that names no plan — a spawned gap, whose `phase_plan` column now
+    // defaults to empty rather than to the legacy six. The server omits an
+    // empty column from the wire, but a plan sent as `[]` has to mean the same
+    // thing, or the node runs a different ladder after a reload than the one it
+    // ran in the session that spawned it.
+    let unplanned = try JSONDecoder().decode(
+        ConceptNode.self,
+        from: Data(#"{"id":"n","label":"N","kind":"procedure","phasePlan":[]}"#.utf8))
+    #expect(unplanned.plan == phasePlans[.procedure])
 }
 
 /// The teaching boundary: every ancestor is prior, everything else on the map

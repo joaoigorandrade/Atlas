@@ -66,6 +66,13 @@ struct DrillView: View {
             SegmentBar(model.rail, value: Text("\(model.score) de \(model.total)"))
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 12)
+                // The rail sits directly above a scroll, so it needs a ground of
+                // its own: without one the prose passing under it is composited
+                // straight through the gaps between the capsules, which reads as
+                // a rendering fault rather than as scrolling. The gap below keeps
+                // the first line from being sheared off flush (ConsumeView §rail).
+                .padding(.bottom, 8)
+                .background(Palette.paper)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // No context and no setup: a drill item is its prompt and
@@ -125,9 +132,16 @@ struct DrillView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker("O ritmo", tint: Palette.drillInk)
-                    Text(model.passed
-                         ? "Sai sem esforço. É isso que significa estar automático."
-                         : "Ainda está sendo deduzido em vez de sabido.")
+                    // Three verdicts, not two. Drill is the one rung whose
+                    // gate (correctness) and whose signal (speed) can disagree,
+                    // and branching this on `passed` alone made them contradict
+                    // out loud: a 7-of-7 run at 12s a call was told "that is
+                    // what automatic means" directly above "right, but slowly".
+                    Text(!model.passed
+                         ? "Ainda está sendo deduzido em vez de sabido."
+                         : model.automatic
+                           ? "Sai sem esforço. É isso que significa estar automático."
+                           : "Certo, e ainda não automático.")
                         .font(.atlas(.serif, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)

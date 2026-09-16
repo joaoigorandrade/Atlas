@@ -1205,6 +1205,16 @@
         }
       }
     },
+    "Certo, e ainda não automático.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right, and not yet automatic."
+          }
+        }
+      }
+    },
     "Certo, mas devagar — esses ainda estão sendo deduzidos.": {
       "localizations": {
         "en": {

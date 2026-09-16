@@ -140,10 +140,14 @@ import Testing
     // Correct: the concept and its whole prerequisite chain, each ticked through
     // its *own* plan — knowing something is evidence for what it stands on.
     let owned = applyDiagnosticLedger([:], .mastered, nodeId: "b", edges: edges, plan: plan)
-    #expect(owned["b"] == phasePlans[.procedure])
-    #expect(owned["a"] == phasePlans[.concept])
+    #expect(owned["b"] == planGates(phasePlans[.procedure]!))
+    #expect(owned["a"] == planGates(phasePlans[.concept]!))
     for (id, done) in owned {
         #expect(stateFromPlan(plan(id), done) == .mastered)
+        // Gates, never the whole plan: Retain is closed by weeks of review
+        // history, so a placement that ticked it would be claiming something
+        // the learner cannot have done and no later session can take back.
+        #expect(!done.contains(.retain))
     }
 
     // A genuine miss: every gate but the last, so the node is owed precisely the

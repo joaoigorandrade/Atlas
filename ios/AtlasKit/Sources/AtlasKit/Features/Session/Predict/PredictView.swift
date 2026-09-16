@@ -59,6 +59,13 @@ struct PredictView: View {
             SegmentBar(model.rail, value: Text("\(model.score) de \(model.total)"))
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 12)
+                // The rail sits directly above a scroll, so it needs a ground of
+                // its own: without one the prose passing under it is composited
+                // straight through the gaps between the capsules, which reads as
+                // a rendering fault rather than as scrolling. The gap below keeps
+                // the first line from being sheared off flush (ConsumeView §rail).
+                .padding(.bottom, 8)
+                .background(Palette.paper)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker("A situação", tint: Palette.predictInk)
