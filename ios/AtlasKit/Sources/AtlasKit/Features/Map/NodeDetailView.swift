@@ -40,6 +40,12 @@ struct NodeDetailView: View {
     @ViewBuilder
     private func content(_ model: NodeDetailViewModel) -> some View {
         VStack(spacing: 0) {
+            // The strip the system draws the drag indicator into. A sibling of
+            // the scroll view, not an inset on it: scroll content is *meant* to
+            // pass under a safe-area inset, which is exactly the thing being
+            // stopped here — scrolled a little, the node's summary had the
+            // handle sitting on the words.
+            Color.clear.frame(height: 22)
             // At AX sizes the header, the spiral and the chips are taller than
             // any sheet — without this the dock is pushed off the screen.
             ScrollView {
@@ -58,14 +64,6 @@ struct NodeDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 20)
-            }
-            // The drag indicator is drawn by the system over the top of the
-            // sheet, and the scroll view used to run underneath it: scrolled a
-            // little, the node's summary had the handle sitting on the words.
-            // An inset rather than padding, so the strip is outside the
-            // scrollable area and nothing can pass under it.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: 22)
             }
 
             Dock {
