@@ -6,8 +6,11 @@
 // fixture run that only ever passes tests the screen and not the rule.
 
 import type { GenerateBody } from "./jobInput";
+import { asDomain } from "@/lib/curriculum";
 import type {
+  DiagnosticQuestion,
   DiscriminateContent,
+  Domain,
   DrillContent,
   PerformContent,
   PredictContent,
@@ -23,6 +26,65 @@ export interface Vars {
   nodeId: string;
   nodeLabel: string;
 }
+
+/** The order probe's events, which are also its answer — the screen cannot be
+ *  completed unless every tappable label is orderable. */
+const ORDERED = [
+  "The dispute is first recorded",
+  "Both sides formalize their claims",
+  "A settlement is written down",
+] as const;
+
+/**
+ * The placement probe, in the shape its domain actually asks for.
+ *
+ * It used to return an MCQ whatever the domain was — the same thing the live
+ * prompt was doing by accident, and part of why neither was caught. A fixture
+ * that only ever produces one of four shapes cannot exercise the three screens
+ * behind the other three, and one of those was drawing the options list
+ * underneath itself, unseen. Same rule as the phase fixtures below: written
+ * against its own shape, not one payload wearing four names.
+ */
+const SHAPES: Partial<Record<Domain, (label: string) => Partial<DiagnosticQuestion>>> = {
+  formal: (label) => ({
+    type: "compute",
+    q: `A run of ${label} starts at 12 and doubles twice. What does it reach?`,
+    expected: ["48"],
+  }),
+  performative: (label) => ({
+    type: "speak",
+    q: `Say, in the target language, what ${label} is for.`,
+    expected: ["it is for asking the way", "it asks for directions"],
+  }),
+  interpretive: (label) => ({
+    type: "order",
+    q: `Put these ${label} milestones in the order they happened.`,
+    opts: ORDERED.map((label) => ({ label })),
+    expected: [...ORDERED],
+  }),
+};
+
+export const diagnosticFixture = (
+  body: GenerateBody,
+  label: string,
+  nodeId: string,
+): DiagnosticQuestion => ({
+  tag: "Placement",
+  q: `Which of these is what ${label} actually claims?`,
+  note: "One objective probe — answer from what you already know.",
+  nodeId,
+  difficulty:
+    body.difficulty === "easy" || body.difficulty === "hard" ? body.difficulty : "medium",
+  opts: [
+    { label: "It is a worked example." },
+    { label: "It states a rule the rest of the topic leans on." },
+    { label: "It is a naming convention only." },
+    { label: "It has no bearing on the topic." },
+  ],
+  correctIndex: 1,
+  // A shaped domain overrides the four options above; `general` keeps them.
+  ...(SHAPES[asDomain(body.domain)]?.(label) ?? {}),
+});
 
 export const provenanceContent = (v: Vars): ProvenanceContent => ({
   nodeId: v.nodeId,

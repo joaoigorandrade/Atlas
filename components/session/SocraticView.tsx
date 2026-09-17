@@ -125,8 +125,8 @@ export default function SocraticView({
         : gapMode
           ? t.doneGap
           : t.doneUnderstood;
-  // A flagged regular pass doesn't hand off, it hands *back* — into the
-  // reading. A flagged gap pass has nowhere to go but the map.
+  // A flagged pass hands *back* — to the reading, or the map for a gap. Any
+  // other names what THIS plan puts after Socratic, hardcoded to Feynman once.
   const advanceLabel =
     outcome === "flagged"
       ? gapMode
@@ -134,7 +134,7 @@ export default function SocraticView({
         : t.advanceReread
       : gapMode
         ? t.advanceGap
-        : t.advanceTeach;
+        : t.advanceTeach(phaseLabel(plan[plan.indexOf("socratic") + 1] ?? "retain"));
 
   return (
     <Sheet

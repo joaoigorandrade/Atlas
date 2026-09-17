@@ -280,71 +280,78 @@ export default function DiagnosticAnswer({
           onAnswer={(v) => onAnswer(v)}
         />
       )}
-      <div
-        role="radiogroup"
-        hidden={(question.type ?? "mcq") !== "mcq"}
-        style={{ display: "flex", flexDirection: "column", gap: 11 }}
-      >
-        {question.opts.map((opt, oi) => {
-          const isAnswer = picked !== undefined && oi === question.correctIndex;
-          const isWrongPick = oi === picked && !correct;
-          return (
-            <button
-              className="at-press"
-              key={opt.label}
-              data-testid={`action-answer-${oi}`}
-              role="radio"
-              aria-checked={oi === picked}
-              disabled={!picked === undefined}
-              onClick={() => {
-                onAnswer(oi);
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                textAlign: "left",
-                padding: "15px 18px",
-                background: isAnswer
-                  ? color.successBg
-                  : isWrongPick
-                    ? color.amberBg
-                    : color.card,
-                border: `1px solid ${
-                  isAnswer
-                    ? color.accent
-                    : isWrongPick
-                      ? color.amberInk
-                      : "rgba(44,40,35,0.16)"
-                }`,
-                borderRadius: 11,
-                fontSize: 15,
-                color: color.ink,
-                opacity: picked && !isAnswer && !isWrongPick ? 0.5 : 1,
-                cursor: picked ? "default" : "pointer",
-              }}
-            >
-              <span
+      {/* Rendered, not hidden. `hidden` is a UA-stylesheet `display: none`, so
+          the inline `display: flex` below beat it and the options list drew
+          under every shaped item — an `order` question arrived with its five
+          events listed twice, once to sequence and once to pick from. Nobody
+          saw it until the domain reached the probe and the type could be
+          anything but `mcq`. */}
+      {(question.type ?? "mcq") === "mcq" && (
+        <div
+          role="radiogroup"
+          style={{ display: "flex", flexDirection: "column", gap: 11 }}
+        >
+          {question.opts.map((opt, oi) => {
+            const isAnswer = picked !== undefined && oi === question.correctIndex;
+            const isWrongPick = oi === picked && !correct;
+            return (
+              <button
+                className="at-press"
+                key={opt.label}
+                data-testid={`action-answer-${oi}`}
+                role="radio"
+                aria-checked={oi === picked}
+                disabled={!picked === undefined}
+                onClick={() => {
+                  onAnswer(oi);
+                }}
                 style={{
-                  flexShrink: 0,
-                  width: 16,
-                  height: 16,
-                  borderRadius: "50%",
-                  border: `1.5px solid ${
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  textAlign: "left",
+                  padding: "15px 18px",
+                  background: isAnswer
+                    ? color.successBg
+                    : isWrongPick
+                      ? color.amberBg
+                      : color.card,
+                  border: `1px solid ${
                     isAnswer
                       ? color.accent
                       : isWrongPick
                         ? color.amberInk
-                        : color.hairlineStrong
+                        : "rgba(44,40,35,0.16)"
                   }`,
-                  background: isAnswer ? color.accent : "transparent",
+                  borderRadius: 11,
+                  fontSize: 15,
+                  color: color.ink,
+                  opacity: picked && !isAnswer && !isWrongPick ? 0.5 : 1,
+                  cursor: picked ? "default" : "pointer",
                 }}
-              />
-              <Rich text={opt.label} />
-            </button>
-          );
-        })}
-      </div>
+              >
+                <span
+                  style={{
+                    flexShrink: 0,
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    border: `1.5px solid ${
+                      isAnswer
+                        ? color.accent
+                        : isWrongPick
+                          ? color.amberInk
+                          : color.hairlineStrong
+                    }`,
+                    background: isAnswer ? color.accent : "transparent",
+                  }}
+                />
+                <Rich text={opt.label} />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }

@@ -17,7 +17,6 @@ import type {
   ConsumeChunk,
   ConsumeModelBeat,
   CrucibleContent,
-  DiagnosticQuestion,
   ElaborationContent,
   FeynmanBeat,
   MapNode,
@@ -38,6 +37,7 @@ import {
   recallContent,
   steelmanContent,
   traceContent,
+  diagnosticFixture,
 } from "@/lib/server/fixturesPhases";
 import { fixtureTable } from "@/lib/server/fixtureTables";
 import type { GenerateBody } from "@/lib/server/job";
@@ -298,22 +298,6 @@ const retainContent = (body: GenerateBody, v: Vars): RetainContent => ({
   ],
 });
 
-const diagnostic = (body: GenerateBody, v: Vars): DiagnosticQuestion => ({
-  tag: "Placement",
-  q: `Which of these is what ${v.labels[0]} actually claims?`,
-  note: "One objective probe — answer from what you already know.",
-  nodeId: v.ids[0],
-  difficulty:
-    body.difficulty === "easy" || body.difficulty === "hard" ? body.difficulty : "medium",
-  opts: [
-    { label: "It is a worked example." },
-    { label: "It states a rule the rest of the topic leans on." },
-    { label: "It is a naming convention only." },
-    { label: "It has no bearing on the topic." },
-  ],
-  correctIndex: 1,
-});
-
 const modelBeats = (v: Vars): ConsumeModelBeat[] =>
   [0, 1, 2].map((i) => ({
     label: ["The setup", "The move", "The payoff"][i],
@@ -378,7 +362,7 @@ export function fixturePayload(
     case "summary":
       return { summary: `What ${v.nodeLabel} is, in one line.` };
     case "diagnosticQuestion":
-      return { ...diagnostic(body, v) };
+      return { ...diagnosticFixture(body, v.labels[0], v.ids[0]) };
     case "consume":
       return { chunks: consumeChunks(v) };
     case "model":

@@ -72,3 +72,44 @@ describe("fixturePayload", () => {
     expect(judgement.verdicts.map((v) => v.i)).toEqual([0, 1, 2]);
   });
 });
+
+// The placement fixture used to return an MCQ whatever the domain was — the
+// same thing the live prompt was doing by accident, which is part of why
+// neither was caught. A fixture that only produces one of four shapes cannot
+// exercise the three screens behind the other three, and one of those screens
+// was drawing the options list underneath itself, unseen, the whole time.
+describe("the placement fixture is shaped by its domain", () => {
+  const ask = (domain?: string) =>
+    fixturePayload("diagnosticQuestion", {
+      kind: "diagnosticQuestion",
+      topic: "Rust",
+      nodeLabel: "Ownership",
+      pool: [{ id: "n1", label: "Ownership" }],
+      difficulty: "medium",
+      ...(domain ? { domain } : {}),
+    } as Parameters<typeof fixturePayload>[1]) as Record<string, unknown>;
+
+  it("asks a formal topic to compute", () => {
+    expect(ask("formal")).toMatchObject({ type: "compute" });
+    expect(ask("formal").expected).toBeDefined();
+  });
+
+  it("asks a performative topic to speak", () => {
+    expect(ask("performative")).toMatchObject({ type: "speak" });
+  });
+
+  it("asks an interpretive topic to order", () => {
+    const q = ask("interpretive");
+    expect(q).toMatchObject({ type: "order" });
+    // Every label the learner can tap has to be orderable, or the screen can
+    // never be completed.
+    expect((q.expected as string[]).sort()).toEqual(
+      (q.opts as Array<{ label: string }>).map((o) => o.label).sort(),
+    );
+  });
+
+  it("leaves an unshaped topic on the four options it always had", () => {
+    expect(ask()).not.toHaveProperty("type");
+    expect(ask("general")).not.toHaveProperty("type");
+  });
+});
