@@ -331,6 +331,26 @@ public actor AtlasAPI {
         try await whole("perform", context)
     }
 
+    // The three the domain axis added. Whole payloads, like the item phases:
+    // there is nothing here a learner reads *while* it lands.
+    public func provenance(
+        _ context: [String: JSONValue]
+    ) async throws -> Landed<ProvenanceContent> {
+        try await whole("provenance", context)
+    }
+
+    public func steelman(
+        _ context: [String: JSONValue]
+    ) async throws -> Landed<SteelmanContent> {
+        try await whole("steelman", context)
+    }
+
+    public func produce(
+        _ context: [String: JSONValue]
+    ) async throws -> Landed<ProduceContent> {
+        try await whole("produce", context)
+    }
+
     /// `{ content: … }` in, the content decoded *and* kept — the cache stores
     /// the object the model wrote, which is the same one the web stores.
     private func whole<T: Decodable & Sendable>(

@@ -36,8 +36,8 @@ public func asNodeKind(_ raw: String?) -> NodeKind {
 /// `Retained` is the one place the two differ, and it differed silently until
 /// the ledger started round-tripping through this enum.
 public enum Phase: String, Codable, CaseIterable, Sendable, Identifiable {
-    case consume, discriminate, socratic, predict, trace, feynman
-    case perform, drill, connect, crucible, recall, retain
+    case consume, discriminate, provenance, socratic, steelman, predict, trace
+    case feynman, perform, drill, produce, connect, crucible, recall, retain
     public var id: String { rawValue }
 }
 
@@ -48,12 +48,15 @@ public extension Phase {
         switch self {
         case .consume: "Consume"
         case .discriminate: "Discriminate"
+        case .provenance: "Provenance"
         case .socratic: "Socratic"
+        case .steelman: "Steelman"
         case .predict: "Predict"
         case .trace: "Trace"
         case .feynman: "Feynman"
         case .perform: "Perform"
         case .drill: "Drill"
+        case .produce: "Produce"
         case .connect: "Connect"
         case .crucible: "Crucible"
         case .recall: "Recall"
@@ -68,12 +71,15 @@ public extension Phase {
         switch self {
         case .consume: "exposure"
         case .discriminate: "boundary"
+        case .provenance: "evidence quality"
         case .socratic: "reasoning under questioning"
+        case .steelman: "holding a contested position"
         case .predict: "forecast before the answer"
         case .trace: "following a mechanism step by step"
         case .feynman: "unaided production"
         case .perform: "execution under real conditions"
         case .drill: "speed and automaticity"
+        case .produce: "real-time production"
         case .connect: "elaborative encoding"
         case .crucible: "transfer"
         case .recall: "unaided retrieval"
@@ -94,6 +100,9 @@ public extension Phase {
         case .consume: Palette.accent
         case .socratic, .feynman: NodeState.learning.color
         case .discriminate: Palette.discriminateInk
+        case .provenance: Palette.provenanceInk
+        case .steelman: Palette.steelmanInk
+        case .produce: Palette.produceInk
         case .predict: Palette.predictInk
         case .trace: Palette.traceInk
         case .perform: Palette.performInk
@@ -110,12 +119,15 @@ public extension Phase {
         switch self {
         case .consume: "Consume · leitura"
         case .discriminate: "Discriminate · fronteira"
+        case .provenance: "Provenance · a fonte"
         case .socratic: "Socratic · sessão"
+        case .steelman: "Steelman · os dois lados"
         case .predict: "Predict · previsão"
         case .trace: "Trace · cadeia"
         case .feynman: "Feynman · ensine de volta"
         case .perform: "Perform · execução"
         case .drill: "Drill · ritmo"
+        case .produce: "Produce · em voz alta"
         case .connect: "Connect · elaboração"
         case .crucible: "Crisol · aplicação"
         case .recall: "Recall · memória"
@@ -130,12 +142,15 @@ public extension Phase {
         switch self {
         case .consume: "Você ainda não leu isso — quer ler?"
         case .discriminate: "Você ainda não distinguiu isso dos vizinhos — quer tentar?"
+        case .provenance: "Você ainda não pesou a fonte disso — quer tentar?"
         case .socratic: "Você ainda não raciocinou sobre isso — quer tentar?"
+        case .steelman: "Você ainda não defendeu os dois lados disso — quer tentar?"
         case .predict: "Você ainda não previu isso — quer tentar?"
         case .trace: "Você ainda não percorreu isso passo a passo — quer tentar?"
         case .feynman: "Você ainda não ensinou isso de volta — quer tentar?"
         case .perform: "Você ainda não executou isso num caso real — quer tentar?"
         case .drill: "Você ainda não fez essas decisões no ritmo — quer tentar?"
+        case .produce: "Você ainda não disse isso em voz alta — quer tentar?"
         case .connect: "Você ainda não ligou isso ao seu mapa — quer tentar?"
         case .crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?"
         case .recall: "Você ainda não recuperou isso de memória — quer tentar?"
@@ -189,7 +204,7 @@ public extension ConceptNode {
     /// render no spiral at all.
     var plan: [Phase] {
         if let stored = phasePlan, !stored.isEmpty { return stored }
-        return phasePlans[kind ?? .concept] ?? legacyPhasePlan
+        return resolvePlan(kind ?? .concept, domain ?? .general)
     }
 
     /// The phase after `phase` in this node's own plan, or nil at the end of it.

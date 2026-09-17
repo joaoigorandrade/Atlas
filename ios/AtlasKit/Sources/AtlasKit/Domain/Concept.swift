@@ -99,6 +99,11 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
     /// existed, and everything treats a missing kind as `concept`, which is
     /// exactly what every node was then.
     public var kind: NodeKind?
+    /// What settles a claim about this concept — the second axis, orthogonal
+    /// to `kind`. Absent on a run built before domains existed, and everything
+    /// treats a missing domain as `general`, which is exactly how every node
+    /// behaved then.
+    public var domain: Domain?
     /// The phases this node runs, resolved from `kind` at map-build time and
     /// frozen on the row. Stored rather than recomputed so shipping a new
     /// catalogue can't rewrite a run already in progress.
@@ -111,11 +116,11 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
     public init(
         id: String, label: String, summary: String? = nil, state: NodeState = .unknown,
         g: Int = 0, week: Int = 0, x: Double = 0, y: Double = 0, gap: Bool? = nil,
-        kind: NodeKind? = nil, phasePlan: [Phase]? = nil
+        kind: NodeKind? = nil, domain: Domain? = nil, phasePlan: [Phase]? = nil
     ) {
         self.id = id; self.label = label; self.summary = summary; self.state = state
         self.g = g; self.week = week; self.x = x; self.y = y; self.gap = gap
-        self.kind = kind; self.phasePlan = phasePlan
+        self.kind = kind; self.domain = domain; self.phasePlan = phasePlan
     }
 
     /// Written by hand because a generated map omits what it has nothing to say
@@ -138,6 +143,7 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
         // client one release behind draws a shorter ladder; it does not refuse
         // the map.
         kind = (try? c.decodeIfPresent(String.self, forKey: .kind)).map { asNodeKind($0) }
+        domain = (try? c.decodeIfPresent(String.self, forKey: .domain)).map { asDomain($0) }
         phasePlan = (try? c.decodeIfPresent([String].self, forKey: .phasePlan))?
             .compactMap(Phase.init(rawValue:))
     }

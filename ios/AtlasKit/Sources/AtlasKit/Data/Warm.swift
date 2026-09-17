@@ -269,6 +269,14 @@ public extension AtlasStore {
             "laterLabels": .array(boundary.later.map { .string($0) }),
         ]
         if let kind = node.kind { context["nodeKind"] = .string(kind.rawValue) }
+        // The node's domain, for exactly the same reason and with exactly the
+        // same hazard: it is part of every generator's prompt (`domainNote`)
+        // and therefore part of the server's `content_cache` key. Omit it here
+        // and an `interpretive` node hashes to one row from a phone and another
+        // from a browser — the same pass generated and billed twice. The server
+        // omits `general` from the key itself (`nodeAxes`), so a row written
+        // before domains existed is still a hit.
+        if let domain = node.domain { context["domain"] = .string(domain.rawValue) }
         return context
     }
 
@@ -353,6 +361,18 @@ public extension AtlasStore {
     func reps(_ node: ConceptNode) -> DrillContent? { warm.content(address("drill", node)) }
     func blankPage(_ node: ConceptNode) -> RecallContent? { warm.content(address("recall", node)) }
     func runCase(_ node: ConceptNode) -> PerformContent? { warm.content(address("perform", node)) }
+
+    // The three the domain axis added. Same shape as the six above — one reader
+    // and one filler each, named for what the phase actually holds.
+    func sourceReading(_ node: ConceptNode) -> ProvenanceContent? {
+        warm.content(address("provenance", node))
+    }
+    func dispute(_ node: ConceptNode) -> SteelmanContent? {
+        warm.content(address("steelman", node))
+    }
+    func turns(_ node: ConceptNode) -> ProduceContent? {
+        warm.content(address("produce", node))
+    }
 
     /// Which time through this concept's transfer test this is, as the row's
     /// own address. The first pass is the node's plain Crucible; a redo is
@@ -459,6 +479,24 @@ public extension AtlasStore {
     func perform(_ node: ConceptNode) async -> Error? {
         let (api, sent) = (api, context(for: node))
         return await warm.fill(address("perform", node), once: { try await api.perform(sent) })
+    }
+
+    @discardableResult
+    func provenance(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("provenance", node), once: { try await api.provenance(sent) })
+    }
+
+    @discardableResult
+    func steelman(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("steelman", node), once: { try await api.steelman(sent) })
+    }
+
+    @discardableResult
+    func produce(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("produce", node), once: { try await api.produce(sent) })
     }
 
     /// The beats of one lens over one section. Keyed like everything else, with

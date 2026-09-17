@@ -97,17 +97,57 @@ import Testing
     #expect(!fact.plan.contains(.socratic))
     // Every plan is a subsequence of the catalogue's canonical order, which is
     // what keeps a phase index monotone and the rail left to right.
+    // Over every (kind, domain) pair, not just the four kinds: the domain axis
+    // is a second lever over the same catalogue and owes the same invariants.
     for kind in NodeKind.allCases {
-        let plan = phasePlans[kind]!
-        let positions = plan.compactMap { Phase.allCases.firstIndex(of: $0) }
-        #expect(positions == positions.sorted())
-        #expect(plan.first == .consume)
-        #expect(plan.last == .retain)
+        for domain in Domain.allCases {
+            let plan = resolvePlan(kind, domain)
+            let positions = plan.compactMap { Phase.allCases.firstIndex(of: $0) }
+            #expect(positions == positions.sorted(), "\(kind)/\(domain)")
+            #expect(plan.first == .consume, "\(kind)/\(domain)")
+            #expect(plan.last == .retain, "\(kind)/\(domain)")
+            #expect(Set(plan).count == plan.count, "\(kind)/\(domain)")
+        }
     }
     // And every phase in the catalogue has at least one home — one that does not
     // is dead code with a screen behind it.
+    //
+    // A home is now EITHER table: three of the phases exist for a domain rather
+    // than for a kind, so `phasePlans` alone would call them dead.
     for phase in Phase.allCases {
-        #expect(NodeKind.allCases.contains { phasePlans[$0]!.contains(phase) })
+        #expect(NodeKind.allCases.contains { kind in
+            Domain.allCases.contains { resolvePlan(kind, $0).contains(phase) }
+        }, "\(phase) has no home")
+    }
+}
+
+/// `general` changes nothing. The guarantee the whole axis rests on: shipping it
+/// cannot re-cut a ladder any run is already partway through.
+@Test func aGeneralDomainRunsExactlyTheLadderItsKindAlwaysDid() {
+    for kind in NodeKind.allCases {
+        #expect(resolvePlan(kind, .general) == phasePlans[kind]!)
+    }
+}
+
+/// The structural bug the axis exists to fix: `phasePlans[.concept]` carries no
+/// execution rung, so a `concept` node could reach mastered without the learner
+/// ever running anything.
+@Test func aFormalConceptGetsSomethingToActuallyCompute() {
+    for phase in [Phase.trace, .perform, .drill] {
+        #expect(!phasePlans[.concept]!.contains(phase))
+        #expect(resolvePlan(.concept, .formal).contains(phase))
+    }
+}
+
+/// Explaining the preterite in your own words is not speaking Spanish, so the
+/// prose rungs come off whatever the kind says.
+@Test func aPerformativeNodeDropsTheProseRungsWhateverItsKind() {
+    for kind in NodeKind.allCases {
+        let plan = resolvePlan(kind, .performative)
+        for phase in [Phase.socratic, .feynman, .crucible] {
+            #expect(!plan.contains(phase), "\(kind)/performative still runs \(phase)")
+        }
+        #expect(plan.contains(.produce))
     }
 }
 

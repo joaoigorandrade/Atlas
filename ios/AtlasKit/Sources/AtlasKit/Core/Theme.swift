@@ -47,6 +47,18 @@ public enum Palette {
     // to mirror. The dark half is this platform's, built the way every other
     // pair here is — the web has no dark mode to keep in step with yet.
     public static let discriminateInk = adaptive(0x4F6F8F, 0x8FAFCF)
+    /// Provenance — an archival sepia.
+    public static let provenanceInk = adaptive(0x8A6F4E, 0xCFAF86)
+    public static let provenanceBg = adaptive(0x8A6F4E, 0xCFAF86, opacity: 0.08, darkOpacity: 0.14)
+    public static let provenanceBorder = adaptive(0x8A6F4E, 0xCFAF86, opacity: 0.32, darkOpacity: 0.42)
+    /// Steelman — a contested indigo.
+    public static let steelmanInk = adaptive(0x5B6BA8, 0x9FADE0)
+    public static let steelmanBg = adaptive(0x5B6BA8, 0x9FADE0, opacity: 0.08, darkOpacity: 0.14)
+    public static let steelmanBorder = adaptive(0x5B6BA8, 0x9FADE0, opacity: 0.32, darkOpacity: 0.42)
+    /// Produce — a spoken terracotta.
+    public static let produceInk = adaptive(0xB06A45, 0xE0A184)
+    public static let produceBg = adaptive(0xB06A45, 0xE0A184, opacity: 0.08, darkOpacity: 0.14)
+    public static let produceBorder = adaptive(0xB06A45, 0xE0A184, opacity: 0.32, darkOpacity: 0.42)
     public static let discriminateBg = adaptive(0x4F6F8F, 0x8FAFCF, opacity: 0.08, darkOpacity: 0.14)
     public static let discriminateBorder = adaptive(0x4F6F8F, 0x8FAFCF, opacity: 0.32, darkOpacity: 0.42)
     public static let predictInk = adaptive(0x6B5F96, 0xA79FD0)
