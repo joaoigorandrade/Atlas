@@ -17,7 +17,10 @@ describe("verdictPrefix", () => {
         ],
       }),
     ).toEqual({
-      verdicts: [{ i: 0, verdict: "good" }, { i: 1, verdict: "skipped", quote: "hand-waved it" }],
+      verdicts: [
+        { i: 0, verdict: "good" },
+        { i: 1, verdict: "skipped", quote: "hand-waved it" },
+      ],
     });
   });
 
@@ -42,7 +45,10 @@ describe("verdictPrefix", () => {
     expect(() => read({ i: 0, verdict: "good" })).toThrow();
     expect(() => read({ i: 0, verdict: "confused" })).toThrow();
     expect(read({ i: 1, verdict: "good" })).toEqual({
-      verdicts: [{ i: 0, verdict: "good" }, { i: 1, verdict: "good" }],
+      verdicts: [
+        { i: 0, verdict: "good" },
+        { i: 1, verdict: "good" },
+      ],
     });
   });
 

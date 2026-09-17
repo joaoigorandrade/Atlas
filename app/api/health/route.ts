@@ -27,7 +27,8 @@ export async function GET() {
   let ok = true;
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from("run_states").select("user_id").limit(1);
+    // Probe the normalized schema, not the removed legacy run_states table.
+    const { error } = await supabase.from("topics").select("id").limit(1);
     if (error) throw new Error(error.message);
   } catch (err) {
     ok = false;
