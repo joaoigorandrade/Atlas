@@ -1172,8 +1172,8 @@ export function useSpiral(deps: {
     setFeynman((prev) => {
       if (!prev) return prev;
       const beats = feynmanBeatsFor(prev.nodeId);
-      if (!beats?.length) return prev;
-      return feynmanReducer(prev, action, beats);
+      if (!beats?.length && !["begin", "scaffold"].includes(action.type)) return prev;
+      return feynmanReducer(prev, action, beats ?? []);
     });
   };
 

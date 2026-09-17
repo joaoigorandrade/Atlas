@@ -7,13 +7,12 @@ import { QUALITIES } from "./socratic";
 
 import { arr, fail, languageNote, obj, oneOf, str } from "./common";
 import { Language } from "@/lib/i18n";
-import {
-  ChatMessage,
-  generateJson,
-  streamJsonObjectsProgressive,
-} from "@/lib/server/openrouter";
+import { ChatMessage, generateJson } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
 import { MATH_RULE } from "./common";
+import { judgeStream } from "./judgeStream";
+
+export { judgeStream } from "./judgeStream";
 
 export const JUDGE_SYSTEM: ChatMessage = {
   role: "system",
@@ -98,98 +97,6 @@ export function verdictPrefix(count: number) {
         verdicts: Array.from({ length: count }, (_, at) => rows.get(at)!),
       };
     }
-  };
-}
-
-export async function* judgeStream<T extends object>(
-  messages: ChatMessage[],
-  spec: {
-    /** What object 1 must contain — the smallest thing that unblocks the UI. */
-    firstShape: string;
-    first: (raw: unknown) => Partial<T>;
-    full: (raw: unknown) => T;
-    label: string;
-  },
-): AsyncGenerator<StreamFrame> {
-  const last = messages.length - 1;
-  const streamed: ChatMessage[] = messages.map((m, i) =>
-    i === last
-      ? {
-          ...m,
-          content: `${m.content}
-
-Write TWO SEPARATE top-level JSON objects, one after another — do not wrap the
-PAIR in an array, no markdown fences, nothing before/after/between them. Two
-objects exactly: never one object per list item.
-
-First, immediately, the verdict alone: ${spec.firstShape}
-Then the full object described above (it repeats the verdict and adds the rest).`,
-        }
-      : m,
-  );
-
-  // Each object is tried as the *complete* judgement first, and only then as
-  // the verdict prefix. That ordering is what makes a model that ignores the
-  // two-object instruction — and writes the whole thing at once — cost one
-  // call rather than two: its single object validates as full, and the
-  // fallback below never runs.
-  let complete = false;
-  let sent = 0;
-  try {
-    for await (const item of streamJsonObjectsProgressive<Partial<T> | T>(
-      streamed,
-      (raw) => {
-        try {
-          const value = spec.full(raw);
-          complete = true;
-          return value;
-        } catch {
-          return spec.first(raw);
-        }
-      },
-      // The critique is the long half of a judgement and the learner is
-      // watching an open bubble for it, so it goes out as it is written. Only
-      // `response` is drafted: a partial verdict would be a *different*
-      // classification than the one the model settles on, and that one drives
-      // mastery writes.
-      {
-        label: `${spec.label}-stream`,
-        role: "judge",
-        partial: (raw) => {
-          const response = (raw as { response?: unknown })?.response;
-          return typeof response === "string" && response.trim()
-            ? ({ response } as unknown as Partial<T>)
-            : null;
-        },
-      },
-    )) {
-      if (item.partial) {
-        yield { p: "judgement", v: item.value, partial: true };
-        continue;
-      }
-      sent++;
-      yield { p: "judgement", v: item.value };
-      if (complete) return;
-    }
-  } catch (err) {
-    console.error(
-      JSON.stringify({
-        evt: "judge_stream_fallback",
-        label: spec.label,
-        sent,
-        error: String(err instanceof Error ? err.message : err).slice(0, 300),
-      }),
-    );
-  }
-  // Nothing streamed, or only the verdict did: the full judgement still owes
-  // the learner a critique, so it comes off the proven retried path. A later
-  // frame for the same slot replaces the earlier one, here and in the client.
-  yield {
-    p: "judgement",
-    v: await generateJson(messages, spec.full, {
-      label: spec.label,
-      role: "judge",
-    }),
   };
 }
 
