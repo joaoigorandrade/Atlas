@@ -192,8 +192,18 @@ public actor AtlasAPI {
     /// One placement question at the given difficulty. Never batched and never
     /// cached: how hard the next one is pitched depends on how this one is
     /// answered, so it can only be asked once the last is graded.
+    ///
+    /// `domain` decides the SHAPE of the probe, and it is not optional here on
+    /// purpose. Omitted, the server falls back to `general` and returns a
+    /// four-option question — which is what this client asked for on every
+    /// placement it has ever run, so an `interpretive` topic was placed by
+    /// recognition and a `formal` one never asked the learner to compute
+    /// anything. Placement is what the map prunes on, so the two clients built
+    /// materially different maps from the same topic. Required means the
+    /// compiler asks the caller for it.
     public func diagnosticQuestion(
         _ form: OnboardingForm,
+        domain: Domain,
         pool: [ConceptNode],
         difficulty: DiagnosticDifficulty,
         language: String = AtlasAPI.language
@@ -203,6 +213,7 @@ public actor AtlasAPI {
             "goal": .string(form.goal.rawValue),
             "interests": .string(form.interests),
             "language": .string(language),
+            "domain": .string(domain.rawValue),
             "difficulty": .string(difficulty.rawValue),
             "pool": .array(pool.map { .object(["id": .string($0.id), "label": .string($0.label)]) }),
         ])

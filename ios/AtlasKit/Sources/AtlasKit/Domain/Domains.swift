@@ -93,3 +93,30 @@ public func resolvePlan(_ kind: NodeKind, _ domain: Domain) -> [Phase] {
         return Phase.allCases.filter { want.contains($0) }
     }
 }
+
+/// What settles a claim about this topic, read off the map it produced.
+///
+/// The port of `topicDomainOf` in `lib/curriculum/domains.ts`. There is no
+/// topic-level domain column to read: it was dropped precisely because it could
+/// only drift from the nodes it claimed to summarise. The commonest non-general
+/// domain among the nodes IS the topic's domain, and a map with none is
+/// `general` — which is what a mixed map (an ML course with `formal` and
+/// `executable` nodes) should fall back to for a question asked about the whole
+/// topic.
+public func topicDomainOf(_ nodes: [ConceptNode]) -> Domain {
+    var counts: [Domain: Int] = [:]
+    for node in nodes {
+        guard let domain = node.domain, domain != .general else { continue }
+        counts[domain, default: 0] += 1
+    }
+    // Walked in `allCases` order, first past the post — so a tie always breaks
+    // the same way and the same map always answers the same thing. A dictionary
+    // walk would not, and the answer reaches a cache key.
+    var best: Domain = .general
+    var most = 0
+    for domain in Domain.allCases where (counts[domain] ?? 0) > most {
+        best = domain
+        most = counts[domain] ?? 0
+    }
+    return best
+}

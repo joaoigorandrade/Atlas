@@ -169,21 +169,47 @@ struct WelcomeView: View {
     /// Optional on purpose: "" is what tells the pace surface to show no
     /// countdown rather than a fabricated one, so the date only exists once the
     /// learner picks one.
+    @ViewBuilder
     private var examRow: some View {
-        DatePicker(
-            "Data da prova",
-            selection: Binding(
-                get: { (try? Date(onboarding.form.examDate, strategy: isoDay)) ?? .now },
-                set: { onboarding.form.examDate = $0.formatted(isoDay) }
-            ),
-            in: Date.now...,
-            displayedComponents: .date
-        )
-        .font(.atlas(.sans, 14))
-        .foregroundStyle(Palette.inkSoft)
-        .tint(Palette.accent)
-        .padding(.top, 14)
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        // A `DatePicker` always shows *a* date. Bound to an empty string it fell
+        // back to `.now` and drew today — so the one goal that asks for a date
+        // opened claiming the exam was this afternoon, with no way to say there
+        // isn't one and no way to take a date back once tapped. Ask before
+        // showing a date, and let it be cleared.
+        if onboarding.form.examDate.isEmpty {
+            HStack {
+                Text("Data da prova")
+                Spacer(minLength: 12)
+                Button("Definir") { onboarding.form.examDate = Date.now.formatted(isoDay) }
+                    .foregroundStyle(Palette.accent)
+                    .frame(minHeight: Metrics.tap)
+            }
+            .font(.atlas(.sans, 14))
+            .foregroundStyle(Palette.inkSoft)
+            .padding(.top, 14)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        } else {
+            HStack {
+                DatePicker(
+                    "Data da prova",
+                    selection: Binding(
+                        get: { (try? Date(onboarding.form.examDate, strategy: isoDay)) ?? .now },
+                        set: { onboarding.form.examDate = $0.formatted(isoDay) }
+                    ),
+                    in: Date.now...,
+                    displayedComponents: .date
+                )
+                Button("Limpar") { onboarding.form.examDate = "" }
+                    .font(.atlas(.sans, 13))
+                    .foregroundStyle(Palette.inkMuted)
+                    .frame(minHeight: Metrics.tap)
+            }
+            .font(.atlas(.sans, 14))
+            .foregroundStyle(Palette.inkSoft)
+            .tint(Palette.accent)
+            .padding(.top, 14)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
     }
 
     /// The design's column counts, halved at an accessibility size so a label

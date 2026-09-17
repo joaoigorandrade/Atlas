@@ -15,6 +15,12 @@ import Foundation
 /// against, never gated on — see `passed`.
 public let drillTarget: TimeInterval = 8
 
+/// The longest gap between two clock ticks that is still the clock running.
+/// Anything longer is a process that was suspended, not a learner who was
+/// thinking — see `DrillSession.idled`. Generous next to the 100 ms tick, so a
+/// busy main thread is never mistaken for a backgrounded app.
+public let idleBeat: TimeInterval = 1
+
 /// One rep. No context, no setup: a drill item is its prompt and nothing else.
 public struct DrillRep: Decodable, Sendable, Identifiable {
     public let id: String
@@ -62,6 +68,19 @@ public struct DrillSession: Sendable {
         index += 1
         openedAt = now
         done = index >= content.reps.count
+    }
+
+    /// Discount an interval the learner was not actually looking at the rep.
+    ///
+    /// Time the process spent suspended is not time spent deriving the answer —
+    /// the same reason the clock does not start until the rep is on screen. The
+    /// start is shifted rather than the clock paused, so `took` and the seconds
+    /// on screen stay one number and every reader of `openedAt` keeps working.
+    /// Without it a single interruption reads as a rep answered slowly, which
+    /// is the one finding Drill exists to produce.
+    public mutating func idled(_ interval: TimeInterval) {
+        guard interval > 0 else { return }
+        openedAt = openedAt.addingTimeInterval(interval)
     }
 
     public func score(_ content: DrillContent) -> Int {

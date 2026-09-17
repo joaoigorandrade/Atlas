@@ -18,9 +18,9 @@ struct NodeDetailView: View {
         // Fill the detent rather than be measured by the content. Sized to its
         // content the stack ran past the sheet at the accessibility sizes and
         // took the dock with it, so there was no way to start the phase at all
-        // — this is what puts the CTA back on screen. The header is still
-        // clipped off the top there, and the ScrollView still will not scroll
-        // to it; that half is not understood yet and is not fixed here.
+        // — this is what puts the CTA back on screen. The drag indicator
+        // drawing over the header is fixed below; whether the header can still
+        // be scrolled off at AX sizes is a separate question and still open.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.cardAlt)
         .presentationDetents([.medium, .large])
@@ -57,8 +57,15 @@ struct NodeDetailView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Metrics.gutter)
-                .padding(.top, 18)
                 .padding(.bottom, 20)
+            }
+            // The drag indicator is drawn by the system over the top of the
+            // sheet, and the scroll view used to run underneath it: scrolled a
+            // little, the node's summary had the handle sitting on the words.
+            // An inset rather than padding, so the strip is outside the
+            // scrollable area and nothing can pass under it.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: 22)
             }
 
             Dock {

@@ -172,10 +172,23 @@ public struct RootView: View {
             .tint(Palette.accent)
             // A save that never landed looks exactly like one that did. It says
             // so, permanently, until the retry gets through.
-            .overlay(alignment: .top) {
+            //
+            // An inset rather than an overlay: as an overlay pinned to the top
+            // of the whole shell it drew straight over whatever header was
+            // underneath — on a phase screen it covered the node's title. This
+            // makes room for itself instead, which is what a banner that stays
+            // until it is fixed should do.
+            //
+            // The copy names no cause. It used to say "sem conexão", which was
+            // a guess and usually the wrong one: the failure that produced it
+            // in production was a 404 on a topic row that no longer existed,
+            // with four bars of signal. Saying what is true — not saved, still
+            // trying — is the one sentence that holds for every cause.
+            .safeAreaInset(edge: .top, spacing: 0) {
                 if store.saveFailed {
-                    Chip("Sem conexão · não salvo", dot: Palette.amberInk)
-                        .transition(.opacity)
+                    Chip("Não salvo · tentando de novo", dot: Palette.amberInk)
+                        .padding(.bottom, 6)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .animation(Motion.enter, value: store.saveFailed)

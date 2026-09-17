@@ -195,11 +195,20 @@ public struct NodeDelta: Encodable, Sendable {
     public var y: Double?
     public var isGap: Bool?
     public var state: NodeState?
-    /// The kind and the ladder it resolved to. Sent only for a node this client
-    /// created — a spawned gap — because everything else already carries them
-    /// and re-sending a plan on every drag is the write amplification the delta
-    /// exists to avoid.
+    /// The kind, what settles a claim about it, and the ladder the two resolved
+    /// to. Sent only for a node this client created — a spawned gap — because
+    /// everything else already carries them and re-sending a plan on every drag
+    /// is the write amplification the delta exists to avoid.
+    ///
+    /// `domain` is here for the same reason `kind` is, and its absence was not
+    /// harmless: `ConceptNode` decodes it, so the phone resolved the right
+    /// interpretive ladder, sent `phasePlan`, and then dropped the axis on the
+    /// floor. Every map built on a phone stored `domain = null` beside a
+    /// `phase_plan` naming `provenance` and `steelman` — a row that disagrees
+    /// with itself, whose every later generation is prompted as `general` and
+    /// keys to the pre-axis cache row.
     public var kind: NodeKind?
+    public var domain: Domain?
     public var phasePlan: [Phase]?
     /// The phases finished on this node. The one *derived-from* field the
     /// client owns: state is computed from it, so a save that carried the state
@@ -233,6 +242,7 @@ public struct NodeDelta: Encodable, Sendable {
         try c.encodeIfPresent(isGap, forKey: .isGap)
         try c.encodeIfPresent(state, forKey: .state)
         try c.encodeIfPresent(kind, forKey: .kind)
+        try c.encodeIfPresent(domain, forKey: .domain)
         try c.encodeIfPresent(phasePlan, forKey: .phasePlan)
         try c.encodeIfPresent(phasesDone, forKey: .phasesDone)
         // Double optional: absent means "leave it", `.some(nil)` means "clear
@@ -247,7 +257,8 @@ public struct NodeDelta: Encodable, Sendable {
     }
 
     private enum Key: String, CodingKey {
-        case id, label, summary, g, week, x, y, isGap, state, kind, phasePlan, phasesDone, shakyReason
+        case id, label, summary, g, week, x, y, isGap, state, kind, domain, phasePlan, phasesDone
+        case shakyReason
         case reviewed, consumeProgress, socraticProgress, feynmanProgress
         case connectProgress, prereqs
     }

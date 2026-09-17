@@ -89,7 +89,7 @@ private final class Stub: URLProtocol, @unchecked Sendable {
 
     model.takePlacement()
     // A miss at medium with nothing harder proven is a genuine gap, not a slip.
-    model.answer(1)
+    model.answer(.choice(1))
     model.finish()
 
     #expect(store.states[Stub.gapId] == .gap)

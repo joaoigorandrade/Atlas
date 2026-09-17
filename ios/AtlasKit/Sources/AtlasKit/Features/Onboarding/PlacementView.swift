@@ -114,10 +114,15 @@ struct PlacementView: View {
                             .font(.atlas(.serif, 23))
                             .foregroundStyle(Palette.ink)
                             .padding(.vertical, 14)
-                        options(question)
-                        // What the question is actually probing — the model
-                        // writes it on every call.
-                        if !question.note.isEmpty {
+                        answerSurface(question)
+                        // What the answer changed about the map — after the
+                        // answer, never before it. Shown while the options were
+                        // still open it read as the answer key: "conecta o
+                        // Édito de Milão à tolerância religiosa e o distingue da
+                        // posterior oficialização" names one option and rules
+                        // out another before the learner has picked. The web
+                        // gates it on `picked` for exactly this reason.
+                        if onboarding.verdict != nil, !question.note.isEmpty {
                             Text(verbatim: question.note)
                                 .font(.atlas(.sans, 13))
                                 .foregroundStyle(Palette.inkFaint)
@@ -169,6 +174,35 @@ struct PlacementView: View {
         }
     }
 
+    /// How this probe is answered, which its domain decided. The panel around it
+    /// knows nothing about the four kinds: it hands the question down and takes
+    /// an answer back, and `gradeDiagnostic` rules on all four the same way.
+    ///
+    /// The three shaped probes disappear once graded, as the web's do — the
+    /// verdict below says what the answer was. `.id` on the question text is
+    /// what gives each one fresh state: without it the second `order` question
+    /// would open with the first one's sequence already half built.
+    @ViewBuilder
+    private func answerSurface(_ question: DiagnosticQuestion) -> some View {
+        switch question.type {
+        case .mcq:
+            options(question)
+        case .compute:
+            if onboarding.verdict == nil {
+                ComputeAnswer { onboarding.answer($0) }.id(question.q)
+            }
+        case .speak:
+            if onboarding.verdict == nil {
+                SpeakAnswer(dictation: onboarding.dictation) { onboarding.answer($0) }
+                    .id(question.q)
+            }
+        case .order:
+            if onboarding.verdict == nil {
+                OrderAnswer(opts: question.opts) { onboarding.answer($0) }.id(question.q)
+            }
+        }
+    }
+
     private func options(_ question: DiagnosticQuestion) -> some View {
         VStack(spacing: 10) {
             ForEach(Array(question.opts.enumerated()), id: \.offset) { index, option in
@@ -176,7 +210,7 @@ struct PlacementView: View {
                           mark: mark(index, question),
                           chosen: chosen(index),
                           enabled: onboarding.verdict == nil) {
-                    onboarding.answer(index)
+                    onboarding.answer(.choice(index))
                 }
             }
         }
@@ -190,7 +224,7 @@ struct PlacementView: View {
         return chosen(index) ? .wrong : .unmarked
     }
 
-    private func chosen(_ index: Int) -> Bool { onboarding.verdict?.picked == index }
+    private func chosen(_ index: Int) -> Bool { onboarding.verdict?.chosenIndex == index }
 
     private func verdict(_ kicker: LocalizedStringKey, _ body: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 6) {

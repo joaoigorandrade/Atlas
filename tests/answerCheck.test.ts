@@ -36,6 +36,13 @@ describe("parseNumber", () => {
   it("does not mark a right answer wrong for carrying its unit", () => {
     expect(parseNumber("12cm")).toBe(12);
     expect(parseNumber("$40")).toBe(40);
+    // The class named an uppercase `R` after the string had been lowercased, so
+    // the real — the currency of one of the two shipped languages — was the one
+    // it never stripped. Found porting this to Swift.
+    expect(parseNumber("R$ 40")).toBe(40);
+    expect(parseNumber("r$40")).toBe(40);
+    // And a bare leading `r` is still not a currency: "r2" denotes no number.
+    expect(parseNumber("r2")).toBeNull();
   });
 
   it("returns null rather than guessing at something that is not a number", () => {

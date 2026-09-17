@@ -42,12 +42,23 @@ public final class OnboardingViewModel {
 
     public struct Verdict: Sendable {
         public let question: DiagnosticQuestion
-        public let picked: Int
+        public let picked: DiagnosticAnswer
         public let effect: DiagnosticEffect
-        public var correct: Bool { picked == question.correctIndex }
+        public var correct: Bool { gradeDiagnostic(question, picked) }
+        /// The option the learner tapped, for the marks an `mcq` draws. Nothing
+        /// to mark on the three kinds that are answered rather than chosen.
+        public var chosenIndex: Int? {
+            if case let .choice(index) = picked { return index }
+            return nil
+        }
         /// A miss the placement discounted: wrong, but it wrote back as known.
         public var slipped: Bool { !correct && effect == .mastered }
     }
+
+    /// The recogniser a `speak` probe answers into. Owned here rather than by
+    /// the field, for the reason `AnswerEditor` documents: one built inside the
+    /// box dies with the box, and takes the learner's spoken answer with it.
+    let dictation = Dictation()
 
     private let store: AtlasStore
     private var build: Task<Void, Never>?
@@ -80,7 +91,18 @@ public final class OnboardingViewModel {
     private var nextDifficulty: DiagnosticDifficulty = .medium
     private var maxCorrect: DiagnosticDifficulty?
 
-    public init(store: AtlasStore) { self.store = store }
+    public init(store: AtlasStore) {
+        self.store = store
+        // Open on what this learner already decided, not on the defaults.
+        // `dailyTarget` is one value on the profile, not one per map, so a form
+        // that opened on 15 min for someone who had set 20 was offering to
+        // change a setting they never came here to change — and writing it back
+        // on finish. The goal is per-map, so the last one is an offer rather
+        // than a fact, but it is a better guess than "Passar na prova" for
+        // someone who has only ever picked "Dominar tudo".
+        if dailyTargets.contains(store.dailyTarget) { form.target = store.dailyTarget }
+        form.goal = store.goal
+    }
 
     /// Minimum time the assembly beat plays. A floor, not a target: SPEC §2
     /// calls it a deliberate "this is mine" moment, not a spinner to minimise.
@@ -265,9 +287,10 @@ public final class OnboardingViewModel {
     public var verdictBody: LocalizedStringKey? {
         guard let verdict else { return nil }
         let tag = verdict.question.tag
-        // A malformed `correctIndex` is the model's mistake, not the learner's:
-        // say the rest and leave the answer out rather than trapping.
-        let answer = verdict.question.opts[safe: verdict.question.correctIndex]?.label ?? ""
+        // A malformed answer key is the model's mistake, not the learner's: say
+        // the rest and leave the answer out rather than trapping. `answerText`
+        // reads the key wherever this kind keeps it.
+        let answer = verdict.question.answerText
         if verdict.correct { return "\(tag) e tudo abaixo dele foi marcado como sabido." }
         return verdict.slipped
             ? "A resposta: \(answer)\nVocê acertou perguntas mais difíceis, então \(tag) continua marcado como sabido — nada foi adicionado ao seu mapa."
@@ -276,9 +299,9 @@ public final class OnboardingViewModel {
 
     /// Grade an answer and write it to the map. Every effect runs here, in the
     /// event handler, so the pool below filters on the post-answer truth.
-    public func answer(_ index: Int) {
+    public func answer(_ given: DiagnosticAnswer) {
         guard verdict == nil, let question = questions[safe: answered] else { return }
-        let correct = index == question.correctIndex
+        let correct = gradeDiagnostic(question, given)
         let effect = diagnosticEffect(question.difficulty, correct: correct, maxCorrect: maxCorrect)
         let ladder = DiagnosticDifficulty.allCases
         if correct,
@@ -307,7 +330,7 @@ public final class OnboardingViewModel {
             ? question.difficulty
             : stepDifficulty(question.difficulty, correct: correct)
         answered += 1
-        verdict = Verdict(question: question, picked: index, effect: effect)
+        verdict = Verdict(question: question, picked: given, effect: effect)
         guard answered < diagnosticCount else { return }
 
         // Already-asked nodes are out, and so is everything these answers
@@ -321,7 +344,8 @@ public final class OnboardingViewModel {
         followUp = Task {
             do {
                 questions.append(try await store.api.diagnosticQuestion(
-                    form, pool: pool, difficulty: nextDifficulty
+                    form, domain: topicDomainOf(graph.nodes),
+                    pool: pool, difficulty: nextDifficulty
                 ))
             } catch {
                 // The writer stumbled mid-placement: stop asking and let what is
@@ -389,7 +413,14 @@ public final class OnboardingViewModel {
     private func ask() -> Task<DiagnosticQuestion, Error> {
         pending?.cancel()
         let task = Task { [form, api = store.api, difficulty = nextDifficulty, nodes = graph.nodes] in
-            let fetch = { try await api.diagnosticQuestion(form, pool: nodes, difficulty: difficulty) }
+            // The map is what knows the domain — the nodes carry it, and the
+            // topic has no column to read it from on purpose.
+            let domain = topicDomainOf(nodes)
+            let fetch = {
+                try await api.diagnosticQuestion(
+                    form, domain: domain, pool: nodes, difficulty: difficulty
+                )
+            }
             // Never cached — its node ids did not exist until the map above
             // resolved — so it flakes more often than a warmed call. One retry
             // before giving up on the learner's very first question.

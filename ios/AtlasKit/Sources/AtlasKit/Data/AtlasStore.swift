@@ -893,6 +893,23 @@ public extension AtlasStore {
     /// the learner already has hands their existing topic back; deleting that
     /// one cascades away its map, mastery states, cards and every generated
     /// payload, and takes the device mirror with it.
+    /// Forget the row this run is addressed to, keeping the run itself.
+    ///
+    /// Only for a topic the server says is gone. The id, the library card and
+    /// the mirror row all name something that no longer exists and can never be
+    /// revalidated — but `graph`, `states` and `cards` in memory are the
+    /// learner's actual work, and they are untouched, so the next `saveNow`
+    /// makes a fresh row through `ensureTopic` and `adoptTopic` clears the
+    /// saved shots, which re-sends every node and card to it.
+    private func forgetTopicRow() {
+        guard let stale = topicId else { return }
+        topicId = nil
+        // Whatever it was, it is not a row this client may delete any more.
+        topicWasCreatedHere = false
+        library.removeAll { $0.id == stale }
+        local.delete(topicId: stale)
+    }
+
     func abandonTopic() async {
         guard let id = topicId, let token = await bearer() else { return }
         topicId = nil
@@ -1135,7 +1152,18 @@ public extension AtlasStore {
     func saveNow() async {
         pendingSave?.cancel()
         pendingSave = nil
-        guard signedIn, var token = await bearer() else { return }
+        guard signedIn else { return }
+        // A session that is present but dead — the access token expired and the
+        // refresh was refused — leaves `signedIn` true forever, because it is
+        // `session != nil`. This used to return silently, having just cancelled
+        // the queued save: the profile screen still showed the email and "Sair"
+        // while every write went nowhere. Say so and keep trying, the way every
+        // other failure in this function does.
+        guard var token = await bearer() else {
+            saveFailed = true
+            saveIn(15)
+            return
+        }
 
         let profile = Self.profileShot(target: dailyTarget, streak: streak, day: lastActiveDay)
         let nodes = nodeShots()
@@ -1194,6 +1222,7 @@ public extension AtlasStore {
                     // spawned gap wants. A node that carries them says so once,
                     // on the write that creates the row, and never again.
                     delta.kind = node.kind
+                    delta.domain = node.domain
                     delta.phasePlan = node.phasePlan
                 }
                 deltas.append(delta)
@@ -1229,6 +1258,14 @@ public extension AtlasStore {
             if (error as? AtlasError)?.code == "auth", let renewed = await bearer(renew: true) {
                 token = renewed
             }
+            // A 404 means the row this run is addressed to is gone — deleted
+            // from another device, or a create that never landed. The id is the
+            // thing that is wrong, and `ensureTopic` returns a cached one
+            // unconditionally, so the armed retry re-addressed the same dead id
+            // every fifteen seconds forever and nothing the learner did was
+            // ever saved. Dropping it makes the retry create a fresh row and
+            // re-send the whole run to it.
+            if (error as? AtlasError)?.status == 404 { forgetTopicRow() }
             saveFailed = true
             saveIn(15)
             return

@@ -12,6 +12,9 @@ struct ProvenanceView: View {
     @EnvironmentObject private var navigator: AtlasNavigator
     @State private var model: ProvenanceViewModel?
 
+    /// The one anchor this screen scrolls to — see the ruling handler below.
+    private let whyPanel = "provenance.why"
+
     var body: some View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Procurando uma fonte…") }
@@ -65,6 +68,12 @@ struct ProvenanceView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
                 .background(Palette.paper)
+            // The ruling is the beat of this screen, and "por quê" is the whole
+            // teaching moment — the line between what a source asserts and what
+            // it proves. It lands below the fold on a phone, with the now-live
+            // "Próxima afirmação" already on screen, so the natural next tap
+            // moved on without ever reading it. Bring it up instead.
+            ScrollViewReader { scroller in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     source(content.source)
@@ -105,6 +114,7 @@ struct ProvenanceView: View {
                                 .strokeBorder(Palette.provenanceBorder, lineWidth: 1)
                         }
                         .padding(.top, 16)
+                        .id(whyPanel)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
@@ -112,6 +122,11 @@ struct ProvenanceView: View {
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 18)
                 .padding(.bottom, 24)
+            }
+            .onChange(of: model.settled) { _, settled in
+                guard settled else { return }
+                withAnimation(Motion.standard) { scroller.scrollTo(whyPanel, anchor: .bottom) }
+            }
             }
             Dock {
                 CTAButton("Próxima afirmação →", tint: Palette.provenanceInk) { model.next() }

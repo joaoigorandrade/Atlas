@@ -32,7 +32,12 @@ export function parseNumber(raw: string): number | null {
   if (!s) return null;
   // Strip a trailing unit or currency the question already fixed — "12cm",
   // "$40" — so a right answer is not marked wrong for being labelled.
-  s = s.replace(/^[$€£R]\$?/, "").replace(/[a-z°%]*$/, (m) => (m === "%" ? "%" : ""));
+  //
+  // Lowercase `r`, because `s` has already been lowercased two lines up: the
+  // class used to name `R`, which could never match, so "R$ 40" was the one
+  // currency the checker did not strip — in the language half this app's users
+  // write in. Found porting this to Swift.
+  s = s.replace(/^(?:r\$|[$€£])/, "").replace(/[a-z°%]*$/, (m) => (m === "%" ? "%" : ""));
   const percent = s.endsWith("%");
   if (percent) s = s.slice(0, -1);
   const comma = DECIMAL_COMMA.exec(s);

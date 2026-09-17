@@ -659,6 +659,16 @@
         }
       }
     },
+    "A resposta — um número, uma fração, uma porcentagem…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The answer — a number, a fraction, a percentage…"
+          }
+        }
+      }
+    },
     "A resposta: %@\nVamos encaixar %@ no seu mapa.": {
       "extractionState": "stale",
       "localizations": {
@@ -1906,6 +1916,16 @@
         }
       }
     },
+    "Definir": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set"
+          }
+        }
+      }
+    },
     "Depois da quebra": {
       "extractionState": "stale",
       "localizations": {
@@ -1990,6 +2010,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hard"
+          }
+        }
+      }
+    },
+    "Diga em voz alta…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say it out loud…"
           }
         }
       }
@@ -3279,6 +3309,16 @@
         }
       }
     },
+    "Limpar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        }
+      }
+    },
     "Mais simples": {
       "extractionState": "stale",
       "localizations": {
@@ -3702,6 +3742,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Did not land"
+          }
+        }
+      }
+    },
+    "Não salvo · tentando de novo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not saved · retrying"
           }
         }
       }
@@ -4650,6 +4700,16 @@
         }
       }
     },
+    "Recomeçar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start over"
+          }
+        }
+      }
+    },
     "Recordar": {
       "extractionState": "stale",
       "localizations": {
@@ -4811,6 +4871,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Answer it in your head first — then turn the card over."
+          }
+        }
+      }
+    },
+    "Responder →": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer →"
           }
         }
       }
@@ -5007,17 +5077,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Without something that would change your mind, you picked rather than judged."
-          }
-        }
-      }
-    },
-    "Sem conexão · não salvo": {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Offline · not saved"
           }
         }
       }
@@ -5478,6 +5537,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tap and answer in your own words"
+          }
+        }
+      }
+    },
+    "Toque na ordem certa, do mais antigo para o mais recente.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap them in order, earliest first."
           }
         }
       }

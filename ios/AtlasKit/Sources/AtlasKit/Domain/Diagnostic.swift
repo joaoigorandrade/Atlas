@@ -70,6 +70,37 @@ public enum DiagnosticDifficulty: String, Codable, Sendable, CaseIterable {
 /// the total before the last one exists.
 public let diagnosticCount = 5
 
+/// How a probe is answered, which the domain decides.
+///
+/// A four-option question measures RECOGNITION: the right instrument for a
+/// general topic and the wrong one everywhere else. It cannot tell whether a
+/// learner can row-reduce, and for a language it measures the one axis learners
+/// are most often mis-placed on — recognising a word they could never produce.
+/// Mirrors `DIAGNOSTIC_KINDS` in `lib/curriculum/diagnostic.ts`.
+public enum DiagnosticKind: String, Codable, Sendable, CaseIterable {
+    /// The default, and everything a build older than the domain axis asked.
+    case mcq
+    /// `formal` — the learner works it out. Checked arithmetically.
+    case compute
+    /// `performative` — the learner says it. Checked against accepted phrasings.
+    case speak
+    /// `interpretive` — chronology, the spine a learner either has or has not.
+    case order
+}
+
+/// Lenient, like `asNodeKind` and `asDomain`: anything this build does not know
+/// is the four-option question every placement asked before kinds existed.
+public func asDiagnosticKind(_ raw: String?) -> DiagnosticKind {
+    DiagnosticKind(rawValue: raw ?? "") ?? .mcq
+}
+
+/// How an answer arrives, whichever kind asked for it.
+public enum DiagnosticAnswer: Equatable, Sendable {
+    case choice(Int)
+    case text(String)
+    case order([String])
+}
+
 /// One generated placement probe. `nodeId` names the concept the answer writes
 /// back to; `gap` is the sub-concept a genuine miss splits out under it.
 public struct DiagnosticQuestion: Decodable, Sendable {
@@ -78,20 +109,33 @@ public struct DiagnosticQuestion: Decodable, Sendable {
     public let note: String
     public let nodeId: String
     public let difficulty: DiagnosticDifficulty
+    /// Absent on a question written before the domain axis, and read as `mcq`.
+    public let type: DiagnosticKind
+    /// `mcq`: the four options. `order`: the items to arrange, shuffled. Empty
+    /// for `compute` and `speak`, which are answered rather than chosen.
     public let opts: [Option]
+    /// `mcq` only. -1 where the kind has nothing to pick.
     public let correctIndex: Int
+    /// `compute`: the one correct value. `speak`: every utterance that counts as
+    /// right. `order`: the option labels in their correct sequence.
+    public let expected: [String]
     public let gap: GapSpec?
 
     public struct Option: Decodable, Sendable { public let label: String }
 
     enum CodingKeys: String, CodingKey {
-        case tag, q, note, nodeId, difficulty, opts, correctIndex, gap
+        case tag, q, note, nodeId, difficulty, type, opts, correctIndex, expected, gap
     }
 
     /// A `correctIndex` outside `opts` grades every option wrong, so the miss
     /// writes `.shaky` and queues a gap the learner never earned. Reject it on
     /// decode instead: a malformed question becomes an ordinary generation
     /// failure, which the caller already retries.
+    ///
+    /// Only for `mcq`. The server sends `correctIndex: -1` and `opts: []` for
+    /// every kind with nothing to pick, so guarding unconditionally turned the
+    /// first `compute` or `speak` probe into an unfixable generation loop — the
+    /// reason this build could not simply start asking for a domain.
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         tag = try c.decode(String.self, forKey: .tag)
@@ -99,15 +143,50 @@ public struct DiagnosticQuestion: Decodable, Sendable {
         note = try c.decode(String.self, forKey: .note)
         nodeId = try c.decode(String.self, forKey: .nodeId)
         difficulty = try c.decode(DiagnosticDifficulty.self, forKey: .difficulty)
+        type = asDiagnosticKind(try c.decodeIfPresent(String.self, forKey: .type))
         opts = try c.decode([Option].self, forKey: .opts)
         correctIndex = try c.decode(Int.self, forKey: .correctIndex)
+        expected = (try c.decodeIfPresent([String].self, forKey: .expected)) ?? []
         gap = try c.decodeIfPresent(GapSpec.self, forKey: .gap)
-        guard opts.indices.contains(correctIndex) else {
+        if type == .mcq, !opts.indices.contains(correctIndex) {
             throw DecodingError.dataCorruptedError(
                 forKey: .correctIndex, in: c,
                 debugDescription: "correctIndex \(correctIndex) outside opts (\(opts.count))"
             )
         }
+        // The answer key for every other kind lives in `expected`, and a probe
+        // without one is unmarkable — it would pass every learner silently.
+        if type != .mcq, expected.isEmpty {
+            throw DecodingError.dataCorruptedError(
+                forKey: .expected, in: c,
+                debugDescription: "\(type.rawValue) question carries no expected answer"
+            )
+        }
+    }
+
+    /// The correct answer as one line, whichever kind asked for it — what the
+    /// verdict reads back when the learner missed.
+    public var answerText: String {
+        switch type {
+        case .mcq: opts[safe: correctIndex]?.label ?? ""
+        case .compute, .speak: expected.first ?? ""
+        case .order: expected.joined(separator: " → ")
+        }
+    }
+}
+
+/// Did the learner get it right?
+///
+/// One entry point for all four kinds, so nothing downstream — the effect, the
+/// gap spawn, the difficulty staircase — has to know which kind it graded. An
+/// answer of the wrong shape for its kind is simply wrong, never a trap.
+public func gradeDiagnostic(_ question: DiagnosticQuestion, _ answer: DiagnosticAnswer) -> Bool {
+    switch (question.type, answer) {
+    case let (.mcq, .choice(index)): index == question.correctIndex
+    case let (.compute, .text(said)): checkNumeric(said, question.expected.first ?? "")
+    case let (.speak, .text(said)): checkText(said, question.expected)
+    case let (.order, .order(given)): checkOrder(given, question.expected)
+    default: false
     }
 }
 

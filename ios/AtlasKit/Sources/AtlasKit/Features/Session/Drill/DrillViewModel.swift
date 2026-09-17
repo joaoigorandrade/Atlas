@@ -109,10 +109,20 @@ final class DrillViewModel {
         stopClock()
         elapsed = 0
         ticker = Task { [weak self] in
+            var last = Date.now
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(100))
                 guard let self, !Task.isCancelled else { return }
-                elapsed = Date.now.timeIntervalSince(session.openedAt)
+                let now = Date.now
+                // A suspended process does not tick, so a gap much longer than
+                // a beat is time the app spent in the background — a phone call,
+                // a notification, a night. Counting it read as a rep derived
+                // over seven hours, and marked a rep the learner answered at
+                // once as right-but-slow.
+                let gap = now.timeIntervalSince(last)
+                last = now
+                if gap > idleBeat { session.idled(gap) }
+                elapsed = now.timeIntervalSince(session.openedAt)
             }
         }
     }
