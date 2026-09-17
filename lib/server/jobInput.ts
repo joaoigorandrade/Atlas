@@ -31,6 +31,10 @@ export interface GenerateBody {
   paretoPct?: number;
   interests?: string;
   outline?: string;
+  /** The topic is a scope the learner already picked, so the map prompt must
+   *  build rather than offer to scope again (#30). Part of the cache key, and
+   *  omitted unless true so ordinary builds keep their existing rows. */
+  scoped?: boolean;
   /** Where the route files the result — never part of a cache key. `variant`
    *  separates two payloads of one kind on one node (section + lens). */
   topicId?: string;
@@ -215,4 +219,25 @@ export const rubricRows = (
             .slice(0, 4)
             .map((m) => m.slice(0, CAPS.nodeLabel * 4)),
         }))
+    : [];
+
+/**
+ * Candidate nodes a request offers a generator to choose among — Connect's
+ * prior pool, the placement's probe candidates.
+ *
+ * Here rather than inline at each `case`, because it is request vocabulary and
+ * both copies had to agree: a pool parsed one way in one branch and another
+ * way in the next is a cache key that depends on which branch read it.
+ */
+export const poolOf = (body: GenerateBody): Array<{ id: string; label: string }> =>
+  Array.isArray(body.pool)
+    ? body.pool
+        .filter(
+          (p): p is { id: string; label: string } =>
+            typeof p === "object" &&
+            p !== null &&
+            typeof p.id === "string" &&
+            typeof p.label === "string",
+        )
+        .slice(0, CAPS.listItems)
     : [];

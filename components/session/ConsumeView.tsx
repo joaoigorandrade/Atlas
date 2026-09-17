@@ -56,7 +56,7 @@ interface ConsumeViewProps {
   /** The last section is done — show the recap. */
   onFinish: () => void;
   /** The recap's CTA: hand off to Socratic. */
-  onBeginSocratic: () => void;
+  onBeginNext: () => void;
   /** Open a lens over a section. The whole chunk travels up because the model
    *  view is written for this section's exact prose — the caller keys its
    *  request on it. */
@@ -88,7 +88,7 @@ export default function ConsumeView({
   onCheck,
   onContinue,
   onFinish,
-  onBeginSocratic,
+  onBeginNext,
   onOpenModel,
   onCloseModel,
   onToggleTerm,
@@ -397,8 +397,8 @@ export default function ConsumeView({
           >
             <button
               className="at-press"
-              data-testid="action-begin-socratic"
-              onClick={onBeginSocratic}
+              data-testid="action-begin-next"
+              onClick={onBeginNext}
               style={{
                 padding: "14px 24px",
                 background: color.accent,

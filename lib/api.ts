@@ -159,6 +159,9 @@ export interface CurriculumParams {
   /** Coverage share when goal is "pareto" — smaller, higher-leverage map. */
   paretoPct?: number;
   outline?: string;
+  /** This topic came from a scope the learner picked, so the too-broad offer
+   *  must not come back a second time (#30). */
+  scoped?: boolean;
   language?: Language;
 }
 
@@ -197,6 +200,20 @@ export interface DiagnosticQuestionParams {
   goal: GoalKind;
   interests: string;
   language?: Language;
+  /**
+   * What settles a claim in this topic, which decides the SHAPE of the probe —
+   * `compute` for formal, `speak` for performative, `order` for interpretive
+   * (see `DIAGNOSTIC_SHAPE`). Read off the map's nodes with `topicDomainOf`.
+   *
+   * Required, and deliberately: this field was optional when the axis shipped,
+   * so both call sites simply never passed it, `nodeAxes` resolved `general`
+   * on every request, and every learner in production got the default MCQ
+   * while the table sat unreachable. Nothing errored. Making it required is
+   * the only check that cannot be forgotten — `topicDomainOf` always returns
+   * an answer, so satisfying it costs a caller nothing, and `general` still
+   * keys to the row a pre-domain request wrote.
+   */
+  domain: Domain;
   /** Concept nodes this question may probe — already-asked ones excluded. */
   pool: Array<{ id: string; label: string }>;
   difficulty: DiagnosticDifficulty;
@@ -572,7 +589,16 @@ export async function fetchCrucible(
 // one fetcher each: they take the same inputs, but each returns its own shape,
 // and a shared builder would be a place for two of them to drift into one.
 
-export const discriminateRequest = (params: {
+/**
+ * The per-node prompt inputs every phase generator takes: the node, its two
+ * axes, and the map around it.
+ *
+ * One named shape rather than seven hand-copied ones, because these fields ARE
+ * the server's `content_cache` key — a phase whose copy quietly drifted would
+ * address a different row and pay for a generation the warm had already
+ * bought. See `nodeAxes` in lib/server/job.ts.
+ */
+export interface NodeRequest {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -582,7 +608,12 @@ export const discriminateRequest = (params: {
   domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
-}) => ({ kind: "discriminate", ...params });
+}
+
+export const discriminateRequest = (params: NodeRequest) => ({
+  kind: "discriminate",
+  ...params,
+});
 
 export async function fetchDiscriminate(
   params: Parameters<typeof discriminateRequest>[0],
@@ -592,17 +623,7 @@ export async function fetchDiscriminate(
     .content;
 }
 
-export const predictRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "predict", ...params });
+export const predictRequest = (params: NodeRequest) => ({ kind: "predict", ...params });
 
 export async function fetchPredict(
   params: Parameters<typeof predictRequest>[0],
@@ -611,17 +632,7 @@ export async function fetchPredict(
   return (await post<{ content: PredictContent }>(predictRequest(params), opts)).content;
 }
 
-export const traceRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "trace", ...params });
+export const traceRequest = (params: NodeRequest) => ({ kind: "trace", ...params });
 
 export async function fetchTrace(
   params: Parameters<typeof traceRequest>[0],
@@ -630,17 +641,7 @@ export async function fetchTrace(
   return (await post<{ content: TraceContent }>(traceRequest(params), opts)).content;
 }
 
-export const drillRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "drill", ...params });
+export const drillRequest = (params: NodeRequest) => ({ kind: "drill", ...params });
 
 export async function fetchDrill(
   params: Parameters<typeof drillRequest>[0],
@@ -649,17 +650,7 @@ export async function fetchDrill(
   return (await post<{ content: DrillContent }>(drillRequest(params), opts)).content;
 }
 
-export const recallRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "recall", ...params });
+export const recallRequest = (params: NodeRequest) => ({ kind: "recall", ...params });
 
 export async function fetchRecall(
   params: Parameters<typeof recallRequest>[0],
@@ -668,17 +659,7 @@ export async function fetchRecall(
   return (await post<{ content: RecallContent }>(recallRequest(params), opts)).content;
 }
 
-export const performRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "perform", ...params });
+export const performRequest = (params: NodeRequest) => ({ kind: "perform", ...params });
 
 export async function fetchPerform(
   params: Parameters<typeof performRequest>[0],
@@ -725,17 +706,7 @@ export async function fetchSteelman(
     .content;
 }
 
-export const produceRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "produce", ...params });
+export const produceRequest = (params: NodeRequest) => ({ kind: "produce", ...params });
 
 export async function fetchProduce(
   params: Parameters<typeof produceRequest>[0],

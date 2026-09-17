@@ -1,0 +1,21 @@
+-- `topics.domain` was dead the day it was added, and deriving it is the fix.
+--
+-- The domain axis gave both tables the column. Only `nodes.domain` was ever
+-- wired: it is what every generator's `domainNote` reads, what `nodeAxes` puts
+-- in the cache key, what `resolvePlan` cuts the ladder from, and what iOS
+-- sends in its warm context. The topic column was never written (it is absent
+-- from `TOPIC_COLUMNS`, so nothing selected it either) and every row in
+-- production read 'general' while all of that row's nodes read their real
+-- domain — verified on two live maps on 2026-09-17.
+--
+-- It is not worth wiring, because it is not an independent fact. A map's
+-- domain is a property of the nodes it produced — and it has to live on the
+-- node regardless, since one map can hold `formal` nodes and `executable`
+-- ones. Anything that wants the topic-level answer derives it from the nodes
+-- with `topicDomainOf` (lib/curriculum/domains.ts), which is what the
+-- placement probe now does. A stored second copy could only drift from the
+-- rows it summarises.
+--
+-- Safe ahead of the deploy: no shipped client selects or writes this column.
+
+alter table public.topics drop column if exists domain;

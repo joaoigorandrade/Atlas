@@ -112,3 +112,33 @@ export const DOMAIN_PLAN: Partial<Record<Domain, DomainPlanRule>> = {
   // learner runs them in oak; Perform is the debrief of work already done.
   craft: { plan: ["consume", "discriminate", "predict", "perform", "retain"] },
 };
+
+/**
+ * The map's own domain, read back off the nodes it produced.
+ *
+ * The domain shapes the map before any node exists, but it is the nodes that
+ * come back — so afterwards the way to ask "what settles a claim in this
+ * topic" is to count them. Anything that needs the answer at topic level
+ * (placement, which is asked about the topic and not about a node) reads it
+ * here rather than keeping a second copy that can drift from the nodes.
+ */
+export function topicDomainOf(
+  nodes: ReadonlyArray<{ readonly domain?: Domain }>,
+): Domain {
+  // `general` is the absence of an answer rather than an answer, so it does
+  // not get a vote: a map where the model labelled most nodes and defaulted
+  // the rest has the labelled domain, not a tie against the defaults.
+  const counts = new Map<Domain, number>();
+  for (const n of nodes)
+    if (n.domain && n.domain !== "general")
+      counts.set(n.domain, (counts.get(n.domain) ?? 0) + 1);
+  let best: Domain = "general";
+  let most = 0;
+  // Insertion order breaks a tie, so the answer is stable for a given map.
+  for (const [domain, n] of counts)
+    if (n > most) {
+      best = domain;
+      most = n;
+    }
+  return best;
+}

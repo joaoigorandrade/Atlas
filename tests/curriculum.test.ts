@@ -26,6 +26,7 @@ import {
   DOMAIN_PLAN,
   asDomain,
   resolvePlan,
+  topicDomainOf,
   removeNode,
   rolloverAdherence,
   discriminateFalsePositives,
@@ -1128,6 +1129,61 @@ describe("primaryPhase — what the CTA opens is what the CTA says", () => {
 
   it("has nothing to open once the plan is finished", () => {
     expect(primaryPhase(plan, planGates(plan), "mastered")).toBeUndefined();
+  });
+
+  it("routes an interpretive node through the rungs its domain added", () => {
+    // What the in-session hand-offs must ask, and for a while did not. They
+    // named their target instead — the reading opened Socratic and Socratic
+    // opened Feynman — so Provenance and Steelman were skipped on the path a
+    // learner actually walks, while the map's own route ran them correctly.
+    // Being IN the plan is not enough; these are the rungs that come first.
+    const interpretive = resolvePlan("concept", "interpretive");
+    expect(primaryPhase(interpretive, ["consume"], "learning")).toBe("discriminate");
+    expect(primaryPhase(interpretive, ["consume", "discriminate"], "learning")).toBe(
+      "provenance",
+    );
+    expect(
+      primaryPhase(
+        interpretive,
+        ["consume", "discriminate", "provenance", "socratic"],
+        "learning",
+      ),
+    ).toBe("steelman");
+  });
+});
+
+// ---- the map's domain, read back off its nodes -------------------------------
+
+describe("topicDomainOf", () => {
+  it("takes the domain the map was written in", () => {
+    expect(topicDomainOf([{ domain: "interpretive" }, { domain: "interpretive" }])).toBe(
+      "interpretive",
+    );
+  });
+
+  it("ignores `general`, which is the absence of an answer", () => {
+    // A map where the model labelled most nodes and defaulted the rest has the
+    // labelled domain — not a tie it loses to its own defaults.
+    expect(
+      topicDomainOf([{ domain: "general" }, { domain: "general" }, { domain: "formal" }]),
+    ).toBe("formal");
+  });
+
+  it("takes the majority when one map holds two", () => {
+    // A machine-learning map is mostly `formal` with a few `executable` nodes,
+    // and the placement probe wants the shape of the majority.
+    expect(
+      topicDomainOf([
+        { domain: "formal" },
+        { domain: "executable" },
+        { domain: "formal" },
+      ]),
+    ).toBe("formal");
+  });
+
+  it("falls back to general with nothing to read", () => {
+    expect(topicDomainOf([])).toBe("general");
+    expect(topicDomainOf([{}, {}])).toBe("general");
   });
 });
 

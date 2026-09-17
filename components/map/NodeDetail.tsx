@@ -650,7 +650,7 @@ function NodeDetailBody({
 
       {dependentIds.length > 0 && (
         <div style={{ marginTop: 20 }}>
-          <div style={{ ...kicker(10), marginBottom: 10 }}>{t.unlocks}</div>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>{edgeLabel.forward}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
             {dependentIds.map(chip)}
           </div>

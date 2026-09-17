@@ -87,8 +87,21 @@ test.describe("Full Visual Browser Tour", () => {
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "07_consume_recap.png") });
 
-    // 7. Phase 1: Socratic (handoff from Consume recap)
-    await recap.getByTestId("action-begin-socratic").click();
+    // 7. The hand-off out of the reading goes to the rung the node OWES, which
+    // for a concept is Discriminate — not a phase named in the handler. This
+    // step used to assert Socratic and passed, because the CTA was hard-coded
+    // to it and skipped whatever the plan put in between.
+    await recap.getByTestId("action-begin-next").click();
+    const discriminateSheet = page.getByTestId("phase-discriminate");
+    await expect(discriminateSheet).toBeVisible();
+    await page.waitForTimeout(500);
+    await page.screenshot({
+      path: path.join(SCREENSHOT_DIR, "07b_handoff_discriminate.png"),
+    });
+
+    // 8. Phase: Socratic
+    await openRun(page, { [FIRST_NODE]: "learning" });
+    await openPhase(page, FIRST_NODE, "socratic");
     const socraticSheet = page.getByTestId("phase-socratic");
     await expect(socraticSheet).toBeVisible();
     const ansField = socraticSheet.getByTestId("field-answer");
@@ -101,7 +114,7 @@ test.describe("Full Visual Browser Tour", () => {
     await socraticSheet.getByTestId("action-submit").click();
     await page.waitForTimeout(800);
 
-    // 8. Phase 2: Feynman
+    // 9. Phase: Feynman
     await openRun(page, { [FIRST_NODE]: "learning" });
     await openPhase(page, FIRST_NODE, "feynman");
     const feynmanSheet = page.getByTestId("phase-feynman");

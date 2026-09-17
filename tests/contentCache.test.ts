@@ -93,6 +93,22 @@ describe("contentKey", () => {
     );
   });
 
+  // `scoped` suppresses the too-broad offer, so it genuinely changes the map
+  // prompt and has to be in the key — but it follows the same rule `nodeKind`
+  // and `domain` do: absent at its default, so every map row written before
+  // the flag existed keeps its address and no VERSION bump is owed.
+  it("keys an ordinary build to the row it always had", () => {
+    const base = { kind: "curriculum" as const, topic: "Rust", goal: "mastery" as const };
+    expect(resolveJob({ ...base, scoped: false }).key).toBe(resolveJob(base).key);
+  });
+
+  it("separates a picked scope, which asks a different prompt", () => {
+    // Same topic string, two different questions: "is this too broad?" versus
+    // "the learner already answered that — build it."
+    const base = { kind: "curriculum" as const, topic: "Rust", goal: "mastery" as const };
+    expect(resolveJob({ ...base, scoped: true }).key).not.toBe(resolveJob(base).key);
+  });
+
   it("keys nested lists by content, not identity", () => {
     const a = contentKey("connect", {
       topic: "Rust",

@@ -81,7 +81,7 @@ test("consume: reading the pass through moves the node off unknown", async ({ pa
   // Socratic rather than dumping the learner back on the map.
   const recap = page.getByTestId("phase-consume-recap");
   await expect(recap).toBeVisible();
-  await expect(recap.getByTestId("action-begin-socratic")).toBeVisible();
+  await expect(recap.getByTestId("action-begin-next")).toBeVisible();
 
   // …and the reading is recorded against the node, not lost with the sheet.
   type Progress = Record<string, { idx: number; finished: boolean }>;
@@ -96,7 +96,7 @@ test("consume: reading the pass through moves the node off unknown", async ({ pa
   // reading, and it has to close the rung. It used to close only on the way
   // *back* to the map, so a learner who followed the CTA left Consume
   // unfinished in the ledger and the rail kept offering it for ever.
-  await recap.getByTestId("action-begin-socratic").click();
+  await recap.getByTestId("action-begin-next").click();
   const after = await persisted(
     page,
     (s) => ((s.phasesDone as Record<string, string[]>)?.[FIRST_NODE] ?? []).length > 0,

@@ -173,7 +173,7 @@ test.describe("Deep Web Feature Audit", () => {
     // Recap screen
     const recap = page.getByTestId("phase-consume-recap");
     await expect(recap).toBeVisible();
-    await expect(recap.getByTestId("action-begin-socratic")).toBeVisible();
+    await expect(recap.getByTestId("action-begin-next")).toBeVisible();
     audit.passedChecks.push("Consume recap screen displayed with Socratic hand-off");
   });
 

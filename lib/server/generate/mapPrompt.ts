@@ -25,6 +25,10 @@ export interface MapParams {
   paretoPct?: number;
   /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
   outline?: string;
+  /** This topic IS a scope the learner just picked off a too-broad offer, so
+   *  the escape hatch is spent — offering it again is the app re-asking a
+   *  question it has already been answered. See `mapContext`. */
+  scoped?: boolean;
   language?: Language;
 }
 
@@ -66,10 +70,18 @@ export function mapContext(params: MapParams): string {
   const grounding = outline?.trim()
     ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
     : "";
+  // A picked scope arrives as a bare label with its period or qualifier left
+  // behind in the offer's note, so the model re-reads it as wide and offers to
+  // scope it again — and again. Three rounds deep on church history the
+  // learner still has no map, because `DOMAIN_MAP_RULE.interpretive` measures
+  // centuries and a label carries no dates. The escape hatch is answered once.
+  const escape = params.scoped
+    ? `This topic is ALREADY a scoped sub-topic the learner chose from a list of offers. Build the map for it. Do NOT return "tooBroad" — narrow the treatment instead, and if the label is missing the period or qualifier that bounds it, pick the reading its offer plainly meant and say so in the first concept's summary.`
+    : `If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
+{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
   return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}${paretoNote(params)}
 ${grounding}
-If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
-{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
+${escape}`;
 }
 
 export const graphShape = (ask: [number, number]) => `{

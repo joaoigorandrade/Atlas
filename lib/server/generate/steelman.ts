@@ -115,9 +115,44 @@ interface JudgeSteelmanParams {
  *  written read, so the screen can mark each side before the prose lands. It
  *  must NOT require `response`, which by design has not been written yet. */
 export function steelmanVerdictPrefix(ids: string[]) {
-  return (raw: unknown): Partial<SteelmanJudgement> => ({
-    verdicts: validateSteelmanVerdicts(raw, ids),
-  });
+  const rows = new Map<string, SteelmanJudgement["verdicts"][number]>();
+  return (raw: unknown): Partial<SteelmanJudgement> => {
+    try {
+      return { verdicts: validateSteelmanVerdicts(raw, ids) };
+    } catch (whole) {
+      // Not the wrapped array — and one ruling on its own is not a malformed
+      // judgement, it is the shape the model actually streams: one top-level
+      // object per position, whatever the prompt's example shows. Shipping
+      // without this made the streamed half contribute nothing, so every
+      // submission paid 3.6s and a whole generation for frames that were all
+      // dropped, then fell back to a second call. Exactly what `verdictPrefix`
+      // was taught for the rubric judges; Steelman shipped with the old shape.
+      const row = obj(raw, "payload");
+      const positionId = typeof row.positionId === "string" ? row.positionId : "";
+      // Anything that is not one of ours is an object nobody asked for, and the
+      // caller's own error is the more useful one to report for it.
+      if (!ids.includes(positionId)) throw whole;
+      if (!(STEELMAN_VERDICTS as readonly string[]).includes(String(row.verdict)))
+        throw whole;
+      // First ruling per position wins, exactly as the array path dedups.
+      if (!rows.has(positionId))
+        rows.set(positionId, {
+          positionId,
+          verdict: row.verdict as SteelmanVerdict,
+          quote: typeof row.quote === "string" ? row.quote : "",
+        });
+      // Still a prefix of a prefix: buffer and wait for the rest. Its own
+      // message rather than the validator's — this is the ordinary path for
+      // every position but the last, and re-throwing "verdicts must be an
+      // array" puts lines that look like a broken judge on the error dashboard
+      // each time one works.
+      if (rows.size < ids.length)
+        throw new Error(
+          `steelman verdict ${positionId} buffered — ${rows.size} of ${ids.length} so far`,
+        );
+      return { verdicts: ids.map((id) => rows.get(id)!) };
+    }
+  };
 }
 
 function validateSteelmanVerdicts(

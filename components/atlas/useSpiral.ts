@@ -1968,9 +1968,10 @@ export function useSpiral(deps: {
       enterSession(node);
       return;
     }
-    // Reasoned through unaided — the rung closes and the next one opens.
+    // Reasoned through unaided — the rung closes and the plan says what opens.
+    // `completePhase` writes its ref in this tick, so the answer is current.
     completePhase(node, "socratic");
-    enterFeynman(node);
+    enterOwedPhase(node);
   };
 
   // ---- Consume → Socratic hand-off -------------------------------------
@@ -2000,23 +2001,34 @@ export function useSpiral(deps: {
     go(node);
   };
 
-  /** Forward out of the reading, but only into a phase this node actually
-   *  runs — the recap's two CTAs jumped to Socratic and the Crucible whatever
-   *  the plan said. Anything else lands on the rung the node owes. */
-  const leaveConsumeTo = (phase: PhaseId, go: (node: ConceptNode) => void) =>
-    leaveConsume((node) => {
-      if (phasePlan(node).includes(phase)) return go(node);
-      const next = primaryPhase(
-        phasePlan(node),
-        phasesDoneRef.current[node.id],
-        displayRef.current[node.id],
-      );
-      if (next) enterPhase[next](node);
-      else setScreen("map");
-    });
+  /**
+   * Enter the rung this node actually owes — the only thing allowed to decide
+   * where a learner goes next, and the same function the CTA reads to name
+   * itself, so a button cannot promise a phase it won't open.
+   *
+   * Every hand-off that named its target instead skipped whatever the plan put
+   * in front of it: the recap jumped to Socratic (past Discriminate, and past
+   * Provenance once domains added it) and Socratic jumped to Feynman (past
+   * Steelman). Being IN the plan is not enough. `exhausted` takes a finished one.
+   */
+  const enterOwedPhase = (
+    node: ConceptNode,
+    exhausted: () => void = () => setScreen("map"),
+    state: NodeState | undefined = displayRef.current[node.id],
+  ) => {
+    const next = primaryPhase(phasePlan(node), phasesDoneRef.current[node.id], state);
+    if (next) enterPhase[next](node);
+    else exhausted();
+  };
 
-  const beginSocraticFromConsume = () => leaveConsumeTo("socratic", enterSocratic);
-  const consumeSkipCrucible = () => leaveConsumeTo("crucible", enterCrucible);
+  /** The recap's primary CTA: forward into whatever the plan says is next. */
+  const beginNextFromConsume = () => leaveConsume(enterOwedPhase);
+  /** "I know this — test me" is a deliberate jump, not a hand-off, so it keeps
+   *  its target; a plan with no Crucible falls back to the owed rung. */
+  const consumeSkipCrucible = () =>
+    leaveConsume((node) =>
+      phasePlan(node).includes("crucible") ? enterCrucible(node) : enterOwedPhase(node),
+    );
 
   /** "Review prerequisite" — routes to the weakest direct prereq (shaky over
    *  merely learning) via the same session each state opens from the map. */
@@ -2033,13 +2045,7 @@ export function useSpiral(deps: {
     }
     // The weakest prereq's *own* plan decides where reviewing it lands — a
     // shaky `fact` has no Crucible and a `procedure` no Socratic pass.
-    const next = primaryPhase(
-      phasePlan(weakest),
-      phasesDoneRef.current[weakest.id],
-      displayRef.current[weakest.id],
-    );
-    if (next) enterPhase[next](weakest);
-    else setScreen("map");
+    enterOwedPhase(weakest);
   };
 
   const onNodeDoubleClick = (id: string) => {
@@ -2103,13 +2109,7 @@ export function useSpiral(deps: {
     // Otherwise: the rung this node actually owes. Nothing here knows which
     // phase that is — that is the point, and it is the same function the CTA
     // reads to name itself, so the button can't promise a different one.
-    const next = primaryPhase(
-      phasePlan(node),
-      phasesDoneRef.current[node.id],
-      displayState,
-    );
-    if (next) enterPhase[next](node);
-    else enterReview();
+    enterOwedPhase(node, enterReview, displayState);
   };
 
   /**
@@ -2255,7 +2255,7 @@ export function useSpiral(deps: {
     closeCalibGap,
     advanceFromSocratic,
     finishConsume,
-    beginSocraticFromConsume,
+    beginNextFromConsume,
     consumeSkipCrucible,
     consumeRoutePrereq,
     onNodeDoubleClick,

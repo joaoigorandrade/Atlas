@@ -19,6 +19,8 @@ import {
   graphFromMapNodes,
   initialStates,
   stepDifficulty,
+  topicDomainOf,
+  type MapNode,
   type DiagnosticDifficulty,
   type DiagnosticEffect,
   type DiagnosticQuestion,
@@ -33,6 +35,7 @@ import { FAKE_MAP_CENTER } from "@/components/onboarding/fakeMap";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { Language } from "@/lib/i18n";
 import { openTopic } from "@/components/atlas/topicLifecycle";
+import { useOutlineUpload } from "@/components/atlas/outlineUpload";
 import type { Screen } from "@/components/atlas/screen";
 import type { ToastChannel } from "@/components/atlas/useToast";
 import type { RunState } from "@/components/atlas/useRunState";
@@ -101,8 +104,7 @@ export function useOnboarding(deps: {
   const [answered, setAnswered] = useState(0);
   const [reveal, setReveal] = useState(0);
   /** Uploaded-outline grounding + too-broad-topic scoping (#30). */
-  const [outline, setOutline] = useState<string | null>(null);
-  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const { outline, uploadNote, onOutlineFile, clearOutline } = useOutlineUpload(toast);
   const [scopes, setScopes] = useState<ScopeOffer[] | null>(null);
   /** What the build has actually produced so far, named for the overlay.
    *  Indeterminate waits read ~30% longer than determinate ones, and this one
@@ -121,6 +123,13 @@ export function useOnboarding(deps: {
    *  (or picks a scope) starts a second stream while the first is still
    *  writing; without this token its concepts would land on top of the new map. */
   const buildIdRef = useRef(0);
+  /** Set by `pickScope` for exactly the build it triggers. The learner has
+   *  already answered the too-broad question, and a picked scope arrives as a
+   *  bare label with the period or qualifier that bounded it left behind in
+   *  the offer's note — so without this the model reads it as wide again and
+   *  offers to scope it a second and third time, and church history never
+   *  becomes a map. Consumed at the top of `build`. */
+  const scopedRef = useRef(false);
   const nextDifficultyRef = useRef<DiagnosticDifficulty>("medium");
   const maxCorrectDifficultyRef = useRef<DiagnosticDifficulty | null>(null);
 
@@ -152,6 +161,11 @@ export function useOnboarding(deps: {
       return;
     }
     const buildId = ++buildIdRef.current;
+    // Consumed here, so it applies to this build and no later one: a learner
+    // who types a fresh topic after a scoped build is asking the open question
+    // again and should get the offers back.
+    const scoped = scopedRef.current;
+    scopedRef.current = false;
     // A fresh map is generated in the UI language, so this is the one moment
     // the run's content language is known for certain.
     setRunLanguage(languageRef.current);
@@ -213,19 +227,24 @@ export function useOnboarding(deps: {
       goal: formRef.current.goal,
       paretoPct: formRef.current.paretoPct,
       outline: outline ?? undefined,
+      ...(scoped ? { scoped: true } : {}),
       language: languageRef.current,
     };
     /** Started mid-stream and awaited after it, so the two cold generations
      *  overlap instead of queueing. */
     let question1: Promise<DiagnosticQuestion> | null = null;
-    const askQuestion1 = (pool: Array<{ id: string; label: string }>) => {
+    const askQuestion1 = (nodes: MapNode[]) => {
       const fetchOne = () =>
         fetchDiagnosticQuestion({
           topic,
           goal: formRef.current.goal,
           interests: formRef.current.interests,
           language: languageRef.current,
-          pool,
+          // Read off the nodes rather than held as a second copy that could
+          // drift from them (see `topicDomainOf`). The prefix that has landed
+          // mid-stream is enough to tell: a map is written in one domain.
+          domain: topicDomainOf(nodes),
+          pool: nodes.map((n) => ({ id: n.id, label: n.label })),
           difficulty: nextDifficultyRef.current,
         });
       // This call is never cached (unlike every other generation, its node
@@ -253,7 +272,7 @@ export function useOnboarding(deps: {
       // candidate pool for an opening question — and asking now is what buys
       // the overlap. Questions 2-5 see the whole map.
       if (!question1 && nodes.length >= DIAGNOSTIC_POOL_MIN)
-        question1 = askQuestion1(nodes.map((n) => ({ id: n.id, label: n.label })));
+        question1 = askQuestion1(nodes);
     })
       .then((result) => {
         if (!current()) return;
@@ -267,9 +286,7 @@ export function useOnboarding(deps: {
         setBuildNote(`placement question 1 of ${DIAGNOSTIC_COUNT}`);
         // Short map (or a stream that ended early): the overlap never fired, so
         // ask now against everything that landed.
-        const pending =
-          question1 ??
-          askQuestion1(result.nodes.map((n) => ({ id: n.id, label: n.label })));
+        const pending = question1 ?? askQuestion1(result.nodes);
         // The panel opens on its own choice — take the placement, or go
         // straight to the map — so it must not wait on question 1: the
         // learner who wants the map shouldn't pay for a test they'll skip.
@@ -327,37 +344,15 @@ export function useOnboarding(deps: {
   const buildRef = useRef(build);
   buildRef.current = build;
 
-  /** A picked scope becomes the topic and builds immediately (#30). */
+  /** A picked scope becomes the topic and builds immediately (#30). The build
+   *  it triggers is marked scoped so the offer cannot come back — see
+   *  `scopedRef`. */
   const pickScope = (label: string) => {
+    scopedRef.current = true;
     setForm((prev) => ({ ...prev, topic: label }));
     setScopes(null);
     // formRef updates on render; build reads the ref, so defer one tick.
     later(() => build(), 30);
-  };
-
-  /** Upload a syllabus/outline: extract server-side, ground the map (#30). */
-  const onOutlineFile = (file: File) => {
-    // Drop the previous outline up front: a re-upload must not ground the
-    // map in the old source while the new one is still being read.
-    setOutline(null);
-    setUploadNote(tc().readingFile(file.name));
-    const data = new FormData();
-    data.append("file", file);
-    fetch("/api/extract", { method: "POST", body: data })
-      .then(async (res) => {
-        const json = (await res.json().catch(() => null)) as {
-          text?: string;
-          error?: string;
-        } | null;
-        if (!res.ok || !json?.text) throw new Error(json?.error ?? tc().unreadableFile);
-        setOutline(json.text);
-        setUploadNote(tc().groundedIn(file.name));
-      })
-      .catch((err: Error) => {
-        setOutline(null);
-        setUploadNote(null);
-        showError(err, { context: "upload" });
-      });
   };
 
   /**
@@ -437,6 +432,8 @@ export function useOnboarding(deps: {
       goal: formRef.current.goal,
       interests: formRef.current.interests,
       language: languageRef.current,
+      // Questions 2-5 see the whole map, so this is the settled reading of it.
+      domain: topicDomainOf(graphRef.current.nodes),
       pool,
       difficulty: nextDifficulty,
     })
@@ -497,11 +494,10 @@ export function useOnboarding(deps: {
   const reset = useCallback(() => {
     setDiagnostic([]);
     setAnswered(0);
-    setOutline(null);
-    setUploadNote(null);
+    clearOutline();
     setScopes(null);
     setBuildNote(null);
-  }, []);
+  }, [clearOutline]);
 
   return {
     reset,
@@ -520,8 +516,6 @@ export function useOnboarding(deps: {
     answerDiagnostic,
     startMap,
     askedNodeIdsRef,
-    setOutline,
-    setUploadNote,
     setScopes,
   };
 }

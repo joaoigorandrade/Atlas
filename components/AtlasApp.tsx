@@ -506,7 +506,7 @@ export default function AtlasApp({
     closeCalibGap,
     advanceFromSocratic,
     finishConsume,
-    beginSocraticFromConsume,
+    beginNextFromConsume,
     consumeSkipCrucible,
     consumeRoutePrereq,
     onNodeDoubleClick,
@@ -948,7 +948,7 @@ export default function AtlasApp({
             onCheck={consumeCheck}
             onContinue={consumeContinue}
             onFinish={finishConsume}
-            onBeginSocratic={beginSocraticFromConsume}
+            onBeginNext={beginNextFromConsume}
             onOpenModel={consumeOpenModel}
             onCloseModel={consumeCloseModel}
             onToggleTerm={consumeToggleTerm}

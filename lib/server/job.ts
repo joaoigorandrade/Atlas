@@ -60,6 +60,7 @@ import {
   boundary,
   labels,
   nodeAxes,
+  poolOf,
   rubricRows,
   s,
   type GenerateBody,
@@ -182,6 +183,10 @@ function buildJob(body: GenerateBody): Job {
         topic,
         goal,
         ...(paretoPct === undefined ? {} : { paretoPct }),
+        // Omitted unless true, so an ordinary build still keys to the row it
+        // always did. A scoped build genuinely asks a different prompt and
+        // earns its own row rather than forking the common one.
+        ...(body.scoped === true ? { scoped: true } : {}),
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
       };
@@ -224,17 +229,7 @@ function buildJob(body: GenerateBody): Job {
     }
 
     case "diagnosticQuestion": {
-      const pool = Array.isArray(body.pool)
-        ? body.pool
-            .filter(
-              (p): p is { id: string; label: string } =>
-                typeof p === "object" &&
-                p !== null &&
-                typeof p.id === "string" &&
-                typeof p.label === "string",
-            )
-            .slice(0, CAPS.listItems)
-        : [];
+      const pool = poolOf(body);
       if (pool.length === 0) throw badRequest("pool must list candidate nodes");
       const difficulty: DiagnosticDifficulty = DIAGNOSTIC_DIFFICULTIES.includes(
         body.difficulty as DiagnosticDifficulty,
@@ -395,17 +390,7 @@ function buildJob(body: GenerateBody): Job {
 
     case "connect": {
       if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      const pool = Array.isArray(body.pool)
-        ? body.pool
-            .filter(
-              (p): p is { id: string; label: string } =>
-                typeof p === "object" &&
-                p !== null &&
-                typeof p.id === "string" &&
-                typeof p.label === "string",
-            )
-            .slice(0, CAPS.listItems)
-        : [];
+      const pool = poolOf(body);
       if (pool.length === 0) throw badRequest("pool must list prior nodes");
       return cacheable(
         "connect",
