@@ -18,6 +18,7 @@
 // anywhere in its chain re-runs the hydrate on every render.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDomainPhaseCaches } from "@/components/atlas/useDomainPhaseCaches";
 import {
   DEFAULT_FORM,
   PARETO_DEFAULT,
@@ -150,6 +151,8 @@ export function useRunState(opts: {
   const [drillCache, setDrillCache] = useState<Record<string, DrillContent>>({});
   const [recallCache, setRecallCache] = useState<Record<string, RecallContent>>({});
   const [performCache, setPerformCache] = useState<Record<string, PerformContent>>({});
+  // The three phases the domain axis adds — see `useDomainPhaseCaches`.
+  const domainCaches = useDomainPhaseCaches();
   // Model views (a lens opened over one section of the reading), keyed by
   // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
   // one lens on the section that didn't land, not twenty across the pass.
@@ -375,21 +378,35 @@ export function useRunState(opts: {
   /** Adopt a loaded profile — see `adoptProfile` at the foot of the file. */
   const setProfile = (p: Profile) => adoptProfile(p, setForm, savedProfileRef);
 
+  /** Every content cache with the key it hydrates from. One table: hydrate and
+   *  clear were the same fifteen names twice, and a phase missing from one of
+   *  them is content that survives a wipe. */
+  const contentCaches = useRef([
+    [setConsumeCache, "consume"],
+    [setModelCache, "models"],
+    [setSocraticCache, "socratic"],
+    [setFeynmanCache, "feynman"],
+    [setConnectCache, "connect"],
+    [setCrucibleCache, "crucible"],
+    [setDiscriminateCache, "discriminate"],
+    [setPredictCache, "predict"],
+    [setTraceCache, "trace"],
+    [setDrillCache, "drill"],
+    [setRecallCache, "recall"],
+    [setPerformCache, "perform"],
+    [domainCaches.setProvenanceCache, "provenance"],
+    [domainCaches.setSteelmanCache, "steelman"],
+    [domainCaches.setProduceCache, "produce"],
+  ] as const).current;
+
+  const clearContentCaches = useCallback(() => {
+    for (const [set] of contentCaches) (set as (v: object) => void)({});
+  }, [contentCaches]);
+
   const clearCaches = useCallback(() => {
-    setConsumeCache({});
-    setModelCache({});
-    setSocraticCache({});
-    setFeynmanCache({});
-    setConnectCache({});
-    setCrucibleCache({});
-    setDiscriminateCache({});
-    setPredictCache({});
-    setTraceCache({});
-    setDrillCache({});
-    setRecallCache({});
-    setPerformCache({});
+    clearContentCaches();
     setRetainContent(null);
-  }, []);
+  }, [clearContentCaches]);
 
   /** Everything a brand-new map has to wipe: the previous run's content, the
    *  previous run's progress, and the previous run's readings. Shared by "build
@@ -418,26 +435,19 @@ export function useRunState(opts: {
   // One coarse snapshot per (user, subject) in Supabase `run_states`.
   // Load once on mount; a saved run resumes straight onto the map.
 
-  /** Apply loaded content without clobbering anything generated since: a
-   *  cache entry already in memory is the fresher one. */
-  const applyCaches = useCallback((c: RunCaches) => {
-    const merge =
-      <T>(loaded: Record<string, T>) =>
-      (prev: Record<string, T>): Record<string, T> => ({ ...loaded, ...prev });
-    setConsumeCache(merge(c.consume));
-    setModelCache(merge(c.models));
-    setSocraticCache(merge(c.socratic));
-    setFeynmanCache(merge(c.feynman));
-    setConnectCache(merge(c.connect));
-    setCrucibleCache(merge(c.crucible));
-    setDiscriminateCache(merge(c.discriminate));
-    setPredictCache(merge(c.predict));
-    setTraceCache(merge(c.trace));
-    setDrillCache(merge(c.drill));
-    setRecallCache(merge(c.recall));
-    setPerformCache(merge(c.perform));
-    setRetainContent((prev) => prev ?? c.retain);
-  }, []);
+  /** Apply loaded content without clobbering anything generated since —
+   *  loaded first, live second, so whatever the learner has open wins. */
+  const applyCaches = useCallback(
+    (c: RunCaches) => {
+      for (const [set, key] of contentCaches)
+        (set as (v: (p: object) => object) => void)((prev) => ({
+          ...(c[key] as object),
+          ...prev,
+        }));
+      setRetainContent((prev) => prev ?? c.retain);
+    },
+    [contentCaches],
+  );
 
   /**
    * Apply a loaded run as the live one, dropping any other run's in-progress
@@ -450,18 +460,7 @@ export function useRunState(opts: {
       warm.clear();
       resetSessions();
       resetTransient();
-      setConsumeCache({});
-      setModelCache({});
-      setSocraticCache({});
-      setFeynmanCache({});
-      setConnectCache({});
-      setCrucibleCache({});
-      setDiscriminateCache({});
-      setPredictCache({});
-      setTraceCache({});
-      setDrillCache({});
-      setRecallCache({});
-      setPerformCache({});
+      clearContentCaches();
       setRetainContent(null);
 
       // The run's language wins over the device's. UI language is detected
@@ -508,7 +507,7 @@ export function useRunState(opts: {
       // network. Never written back — see `hydrateContent`.
       void hydrateContent(topic.id, applyCaches);
     },
-    [warm, applyCaches, resetSessions, resetTransient, setScreen],
+    [warm, applyCaches, clearContentCaches, resetSessions, resetTransient, setScreen],
   );
 
   /** One request for everything: profile and library together. It used to be
@@ -761,6 +760,7 @@ export function useRunState(opts: {
     performCache,
     setPerformCache,
     performCacheRef,
+    ...domainCaches,
     setCrucibleCache,
     crucibleCacheRef,
     retainContent,

@@ -37,12 +37,7 @@ import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
-import DiscriminateView from "@/components/session/DiscriminateView";
-import PredictView from "@/components/session/PredictView";
-import TraceView from "@/components/session/TraceView";
-import DrillView from "@/components/session/DrillView";
-import RecallView from "@/components/session/RecallView";
-import PerformView from "@/components/session/PerformView";
+import { phaseSheets } from "@/components/session/PhaseSheets";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
@@ -104,12 +99,6 @@ export default function AtlasApp({
     feynman,
     connect,
     crucible,
-    discriminate,
-    predict,
-    trace,
-    drill,
-    recall,
-    perform,
     retain,
     reset: resetSessions,
   } = sessions;
@@ -455,6 +444,31 @@ export default function AtlasApp({
   };
 
   // The spiral: opening a phase, running it, and advancing out of it.
+  const spiral = useSpiral({
+    run,
+    sessions,
+    gen,
+    toast: toastChannel,
+    warm,
+    languageRef,
+    displayRef,
+    selectedId,
+    setSelectedId,
+    setScreen,
+    centerOn,
+    later,
+    timersRef,
+    loadingRef,
+    judgingRef,
+    setJudging,
+    setConsumeFailed,
+    setSocraticRetry,
+    momentumPlaying,
+    setMomentumPlaying,
+    setMomentumWeek,
+    momentumRef,
+    frontierTargetId,
+  });
   const {
     consumeCheck,
     consumeContinue,
@@ -480,26 +494,6 @@ export default function AtlasApp({
     crucibleSubmit,
     advanceFromCrucible,
     exitCrucible,
-    dispatchDiscriminate,
-    advanceFromDiscriminate,
-    exitDiscriminate,
-    dispatchPredict,
-    advanceFromPredict,
-    exitPredict,
-    dispatchTrace,
-    advanceFromTrace,
-    exitTrace,
-    dispatchDrill,
-    advanceFromDrill,
-    exitDrill,
-    dispatchRecall,
-    recallSubmit,
-    advanceFromRecall,
-    exitRecall,
-    dispatchPerform,
-    performSubmit,
-    advanceFromPerform,
-    exitPerform,
     enterReview,
     retainFlip,
     retainToggleAside,
@@ -523,33 +517,22 @@ export default function AtlasApp({
     toggleMomentum,
     warmRetain,
     onPrimaryAction,
-  } = useSpiral({
-    run,
-    sessions,
-    gen,
-    toast: toastChannel,
-    warm,
-    languageRef,
-    displayRef,
-    selectedId,
-    setSelectedId,
-    setScreen,
-    centerOn,
-    later,
-    timersRef,
-    loadingRef,
-    judgingRef,
-    setJudging,
-    setConsumeFailed,
-    setSocraticRetry,
-    momentumPlaying,
-    setMomentumPlaying,
-    setMomentumWeek,
-    momentumRef,
-    frontierTargetId,
-  });
+  } = spiral;
 
   // Everything the render reads but nothing owns.
+  const derived = useDerived({
+    run,
+    sessions,
+    screen,
+    userEmail,
+    selectedId,
+    reveal,
+    momentumPlaying,
+    momentumWeek,
+    displayRef,
+    modelKey,
+    runSubject,
+  });
   const {
     isMap,
     sheet,
@@ -576,12 +559,6 @@ export default function AtlasApp({
     feynmanBeats,
     connectContent,
     crucibleContent,
-    discriminateContent,
-    predictContent,
-    traceContent,
-    drillContent,
-    recallContent,
-    performContent,
     displayName,
     initials,
     greeting,
@@ -595,19 +572,7 @@ export default function AtlasApp({
     interests,
     profileStats,
     reviewSummary,
-  } = useDerived({
-    run,
-    sessions,
-    screen,
-    userEmail,
-    selectedId,
-    reveal,
-    momentumPlaying,
-    momentumWeek,
-    displayRef,
-    modelKey,
-    runSubject,
-  });
+  } = derived;
 
   // The warm pass: what to have generated before the learner asks for it.
   useWarming({
@@ -1090,120 +1055,19 @@ export default function AtlasApp({
 
       {/* The six phases of the catalogue's growth to twelve. One branch each:
           each owns its own screen, its own content shape and its own grader. */}
-      {openSheet === "discriminate" &&
-        discriminate &&
-        discriminateContent &&
-        sheetBoundary(
-          <DiscriminateView
-            presence={sheet.state}
-            topic={form.topic}
-            title={
-              graph.nodes.find((n) => n.id === discriminate.nodeId)?.label ?? "Concept"
-            }
-            plan={planOf(discriminate.nodeId)}
-            content={discriminateContent}
-            session={discriminate}
-            onExit={exitDiscriminate}
-            onCall={(index, read) => dispatchDiscriminate({ type: "call", index, read })}
-            onNext={() => dispatchDiscriminate({ type: "next" })}
-            onAdvance={advanceFromDiscriminate}
-          />,
-        )}
-
-      {openSheet === "predict" &&
-        predict &&
-        predictContent &&
-        sheetBoundary(
-          <PredictView
-            presence={sheet.state}
-            topic={form.topic}
-            title={graph.nodes.find((n) => n.id === predict.nodeId)?.label ?? "Concept"}
-            plan={planOf(predict.nodeId)}
-            content={predictContent}
-            session={predict}
-            onExit={exitPredict}
-            onSure={(level) => dispatchPredict({ type: "sure", level })}
-            onCommit={(index, read) => dispatchPredict({ type: "commit", index, read })}
-            onNext={() => dispatchPredict({ type: "next" })}
-            onAdvance={advanceFromPredict}
-          />,
-        )}
-
-      {openSheet === "trace" &&
-        trace &&
-        traceContent &&
-        sheetBoundary(
-          <TraceView
-            presence={sheet.state}
-            topic={form.topic}
-            title={graph.nodes.find((n) => n.id === trace.nodeId)?.label ?? "Concept"}
-            plan={planOf(trace.nodeId)}
-            content={traceContent}
-            session={trace}
-            onExit={exitTrace}
-            onStep={(index, read) => dispatchTrace({ type: "step", index, read })}
-            onNext={() => dispatchTrace({ type: "next" })}
-            onAdvance={advanceFromTrace}
-          />,
-        )}
-
-      {openSheet === "drill" &&
-        drill &&
-        drillContent &&
-        sheetBoundary(
-          <DrillView
-            presence={sheet.state}
-            topic={form.topic}
-            title={graph.nodes.find((n) => n.id === drill.nodeId)?.label ?? "Concept"}
-            plan={planOf(drill.nodeId)}
-            content={drillContent}
-            session={drill}
-            onExit={exitDrill}
-            onAnswer={(index) => dispatchDrill({ type: "answer", index })}
-            onNext={() => dispatchDrill({ type: "next" })}
-            onAdvance={advanceFromDrill}
-          />,
-        )}
-
-      {openSheet === "recall" &&
-        recall &&
-        recallContent &&
-        sheetBoundary(
-          <RecallView
-            presence={sheet.state}
-            title={graph.nodes.find((n) => n.id === recall.nodeId)?.label ?? "Concept"}
-            plan={planOf(recall.nodeId)}
-            content={recallContent}
-            session={recall}
-            judging={judging}
-            onExit={exitRecall}
-            onWrite={(value) => dispatchRecall({ type: "write", value })}
-            onCue={() => dispatchRecall({ type: "cue" })}
-            onSubmit={recallSubmit}
-            onAgain={() => dispatchRecall({ type: "again" })}
-            onAdvance={advanceFromRecall}
-          />,
-        )}
-
-      {openSheet === "perform" &&
-        perform &&
-        performContent &&
-        sheetBoundary(
-          <PerformView
-            presence={sheet.state}
-            title={graph.nodes.find((n) => n.id === perform.nodeId)?.label ?? "Concept"}
-            plan={planOf(perform.nodeId)}
-            content={performContent}
-            session={perform}
-            judging={judging}
-            onExit={exitPerform}
-            onWork={(value) => dispatchPerform({ type: "work", value })}
-            onNudge={() => dispatchPerform({ type: "nudge" })}
-            onSubmit={performSubmit}
-            onRerun={() => dispatchPerform({ type: "rerun" })}
-            onAdvance={advanceFromPerform}
-          />,
-        )}
+      {phaseSheets({
+        openSheet,
+        presence: sheet.state,
+        topic: form.topic,
+        graph,
+        planOf,
+        judging,
+        sheetBoundary,
+        run,
+        sessions,
+        spiral,
+        derived,
+      })}
 
       {openSheet === "review" &&
         retain &&

@@ -6,6 +6,7 @@
 // here anymore.
 
 import type { Language } from "@/lib/i18n";
+import type { Domain } from "./domains";
 import { phaseLabel, planGates, type NodeKind, type PhaseId } from "./phases";
 
 export type NodeState =
@@ -34,7 +35,13 @@ export interface ConceptNode {
    *  existed, and everything treats a missing kind as `concept`, which is
    *  exactly what every node was then. */
   kind?: NodeKind;
-  /** The phases this node runs, resolved from `kind` at map-build time and
+  /** What settles a claim about this concept — the second axis, orthogonal to
+   *  `kind`. Written by the map generation; absent on a run built before
+   *  domains existed, and everything treats a missing domain as `general`,
+   *  which is exactly what every node behaved as then. */
+  domain?: Domain;
+  /** The phases this node runs, resolved from `kind` and `domain` at map-build
+   *  time and
    *  frozen here. Stored rather than recomputed so shipping a new catalogue
    *  can't rewrite a run already in progress.
    *

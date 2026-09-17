@@ -7,6 +7,8 @@ import { STRINGS as RETAIN_STRINGS } from "@/components/session/retainCopy";
 import { STRINGS as CRUCIBLE_STRINGS } from "@/components/session/crucibleCopy";
 import { STRINGS as DASHBOARD_SCREEN_STRINGS } from "@/components/dashboardScreenCopy";
 import { STRINGS as SOCRATIC_STRINGS } from "@/components/session/socraticCopy";
+import { STRINGS as NODE_DETAIL_STRINGS } from "@/components/map/nodeDetailCopy";
+import { PRODUCE_COPY, PROVENANCE_COPY, STEELMAN_COPY } from "@/lib/curriculum";
 
 // The bug this file exists to catch: a lang-aware helper (`confidenceLevels`,
 // `reviewAside`, `goals`, …) exists and is *ignored* at the call site, which
@@ -60,6 +62,13 @@ describe("i18n coverage", () => {
     expect(same).toEqual([]);
   });
 
+  /** What is allowed to read the same in both languages: phase names, which are
+   *  product vocabulary, and single characters, which are keyboard shortcuts
+   *  rather than copy. Everything else that came out identical is a line
+   *  somebody forgot to translate. */
+  const sameIsFine = (key: string, value: string) =>
+    key === "kicker" || value.trim().length <= 1;
+
   // The copy tables that live outside their component. Every entry is either a
   // string or a builder; a builder that drops its argument is a line that will
   // render with a hole in it, and nothing else would catch that.
@@ -70,12 +79,22 @@ describe("i18n coverage", () => {
     ["crucible", CRUCIBLE_STRINGS],
     ["dashboard screen", DASHBOARD_SCREEN_STRINGS],
     ["socratic", SOCRATIC_STRINGS],
+    ["node detail", NODE_DETAIL_STRINGS],
+    ["provenance", PROVENANCE_COPY],
+    ["steelman", STEELMAN_COPY],
+    ["produce", PRODUCE_COPY],
   ])("builds every %s line in both languages", (_name, table) => {
     for (const lang of ["en", "pt-BR"] as const) {
       const entries = table[lang] as Record<string, unknown>;
       for (const [key, value] of Object.entries(entries)) {
         if (typeof value === "string") {
           expect(value, key).not.toBe("");
+          // An untranslated line comes out identical in both languages, which
+          // is the failure mode nothing else catches.
+          if (lang === "pt-BR" && !sameIsFine(key, value))
+            expect(value, `${key} is the same in both languages`).not.toBe(
+              (table.en as Record<string, unknown>)[key],
+            );
           continue;
         }
         // A few entries are ready-made JSX (a bolded state name inside a

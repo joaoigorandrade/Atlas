@@ -10,6 +10,7 @@ import {
   boundaryNote,
   fail,
   interestNote,
+  domainNote,
   kindNote,
   languageNote,
   obj,
@@ -17,7 +18,7 @@ import {
   str,
   user,
 } from "./common";
-import type { DiscriminateContent, NodeKind } from "@/lib/curriculum";
+import type { DiscriminateContent, Domain, NodeKind } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
 
@@ -75,6 +76,7 @@ export interface DiscriminateParams {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }
@@ -87,7 +89,7 @@ export async function generateDiscriminate(
     user(
       `Write a DISCRIMINATION pass for the concept "${nodeLabel}" within "${topic}": the learner decides, case by case, whether something IS an instance of it — and when it is not, which neighbouring concept it actually is.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "discriminate")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "discriminate")}${domainNote(params.domain, "discriminate")}
 
 Each case is committed before it is revealed, so nothing in a case may give its own answer away: never name a concept inside the case itself, and no "note that…".
 

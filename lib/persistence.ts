@@ -21,6 +21,7 @@ import {
 } from "@/lib/contentMigrate";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import type {
+  Domain,
   AdherenceState,
   CalibSample,
   ConceptGraph,
@@ -37,6 +38,9 @@ import type {
   MisconceptionRecord,
   ModalityTally,
   PerformContent,
+  ProduceContent,
+  ProvenanceContent,
+  SteelmanContent,
   PredictContent,
   ProgressState,
   RecallContent,
@@ -89,10 +93,9 @@ export interface Topic {
   socraticProgress: Record<string, SocraticSession>;
   feynmanProgress: Record<string, FeynmanSession>;
   connectProgress: Record<string, ConnectSession>;
-  /** Every *other* phase's resumable session, node id → phase id → session.
-   *  The four maps above are the pre-catalogue columns and keep their own
-   *  shape; a phase built after the catalogue lands here instead, so adding
-   *  one is a key rather than a migration. */
+  /** Every *other* phase's session, node id → phase id → session. The four
+   *  maps above are the pre-catalogue columns and keep their own shape; a
+   *  later phase lands here, so adding one is a key rather than a migration. */
   phaseProgress: Record<string, PhaseProgress>;
   cards: StoredCard[];
 }
@@ -112,9 +115,10 @@ export interface NodeDelta {
   /** `null` clears it — a node that stopped being shaky. */
   shakyReason?: ShakyReason | null;
   reviewed?: boolean;
-  /** What kind of thing the concept is, and the ladder that follows from it.
-   *  Both are written once, when the map generation creates the node. */
+  /** What the concept is, what settles a claim about it, and the ladder that
+   *  follows — all written once, when the map generation creates the node. */
   kind?: NodeKind;
+  domain?: Domain;
   phasePlan?: readonly PhaseId[];
   /** Finished phases, in order — mastery state is derived from this. */
   phasesDone?: readonly PhaseId[];
@@ -122,8 +126,7 @@ export interface NodeDelta {
   socraticProgress?: SocraticSession | null;
   feynmanProgress?: FeynmanSession | null;
   connectProgress?: ConnectSession | null;
-  /** Every post-catalogue phase's parked session for this node, whole — the
-   *  jsonb map is replaced, not merged, so one delta says what is parked. */
+  /** Whole, not merged: one delta says everything that is parked. */
   phaseProgress?: PhaseProgress;
   /** Prerequisites to attach — only meaningful for a node being created. */
   prereqs?: string[];
@@ -176,6 +179,9 @@ export interface RunCaches {
   drill: Record<string, DrillContent>;
   recall: Record<string, RecallContent>;
   perform: Record<string, PerformContent>;
+  provenance: Record<string, ProvenanceContent>;
+  steelman: Record<string, SteelmanContent>;
+  produce: Record<string, ProduceContent>;
   retain: RetainContent | null;
 }
 
@@ -192,6 +198,9 @@ export const emptyCaches = (): RunCaches => ({
   drill: {},
   recall: {},
   perform: {},
+  provenance: {},
+  steelman: {},
+  produce: {},
   retain: null,
 });
 
@@ -390,36 +399,15 @@ export function foldContent(items: ContentItem[]): RunCaches {
         caches.models[`model:${item.nodeId}:${item.variant}`] =
           item.payload as ConsumeModelBeat[];
         break;
-      case "socratic":
-        caches.socratic[item.nodeId] = item.payload as SocraticStep[];
+      // Everything else files under a cache named for its own kind, and the
+      // cast is the only thing each arm ever varied. Thirteen arms of that was
+      // thirteen chances to add a kind and forget its one line.
+      default: {
+        const bucket = (caches as unknown as Record<string, unknown>)[item.kind];
+        if (bucket && typeof bucket === "object")
+          (bucket as Record<string, unknown>)[item.nodeId] = item.payload;
         break;
-      case "feynman":
-        caches.feynman[item.nodeId] = item.payload as FeynmanBeat[];
-        break;
-      case "connect":
-        caches.connect[item.nodeId] = item.payload as ElaborationContent;
-        break;
-      case "crucible":
-        caches.crucible[item.nodeId] = item.payload as CrucibleContent;
-        break;
-      case "discriminate":
-        caches.discriminate[item.nodeId] = item.payload as DiscriminateContent;
-        break;
-      case "predict":
-        caches.predict[item.nodeId] = item.payload as PredictContent;
-        break;
-      case "trace":
-        caches.trace[item.nodeId] = item.payload as TraceContent;
-        break;
-      case "drill":
-        caches.drill[item.nodeId] = item.payload as DrillContent;
-        break;
-      case "recall":
-        caches.recall[item.nodeId] = item.payload as RecallContent;
-        break;
-      case "perform":
-        caches.perform[item.nodeId] = item.payload as PerformContent;
-        break;
+      }
       case "retain":
         caches.retain = item.payload as RetainContent;
         break;

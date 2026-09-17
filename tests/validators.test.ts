@@ -233,6 +233,78 @@ describe("validateDiagnosticQuestion", () => {
       validateDiagnosticQuestion(diagnosticPayload({ correctIndex: 4 }), ids),
     ).toThrow(/correctIndex/);
   });
+
+  // The other three kinds exist because a 4-option question measures
+  // recognition, and placement drives what the map prunes. Each carries
+  // exactly the answer key `gradeDiagnostic` needs to rule on it.
+
+  it("reads a payload with no type as the four-option question it always was", () => {
+    expect(validateDiagnosticQuestion(diagnosticPayload(), ids).type).toBe("mcq");
+  });
+
+  it("takes a computed answer as a bare value, and drops the options", () => {
+    const out = validateDiagnosticQuestion(
+      diagnosticPayload({ type: "compute", expected: "3/4", opts: undefined }),
+      ids,
+    );
+    expect(out.type).toBe("compute");
+    expect(out.expected).toEqual(["3/4"]);
+    expect(out.opts).toEqual([]);
+    // Nothing to pick, so nothing can accidentally match a picked index.
+    expect(out.correctIndex).toBe(-1);
+  });
+
+  it("takes a spoken answer as every utterance that counts", () => {
+    const out = validateDiagnosticQuestion(
+      diagnosticPayload({ type: "speak", accept: ["esta bien", "todo bien"] }),
+      ids,
+    );
+    expect(out.expected).toEqual(["esta bien", "todo bien"]);
+  });
+
+  it("takes a chronology as the shuffled items plus their true order", () => {
+    const out = validateDiagnosticQuestion(
+      diagnosticPayload({
+        type: "order",
+        opts: ["Schism", "Nicaea", "Trent"],
+        correctOrder: ["Nicaea", "Schism", "Trent"],
+      }),
+      ids,
+    );
+    expect(out.opts.map((o) => o.label)).toEqual(["Schism", "Nicaea", "Trent"]);
+    expect(out.expected).toEqual(["Nicaea", "Schism", "Trent"]);
+  });
+
+  it("rejects a chronology whose answer names something that is not an option", () => {
+    // Otherwise the learner can never produce the expected sequence.
+    expect(() =>
+      validateDiagnosticQuestion(
+        diagnosticPayload({
+          type: "order",
+          opts: ["Schism", "Nicaea", "Trent"],
+          correctOrder: ["Nicaea", "Schism", "Avignon"],
+        }),
+        ids,
+      ),
+    ).toThrow(/not one of the options/);
+  });
+
+  it("rejects a kind that arrived without its answer key", () => {
+    // Unmarkable is worse than malformed: it would pass every learner.
+    expect(() =>
+      validateDiagnosticQuestion(diagnosticPayload({ type: "compute" }), ids),
+    ).toThrow(/expected/);
+    expect(() =>
+      validateDiagnosticQuestion(diagnosticPayload({ type: "speak" }), ids),
+    ).toThrow(/accept/);
+  });
+
+  it("reads an unrecognised kind as the four-option question", () => {
+    expect(
+      validateDiagnosticQuestion(diagnosticPayload({ type: "interpretive-dance" }), ids)
+        .type,
+    ).toBe("mcq");
+  });
 });
 
 // ---- feynman: template echoes (#10) -------------------------------------------
@@ -748,7 +820,17 @@ describe("retainCardBounds", () => {
 
 describe("mapNodeBounds", () => {
   it("keeps the full-map band when no Pareto share is set", () => {
-    expect(mapNodeBounds()).toMatchObject({ ask: [6, 16], min: 5, max: 20 });
+    // `max` is the union across domains, not one domain's target: the prompt
+    // carries the per-domain band (a Spanish map is ~30 competencies, a formal
+    // map ~12) and the model picks its row, so this validator only has to
+    // catch nonsense. `ask` still describes the generic map.
+    expect(mapNodeBounds()).toMatchObject({ ask: [6, 16], min: 5, max: 44 });
+  });
+
+  it("validates a map at the largest domain band the prompt can ask for", () => {
+    // An interpretive map is chronological and runs to ~40 nodes. Before the
+    // domain axis this validator rejected it outright.
+    expect(mapNodeBounds().max).toBeGreaterThanOrEqual(40);
   });
 
   it("shrinks the map as the Pareto share shrinks", () => {

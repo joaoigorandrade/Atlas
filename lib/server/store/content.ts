@@ -24,6 +24,9 @@ export const SLOT: Record<string, string> = {
   predict: "content",
   trace: "content",
   perform: "content",
+  produce: "content",
+  provenance: "content",
+  steelman: "content",
   recall: "content",
   retain: "content",
 };

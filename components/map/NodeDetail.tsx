@@ -26,62 +26,7 @@ import { useLanguage, useT } from "@/lib/i18n";
 import Rich from "@/components/Rich";
 import { SkeletonBars } from "@/components/Pending";
 
-const STRINGS = {
-  en: {
-    // The phase half comes from the node's own plan (`primaryPhase`) — a fixed
-    // "Continue · Feynman" named a phase the button no longer opens.
-    cta: {
-      frontier: (phase: string) => `Begin · ${phase}`,
-      learning: (phase: string) => `Continue · ${phase}`,
-      shaky: (phase: string) => `Re-attempt · ${phase}`,
-      mastered: () => "Review now",
-      gap: () => "Fix this gap",
-      unknown: () => "Locked",
-    } as Record<NodeState, (phase: string) => string>,
-    phaseSpiral: "Phase spiral",
-    next: "next",
-    redo: "redo",
-    readingProgress: (read: number, total: number) => `${read} of ${total} read`,
-    resumeReading: "Resume reading",
-    doFirst: (phase: string) => `Do ${phase} first`,
-    skipTo: (phase: string) => `Skip to ${phase} →`,
-    skipKnown: "I already know this — skip it",
-    openGaps: "Open gaps · spawned from failures",
-    repair: "Targeted repair",
-    repairStep: "Socratic pass",
-    repairNote: "one pass · closes this gap",
-    spawnedFrom: "Spawned from",
-    learnFirst: "Learn these first",
-    prerequisites: "Prerequisites",
-    unlocks: "Unlocks",
-  },
-  "pt-BR": {
-    cta: {
-      frontier: (phase: string) => `Começar · ${phase}`,
-      learning: (phase: string) => `Continuar · ${phase}`,
-      shaky: (phase: string) => `Tentar de novo · ${phase}`,
-      mastered: () => "Revisar agora",
-      gap: () => "Corrigir esta lacuna",
-      unknown: () => "Bloqueado",
-    } as Record<NodeState, (phase: string) => string>,
-    phaseSpiral: "Espiral de fases",
-    next: "próximo",
-    redo: "refazer",
-    readingProgress: (read: number, total: number) => `${read} de ${total} lidas`,
-    resumeReading: "Retomar a leitura",
-    doFirst: (phase: string) => `Fazer ${phase} primeiro`,
-    skipTo: (phase: string) => `Pular para ${phase} →`,
-    skipKnown: "Eu já sei isso — pular",
-    openGaps: "Lacunas abertas · geradas por falhas",
-    repair: "Reparo direcionado",
-    repairStep: "Passagem socrática",
-    repairNote: "uma passagem · fecha esta lacuna",
-    spawnedFrom: "Originado de",
-    learnFirst: "Aprenda isso primeiro",
-    prerequisites: "Pré-requisitos",
-    unlocks: "Desbloqueia",
-  },
-} as const;
+import { STRINGS } from "@/components/map/nodeDetailCopy";
 
 interface NodeDetailProps {
   node: ConceptNode;
@@ -214,6 +159,15 @@ function NodeDetailBody({
   const [pendingSkip, setPendingSkip] = useState<number | null>(null);
   useEffect(() => setPendingSkip(null), [node.id, displayState]);
 
+  // An edge means a different thing per domain, so the words on it must too:
+  // "set the stage for" where the map is read in time, "finish before you can
+  // start" where the material does not go back.
+  const edgeLabel =
+    node.domain === "interpretive"
+      ? { back: t.ledHere, forward: t.ledTo }
+      : node.domain === "craft"
+        ? { back: t.finishFirst, forward: t.thenComes }
+        : { back: locked ? t.learnFirst : t.prerequisites, forward: t.unlocks };
   const prereqIds = edges
     .filter(([, to, dashed]) => to === node.id && !dashed)
     .map(([from]) => from);
@@ -687,9 +641,7 @@ function NodeDetailBody({
 
       {prereqIds.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <div style={{ ...kicker(10), marginBottom: 10 }}>
-            {locked ? t.learnFirst : t.prerequisites}
-          </div>
+          <div style={{ ...kicker(10), marginBottom: 10 }}>{edgeLabel.back}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
             {prereqIds.map(chip)}
           </div>

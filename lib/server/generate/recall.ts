@@ -14,6 +14,7 @@ import {
   arr,
   boundaryNote,
   interestNote,
+  domainNote,
   kindNote,
   languageNote,
   obj,
@@ -29,7 +30,7 @@ import {
   validateFeynmanJudgement,
   type FeynmanJudgement,
 } from "./judge";
-import type { NodeKind, RecallContent } from "@/lib/curriculum";
+import type { Domain, NodeKind, RecallContent } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { ChatMessage, generateJson } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
@@ -76,6 +77,7 @@ export interface RecallParams {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }
@@ -86,7 +88,7 @@ export async function generateRecall(params: RecallParams): Promise<RecallConten
     user(
       `Write an UNAIDED RETRIEVAL pass for the concept "${nodeLabel}" within "${topic}": the learner has nothing in front of them and writes down everything they can still produce about it.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "recall")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "recall")}${domainNote(params.domain, "recall")}
 
 The learner NEVER sees the rubric before answering — they work from the brief alone. So a row is a thing a cold retrieval has to BRING BACK, not a thing to explain: a definition, a value, a condition, a consequence.
 

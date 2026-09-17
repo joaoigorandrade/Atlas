@@ -32,6 +32,9 @@ const SLOT: Record<string, string> = {
   predict: "content",
   trace: "content",
   perform: "content",
+  provenance: "content",
+  steelman: "content",
+  produce: "content",
   recall: "content",
 };
 

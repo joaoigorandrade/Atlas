@@ -12,6 +12,7 @@ import {
   boundaryNote,
   fail,
   interestNote,
+  domainNote,
   kindNote,
   languageNote,
   obj,
@@ -27,7 +28,7 @@ import {
   validateFeynmanJudgement,
   type FeynmanJudgement,
 } from "./judge";
-import type { NodeKind, PerformContent } from "@/lib/curriculum";
+import type { Domain, NodeKind, PerformContent } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { ChatMessage, generateJson } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
@@ -75,6 +76,7 @@ export interface PerformParams {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }
@@ -85,7 +87,7 @@ export async function generatePerform(params: PerformParams): Promise<PerformCon
     user(
       `Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "perform")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "perform")}${domainNote(params.domain, "perform")}
 
 The case must be self-contained and specific — real values, real units, or a real situation — and must NOT say which steps to use or in what order. Working it out is the test.
 

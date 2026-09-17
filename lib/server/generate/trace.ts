@@ -10,6 +10,7 @@ import {
   boundaryNote,
   fail,
   interestNote,
+  domainNote,
   kindNote,
   languageNote,
   obj,
@@ -17,7 +18,7 @@ import {
   str,
   user,
 } from "./common";
-import type { NodeKind, TraceContent } from "@/lib/curriculum";
+import type { Domain, NodeKind, TraceContent } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
 
@@ -63,6 +64,7 @@ export interface TraceParams {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }
@@ -73,7 +75,7 @@ export async function generateTrace(params: TraceParams): Promise<TraceContent> 
     user(
       `Write a TRACE pass for "${nodeLabel}" within "${topic}": the learner walks the mechanism one stage at a time, saying at each stage what it hands the next.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "trace")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "trace")}${domainNote(params.domain, "trace")}
 
 THE STAGES ARE THE LINKS OF ONE CHAIN ON ONE RUNNING CASE, IN ORDER. Stage 1 starts the case; every later stage begins from where the previous one ended and never repeats it. If the stages could be shuffled without anything reading oddly, this is the wrong shape.
 

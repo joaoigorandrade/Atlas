@@ -74,6 +74,7 @@ export function projectNodes(run: {
       // through the diff: a node the server has never seen has to carry them
       // on its first write or it comes back kind-less and plan-less.
       kind: node.kind,
+      domain: node.domain,
       phasePlan: node.phasePlan,
       // The record mastery state is derived from — the one progress field that
       // must never be dropped from a delta.

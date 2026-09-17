@@ -32,6 +32,9 @@ import {
   type DrillContent,
   type RecallContent,
   type PerformContent,
+  type ProduceContent,
+  type ProvenanceContent,
+  type SteelmanContent,
   type SocraticStep,
   type NodeState,
 } from "@/lib/curriculum";
@@ -56,6 +59,12 @@ import {
   discriminateRequest,
   drillRequest,
   performRequest,
+  produceRequest,
+  provenanceRequest,
+  steelmanRequest,
+  fetchProduce,
+  fetchProvenance,
+  fetchSteelman,
   predictRequest,
   recallRequest,
   socraticRequest,
@@ -102,6 +111,36 @@ export function warmKindsFor(
 
 export type Generation = ReturnType<typeof useGeneration>;
 
+/** A background warm declines politely rather than raising — see `WarmDeclined`. */
+const opts = (prefetch: boolean) =>
+  prefetch ? ({ prefetch: true } as const) : undefined;
+
+/**
+ * One surface's loader: fetch it, put it in the run's cache, hand it back.
+ *
+ * Thirteen of these were the same eight lines with three names changed. That is
+ * transport, which is the half the phases are meant to share — the reducers,
+ * content shapes and gates stay purpose-built per phase, and nothing here
+ * touches any of them.
+ *
+ * `prev[node.id] ? prev` is load-bearing: a warm that lands after the learner
+ * has already opened the surface must not replace what they are reading.
+ */
+function useNodeLoader<P, T>(
+  fetcher: (p: P, o?: { prefetch: true }) => Promise<T>,
+  params: (node: ConceptNode) => P,
+  set: React.Dispatch<React.SetStateAction<Record<string, T>>>,
+) {
+  return useCallback(
+    async (node: ConceptNode, prefetch = false) => {
+      const content = await fetcher(params(node), opts(prefetch));
+      set((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
+      return content;
+    },
+    [fetcher, params, set],
+  );
+}
+
 export function useGeneration(opts_: {
   run: RunState;
   warm: ReturnType<typeof createWarmQueue>;
@@ -130,6 +169,9 @@ export function useGeneration(opts_: {
     drillCacheRef,
     recallCacheRef,
     performCacheRef,
+    provenanceCacheRef,
+    steelmanCacheRef,
+    produceCacheRef,
     setGraph,
     setSummaryFailed,
     setConsumeCache,
@@ -144,6 +186,9 @@ export function useGeneration(opts_: {
     setDrillCache,
     setRecallCache,
     setPerformCache,
+    setProvenanceCache,
+    setSteelmanCache,
+    setProduceCache,
   } = run;
 
   // ---- generation plumbing ---------------------------------------------
@@ -240,6 +285,29 @@ export function useGeneration(opts_: {
       .map((n) => n.label);
   }, [graphRef, statesRef]);
 
+  /**
+   * The seven fields every per-node generation sends, built once.
+   *
+   * This is the invariant the whole content cache rests on, made literal: a
+   * background warm and the click that follows it must derive their inputs
+   * from the SAME function, or the two hash to different `content_cache` rows
+   * and the learner pays for the generation twice. Sixteen hand-written copies
+   * of these fields was sixteen chances for one of them to drift.
+   */
+  const nodeParams = useCallback(
+    (node: ConceptNode) => ({
+      topic: formRef.current.topic,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      interests: formRef.current.interests,
+      language: languageRef.current,
+      ...boundaryOf(node.id),
+      nodeKind: node.kind,
+      domain: node.domain,
+    }),
+    [boundaryOf, formRef, languageRef],
+  );
+
   // ---- one source of truth per generation -------------------------------
   // Each surface's inputs are built in exactly one place, so a background warm
   // and the click that follows it hash to the same `content_cache` row. Every
@@ -248,16 +316,10 @@ export function useGeneration(opts_: {
 
   const consumeParams = useCallback(
     (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
+      ...nodeParams(node),
       prereqLabels: prereqLabelsOf(node.id),
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
     }),
-    [prereqLabelsOf, boundaryOf, formRef, languageRef],
+    [prereqLabelsOf, nodeParams],
   );
 
   /** The backfilled sentence for a node that arrived without one. Deliberately
@@ -307,6 +369,10 @@ export function useGeneration(opts_: {
       interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
+      // Socratic carries no `nodeKind` — no kind steers it — but it does carry
+      // the domain: `interpretive` pushes the questioning onto material cause
+      // rather than doctrine, and the server keys on it.
+      domain: node.domain,
     }),
     [boundaryOf, formRef, languageRef],
   );
@@ -332,6 +398,8 @@ export function useGeneration(opts_: {
     (node: ConceptNode) => {
       const pool = connectPool(graphRef.current.nodes, statesRef.current, node.id);
       return {
+        modelKey,
+        warmKey,
         topic: formRef.current.topic,
         nodeId: node.id,
         nodeLabel: node.label,
@@ -339,6 +407,7 @@ export function useGeneration(opts_: {
         interests: formRef.current.interests,
         language: languageRef.current,
         nodeKind: node.kind,
+        domain: node.domain,
       };
     },
     [formRef, graphRef, statesRef, languageRef],
@@ -346,161 +415,85 @@ export function useGeneration(opts_: {
 
   const crucibleParams = useCallback(
     (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
+      ...nodeParams(node),
       masteredLabels: learnedLabels(),
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
     }),
-    [learnedLabels, boundaryOf, formRef, languageRef],
+    [learnedLabels, nodeParams],
   );
+
+  // These six ask for exactly the shared fields, so they ARE the shared
+  // builder. Kept as named bindings so every call site still reads as the
+  // phase it belongs to.
+  const discriminateParams = nodeParams;
+  const predictParams = nodeParams;
+  const traceParams = nodeParams;
+  const drillParams = nodeParams;
+  const recallParams = nodeParams;
+  const performParams = nodeParams;
+  const produceParams = nodeParams;
 
   // The six phases the catalogue added in its growth to twelve. Each takes
   // the same inputs and returns its own shape, so each gets its own params
   // builder and loader — one shared pair would be the seam two of them
   // eventually collapse through.
 
-  const discriminateParams = useCallback(
+  const loadDiscriminate = useNodeLoader(
+    fetchDiscriminate,
+    discriminateParams,
+    setDiscriminateCache,
+  );
+
+  const loadPredict = useNodeLoader(fetchPredict, predictParams, setPredictCache);
+
+  const loadTrace = useNodeLoader(fetchTrace, traceParams, setTraceCache);
+
+  const loadDrill = useNodeLoader(fetchDrill, drillParams, setDrillCache);
+
+  const loadRecall = useNodeLoader(fetchRecall, recallParams, setRecallCache);
+
+  const loadPerform = useNodeLoader(fetchPerform, performParams, setPerformCache);
+
+  // The three phases the domain axis adds. Provenance and Steelman take no
+  // interests: an analogy drawn from the learner's hobbies has no business in
+  // a source reading or a contested question.
+  const provenanceParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
       nodeId: node.id,
       nodeLabel: node.label,
-      interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
       nodeKind: node.kind,
+      domain: node.domain,
     }),
     [boundaryOf, formRef, languageRef],
   );
 
-  const loadDiscriminate = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchDiscriminate(discriminateParams(node), opts(prefetch));
-      setDiscriminateCache((prev) =>
-        prev[node.id] ? prev : { ...prev, [node.id]: content },
-      );
-      return content;
-    },
-    [discriminateParams, setDiscriminateCache],
+  const loadProvenance = useNodeLoader(
+    fetchProvenance,
+    provenanceParams,
+    setProvenanceCache,
   );
 
-  const predictParams = useCallback(
+  const steelmanParams = useCallback(
     (node: ConceptNode) => ({
       topic: formRef.current.topic,
       nodeId: node.id,
       nodeLabel: node.label,
-      interests: formRef.current.interests,
       language: languageRef.current,
       ...boundaryOf(node.id),
       nodeKind: node.kind,
+      domain: node.domain,
     }),
     [boundaryOf, formRef, languageRef],
   );
 
-  const loadPredict = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchPredict(predictParams(node), opts(prefetch));
-      setPredictCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
-      return content;
-    },
-    [predictParams, setPredictCache],
-  );
+  const loadSteelman = useNodeLoader(fetchSteelman, steelmanParams, setSteelmanCache);
 
-  const traceParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
-    }),
-    [boundaryOf, formRef, languageRef],
-  );
-
-  const loadTrace = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchTrace(traceParams(node), opts(prefetch));
-      setTraceCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
-      return content;
-    },
-    [traceParams, setTraceCache],
-  );
-
-  const drillParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
-    }),
-    [boundaryOf, formRef, languageRef],
-  );
-
-  const loadDrill = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchDrill(drillParams(node), opts(prefetch));
-      setDrillCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
-      return content;
-    },
-    [drillParams, setDrillCache],
-  );
-
-  const recallParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
-    }),
-    [boundaryOf, formRef, languageRef],
-  );
-
-  const loadRecall = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchRecall(recallParams(node), opts(prefetch));
-      setRecallCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
-      return content;
-    },
-    [recallParams, setRecallCache],
-  );
-
-  const performParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
-    }),
-    [boundaryOf, formRef, languageRef],
-  );
-
-  const loadPerform = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchPerform(performParams(node), opts(prefetch));
-      setPerformCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
-      return content;
-    },
-    [performParams, setPerformCache],
-  );
+  const loadProduce = useNodeLoader(fetchProduce, produceParams, setProduceCache);
 
   /** Warm-queue / in-memory cache address for one node's surface. */
   const warmKey = (kind: WarmKind, nodeId: string) => `${kind}:${nodeId}`;
-
-  const opts = (prefetch: boolean) => (prefetch ? { prefetch: true } : undefined);
 
   /**
    * Write a backfilled sentence onto its node.
@@ -550,14 +543,7 @@ export function useGeneration(opts_: {
     [summaryParams, applySummary, setSummaryFailed],
   );
 
-  const loadConsume = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const chunks = await fetchConsume(consumeParams(node), opts(prefetch));
-      setConsumeCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: chunks }));
-      return chunks;
-    },
-    [consumeParams, setConsumeCache],
-  );
+  const loadConsume = useNodeLoader(fetchConsume, consumeParams, setConsumeCache);
 
   /** A model view's address, in the warm queue and in `modelCache` alike. */
   const modelKey = (nodeId: string, chunkId: string, lens: AltKey) =>
@@ -575,43 +561,13 @@ export function useGeneration(opts_: {
     return beats;
   };
 
-  const loadSocratic = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const steps = await fetchSocratic(socraticParams(node), opts(prefetch));
-      setSocraticCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: steps }));
-      return steps;
-    },
-    [socraticParams, setSocraticCache],
-  );
+  const loadSocratic = useNodeLoader(fetchSocratic, socraticParams, setSocraticCache);
 
-  const loadFeynman = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const beats = await fetchFeynman(feynmanParams(node), opts(prefetch));
-      setFeynmanCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: beats }));
-      return beats;
-    },
-    [feynmanParams, setFeynmanCache],
-  );
+  const loadFeynman = useNodeLoader(fetchFeynman, feynmanParams, setFeynmanCache);
 
-  const loadConnect = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchConnect(connectParams(node), opts(prefetch));
-      setConnectCache((prev) => (prev[node.id] ? prev : { ...prev, [node.id]: content }));
-      return content;
-    },
-    [connectParams, setConnectCache],
-  );
+  const loadConnect = useNodeLoader(fetchConnect, connectParams, setConnectCache);
 
-  const loadCrucible = useCallback(
-    async (node: ConceptNode, prefetch = false) => {
-      const content = await fetchCrucible(crucibleParams(node), opts(prefetch));
-      setCrucibleCache((prev) =>
-        prev[node.id] ? prev : { ...prev, [node.id]: content },
-      );
-      return content;
-    },
-    [crucibleParams, setCrucibleCache],
-  );
+  const loadCrucible = useNodeLoader(fetchCrucible, crucibleParams, setCrucibleCache);
 
   /** Already in memory? Then the screen opens with no request at all. */
   const isCached = useCallback(
@@ -643,6 +599,12 @@ export function useGeneration(opts_: {
           return !!recallCacheRef.current[nodeId];
         case "perform":
           return !!performCacheRef.current[nodeId];
+        case "provenance":
+          return !!provenanceCacheRef.current[nodeId];
+        case "steelman":
+          return !!steelmanCacheRef.current[nodeId];
+        case "produce":
+          return !!produceCacheRef.current[nodeId];
       }
     },
     [
@@ -658,6 +620,9 @@ export function useGeneration(opts_: {
       drillCacheRef,
       recallCacheRef,
       performCacheRef,
+      provenanceCacheRef,
+      steelmanCacheRef,
+      produceCacheRef,
     ],
   );
 
@@ -697,6 +662,12 @@ export function useGeneration(opts_: {
           return recallRequest(recallParams(node));
         case "perform":
           return performRequest(performParams(node));
+        case "provenance":
+          return provenanceRequest(provenanceParams(node));
+        case "steelman":
+          return steelmanRequest(steelmanParams(node));
+        case "produce":
+          return produceRequest(produceParams(node));
       }
     },
     [
@@ -712,6 +683,9 @@ export function useGeneration(opts_: {
       drillParams,
       recallParams,
       performParams,
+      provenanceParams,
+      steelmanParams,
+      produceParams,
     ],
   );
 
@@ -752,6 +726,12 @@ export function useGeneration(opts_: {
         return put(setRecallCache, p.content as RecallContent | undefined);
       case "perform":
         return put(setPerformCache, p.content as PerformContent | undefined);
+      case "provenance":
+        return put(setProvenanceCache, p.content as ProvenanceContent | undefined);
+      case "steelman":
+        return put(setSteelmanCache, p.content as SteelmanContent | undefined);
+      case "produce":
+        return put(setProduceCache, p.content as ProduceContent | undefined);
     }
   };
 
@@ -786,6 +766,12 @@ export function useGeneration(opts_: {
           return warm.warm(key, () => loadRecall(node, true));
         case "perform":
           return warm.warm(key, () => loadPerform(node, true));
+        case "provenance":
+          return warm.warm(key, () => loadProvenance(node, true));
+        case "steelman":
+          return warm.warm(key, () => loadSteelman(node, true));
+        case "produce":
+          return warm.warm(key, () => loadProduce(node, true));
       }
     },
     [
@@ -804,6 +790,9 @@ export function useGeneration(opts_: {
       loadDrill,
       loadRecall,
       loadPerform,
+      loadProvenance,
+      loadSteelman,
+      loadProduce,
     ],
   );
 
@@ -844,6 +833,9 @@ export function useGeneration(opts_: {
     loadDrill,
     loadRecall,
     loadPerform,
+    loadProvenance,
+    loadSteelman,
+    loadProduce,
     isCached,
     requestFor,
     applyWarmHit,

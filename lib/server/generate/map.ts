@@ -1,17 +1,26 @@
 // ---- kind: curriculum map --------------------------------------------------
-import { arr, fail, languageNote, obj, sizeRule, str, user } from "./common";
+import { arr, fail, languageNote, obj, str, user } from "./common";
+import {
+  graphShape,
+  mapContext,
+  mapNodeBounds,
+  mapRules,
+  type MapParams,
+} from "./mapPrompt";
 import {
   ConceptEdge,
   ConceptNode,
-  GoalKind,
   MapNode,
+  asDiagnosticKind,
+  asDomain,
+  resolvePlan,
+  type DiagnosticKind,
+  type Domain,
   NodeKind,
   PARETO_DEFAULT,
-  PHASE_PLAN,
   asNodeKind,
   graphFromMapNodes,
 } from "@/lib/curriculum";
-import { Language } from "@/lib/i18n";
 import { generateJson, streamJsonObjects } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
 
@@ -30,16 +39,15 @@ export interface ScopeOffer {
   note: string;
 }
 
-const GOAL_HINT: Record<GoalKind, string> = {
-  exam: "The learner is preparing for an exam — cover the canonical syllabus.",
-  project: "The learner wants to build something real — bias toward applicable tools.",
-  mastery: "The learner wants deep general mastery — favor conceptual foundations.",
-  pareto: "", // supplied per-request by `paretoNote` — it depends on the chosen share.
-};
-
 /** Column layout from topological depth — deterministic, draggable afterwards. */
 function layoutGraph(
-  rawNodes: Array<{ id: string; label: string; summary?: string; kind: NodeKind }>,
+  rawNodes: Array<{
+    id: string;
+    label: string;
+    summary?: string;
+    kind: NodeKind;
+    domain?: Domain;
+  }>,
   edges: ConceptEdge[],
 ): ConceptNode[] {
   const ids = new Set(rawNodes.map((n) => n.id));
@@ -77,10 +85,11 @@ function layoutGraph(
       label: n.label,
       summary: n.summary,
       kind: n.kind,
+      domain: n.domain,
       // Resolved here, once, and stored on the node. Recomputing it on every
       // read would mean shipping a new catalogue silently re-cut the ladder
       // under a run already in progress.
-      phasePlan: PHASE_PLAN[n.kind],
+      phasePlan: resolvePlan(n.kind, n.domain ?? "general"),
       state: "unknown" as const,
       g: d + 1,
       week: 0,
@@ -96,8 +105,11 @@ export interface RawDiagnostic {
   nodeId: string;
   q: string;
   note: string;
+  type: DiagnosticKind;
   opts: Array<{ label: string }>;
   correctIndex: number;
+  /** The answer key, shaped by `type` — see `DiagnosticQuestion.expected`. */
+  expected?: string[];
   gapLabel?: string;
   gapReason?: string;
 }
@@ -122,7 +134,13 @@ export function validateGraphPart(
   raw: unknown,
   bounds: { min: number; max: number } = mapNodeBounds(),
 ): {
-  nodes: Array<{ id: string; label: string; summary?: string; kind: NodeKind }>;
+  nodes: Array<{
+    id: string;
+    label: string;
+    summary?: string;
+    kind: NodeKind;
+    domain: Domain;
+  }>;
   edges: ConceptEdge[];
 } {
   const root = obj(raw, "payload");
@@ -144,6 +162,9 @@ export function validateGraphPart(
       // map, and "concept" is exactly the behaviour every node had before
       // kinds existed.
       kind: asNodeKind(n.kind),
+      // Same softness as `kind`: an unrecognised domain becomes `general`, which
+      // is exactly how every node behaved before this axis existed.
+      domain: asDomain(n.domain),
     };
   });
   const edges: ConceptEdge[] = [];
@@ -195,117 +216,53 @@ export function validateDiagnosticQuestion(
     .replace(/[^a-z0-9-]/g, "-");
   if (!nodeIds.has(nodeId))
     fail(`nodeId "${nodeId}" is not one of the offered candidates`);
-  const opts = arr(d.opts, "opts", 4, 4).map((o, j) => ({
-    label: str(o, `opts[${j}]`),
-  }));
-  if (
-    typeof d.correctIndex !== "number" ||
-    !Number.isInteger(d.correctIndex) ||
-    d.correctIndex < 0 ||
-    d.correctIndex > 3
-  )
-    fail("correctIndex must be an integer 0-3");
+  const type = asDiagnosticKind(d.type);
+  // Each kind carries exactly what `gradeDiagnostic` needs to rule on it, and
+  // nothing else. A kind whose answer key is missing is unmarkable, so it
+  // fails here rather than passing every learner silently.
+  const opts =
+    type === "mcq" || type === "order"
+      ? arr(d.opts, "opts", type === "mcq" ? 4 : 3, type === "mcq" ? 4 : 6).map(
+          (o, j) => ({ label: str(o, `opts[${j}]`) }),
+        )
+      : [];
+  let expected: string[] | undefined;
+  if (type === "compute") expected = [str(d.expected, "expected")];
+  else if (type === "speak")
+    expected = arr(d.accept, "accept", 1, 6).map((a, j) => str(a, `accept[${j}]`));
+  else if (type === "order") {
+    expected = arr(d.correctOrder, "correctOrder", opts.length, opts.length).map((o, j) =>
+      str(o, `correctOrder[${j}]`),
+    );
+    const labels = new Set(opts.map((o) => o.label));
+    for (const label of expected)
+      if (!labels.has(label))
+        fail(`correctOrder names "${label}", which is not one of the options`);
+  }
+  if (type === "mcq") {
+    if (
+      typeof d.correctIndex !== "number" ||
+      !Number.isInteger(d.correctIndex) ||
+      d.correctIndex < 0 ||
+      d.correctIndex > 3
+    )
+      fail("correctIndex must be an integer 0-3");
+  }
   return {
     nodeId,
     q: str(d.q, "q"),
     note: str(d.note, "note"),
+    type,
     opts,
-    correctIndex: d.correctIndex,
+    // -1 is the honest value where there is nothing to pick, and is what
+    // `gradeDiagnostic` will never match against.
+    correctIndex: type === "mcq" ? (d.correctIndex as number) : -1,
+    expected,
     gapLabel: d.gapLabel ? str(d.gapLabel, "gapLabel") : undefined,
     gapReason: d.gapReason ? str(d.gapReason, "gapReason") : undefined,
   };
 }
 
-export interface MapParams {
-  topic: string;
-  goal: GoalKind;
-  /** Share of real-world results to cover when goal is "pareto" (#pareto):
-   *  a smaller map of only the highest-leverage concepts. */
-  paretoPct?: number;
-  /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
-  outline?: string;
-  language?: Language;
-}
-
-/** The opening every curriculum-adjacent prompt shares: what to build, what
- *  grounds it, and the too-broad escape hatch. */
-function paretoNote(params: MapParams): string {
-  if (params.goal !== "pareto") return "";
-  const pct = params.paretoPct ?? PARETO_DEFAULT;
-  return `The learner wants a Pareto map: only the concepts that carry roughly the top ${pct}% of real-world results in this topic, at the least effort. Ruthlessly drop edge cases, history, rarely-used variants and completeness-for-its-own-sake — keep what a competent practitioner actually uses ${pct === 80 ? "most weeks" : "every day"}. A smaller, higher-leverage map is the goal, not coverage.`;
-}
-
-/** Concept-count band per map: the range the prompt asks for, plus the
- *  validator bounds around it. A Pareto map is deliberately smaller. */
-export function mapNodeBounds(paretoPct?: number): {
-  ask: [number, number];
-  min: number;
-  max: number;
-} {
-  // The band is wide on purpose and the prompt picks from it: a topic that is
-  // one technique is not 12 concepts, and asking for 12 anyway got 12 — the
-  // surplus arriving as chapter headings and split hairs.
-  if (paretoPct === undefined) return { ask: [6, 16], min: 5, max: 20 };
-  // 20% -> ~7 concepts, 50% -> ~12, 80% -> ~17.
-  const target = Math.round(4 + (paretoPct / 100) * 16);
-  return {
-    ask: [target - 1, target + 1],
-    min: Math.max(4, target - 3),
-    max: target + 4,
-  };
-}
-
-function mapContext(params: MapParams): string {
-  const { topic, goal, outline } = params;
-  const grounding = outline?.trim()
-    ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
-    : "";
-  return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}${paretoNote(params)}
-${grounding}
-If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
-{"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
-}
-
-const graphShape = (ask: [number, number]) => `{
-  "nodes": [{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle"}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
-  "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
-}`;
-
-/**
- * What kind of thing each concept is — which decides how it gets practised.
- *
- * The discriminator is what the learner must be able to *do*, never the
- * subject area: "photosynthesis" and "how a bill becomes law" are both
- * `principle`. Ambiguity resolves to `concept`, which is what every node was
- * before kinds existed, so a bad pick costs nothing.
- */
-export const KIND_RULE = `"kind" is exactly one of:
-  "fact" — an arbitrary association with nothing to reason from: a date, a symbol, a constant, a term's name. Knowing it IS remembering it.
-  "concept" — a class with defining attributes, members and non-members. The learner must be able to tell instances from near-misses.
-  "procedure" — an ordered sequence the learner carries out to produce an outcome. The learner must be able to run it, not just describe it.
-  "principle" — a causal relation or multi-stage mechanism. The learner must be able to predict what happens when one part changes.
-Pick by what the learner must be able to DO, not by subject area. When two fit, choose "concept".`;
-
-/** The summary rule, shared by the single-shot and streamed map prompts: it is
- *  the only thing the detail rail says about the topic itself, so it has to
- *  teach the gist rather than restate the label. */
-export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a learner who has never met this concept what it actually is and what it lets them do — concrete and specific to this topic. Never restate the label ("Gradient Descent is about gradient descent"), never describe the concept's role in the map or its difficulty, never start with "This concept".`;
-
-const mapRules = (ask: [number, number]) =>
-  `Rules: labels are 1-3 words, capitalized the way the output language capitalizes a heading — English title case, but sentence case in languages that do not title-case (pt-BR: "Reações dependentes da luz", never "Reações Dependentes Da Luz"). ${SUMMARY_RULE}
-${KIND_RULE}
-${sizeRule({
-  unit: "concepts",
-  min: ask[0],
-  max: ask[1],
-  atMin:
-    "a topic that is one technique or one mechanism, where a handful of concepts genuinely is the whole of it",
-  atMax: "a broad field with several separate branches a learner must cross",
-})}
-The map must read left-to-right from true foundations to the topic's capstone ideas. Every node is a CONCEPT the learner can be taught and then tested on — never a chapter heading or a container: no "Introduction", "Overview", "Fundamentals", "Advanced Topics", "Applications", "Conclusion".`;
-
-/** Attach each node's prerequisites, so a laid-out map travels as one flat
- *  list. The inverse of `graphFromMapNodes`. */
 function withPrereqs(nodes: ConceptNode[], edges: ConceptEdge[]): MapNode[] {
   const prereqs: Record<string, string[]> = {};
   for (const [from, to] of edges) (prereqs[to] = prereqs[to] ?? []).push(from);
@@ -319,11 +276,12 @@ function layoutMapNodes(mapNodes: MapNode[]): MapNode[] {
   const { edges } = graphFromMapNodes(mapNodes);
   return withPrereqs(
     layoutGraph(
-      mapNodes.map(({ id, label, summary, kind }) => ({
+      mapNodes.map(({ id, label, summary, kind, domain }) => ({
         id,
         label,
         summary,
         kind: asNodeKind(kind),
+        domain: asDomain(domain),
       })),
       edges,
     ),
@@ -351,7 +309,13 @@ export async function generateMap(
   const raw = await generateJson<
     | { scopes: ScopeOffer[] }
     | {
-        nodes: Array<{ id: string; label: string; summary?: string; kind: NodeKind }>;
+        nodes: Array<{
+          id: string;
+          label: string;
+          summary?: string;
+          kind: NodeKind;
+          domain: Domain;
+        }>;
         edges: ConceptEdge[];
       }
   >(
@@ -381,7 +345,14 @@ export function validateMapConcept(
   raw: unknown,
   index: number,
   seen: Set<string>,
-): { id: string; label: string; summary?: string; kind: NodeKind; prereqs: string[] } {
+): {
+  id: string;
+  label: string;
+  summary?: string;
+  kind: NodeKind;
+  domain: Domain;
+  prereqs: string[];
+} {
   const c = obj(raw, `concept[${index}]`);
   const id = str(c.id, `concept[${index}].id`)
     .toLowerCase()
@@ -404,6 +375,7 @@ export function validateMapConcept(
     // Same softness: an unrecognised discriminator becomes `concept`, which is
     // what every node was before kinds existed.
     kind: asNodeKind(c.kind),
+    domain: asDomain(c.domain),
     prereqs,
   };
 }
@@ -440,7 +412,14 @@ export async function* generateMapStream(params: MapParams): AsyncGenerator<Stre
 
     const stream = streamJsonObjects<
       | { scopes: ScopeOffer[] }
-      | { id: string; label: string; summary?: string; kind: NodeKind; prereqs: string[] }
+      | {
+          id: string;
+          label: string;
+          summary?: string;
+          kind: NodeKind;
+          domain: Domain;
+          prereqs: string[];
+        }
     >(
       user(
         `${mapContext(params)}
@@ -450,7 +429,7 @@ another — NOT wrapped in an array or a {"nodes": [...]} object, no markdown
 fences, no numbering, no commentary before/after/between them. Write them in
 prerequisite order: every concept another one depends on must already have been
 written above it. Each object has this shape:
-{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "prereqs": ["ids of concepts already written above"]}
+{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "prereqs": ["ids of concepts already written above"]}
 
 "prereqs" is empty only for true foundations — every other concept names at
 least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
@@ -484,7 +463,7 @@ least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
       // re-space and never cross.
       const node: MapNode = {
         ...item,
-        phasePlan: PHASE_PLAN[item.kind],
+        phasePlan: resolvePlan(item.kind, item.domain ?? "general"),
         state: "unknown",
         g: d + 1,
         week: 0,
@@ -520,3 +499,15 @@ least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
     for (const [i, v] of result.nodes.entries()) yield { p: "nodes", i, v };
   }
 }
+
+// The prompt half lives in `./mapPrompt` now. Re-exported here so every call
+// site that already imports these from `./map` (or from the barrel) keeps
+// working — the split is internal, not a change to this module's surface.
+export {
+  DOMAIN_MAP_RULE,
+  DOMAIN_RULE,
+  KIND_RULE,
+  SUMMARY_RULE,
+  mapNodeBounds,
+  type MapParams,
+} from "./mapPrompt";

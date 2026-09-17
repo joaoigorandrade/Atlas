@@ -84,6 +84,12 @@ const EN = {
   rackingReps: (label: string) => `Racking up reps on ${label}…`,
   blankPage: (label: string) => `Clearing the page for ${label}…`,
   settingCase: (label: string) => `Setting a case to run ${label} on…`,
+  findingSource: (label: string) => `Finding a source on ${label}…`,
+  findingDispute: (label: string) => `Finding what is contested about ${label}…`,
+  settingScene: (label: string) => `Setting a scene to use ${label} in…`,
+  bothCasesNeeded: "Write a real case for both sides before submitting.",
+  disconfirmerNeeded: "Say which side you hold, and what would change your mind.",
+  nothingHeard: "Nothing came through — say it again.",
   draftingCards: "Drafting cards from what you've learned…",
 
   // The synthetic Socratic gap written onto the map — no model wrote this one.
@@ -166,6 +172,13 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     rackingReps: (label: string) => `Preparando as repetições de ${label}…`,
     blankPage: (label: string) => `Limpando a página para ${label}…`,
     settingCase: (label: string) => `Preparando um caso para executar ${label}…`,
+    findingSource: (label: string) => `Procurando uma fonte sobre ${label}…`,
+    findingDispute: (label: string) => `Procurando o que se disputa em ${label}…`,
+    settingScene: (label: string) => `Preparando uma cena para usar ${label}…`,
+    bothCasesNeeded:
+      "Escreva um argumento de verdade para os dois lados antes de enviar.",
+    disconfirmerNeeded: "Diga com qual lado você fica e o que faria você mudar de ideia.",
+    nothingHeard: "Não veio nada — diga de novo.",
     draftingCards: "Escrevendo cards a partir do que você aprendeu…",
 
     socraticGapLabel: (label: string) => `${label} — fundamentos`,

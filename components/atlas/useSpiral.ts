@@ -86,6 +86,7 @@ import { useTrace } from "@/components/atlas/useTrace";
 import { useDrill } from "@/components/atlas/useDrill";
 import { useRecall } from "@/components/atlas/useRecall";
 import { usePerform } from "@/components/atlas/usePerform";
+import { useDomainPhases } from "@/components/atlas/useDomainPhases";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
 import type { Screen } from "@/components/atlas/screen";
@@ -295,16 +296,12 @@ export function useSpiral(deps: {
     ...phaseDeps,
   });
 
-  const { enterRecall, dispatchRecall, recallSubmit, advanceFromRecall, exitRecall } =
-    useRecall({ ...phaseDeps, ...judgeDeps });
+  const recall = useRecall({ ...phaseDeps, ...judgeDeps });
 
-  const {
-    enterPerform,
-    dispatchPerform,
-    performSubmit,
-    advanceFromPerform,
-    exitPerform,
-  } = usePerform({ ...phaseDeps, ...judgeDeps });
+  const perform = usePerform({ ...phaseDeps, ...judgeDeps });
+
+  // The three phases the domain axis adds — see `useDomainPhases`.
+  const domainPhases = useDomainPhases({ ...phaseDeps, ...judgeDeps });
 
   // ---- map actions ------------------------------------------------------
 
@@ -2072,11 +2069,14 @@ export function useSpiral(deps: {
     predict: enterPredict,
     trace: enterTrace,
     feynman: enterFeynman,
-    perform: enterPerform,
+    perform: perform.enterPerform,
+    provenance: domainPhases.enterProvenance,
+    steelman: domainPhases.enterSteelman,
+    produce: domainPhases.enterProduce,
     drill: enterDrill,
     connect: enterConnect,
     crucible: enterCrucible,
-    recall: enterRecall,
+    recall: recall.enterRecall,
     // Retain isn't entered on a node — it's the shared review queue.
     retain: () => enterReview(),
   };
@@ -2239,16 +2239,9 @@ export function useSpiral(deps: {
     dispatchDrill,
     advanceFromDrill,
     exitDrill,
-    enterRecall,
-    dispatchRecall,
-    recallSubmit,
-    advanceFromRecall,
-    exitRecall,
-    enterPerform,
-    dispatchPerform,
-    performSubmit,
-    advanceFromPerform,
-    exitPerform,
+    ...recall,
+    ...perform,
+    domainPhases,
     retainPlan,
     enterReview,
     retainFlip,

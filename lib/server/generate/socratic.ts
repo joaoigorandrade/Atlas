@@ -2,6 +2,7 @@
 import {
   arr,
   boundaryNote,
+  domainNote,
   fail,
   interestNote,
   languageNote,
@@ -13,6 +14,7 @@ import {
   user,
 } from "./common";
 import {
+  type Domain,
   SOCRATIC_MAX_STEPS,
   SOCRATIC_MIN_STEPS,
   SOCRATIC_MIN_WRITTEN,
@@ -37,6 +39,7 @@ function socraticContext(params: {
   topic: string;
   nodeLabel: string;
   interests: string;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }): string {
@@ -51,7 +54,7 @@ ${sizeRule({
   atMax: "a genuinely layered concept",
 })} Each core probe uses a different move, in the order listed, and picks up where the last left off.
 Then write exactly ${SOCRATIC_SPARES} further ${SOCRATIC_SPARES === 1 ? "probe" : "probes"} marked "spare": true, last. A spare is held back — only ever asked of a learner who keeps needing help — so it must go DEEPER on the hardest part of the concept rather than restate an earlier probe.
-${boundaryNote(params)}`;
+${boundaryNote(params)}${domainNote(params.domain, "socratic")}`;
 }
 
 const SOCRATIC_STEP_SHAPE = `{

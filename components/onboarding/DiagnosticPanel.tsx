@@ -5,11 +5,14 @@ import type {
   DiagnosticDifficulty,
   DiagnosticEffect,
   DiagnosticQuestion,
+  DiagnosticAnswer as Answer,
 } from "@/lib/curriculum";
 import { color, font, kicker, transition } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InkDots, InkRule } from "@/components/Pending";
+import { gradeDiagnostic } from "@/lib/curriculum";
 import Rich from "@/components/Rich";
+import DiagnosticAnswer from "@/components/onboarding/DiagnosticAnswers";
 
 const STRINGS = {
   en: {
@@ -85,7 +88,7 @@ interface DiagnosticPanelProps {
    *  wrote to the map, so the verdict copy can tell the truth: a miss the
    *  placement discounts as a slip prunes the concept rather than adding to
    *  the map, and saying otherwise describes a map the learner doesn't have. */
-  onAnswer: (optionIndex: number) => DiagnosticEffect;
+  onAnswer: (answer: Answer) => DiagnosticEffect;
   /** "Go straight to my map" — the placement is optional (SPEC §2). */
   onSkip: () => void;
   onStart: () => void;
@@ -104,7 +107,7 @@ export default function DiagnosticPanel({
   // next one replaces it. Cleared by "Next question →".
   const [picked, setPicked] = useState<{
     q: DiagnosticQuestion;
-    index: number;
+    answer: Answer;
     effect: DiagnosticEffect;
   } | null>(null);
   // The placement is opt-in: nothing is asked until the learner takes it.
@@ -115,7 +118,7 @@ export default function DiagnosticPanel({
   // on its way, it just isn't here yet.
   const question: DiagnosticQuestion | undefined = questions[answered];
   const shown = picked?.q ?? question;
-  const correct = picked ? picked.index === picked.q.correctIndex : false;
+  const correct = picked ? gradeDiagnostic(picked.q, picked.answer) : false;
   // A miss the placement discounted: wrong answer, but it wrote back as known.
   const slipped = !!picked && !correct && picked.effect === "mastered";
   const readyToAdvance = answered >= total || !!question;
@@ -287,70 +290,14 @@ export default function DiagnosticPanel({
           >
             <Rich text={shown.q} />
           </div>
-          <div
-            role="radiogroup"
-            style={{ display: "flex", flexDirection: "column", gap: 11 }}
-          >
-            {shown.opts.map((opt, oi) => {
-              const isAnswer = picked && oi === shown.correctIndex;
-              const isWrongPick = picked && oi === picked.index && !correct;
-              return (
-                <button
-                  className="at-press"
-                  key={opt.label}
-                  data-testid={`action-answer-${oi}`}
-                  role="radio"
-                  aria-checked={picked ? oi === picked.index : false}
-                  disabled={!!picked}
-                  onClick={() => {
-                    setPicked({ q: shown, index: oi, effect: onAnswer(oi) });
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    textAlign: "left",
-                    padding: "15px 18px",
-                    background: isAnswer
-                      ? color.successBg
-                      : isWrongPick
-                        ? color.amberBg
-                        : color.card,
-                    border: `1px solid ${
-                      isAnswer
-                        ? color.accent
-                        : isWrongPick
-                          ? color.amberInk
-                          : "rgba(44,40,35,0.16)"
-                    }`,
-                    borderRadius: 11,
-                    fontSize: 15,
-                    color: color.ink,
-                    opacity: picked && !isAnswer && !isWrongPick ? 0.5 : 1,
-                    cursor: picked ? "default" : "pointer",
-                  }}
-                >
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      width: 16,
-                      height: 16,
-                      borderRadius: "50%",
-                      border: `1.5px solid ${
-                        isAnswer
-                          ? color.accent
-                          : isWrongPick
-                            ? color.amberInk
-                            : color.hairlineStrong
-                      }`,
-                      background: isAnswer ? color.accent : "transparent",
-                    }}
-                  />
-                  <Rich text={opt.label} />
-                </button>
-              );
-            })}
-          </div>
+          <DiagnosticAnswer
+            question={shown}
+            picked={picked?.answer}
+            correct={correct}
+            onAnswer={(answer) =>
+              setPicked({ q: shown, answer, effect: onAnswer(answer) })
+            }
+          />
           {picked && (
             <div style={{ marginTop: 22, animation: "fadeUp 0.35s both" }}>
               {/* What the answer changed about the map. It used to render with
@@ -381,7 +328,16 @@ export default function DiagnosticPanel({
               >
                 {!correct && (
                   <>
-                    {t.answerWas} <Rich text={shown.opts[shown.correctIndex]?.label} />
+                    {t.answerWas}{" "}
+                    <Rich
+                      text={
+                        (shown.type ?? "mcq") === "mcq"
+                          ? (shown.opts[shown.correctIndex]?.label ?? "")
+                          : (shown.expected ?? []).join(
+                              shown.type === "order" ? " → " : " / ",
+                            )
+                      }
+                    />
                     <br />
                   </>
                 )}

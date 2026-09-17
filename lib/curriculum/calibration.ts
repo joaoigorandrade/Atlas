@@ -8,7 +8,6 @@
 // the curve → per-node breakdown → "jump to its Crucible" loop is real.
 import { CONNECT_COLOR } from "./connect";
 import { planGates, type PhaseId } from "./phases";
-import { GapSpec, StateMap } from "./replan";
 import { ConceptEdge, NodeState, ProgressState, STATE_COLOR, ShakyReason } from "./types";
 import { Language } from "@/lib/i18n";
 
@@ -250,104 +249,6 @@ export function primaryPhase(
 // phase already *is* Consume. The one thing the reading record still decides is
 // whether a node with nothing finished looks started, which is
 // `stateFromPlan`'s `started` option.
-
-export type DiagnosticEffect = "mastered" | "shaky";
-
-/** An objective quiz option \u2014 just the label. Which one is correct lives on
- *  the question (`correctIndex`), not per-option, since correctness is now
- *  graded, not self-reported. */
-export interface DiagnosticOption {
-  label: string;
-}
-
-/**
- * How many placement questions a build asks. Fixed rather than derived: the
- * questions are fetched one at a time (each depends on the last answer), so
- * both the panel and the "Question i of N" label need the total up front.
- */
-export const DIAGNOSTIC_COUNT = 5;
-
-export const DIAGNOSTIC_DIFFICULTIES = ["easy", "medium", "hard"] as const;
-export type DiagnosticDifficulty = (typeof DIAGNOSTIC_DIFFICULTIES)[number];
-
-/**
- * One generated placement probe: an objective 4-option question at a given
- * difficulty. `nodeId` names the concept the answer writes back to; `gap`
- * (optional) is the sub-concept a genuine miss splits out under it \u2014 the
- * first live re-plan.
- */
-export interface DiagnosticQuestion {
-  tag: string;
-  q: string;
-  note: string;
-  nodeId: string;
-  difficulty: DiagnosticDifficulty;
-  opts: DiagnosticOption[];
-  correctIndex: number;
-  gap?: GapSpec;
-}
-
-/** One step harder / easier, clamped at the ends of the ladder \u2014 the ENEM-style
- *  staircase: a correct answer asks a harder question next, a miss an easier
- *  one. */
-export function stepDifficulty(
-  current: DiagnosticDifficulty,
-  correct: boolean,
-): DiagnosticDifficulty {
-  const i = DIAGNOSTIC_DIFFICULTIES.indexOf(current);
-  const next = correct ? i + 1 : i - 1;
-  return DIAGNOSTIC_DIFFICULTIES[
-    Math.min(DIAGNOSTIC_DIFFICULTIES.length - 1, Math.max(0, next))
-  ];
-}
-
-/**
- * What a graded answer writes back to the node's mastery.
- *
- * `maxCorrectDifficulty` is the hardest level answered correctly so far this
- * placement (or null before any correct answer) — the running evidence of
- * ability the "luck" call leans on.
- *
- * A miss on a question *strictly easier* than that evidence reads as a slip,
- * not a gap (the ENEM read: acing hard questions then fumbling an easy one is
- * noise) — it's discounted to the same effect a correct answer would give,
- * and spawns no gap node. Strictly easier, not "no harder": one right and one
- * wrong at the same level is a coin flip, not proof of mastery, and the write
- * it triggers (prune the whole prerequisite chain) is not recoverable.
- */
-export function diagnosticEffect(
-  difficulty: DiagnosticDifficulty,
-  correct: boolean,
-  maxCorrectDifficulty: DiagnosticDifficulty | null,
-): DiagnosticEffect {
-  if (correct) return "mastered";
-  const rank = (d: DiagnosticDifficulty) => DIAGNOSTIC_DIFFICULTIES.indexOf(d);
-  const isLuckMiss =
-    maxCorrectDifficulty !== null && rank(difficulty) < rank(maxCorrectDifficulty);
-  return isLuckMiss ? "mastered" : "shaky";
-}
-
-/**
- * The mastery write a graded placement answer makes.
- *
- * A correct answer (or a discounted slip) prunes the concept *and its whole
- * prerequisite chain* — knowing something is evidence for everything it stands
- * on. A genuine miss touches only the concept itself: the chain below a missed
- * concept is the likeliest place the reason for the miss is hiding, and
- * pruning it would hide it for good.
- */
-export function applyDiagnosticEffect(
-  states: StateMap,
-  effect: DiagnosticEffect,
-  nodeId: string,
-  edges: ConceptEdge[],
-): StateMap {
-  const next = { ...states };
-  if (effect === "mastered")
-    for (const id of ancestorsOf(nodeId, edges)) next[id] = "mastered";
-  else next[nodeId] = "shaky";
-  return next;
-}
 
 export type GoalKind = "exam" | "project" | "mastery" | "pareto";
 

@@ -23,6 +23,9 @@ import type {
   DrillSession,
   FeynmanSession,
   PerformSession,
+  ProduceSession,
+  ProvenanceSession,
+  SteelmanSession,
   PredictSession,
   RecallSession,
   TraceSession,
@@ -76,6 +79,9 @@ export function useSessionState() {
   const [drill, setDrill] = useState<DrillSession | null>(null);
   const [recall, setRecall] = useState<RecallSession | null>(null);
   const [perform, setPerform] = useState<PerformSession | null>(null);
+  const [provenance, setProvenance] = useState<ProvenanceSession | null>(null);
+  const [steelman, setSteelman] = useState<SteelmanSession | null>(null);
+  const [produce, setProduce] = useState<ProduceSession | null>(null);
   const [retain, setRetain] = useState<RetainSession | null>(null);
 
   const consumeRef = useRef(consume);
@@ -106,6 +112,12 @@ export function useSessionState() {
   recallRef.current = recall;
   const performRef = useRef(perform);
   performRef.current = perform;
+  const provenanceRef = useRef(provenance);
+  provenanceRef.current = provenance;
+  const steelmanRef = useRef(steelman);
+  steelmanRef.current = steelman;
+  const produceRef = useRef(produce);
+  produceRef.current = produce;
   /** The reading pass on screen — committed sections, or the streaming ones
    *  standing in for them. Assigned once `consumeChunks` is derived. */
   const consumeChunksRef = useRef<ConsumeChunk[]>([]);
@@ -181,6 +193,15 @@ export function useSessionState() {
     perform,
     setPerform,
     performRef,
+    provenance,
+    setProvenance,
+    provenanceRef,
+    steelman,
+    setSteelman,
+    steelmanRef,
+    produce,
+    setProduce,
+    produceRef,
     retain,
     setRetain,
     retainRef,

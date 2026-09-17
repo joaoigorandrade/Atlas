@@ -7,6 +7,8 @@
 // the node carries its own plan and state is derived from what the learner has
 // finished (`stateFromPlan` in `calibration.ts`).
 
+import { DOMAIN_PLAN, type Domain } from "./domains";
+
 import type { Language } from "@/lib/i18n";
 
 /**
@@ -47,12 +49,15 @@ export function asNodeKind(raw: unknown): NodeKind {
 export const PHASE_ORDER = [
   "consume",
   "discriminate",
+  "provenance",
   "socratic",
+  "steelman",
   "predict",
   "trace",
   "feynman",
   "perform",
   "drill",
+  "produce",
   "connect",
   "crucible",
   "recall",
@@ -77,12 +82,15 @@ export type PhaseId = (typeof PHASE_ORDER)[number];
 export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
   consume: { label: "Consume", signal: "exposure" },
   discriminate: { label: "Discriminate", signal: "boundary" },
+  provenance: { label: "Provenance", signal: "evidence quality" },
   socratic: { label: "Socratic", signal: "reasoning under questioning" },
+  steelman: { label: "Steelman", signal: "holding a contested position" },
   predict: { label: "Predict", signal: "forecast before the answer" },
   trace: { label: "Trace", signal: "following a mechanism step by step" },
   feynman: { label: "Feynman", signal: "unaided production" },
   perform: { label: "Perform", signal: "execution under real conditions" },
   drill: { label: "Drill", signal: "speed and automaticity" },
+  produce: { label: "Produce", signal: "real-time production" },
   connect: { label: "Connect", signal: "elaborative encoding" },
   crucible: { label: "Crucible", signal: "transfer" },
   recall: { label: "Recall", signal: "unaided retrieval" },
@@ -200,14 +208,35 @@ export type PhasesDoneMap = Record<string, readonly PhaseId[]>;
  */
 export type PhaseProgress = Partial<Record<PhaseId, unknown>>;
 
-/** The plan a node runs: its stored one, else its kind's. A node with neither
- *  is one the client invented this tick (a spawned gap), and gap nodes render
- *  no spiral at all. */
+/**
+ * The ladder a `(kind, domain)` pair runs, before anything is stored.
+ *
+ * The merge is a *filter over `PHASE_ORDER`* rather than a concatenation, which
+ * is what makes invariant 1 hold by construction: whatever the two tables ask
+ * for, the result comes back in canonical order with no duplicates, so it
+ * cannot stop being a subsequence. A `plan` rule bypasses the kind entirely —
+ * see `DOMAIN_PLAN` for why that is a different thing from adding rungs.
+ */
+export function resolvePlan(kind: NodeKind, domain: Domain): readonly PhaseId[] {
+  const base = PHASE_PLAN[kind];
+  const rule = DOMAIN_PLAN[domain];
+  if (!rule) return base;
+  if ("plan" in rule) return rule.plan;
+  const want = new Set<PhaseId>([...base, ...rule.add]);
+  return PHASE_ORDER.filter((p) => want.has(p));
+}
+
+/** The plan a node runs: its stored one, else the one its kind and domain
+ *  resolve to. A node with neither is one the client invented this tick (a
+ *  spawned gap), and gap nodes render no spiral at all. */
 export function phasePlan(node: {
   phasePlan?: readonly PhaseId[];
   kind?: NodeKind;
+  domain?: Domain;
 }): readonly PhaseId[] {
-  return node.phasePlan?.length ? node.phasePlan : PHASE_PLAN[node.kind ?? "concept"];
+  return node.phasePlan?.length
+    ? node.phasePlan
+    : resolvePlan(node.kind ?? "concept", node.domain ?? "general");
 }
 
 /**
@@ -217,12 +246,15 @@ export function phasePlan(node: {
 export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
   consume: "You haven't read this yet — want to?",
   discriminate: "You haven't told this apart from its neighbours yet — want to?",
+  provenance: "You haven't weighed the source on this yet — want to?",
   socratic: "You haven't reasoned this out yet — want to?",
+  steelman: "You haven't argued both sides of this yet — want to?",
   predict: "You haven't forecast this yet — want to?",
   trace: "You haven't walked this through step by step yet — want to?",
   feynman: "You haven't taught this back yet — want to?",
   perform: "You haven't run this on a real case yet — want to?",
   drill: "You haven't made these calls at speed yet — want to?",
+  produce: "You haven't said this out loud yet — want to?",
   connect: "You haven't linked this into your map yet — want to?",
   crucible: "You haven't applied this in a novel context yet — want to?",
   recall: "You haven't retrieved this cold yet — want to?",
@@ -232,12 +264,15 @@ export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
 const PHASE_SKIP_NUDGE_PT: Record<PhaseId, string> = {
   consume: "Você ainda não leu isso — quer ler?",
   discriminate: "Você ainda não distinguiu isso dos vizinhos — quer tentar?",
+  provenance: "Você ainda não pesou a fonte disso — quer tentar?",
   socratic: "Você ainda não raciocinou sobre isso — quer tentar?",
+  steelman: "Você ainda não defendeu os dois lados disso — quer tentar?",
   predict: "Você ainda não previu isso — quer tentar?",
   trace: "Você ainda não percorreu isso passo a passo — quer tentar?",
   feynman: "Você ainda não ensinou isso de volta — quer tentar?",
   perform: "Você ainda não executou isso num caso real — quer tentar?",
   drill: "Você ainda não fez essas decisões no ritmo — quer tentar?",
+  produce: "Você ainda não disse isso em voz alta — quer tentar?",
   connect: "Você ainda não ligou isso ao seu mapa — quer tentar?",
   crucible: "Você ainda não aplicou isso em um contexto novo — quer tentar?",
   recall: "Você ainda não recuperou isso de memória — quer tentar?",
@@ -260,7 +295,12 @@ export function phaseSkipNudge(phase: PhaseId, lang: Language = "en"): string {
  * session.
  */
 export function crucibleMasters(
-  nodes: readonly { id: string; kind?: NodeKind; phasePlan?: readonly PhaseId[] }[],
+  nodes: readonly {
+    id: string;
+    kind?: NodeKind;
+    domain?: Domain;
+    phasePlan?: readonly PhaseId[];
+  }[],
   nodeId: string | undefined,
   phasesDone: PhasesDoneMap,
 ): boolean {

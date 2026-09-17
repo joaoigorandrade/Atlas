@@ -3,6 +3,7 @@ import {
   arr,
   fail,
   interestNote,
+  domainNote,
   kindNote,
   languageNote,
   obj,
@@ -13,7 +14,7 @@ import {
 import { ElaborationContent } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
-import type { NodeKind } from "@/lib/curriculum";
+import type { Domain, NodeKind } from "@/lib/curriculum";
 
 /** The concept-web slots (560×440 canvas) the demo design places candidates in. */
 const CONNECT_SLOTS: ReadonlyArray<[number, number]> = [
@@ -99,6 +100,7 @@ function validateConnect(
 
 export async function generateConnect(params: {
   nodeKind?: NodeKind;
+  domain?: Domain;
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -112,7 +114,7 @@ export async function generateConnect(params: {
       `Write the Connect (elaboration) pass for the concept "${nodeLabel}" within "${topic}".
 The learner wires the new concept into concepts they already own. Their prior concepts (id: label):
 ${pool.map((p) => `- ${p.id}: ${p.label}`).join("\n")}
-${interestNote(interests)}${kindNote(params.nodeKind, "connect")}
+${interestNote(interests)}${kindNote(params.nodeKind, "connect")}${domainNote(params.domain, "connect")}
 
 First auto-detect the encoding. Apply this test: could a learner be fairly asked to reproduce a fixed set or ordered sequence from memory — named stages, a closed taxonomy, an algorithm's steps, vocabulary? Then it is "list-like", even when the material also carries deep ideas (the stages of mitosis, the HTTP status classes, the cranial nerves, an elimination procedure are all list-like). Use "conceptual" when there is nothing enumerable to hold in order and a mnemonic would be noise.
 

@@ -10,6 +10,9 @@
 import { useCallback, useRef, useState } from "react";
 import {
   DIAGNOSTIC_COUNT,
+  DIAGNOSTIC_DIFFICULTIES,
+  gradeDiagnostic,
+  type DiagnosticAnswer,
   applyDiagnosticEffect,
   diagnosticEffect,
   emptyGraph,
@@ -369,27 +372,23 @@ export function useOnboarding(deps: {
    * pull from — the ENEM-style placement can't know question N+1 until N is
    * graded.
    */
-  const answerDiagnostic = (optionIndex: number): DiagnosticEffect => {
+  const answerDiagnostic = (answer: DiagnosticAnswer): DiagnosticEffect => {
     // All effects run here in the event handler, never inside a state
     // updater — React may invoke updaters more than once (#16).
     const idx = answeredRef.current;
     const q = diagnosticRef.current[idx];
     if (!q) return "shaky";
     const buildId = buildIdRef.current;
-    const correct = optionIndex === q.correctIndex;
+    const correct = gradeDiagnostic(q, answer);
     const effect = diagnosticEffect(
       q.difficulty,
       correct,
       maxCorrectDifficultyRef.current,
     );
-    if (correct) {
-      const rank = (d: DiagnosticDifficulty) => ["easy", "medium", "hard"].indexOf(d);
-      if (
-        maxCorrectDifficultyRef.current === null ||
-        rank(q.difficulty) > rank(maxCorrectDifficultyRef.current)
-      )
-        maxCorrectDifficultyRef.current = q.difficulty;
-    }
+    // The real ladder, not a hand-copied triple that would drift from it.
+    const rank = (d: DiagnosticDifficulty | null) => DIAGNOSTIC_DIFFICULTIES.indexOf(d!);
+    if (correct && rank(q.difficulty) > rank(maxCorrectDifficultyRef.current))
+      maxCorrectDifficultyRef.current = q.difficulty;
     // Written as a value, not an updater, so the pool below can filter on the
     // post-answer truth — the placement is the only writer on this screen.
     const applied = applyDiagnosticEffect(

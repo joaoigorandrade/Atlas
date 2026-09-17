@@ -16,7 +16,11 @@ import type {
   FeynmanBeat,
   GoalKind,
   MapNode,
+  Domain,
   NodeKind,
+  ProduceContent,
+  ProvenanceContent,
+  SteelmanContent,
   PerformContent,
   PredictContent,
   RecallContent,
@@ -575,6 +579,7 @@ export const discriminateRequest = (params: {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }) => ({ kind: "discriminate", ...params });
@@ -594,6 +599,7 @@ export const predictRequest = (params: {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }) => ({ kind: "predict", ...params });
@@ -612,6 +618,7 @@ export const traceRequest = (params: {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }) => ({ kind: "trace", ...params });
@@ -630,6 +637,7 @@ export const drillRequest = (params: {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }) => ({ kind: "drill", ...params });
@@ -648,6 +656,7 @@ export const recallRequest = (params: {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }) => ({ kind: "recall", ...params });
@@ -666,6 +675,7 @@ export const performRequest = (params: {
   interests: string;
   language?: Language;
   nodeKind?: NodeKind;
+  domain?: Domain;
   priorLabels?: string[];
   laterLabels?: string[];
 }) => ({ kind: "perform", ...params });
@@ -675,6 +685,63 @@ export async function fetchPerform(
   opts?: FetchOpts,
 ): Promise<PerformContent> {
   return (await post<{ content: PerformContent }>(performRequest(params), opts)).content;
+}
+
+export const provenanceRequest = (params: {
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  domain?: Domain;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => ({ kind: "provenance", ...params });
+
+export async function fetchProvenance(
+  params: Parameters<typeof provenanceRequest>[0],
+  opts?: FetchOpts,
+): Promise<ProvenanceContent> {
+  return (await post<{ content: ProvenanceContent }>(provenanceRequest(params), opts))
+    .content;
+}
+
+export const steelmanRequest = (params: {
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  domain?: Domain;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => ({ kind: "steelman", ...params });
+
+export async function fetchSteelman(
+  params: Parameters<typeof steelmanRequest>[0],
+  opts?: FetchOpts,
+): Promise<SteelmanContent> {
+  return (await post<{ content: SteelmanContent }>(steelmanRequest(params), opts))
+    .content;
+}
+
+export const produceRequest = (params: {
+  topic: string;
+  nodeId: string;
+  nodeLabel: string;
+  interests: string;
+  language?: Language;
+  nodeKind?: NodeKind;
+  domain?: Domain;
+  priorLabels?: string[];
+  laterLabels?: string[];
+}) => ({ kind: "produce", ...params });
+
+export async function fetchProduce(
+  params: Parameters<typeof produceRequest>[0],
+  opts?: FetchOpts,
+): Promise<ProduceContent> {
+  return (await post<{ content: ProduceContent }>(produceRequest(params), opts)).content;
 }
 
 export const retainRequest = (params: {
@@ -693,181 +760,6 @@ export async function fetchRetain(
 }
 
 // ---- the judging loop (#25-#27) — the learner's own words, classified ------
-
-/**
- * A judge call, verdict-first.
- *
- * The server writes the verdict as its own tiny JSON object and the critique
- * as a second one, so `onVerdict` fires roughly a second in — that is the
- * moment the screen can move — and the promise resolves with the complete
- * judgement when the prose lands.
- *
- * `onVerdict` may fire once (the usual streamed case) or never (the single-shot
- * fallback, where the first frame already carries everything). Callers must
- * therefore treat it as an optimisation and still handle the whole judgement
- * on resolve — `applied` flags in AtlasApp are exactly that.
- *
- * `onDraft` is the same deal one level finer: the critique as it is typed, so
- * the bubble the verdict opened fills in word by word instead of swapping from
- * dots to a finished paragraph. It carries `response` and nothing else — a
- * half-written verdict would be a different classification than the one the
- * model settles on, and the verdict is what drives mastery writes.
- */
-async function judge<T>(
-  body: Record<string, unknown>,
-  onVerdict?: (partial: Partial<T>) => void,
-  onDraft?: (draft: Partial<T>) => void,
-): Promise<T> {
-  let seen = 0;
-  let last: T | null = null;
-  const frames = await fetchStream(body, (frame) => {
-    if (frame.p !== "judgement") return;
-    if (frame.partial) {
-      onDraft?.(frame.v as Partial<T>);
-      return;
-    }
-    // Only the first complete frame is the verdict prefix. Which frame is
-    // *last* isn't knowable until the stream ends, so the resolved value comes
-    // from the collected frames below rather than from this callback.
-    if (seen++ === 0) onVerdict?.(frame.v as Partial<T>);
-  });
-  for (const frame of frames)
-    if (frame.p === "judgement" && !frame.partial) last = frame.v as T;
-  if (!last) throw new AtlasError("upstream", "the judge returned nothing");
-  return last;
-}
-
-export interface SocraticJudgement {
-  quality: "correct" | "near" | "wrong" | "lost";
-  response: string;
-  /** The wrong idea in a few words, on a caught "near"/"wrong" — filed into the
-   *  run's misconception roll-up so a repeat can be named as one. */
-  misconception?: string;
-}
-
-export function fetchJudgeSocratic(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    question: string;
-    reference: string;
-    answer: string;
-    history?: Array<{ role: "ai" | "learner"; text: string }>;
-    attempt?: number;
-    misconceptions?: Array<{ label: string; quality: string }>;
-    /** What this learner keeps getting wrong run-wide (`recurringMisconceptions`). */
-    recurring?: string[];
-    help?: number;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<SocraticJudgement>) => void,
-  onDraft?: (draft: Partial<SocraticJudgement>) => void,
-): Promise<SocraticJudgement> {
-  return judge({ kind: "judge", mode: "socratic", ...params }, onVerdict, onDraft);
-}
-
-export interface FeynmanJudgement {
-  /** One ruling per rubric row, by index — `quote` carries the learner's own
-   *  words on a gap, so the map can say them back. */
-  verdicts: Array<{
-    i: number;
-    verdict: "good" | "skipped" | "confused";
-    quote?: string;
-  }>;
-  response: string;
-  /** Terms they used but never unpacked. */
-  jargon: string[];
-}
-
-export function fetchJudgeFeynman(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    rubric: Array<{ subPoint: string; mustConvey: string[] }>;
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
-  onDraft?: (draft: Partial<FeynmanJudgement>) => void,
-): Promise<FeynmanJudgement> {
-  return judge({ kind: "judge", mode: "feynman", ...params }, onVerdict, onDraft);
-}
-
-export interface CrucibleJudgement {
-  outcome: "pass" | "partial";
-  transfer: Array<{ verdict: "good" | "red"; text: string }>;
-  gapLabel?: string;
-  gapReason?: string;
-  reExplain?: string;
-}
-
-export function fetchJudgeCrucible(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    problem: string;
-    hint: string;
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<CrucibleJudgement>) => void,
-): Promise<CrucibleJudgement> {
-  return judge({ kind: "judge", mode: "crucible", ...params }, onVerdict);
-}
-
-/** Grades a cold retrieval against its rubric. Shares the Feynman judgement
- *  shape — one ruling per row — because a rubric diff renders the same way
- *  wherever it comes from; the grading behind it is Recall's own. */
-export function fetchJudgeRecall(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    brief: string;
-    cued?: boolean;
-    rubric: Array<{ subPoint: string; mustConvey: string[] }>;
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
-): Promise<FeynmanJudgement> {
-  return judge({ kind: "judge", mode: "recall", ...params }, onVerdict);
-}
-
-/** Checks a run against the case it was carried out on. */
-export function fetchJudgePerform(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    task: string;
-    rubric: Array<{ subPoint: string; mustConvey: string[] }>;
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
-): Promise<FeynmanJudgement> {
-  return judge({ kind: "judge", mode: "perform", ...params }, onVerdict);
-}
-
-/** Maps a free-text answer onto a closed option list (the open-ended half of
- *  placement, the Consume hook, and the Feynman fix pass). */
-export interface ChoiceJudgement {
-  index: number;
-  response: string;
-}
-
-export function fetchJudgeChoice(
-  params: {
-    topic: string;
-    nodeLabel?: string;
-    question: string;
-    options: string[];
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<ChoiceJudgement>) => void,
-): Promise<ChoiceJudgement> {
-  return judge({ kind: "judge", mode: "choice", ...params }, onVerdict);
-}
 
 // ---- read-aloud -----------------------------------------------------------
 
@@ -916,3 +808,8 @@ export async function fetchSpeech(params: {
     });
   return { audio: data.audio, marks: data.marks ?? [] };
 }
+
+// Grading lives in `./apiJudge` now — every judge client, the streamed
+// transport they share, and the judgement shapes. Re-exported so every call
+// site that imports them from here keeps working.
+export * from "./apiJudge";

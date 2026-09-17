@@ -22,6 +22,10 @@ import {
   PHASE_DEFS,
   PHASE_ORDER,
   PHASE_PLAN,
+  DOMAINS,
+  DOMAIN_PLAN,
+  asDomain,
+  resolvePlan,
   removeNode,
   rolloverAdherence,
   discriminateFalsePositives,
@@ -872,8 +876,15 @@ describe("PHASE_PLAN invariants", () => {
   it("every phase in the catalogue has at least one home", () => {
     // A phase no plan contains is dead code — which is why a new phase enters
     // PHASE_ORDER only in the release that implements it.
-    const homed = new Set(NODE_KINDS.flatMap((k) => [...PHASE_PLAN[k]]));
-    for (const id of PHASE_ORDER) expect(homed.has(id)).toBe(true);
+    //
+    // A home is now EITHER table: three of the phases exist for a domain
+    // rather than for a kind, so `PHASE_PLAN` alone would call them dead. The
+    // invariant's meaning is unchanged — nothing unreachable — and
+    // `resolvePlan` over every pair is the honest way to ask it.
+    const homed = new Set(
+      NODE_KINDS.flatMap((k) => DOMAINS.flatMap((d) => [...resolvePlan(k, d)])),
+    );
+    for (const id of PHASE_ORDER) expect(homed.has(id), id).toBe(true);
   });
 
   it("names every phase it defines, and defines every phase it names", () => {
@@ -963,22 +974,38 @@ describe("PHASE_PLAN invariants", () => {
   });
 
   it("is the whole catalogue, with every phase built", () => {
-    // The end of the growth to twelve. `PHASE_ORDER` holds only built phases,
-    // so this assertion is also the statement that nothing is pending.
+    // `PHASE_ORDER` holds only built phases, so this assertion is also the
+    // statement that nothing is pending. Fifteen now: the twelve that were
+    // keyed on kind, plus the three the domain axis added — Provenance and
+    // Steelman for `interpretive`, Produce for `performative`.
     expect([...PHASE_ORDER]).toEqual([
       "consume",
       "discriminate",
+      "provenance",
       "socratic",
+      "steelman",
       "predict",
       "trace",
       "feynman",
       "perform",
       "drill",
+      "produce",
       "connect",
       "crucible",
       "recall",
       "retain",
     ]);
+  });
+
+  it("puts each new phase where its own domain needs it", () => {
+    // Order is the claim. Provenance comes before Socratic: you weigh the
+    // source before you reason from it. Steelman comes after: you cannot argue
+    // both sides of a thing you have not reasoned about. Produce comes after
+    // Drill, because fluency precedes live production.
+    const at = (p: string) => PHASE_ORDER.indexOf(p as never);
+    expect(at("provenance")).toBeLessThan(at("socratic"));
+    expect(at("socratic")).toBeLessThan(at("steelman"));
+    expect(at("drill")).toBeLessThan(at("produce"));
   });
 
   it("puts Trace ahead of Feynman on both kinds that run it", () => {
@@ -1457,5 +1484,102 @@ describe("real pace math", () => {
     expect(pace.daysLeft).toBe(10);
     expect(pace.neededPerDay).toBe(4); // ceil(35/10)
     expect(pace.onTrack).toBe(true);
+  });
+});
+
+// The domain axis is a second lever over the same catalogue, so it owes the
+// same three invariants — over every (kind, domain) pair, not just the four
+// kinds. A rule that quietly produced an out-of-order or truncated ladder would
+// be silent at runtime: the rail would just draw the wrong rungs.
+
+describe("DOMAIN_PLAN invariants", () => {
+  const pairs = NODE_KINDS.flatMap((kind) =>
+    DOMAINS.map((domain) => [kind, domain] as const),
+  );
+
+  it("every resolved plan is a subsequence of the canonical order", () => {
+    for (const [kind, domain] of pairs) {
+      const positions = resolvePlan(kind, domain).map((p) => PHASE_ORDER.indexOf(p));
+      expect(positions, `${kind}/${domain}`).not.toContain(-1);
+      expect([...positions], `${kind}/${domain}`).toEqual(
+        [...positions].sort((a, b) => a - b),
+      );
+    }
+  });
+
+  it("every resolved plan starts at Consume and ends at Retain", () => {
+    for (const [kind, domain] of pairs) {
+      const plan = resolvePlan(kind, domain);
+      expect(plan[0], `${kind}/${domain}`).toBe("consume");
+      expect(plan[plan.length - 1], `${kind}/${domain}`).toBe("retain");
+    }
+  });
+
+  it("no resolved plan repeats a phase", () => {
+    // The merge filters PHASE_ORDER, so a phase the kind and the domain both
+    // ask for must still appear once.
+    for (const [kind, domain] of pairs) {
+      const plan = resolvePlan(kind, domain);
+      expect(new Set(plan).size, `${kind}/${domain}`).toBe(plan.length);
+    }
+  });
+
+  it("every resolved plan still gates on more than Retain", () => {
+    for (const [kind, domain] of pairs)
+      expect(
+        planGates(resolvePlan(kind, domain)).length,
+        `${kind}/${domain}`,
+      ).toBeGreaterThan(1);
+  });
+
+  it("general changes nothing — the pre-domain ladder, byte for byte", () => {
+    // The guarantee that shipping this axis cannot re-cut an existing map.
+    for (const kind of NODE_KINDS)
+      expect([...resolvePlan(kind, "general")]).toEqual([...PHASE_PLAN[kind]]);
+  });
+
+  it("formal gives a concept node something to actually compute", () => {
+    // The structural bug this axis exists to fix: PHASE_PLAN.concept carries no
+    // execution rung, so a `concept` node could reach mastered without the
+    // learner ever running anything.
+    for (const phase of ["trace", "perform", "drill"] as const) {
+      expect(PHASE_PLAN.concept).not.toContain(phase);
+      expect(resolvePlan("concept", "formal")).toContain(phase);
+    }
+  });
+
+  it("performative takes the prose rungs off, whatever the kind says", () => {
+    // Explaining the preterite in your own words is not speaking Spanish.
+    for (const kind of NODE_KINDS) {
+      const plan = resolvePlan(kind, "performative");
+      for (const phase of ["socratic", "feynman", "crucible"] as const)
+        expect(plan, `${kind}/performative`).not.toContain(phase);
+      expect(plan).toContain("drill");
+    }
+  });
+
+  it("craft forecasts the failure before the cut, and never drills on a screen", () => {
+    const plan = resolvePlan("procedure", "craft");
+    expect(plan).toContain("predict");
+    expect(plan).toContain("perform");
+    expect(plan).not.toContain("drill");
+  });
+
+  it("every phase a domain rule names is one that exists", () => {
+    // Same reason PHASE_ORDER holds only built phases: a rule naming an
+    // unbuilt rung is a ladder with a missing screen.
+    for (const rule of Object.values(DOMAIN_PLAN)) {
+      const named = "plan" in rule ? rule.plan : rule.add;
+      for (const phase of named) expect(PHASE_ORDER).toContain(phase);
+    }
+  });
+
+  it("reads an unknown domain as general rather than refusing it", () => {
+    // Lenient in both directions, like asNodeKind: an older map, a newer
+    // server, or a model that invented a value must degrade, not break.
+    expect(asDomain("formal")).toBe("formal");
+    expect(asDomain("astrology")).toBe("general");
+    expect(asDomain(undefined)).toBe("general");
+    expect(asDomain(7)).toBe("general");
   });
 });

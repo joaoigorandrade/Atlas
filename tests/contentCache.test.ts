@@ -193,4 +193,44 @@ describe("the curriculum warm addresses the learner's own rows", () => {
     );
     expect(new Set([...keys, resolveJob(warmConsume).key]).size).toBe(4);
   });
+
+  // `domain` earns its place in the key the same way and dodges a bump the
+  // same way. This is the load-bearing claim of the whole axis: shipping it
+  // must not orphan a single row already in `content_cache`.
+  it("keys `general` to the same row a request from before domains wrote", () => {
+    expect(resolveJob({ ...warmConsume, domain: "general" }).key).toBe(
+      resolveJob(warmConsume).key,
+    );
+  });
+
+  it("keys an unrecognised domain as `general` rather than forking the cache", () => {
+    expect(
+      resolveJob({ ...warmConsume, domain: "astrology" } as typeof warmConsume).key,
+    ).toBe(resolveJob(warmConsume).key);
+  });
+
+  it("separates every domain that actually changes the prompt", () => {
+    const keys = (
+      [
+        "formal",
+        "executable",
+        "empirical",
+        "interpretive",
+        "performative",
+        "craft",
+      ] as const
+    ).map((domain) => resolveJob({ ...warmConsume, domain }).key);
+    expect(new Set([...keys, resolveJob(warmConsume).key]).size).toBe(7);
+  });
+
+  it("keys kind and domain independently — two axes, not one", () => {
+    // If either were folded into the other, one of these four would collide.
+    const keys = [
+      resolveJob(warmConsume).key,
+      resolveJob({ ...warmConsume, nodeKind: "procedure" }).key,
+      resolveJob({ ...warmConsume, domain: "formal" }).key,
+      resolveJob({ ...warmConsume, nodeKind: "procedure", domain: "formal" }).key,
+    ];
+    expect(new Set(keys).size).toBe(4);
+  });
 });
