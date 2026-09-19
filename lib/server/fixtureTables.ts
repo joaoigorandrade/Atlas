@@ -82,6 +82,7 @@ const CONFLICT_KEYS: Record<string, string[]> = {
 export function fixtureTable(name: string) {
   const filters: Filter[] = [];
   let sort: { column: string; ascending: boolean } | null = null;
+  let window: { from: number; to: number } | null = null;
   let pending: Result = { data: null, error: null };
   let mode: "select" | "delete" | "write" = "select";
 
@@ -118,7 +119,11 @@ export function fixtureTable(name: string) {
       return { data: [...doomed], error: null };
     }
     if (mode === "write") return pending;
-    return { data: matching(), error: null };
+    // `range` is honoured, not ignored: `readAll` pages until a short page
+    // arrives, so a fixture that always returns everything would loop forever
+    // on the first call and never exercise the paging the live path does.
+    const rows = matching();
+    return { data: window ? rows.slice(window.from, window.to + 1) : rows, error: null };
   };
 
   const api = {
@@ -140,6 +145,10 @@ export function fixtureTable(name: string) {
       return api;
     },
     limit: () => api,
+    range: (from: number, to: number) => {
+      window = { from, to };
+      return api;
+    },
     delete: () => {
       mode = "delete";
       return api;

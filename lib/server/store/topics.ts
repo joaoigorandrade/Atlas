@@ -19,7 +19,6 @@ import type {
   Domain,
   CalibSample,
   ConceptEdge,
-  ConceptGraph,
   ConceptNode,
   ConnectSession,
   ConsumeProgress,
@@ -34,7 +33,7 @@ import type {
   SocraticSession,
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
-import { fail } from "@/lib/server/store/shared";
+import { fail, readAll } from "@/lib/server/store/shared";
 import type { Language } from "@/lib/i18n";
 // The wire contract lives with the client that speaks it — one definition of
 // what a topic is, shared by the module that assembles it from rows and the
@@ -203,7 +202,7 @@ function assemble(
 /**
  * Everything the app needs to draw, in four queries.
  *
- * Deliberately not paginated and deliberately not per-topic: a learner's whole
+ * Deliberately not per-topic: a learner's whole
  * library is a few hundred rows, and one round trip that returns all of it is
  * what makes first paint instant and an offline mirror possible. The large
  * thing — generated content — is not here; it is fetched per node by
@@ -219,23 +218,36 @@ export async function loadLibrary(db: SupabaseClient): Promise<Topic[]> {
   if (rows.length === 0) return [];
 
   const ids = rows.map((t) => t.id);
+  // Paged: these three grow with the library, and a silent truncation here is
+  // a topic that renders as an empty map. See `readAll`.
   const [nodes, edges, cards] = await Promise.all([
-    db.from("nodes").select(NODE_COLUMNS).in("topic_id", ids),
-    db.from("edges").select("topic_id, from_id, to_id, dashed").in("topic_id", ids),
-    db.from("cards").select(CARD_COLUMNS).in("topic_id", ids),
+    readAll<NodeRow>(
+      (a, b) => db.from("nodes").select(NODE_COLUMNS).in("topic_id", ids).range(a, b),
+      "loadLibrary/nodes",
+    ),
+    readAll<EdgeRow>(
+      (a, b) =>
+        db
+          .from("edges")
+          .select("topic_id, from_id, to_id, dashed")
+          .in("topic_id", ids)
+          .range(a, b),
+      "loadLibrary/edges",
+    ),
+    readAll<CardRow>(
+      (a, b) => db.from("cards").select(CARD_COLUMNS).in("topic_id", ids).range(a, b),
+      "loadLibrary/cards",
+    ),
   ]);
-  if (nodes.error) fail("loadLibrary/nodes", nodes.error);
-  if (edges.error) fail("loadLibrary/edges", edges.error);
-  if (cards.error) fail("loadLibrary/cards", cards.error);
 
-  const by = <T extends { topic_id: string }>(list: T[] | null) => {
+  const by = <T extends { topic_id: string }>(list: T[]) => {
     const map = new Map<string, T[]>(ids.map((id) => [id, []]));
-    for (const row of list ?? []) map.get(row.topic_id)?.push(row);
+    for (const row of list) map.get(row.topic_id)?.push(row);
     return map;
   };
-  const nodesBy = by(nodes.data as NodeRow[]);
-  const edgesBy = by(edges.data as EdgeRow[]);
-  const cardsBy = by(cards.data as CardRow[]);
+  const nodesBy = by(nodes);
+  const edgesBy = by(edges);
+  const cardsBy = by(cards);
   return rows.map((t) =>
     assemble(t, nodesBy.get(t.id)!, edgesBy.get(t.id)!, cardsBy.get(t.id)!),
   );
@@ -312,51 +324,13 @@ export async function createTopic(
     .single();
   if (error) fail("createTopic", error);
   const row = data as TopicRow;
-  if (topic.graph) await putGraph(db, userId, row.id, topic.graph);
+  // No `graph` branch: `putGraph` is gone. Neither client ever sent one — the
+  // map lands as node deltas — and the rows it wrote named only the columns
+  // that existed when it was written, so `kind`, `domain` and `phase_plan` all
+  // fell to their defaults and every node arrived as a plain `concept` on an
+  // empty ladder until a delta corrected it. A wire field no caller sets and
+  // no path needs is one more way to write a wrong row.
   return { ...(await loadTopic(db, row.id))!, created: !existing };
-}
-
-/** Replace a topic's map. Used by onboarding and by a re-plan that restructures. */
-export async function putGraph(
-  db: SupabaseClient,
-  userId: string,
-  topicId: string,
-  graph: ConceptGraph,
-): Promise<void> {
-  const nodes = graph.nodes.map((n) => ({
-    topic_id: topicId,
-    id: n.id,
-    user_id: userId,
-    label: n.label,
-    summary: n.summary ?? null,
-    g: n.g,
-    week: n.week,
-    x: n.x,
-    y: n.y,
-    is_gap: n.gap === true,
-    state: n.state,
-  }));
-  const edges = graph.edges.map(([from, to, dashed]) => ({
-    topic_id: topicId,
-    from_id: from,
-    to_id: to,
-    user_id: userId,
-    dashed: dashed === true,
-  }));
-  if (nodes.length) {
-    // `ignoreDuplicates` so laying a re-planned map over an existing one adds
-    // the new concepts without resetting the mastery of the ones that survived.
-    const { error } = await db
-      .from("nodes")
-      .upsert(nodes, { onConflict: "topic_id,id", ignoreDuplicates: true });
-    if (error) fail("putGraph/nodes", error);
-  }
-  if (edges.length) {
-    const { error } = await db
-      .from("edges")
-      .upsert(edges, { onConflict: "topic_id,from_id,to_id", ignoreDuplicates: true });
-    if (error) fail("putGraph/edges", error);
-  }
 }
 
 export async function patchTopic(

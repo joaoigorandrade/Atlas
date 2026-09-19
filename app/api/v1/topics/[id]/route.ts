@@ -10,7 +10,13 @@
 import { NextResponse } from "next/server";
 import { logError, logEvent } from "@/lib/log";
 import { apiError, apiErrorFrom, withRequestId } from "@/lib/server/apiError";
-import { deleteTopic, loadTopic, patchTopic, type TopicPatch } from "@/lib/server/store";
+import {
+  deleteTopic,
+  loadTopic,
+  ownsTopic,
+  patchTopic,
+  type TopicPatch,
+} from "@/lib/server/store";
 import { caller, isResponse, jsonBody } from "@/lib/server/v1";
 
 type Params = { params: Promise<{ id: string }> };
@@ -36,6 +42,12 @@ export async function PATCH(request: Request, { params }: Params) {
   const patch = await jsonBody<TopicPatch>(request);
   if (!patch) return apiError("invalid", { requestId: who.requestId, reason: "body" });
   try {
+    // `patchTopic` is an UPDATE under RLS: a topic that is gone, or was never
+    // this learner's, matches zero rows and PostgREST calls that a success. The
+    // client then believes its calibration samples and misconceptions landed
+    // and drops them. Every sibling route already guards this way.
+    if (!(await ownsTopic(who.db, id)))
+      return apiError("notfound", { requestId: who.requestId });
     await patchTopic(who.db, id, patch);
     return withRequestId(NextResponse.json({ ok: true }), who.requestId);
   } catch (err) {
@@ -49,6 +61,8 @@ export async function DELETE(_request: Request, { params }: Params) {
   if (isResponse(who)) return who;
   const { id } = await params;
   try {
+    if (!(await ownsTopic(who.db, id)))
+      return apiError("notfound", { requestId: who.requestId });
     await deleteTopic(who.db, id);
     logEvent("topic_deleted", { user: who.userId, topic: id, req: who.requestId });
     return withRequestId(NextResponse.json({ ok: true }), who.requestId);

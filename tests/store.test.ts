@@ -48,8 +48,21 @@ const card = (id: string, nodeId: string): StoredCard =>
     fsrs: { due: "2026-01-01T00:00:00.000Z" },
   }) as unknown as StoredCard;
 
-const makeTopic = () =>
-  createTopic(db(), FIXTURE_USER_ID, { subject: "Linear Algebra", graph });
+// Built the way the app builds one: a bare topic, then the map as node deltas.
+// `createTopic` used to take a whole `graph`, but neither client ever sent one.
+const makeTopic = async (subject = "Linear Algebra") => {
+  const topic = await createTopic(db(), FIXTURE_USER_ID, { subject });
+  await applyNodeDeltas(
+    db(),
+    FIXTURE_USER_ID,
+    topic.id,
+    graph.nodes.map((n) => ({
+      ...n,
+      ...(n.id === "b" ? { prereqs: ["a"] } : null),
+    })),
+  );
+  return topic;
+};
 
 beforeEach(resetTables);
 
@@ -192,10 +205,7 @@ describe("deleting a topic", () => {
 
   it("does not take another topic with it", async () => {
     const first = await makeTopic();
-    const second = await createTopic(db(), FIXTURE_USER_ID, {
-      subject: "Kalman Filters",
-      graph,
-    });
+    const second = await makeTopic("Kalman Filters");
     await deleteTopic(db(), first.id);
     const library = await loadLibrary(db());
     expect(library.map((t) => t.subject)).toEqual(["Kalman Filters"]);

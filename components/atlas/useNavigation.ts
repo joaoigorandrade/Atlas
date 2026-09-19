@@ -115,9 +115,15 @@ export function useNavigation(deps: {
    * goal, interests, daily target — is a preference worth keeping.
    */
   const newMap = useCallback(() => {
+    // Before the topic is blanked, not after. Every queued warm builds its body
+    // from `form.topic`, so a queue still draining across this point posts jobs
+    // with an empty topic — `resolveJob` throws `topic is required` and the
+    // whole batch 400s, which is exactly what production logged in bursts.
+    // `excludeTopic` below has always cleared first; this is the same rule.
+    warm.clear();
     setForm((prev) => ({ ...prev, topic: "" }));
     setScreen("welcome");
-  }, [setScreen, setForm]);
+  }, [setScreen, setForm, warm]);
 
   /**
    * "Exclude this topic" on a dashboard map card (confirmed there first): the

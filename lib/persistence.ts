@@ -152,7 +152,6 @@ export interface ProfilePatch {
 
 export interface NewTopic extends TopicPatch {
   subject: string;
-  graph?: ConceptGraph;
 }
 
 /**

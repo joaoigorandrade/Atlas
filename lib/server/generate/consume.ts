@@ -108,9 +108,19 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
         d: str(term.d, `chunks[${i}].terms[${j}].d`),
       };
     }),
-    body: arr(c.body, `chunks[${i}].body`, 2, 5).map((p, j) =>
-      str(p, `chunks[${i}].body[${j}]`),
-    ),
+    // Empty paragraphs are dropped before the bound, not rejected by it. A
+    // trailing "" carries nothing, and `str` throwing on it cost the whole
+    // section — the most expensive unit this generator produces — over a
+    // blank the learner would never have seen. The 2-5 bound then applies to
+    // real paragraphs, so a section that is genuinely too thin still fails.
+    body: arr(
+      Array.isArray(c.body)
+        ? c.body.filter((p) => typeof p !== "string" || p.trim())
+        : c.body,
+      `chunks[${i}].body`,
+      2,
+      5,
+    ).map((p, j) => str(p, `chunks[${i}].body[${j}]`)),
     example: {
       title: str(ex.title, `chunks[${i}].example.title`),
       steps: arr(ex.steps, `chunks[${i}].example.steps`, 2, 6).map((s, j) =>

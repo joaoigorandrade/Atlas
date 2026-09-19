@@ -26,12 +26,12 @@
     "components/session/SocraticView.tsx": 555,
     "lib/api.ts": 787,
     "lib/curriculum/socratic.ts": 473,
-    "lib/persistence.ts": 444,
+    "lib/persistence.ts": 443,
     "lib/server/fixtures.ts": 443,
     "lib/server/generate/judge.ts": 479,
     "lib/server/generate/map.ts": 514,
     "lib/server/job.ts": 817,
-    "lib/server/openrouter.ts": 545,
+    "lib/server/openrouter.ts": 540,
     "lib/speech.ts": 779
   }
 }

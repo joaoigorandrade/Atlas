@@ -43,6 +43,7 @@ const REMINDER_STRINGS = {
 
 async function sendReminder(
   email: string,
+  userId: string,
   adherence: AdherenceState,
   maySend: boolean,
   lang: Language = "en",
@@ -52,7 +53,10 @@ async function sendReminder(
   const line = streak > 0 ? t.streak(streak) : t.start;
   const key = process.env.RESEND_API_KEY;
   if (!key || !maySend) {
-    logEvent("reminder_noop", { email, line, maySend });
+    // `user`, never `email`: this line is written once per armed learner on
+    // every run, and a log drain is not a place to keep addresses. The uuid
+    // identifies the row for anyone debugging without publishing the person.
+    logEvent("reminder_noop", { user: userId, line, maySend });
     return "noop";
   }
   try {
@@ -73,13 +77,13 @@ async function sendReminder(
     // exactly the bug this branch exists to close.
     if (!res.ok) {
       logError("reminder_send_failed", new Error(`resend ${res.status}`), {
-        email,
+        user: userId,
       });
       return "failed";
     }
     return "sent";
   } catch (err) {
-    logError("reminder_send_failed", err, { email });
+    logError("reminder_send_failed", err, { user: userId });
     return "failed";
   }
 }
@@ -88,13 +92,15 @@ export async function GET(request: Request) {
   const requestId = newRequestId();
   const secret = process.env.CRON_SECRET;
   const authed = !!secret && request.headers.get("authorization") === `Bearer ${secret}`;
-  if (secret && !authed) return apiError("auth", { requestId });
-
-  // Fail-safe: never send real email on an unauthenticated hit. Without
-  // CRON_SECRET the endpoint is open (Vercel Hobby cron can't send the header
-  // reliably), so an unauthed run is allowed to compute but is forced to no-op
-  // its sends — set CRON_SECRET before RESEND_API_KEY to enable real delivery.
-  const maySend = authed;
+  // Unconditional. It used to be `if (secret && !authed)`, which is inert when
+  // CRON_SECRET is unset — and unset is what a fresh deploy has, so the route
+  // was open in production: an anonymous GET drove a scan of every armed
+  // learner, one Auth Admin round trip each, and the cache prune. Sends were
+  // fail-safed off, so nothing was delivered wrongly, but the work was free to
+  // anyone. Vercel injects this header on every plan once the variable is set,
+  // so a missing secret is a misconfiguration to shout about, not to allow.
+  if (!authed) return apiError("auth", { requestId });
+  const maySend = true;
 
   const serviceKey = process.env.SUPABASE_SECRET_KEY;
   if (!serviceKey) {
@@ -126,33 +132,43 @@ export async function GET(request: Request) {
   let sent = 0;
   let failed = 0;
   let noop = 0;
-  for (const row of data ?? []) {
-    const adherence: AdherenceState = {
-      streak: row.streak,
-      best: row.best,
-      freezes: row.freezes,
-      lastDay: row.last_day,
-      metToday: row.met_today,
-      usualTime: row.usual_time,
-      reminderOn: row.reminder_on,
-      history: row.history ?? [],
-    };
-    const metToday = adherence.lastDay === today && adherence.metToday;
-    if (metToday) continue;
-
-    const { data: u } = await admin.auth.admin.getUserById(row.user_id);
-    const email = u?.user?.email;
-    if (!email) continue;
-    // The reminder speaks the language the learner's own map is written in.
-    const outcome = await sendReminder(
-      email,
-      adherence,
-      maySend,
-      (row.language as Language | null) ?? undefined,
+  const due = (data ?? []).filter((row) => !(row.last_day === today && row.met_today));
+  // In chunks rather than one learner at a time. Each learner costs an Auth
+  // Admin round trip plus a Resend POST, and awaited in sequence that runs past
+  // `maxDuration` somewhere in the low hundreds — the loop is then killed
+  // mid-flight, the tail gets no reminder, and `prune()` below never runs, all
+  // without a line saying so. Chunked, the same work fits.
+  for (let i = 0; i < due.length; i += 10) {
+    const outcomes = await Promise.all(
+      due.slice(i, i + 10).map(async (row): Promise<SendOutcome | null> => {
+        const adherence: AdherenceState = {
+          streak: row.streak,
+          best: row.best,
+          freezes: row.freezes,
+          lastDay: row.last_day,
+          metToday: row.met_today,
+          usualTime: row.usual_time,
+          reminderOn: row.reminder_on,
+          history: row.history ?? [],
+        };
+        const { data: u } = await admin.auth.admin.getUserById(row.user_id);
+        const email = u?.user?.email;
+        if (!email) return null;
+        // The reminder speaks the language the learner's own map is written in.
+        return sendReminder(
+          email,
+          row.user_id,
+          adherence,
+          maySend,
+          (row.language as Language | null) ?? undefined,
+        );
+      }),
     );
-    if (outcome === "sent") sent += 1;
-    else if (outcome === "failed") failed += 1;
-    else noop += 1;
+    for (const outcome of outcomes) {
+      if (outcome === "sent") sent += 1;
+      else if (outcome === "failed") failed += 1;
+      else if (outcome === "noop") noop += 1;
+    }
   }
   // The shared caches have never had a lifecycle: rows abandoned by a
   // CONTENT_CACHE_VERSION bump are simply never addressed again, and nothing

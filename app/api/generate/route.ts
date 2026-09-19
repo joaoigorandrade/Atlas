@@ -13,7 +13,7 @@
 // ceiling: generation is metered by the log, not gated by it, so the only
 // brakes on cost are the cache, the prompt caps and the model chosen.
 
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { graphFromMapNodes, type MapNode } from "@/lib/curriculum";
 import { logError, logEvent } from "@/lib/log";
 import {
@@ -124,8 +124,11 @@ export async function POST(request: Request) {
   // Accounting in one place — the background warm in startCurriculumWarm goes
   // through the same helper, so every model call this server makes lands in the
   // log whether a learner asked for it or the warm did.
+  // Behind the response. Its failure was already non-fatal, so awaiting it
+  // bought nothing but a round trip in front of every cache miss — and the row
+  // still lands whatever the generation does, which is what metering wants.
   const jobId = crypto.randomUUID();
-  await logGenerationCalls(supabase, job, { jobId, requestId });
+  after(() => logGenerationCalls(supabase, job, { jobId, requestId }));
 
   logEvent("generate_request", {
     user: userId,
@@ -159,9 +162,12 @@ export async function POST(request: Request) {
 
   try {
     const payload = await job.run();
-    // Write-through, not awaited: the learner gets their content immediately
-    // and everyone after them gets it from Postgres.
-    if (job.key) void writeContent(job.key, job.kind, payload);
+    // Write-through, off the response path but not floating. `void` left the
+    // promise with nothing keeping it alive: the platform is free to freeze the
+    // instance the moment this handler returns, and the write that never lands
+    // is a generation the next learner pays for again. `after()` is the same
+    // mechanism `recordContent` already uses one line down.
+    if (job.key) after(() => writeContent(job.key!, job.kind, payload));
     recordContent(supabase, body, job, userId, payload);
     onPayload(payload);
     return withRequestId(

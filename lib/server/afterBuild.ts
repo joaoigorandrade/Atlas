@@ -81,6 +81,23 @@ export const RECORDED_KINDS: ReadonlySet<string> = new Set(
  * content must not be made to wait on the bookkeeping that remembers it, and a
  * failure here costs a re-generation later, not the content in front of them.
  */
+/** `ownsTopic`, asked once per (request client, topic).
+ *
+ *  `/api/content` calls `recordContent` per cache hit — up to `MAX_ITEMS` of
+ *  them in one request — and each call used to schedule its own identical
+ *  ownership SELECT for the same topic: 40 round trips where one answers all of
+ *  them. The frontier warm below did the same thing once per node. Keyed on the
+ *  Supabase client, which is built per request, so the entry is collected with
+ *  it and no answer outlives the session that asked. */
+const ownership = new WeakMap<object, Map<string, Promise<boolean>>>();
+function ownsTopicOnce(db: SupabaseLike, topicId: string): Promise<boolean> {
+  let perTopic = ownership.get(db as object);
+  if (!perTopic) ownership.set(db as object, (perTopic = new Map()));
+  const asked = perTopic.get(topicId) ?? ownsTopic(db as never, topicId);
+  perTopic.set(topicId, asked);
+  return asked;
+}
+
 export function recordContent(
   supabase: SupabaseLike,
   body: GenerateBody,
@@ -100,7 +117,7 @@ export function recordContent(
       // RLS checks `user_id`, which this write supplies — so the topic itself
       // has to be checked, or a forged topicId would file a learner's content
       // under someone else's map.
-      if (!(await ownsTopic(supabase as never, topicId))) return;
+      if (!(await ownsTopicOnce(supabase, topicId))) return;
       await putContent(
         supabase as never,
         userId,

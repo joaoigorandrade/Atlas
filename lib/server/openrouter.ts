@@ -8,6 +8,7 @@
 //   OPENROUTER_FALLBACK_MODEL — comma-separated chain tried after retries exhaust (#11)
 //   OPENROUTER_BASE_URL       — override for tests/self-hosted gateways
 
+import { logError, logWarning } from "@/lib/log";
 import * as json from "@/lib/server/streamingJson";
 
 /** Cheap default that reliably produces the structured JSON this app needs.
@@ -89,6 +90,26 @@ interface ChatResult {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
+/** The provider's own error body, bounded — the same failure on both paths.
+ *  Returned rather than thrown so the `throw` stays at the call site, where it
+ *  is what narrows `res.body` for the reader below. */
+async function providerError(res: Response): Promise<OpenRouterError> {
+  const body = await res.text().catch(() => "");
+  return new OpenRouterError(
+    `OpenRouter ${res.status}: ${body.slice(0, 600)}`,
+    res.status,
+  );
+}
+
+/** Auth plus OpenRouter's optional attribution headers. Both call paths send
+ *  exactly these, so they are written once. */
+const authHeaders = (key: string) => ({
+  Authorization: `Bearer ${key}`,
+  "Content-Type": "application/json",
+  "HTTP-Referer": "https://atlas.local",
+  "X-Title": "Atlas Learning Platform",
+});
+
 /** One POST to one model. Throws OpenRouterError with the raw body attached. */
 async function chatOnce(
   model: string,
@@ -98,13 +119,7 @@ async function chatOnce(
 ): Promise<ChatResult> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      // Optional OpenRouter attribution headers.
-      "HTTP-Referer": "https://atlas.local",
-      "X-Title": "Atlas Learning Platform",
-    },
+    headers: authHeaders(key),
     signal: AbortSignal.timeout(REQUEST_MS),
     body: JSON.stringify({
       model,
@@ -115,13 +130,7 @@ async function chatOnce(
       response_format: { type: "json_object" },
     }),
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new OpenRouterError(
-      `OpenRouter ${res.status}: ${body.slice(0, 600)}`,
-      res.status,
-    );
-  }
+  if (!res.ok) throw await providerError(res);
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
     usage?: { prompt_tokens?: number; completion_tokens?: number };
@@ -170,32 +179,23 @@ async function chat(messages: ChatMessage[], role: ModelRole): Promise<ChatResul
             status,
           );
         last = err;
-        console.error(
-          JSON.stringify({
-            evt: "openrouter_retry",
-            model,
-            attempt,
-            status,
-            error: String(err instanceof Error ? err.message : err).slice(0, 600),
-          }),
-        );
+        logWarning("openrouter_retry", err, { model, attempt, status });
         // A timeout costs a full REQUEST_MS to learn and a retry on the same
         // model almost never fixes it — a provider that sent nothing in 90s
         // sends nothing in the next 90 either. Three in a row spent the whole
         // route budget without ever reaching the second model in the chain,
         // which is what the chain is for: move on rather than repeat.
-        if (isTimeout(err)) break;
+        // A 4xx that isn't rate limiting is the *request* being wrong — a bad
+        // model slug, a `response_format` this model won't take. Sending the
+        // identical bytes again cannot fix it; move to the next model instead
+        // of spending 5s of backoff on three guaranteed failures.
+        const dead = status >= 400 && status < 500 && status !== 429 && status !== 408;
+        if (isTimeout(err) || dead) break;
         if (attempt < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[attempt]);
       }
     }
   }
-  console.error(
-    JSON.stringify({
-      evt: "openrouter_exhausted",
-      role,
-      error: String(last instanceof Error ? last.message : last).slice(0, 600),
-    }),
-  );
+  logError("openrouter_exhausted", last, { role });
   throw new OpenRouterError(BUSY_MESSAGE, 502);
 }
 
@@ -312,12 +312,7 @@ async function* chatStreamOnce(
   try {
     const res = await fetch(`${BASE_URL}/chat/completions`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://atlas.local",
-        "X-Title": "Atlas Learning Platform",
-      },
+      headers: authHeaders(key),
       signal: abort.signal,
       body: JSON.stringify({
         model,
@@ -331,13 +326,7 @@ async function* chatStreamOnce(
         reasoning: { enabled: false },
       }),
     }).catch(failed);
-    if (!res.ok || !res.body) {
-      const body = await res.text().catch(() => "");
-      throw new OpenRouterError(
-        `OpenRouter ${res.status}: ${body.slice(0, 600)}`,
-        res.status,
-      );
-    }
+    if (!res.ok || !res.body) throw await providerError(res);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
@@ -378,6 +367,12 @@ async function* chatStreamOnce(
   } finally {
     disarm();
     clearTimeout(totalTimer);
+    // Abandoning the generator — `judgeStream`'s early return on a complete
+    // object, `map.ts`'s break on the node bound, a learner closing the tab —
+    // must kill the upstream call too. Without this the fetch keeps streaming
+    // a completion nobody reads, OpenRouter bills all of it, and the two
+    // deadlines that would have stopped it have just been cleared.
+    abort.abort();
   }
 }
 

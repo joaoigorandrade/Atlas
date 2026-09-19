@@ -1,7 +1,7 @@
 // One generated payload, addressed the way a screen asks for it.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fail } from "@/lib/server/store/shared";
+import { fail, readAll } from "@/lib/server/store/shared";
 
 // ----------------------------------------------------------- node content --
 
@@ -72,22 +72,32 @@ export async function readContentRows(
   topicId: string,
   addresses: ContentAddress[],
 ): Promise<ContentRow[]> {
-  let query = db
-    .from("node_content")
-    .select("node_id, kind, variant, cache_key, payload")
-    .eq("topic_id", topicId);
   // An empty address list means "everything this topic has" — what an offline
   // mirror asks for once. Otherwise narrow to the nodes and kinds requested,
   // which is what a screen about to open asks for.
-  if (addresses.length) {
-    const nodes = [...new Set(addresses.map((a) => a.nodeId))];
-    const kinds = [...new Set(addresses.map((a) => a.kind))];
-    query = query.in("node_id", nodes).in("kind", kinds);
-  }
-  const { data, error } = await query;
-  if (error) fail("readContentRows", error);
+  //
+  // Paged either way: `payload` is a whole generated pass per row, and a
+  // 200-node topic across twelve kinds is well past PostgREST's row cap — which
+  // truncates silently, so the mirror would believe it had everything.
+  const nodes = [...new Set(addresses.map((a) => a.nodeId))];
+  const kinds = [...new Set(addresses.map((a) => a.kind))];
+  const data = await readAll<{
+    node_id: string;
+    kind: string;
+    variant: string;
+    cache_key: string | null;
+    payload: unknown;
+  }>((from, to) => {
+    const query = db
+      .from("node_content")
+      .select("node_id, kind, variant, cache_key, payload")
+      .eq("topic_id", topicId);
+    return (
+      addresses.length ? query.in("node_id", nodes).in("kind", kinds) : query
+    ).range(from, to);
+  }, "readContentRows");
   return (
-    (data ?? []) as Array<{
+    data as Array<{
       node_id: string;
       kind: string;
       variant: string;

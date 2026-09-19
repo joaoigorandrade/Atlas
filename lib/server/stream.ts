@@ -43,7 +43,7 @@ export const ERROR_PART = "__error";
 
 export interface StreamErrorFrame {
   p: typeof ERROR_PART;
-  v: { code: string; message: string; requestId?: string };
+  v: { code: string; reason?: string; requestId?: string };
 }
 
 /**
@@ -247,11 +247,17 @@ export async function ndjsonStream(
         // is already gone the enqueue throws, and there is nobody left to tell.
         try {
           const atlas = toAtlasError(err);
+          // `code` and `reason`, never `message`. `AtlasError.message` stays
+          // technical and is for logs only (`lib/errors.ts`), and on this path
+          // it can be the raw OpenRouter body — the streamed call has no
+          // `chat()` around it swapping in BUSY_MESSAGE. The client already
+          // picks its copy off `code`, which is the whole point of the
+          // envelope in `apiError.ts`.
           const frame: StreamErrorFrame = {
             p: ERROR_PART,
             v: {
               code: atlas.code,
-              message: atlas.message.slice(0, 300),
+              reason: atlas.reason,
               requestId: opts.requestId,
             },
           };

@@ -8,6 +8,29 @@ import { CARD_COLUMNS, type CardRow, toCard } from "@/lib/server/store/topics";
 
 // ------------------------------------------------------------------ cards --
 
+/**
+ * Just the deck. The review route used to call `loadTopic`, which fires four
+ * queries and rebuilds the whole graph — nodes, edges, positions, states and
+ * five progress maps — to read one field off the end of it. On the largest map
+ * in production that is ~187 node rows and ~278 edge rows fetched and
+ * object-built per deck open, then thrown away, on the phone's hot path.
+ *
+ * No `due <=` filter on purpose: the forecast is computed over the whole deck,
+ * so narrowing here would change what the learner is shown, not just what is
+ * read.
+ */
+export async function loadCards(
+  db: SupabaseClient,
+  topicId: string,
+): Promise<StoredCard[]> {
+  const { data, error } = await db
+    .from("cards")
+    .select(CARD_COLUMNS)
+    .eq("topic_id", topicId);
+  if (error) fail("loadCards", error);
+  return ((data ?? []) as CardRow[]).map(toCard);
+}
+
 const cardRow = (userId: string, topicId: string, card: StoredCard) => {
   const { id, nodeId, type, source, fsrs, ...content } = card;
   return {

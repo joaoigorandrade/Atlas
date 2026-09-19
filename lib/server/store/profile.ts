@@ -42,11 +42,19 @@ const toProfile = (row: ProfileRow | null): Profile => ({
 });
 
 export async function getProfile(db: SupabaseClient, userId: string): Promise<Profile> {
-  const { data, error } = await db.from("profiles").select(PROFILE_COLUMNS).maybeSingle();
+  // Filtered as well as RLS-scoped. RLS is the real gate and this module never
+  // sees a service-role client — but `void userId` made the parameter a lie,
+  // and one accidental service-role call site would have turned this into
+  // "return whichever profile comes back first". The predicate costs nothing
+  // (`profiles_pkey` is on `user_id`) and makes the signature honest.
+  const { data, error } = await db
+    .from("profiles")
+    .select(PROFILE_COLUMNS)
+    .eq("user_id", userId)
+    .maybeSingle();
   if (error) fail("getProfile", error);
   // A learner with no row yet is not an error — it is a learner who has never
   // finished a day. The defaults are the answer.
-  void userId;
   return toProfile(data as ProfileRow | null);
 }
 

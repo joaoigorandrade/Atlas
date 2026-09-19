@@ -29,13 +29,14 @@ export function extractCompleteObjects(buf: string): {
   // real payload a validator reads whole (`validateScopeOffer`), not a wrapper
   // around items.
   //
-  // ponytail: an item whose own FIRST field is an array would be mistaken for a
-  // wrapper. No streamed shape is written that way — every one of them opens on
-  // a scalar (`id`, `kicker`, `label`, `spare`, `subPoint`, `p`, `verdict`) — so
-  // the check is the head of the buffer and nothing more. If a shape ever leads
-  // with an array, gate this on the caller's "nothing emitted yet" instead: a
-  // wrapper can only ever arrive before the first object.
-  const opener = /^\s*(?:\[|\{\s*"(?!scopes")[^"]+"\s*:\s*\[)/.exec(buf);
+  // The trailing `(?=\{)` is what keeps an ITEM from being mistaken for a
+  // wrapper. A wrapper always opens an array of objects (`{"nodes": [{`); a
+  // field that merely happens to be the item's first key opens an array of
+  // something else (`{"mustConvey": ["x"]`) and must be left alone — stripping
+  // its head destroys the object and leaves a stray `}` that used to poison the
+  // rest of the stream. Costs at most one delta: a buffer cut off at `[` simply
+  // isn't unwrapped until the next chunk shows what follows.
+  const opener = /^\s*(?:\[|\{\s*"(?!scopes")[^"]+"\s*:\s*\[)\s*(?=\{)/.exec(buf);
   if (opener) buf = buf.slice(opener[0].length);
   const objects: string[] = [];
   let depth = 0;
@@ -62,6 +63,14 @@ export function extractCompleteObjects(buf: string): {
         objects.push(buf.slice(start, i + 1));
         lastEnd = i + 1;
         start = -1;
+      } else if (depth < 0) {
+        // The wrapper's OWN closing brace, arriving after we stepped inside it.
+        // Left unguarded it drives `depth` to -1 for good: every later `{`
+        // fails the `depth === 0` test, so no further object is ever opened,
+        // and `lastEnd` freezes so `rest` grows without bound. Walking past it
+        // is what the opener comment above already claims happens.
+        depth = 0;
+        lastEnd = i + 1;
       }
     }
   }

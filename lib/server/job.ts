@@ -477,7 +477,7 @@ function buildJob(body: GenerateBody): Job {
           topic,
           nodeId,
           nodeLabel,
-          interests,
+          // No `interests`: unread by the prompt, so it only forked rows per learner.
           language,
           ...boundary(body),
           ...nodeAxes(body),
@@ -777,7 +777,7 @@ function buildJob(body: GenerateBody): Job {
           question: s(body.question).slice(0, CAPS.freeText),
           positions,
           cases,
-          holds: s(body.holds),
+          holds: s(body.holds).slice(0, CAPS.nodeLabel),
           disconfirmer: answer,
           language,
         };

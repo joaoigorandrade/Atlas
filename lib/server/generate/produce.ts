@@ -62,7 +62,6 @@ export interface ProduceParams {
   topic: string;
   nodeId: string;
   nodeLabel: string;
-  interests: string;
   language?: Language;
   domain?: Domain;
   priorLabels?: string[];

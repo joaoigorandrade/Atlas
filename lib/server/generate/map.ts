@@ -39,6 +39,22 @@ export interface ScopeOffer {
   note: string;
 }
 
+/** A validated concept before layout — the same shape whether it arrived in one
+ *  payload or one streamed object at a time. */
+type RawConcept = {
+  id: string;
+  label: string;
+  summary?: string;
+  kind: NodeKind;
+  domain: Domain;
+};
+
+/** A node id as the map stores it — written at five sites before this existed. */
+const slug = (v: unknown, at: string) =>
+  str(v, at)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-");
+
 /** Column layout from topological depth — deterministic, draggable afterwards. */
 function layoutGraph(
   rawNodes: Array<{
@@ -133,23 +149,12 @@ export function validateScopeOffer(raw: unknown): ScopeOffer[] | null {
 export function validateGraphPart(
   raw: unknown,
   bounds: { min: number; max: number } = mapNodeBounds(),
-): {
-  nodes: Array<{
-    id: string;
-    label: string;
-    summary?: string;
-    kind: NodeKind;
-    domain: Domain;
-  }>;
-  edges: ConceptEdge[];
-} {
+): { nodes: RawConcept[]; edges: ConceptEdge[] } {
   const root = obj(raw, "payload");
   const seen = new Set<string>();
   const nodes = arr(root.nodes, "nodes", bounds.min, bounds.max).map((v, i) => {
     const n = obj(v, `nodes[${i}]`);
-    const id = str(n.id, `nodes[${i}].id`)
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-");
+    const id = slug(n.id, `nodes[${i}].id`);
     if (seen.has(id)) fail(`duplicate node id "${id}"`);
     seen.add(id);
     return {
@@ -168,14 +173,14 @@ export function validateGraphPart(
     };
   });
   const edges: ConceptEdge[] = [];
-  for (const [i, v] of arr(root.edges, "edges", nodes.length - 1, 80).entries()) {
+  // Bounded to match the check below, which is the real floor: it tolerates up
+  // to four roots, while `nodes.length - 1` demanded a spanning tree of the RAW
+  // list. 80 rejected any wide map with three prereqs a node (40 → 117 edges).
+  const floor = Math.max(1, nodes.length - 4);
+  for (const [i, v] of arr(root.edges, "edges", floor, 400).entries()) {
     const e = arr(v, `edges[${i}]`, 2, 3);
-    const from = str(e[0], `edges[${i}][0]`)
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-");
-    const to = str(e[1], `edges[${i}][1]`)
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-");
+    const from = slug(e[0], `edges[${i}][0]`);
+    const to = slug(e[1], `edges[${i}][1]`);
     if (!seen.has(from) || !seen.has(to) || from === to) continue; // drop, don't fail
     edges.push([from, to]);
   }
@@ -238,6 +243,10 @@ export function validateDiagnosticQuestion(
     for (const label of expected)
       if (!labels.has(label))
         fail(`correctOrder names "${label}", which is not one of the options`);
+    // Membership alone let `["A","A","B"]` through, which `checkOrder` compares
+    // element-wise — an unpassable probe that then spawns a gap off the answer.
+    if (new Set(expected).size !== expected.length)
+      fail("correctOrder must use each option exactly once");
   }
   if (type === "mcq") {
     if (
@@ -345,18 +354,9 @@ export function validateMapConcept(
   raw: unknown,
   index: number,
   seen: Set<string>,
-): {
-  id: string;
-  label: string;
-  summary?: string;
-  kind: NodeKind;
-  domain: Domain;
-  prereqs: string[];
-} {
+): RawConcept & { prereqs: string[] } {
   const c = obj(raw, `concept[${index}]`);
-  const id = str(c.id, `concept[${index}].id`)
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-");
+  const id = slug(c.id, `concept[${index}].id`);
   if (seen.has(id)) fail(`duplicate node id "${id}"`);
   const prereqs = Array.isArray(c.prereqs)
     ? c.prereqs

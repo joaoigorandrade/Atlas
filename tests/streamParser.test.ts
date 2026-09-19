@@ -42,6 +42,31 @@ describe("extractCompleteObjects", () => {
     expect(last.objects.map((o) => JSON.parse(o))).toEqual([{ id: "c" }]);
   });
 
+  // The wrapper's closing `]}` used to drive `depth` to -1 and stay there:
+  // every object written after it was silently lost for the rest of the stream,
+  // and `rest` grew without bound because `lastEnd` never advanced again.
+  it("keeps extracting after a wrapper closes and more objects follow", () => {
+    const { objects, rest } = extractCompleteObjects(
+      '{"nodes": [{"id":"a"},{"id":"b"}]}{"id":"c"}{"id":"d"}',
+    );
+    expect(objects.map((o) => JSON.parse(o))).toEqual([
+      { id: "a" },
+      { id: "b" },
+      { id: "c" },
+      { id: "d" },
+    ]);
+    expect(rest).toBe("");
+  });
+
+  // An item whose own first field is an array is not a wrapper. Stripping its
+  // head threw the object away and left a stray `}` behind it.
+  it("does not unwrap an item whose first field is an array", () => {
+    const { objects } = extractCompleteObjects('{"mustConvey":["x"],"subPoint":"y"}');
+    expect(objects.map((o) => JSON.parse(o))).toEqual([
+      { mustConvey: ["x"], subPoint: "y" },
+    ]);
+  });
+
   it("streams the items of a bare array as they close", () => {
     const { objects } = extractCompleteObjects('[{"id":"a"},{"id":"b"');
     expect(objects.map((o) => JSON.parse(o))).toEqual([{ id: "a" }]);

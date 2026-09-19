@@ -28,27 +28,34 @@ export async function applyNodeDeltas(
     topic_id: topicId,
     id: d.id,
     user_id: userId,
-    ...(d.label !== undefined ? { label: d.label } : null),
+    // `!= null` on every NOT NULL column, `!== undefined` on the nullable ones.
+    // The split is the whole point: a wire `null` on a NOT NULL column is a
+    // client saying nothing useful, and letting it fall through leaves the
+    // column default standing (`kind` → 'concept') instead of 500ing the batch
+    // — which is what `null value in column "kind"` was in production. On a
+    // nullable column `null` is the real signal for "clear it", so un-shaking a
+    // node and clearing a finished session must still go through.
+    ...(d.label != null ? { label: d.label } : null),
     ...(d.summary !== undefined ? { summary: d.summary } : null),
-    ...(d.g !== undefined ? { g: d.g } : null),
-    ...(d.week !== undefined ? { week: d.week } : null),
-    ...(d.x !== undefined ? { x: d.x } : null),
-    ...(d.y !== undefined ? { y: d.y } : null),
-    ...(d.isGap !== undefined ? { is_gap: d.isGap } : null),
-    ...(d.state !== undefined ? { state: d.state } : null),
+    ...(d.g != null ? { g: d.g } : null),
+    ...(d.week != null ? { week: d.week } : null),
+    ...(d.x != null ? { x: d.x } : null),
+    ...(d.y != null ? { y: d.y } : null),
+    ...(d.isGap != null ? { is_gap: d.isGap } : null),
+    ...(d.state != null ? { state: d.state } : null),
     ...(d.shakyReason !== undefined ? { shaky_reason: d.shakyReason } : null),
-    ...(d.reviewed !== undefined ? { reviewed: d.reviewed } : null),
-    ...(d.kind !== undefined ? { kind: d.kind } : null),
-    ...(d.domain !== undefined ? { domain: d.domain } : null),
-    ...(d.phasePlan !== undefined ? { phase_plan: d.phasePlan } : null),
-    ...(d.phasesDone !== undefined ? { phases_done: d.phasesDone } : null),
+    ...(d.reviewed != null ? { reviewed: d.reviewed } : null),
+    ...(d.kind != null ? { kind: d.kind } : null),
+    ...(d.domain != null ? { domain: d.domain } : null),
+    ...(d.phasePlan != null ? { phase_plan: d.phasePlan } : null),
+    ...(d.phasesDone != null ? { phases_done: d.phasesDone } : null),
     ...(d.consumeProgress !== undefined ? { consume_progress: d.consumeProgress } : null),
     ...(d.socraticProgress !== undefined
       ? { socratic_progress: d.socraticProgress }
       : null),
     ...(d.feynmanProgress !== undefined ? { feynman_progress: d.feynmanProgress } : null),
     ...(d.connectProgress !== undefined ? { connect_progress: d.connectProgress } : null),
-    ...(d.phaseProgress !== undefined ? { phase_progress: d.phaseProgress } : null),
+    ...(d.phaseProgress != null ? { phase_progress: d.phaseProgress } : null),
   }));
   // One upsert per column shape. PostgREST pads a batch out to the *union* of
   // its rows' keys, filling what a row doesn't name with NULL — so sending a

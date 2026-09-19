@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { logError } from "@/lib/log";
 import { apiError, apiErrorFrom, withRequestId } from "@/lib/server/apiError";
 import { retainContentFromStore } from "@/lib/fsrs";
-import { gradeCard, loadTopic, ownsTopic } from "@/lib/server/store";
+import { gradeCard, loadCards, ownsTopic } from "@/lib/server/store";
 import type { Language } from "@/lib/i18n";
 import type { ReviewGrade } from "@/lib/curriculum";
 import { caller, isResponse, jsonBody } from "@/lib/server/v1";
@@ -37,10 +37,12 @@ export async function GET(request: Request, { params }: Params) {
   );
   const lang = (url.searchParams.get("lang") as Language | null) ?? "en";
   try {
-    const topic = await loadTopic(who.db, id);
-    if (!topic) return apiError("notfound", { requestId: who.requestId });
+    // The deck, not the whole topic: this route reads `cards` and nothing else.
+    if (!(await ownsTopic(who.db, id)))
+      return apiError("notfound", { requestId: who.requestId });
+    const cards = await loadCards(who.db, id);
     return withRequestId(
-      NextResponse.json(retainContentFromStore(topic.cards, budgetMin, new Date(), lang)),
+      NextResponse.json(retainContentFromStore(cards, budgetMin, new Date(), lang)),
       who.requestId,
     );
   } catch (err) {

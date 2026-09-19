@@ -234,7 +234,12 @@ const KIND_NOTES: Record<
 > = {
   fact: {
     consume:
-      "THIS CONCEPT IS A FACT — an arbitrary association with nothing to reason from. Write 1-2 short sections and a hook that makes it stick. No worked example and NO figure: there is no structure to draw. Explanation is wasted here; the learner's job is to remember it.",
+      // Not "no worked example": `validateConsumeSection` requires one on every
+      // section, so a model that obeyed had every section dropped, the stream
+      // emptied, the single-shot fallback failed twice, and the learner got a
+      // 502 on four billed calls. The figure half is safe — that one really is
+      // optional. Keep the example small rather than asking for it to be gone.
+      "THIS CONCEPT IS A FACT — an arbitrary association with nothing to reason from. Write 1-2 short sections and a hook that makes it stick. NO figure: there is no structure to draw. Keep the worked example to the shortest thing that shows the fact in use. Explanation is wasted here; the learner's job is to remember it.",
   },
   procedure: {
     consume:
