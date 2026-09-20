@@ -16,9 +16,11 @@
 // reopens at the floor, so help spent on a hard step is not carried into the
 // next one as a permanent demotion.
 import {
+  bank,
   clampHelp,
   DESCENT,
   resolutionFor,
+  restored,
   type HelpLevel,
   type ReplyQuality,
   type StepResolution,
@@ -121,15 +123,6 @@ export interface SocraticSession {
    *  The view shows that it's coming; `hydrate` clears it when it lands. */
   awaitingNext: boolean;
   done: boolean;
-}
-
-/** Merge the judge's coverage reading into the ledger. Union rather than
- *  replace: a ledger that ticks backwards reads as lost ground even when
- *  nothing was. */
-function bank(covered: number[], add?: number[]): number[] {
-  if (!add?.length) return covered;
-  const next = [...new Set([...covered, ...add])];
-  return next.length === covered.length ? covered : next.sort((a, b) => a - b);
 }
 
 /** Push a step's opening probe onto the log and reset the per-step gates.
@@ -266,11 +259,12 @@ function rewriteOpen(
  * reply is surfaced and costs a rung, never advanced past in silence.
  */
 export function socraticReducer(
-  session: SocraticSession,
+  saved: SocraticSession,
   action: SocraticAction,
   steps: SocraticStep[],
   lang: Language = "en",
 ): SocraticSession {
+  const session = restored(saved, steps);
   // Placed before the `done` guard on purpose: the verdict that finished the
   // session is exactly the one whose wording is still arriving, and the turn
   // that failed may well be the one that would have finished it.

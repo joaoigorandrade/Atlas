@@ -423,6 +423,40 @@ describe("the Socratic ladder", () => {
   });
 });
 
+// A pass saved before the ladder shipped has no `floor`, `covered` or `bar`.
+// Persistence is a JSON boundary, so the types say otherwise and nothing fails
+// until the view reads `session.bar.length` — which is exactly how this
+// reached production: the Socratic screen crashed on a resumed pass.
+
+describe("a Socratic pass saved before the ladder", () => {
+  const legacy = () =>
+    ({
+      nodeId: "n",
+      step: 0,
+      help: 1,
+      log: [{ role: "ai", text: "probe 0" }],
+      tells: 0,
+      resolutions: [],
+      total: 2,
+      awaitingNext: false,
+      done: false,
+    }) as unknown as SocraticSession;
+
+  it("comes back with a floor, a ledger and this probe's bar", () => {
+    const withBar = steps.map((x) => ({ ...x, sufficient: ["a", "b"] }));
+    const s = socraticReducer(legacy(), { type: "hydrate" }, withBar);
+    expect(s.floor).toBe(0);
+    expect(s.covered).toEqual([]);
+    expect(s.bar).toEqual(["a", "b"]);
+  });
+
+  it("is answerable rather than throwing, and keeps its transcript", () => {
+    const s = answered(legacy(), "correct", steps);
+    expect(s.resolutions).toEqual(["hint"]); // saved mid-ladder at rung 1
+    expect(s.log[0].text).toBe("probe 0");
+  });
+});
+
 // ---- socratic outcome (#C) — "done" is not automatically "understood" ------
 
 describe("socraticOutcome", () => {

@@ -9,6 +9,7 @@
 // step took — which is why the session no longer carries a separate
 // "was this step assisted" flag for the same fact.
 import { STATE_COLOR } from "./types";
+import type { SocraticSession, SocraticStep } from "./socratic";
 import { Language } from "@/lib/i18n";
 
 /** The ladder, least help → most. A step's live rung, and the floor the
@@ -65,3 +66,31 @@ export const DESCENT: Record<ReplyQuality, number> = {
   wrong: 1,
   lost: 2,
 };
+
+/** Merge the judge's coverage reading into the ledger. Union rather than
+ *  replace: a ledger that ticks backwards reads as lost ground even when
+ *  nothing was. */
+export function bank(covered: number[], add?: number[]): number[] {
+  if (!add?.length) return covered;
+  const next = [...new Set([...covered, ...add])];
+  return next.length === covered.length ? covered : next.sort((a, b) => a - b);
+}
+
+/** A pass saved before the ladder existed carries no floor, ledger or bar.
+ *  Normalised here rather than at each reader because persistence is a JSON
+ *  boundary: the type says the fields are there and the stored row simply has
+ *  none, so nothing upstream fails — the view reads `session.bar.length` and
+ *  the screen dies. Every restored pass reaches the view through this reducer,
+ *  which makes this the one place that has to know. */
+export function restored(
+  session: SocraticSession,
+  steps: SocraticStep[],
+): SocraticSession {
+  if (session.bar && session.covered && session.floor !== undefined) return session;
+  return {
+    ...session,
+    floor: session.floor ?? 0,
+    covered: session.covered ?? [],
+    bar: session.bar ?? steps[session.step]?.sufficient ?? [],
+  };
+}

@@ -20,13 +20,13 @@ const GREEN = "#2F6B4F";
  * would read as a bug rather than as an older pass.
  */
 export function Ledger({
-  sufficient,
-  covered,
+  sufficient = [],
+  covered = [],
   banked,
   stillOpen,
 }: {
-  sufficient: readonly string[];
-  covered: number[];
+  sufficient?: readonly string[];
+  covered?: number[];
   banked: string;
   stillOpen: string;
 }) {
