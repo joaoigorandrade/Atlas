@@ -65,7 +65,7 @@ final class SocraticViewModel {
     /// Which attempt the learner is on *for this probe*, which is what the
     /// judge's prompt says the number means.
     private var attempts = 0
-    /// "Só me conte" uses. Not read here — the outcome reads `resolutions` —
+    /// "Mostre-me esta" uses. Not read here — the outcome reads `resolutions` —
     /// but part of the saved pass the browser draws.
     private var tells = 0
 
@@ -307,7 +307,8 @@ final class SocraticViewModel {
         save()
     }
 
-    /// "Só me conte" — the probe is taught outright and closes as told. The
+    /// "Mostre-me esta" — the bottom rung reached by hand rather than by
+    /// stalling into it. The
     /// same `tell` the judge grades against, finally on screen.
     func tell() {
         guard !judging, steps[safe: step] != nil else { return }

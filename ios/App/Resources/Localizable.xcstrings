@@ -3566,6 +3566,16 @@
         }
       }
     },
+    "Mostre-me esta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show me this one"
+          }
+        }
+      }
+    },
     "Mostre-me esta." : {
       "localizations" : {
         "en" : {
@@ -5420,17 +5430,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stood up"
-          }
-        }
-      }
-    },
-    "Só me conte" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Just tell me"
           }
         }
       }

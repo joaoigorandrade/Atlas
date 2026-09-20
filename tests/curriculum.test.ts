@@ -452,8 +452,17 @@ describe("a Socratic pass saved before the ladder", () => {
 
   it("is answerable rather than throwing, and keeps its transcript", () => {
     const s = answered(legacy(), "correct", steps);
-    expect(s.resolutions).toEqual(["hint"]); // saved mid-ladder at rung 1
     expect(s.log[0].text).toBe("probe 0");
+  });
+
+  it("reopens at the floor rather than reading the old dial as a rung", () => {
+    // Saved at the old model's maximum. Read as a rung that would be the
+    // bottom one, which is terminal — the next answer would close as `told`
+    // on a probe nobody has been helped with.
+    const maxed = { ...legacy(), help: 3 } as SocraticSession;
+    const s = socraticReducer(maxed, { type: "hydrate" }, steps);
+    expect(s.help).toBe(0);
+    expect(answered(maxed, "correct", steps).resolutions).toEqual(["unaided"]);
   });
 });
 

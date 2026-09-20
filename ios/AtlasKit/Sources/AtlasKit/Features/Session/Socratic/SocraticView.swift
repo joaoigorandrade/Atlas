@@ -107,7 +107,7 @@ struct SocraticView: View {
                 busy: model.judging,
                 escapes: [
                     .init("Estou travado") { close(); model.stuck() },
-                    .init("Só me conte") { close(); model.tell() },
+                    .init("Mostre-me esta") { close(); model.tell() },
                 ],
                 escapesEnabled: model.canEscape,
                 listen: { model.listen() },
@@ -407,7 +407,7 @@ struct SocraticView: View {
     private func escapes(_ model: SocraticViewModel) -> some View {
         HStack(spacing: 8) {
             escape("Estou travado") { model.stuck() }
-            escape("Só me conte") { model.tell() }
+            escape("Mostre-me esta") { model.tell() }
             Spacer(minLength: 0)
         }
         .disabled(!model.canEscape)

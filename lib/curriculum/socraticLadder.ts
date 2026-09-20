@@ -92,5 +92,13 @@ export function restored(
     floor: session.floor ?? 0,
     covered: session.covered ?? [],
     bar: session.bar ?? steps[session.step]?.sufficient ?? [],
+    // Its `help` is not a rung and must not be read as one. In the old model
+    // the dial rose across the *whole pass* and never reset per probe, so a
+    // saved 3 says "this learner needed help somewhere", not "this probe has
+    // been walked to the bottom" — and the bottom rung is terminal, which
+    // would close their next answer as `told` on a probe nobody has helped
+    // them with yet. What was spent on the step on screen is unknowable, so
+    // it reopens at the floor; `resolutions` still carries the pass's history.
+    help: session.floor ?? 0,
   };
 }
