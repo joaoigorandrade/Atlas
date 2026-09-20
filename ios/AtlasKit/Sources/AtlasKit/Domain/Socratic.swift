@@ -14,6 +14,14 @@ public enum SocraticResolution: String, Codable, Sendable {
     case unaided, hint, told
 }
 
+/// What a probe earns, from the rung it closed on: the top is unaided work, the
+/// middle two took a tutor naming something the learner had not said, the bottom
+/// was taught outright. Nothing else is consulted — a caught error already cost
+/// a rung getting here, so the rung is the whole record. Mirrors `resolutionFor`.
+public func resolutionFor(_ rung: Int) -> SocraticResolution {
+    rung <= 0 ? .unaided : (rung >= 3 ? .told : .hint)
+}
+
 /// The overall verdict on a finished pass. `flagged` is the one that does not
 /// hand off: it means the reading didn't land.
 public enum SocraticOutcome: String, Sendable {
@@ -124,14 +132,21 @@ public struct SocraticSnapshot: Codable, Sendable {
     public var ruledOut: [String]
     public var tells: Int
     public var resolutions: [SocraticResolution]
-    public var stepAssisted: Bool
+    /// The rung every probe opens on — the learner's dial.
+    public var floor: Int
+    /// Which pieces of `bar` the probe on screen has established.
+    public var covered: [Int]
+    /// That probe's own bar, snapshotted when it opened, so a resumed pass
+    /// redraws its ledger without re-reading the steps.
+    public var bar: [String]
     public var total: Int
     public var awaitingNext: Bool
     public var done: Bool
 
     public init(
         nodeId: String, step: Int, help: Int, log: [Turn], ruledOut: [String] = [],
-        tells: Int, resolutions: [SocraticResolution], stepAssisted: Bool,
+        tells: Int, resolutions: [SocraticResolution], floor: Int = 0,
+        covered: [Int] = [], bar: [String] = [],
         total: Int, awaitingNext: Bool, done: Bool
     ) {
         self.nodeId = nodeId
@@ -141,7 +156,9 @@ public struct SocraticSnapshot: Codable, Sendable {
         self.ruledOut = ruledOut
         self.tells = tells
         self.resolutions = resolutions
-        self.stepAssisted = stepAssisted
+        self.floor = floor
+        self.covered = covered
+        self.bar = bar
         self.total = total
         self.awaitingNext = awaitingNext
         self.done = done
@@ -151,12 +168,14 @@ public struct SocraticSnapshot: Codable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         nodeId = (try? c.decode(String.self, forKey: .nodeId)) ?? ""
         step = (try? c.decode(Int.self, forKey: .step)) ?? 0
-        help = (try? c.decode(Int.self, forKey: .help)) ?? 1
+        help = (try? c.decode(Int.self, forKey: .help)) ?? 0
         log = (try? c.decode([Turn].self, forKey: .log)) ?? []
         ruledOut = (try? c.decode([String].self, forKey: .ruledOut)) ?? []
         tells = (try? c.decode(Int.self, forKey: .tells)) ?? 0
         resolutions = (try? c.decode([SocraticResolution].self, forKey: .resolutions)) ?? []
-        stepAssisted = (try? c.decode(Bool.self, forKey: .stepAssisted)) ?? false
+        floor = (try? c.decode(Int.self, forKey: .floor)) ?? 0
+        covered = (try? c.decode([Int].self, forKey: .covered)) ?? []
+        bar = (try? c.decode([String].self, forKey: .bar)) ?? []
         total = (try? c.decode(Int.self, forKey: .total)) ?? 0
         awaitingNext = (try? c.decode(Bool.self, forKey: .awaitingNext)) ?? false
         done = (try? c.decode(Bool.self, forKey: .done)) ?? false

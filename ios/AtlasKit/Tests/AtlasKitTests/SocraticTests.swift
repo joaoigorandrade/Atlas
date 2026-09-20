@@ -151,14 +151,16 @@ private func probe(_ id: String, spare: Bool = false) -> JSONValue {
     let (_, model) = pass(store)
     await model.load()
     model.stuck()
-    #expect(model.help == 2)
+    // One rung down from Silent, not two: a pass opens at the top of the
+    // ladder now, so a probe nobody has been helped on scores unaided.
+    #expect(model.help == 1)
     #expect(store.savedPass("lat")?.log.count == 3)
 
     // A second entry on the same node is the learner coming back to it.
     let (_, resumed) = pass(store)
     await resumed.load()
     #expect(resumed.log.count == 3)
-    #expect(resumed.help == 2)
+    #expect(resumed.help == 1)
 
     // …and a pass that ended has nothing left to resume.
     resumed.tell()

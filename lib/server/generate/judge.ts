@@ -3,7 +3,6 @@
 // (configurably stronger) judge model. Anti-sycophancy is enforced in the
 // prompt: wrong reasoning is named plainly, never affirmed.
 import { VERDICTS } from "./feynman";
-import { QUALITIES } from "./socratic";
 
 import { arr, fail, languageNote, obj, oneOf, str } from "./common";
 import { Language } from "@/lib/i18n";
@@ -100,142 +99,11 @@ export function verdictPrefix(count: number) {
   };
 }
 
-export interface SocraticJudgement {
-  quality: "correct" | "near" | "wrong" | "lost";
-  response: string;
-  /** The wrong idea, tagged for the run-wide roll-up — present on a caught
-   *  "near"/"wrong", absent otherwise. */
-  misconception?: string;
-}
-
-interface JudgeSocraticTurn {
-  role: "ai" | "learner";
-  text: string;
-}
-
-interface JudgeSocraticMisconception {
-  label: string;
-  quality: string;
-}
-
-/** Silent → name it and move on; Show me → drop the act. The learner sets this
- *  by hand or lets it fade with mastery — either way the judge follows it. */
-const SOCRATIC_HELP_INSTRUCTION: Record<number, string> = {
-  0: `Scaffolding is set to Silent: on a "near" or "wrong", name the error plainly and re-ask — no reframing hint.`,
-  1: `Scaffolding is set to Hint: on a "near" or "wrong", give exactly one reframing hint, then re-ask.`,
-  2: `Scaffolding is set to Guide: on a "near" or "wrong", walk through one step of the reasoning aloud with them, then re-ask.`,
-  3: `Scaffolding is set to Show me: on a "near" or "wrong", teach the relevant piece directly and completely rather than re-asking.`,
-};
-
-interface JudgeSocraticParams {
-  topic: string;
-  nodeLabel: string;
-  question: string;
-  reference: string;
-  answer: string;
-  /** Recent transcript for this step, oldest first — so a repeated hint or a
-   *  misgraded reframe doesn't happen twice (#A). */
-  history?: JudgeSocraticTurn[];
-  /** Which attempt this is on the current step — 1 on the first try. */
-  attempt?: number;
-  /** The anticipated wrong/near replies authored with this step — a bank of
-   *  misconceptions to catch by name instead of generically. */
-  misconceptions?: JudgeSocraticMisconception[];
-  /** What this learner keeps getting wrong across nodes and sessions — the one
-   *  thing a tutor can only know from having been there before. */
-  recurring?: string[];
-  /** The scaffolding dial (0-3, Silent → Show me). Defaults to Hint. */
-  help?: number;
-  language?: Language;
-}
-
-function socraticJudgeMessages(params: JudgeSocraticParams): ChatMessage[] {
-  const {
-    topic,
-    nodeLabel,
-    question,
-    reference,
-    answer,
-    history,
-    attempt,
-    misconceptions,
-    recurring,
-    help,
-    language = "en",
-  } = params;
-  const historyBlock =
-    history && history.length
-      ? `\nThe conversation on this step so far:\n${history
-          .map((t) => `${t.role === "ai" ? "Tutor" : "Learner"}: ${t.text}`)
-          .join("\n")}\n`
-      : "";
-  const misconceptionBlock =
-    misconceptions && misconceptions.length
-      ? `\nMisconceptions anticipated for this step: ${misconceptions
-          .map((m) => `"${m.label}" (${m.quality})`)
-          .join("; ")}. If the learner's answer matches one, catch it by name.\n`
-      : "";
-  const recurringBlock =
-    recurring && recurring.length
-      ? `\nAcross earlier sessions this learner keeps hitting: ${recurring.join(
-          "; ",
-        )}. If this answer is another instance of one of those, say so — name the pattern ("this is the same swap you made on X") instead of catching it cold again, and return that misconception's label back VERBATIM in the "misconception" field so it counts as the same pattern rather than a new one. If it isn't, don't mention them at all.\n`
-      : "";
-  return [
-    JUDGE_SYSTEM,
-    {
-      role: "user",
-      content: `Concept: "${nodeLabel}" (topic: ${topic}).
-The tutor asked: "${question}"
-A fully correct answer would convey: "${reference}"
-${historyBlock}${misconceptionBlock}${recurringBlock}This is attempt ${attempt ?? 1} on this step. Do not repeat a hint already given above — advance it.
-${SOCRATIC_HELP_INSTRUCTION[help ?? 1]}
-The learner answered: """${answer}"""
-
-Classify and respond contingently:
-- "correct": the substance is right (wording may differ) → affirm specifically, one sentence.
-- "near": right direction, one piece missing/imprecise → give a hint that reframes WITHOUT giving the answer, then re-ask — a *different* angle than any hint already given.
-- "wrong": contains a real error or misconception → name the error plainly and specifically, quoting their words; do not reveal the full answer.
-- "lost": empty, "I don't know", or entirely off-track → drop the Socratic act and teach the answer directly and completely.
-
-Return JSON: {"quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's reply to the learner", "misconception": "on \"near\"/\"wrong\" only: the wrong idea itself in 3-8 words, phrased to still read out of context weeks later (e.g. \"treats scaling as rotation\") — omit otherwise"}${languageNote(language)}`,
-    },
-  ];
-}
-
-const validateSocraticJudgement = (raw: unknown): SocraticJudgement => {
-  const root = obj(raw, "payload");
-  // The tag is the only part of a caught wrong turn that outlives the session,
-  // but it is still read leniently: a judgement without one still judges.
-  const tag = typeof root.misconception === "string" ? root.misconception.trim() : "";
-  return {
-    quality: oneOf(root.quality, QUALITIES, "quality"),
-    response: str(root.response, "response"),
-    ...(tag ? { misconception: tag.slice(0, 120) } : null),
-  };
-};
-
-export async function judgeSocratic(
-  params: JudgeSocraticParams,
-): Promise<SocraticJudgement> {
-  return generateJson(socraticJudgeMessages(params), validateSocraticJudgement, {
-    label: "judge-socratic",
-    role: "judge",
-  });
-}
-
-export function judgeSocraticStream(
-  params: JudgeSocraticParams,
-): AsyncGenerator<StreamFrame> {
-  return judgeStream<SocraticJudgement>(socraticJudgeMessages(params), {
-    firstShape: `{"quality": "correct" | "near" | "wrong" | "lost"}`,
-    first: (raw) => ({
-      quality: oneOf(obj(raw, "verdict").quality, QUALITIES, "quality"),
-    }),
-    full: validateSocraticJudgement,
-    label: "judge-socratic",
-  });
-}
+export {
+  judgeSocratic,
+  judgeSocraticStream,
+  type SocraticJudgement,
+} from "./judgeSocratic";
 
 export interface FeynmanVerdictRow {
   /** Index into the rubric the judge was given. */

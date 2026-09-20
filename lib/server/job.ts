@@ -63,6 +63,7 @@ import {
   poolOf,
   rubricRows,
   s,
+  strs,
   type GenerateBody,
   type GenerateKind,
 } from "./jobInput";
@@ -663,17 +664,14 @@ function buildJob(body: GenerateBody): Job {
               )
               .slice(0, CAPS.listItems)
           : undefined;
-        const recurring = Array.isArray(body.recurring)
-          ? body.recurring
-              .filter((r): r is string => typeof r === "string")
-              .slice(0, CAPS.listItems)
-              .map((r) => r.slice(0, CAPS.nodeLabel * 2))
-          : undefined;
+        const recurring = strs(body.recurring, CAPS.listItems);
         const p = {
           topic,
           nodeLabel,
           question: s(body.question).slice(0, CAPS.freeText),
           reference: s(body.reference).slice(0, CAPS.freeText),
+          sufficient: strs(body.sufficient, 3),
+          said: strs(body.said, 8),
           answer,
           history,
           attempt:

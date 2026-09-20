@@ -200,7 +200,7 @@ public struct ConsumeModelBeat: Decodable, Sendable {
 public struct SocraticStep: Decodable, Sendable, Identifiable {
     public struct Reply: Decodable, Sendable {
         public let label: String
-        /// `correct` · `near` · `wrong` · `lost`.
+        /// `correct` · `partial` · `near` · `wrong` · `lost`.
         public let quality: String
     }
     public let id: String
@@ -208,6 +208,10 @@ public struct SocraticStep: Decodable, Sendable, Identifiable {
     /// The probing question the tutor opens the step with.
     public let prompt: String
     public let replies: [Reply]
+    /// What *this probe* needs to hear, as separable pieces — the bar the judge
+    /// grades against, and the ledger the learner watches fill in. Absent on
+    /// passes cached before the field existed; those fall back to `tell`.
+    public let sufficient: [String]?
     /// Raised-help scaffold, and the reference the judge grades against.
     public let hint: String
     public let tell: String
@@ -226,10 +230,25 @@ public struct SocraticJudgement: Decodable, Sendable {
     public let quality: String
     public let response: String
     public let misconception: String?
+    /// Which `sufficient` pieces everything said so far now covers, by index.
+    public let covered: [Int]?
 
-    /// `correct` closes the step, `lost` drops the act and closes it too;
-    /// `near`/`wrong` earn help and another try on the same probe.
-    var closesStep: Bool { quality == "correct" || quality == "lost" }
+    /// Only a correct answer closes a step by itself. Everything else moves the
+    /// ladder instead, and the step closes when the ladder hits the bottom —
+    /// see `SocraticViewModel.send`. `lost` used to close it outright, which
+    /// made one blank answer as costly as giving up.
+    var closesStep: Bool { quality == "correct" }
+    /// Right so far, but not all of it yet. Holds the rung: building one answer
+    /// across two turns is how people think, not a failed attempt.
+    var isPartial: Bool { quality == "partial" }
+    /// How far down the ladder this verdict pushes the tutor. Mirrors `DESCENT`.
+    var descent: Int {
+        switch quality {
+        case "correct", "partial": 0
+        case "lost": 2
+        default: 1
+        }
+    }
 }
 
 // MARK: - Feynman (screen 16)

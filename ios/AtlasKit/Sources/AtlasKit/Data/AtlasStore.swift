@@ -82,6 +82,13 @@ public final class AtlasStore {
     /// of them died with the view: leaving the screen re-opened it blank.
     public var connectProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
 
+    /// The web's `phaseProgress` — every phase built after the catalogue,
+    /// parked by phase id under its node id. Held as JSON and round-tripped
+    /// whole for the reason `NodeDelta.phaseProgress` gives: a slot this build
+    /// has no screen for still belongs to the learner, and dropping it on the
+    /// next write would lose a Crucible attempt typed in the browser.
+    public var phaseProgress: [String: JSONValue] = [:] { didSet { saveSoon() } }
+
     /// What this learner keeps getting wrong, run-wide. A pass is discarded
     /// when it ends; this is not — the judge is told the repeats
     /// (`recurringMisconceptions`) so a confusion is named as a repeat instead
@@ -808,6 +815,7 @@ public extension AtlasStore {
         socraticProgress = run.socraticProgress
         feynmanProgress = run.feynmanProgress
         connectProgress = run.connectProgress
+        phaseProgress = run.phaseProgress
         misconceptions = run.misconceptions
         // Only when the topic records one: a run built before the field existed
         // has a genuinely unknown content language, and the device preference is
@@ -1083,6 +1091,7 @@ public extension AtlasStore {
                 "socraticProgress": socraticProgress[node.id] ?? .null,
                 "feynmanProgress": feynmanProgress[node.id] ?? .null,
                 "connectProgress": connectProgress[node.id] ?? .null,
+                "phaseProgress": phaseProgress[node.id] ?? .null,
             ]
             shots[node.id] = JSONValue.object(fields).compact
         }
@@ -1211,6 +1220,7 @@ public extension AtlasStore {
                 delta.socraticProgress = socraticProgress[node.id]
                 delta.feynmanProgress = feynmanProgress[node.id]
                 delta.connectProgress = connectProgress[node.id]
+                delta.phaseProgress = phaseProgress[node.id]
                 // Only a node the server has never seen needs its edges; an
                 // existing one's prerequisites are already rows, and re-sending
                 // them on every drag would be the write amplification this
@@ -1286,6 +1296,7 @@ public extension AtlasStore {
             library[index].socraticProgress = socraticProgress
             library[index].feynmanProgress = feynmanProgress
             library[index].connectProgress = connectProgress
+            library[index].phaseProgress = phaseProgress
             library[index].misconceptions = misconceptions
             library[index].calibSamples = calib
             // The mirror holds what the server acknowledged, never what the

@@ -205,7 +205,11 @@ export function stateConfidence(
 
 /** How a node became Shaky — selects an honest confidence line (#14). */
 export type ShakyReason =
-  "connect-complete" | "diagnostic-hesitation" | "crucible-fail" | "review-miss";
+  | "connect-complete"
+  | "diagnostic-hesitation"
+  | "crucible-fail"
+  | "review-miss"
+  | "socratic-told";
 
 export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
   "connect-complete": "Understood and connected — now prove it transfers in {gate}.",
@@ -215,6 +219,8 @@ export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
     "You feel solid here, but your last application failed. That's fluency, not mastery — re-attempt {gate}.",
   "review-miss":
     "A review card on this slipped — retention is softening. Re-attempt {gate} to firm it back up.",
+  "socratic-told":
+    "You got here, but the questioning had to hand you most of it. Worth another reading before {gate}.",
 };
 
 const SHAKY_REASON_COPY_PT: Record<ShakyReason, string> = {
@@ -226,6 +232,8 @@ const SHAKY_REASON_COPY_PT: Record<ShakyReason, string> = {
     "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente {gate} de novo.",
   "review-miss":
     "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente {gate} de novo para firmar de novo.",
+  "socratic-told":
+    "Você chegou lá, mas a sondagem teve que te entregar quase tudo. Vale uma releitura antes de {gate}.",
 };
 
 /** The Shaky confidence line, honest about how the node got there. */

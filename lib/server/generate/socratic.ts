@@ -32,7 +32,7 @@ const MOVES = [
   "Probe the reasoning",
   "Probe the implications",
 ] as const;
-export const QUALITIES = ["correct", "near", "wrong", "lost"] as const;
+export const QUALITIES = ["correct", "partial", "near", "wrong", "lost"] as const;
 
 /** The shared framing of both Socratic prompts. */
 function socraticContext(params: {
@@ -61,8 +61,9 @@ const SOCRATIC_STEP_SHAPE = `{
       "spare": false,   // true only on the held-back extra probes, which come last
       "move": "Clarify" | "Challenge the assumption" | "Probe the reasoning" | "Probe the implications",   // core probes: each move once, in this order; a spare reuses whichever fits
       "prompt": "the probing question the tutor opens with",
+      "sufficient": ["..."],   // 1-3 separable pieces THIS probe needs to hear to be answered. The bar for this question alone — NOT the whole concept, and NOT a restatement of "tell". A learner who says all of these, in any words, has answered it.
       "replies": [    // 3 plausible learner replies; exactly one "correct"; one is the misconception a real learner actually holds, written out in their voice
-        {"label": "the learner's reply, in their own words", "quality": "correct" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
+        {"label": "the learner's reply, in their own words", "quality": "correct" | "partial" | "near" | "wrong" | "lost", "response": "the tutor's honest, specific reaction"}
       ],
       "hint": "an 'I'm stuck' nudge that reframes without giving it away",
       "tell": "the direct instruction for 'Just tell me' — complete and precise"
@@ -77,6 +78,7 @@ const SOCRATIC_STEP_EXAMPLE = `Here is one filled-in step, from an unrelated con
       "spare": false,
       "move": "Challenge the assumption",
       "prompt": "You said a low gear makes the bike easier to pedal. Easier in what sense — are you doing less work overall to get up the hill?",
+      "sufficient": ["the total work against gravity is unchanged", "low gear trades force per stroke for more strokes"],
       "replies": [
         {"label": "No, the total work is about the same, I just spread it over more pedal strokes.", "quality": "correct", "response": "Exactly — you traded force per stroke for number of strokes. The hill still costs what it costs."},
         {"label": "Yes, low gear means less effort to climb the hill.", "quality": "wrong", "response": "That would be a free lunch. You feel less force in each stroke, but you pedal many more times — add those up and the hill charges you the same."},
@@ -101,11 +103,20 @@ export function validateSocraticStep(raw: unknown, i: number): SocraticStep {
   });
   if (!replies.some((r) => r.quality === "correct"))
     fail(`steps[${i}].replies needs a correct option`);
+  // Read leniently: a pass without it still runs, falling back to `tell` as
+  // the judge's reference the way every cached pass written before it does.
+  const sufficient = Array.isArray(s.sufficient)
+    ? s.sufficient
+        .filter((x): x is string => typeof x === "string" && !!x.trim())
+        .slice(0, 3)
+        .map((x) => x.trim().slice(0, 200))
+    : [];
   return {
     id: `s${i + 1}`,
     ...(s.spare === true ? { spare: true as const } : null),
     move: oneOf(s.move, MOVES, `steps[${i}].move`),
     prompt: str(s.prompt, `steps[${i}].prompt`),
+    ...(sufficient.length ? { sufficient } : null),
     replies,
     hint: str(s.hint, `steps[${i}].hint`),
     tell: str(s.tell, `steps[${i}].tell`),

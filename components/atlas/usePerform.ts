@@ -15,9 +15,11 @@ import {
   performStart,
   type ConceptNode,
   type PerformAction,
+  type PerformSession,
   type TeachVerdict,
 } from "@/lib/curriculum";
 import { fetchJudgePerform } from "@/lib/api";
+import { dropParked, parkedSession } from "@/components/atlas/phaseParking";
 import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
 import type { Generation } from "@/components/atlas/useGeneration";
@@ -54,7 +56,7 @@ export function usePerform(deps: {
     judgingRef,
     setJudging,
   } = deps;
-  const { graphRef, formRef, performCacheRef } = run;
+  const { graphRef, formRef, performCacheRef, setPhaseProgress, phaseProgressRef } = run;
   const { setPerform, performRef } = sessions;
   const { generate, warmKey, loadPerform } = gen;
   const { tc, showToast, showError } = toast;
@@ -63,7 +65,13 @@ export function usePerform(deps: {
   const enterPerform = useCallback(
     (node: ConceptNode) => {
       const open = () => {
-        setPerform(performStart(node.id));
+        // Their own work, if they left part-way through it. A run is long-form
+        // — reopening a blank workspace for a case they already started is the
+        // refresh deciding to throw it away.
+        setPerform(
+          parkedSession<PerformSession>(phaseProgressRef.current, node.id, "perform") ??
+            performStart(node.id),
+        );
         setSelectedId(node.id);
         setScreen("perform");
         markStarted(node);
@@ -87,6 +95,7 @@ export function usePerform(deps: {
       loadPerform,
       setPerform,
       performCacheRef,
+      phaseProgressRef,
       warmKey,
       setScreen,
       setSelectedId,
@@ -160,7 +169,14 @@ export function usePerform(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = performCacheRef.current[cur.nodeId];
-    if (node && content && performPassed(cur, content)) completePhase(node, "perform");
+    if (node && content && performPassed(cur, content)) {
+      completePhase(node, "perform");
+      // Only a run that actually closed the rung is forgotten. A failed one is
+      // still the learner's work on a case they will be handed again, and
+      // `exitPerform` keeps it for the same reason — a rung that did not close
+      // is something to come back to, which is Crucible's rule too.
+      dropParked(setPhaseProgress, cur.nodeId, "perform");
+    }
     leaveTo(cur.nodeId);
   };
 

@@ -166,6 +166,11 @@ const socraticSteps = (v: Vars): SocraticStep[] =>
     id: `s${i + 1}`,
     move: "Clarify" as const,
     prompt: `In your own words, what does ${v.nodeLabel} let you do that you could not do without it?`,
+    // Two pieces, so fixture mode draws the ledger instead of skipping it.
+    sufficient: [
+      `${v.nodeLabel} states a rule, not an example`,
+      `what ${v.topic} needs it for`,
+    ],
     replies: [
       {
         label: "It names the rule and what follows from it",
@@ -176,11 +181,6 @@ const socraticSteps = (v: Vars): SocraticStep[] =>
         label: "It is a special case of something else",
         quality: "wrong" as const,
         response: "Not quite — that is one instance, not the rule.",
-      },
-      {
-        label: "Something about the rule",
-        quality: "near" as const,
-        response: "Close. Say which part does the work.",
       },
     ],
     hint: "Look at what the second paragraph ruled out.",

@@ -25,7 +25,14 @@ export const STRINGS = {
     placeholderAnswer: "Type what you think — wrong turns get caught, not judged",
     send: "Send",
     stuck: "I’m stuck · more help",
-    tellMe: "Just tell me",
+    // Not "Just tell me": under the ladder this is the bottom rung reached by
+    // hand rather than a confession, and it costs exactly what stalling into
+    // that rung costs. The old wording made the only exit from a hard step
+    // read as giving up.
+    tellMe: "Show me this one",
+    probeCount: (at: number, of: number) => `Probe ${at} of ${of}`,
+    banked: "What you’ve established",
+    stillOpen: "Still open",
     move: {
       Clarify: "Clarify",
       "Challenge the assumption": "Challenge the assumption",
@@ -61,6 +68,9 @@ export const STRINGS = {
       "Probe the implications": "Sondar as implicações",
     },
     stuck: "Estou travado · mais ajuda",
-    tellMe: "Só me conte",
+    tellMe: "Mostre-me esta",
+    probeCount: (at: number, of: number) => `Pergunta ${at} de ${of}`,
+    banked: "O que você já estabeleceu",
+    stillOpen: "Ainda em aberto",
   },
 } as const;

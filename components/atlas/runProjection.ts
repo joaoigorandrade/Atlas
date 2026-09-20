@@ -20,6 +20,7 @@ import type {
   FeynmanSession,
   MisconceptionRecord,
   ModalityTally,
+  PhaseProgress,
   OnboardingForm,
   PhasesDoneMap,
   ShakyReason,
@@ -50,6 +51,7 @@ export function projectNodes(run: {
   socraticProgress: Record<string, SocraticSession>;
   feynmanProgress: Record<string, FeynmanSession>;
   connectProgress: Record<string, ConnectSession>;
+  phaseProgress: Record<string, PhaseProgress>;
 }): Record<string, string> {
   const reviewed = new Set(run.reviewedNodes);
   const out: Record<string, string> = {};
@@ -83,6 +85,11 @@ export function projectNodes(run: {
       socraticProgress: run.socraticProgress[node.id] ?? null,
       feynmanProgress: run.feynmanProgress[node.id] ?? null,
       connectProgress: run.connectProgress[node.id] ?? null,
+      // `{}` rather than `null`, because `phase_progress` is NOT NULL and
+      // `applyNodeDeltas` reads a wire `null` on such a column as "the client
+      // said nothing" and leaves the row alone. An empty object is how a
+      // finished pass actually clears — see `nodes.ts`.
+      phaseProgress: run.phaseProgress[node.id] ?? {},
     });
   }
   return out;

@@ -50,6 +50,12 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     /// The elaboration passes in progress, keyed by node id — the links a
     /// learner wrote in their own words and may not have finished confirming.
     public var connectProgress: [String: JSONValue]
+    /// Every phase built after the catalogue, parked by phase id under its
+    /// node id — one column instead of a column each. Held whole as JSON: the
+    /// slots belong to whichever client wrote them, and a phone that does not
+    /// draw a phase must still hand its parked session back untouched rather
+    /// than drop it.
+    public var phaseProgress: [String: JSONValue]
     /// What the learner keeps getting wrong, run-wide. A topic field, not a
     /// node one: the whole point of it is that it crosses concepts.
     public var misconceptions: [MisconceptionRecord]
@@ -76,7 +82,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         case id, subject, goal, interests, paretoPct, examDate, language
         case calibSamples, litToday, updatedAt, graph, states, positions
         case shakyReasons, phasesDone, reviewedNodes, consumeProgress, socraticProgress
-        case feynmanProgress, connectProgress, misconceptions, cards
+        case feynmanProgress, connectProgress, phaseProgress, misconceptions, cards
     }
 
     public init(from decoder: Decoder) throws {
@@ -106,6 +112,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         socraticProgress = (try? c.decode([String: JSONValue].self, forKey: .socraticProgress)) ?? [:]
         feynmanProgress = (try? c.decode([String: JSONValue].self, forKey: .feynmanProgress)) ?? [:]
         connectProgress = (try? c.decode([String: JSONValue].self, forKey: .connectProgress)) ?? [:]
+        phaseProgress = (try? c.decode([String: JSONValue].self, forKey: .phaseProgress)) ?? [:]
         misconceptions = (try? c.decode([MisconceptionRecord].self, forKey: .misconceptions)) ?? []
         cards = (try? c.decode([StoredCard].self, forKey: .cards)) ?? []
         // Positions are their own map because the browser draws from it and
@@ -225,6 +232,12 @@ public struct NodeDelta: Encodable, Sendable {
     public var feynmanProgress: JSONValue?
     /// The saved elaboration, cleared the same way once its cards are drafted.
     public var connectProgress: JSONValue?
+    /// The post-catalogue phases' parked sessions for this node, whole. Sent
+    /// only when this client holds one, and never rebuilt from parts: the
+    /// object may carry a slot written by the browser for a phase this build
+    /// has no screen for, and re-sending it unchanged is what keeps a phone
+    /// from clearing work it cannot draw.
+    public var phaseProgress: JSONValue?
     /// Prerequisites to attach. Only meaningful for a node being created.
     public var prereqs: [String]?
 
@@ -253,6 +266,7 @@ public struct NodeDelta: Encodable, Sendable {
         try c.encodeIfPresent(socraticProgress, forKey: .socraticProgress)
         try c.encodeIfPresent(feynmanProgress, forKey: .feynmanProgress)
         try c.encodeIfPresent(connectProgress, forKey: .connectProgress)
+        try c.encodeIfPresent(phaseProgress, forKey: .phaseProgress)
         try c.encodeIfPresent(prereqs, forKey: .prereqs)
     }
 
@@ -260,7 +274,7 @@ public struct NodeDelta: Encodable, Sendable {
         case id, label, summary, g, week, x, y, isGap, state, kind, domain, phasePlan, phasesDone
         case shakyReason
         case reviewed, consumeProgress, socraticProgress, feynmanProgress
-        case connectProgress, prereqs
+        case connectProgress, phaseProgress, prereqs
     }
 }
 

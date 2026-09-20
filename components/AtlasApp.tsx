@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLive } from "@/components/atlas/useLive";
+import { usePhaseParking } from "@/components/atlas/phaseParking";
 import {
   calibOverCount,
   DIAGNOSTIC_COUNT,
@@ -135,8 +137,7 @@ export default function AtlasApp({
   /** Re-runs the judge for a Socratic turn whose grading failed — held here so
    *  the failed bubble can offer it, not just the toast. */
   const [socraticRetry, setSocraticRetry] = useState<(() => void) | null>(null);
-  const languageRef = useRef(language);
-  languageRef.current = language;
+  const languageRef = useLive(language);
   // Generated content carries the language of the prompt that wrote it and
   // nothing else, so switching language mid-run must drop every cached
   // surface — otherwise the learner keeps reading the old language back out
@@ -146,10 +147,8 @@ export default function AtlasApp({
   const toastChannel = useToast(supabase, languageRef);
   const { toast, dismissToast, showToast, showError } = toastChannel;
 
-  const loadingRef = useRef(loading);
-  loadingRef.current = loading;
-  const judgingRef = useRef(judging);
-  judgingRef.current = judging;
+  const loadingRef = useLive(loading);
+  const judgingRef = useLive(judging);
   // Gap specs queued by hesitant diagnostic answers, spawned once the map opens.
   const pendingGapsRef = useRef<Array<{ parentId: string; spec: GapSpec }>>([]);
   // Assigned in the derived section below; read by event handlers.
@@ -214,8 +213,6 @@ export default function AtlasApp({
     feynmanCache,
     retainContent,
     consumeProgress,
-    setSocraticProgress,
-    setFeynmanProgress,
     adherence,
     setAdherence,
     litToday,
@@ -306,32 +303,8 @@ export default function AtlasApp({
     setRunLanguage,
   ]);
 
-  // The live session is the source of truth while it's open; this mirrors it
-  // into the persisted per-node record. A finished pass drops out — coming
-  // back to a node you completed should offer the pass again, not the
-  // "understood" panel. A turn still being written is skipped: what's saved
-  // stays the last complete state rather than a bubble stuck on its dots.
-  useEffect(() => {
-    if (!socratic || socratic.log.some((t) => t.pending)) return;
-    const { nodeId } = socratic;
-    setSocraticProgress((prev) => {
-      if (socratic.done) {
-        if (!prev[nodeId]) return prev;
-        const { [nodeId]: _gone, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [nodeId]: socratic };
-    });
-  }, [socratic, setSocraticProgress]);
-
-  // Same mirror for the teach-back. A pass mid-judgement is skipped — what's
-  // saved stays the last complete state — and a finished one drops out in
-  // `advanceFromFeynman`, once its gaps have actually reached the map.
-  useEffect(() => {
-    if (!feynman || feynman.pending) return;
-    const { nodeId } = feynman;
-    setFeynmanProgress((prev) => ({ ...prev, [nodeId]: feynman }));
-  }, [feynman, setFeynmanProgress]);
+  // Every live session mirrored into the record that gets saved.
+  usePhaseParking({ run, sessions });
 
   // Getting around outside a session, plus the two account actions.
   const {

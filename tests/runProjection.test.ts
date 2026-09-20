@@ -45,6 +45,7 @@ const run = (over: Record<string, unknown> = {}) =>
     socraticProgress: {},
     feynmanProgress: {},
     connectProgress: {},
+    phaseProgress: {},
     ...over,
   }) as Parameters<typeof projectNodes>[0];
 
@@ -115,6 +116,23 @@ describe("projectNodes", () => {
       // as an empty ledger — a dropped key would read as "unchanged".
       phasesDone: [],
     });
+  });
+
+  it("parks a post-catalogue phase's session under its phase id", () => {
+    const shots = projectNodes(
+      run({ phaseProgress: { a: { crucible: { nodeId: "a", attempt: "my go" } } } }),
+    );
+    expect(JSON.parse(shots.a).phaseProgress).toEqual({
+      crucible: { nodeId: "a", attempt: "my go" },
+    });
+  });
+
+  it("writes an empty object, not null, for a node with nothing parked", () => {
+    // `phase_progress` is NOT NULL, and `applyNodeDeltas` reads a wire `null`
+    // on such a column as "the client said nothing" and leaves the row alone.
+    // So `null` here would make a finished pass unclearable — the parked
+    // session would outlive the rung and reopen on the next entry.
+    expect(JSON.parse(projectNodes(run()).a).phaseProgress).toEqual({});
   });
 
   it("is stable across key order, so an unchanged node is not rewritten", () => {

@@ -2,30 +2,30 @@
 // The learner *constructs* the idea through guided questioning. The AI is
 // contingent (hint when near, teach when lost), and — the single most
 // important behavior — anti-sycophantic: it catches wrong reasoning and
-// surfaces it gently, never smoothing it over. Scaffolding fades as the
-// learner answers unaided. Content ships the Linear Transformations pass so
-// the probe → reply → catch → advance mechanic is real.
-import { STATE_COLOR } from "./types";
+// surfaces it gently, never smoothing it over.
+//
+// The pass is a ladder the tutor walks *down*, not a gate the learner has to
+// open. A step starts at the learner's chosen floor and descends a rung each
+// time a turn adds nothing; the bottom rung teaches outright and closes. So a
+// step always ends, in a bounded number of turns, and the learner never has to
+// press a button that says they gave up — the tutor lands it. The rung a step
+// closed on *is* the measurement, which is why `stepAssisted` no longer
+// exists: a caught error costs a rung, and the rung already remembers.
+//
+// Scaffolding still fades, but per step rather than per pass: every probe
+// reopens at the floor, so help spent on a hard step is not carried into the
+// next one as a permanent demotion.
+import {
+  clampHelp,
+  DESCENT,
+  resolutionFor,
+  type HelpLevel,
+  type ReplyQuality,
+  type StepResolution,
+} from "./socraticLadder";
 import { Language } from "@/lib/i18n";
 
-/** The scaffolding dial, least help → most. Falls toward Silent with mastery. */
-export const HELP_LABELS = ["Silent", "Hint", "Guide", "Show me"] as const;
-export type HelpLevel = 0 | 1 | 2 | 3;
-
-const HELP_LABELS_PT = ["Silencioso", "Dica", "Guiar", "Mostre-me"] as const;
-
-/** Language-aware scaffolding-dial labels. */
-export function helpLabels(lang: Language = "en"): readonly string[] {
-  return lang === "pt-BR" ? HELP_LABELS_PT : HELP_LABELS;
-}
-
-/** Warmer = more help. The dial and its active cell read this. */
-export const HELP_COLOR: Record<HelpLevel, string> = {
-  0: STATE_COLOR.mastered, // Silent — the learner is carrying it
-  1: STATE_COLOR.learning, // Hint
-  2: STATE_COLOR.frontier, // Guide
-  3: STATE_COLOR.shaky, // Show me — dropped to direct instruction
-};
+export * from "./socraticLadder";
 
 /** The classic Socratic moves, tagged on each probe so the intent is legible. */
 export type SocraticMove =
@@ -33,12 +33,6 @@ export type SocraticMove =
   | "Challenge the assumption"
   | "Probe the reasoning"
   | "Probe the implications";
-
-/**
- * How true a reply is. `correct` advances; `near` earns a hint and another
- * try; `wrong` gets caught (anti-sycophancy); `lost` drops the act and teaches.
- */
-export type ReplyQuality = "correct" | "near" | "wrong" | "lost";
 
 export interface SocraticReply {
   label: string;
@@ -52,10 +46,21 @@ export interface SocraticStep {
   move: SocraticMove;
   /** The probing question the AI opens the step with. */
   prompt: string;
+  /** Anticipated learner replies. Never rendered as buttons on either client —
+   *  this is the bank of misconceptions the judge is handed, so it can catch
+   *  one by name instead of generically. */
   replies: SocraticReply[];
+  /** What *this probe* needs to hear, as separable pieces: the bar the judge
+   *  grades against, and the ledger the learner watches fill in. The judge used
+   *  to be handed `tell` — a complete exposition — as "what a fully correct
+   *  answer would convey", and a one-sentence reply diffed against a teaching
+   *  paragraph comes back "near" almost every time, which was the largest
+   *  single source of steps that would not close. Optional: passes cached
+   *  before it existed fall back to `tell` rather than breaking. */
+  sufficient?: string[];
   /** Raised-help scaffold ("I'm stuck") — a nudge that doesn't give it away. */
   hint: string;
-  /** Direct instruction for "Just tell me" — drops the Socratic act entirely. */
+  /** Direct instruction for the bottom rung — drops the Socratic act entirely. */
   tell: string;
   /** A held-back probe. The pass plans its core steps (`socraticPlan`) and only
    *  reaches for these when weak understanding buys one — so the length of a
@@ -75,36 +80,36 @@ export interface SocraticTurn {
    *  streams the two separately). The view shows the bubble as still-writing;
    *  `stream` fills it in. At most one turn is pending at a time. */
   pending?: boolean;
-  /**
-   * The judge never answered, so this bubble has nothing in it and never will.
-   *
-   * It exists because the alternative was worse: the failure used to be written
-   * *into* the bubble as `text`, which put "OpenRouter 502" on screen in the
-   * tutor's own voice, as though the tutor had said it. A turn that failed is
-   * marked, not spoken — the view renders a retry in its place.
-   */
+  /** The judge never answered, so this bubble has nothing in it and never
+   *  will — see `rewriteOpen`. The view renders a retry in its place. */
   failed?: boolean;
 }
-
-/** How a finished step was resolved — earns the ending differently. */
-export type StepResolution = "unaided" | "hint" | "told";
 
 /** The live state of one Socratic session — held by AtlasApp, read by the view. */
 export interface SocraticSession {
   nodeId: string;
   step: number;
+  /** The rung the step on screen is currently at. Reopens at `floor`. */
   help: HelpLevel;
+  /** The rung every step opens on — the dial, set by the learner. It only ever
+   *  raises the live rung: help already given cannot be taken back, so lowering
+   *  it mid-step takes effect on the next probe. It is an honest trade rather
+   *  than a free win — opening at Guide caps the step at "hint". */
+  floor: HelpLevel;
   log: SocraticTurn[];
-  /** Reply labels already ruled out on this step (caught wrong / spent hints). */
-  ruledOut: string[];
-  /** "Just tell me" uses — repeated use flags a prerequisite gap. */
+  /** The step on screen's own bar, snapshotted when it opened — the same move
+   *  the transcript already makes with each probe's prompt, and what lets a
+   *  resumed pass redraw its ledger without re-reading the steps. */
+  bar: string[];
+  /** Which `sufficient` pieces the learner's answers have banked on the step
+   *  in progress, by index. The ledger on screen, and what turns a run of
+   *  partial answers into one complete one. Resets per step. */
+  covered: number[];
+  /** "Show me this one" uses — repeated use flags a prerequisite gap. */
   tells: number;
   /** How every *finished* step resolved, oldest first — the record `socraticOutcome`
    *  reads to decide whether the pass earned an unqualified "understood". */
   resolutions: StepResolution[];
-  /** Any scaffolding spent on the step in progress (stuck, a caught near/wrong) —
-   *  turns an eventual correct into "hint" instead of "unaided". Resets per step. */
-  stepAssisted: boolean;
   /**
    * How many steps this session will run. Held explicitly rather than read off
    * `steps.length`, because the steps stream in one at a time: deriving the
@@ -118,9 +123,13 @@ export interface SocraticSession {
   done: boolean;
 }
 
-/** Clamp a help level into the dial's range. */
-function clampHelp(n: number): HelpLevel {
-  return Math.max(0, Math.min(3, n)) as HelpLevel;
+/** Merge the judge's coverage reading into the ledger. Union rather than
+ *  replace: a ledger that ticks backwards reads as lost ground even when
+ *  nothing was. */
+function bank(covered: number[], add?: number[]): number[] {
+  if (!add?.length) return covered;
+  const next = [...new Set([...covered, ...add])];
+  return next.length === covered.length ? covered : next.sort((a, b) => a - b);
 }
 
 /** Push a step's opening probe onto the log and reset the per-step gates.
@@ -131,25 +140,24 @@ function openStep(
   steps: SocraticStep[],
 ): SocraticSession {
   const s = steps[step];
-  if (!s)
-    return {
-      ...session,
-      step,
-      ruledOut: [],
-      stepAssisted: false,
-      awaitingNext: true,
-    };
-  return {
+  const fresh = {
     ...session,
     step,
-    ruledOut: [],
-    stepAssisted: false,
+    help: session.floor,
+    covered: [],
+    bar: s?.sufficient ?? [],
+  };
+  if (!s) return { ...fresh, awaitingNext: true };
+  return {
+    ...fresh,
     awaitingNext: false,
     log: [...session.log, { role: "ai", text: s.prompt, move: s.move }],
   };
 }
 
-/** A fresh session, opened on its first probe. Starts mid-dial, at Hint.
+/** A fresh session, opened on its first probe. Starts at the top of the ladder:
+ *  a probe the learner has not seen yet has had no scaffolding spent on it, and
+ *  opening anywhere below Silent would put `unaided` out of reach by default.
  *  `total` is the number of steps the pass *plans* to run: more than has
  *  arrived when it opens on a stream, and fewer than are written when the pass
  *  came with spares (`socraticPlan`) for a struggling learner to buy. */
@@ -162,11 +170,12 @@ export function socraticStart(
   return {
     nodeId,
     step: 0,
-    help: 1,
-    ruledOut: [],
+    help: 0,
+    floor: 0,
+    covered: [],
+    bar: first?.sufficient ?? [],
     tells: 0,
     resolutions: [],
-    stepAssisted: false,
     total: Math.max(1, total),
     awaitingNext: !first,
     done: false,
@@ -179,34 +188,37 @@ const STUCK_TEXT: Record<Language, string> = {
   "pt-BR": "Estou travado — mais ajuda.",
 };
 const TELL_TEXT: Record<Language, string> = {
-  en: "Just tell me.",
-  "pt-BR": "Só me conte.",
+  en: "Show me this one.",
+  "pt-BR": "Mostre-me esta.",
 };
 
 const REPLY_TONE: Record<ReplyQuality, SocraticTurn["tone"]> = {
   correct: "affirm",
+  partial: "affirm",
   near: "neutral",
   wrong: "catch",
   lost: "teach",
 };
 
 export type SocraticAction =
-  | { type: "reply"; index: number }
-  | { type: "stuck" }
-  | { type: "tell" }
-  /** The scaffolding dial, set by hand rather than only fading with mastery (#B). */
-  | { type: "setHelp"; level: HelpLevel }
   /** The learner just sent their answer — it joins the transcript at once and
    *  the tutor's bubble opens still-writing beside it, ahead of the verdict. */
   | { type: "answer"; text: string }
-  /** A free-text answer, already judged server-side (#25). `response` may be
-   *  empty when only the verdict has streamed in — mark it `pending` and send
-   *  `stream` with the wording when it lands. */
+  | { type: "stuck" }
+  | { type: "tell" }
+  /** The scaffolding dial. Sets the floor every later step opens on, and
+   *  raises the live rung if it is below the new floor. */
+  | { type: "setHelp"; level: HelpLevel }
+  /** A free-text answer, already judged server-side. `response` may be empty
+   *  when only the verdict has streamed in — mark it `pending` and send
+   *  `stream` with the wording when it lands. `covered` is the judge's reading
+   *  of which `sufficient` pieces the answers so far have banked. */
   | {
       type: "judged";
       answer: string;
       quality: ReplyQuality;
       response: string;
+      covered?: number[];
       pending?: boolean;
     }
   /** The judge's wording for the turn currently marked pending. `pending` stays
@@ -225,11 +237,33 @@ export type SocraticAction =
    *  `total` re-caps the pass when a stream ended short of the plan. */
   | { type: "hydrate"; total?: number };
 
+const pending = (t: SocraticTurn) => !!t.pending;
+
+/** The three transitions on the still-writing bubble are one walk: find the
+ *  open turn and rewrite it, or leave the session alone when there isn't one.
+ *  `stream` fills it in as the wording arrives, `judgeFailed` marks it dead
+ *  (the failure is never written *into* the bubble — that put "OpenRouter 502"
+ *  on screen in the tutor's own voice), and `retryJudge` reopens it so a second
+ *  attempt refills the turn already in the transcript instead of sending the
+ *  learner's answer twice. */
+function rewriteOpen(
+  session: SocraticSession,
+  find: (t: SocraticTurn) => boolean,
+  patch: (t: SocraticTurn) => SocraticTurn,
+): SocraticSession {
+  if (!session.log.some(find)) return session;
+  return { ...session, log: session.log.map((t) => (find(t) ? patch(t) : t)) };
+}
+
 /**
- * The contingent tutor, as a pure transition. Correct answers advance and let
- * scaffolding fade; near answers earn a hint and another try; wrong answers get
- * caught and raise help; "lost"/"just tell me" drop the act and teach. This is
- * where the anti-sycophancy lives — a wrong reply is surfaced, never advanced.
+ * The contingent tutor, as a pure transition.
+ *
+ * Every path here ends a step in a bounded number of turns: correct closes on
+ * the rung it was reached at, partial banks ground and holds, anything else
+ * descends. The bottom rung is not a state the learner sits in — the tutor
+ * teaches and closes — which is what makes "stuck here forever" unreachable
+ * rather than merely unlikely. The anti-sycophancy lives here too: a wrong
+ * reply is surfaced and costs a rung, never advanced past in silence.
  */
 export function socraticReducer(
   session: SocraticSession,
@@ -237,46 +271,35 @@ export function socraticReducer(
   steps: SocraticStep[],
   lang: Language = "en",
 ): SocraticSession {
-  // Before the `done` guard on purpose: the verdict that finished the session
-  // is exactly the one whose wording is still arriving.
-  if (action.type === "stream") {
-    if (!session.log.some((t) => t.pending)) return session;
-    return {
-      ...session,
-      log: session.log.map((t) =>
-        t.pending
-          ? {
-              ...t,
-              text: action.text,
-              pending: action.pending ? true : undefined,
-            }
-          : t,
-      ),
-    };
-  }
-  // Same placement rationale as `stream`: the turn that failed may well be the
-  // one that would have finished the session.
-  if (action.type === "judgeFailed") {
-    if (!session.log.some((t) => t.pending)) return session;
-    return {
-      ...session,
-      log: session.log.map((t) =>
-        t.pending ? { ...t, pending: undefined, failed: true } : t,
-      ),
-    };
-  }
-  if (action.type === "retryJudge") {
-    if (!session.log.some((t) => t.failed)) return session;
-    return {
-      ...session,
-      log: session.log.map((t) =>
-        t.failed ? { ...t, failed: undefined, pending: true } : t,
-      ),
-    };
-  }
+  // Placed before the `done` guard on purpose: the verdict that finished the
+  // session is exactly the one whose wording is still arriving, and the turn
+  // that failed may well be the one that would have finished it.
+  if (action.type === "stream")
+    return rewriteOpen(session, pending, (t) => ({
+      ...t,
+      text: action.text,
+      pending: action.pending ? true : undefined,
+    }));
+  if (action.type === "judgeFailed")
+    return rewriteOpen(session, pending, (t) => ({
+      ...t,
+      pending: undefined,
+      failed: true,
+    }));
+  if (action.type === "retryJudge")
+    return rewriteOpen(
+      session,
+      (t) => !!t.failed,
+      (t) => ({
+        ...t,
+        failed: undefined,
+        pending: true,
+      }),
+    );
   // The dial is a control, not a verdict — it works even on a finished pass.
   if (action.type === "setHelp") {
-    return { ...session, help: clampHelp(action.level) };
+    const floor = clampHelp(action.level);
+    return { ...session, floor, help: clampHelp(Math.max(session.help, floor)) };
   }
   if (session.done) return session;
 
@@ -342,67 +365,43 @@ export function socraticReducer(
     return finished ? { ...next, done: true } : openStep(next, session.step + 1, steps);
   };
 
+  /** Drop to the bottom rung: say the whole thing and close the step — the one
+   *  place the Socratic act is dropped outright. */
+  const teach = (base: SocraticSession): SocraticSession =>
+    advance(
+      {
+        ...base,
+        help: 3,
+        log: [...base.log, { role: "ai", text: step.tell, tone: "teach" }],
+      },
+      "told",
+    );
+
   switch (action.type) {
     case "stuck": {
-      return {
+      // Asking for help costs a rung, the same as stalling into one — and at
+      // the bottom it is the cue to finish the step, not to hand over one more
+      // nudge nobody can act on.
+      const rung = clampHelp(session.help + 1);
+      const asked: SocraticSession = {
         ...session,
-        help: clampHelp(session.help + 1),
-        stepAssisted: true,
-        ruledOut: [...session.ruledOut],
-        log: [
-          ...session.log,
-          { role: "learner", text: STUCK_TEXT[lang] },
-          { role: "ai", text: step.hint, tone: "teach" },
-        ],
+        log: [...session.log, { role: "learner", text: STUCK_TEXT[lang] }],
+      };
+      if (rung >= 3) return teach(asked);
+      return {
+        ...asked,
+        help: rung,
+        log: [...asked.log, { role: "ai", text: step.hint, tone: "teach" }],
       };
     }
     case "tell": {
-      const base: SocraticSession = {
+      // The bottom rung reached by hand rather than by stalling into it — same
+      // move, same cost, so there is no separate currency for giving up.
+      return teach({
         ...session,
-        help: 3,
         tells: session.tells + 1,
-        log: [
-          ...session.log,
-          { role: "learner", text: TELL_TEXT[lang] },
-          { role: "ai", text: step.tell, tone: "teach" },
-        ],
-      };
-      return advance(base, "told");
-    }
-    case "reply": {
-      const reply = step.replies[action.index];
-      if (!reply || session.ruledOut.includes(reply.label)) return session;
-      const logged: SocraticSession = {
-        ...session,
-        log: [
-          ...session.log,
-          { role: "learner", text: reply.label },
-          { role: "ai", text: reply.response, tone: REPLY_TONE[reply.quality] },
-        ],
-      };
-      if (reply.quality === "correct" || reply.quality === "lost") {
-        // Correct fades the scaffolding; a "lost" reply was just taught, so
-        // help ticks up before we move on.
-        const help =
-          reply.quality === "correct"
-            ? clampHelp(session.help - 1)
-            : clampHelp(session.help + 1);
-        const resolution: StepResolution =
-          reply.quality === "correct"
-            ? session.stepAssisted
-              ? "hint"
-              : "unaided"
-            : "told";
-        return advance({ ...logged, help }, resolution);
-      }
-      // near → hint and let them try again; wrong → caught, help rises. Both
-      // rule the reply out so the learner converges instead of re-picking it.
-      return {
-        ...logged,
-        help: reply.quality === "wrong" ? clampHelp(session.help + 1) : session.help,
-        stepAssisted: true,
-        ruledOut: [...session.ruledOut, reply.label],
-      };
+        log: [...session.log, { role: "learner", text: TELL_TEXT[lang] }],
+      });
     }
     case "answer": {
       if (session.log.some((t) => t.pending)) return session;
@@ -417,7 +416,7 @@ export function socraticReducer(
     }
     case "judged": {
       // The contingent tutor on the learner's own words: the server judge
-      // classified the free-text answer; the same advance/help rules apply.
+      // classified the free-text answer against everything said on this step.
       const bubble: SocraticTurn = {
         role: "ai",
         text: action.response,
@@ -429,29 +428,21 @@ export function socraticReducer(
       const open = session.log.findIndex((t) => t.pending);
       const logged: SocraticSession = {
         ...session,
+        covered: bank(session.covered, action.covered),
         log:
           open >= 0
             ? session.log.map((t, i) => (i === open ? bubble : t))
             : [...session.log, { role: "learner", text: action.answer }, bubble],
       };
-      if (action.quality === "correct" || action.quality === "lost") {
-        const help =
-          action.quality === "correct"
-            ? clampHelp(session.help - 1)
-            : clampHelp(session.help + 1);
-        const resolution: StepResolution =
-          action.quality === "correct"
-            ? session.stepAssisted
-              ? "hint"
-              : "unaided"
-            : "told";
-        return advance({ ...logged, help }, resolution);
-      }
-      return {
-        ...logged,
-        help: action.quality === "wrong" ? clampHelp(session.help + 1) : session.help,
-        stepAssisted: true,
-      };
+      // Closed on the rung it was reached at — never on the rung a descent
+      // would have moved to, because no descent happened.
+      if (action.quality === "correct")
+        return advance(logged, resolutionFor(session.help));
+      const rung = clampHelp(session.help + DESCENT[action.quality]);
+      // The bottom rung is terminal. Landing on it means the tutor says the
+      // whole thing now instead of asking a fifth time.
+      if (rung >= 3) return teach(logged);
+      return { ...logged, help: rung };
     }
     default:
       return session;

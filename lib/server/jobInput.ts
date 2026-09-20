@@ -115,13 +115,26 @@ export interface GenerateBody {
   cue?: string;
   targetForms?: string[];
   // judge-socratic fields (#A, #B) — the dialogue so far, the anticipated
-  // misconceptions for this step, and the scaffolding dial.
+  // misconceptions for this step, the ladder rung, this probe's own bar, and
+  // everything already said against it (the verdict grades the union).
   history?: Array<{ role: "ai" | "learner"; text: string }>;
   attempt?: number;
   misconceptions?: Array<{ label: string; quality: string }>;
   recurring?: unknown;
   help?: number;
+  sufficient?: unknown;
+  said?: unknown;
 }
+
+/** A capped list of clean strings — the shape `recurring`, `sufficient` and
+ *  `said` all wanted, written out separately three times before. */
+export const strs = (v: unknown, cap: number): string[] | undefined =>
+  Array.isArray(v)
+    ? v
+        .filter((x): x is string => typeof x === "string" && !!x.trim())
+        .slice(0, cap)
+        .map((x) => x.trim().slice(0, CAPS.freeText))
+    : undefined;
 
 // Input caps (#18) — a 100KB "topic" must never reach a prompt.
 export const CAPS = {

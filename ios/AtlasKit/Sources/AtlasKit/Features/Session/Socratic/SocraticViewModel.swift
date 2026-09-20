@@ -27,8 +27,17 @@ final class SocraticViewModel {
 
     private(set) var writing = true
     private(set) var step = 0
-    /// The scaffolding dial, least help → most. Opens mid-dial, at Hint.
-    private(set) var help = 1
+    /// The rung the probe on screen is at. Opens at the top: a probe nobody
+    /// has seen yet has had no scaffolding spent on it, and opening lower would
+    /// put an unaided close out of reach by default.
+    private(set) var help = 0
+    /// The rung every probe opens on — the dial, set by hand. It only raises
+    /// the live rung; lowering it lands on the next probe.
+    private(set) var floor = 0
+    /// What the probe on screen has already established, by index into `bar`.
+    private(set) var covered: [Int] = []
+    /// That probe's own bar — the separable pieces it needs to hear.
+    var bar: [String] { steps[safe: step]?.sufficient ?? [] }
     private(set) var log: [Turn] = []
     private(set) var judging = false
     /// The next probe is planned but hasn't been written yet — the stream is
@@ -53,9 +62,6 @@ final class SocraticViewModel {
     /// once the material is all here; see `replan`.
     private var total = 0
     private var resolutions: [Resolution] = []
-    /// Whether the probe on screen has already cost the learner scaffolding —
-    /// a raised dial, a "stuck", or a near miss. `stepAssisted` on the web.
-    private var assisted = false
     /// Which attempt the learner is on *for this probe*, which is what the
     /// judge's prompt says the number means.
     private var attempts = 0
@@ -237,16 +243,6 @@ final class SocraticViewModel {
         }
     }
 
-    /// Set, never cycled: a learner at "Mostre-me" who tapped once more used to
-    /// land on "Silencioso" — the tutor going quiet at the moment they asked
-    /// for the most help.
-    func setHelp(_ level: Int) {
-        let level = max(0, min(3, level))
-        if level > help { assisted = true }
-        help = level
-        save()
-    }
-
     func dictated(_ text: String) { answer += answer.isEmpty ? text : " \(text)" }
 
     /// Read the tutor's last turn out loud, or stop reading it.
@@ -300,10 +296,13 @@ final class SocraticViewModel {
     func stuck() {
         guard !judging, let current = steps[safe: step] else { return }
         session.markWorked()
-        assisted = true
-        help = min(3, help + 1)
         message = ""
         log.append(Turn(learner: true, text: String(localized: "Estou travado.")))
+        // Asking for help costs a rung, the same as stalling into one — and at
+        // the bottom it is the cue to finish the probe, not to hand over one
+        // more nudge nobody can act on.
+        if help + 1 >= 3 { return teach() }
+        help += 1
         log.append(Turn(learner: false, text: current.hint, quality: "near"))
         save()
     }
@@ -311,12 +310,23 @@ final class SocraticViewModel {
     /// "Só me conte" — the probe is taught outright and closes as told. The
     /// same `tell` the judge grades against, finally on screen.
     func tell() {
-        guard !judging, let current = steps[safe: step] else { return }
+        guard !judging, steps[safe: step] != nil else { return }
         session.markWorked()
-        help = 3
         tells += 1
         message = ""
-        log.append(Turn(learner: true, text: String(localized: "Só me conte.")))
+        log.append(Turn(learner: true, text: String(localized: "Mostre-me esta.")))
+        // The bottom rung reached by hand rather than by stalling into it —
+        // same move, same cost, so there is no separate currency for giving up.
+        teach()
+    }
+
+    /// Drop to the bottom rung: say the whole thing and close the probe. The
+    /// one place the Socratic act is dropped outright, and the reason no turn
+    /// ever leaves the learner with nothing to do. Mirrors `teach` in
+    /// `socratic.ts`.
+    private func teach() {
+        guard let current = steps[safe: step] else { return }
+        help = 3
         log.append(Turn(learner: false, text: current.tell, quality: "lost"))
         close(.told)
     }
@@ -349,15 +359,18 @@ final class SocraticViewModel {
             if let named, !named.isEmpty {
                 session.store.file(misconception: named, under: node.label)
             }
-            guard verdict.closesStep else {
-                // A near miss or a caught error: same probe, more scaffolding.
-                assisted = true
-                if verdict.quality == "wrong" { help = min(3, help + 1) }
-                return save()
+            if let banked = verdict.covered {
+                covered = Array(Set(covered).union(banked)).sorted()
             }
-            let correct = verdict.quality == "correct"
-            help = correct ? max(0, help - 1) : min(3, help + 1)
-            close(verdict.quality == "lost" ? .told : (assisted || !correct ? .hint : .unaided))
+            // Closed on the rung it was reached at — never on one a descent
+            // would have moved to, because no descent happened.
+            if verdict.closesStep { return close(resolutionFor(help)) }
+            let rung = min(3, help + verdict.descent)
+            // The bottom rung is terminal: the tutor says the whole thing now
+            // rather than asking a fifth time. Nobody waits at "Mostre-me".
+            if rung >= 3 { return teach() }
+            help = rung
+            save()
         } catch {
             log.removeAll { $0.id == turn.id }
             answer = text
@@ -391,9 +404,19 @@ final class SocraticViewModel {
         guard total == 0 || step < total else { return }
         guard let probe = steps[safe: step] else { return awaiting = true }
         awaiting = false
-        assisted = false
+        help = floor
+        covered = []
         attempts = 0
         log.append(Turn(learner: false, text: probe.prompt, move: probe.move))
+    }
+
+    /// The dial. Raises the live rung when it is below the new floor, never
+    /// lowers it — help already given cannot be taken back, so a lower setting
+    /// lands on the next probe.
+    func setHelp(_ level: Int) {
+        floor = max(0, min(3, level))
+        help = max(help, floor)
+        save()
     }
 
     // MARK: - The pass, saved
@@ -410,7 +433,8 @@ final class SocraticViewModel {
                 )
             },
             ruledOut: [], tells: tells, resolutions: resolutions,
-            stepAssisted: assisted, total: total, awaitingNext: awaiting, done: done
+            floor: floor, covered: covered, bar: steps[safe: step]?.sufficient ?? [],
+            total: total, awaitingNext: awaiting, done: done
         )
     }
 
@@ -455,7 +479,8 @@ final class SocraticViewModel {
         help = max(0, min(3, saved.help))
         tells = saved.tells
         resolutions = saved.resolutions
-        assisted = saved.stepAssisted
+        floor = max(0, min(3, saved.floor))
+        covered = saved.covered
         total = saved.total
         awaiting = saved.awaitingNext
         log = saved.log.map {
@@ -479,6 +504,15 @@ final class SocraticViewModel {
         context["history"] = .array(log.suffix(8).map {
             .object(["role": .string($0.learner ? "learner" : "ai"), "text": .string($0.text)])
         })
+        // This probe's own bar, and everything already said against it: the
+        // verdict grades the union, so one answer built across two turns reads
+        // as answered rather than as missed twice.
+        if let bar = current.sufficient, !bar.isEmpty {
+            context["sufficient"] = .array(bar.map { .string($0) })
+        }
+        context["said"] = .array(
+            log.drop(while: { $0.move == nil }).filter(\.learner).map { .string($0.text) }
+        )
         context["misconceptions"] = .array(current.replies.filter { $0.quality != "correct" }.map {
             .object(["label": .string($0.label), "quality": .string($0.quality)])
         })

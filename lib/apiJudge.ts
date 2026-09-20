@@ -54,8 +54,10 @@ async function judge<T>(
 }
 
 export interface SocraticJudgement {
-  quality: "correct" | "near" | "wrong" | "lost";
+  quality: "correct" | "partial" | "near" | "wrong" | "lost";
   response: string;
+  /** Which of the step's `sufficient` pieces everything said so far covers. */
+  covered?: number[];
   /** The wrong idea in a few words, on a caught "near"/"wrong" — filed into the
    *  run's misconception roll-up so a repeat can be named as one. */
   misconception?: string;
@@ -74,6 +76,10 @@ export function fetchJudgeSocratic(
     /** What this learner keeps getting wrong run-wide (`recurringMisconceptions`). */
     recurring?: string[];
     help?: number;
+    /** This probe's own bar, when the pass wrote one. */
+    sufficient?: string[];
+    /** Everything already said on this step — the verdict grades the union. */
+    said?: string[];
     language?: Language;
   },
   onVerdict?: (partial: Partial<SocraticJudgement>) => void,

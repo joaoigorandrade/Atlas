@@ -322,10 +322,41 @@ struct SocraticView: View {
 
     // MARK: - Answering
 
+    /// What this probe has already established, and what is still open.
+    ///
+    /// The anti-stuck row. Without it a learner answering in two goes sees only
+    /// "not quite" twice and reads it as failing twice; with it they watch a
+    /// circle become a tick. Draws nothing for a pass generated before the bar
+    /// existed — there is nothing to show, and an empty box reads as a bug.
+    @ViewBuilder
+    private func ledger(_ model: SocraticViewModel) -> some View {
+        if model.bar.count > 1 {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(model.bar.enumerated()), id: \.offset) { at, piece in
+                    let has = model.covered.contains(at)
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Image(systemName: has ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(has ? NodeState.mastered.color : Palette.inkGhost)
+                        // The piece stays hidden until it is banked: printing the
+                        // whole bar up front hands over the outline of the answer
+                        // before the question is asked.
+                        Text(has ? piece : "—")
+                            .font(.atlas(.sans, 12.5))
+                            .foregroundStyle(has ? Palette.ink : Palette.inkFaint)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
     /// Voice mode's dock. The composer itself is the sheet — this is the way
     /// back into it when the sheet is not up, and the way out to the keyboard.
     private func voiceDock(_ model: SocraticViewModel) -> some View {
         Dock {
+            ledger(model)
             escapes(model)
             HStack(spacing: 10) {
                 CTAButton("Falar", tint: Phase.socratic.tint) { speak(model) }
@@ -340,6 +371,7 @@ struct SocraticView: View {
     private func answerDock(_ model: SocraticViewModel) -> some View {
         @Bindable var model = model
         return Dock {
+            ledger(model)
             escapes(model)
             HStack(alignment: .bottom, spacing: 6) {
                 // Voice is a setting (screen 13): a learner who turned dictation

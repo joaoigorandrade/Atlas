@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDomainPhaseCaches } from "@/components/atlas/useDomainPhaseCaches";
+import { useLive } from "@/components/atlas/useLive";
 import {
   DEFAULT_FORM,
   PARETO_DEFAULT,
@@ -34,6 +35,7 @@ import {
   type ConsumeModelBeat,
   type ConsumeProgress,
   type ConnectSession,
+  type PhaseProgress,
   type CrucibleContent,
   type DiscriminateContent,
   type DrillContent,
@@ -184,6 +186,12 @@ export function useRunState(opts: {
   const [connectProgress, setConnectProgress] = useState<Record<string, ConnectSession>>(
     {},
   );
+  // …and the same again for every phase built after the catalogue, which park
+  // by phase id in one `phase_progress` column rather than earning a column
+  // and a migration each. Same reason as the four above: a Crucible attempt
+  // and a Perform run are long-form work, and a refresh is not a decision to
+  // throw them away.
+  const [phaseProgress, setPhaseProgress] = useState<Record<string, PhaseProgress>>({});
   /** What this learner keeps getting wrong, across nodes and across sessions.
    *  The pass state above is discarded the moment a pass finishes; this is the
    *  part worth keeping, and the judge reads it back on every answer. */
@@ -224,58 +232,33 @@ export function useRunState(opts: {
     {},
   );
 
-  const graphRef = useRef(graph);
-  graphRef.current = graph;
-  const formRef = useRef(form);
-  formRef.current = form;
-  const statesRef = useRef(states);
-  statesRef.current = states;
-  const positionsRef = useRef(positions);
-  positionsRef.current = positions;
-  const cardsRef = useRef(cards);
-  cardsRef.current = cards;
-  const consumeCacheRef = useRef(consumeCache);
-  consumeCacheRef.current = consumeCache;
-  const modelCacheRef = useRef(modelCache);
-  modelCacheRef.current = modelCache;
-  const socraticCacheRef = useRef(socraticCache);
-  socraticCacheRef.current = socraticCache;
-  const feynmanCacheRef = useRef(feynmanCache);
-  feynmanCacheRef.current = feynmanCache;
-  const connectCacheRef = useRef(connectCache);
-  connectCacheRef.current = connectCache;
-  const crucibleCacheRef = useRef(crucibleCache);
-  crucibleCacheRef.current = crucibleCache;
-  const discriminateCacheRef = useRef(discriminateCache);
-  discriminateCacheRef.current = discriminateCache;
-  const predictCacheRef = useRef(predictCache);
-  predictCacheRef.current = predictCache;
-  const traceCacheRef = useRef(traceCache);
-  traceCacheRef.current = traceCache;
-  const drillCacheRef = useRef(drillCache);
-  drillCacheRef.current = drillCache;
-  const recallCacheRef = useRef(recallCache);
-  recallCacheRef.current = recallCache;
-  const performCacheRef = useRef(performCache);
-  performCacheRef.current = performCache;
-  const retainContentRef = useRef(retainContent);
-  retainContentRef.current = retainContent;
-  const consumeProgressRef = useRef(consumeProgress);
-  consumeProgressRef.current = consumeProgress;
-  const modalityTallyRef = useRef(modalityTally);
-  modalityTallyRef.current = modalityTally;
-  const socraticProgressRef = useRef(socraticProgress);
-  socraticProgressRef.current = socraticProgress;
-  const feynmanProgressRef = useRef(feynmanProgress);
-  feynmanProgressRef.current = feynmanProgress;
-  const connectProgressRef = useRef(connectProgress);
-  connectProgressRef.current = connectProgress;
-  const phasesDoneRef = useRef(phasesDone);
-  phasesDoneRef.current = phasesDone;
-  const shakyReasonsRef = useRef(shakyReasons);
-  shakyReasonsRef.current = shakyReasons;
-  const misconceptionsRef = useRef(misconceptions);
-  misconceptionsRef.current = misconceptions;
+  const graphRef = useLive(graph);
+  const formRef = useLive(form);
+  const statesRef = useLive(states);
+  const positionsRef = useLive(positions);
+  const cardsRef = useLive(cards);
+  const consumeCacheRef = useLive(consumeCache);
+  const modelCacheRef = useLive(modelCache);
+  const socraticCacheRef = useLive(socraticCache);
+  const feynmanCacheRef = useLive(feynmanCache);
+  const connectCacheRef = useLive(connectCache);
+  const crucibleCacheRef = useLive(crucibleCache);
+  const discriminateCacheRef = useLive(discriminateCache);
+  const predictCacheRef = useLive(predictCache);
+  const traceCacheRef = useLive(traceCache);
+  const drillCacheRef = useLive(drillCache);
+  const recallCacheRef = useLive(recallCache);
+  const performCacheRef = useLive(performCache);
+  const retainContentRef = useLive(retainContent);
+  const consumeProgressRef = useLive(consumeProgress);
+  const modalityTallyRef = useLive(modalityTally);
+  const socraticProgressRef = useLive(socraticProgress);
+  const feynmanProgressRef = useLive(feynmanProgress);
+  const connectProgressRef = useLive(connectProgress);
+  const phaseProgressRef = useLive(phaseProgress);
+  const phasesDoneRef = useLive(phasesDone);
+  const shakyReasonsRef = useLive(shakyReasons);
+  const misconceptionsRef = useLive(misconceptions);
 
   // ---- the mutators the phases reach for ---------------------------------
 
@@ -312,20 +295,23 @@ export function useRunState(opts: {
    * The re-plan restructure: hang a generated gap sub-node under its parent —
    * new red node, dashed edge, assemble animation. Idempotent per spec id.
    */
-  const attachGap = useCallback((parentId: string, spec: GapSpec): boolean => {
-    const parent = graphRef.current.nodes.find((n) => n.id === parentId);
-    const base = positionsRef.current[parentId];
-    if (!parent || !base) return false;
-    if (graphRef.current.nodes.some((n) => n.id === spec.id)) return false;
-    setGraph((g) => spawnGap(g, parentId, spec));
-    setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
-    setPositions((prev) => ({
-      ...prev,
-      [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy },
-    }));
-    setSpawnedIds((prev) => new Set(prev).add(spec.id));
-    return true;
-  }, []);
+  const attachGap = useCallback(
+    (parentId: string, spec: GapSpec): boolean => {
+      const parent = graphRef.current.nodes.find((n) => n.id === parentId);
+      const base = positionsRef.current[parentId];
+      if (!parent || !base) return false;
+      if (graphRef.current.nodes.some((n) => n.id === spec.id)) return false;
+      setGraph((g) => spawnGap(g, parentId, spec));
+      setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
+      setPositions((prev) => ({
+        ...prev,
+        [spec.id]: { x: base.x + spec.dx, y: base.y + spec.dy },
+      }));
+      setSpawnedIds((prev) => new Set(prev).add(spec.id));
+      return true;
+    },
+    [graphRef, positionsRef],
+  );
 
   /** Remove a resolved gap node and every trace of it from the run state. */
   const removeGapNode = useCallback((gapId: string) => {
@@ -418,6 +404,7 @@ export function useRunState(opts: {
     setSocraticProgress({});
     setFeynmanProgress({});
     setConnectProgress({});
+    setPhaseProgress({});
     setMisconceptions([]);
     setCalibSamples([]);
     setShakyReasons({});
@@ -495,6 +482,7 @@ export function useRunState(opts: {
       setSocraticProgress(topic.socraticProgress);
       setFeynmanProgress(topic.feynmanProgress);
       setConnectProgress(topic.connectProgress);
+      setPhaseProgress(topic.phaseProgress);
       setMisconceptions(topic.misconceptions);
       setScreen("map");
       // What the server already has, so the first debounce after a load sends
@@ -604,8 +592,7 @@ export function useRunState(opts: {
         }),
       );
   };
-  const switchMapRef = useRef(switchMap);
-  switchMapRef.current = switchMap;
+  const switchMapRef = useLive(switchMap);
 
   // Write-through, debounced, and proportional to what actually changed.
   //
@@ -629,6 +616,7 @@ export function useRunState(opts: {
       socraticProgress,
       feynmanProgress,
       connectProgress,
+      phaseProgress,
     });
     const cardShots = projectCards(cards);
     const topicShot = projectTopic({
@@ -683,6 +671,7 @@ export function useRunState(opts: {
     socraticProgress,
     feynmanProgress,
     connectProgress,
+    phaseProgress,
     misconceptions,
   ]);
 
@@ -781,6 +770,9 @@ export function useRunState(opts: {
     connectProgress,
     setConnectProgress,
     connectProgressRef,
+    phaseProgress,
+    setPhaseProgress,
+    phaseProgressRef,
     misconceptions,
     setMisconceptions,
     misconceptionsRef,

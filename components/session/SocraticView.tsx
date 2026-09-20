@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  HELP_COLOR,
   type PhaseId,
   phaseLabel,
   STATE_COLOR,
-  helpLabels,
   socraticOutcome,
   type HelpLevel,
   type SocraticSession,
@@ -16,11 +14,12 @@ import { InkDots, StreamingText } from "@/components/Pending";
 import { InlineError } from "@/components/ErrorState";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font } from "@/lib/theme";
-import { useLanguage, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
 import type { PresenceState } from "@/lib/motion";
 
 import Rich from "@/components/Rich";
+import { HelpDial, Ledger } from "@/components/session/socraticChrome";
 import { STRINGS } from "@/components/session/socraticCopy";
 
 // Socratic borrows the shared state colors: learning blue for the phase label,
@@ -182,6 +181,23 @@ export default function SocraticView({
           {t.sessionLabel}
         </span>
         <div style={{ fontFamily: font.serif, fontSize: 19 }}>{title}</div>
+        {/* How far through the pass. Both numbers were already in state and
+            neither was ever drawn, so a learner mid-probe had no way to tell a
+            pass that was nearly over from one that had barely started. */}
+        {!session.done && (
+          <span
+            data-testid="socratic-progress"
+            style={{
+              fontFamily: font.mono,
+              fontSize: 10.5,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: color.inkFaint,
+            }}
+          >
+            {t.probeCount(Math.min(session.step + 1, session.total), session.total)}
+          </span>
+        )}
         <div style={{ flex: 1 }} />
         <span
           style={{
@@ -286,6 +302,12 @@ export default function SocraticView({
                 </div>
               ) : (
                 <>
+                  <Ledger
+                    sufficient={session.bar}
+                    covered={session.covered}
+                    banked={t.banked}
+                    stillOpen={t.stillOpen}
+                  />
                   <div
                     style={{
                       fontFamily: font.mono,
@@ -408,56 +430,6 @@ export default function SocraticView({
         {breadcrumb}
       </div>
     </Sheet>
-  );
-}
-
-/** The Silent · Hint · Guide · Show me dial; the active cell warms with help.
- *  Clickable (#B) — the learner sets it by hand, and the judge follows it. */
-function HelpDial({
-  help,
-  onChange,
-}: {
-  help: HelpLevel;
-  onChange: (level: HelpLevel) => void;
-}) {
-  const { language } = useLanguage();
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: 3,
-        background: color.chipBg,
-        border: `1px solid rgba(44,40,35,0.09)`,
-        borderRadius: 9,
-        padding: 3,
-      }}
-    >
-      {helpLabels(language).map((label, i) => {
-        const active = i === help;
-        const c = HELP_COLOR[i as HelpLevel];
-        return (
-          <button
-            className="at-press"
-            key={label}
-            onClick={() => onChange(i as HelpLevel)}
-            style={{
-              padding: "5px 11px",
-              borderRadius: 6,
-              border: "none",
-              fontFamily: font.mono,
-              fontSize: 10.5,
-              letterSpacing: "0.04em",
-              background: active ? c : "transparent",
-              color: active ? color.accentInk : color.inkFaint,
-              fontWeight: active ? 600 : 400,
-              cursor: "pointer",
-            }}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 

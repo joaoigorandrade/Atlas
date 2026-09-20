@@ -51,6 +51,7 @@ import {
   type ConsumeModelBeat,
   type ConsumeProgress,
   type CrucibleAction,
+  type CrucibleSession,
   type FeynmanAction,
   type FeynmanBeat,
   type GapSpec,
@@ -85,6 +86,7 @@ import { usePredict } from "@/components/atlas/usePredict";
 import { useTrace } from "@/components/atlas/useTrace";
 import { useDrill } from "@/components/atlas/useDrill";
 import { useRecall } from "@/components/atlas/useRecall";
+import { dropParked, parkedSession } from "@/components/atlas/phaseParking";
 import { usePerform } from "@/components/atlas/usePerform";
 import { useDomainPhases } from "@/components/atlas/useDomainPhases";
 import type { Language } from "@/lib/i18n";
@@ -198,6 +200,8 @@ export function useSpiral(deps: {
     feynmanProgressRef,
     setConnectProgress,
     connectProgressRef,
+    setPhaseProgress,
+    phaseProgressRef,
     setShakyReason,
     recordCalib,
     attachGap,
@@ -887,18 +891,9 @@ export function useSpiral(deps: {
   };
 
   const dispatchSocratic = (action: SocraticAction) => {
-    // A caught wrong turn is filed run-wide before it scrolls out of the
-    // transcript: this pass is discarded when it ends, the roll-up isn't.
-    // Outside the updater below on purpose — that one has to stay pure.
-    const live = socraticRef.current;
-    const picked =
-      action.type === "reply" && live
-        ? socraticStepsFor(live.nodeId)?.[live.step]?.replies[action.index]
-        : undefined;
-    if (live && picked?.quality === "wrong" && !live.ruledOut.includes(picked.label)) {
-      const label = graphRef.current.nodes.find((n) => n.id === live.nodeId)?.label ?? "";
-      setMisconceptions((list) => recordMisconception(list, picked.label, label));
-    }
+    // Every wrong turn reaching the roll-up comes from the judge now
+    // (`socraticAnswer`): neither client ever rendered the scripted replies
+    // this used to file from, so a typed answer is the only reply there is.
     setSocratic((prev) => {
       if (!prev) return prev;
       const steps = socraticStepsFor(prev.nodeId);
@@ -946,7 +941,12 @@ export function useSpiral(deps: {
     }
     const sinceStepOpen = session.log.slice(openIdx);
     const lastAiTurn = [...session.log].reverse().find((t) => t.role === "ai");
-    const attempt = sinceStepOpen.filter((t) => t.role === "learner").length + 1;
+    // The judge grades the union of these and the new answer: one answer built
+    // across two turns reads as answered, not as missed twice.
+    const said = sinceStepOpen.flatMap((t) =>
+      t.role === "learner" && t.text ? [t.text] : [],
+    );
+    const attempt = said.length + 1;
     // The answer lands in the transcript on send, with the tutor's bubble
     // already writing beside it. Verdict-first: the classification arrives
     // about a second in and moves the tutor on; the wording fills that
@@ -964,6 +964,8 @@ export function useSpiral(deps: {
           nodeLabel: node.label,
           question: lastAiTurn?.text ?? step.prompt,
           reference: step.tell,
+          sufficient: step.sufficient,
+          said,
           answer: text,
           history: sinceStepOpen.map((t) => ({ role: t.role, text: t.text })),
           attempt,
@@ -988,6 +990,7 @@ export function useSpiral(deps: {
             answer: text,
             quality: partial.quality,
             response: partial.response ?? "",
+            covered: partial.covered,
             pending: !partial.response,
           });
         },
@@ -1007,6 +1010,7 @@ export function useSpiral(deps: {
                   answer: text,
                   quality: j.quality,
                   response: j.response,
+                  covered: j.covered,
                 },
           );
         })
@@ -1034,13 +1038,18 @@ export function useSpiral(deps: {
     void runJudge();
   };
 
-  const exitSocratic = () => {
+  /** Back to the map with the node selected and centred. Three exits below
+   *  had these four lines each; `usePerform` keeps the same helper for the
+   *  same reason. */
+  const leaveTo = (nodeId: string | undefined) => {
     setScreen("map");
-    const nodeId = socratic?.nodeId;
-    if (nodeId) {
-      setSelectedId(nodeId);
-      later(() => centerOn(nodeId), 30);
-    }
+    if (!nodeId) return;
+    setSelectedId(nodeId);
+    later(() => centerOn(nodeId), 30);
+  };
+
+  const exitSocratic = () => {
+    leaveTo(socratic?.nodeId);
     setSocratic(null);
   };
 
@@ -1286,12 +1295,7 @@ export function useSpiral(deps: {
   feynmanTeachRef.current = feynmanTeach;
 
   const exitFeynman = () => {
-    setScreen("map");
-    const nodeId = feynman?.nodeId;
-    if (nodeId) {
-      setSelectedId(nodeId);
-      later(() => centerOn(nodeId), 30);
-    }
+    leaveTo(feynman?.nodeId);
     setFeynman(null);
   };
 
@@ -1386,14 +1390,9 @@ export function useSpiral(deps: {
   };
 
   const exitConnect = () => {
-    setScreen("map");
-    const nodeId = connect?.nodeId;
-    if (nodeId) {
-      // Park the pass, don't discard it: ← Map is "come back to this later".
-      if (connect) setConnectProgress((prev) => ({ ...prev, [nodeId]: connect }));
-      setSelectedId(nodeId);
-      later(() => centerOn(nodeId), 30);
-    }
+    // Park the pass, don't discard it: ← Map is "come back to this later".
+    if (connect) setConnectProgress((prev) => ({ ...prev, [connect.nodeId]: connect }));
+    leaveTo(connect?.nodeId);
     setConnect(null);
   };
 
@@ -1483,8 +1482,7 @@ export function useSpiral(deps: {
     // "Continue to the Crucible →" used to land on the map, leaving the node
     // reading "Try again · Crucible" for a phase it had never shown.
     if (phasePlan(node).includes("crucible")) return enterCrucibleRef.current(node);
-    setScreen("map");
-    later(() => centerOn(node.id), 30);
+    leaveTo(node.id);
   };
 
   // ---- Crucible (Phase 5 · application / transfer) ---------------------
@@ -1497,7 +1495,12 @@ export function useSpiral(deps: {
   const enterCrucible = useCallback(
     (node: ConceptNode) => {
       const open = () => {
-        setCrucible(crucibleStart(node.id));
+        // A parked attempt is the learner's own writing — reopen it rather
+        // than handing them a blank workspace for a problem they started.
+        setCrucible(
+          parkedSession<CrucibleSession>(phaseProgressRef.current, node.id, "crucible") ??
+            crucibleStart(node.id),
+        );
         setSelectedId(node.id);
         setScreen("crucible");
       };
@@ -1519,6 +1522,7 @@ export function useSpiral(deps: {
       loadCrucible,
       setCrucible,
       crucibleCacheRef,
+      phaseProgressRef,
       warmKey,
       setScreen,
       setSelectedId,
@@ -1660,12 +1664,13 @@ export function useSpiral(deps: {
     if (node) {
       setShakyReason(node.id, null);
       completePhase(node, "crucible", null);
+      // The rung is closed — a re-entry must open a fresh problem, not the
+      // attempt that passed.
+      dropParked(setPhaseProgress, node.id, "crucible");
     }
-    setScreen("map");
+    leaveTo(node?.id);
     setCrucible(null);
     if (node) {
-      setSelectedId(node.id);
-      later(() => centerOn(node.id), 30);
       // Adherence: a node just went green — the day's winnable end.
       setLitToday((prev) => (prev.includes(node.label) ? prev : [...prev, node.label]));
       setAdherence((prev) => markTodayMet(prev));
@@ -1674,12 +1679,7 @@ export function useSpiral(deps: {
   };
 
   const exitCrucible = () => {
-    setScreen("map");
-    const nodeId = crucibleRef.current?.nodeId;
-    if (nodeId) {
-      setSelectedId(nodeId);
-      later(() => centerOn(nodeId), 30);
-    }
+    leaveTo(crucibleRef.current?.nodeId);
     setCrucible(null);
   };
 
@@ -1918,16 +1918,14 @@ export function useSpiral(deps: {
     }
     const outcome = socraticOutcome(session, !!node.gap);
     if (node.gap) {
-      if (outcome === "unaided") {
-        removeGapNode(node.id);
-        setScreen("map");
-        setSelectedId(null);
-        showToast(tc().gapClosed(node.label), tc().mapUpdated);
-      } else {
-        setScreen("map");
-        setSelectedId(node.id);
-        showToast(tc().stillLeaning(node.label), tc().gapNotClosed);
-      }
+      const closed = outcome === "unaided";
+      if (closed) removeGapNode(node.id);
+      setScreen("map");
+      setSelectedId(closed ? null : node.id);
+      showToast(
+        closed ? tc().gapClosed(node.label) : tc().stillLeaning(node.label),
+        closed ? tc().mapUpdated : tc().gapNotClosed,
+      );
       return;
     }
     if (outcome === "flagged") {
@@ -1937,8 +1935,8 @@ export function useSpiral(deps: {
       setScreen("map");
       setSelectedId(node.id);
       // ponytail: a synthetic gap (no model-authored label/reason like
-      // Feynman/Crucible's) — promote to a generated one if this needs
-      // richer framing than "foundations" later.
+      // Feynman/Crucible's) — promote to a generated one if it needs richer
+      // framing than "foundations" later.
       const spec: GapSpec = {
         id: `gap-soc-${node.id}`,
         label: tc().socraticGapLabel(node.label),
@@ -1947,12 +1945,13 @@ export function useSpiral(deps: {
         dy: 150,
       };
       attachGap(node.id, spec);
-      // The flag on its own is passive — it names the problem and leaves the
-      // learner free to click on to Feynman anyway. A pass that had to be told
-      // through is a reading that didn't land, so the hand-off runs backwards:
-      // into the reading, reopened at the top with nothing collapsed to its
-      // takeaway. The ref is written alongside the state because
-      // `enterSession` reads it synchronously, one line down.
+      // The rung closes even here: a pass told through is a weakness to
+      // *record*, not to punish by holding the phase open. The gap above and
+      // the Shaky reason carry it, and `stateFromPlan` will not call the node
+      // mastered while the gap stands — so the reading below is an offer now
+      // rather than the only door out. The ref is written alongside the state
+      // because `enterSession` reads it synchronously, one line down.
+      completePhase(node, "socratic", "socratic-told");
       const saved = consumeProgressRef.current[node.id];
       if (saved) {
         const reread = { ...saved, idx: 0, collapsed: {}, handedOff: false };
