@@ -477,11 +477,17 @@ final class SocraticViewModel {
               !saved.log.isEmpty
         else { return }
         step = saved.step
-        help = max(0, min(3, saved.help))
         tells = saved.tells
         resolutions = saved.resolutions
-        floor = max(0, min(3, saved.floor))
+        floor = max(0, min(3, saved.floor ?? 0))
         covered = saved.covered
+        // A pass saved before the ladder carries a dial, not a rung: in the old
+        // model it rose across the whole pass and never reset per probe, so a
+        // saved 3 says "needed help somewhere", not "this probe is at the
+        // bottom" — and the bottom is terminal, which would close their next
+        // answer as `told`. Unknowable, so it reopens at the floor. Mirrors
+        // `restored` in `socraticLadder.ts`.
+        help = saved.floor == nil ? floor : max(0, min(3, saved.help))
         total = saved.total
         awaiting = saved.awaitingNext
         log = saved.log.map {

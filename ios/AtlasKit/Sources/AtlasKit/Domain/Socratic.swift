@@ -132,8 +132,11 @@ public struct SocraticSnapshot: Codable, Sendable {
     public var ruledOut: [String]
     public var tells: Int
     public var resolutions: [SocraticResolution]
-    /// The rung every probe opens on — the learner's dial.
-    public var floor: Int
+    /// The rung every probe opens on — the learner's dial. Optional because
+    /// `nil` is the one reliable sign that a pass was saved before the ladder
+    /// existed: every other new field has a legitimate empty value, so only
+    /// this one can say "absent" rather than "zero".
+    public var floor: Int?
     /// Which pieces of `bar` the probe on screen has established.
     public var covered: [Int]
     /// That probe's own bar, snapshotted when it opened, so a resumed pass
@@ -145,7 +148,7 @@ public struct SocraticSnapshot: Codable, Sendable {
 
     public init(
         nodeId: String, step: Int, help: Int, log: [Turn], ruledOut: [String] = [],
-        tells: Int, resolutions: [SocraticResolution], floor: Int = 0,
+        tells: Int, resolutions: [SocraticResolution], floor: Int? = nil,
         covered: [Int] = [], bar: [String] = [],
         total: Int, awaitingNext: Bool, done: Bool
     ) {
@@ -173,7 +176,7 @@ public struct SocraticSnapshot: Codable, Sendable {
         ruledOut = (try? c.decode([String].self, forKey: .ruledOut)) ?? []
         tells = (try? c.decode(Int.self, forKey: .tells)) ?? 0
         resolutions = (try? c.decode([SocraticResolution].self, forKey: .resolutions)) ?? []
-        floor = (try? c.decode(Int.self, forKey: .floor)) ?? 0
+        floor = try? c.decode(Int.self, forKey: .floor)
         covered = (try? c.decode([Int].self, forKey: .covered)) ?? []
         bar = (try? c.decode([String].self, forKey: .bar)) ?? []
         total = (try? c.decode(Int.self, forKey: .total)) ?? 0
