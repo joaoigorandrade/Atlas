@@ -9,6 +9,7 @@
 import { fetchStream } from "./api";
 import { AtlasError } from "./errors";
 import type { Language } from "./i18n";
+import { verdictReady } from "./curriculum/socraticLadder";
 
 /**
  * A judge call, verdict-first.
@@ -85,7 +86,11 @@ export function fetchJudgeSocratic(
   onVerdict?: (partial: Partial<SocraticJudgement>) => void,
   onDraft?: (draft: Partial<SocraticJudgement>) => void,
 ): Promise<SocraticJudgement> {
-  return judge({ kind: "judge", mode: "socratic", ...params }, onVerdict, onDraft);
+  // A "partial" prefix without its ledger is held back for the full object:
+  // what it banked decides whether it costs a rung (`verdictReady`).
+  const ready = (v: Partial<SocraticJudgement>) =>
+    verdictReady(v, params.sufficient) && onVerdict?.(v);
+  return judge({ kind: "judge", mode: "socratic", ...params }, ready, onDraft);
 }
 
 /** One ruling per position, plus the written read. The gate reads the two

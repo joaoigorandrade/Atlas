@@ -254,7 +254,7 @@ export default function SocraticView({
             style={{
               flex: "0 0 auto",
               borderTop: `1px solid ${color.hairline}`,
-              padding: "16px 32px 20px",
+              padding: "16px 32px 38px",
               background: "rgba(248,246,240,0.55)",
             }}
           >

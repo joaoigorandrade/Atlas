@@ -241,10 +241,14 @@ public struct SocraticJudgement: Decodable, Sendable {
     /// Right so far, but not all of it yet. Holds the rung: building one answer
     /// across two turns is how people think, not a failed attempt.
     var isPartial: Bool { quality == "partial" }
-    /// How far down the ladder this verdict pushes the tutor. Mirrors `DESCENT`.
-    var descent: Int {
+    /// How far down the ladder this verdict pushes the tutor. Mirrors
+    /// `descentFor`: a `partial` is free only while it banks a piece — on a
+    /// probe with a bar, one that adds nothing costs what `near` does, or a
+    /// judge that kept saying "partial" would hold the step open forever.
+    func descent(banked: Bool, bar: Int) -> Int {
         switch quality {
-        case "correct", "partial": 0
+        case "correct": 0
+        case "partial": bar > 0 && !banked ? 1 : 0
         case "lost": 2
         default: 1
         }

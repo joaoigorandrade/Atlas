@@ -179,3 +179,13 @@ private func probe(_ id: String, spare: Bool = false) -> JSONValue {
     #expect(list[0].node == "Continuidade")
     #expect(recurringMisconceptions(list).count == 1)
 }
+
+@Test func aPartialThatBanksNothingCostsARung() throws {
+    let partial = try JSONDecoder().decode(
+        SocraticJudgement.self, from: Data(#"{"quality":"partial","response":"…"}"#.utf8))
+    #expect(partial.descent(banked: true, bar: 2) == 0)
+    // Added nothing to a probe with a bar — the same cost as `near`.
+    #expect(partial.descent(banked: false, bar: 2) == 1)
+    // A probe written before the bar has no ledger to judge progress by.
+    #expect(partial.descent(banked: false, bar: 0) == 0)
+}

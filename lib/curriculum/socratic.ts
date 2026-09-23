@@ -18,7 +18,7 @@
 import {
   bank,
   clampHelp,
-  DESCENT,
+  descentFor,
   resolutionFor,
   restored,
   type HelpLevel,
@@ -432,7 +432,10 @@ export function socraticReducer(
       // would have moved to, because no descent happened.
       if (action.quality === "correct")
         return advance(logged, resolutionFor(session.help));
-      const rung = clampHelp(session.help + DESCENT[action.quality]);
+      const rung = clampHelp(
+        session.help +
+          descentFor(action.quality, session.covered, logged.covered, session.bar.length),
+      );
       // The bottom rung is terminal. Landing on it means the tutor says the
       // whole thing now instead of asking a fifth time.
       if (rung >= 3) return teach(logged);

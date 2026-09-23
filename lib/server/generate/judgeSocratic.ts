@@ -152,12 +152,9 @@ Return JSON: {"quality": "correct" | "partial" | "near" | "wrong" | "lost", "cov
   ];
 }
 
-const validateSocraticJudgement = (raw: unknown): SocraticJudgement => {
-  const root = obj(raw, "payload");
-  // The tag is the only part of a caught wrong turn that outlives the session,
-  // but it is still read leniently: a judgement without one still judges.
-  const tag = typeof root.misconception === "string" ? root.misconception.trim() : "";
-  const covered = Array.isArray(root.covered)
+/** The bar indices the union conveys, read leniently: junk entries drop out. */
+const coveredOf = (root: Record<string, unknown>): number[] =>
+  Array.isArray(root.covered)
     ? [
         ...new Set(
           root.covered.filter(
@@ -166,6 +163,13 @@ const validateSocraticJudgement = (raw: unknown): SocraticJudgement => {
         ),
       ].sort((a, b) => a - b)
     : [];
+
+const validateSocraticJudgement = (raw: unknown): SocraticJudgement => {
+  const root = obj(raw, "payload");
+  // The tag is the only part of a caught wrong turn that outlives the session,
+  // but it is still read leniently: a judgement without one still judges.
+  const tag = typeof root.misconception === "string" ? root.misconception.trim() : "";
+  const covered = coveredOf(root);
   return {
     quality: oneOf(root.quality, QUALITIES, "quality"),
     response: str(root.response, "response"),
@@ -187,10 +191,18 @@ export function judgeSocraticStream(
   params: JudgeSocraticParams,
 ): AsyncGenerator<StreamFrame> {
   return judgeStream<SocraticJudgement>(socraticJudgeMessages(params), {
-    firstShape: `{"quality": "correct" | "partial" | "near" | "wrong" | "lost"}`,
-    first: (raw) => ({
-      quality: oneOf(obj(raw, "verdict").quality, QUALITIES, "quality"),
-    }),
+    // `covered` rides with the verdict: the client applies this prefix and
+    // never reads the ledger off the full object, and whether a "partial"
+    // earned its keep is decided by what it banked.
+    firstShape: `{"quality": "correct" | "partial" | "near" | "wrong" | "lost", "covered": [0, 1]}`,
+    first: (raw) => {
+      const root = obj(raw, "verdict");
+      const covered = coveredOf(root);
+      return {
+        quality: oneOf(root.quality, QUALITIES, "quality"),
+        ...(Array.isArray(root.covered) ? { covered } : null),
+      };
+    },
     full: validateSocraticJudgement,
     label: "judge-socratic",
   });

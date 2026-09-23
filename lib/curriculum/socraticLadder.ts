@@ -67,6 +67,34 @@ export const DESCENT: Record<ReplyQuality, number> = {
   lost: 2,
 };
 
+/** The descent a verdict actually earns. A `partial` is free only while it
+ *  banks a piece: on a probe with a bar, one that adds nothing to the ledger is
+ *  a turn that added nothing, and costs what `near` does. Without this the only
+ *  thing bounding a step was the judge's honesty — a model that kept saying
+ *  "partial" held the learner on one probe forever. */
+export function descentFor(
+  quality: ReplyQuality,
+  before: number[],
+  after: number[],
+  bar: number,
+): number {
+  if (quality === "partial" && bar > 0 && after.length === before.length)
+    return DESCENT.near;
+  return DESCENT[quality];
+}
+
+/** Whether a streamed verdict prefix is enough to act on. Every quality is,
+ *  except a `partial` on a probe with a bar that arrived without its ledger —
+ *  `descentFor` needs to know what it banked, so that one waits for the full
+ *  judgement rather than being charged a rung for a missing field. */
+export function verdictReady(
+  v: { quality?: ReplyQuality; covered?: number[] },
+  bar: readonly string[] | undefined,
+): boolean {
+  if (!v.quality) return false;
+  return !(v.quality === "partial" && !v.covered && bar?.length);
+}
+
 /** Merge the judge's coverage reading into the ledger. Union rather than
  *  replace: a ledger that ticks backwards reads as lost ground even when
  *  nothing was. */

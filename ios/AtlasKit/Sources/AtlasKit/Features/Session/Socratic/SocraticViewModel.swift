@@ -360,13 +360,14 @@ final class SocraticViewModel {
             if let named, !named.isEmpty {
                 session.store.file(misconception: named, under: node.label)
             }
+            let held = covered.count
             if let banked = verdict.covered {
                 covered = Array(Set(covered).union(banked)).sorted()
             }
             // Closed on the rung it was reached at — never on one a descent
             // would have moved to, because no descent happened.
             if verdict.closesStep { return close(resolutionFor(help)) }
-            let rung = min(3, help + verdict.descent)
+            let rung = min(3, help + verdict.descent(banked: covered.count > held, bar: bar.count))
             // The bottom rung is terminal: the tutor says the whole thing now
             // rather than asking a fifth time. Nobody waits at "Mostre-me".
             if rung >= 3 { return teach() }

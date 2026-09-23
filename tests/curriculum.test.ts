@@ -55,6 +55,7 @@ import {
   shakyLine,
   socraticOutcome,
   socraticReducer,
+  verdictReady,
   socraticPlan,
   socraticStart,
   type ReplyQuality,
@@ -390,6 +391,26 @@ describe("the Socratic ladder", () => {
     s = answered(s, "partial", four, [1]);
     s = answered(s, "correct", four, [0, 1]);
     expect(s.covered).toEqual([]);
+  });
+
+  it("charges a partial that banks nothing, so a step cannot stall on it", () => {
+    const barred = four.map((x) => ({ ...x, sufficient: ["a", "b"] }));
+    let s = socraticStart("n", barred, 4);
+    s = answered(s, "partial", barred, [0]);
+    expect(s.help).toBe(0); // banked a piece — free
+    s = answered(s, "partial", barred, [0]);
+    expect(s.help).toBe(1); // added nothing — costs what `near` does
+    // A judge that keeps saying "partial" still reaches the bottom and closes.
+    for (let i = 0; i < 5; i++) s = answered(s, "partial", barred, [0]);
+    expect(s.resolutions).toEqual(["told"]);
+  });
+
+  it("holds a streamed partial back until its ledger is known", () => {
+    expect(verdictReady({ quality: "partial" }, ["a", "b"])).toBe(false);
+    expect(verdictReady({ quality: "partial", covered: [] }, ["a", "b"])).toBe(true);
+    expect(verdictReady({ quality: "partial" }, [])).toBe(true);
+    expect(verdictReady({ quality: "near" }, ["a", "b"])).toBe(true);
+    expect(verdictReady({}, ["a"])).toBe(false);
   });
 
   it("credits a recovered error as hint, not as told", () => {
