@@ -191,6 +191,10 @@ struct SocraticView: View {
         .accessibilityValue(Text(verbatim: SocraticViewModel.helpLabel(model.help)))
     }
 
+    /// The foot of the transcript — what every re-pin scrolls to, so whatever
+    /// sits under the last turn (the ledger, a working line) stays in view.
+    private static let tail = "transcript-tail"
+
     private func transcript(_ model: SocraticViewModel) -> some View {
         ScrollViewReader { scroll in
             ScrollView {
@@ -220,6 +224,11 @@ struct SocraticView: View {
                         Text(verbatim: model.speaker.message)
                             .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
                     }
+                    // The voice sheet *is* the dock while it is up, and the dock
+                    // is where the ledger lives — so in the default composer the
+                    // learner never saw a piece tick. It sits above the sheet.
+                    if speaking { ledger(model) }
+                    Color.clear.frame(height: 1).id(Self.tail)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Metrics.gutter)
@@ -234,7 +243,7 @@ struct SocraticView: View {
             // else re-pins it, and the question being answered was left cut off
             // under the composer.
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
-                scroll.scrollTo(model.log.last?.id, anchor: .bottom)
+                scroll.scrollTo(Self.tail, anchor: .bottom)
             }
             // …and the composer is the sheet, so the turn being answered has to
             // sit above it rather than under it.
@@ -245,7 +254,7 @@ struct SocraticView: View {
             .animation(Motion.snap, value: model.judging)
             .animation(Motion.snap, value: model.awaiting)
             .onChange(of: model.log.count) { _, _ in
-                withAnimation(Motion.standard) { scroll.scrollTo(model.log.last?.id, anchor: .bottom) }
+                withAnimation(Motion.standard) { scroll.scrollTo(Self.tail, anchor: .bottom) }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: model.log.count)
         }
