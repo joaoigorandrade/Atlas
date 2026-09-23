@@ -49,12 +49,13 @@ import Testing
     SessionViewModel.forget()
     #expect(SessionViewModel.resumable(in: owner) == nil)
 
-    // Opening a pass marks where the learner is; advancing moves the mark.
+    // Opening a pass marks where the learner is; advancing moves the mark —
+    // to Consume, the rung this node skipped, not the plan's successor.
     let session = SessionViewModel(node: owner.graph.nodes[0], store: owner, phase: .socratic)
     #expect(SessionViewModel.resumable(in: owner)?.1 == .socratic)
     session.advance()
     #expect(SessionViewModel.resumable(in: owner)?.0.id == "lat")
-    #expect(SessionViewModel.resumable(in: owner)?.1 == .feynman)
+    #expect(SessionViewModel.resumable(in: owner)?.1 == .consume)
 
     // A marker from another map is not this map's pass.
     owner.topicId = "t2"

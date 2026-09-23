@@ -105,17 +105,24 @@ public final class SessionViewModel: Identifiable {
     /// next one should be written — so by the time they tap Continue the
     /// content is a state change rather than a round trip.
     ///
-    /// One phase ahead *in this node's plan*. The hand-offs used to be the
-    /// catalogue's own order, which is why a `procedure` reading its Trace pass
-    /// warmed — and paid for — a Socratic pass it never runs.
+    /// The phase the hand-off will open, so the warm and the tap agree.
     private func warmNext() {
-        guard let kind = node.phase(after: phase)?.kind else { return }
+        guard let kind = handOff?.kind else { return }
         store.warmUp(kind, for: node)
     }
 
-    /// The phase this one hands to in the node's own plan, or nil when the
-    /// phase on screen is the plan's last gate.
-    public var handOff: Phase? { node.phase(after: phase) }
+    /// The rung still owed once this phase closes — `primaryPhase` over the
+    /// ledger plus the phase on screen, exactly what `enterOwedPhase` opens on
+    /// the web. Not the plan's successor: a learner who jumped from the map to
+    /// Socratic with Consume unfinished is owed Consume, not Feynman, and the
+    /// phone used to promise and open the successor while the web opened
+    /// Consume. Nil — nothing owed, or the Shaky rule handing this same gate
+    /// back — ends the pass on the map.
+    public var handOff: Phase? {
+        let done = (store.phasesDone[node.id] ?? []) + [phase]
+        let next = primaryPhase(node.plan, done, state: store.display[node.id] ?? .unknown)
+        return next == phase ? nil : next
+    }
 
     /// What a hand-off CTA says and is tinted by. Three of them named the
     /// Crisol or the Socrático outright, which promises a phase a `fact` and a
@@ -136,9 +143,8 @@ public final class SessionViewModel: Identifiable {
     /// Crucible problem may interleave. Mirrors `CONNECT_POOL_STATES`.
     public var learnedElsewhere: [ConceptNode] { store.learned(besides: node) }
 
-    /// The phase closes and the next one in this node's plan opens. Past the
-    /// plan's last gate there is no next: the pass is over and the map takes the
-    /// screen back.
+    /// The phase closes and the rung still owed opens (`handOff`). With nothing
+    /// owed the pass is over and the map takes the screen back.
     ///
     /// Closing the rung is what mastery is derived from — `completePhase` writes
     /// the record and lets `stateFromPlan` decide what the node now is. Before
@@ -155,7 +161,7 @@ public final class SessionViewModel: Identifiable {
     public func advance(passed: Bool) {
         markWorked()
         if passed { store.completePhase(node, phase) }
-        guard let next = node.phase(after: phase) else { return finished = true }
+        guard let next = handOff else { return finished = true }
         phase = next
     }
 

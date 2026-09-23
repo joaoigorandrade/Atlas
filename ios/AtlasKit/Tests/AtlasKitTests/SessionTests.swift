@@ -215,12 +215,15 @@ private func upToCrucible() -> [Phase] {
 }
 
 @MainActor
-@Test func aRedoOpensTheRequestedPhaseAndRunsForwardFromThere() {
+@Test func aRedoOpensTheRequestedPhaseAndEndsOnTheMapWhenNothingIsOwed() {
     let owned = store(["cadeia": .mastered], done: planGates(phasePlans[.concept]!))
     let redo = SessionViewModel(node: owned.graph.nodes[1], store: owned, phase: .feynman)
     #expect(redo.phase == .feynman)
+    // The whole ladder is in the ledger, so there is no rung to hand to — the
+    // web's `enterOwedPhase` goes back to the map here, and so does the phone.
+    #expect(redo.handOff == nil)
     redo.advance()
-    #expect(redo.phase == .connect)
+    #expect(redo.finished)
     // Redoing an earlier phase doesn't walk the node's mastery backwards: the
     // rung was already in the ledger, and closing it again is a no-op.
     #expect(owned.states["cadeia"] == .mastered)
@@ -259,4 +262,35 @@ private func upToCrucible() -> [Phase] {
     #expect(pool.count == 8)
     // Most-owned first.
     #expect(pool.first?.id == "lat")
+}
+
+/// A learner who jumped from the map straight to Socratic with Consume still
+/// open is owed Consume next — not the plan's successor. The phone used to say
+/// "Seguir para Feynman" and open it while the web opened Consume.
+@MainActor
+@Test func aHandOffOpensTheSkippedRungRatherThanThePlansSuccessor() {
+    let (pass, store) = session(["lat": .mastered])
+    let jumped = SessionViewModel(node: pass.node, store: store, phase: .socratic)
+    #expect(jumped.handOff == .consume)
+    jumped.settleSocratic(.unaided)
+    #expect(jumped.phase == .consume)
+    #expect(store.phasesDone["cadeia"] == [.socratic])
+    // Consume closes, and the next owed rung is Discriminate — Socratic is
+    // already in the ledger, so it is walked past rather than reopened.
+    #expect(jumped.handOff == .discriminate)
+    jumped.advance()
+    #expect(jumped.phase == .discriminate)
+    jumped.advance()
+    #expect(jumped.phase == .feynman)
+}
+
+/// A failed run leaves its rung open, but the hand-off still walks on: the
+/// phase just closed counts as behind the learner for where they go next.
+@MainActor
+@Test func aFailedRunWalksOnInsteadOfReopeningItself() {
+    let (pass, store) = session(["lat": .mastered], done: [.consume])
+    let trying = SessionViewModel(node: pass.node, store: store, phase: .discriminate)
+    trying.advance(passed: false)
+    #expect(trying.phase == .socratic)
+    #expect(store.phasesDone["cadeia"] == [.consume])
 }

@@ -206,15 +206,6 @@ public extension ConceptNode {
         if let stored = phasePlan, !stored.isEmpty { return stored }
         return resolvePlan(kind ?? .concept, domain ?? .general)
     }
-
-    /// The phase after `phase` in this node's own plan, or nil at the end of it.
-    /// Retain is not a phase a pass walks into — a review is its own screen —
-    /// so a plan's last gate is where the session stops.
-    func phase(after phase: Phase) -> Phase? {
-        let gates = planGates(plan)
-        guard let index = gates.firstIndex(of: phase), index + 1 < gates.count else { return nil }
-        return gates[index + 1]
-    }
 }
 
 /// Does closing the last gate master this node, or does it still owe earlier
