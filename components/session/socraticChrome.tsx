@@ -4,7 +4,12 @@
 // on screen has established, and the one that shows (and sets) the rung. Lifted
 // out of `SocraticView` for the same reason `socraticCopy.ts` was — the view is
 // at its size ceiling, and these two are the pieces with no dialogue in them.
-import { HELP_COLOR, type HelpLevel, helpLabels } from "@/lib/curriculum";
+import {
+  HELP_COLOR,
+  type HelpLevel,
+  helpLabels,
+  type SocraticAction,
+} from "@/lib/curriculum";
 import { color, font } from "@/lib/theme";
 import { useLanguage } from "@/lib/i18n";
 
@@ -94,10 +99,10 @@ export function Ledger({
  *  step is at right now; clicking sets the floor every later probe opens on. */
 export function HelpDial({
   help,
-  onChange,
+  dispatch,
 }: {
   help: HelpLevel;
-  onChange: (level: HelpLevel) => void;
+  dispatch: (action: SocraticAction) => void;
 }) {
   const { language } = useLanguage();
   return (
@@ -118,7 +123,7 @@ export function HelpDial({
           <button
             className="at-press"
             key={label}
-            onClick={() => onChange(i as HelpLevel)}
+            onClick={() => dispatch({ type: "setHelp", level: i as HelpLevel })}
             style={{
               padding: "5px 11px",
               borderRadius: 6,

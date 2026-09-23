@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   type PhaseId,
   phaseLabel,
+  primaryPhase,
   STATE_COLOR,
   socraticOutcome,
-  type HelpLevel,
+  type SocraticAction,
   type SocraticSession,
   type SocraticTurn,
 } from "@/lib/curriculum";
@@ -37,6 +38,8 @@ interface SocraticViewProps {
   /** The node's own ladder — the breadcrumb draws this, not the catalogue,
    *  since a `fact` and a `principle` no longer run the same rungs. */
   plan: readonly PhaseId[];
+  /** What the node has finished: the hand-off opens the first rung still owed. */
+  done?: readonly PhaseId[];
   session: SocraticSession;
   /** True while the server judge is classifying the typed answer (#25). */
   judging: boolean;
@@ -45,11 +48,8 @@ interface SocraticViewProps {
   onExit: () => void;
   /** Submit the learner's own typed answer for judging. */
   onAnswer: (text: string) => void;
-  onStuck: () => void;
-  onTell: () => void;
-  /** The learner sets the scaffolding dial by hand (#B) — it no longer only
-   *  fades on its own. */
-  onHelpChange: (level: HelpLevel) => void;
+  /** "I'm stuck", "Show me" and the scaffolding dial (#B) — reducer actions. */
+  dispatch: (action: SocraticAction) => void;
   onAdvance: () => void;
   /** Re-run the judge on the answer already in the transcript, for a turn whose
    *  grading failed. Absent when there is nothing to retry. */
@@ -78,9 +78,8 @@ export default function SocraticView({
   gapMode,
   onExit,
   onAnswer,
-  onStuck,
-  onTell,
-  onHelpChange,
+  done = [],
+  dispatch,
   onAdvance,
   onRetryJudge,
   presence,
@@ -125,7 +124,8 @@ export default function SocraticView({
           ? t.doneGap
           : t.doneUnderstood;
   // A flagged pass hands *back* — to the reading, or the map for a gap. Any
-  // other names what THIS plan puts after Socratic, hardcoded to Feynman once.
+  // other names what `enterOwedPhase` opens, not the plan's successor.
+  const owed = primaryPhase(plan, [...done, "socratic"]) ?? "retain";
   const advanceLabel =
     outcome === "flagged"
       ? gapMode
@@ -133,7 +133,7 @@ export default function SocraticView({
         : t.advanceReread
       : gapMode
         ? t.advanceGap
-        : t.advanceTeach(phaseLabel(plan[plan.indexOf("socratic") + 1] ?? "retain"));
+        : t.advanceTeach(phaseLabel(owed));
 
   return (
     <Sheet
@@ -210,7 +210,7 @@ export default function SocraticView({
         >
           {t.scaffolding}
         </span>
-        <HelpDial help={session.help} onChange={onHelpChange} />
+        <HelpDial help={session.help} dispatch={dispatch} />
       </div>
 
       {/* Body — the dialogue */}
@@ -379,7 +379,7 @@ export default function SocraticView({
                   <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                     <button
                       className="at-press"
-                      onClick={onStuck}
+                      onClick={() => dispatch({ type: "stuck" })}
                       disabled={busy}
                       style={{
                         padding: "9px 14px",
@@ -395,7 +395,7 @@ export default function SocraticView({
                     </button>
                     <button
                       className="at-press"
-                      onClick={onTell}
+                      onClick={() => dispatch({ type: "tell" })}
                       disabled={busy}
                       style={{
                         padding: "9px 14px",

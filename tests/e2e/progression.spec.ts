@@ -154,6 +154,27 @@ test("socratic: a finished pass left by the map still closes its rung", async ({
   );
 });
 
+test("socratic: the hand-off names the rung it opens, and opens it", async ({ page }) => {
+  // Frontier with nothing finished: Consume is still owed, so the rung after
+  // Socratic in the plan is *not* where the hand-off goes.
+  await openRun(page, { [FIRST_NODE]: "frontier" });
+  await openPhase(page, FIRST_NODE, "socratic");
+  const sheet = page.getByTestId("phase-socratic");
+  for (let i = 0; i < 3; i++) {
+    const field = sheet.getByTestId("field-answer");
+    if (!(await field.isVisible().catch(() => false))) break;
+    await field.fill("It names the rule and what follows from it.");
+    await sheet.getByTestId("action-submit").click();
+    await page.waitForTimeout(400);
+  }
+  const cta = sheet.getByRole("button", { name: /Continue/ });
+  const named = (await cta.textContent())?.match(/Continue · (\w+)/)?.[1];
+  expect(named).toBe("Consume");
+  await cta.click();
+  // The click event used to arrive as the "stay on the map" flag.
+  await expect(page.getByTestId("app")).toHaveAttribute("data-sheet", "consume");
+});
+
 test("feynman: a judged teach-back spawns the gap it found", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "learning" });
   await openPhase(page, FIRST_NODE, "feynman");

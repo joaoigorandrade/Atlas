@@ -952,10 +952,9 @@ export default function AtlasApp({
             gapMode={graph.nodes.find((n) => n.id === socratic.nodeId)?.gap ?? false}
             onExit={exitSocratic}
             onAnswer={socraticAnswer}
-            onStuck={() => dispatchSocratic({ type: "stuck" })}
-            onTell={() => dispatchSocratic({ type: "tell" })}
-            onHelpChange={(level) => dispatchSocratic({ type: "setHelp", level })}
-            onAdvance={advanceFromSocratic}
+            done={phasesDone[socratic.nodeId]}
+            dispatch={dispatchSocratic}
+            onAdvance={() => advanceFromSocratic()}
             onRetryJudge={socraticRetry ?? undefined}
           />,
         )}
