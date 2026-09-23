@@ -208,6 +208,11 @@ public final class SessionViewModel: Identifiable {
         let handedBackBefore = store.graph.nodes.contains { $0.id == spec.id }
         store.graph = spawnGap(store.graph, parentId: node.id, spec)
         store.states[spec.id] = .gap
+        // The rung closes even here, as it does on the web: a pass told through
+        // is a weakness to record, not a phase to hold open. The gap and the
+        // Shaky reason carry it, and `stateFromPlan` keeps the node short of
+        // Mastered while the gap stands.
+        store.completePhase(node, .socratic, shaky: .socraticTold)
         // The flag on its own would be passive. A pass that had to be told
         // through is a reading that didn't land, so the hand-off runs backwards
         // — into the reading, reopened at the top with nothing collapsed.

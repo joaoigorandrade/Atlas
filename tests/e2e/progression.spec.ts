@@ -128,6 +128,32 @@ test("socratic: three answered probes advance the node", async ({ page }) => {
   expect(snap.states).toBeTruthy();
 });
 
+test("socratic: a finished pass left by the map still closes its rung", async ({
+  page,
+}) => {
+  await openRun(page, { [FIRST_NODE]: "frontier" });
+  await openPhase(page, FIRST_NODE, "socratic");
+  const sheet = page.getByTestId("phase-socratic");
+  for (let i = 0; i < 3; i++) {
+    const field = sheet.getByTestId("field-answer");
+    if (!(await field.isVisible().catch(() => false))) break;
+    await field.fill("It names the rule and what follows from it.");
+    await sheet.getByTestId("action-submit").click();
+    await page.waitForTimeout(400);
+  }
+  await expect(sheet.getByTestId("field-answer")).toHaveCount(0);
+  // Out by the map, not the CTA: the finished pass was already unparked, so
+  // this exit used to discard it with nothing recorded.
+  await sheet.getByText(/← Map/).click();
+  await expect(page.getByTestId("app")).toHaveAttribute("data-sheet", "none");
+  const after = await persisted(page, (s) =>
+    ((s.phasesDone as Record<string, string[]>)?.[FIRST_NODE] ?? []).includes("socratic"),
+  );
+  expect((after.phasesDone as Record<string, string[]>)[FIRST_NODE]).toContain(
+    "socratic",
+  );
+});
+
 test("feynman: a judged teach-back spawns the gap it found", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "learning" });
   await openPhase(page, FIRST_NODE, "feynman");

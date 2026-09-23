@@ -54,8 +54,7 @@ export const STRINGS = {
       "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão.",
     todaysReview: "Revisão de hoje",
     queueClear: "Fila limpa ✓",
-    cardsDue: (n: number) =>
-      `${n} cartã${n === 1 ? "o" : "os"} pendente${n === 1 ? "" : "s"}`,
+    cardsDue: (n: number) => (n === 1 ? "1 cartão pendente" : `${n} cartões pendentes`),
     nothingDueYet: "Nada pendente ainda",
     metTodayBody:
       "Você cumpriu a meta de hoje. Novos cartões surgem à medida que as memórias começam a desvanecer.",

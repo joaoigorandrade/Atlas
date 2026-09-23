@@ -42,7 +42,9 @@ struct SocraticView: View {
             // sleep otherwise keeps speaking over the map the learner just
             // went back to.
             PhaseBar(.socratic, title: model.node.label,
-                     back: { model.leave(); navigator.pop() }) {
+                     // A finished pass is already cleared from the row, so
+                     // leaving it by the back button must still settle it.
+                     back: { if model.done { model.advance() }; model.leave(); navigator.pop() }) {
                 HStack(spacing: 2) {
                     if store.readAloudOn { speaker(model) }
                     helpDial(model)
@@ -227,6 +229,13 @@ struct SocraticView: View {
             // top of the paper: one probe on a fresh pass used to float at the
             // top of the screen with the whole page empty under it.
             .defaultScrollAnchor(.bottom)
+            // …and stays there when the paper resizes: the keyboard coming up or
+            // the sheet swapping for the keyboard dock grows no turn, so nothing
+            // else re-pins it, and the question being answered was left cut off
+            // under the composer.
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
+                scroll.scrollTo(model.log.last?.id, anchor: .bottom)
+            }
             // …and the composer is the sheet, so the turn being answered has to
             // sit above it rather than under it.
             .safeAreaInset(edge: .bottom) {

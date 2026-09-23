@@ -152,3 +152,15 @@ private func decoded() throws -> AtlasRun {
     #expect(sent["kind"] == nil)
     #expect(sent["phasePlan"] == nil)
 }
+
+@Test func aReasonTheWebWritesDoesNotDropTheTopicsOthers() throws {
+    // The reasons decode as one map: a single value this build did not know
+    // failed the whole map, and every Shaky node on the topic lost its line.
+    let json = """
+    { "id": "x", "subject": "Álgebra", "graph": { "nodes": [], "edges": [] },
+      "shakyReasons": { "a": "socratic-told", "b": "crucible-fail" } }
+    """
+    let run = try JSONDecoder().decode(AtlasRun.self, from: Data(json.utf8))
+    #expect(run.shakyReasons["a"] == .socraticTold)
+    #expect(run.shakyReasons["b"] == .crucibleFail)
+}

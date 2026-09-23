@@ -63,6 +63,10 @@ public enum ShakyReason: String, Codable, Sendable {
     case diagnosticHesitation = "diagnostic-hesitation"
     case crucibleFail = "crucible-fail"
     case reviewMiss = "review-miss"
+    /// A Socratic pass that had to be told through. Web has written it since
+    /// the ladder shipped, and a topic's reasons decode as one map — without
+    /// this case one such node dropped every reason on the topic.
+    case socraticTold = "socratic-told"
 
     /// `shakyLine` on the web, minus the language switch — the app is drawn in
     /// one language at a time and `Localizable.xcstrings` is where that lives.
@@ -78,6 +82,7 @@ public enum ShakyReason: String, Codable, Sendable {
         case .diagnosticHesitation: return "Você hesitou nisso no nivelamento — provavelmente é frágil. Uma tentativa em \(gate) mostra se resiste."
         case .crucibleFail: return "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente \(gate) de novo."
         case .reviewMiss: return "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente \(gate) de novo para firmar."
+        case .socraticTold: return "Você chegou lá, mas a sondagem teve que te entregar quase tudo. Vale uma releitura antes de \(gate)."
         }
     }
 }

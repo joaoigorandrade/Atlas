@@ -142,12 +142,12 @@ Classify the UNION of everything they have said, and respond contingently:
 - "partial": everything they have said is RIGHT, and this answer added real new ground, but the union does not cover the whole bar yet. Nothing they said is wrong. → confirm what landed, then ask for the rest as the scaffolding rung above allows. This is NOT a failure and must not be worded as one. Use it whenever the learner is building the answer across turns — that is a normal way to think, not a defect.
 - "near": right direction, but this answer added nothing new, or is too imprecise to count → give a hint that reframes WITHOUT giving the answer, then re-ask — a *different* angle than any hint already given.
 - "wrong": contains a real error or misconception → name the error plainly and specifically, quoting their words; do not reveal the full answer.
-- "lost": empty, "I don't know", or entirely off-track → drop the Socratic act and teach the answer directly and completely.
+- "lost": empty, "I don't know", or entirely off-track → do NOT hand over the whole answer: the step stays open and the learner still has to build it, so an answer given away here is one they would only type back. Give one concrete foothold — the first step of the reasoning, stated plainly — then ask a smaller, easier question that starts from it.
 
 Return JSON: {"quality": "correct" | "partial" | "near" | "wrong" | "lost", "covered": [0, 1], "response": "the tutor's reply to the learner", "misconception": "on \"near\"/\"wrong\" only: the wrong idea itself in 3-8 words, phrased to still read out of context weeks later (e.g. \"treats scaling as rotation\") — omit otherwise"}
 "covered" lists the indices of the bar above that the union now conveys${
         sufficient?.length ? "" : " (omit it — this probe has no indexed bar)"
-      }. It only ever grows across a step.${languageNote(language)}`,
+      }. It only ever grows across a step. Credit a piece only when the learner's OWN words state it — never one that only the tutor's question, hint or reframe contained, and never one you are inferring they must have meant.${languageNote(language)}`,
     },
   ];
 }

@@ -5984,6 +5984,16 @@
         }
       }
     },
+    "Você chegou lá, mas a sondagem teve que te entregar quase tudo. Vale uma releitura antes de %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You got here, but the questioning had to hand you most of it. Worth another reading before %@."
+          }
+        }
+      }
+    },
     "Você contornou a forma em vez de atravessá-la — é esse o hábito que trava quem fala." : {
       "extractionState" : "stale",
       "localizations" : {

@@ -1049,6 +1049,8 @@ export function useSpiral(deps: {
   };
 
   const exitSocratic = () => {
+    // Already unparked, so leaving a finished pass by the map must still settle it.
+    if (socratic?.done) return advanceFromSocratic(true);
     leaveTo(socratic?.nodeId);
     setSocratic(null);
   };
@@ -1908,14 +1910,11 @@ export function useSpiral(deps: {
    * "lost") twice or more — the node stays in Learning and a real gap gets
    * attached under it instead of a promise the old toast never kept.
    */
-  const advanceFromSocratic = () => {
+  const advanceFromSocratic = (stay = false) => {
     const session = socratic;
     const node = graphRef.current.nodes.find((n) => n.id === session?.nodeId);
     setSocratic(null);
-    if (!session || !node) {
-      setScreen("map");
-      return;
-    }
+    if (!session || !node) return setScreen("map");
     const outcome = socraticOutcome(session, !!node.gap);
     if (node.gap) {
       const closed = outcome === "unaided";
@@ -1964,13 +1963,14 @@ export function useSpiral(deps: {
         );
       }
       showToast(tc().leaningOnTold(node.label), tc().reReadFirst);
-      enterSession(node);
+      if (!stay) enterSession(node);
       return;
     }
     // Reasoned through unaided — the rung closes and the plan says what opens.
     // `completePhase` writes its ref in this tick, so the answer is current.
     completePhase(node, "socratic");
-    enterOwedPhase(node);
+    if (stay) leaveTo(node.id);
+    else enterOwedPhase(node);
   };
 
   // ---- Consume → Socratic hand-off -------------------------------------

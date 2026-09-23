@@ -97,6 +97,10 @@ private func probe(_ id: String, spare: Bool = false) -> JSONValue {
     #expect(session.phase == .consume)
     #expect(store.states["gap-soc-lat"] == .gap)
     #expect(store.reading("lat")?.handedOff == false)
+    // …and the rung closes anyway, the way it does on the web: the weakness
+    // is recorded as a reason rather than by holding the phase open.
+    #expect(store.phasesDone["lat"]?.contains(.socratic) == true)
+    #expect(store.shakyReasons["lat"] == .socraticTold)
 }
 
 @MainActor
