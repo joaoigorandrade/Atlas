@@ -57,6 +57,21 @@ export const map = {
   fog: "rgba(244,241,234,0.62)",
   graticule: "rgba(44,40,35,0.08)",
   meridian: "rgba(44,40,35,0.1)",
+  /** The generated atlas (`atlasTerrain.ts`) paints pixels, so these are RGB. */
+  atlas: {
+    water: [150, 178, 190],
+    shallows: [196, 212, 208],
+    land: [222, 212, 184],
+    high: [176, 150, 112],
+    ink: [60, 52, 42],
+    regions: [
+      [196, 206, 160],
+      [222, 190, 160],
+      [190, 196, 214],
+      [214, 200, 150],
+      [200, 180, 196],
+    ],
+  },
 } as const;
 
 export const font = {

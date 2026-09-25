@@ -16,6 +16,7 @@ import NodeHoverCard, { useDwell } from "@/components/map/NodeHoverCard";
 import MapNode, { SEAL } from "@/components/map/MapNode";
 import MapEdges from "@/components/map/MapEdges";
 import MapControls from "@/components/map/MapControls";
+import { regionsOf, seedOf } from "@/components/map/atlasTerrain";
 import { Fog, Land, StageLabels, Terrain } from "@/components/map/MapTerrain";
 import {
   fitView,
@@ -217,6 +218,8 @@ export default function MapCanvas({
 
   const q = query.trim().toLowerCase();
   const ids = useMemo(() => nodes.map((n) => n.id), [nodes]);
+  const regions = useMemo(() => regionsOf(nodes, edges), [nodes, edges]);
+  const seed = useMemo(() => seedOf(ids), [ids]);
   const bounds = useMemo(() => mapBounds(positions, ids), [positions, ids]);
   const stages = useMemo(() => stageBands(nodes, positions), [nodes, positions]);
   const building = screen === "building";
@@ -287,6 +290,9 @@ export default function MapCanvas({
                 edges={edges}
                 positions={positions}
                 display={display}
+                region={regions.of}
+                names={regions.name}
+                seed={seed}
                 bounds={bounds}
                 frozen={dragging}
               />

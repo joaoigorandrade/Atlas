@@ -4,20 +4,18 @@
 // layer — so all of it pans and zooms with the concepts on it.
 //
 // - `Terrain`: the graticule and one meridian per depth stage.
-// - `Land`: the learned territory. Every concept the learner has worked on puts down a disc of its
-//   mastery colour, every road between two of them a broad stroke, and one
-//   blur-then-threshold filter melts them into land masses with a contour line
-//   round the coast. Mastered ground gets a second, higher level on top. It is
-//   the "territory mastered" number drawn as a place.
+// - `Land`: the learned territory as a generated atlas — worked-on concepts
+//   raise the ground, mastered ones highest, and seeded noise gives it a coast,
+//   contours and borders between regions (`atlasTerrain.ts`).
 // - `Fog`: a paper veil over whatever hasn't been reached. Holes open around
 //   every lit concept, and — transiently — around whatever the learner is
 //   looking at: the hovered chain, the locked path, the search matches.
 
-import { useEffect, useRef, type ReactNode } from "react";
-import { STATE_COLOR, type ConceptEdge, type NodeState } from "@/lib/curriculum";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { color, font, map } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
-import { edgePath, type Bounds, type Pt } from "@/components/map/mapGeometry";
+import { type AtlasInput } from "@/components/map/atlasTerrain";
+import { type Bounds, type Pt } from "@/components/map/mapGeometry";
 
 const STRINGS = {
   en: { stage: (n: string) => `Stage ${n}` },
@@ -26,11 +24,8 @@ const STRINGS = {
 
 /** How far past the outermost concepts the ground and the fog extend. */
 const MARGIN = 2400;
-const LAND: Partial<Record<NodeState, string>> = {
-  learning: STATE_COLOR.learning,
-  shaky: STATE_COLOR.shaky,
-  mastered: STATE_COLOR.mastered,
-};
+/** Bitmap pixels per map unit for the atlas — soft ground needs few. */
+const LAND_RES = 0.5;
 
 const region = (b: Bounds, m: number) => ({
   x: b.minX - m,
@@ -141,93 +136,90 @@ export function Terrain({
   );
 }
 
-/** The learned territory, baked (see `Baked`). */
+/**
+ * The learned territory as a generated atlas (`atlasTerrain.ts`), baked in a
+ * worker into a canvas — repainted only when its inputs change and never
+ * mid-drag, the same bargain as `Baked`, without an SVG filter. Each region's
+ * name is set where the bake found open country for it.
+ */
 export function Land({
-  ids,
-  edges,
-  positions,
-  display,
-  bounds,
   frozen,
-}: {
-  ids: string[];
-  edges: ConceptEdge[];
-  positions: Record<string, Pt>;
-  display: Record<string, NodeState>;
-  bounds: Bounds;
-  frozen: boolean;
-}) {
+  bounds,
+  names,
+  ...input
+}: AtlasInput & { bounds: Bounds; frozen: boolean; names: Record<string, string> }) {
   const r = region(bounds, 600);
+  const out = useRef<HTMLCanvasElement>(null);
+  const worker = useRef<Worker>(null);
+  const sent = useRef("");
+  const [spots, setSpots] = useState<Record<string, Pt>>({});
+  const w = Math.round(r.width * LAND_RES);
+  const h = Math.round(r.height * LAND_RES);
+  useEffect(
+    () => () => {
+      worker.current?.terminate();
+      worker.current = null;
+      sent.current = ""; // a remount (StrictMode) must bake again
+    },
+    [],
+  );
+  useEffect(() => {
+    if (frozen) return;
+    const key = JSON.stringify([
+      r,
+      input.positions,
+      input.display,
+      input.edges,
+      input.region,
+    ]);
+    if (key === sent.current) return;
+    sent.current = key;
+    worker.current ??= new Worker(new URL("./atlas.worker.ts", import.meta.url));
+    worker.current.onmessage = ({ data }) => {
+      const ctx = out.current?.getContext("2d");
+      if (!ctx || data.key !== sent.current) return; // a newer bake is on its way
+      ctx.putImageData(data.img, 0, 0);
+      setSpots(data.spots);
+    };
+    worker.current.postMessage({ key, input, x0: r.x, y0: r.y, w, h, res: LAND_RES });
+  });
   return (
-    <Baked box={r} res={0.5} frozen={frozen}>
-      <defs>
-        <filter
-          id="atlas-land"
-          filterUnits="userSpaceOnUse"
-          {...r}
-          colorInterpolationFilters="sRGB"
+    <>
+      <canvas
+        ref={out}
+        width={w}
+        height={h}
+        style={{
+          position: "absolute",
+          left: r.x,
+          top: r.y,
+          width: r.width,
+          height: r.height,
+          pointerEvents: "none",
+        }}
+      />
+      {Object.entries(spots).map(([k, p]) => (
+        <div
+          key={k}
+          style={{
+            position: "absolute",
+            left: p.x,
+            top: p.y,
+            transform: "translate(-50%, -50%)",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            fontFamily: font.serif,
+            fontSize: 22,
+            fontStyle: "italic",
+            letterSpacing: "0.3em",
+            fontVariant: "small-caps",
+            color: color.inkGhost,
+          }}
         >
-          <feGaussianBlur in="SourceGraphic" stdDeviation={20} result="blur" />
-          <feColorMatrix
-            in="blur"
-            type="matrix"
-            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -11"
-            result="mass"
-          />
-          {/* The coast: a second, lower threshold of the same blur, minus the land. */}
-          <feColorMatrix
-            in="blur"
-            type="matrix"
-            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -9.6"
-            result="outer"
-          />
-          <feComposite in="outer" in2="mass" operator="out" result="line" />
-          <feComponentTransfer in="mass" result="fill">
-            <feFuncA type="linear" slope={0.13} />
-          </feComponentTransfer>
-          <feComponentTransfer in="line" result="coast">
-            <feFuncA type="linear" slope={0.5} />
-          </feComponentTransfer>
-          <feMerge>
-            <feMergeNode in="fill" />
-            <feMergeNode in="coast" />
-          </feMerge>
-        </filter>
-      </defs>
-      {/* Two levels: everything worked on, then mastered ground on top of it —
-          the second contour is what makes it read as elevation. */}
-      {[false, true].map((summit) => (
-        <g key={String(summit)} filter="url(#atlas-land)">
-          {edges.map(([a, b, dashed], i) => {
-            const pa = positions[a];
-            const pb = positions[b];
-            const on = summit
-              ? display[a] === "mastered" && display[b] === "mastered"
-              : !dashed && LAND[display[a]] && LAND[display[b]];
-            if (!pa || !pb || !on) return null;
-            return (
-              <path
-                key={i}
-                d={edgePath(pa, pb)}
-                fill="none"
-                stroke={LAND[display[b]] ?? STATE_COLOR.mastered}
-                strokeWidth={summit ? 30 : 64}
-                strokeLinecap="round"
-              />
-            );
-          })}
-          {ids.map((id) => {
-            const p = positions[id];
-            const tint = LAND[display[id]];
-            const on = summit ? display[id] === "mastered" : Boolean(tint);
-            if (!p || !on) return null;
-            return (
-              <circle key={id} cx={p.x} cy={p.y} r={summit ? 46 : 84} fill={tint} />
-            );
-          })}
-        </g>
+          {names[k] ?? ""}
+        </div>
       ))}
-    </Baked>
+    </>
   );
 }
 
