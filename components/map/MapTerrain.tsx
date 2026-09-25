@@ -146,9 +146,9 @@ export function Terrain({
 export function Land({
   frozen,
   bounds,
-  names,
   ...input
-}: AtlasInput & { bounds: Bounds; frozen: boolean; names: Record<string, string> }) {
+}: AtlasInput & { bounds: Bounds; frozen: boolean }) {
+  const { names } = input;
   const r = region(bounds, 600);
   const out = useRef<HTMLCanvasElement>(null);
   const worker = useRef<Worker>(null);
@@ -172,6 +172,7 @@ export function Land({
       input.display,
       input.edges,
       input.region,
+      names,
     ]);
     if (key === sent.current) return;
     sent.current = key;
@@ -199,33 +200,28 @@ export function Land({
           pointerEvents: "none",
         }}
       />
-      {Object.entries(spots).map(([k, p]) => {
-        // Set like a country on an engraved atlas: capitals spaced out to span
-        // most of the country, sized to how much room it has.
-        const name = (names[k] ?? "").toUpperCase();
-        const size = Math.max(18, Math.min(40, p.width / 14));
-        const spread = (p.width * 0.6 - name.length * size * 0.72) / name.length;
-        return (
-          <div
-            key={k}
-            style={{
-              position: "absolute",
-              left: p.x,
-              top: p.y,
-              transform: "translate(-50%, -50%)",
-              whiteSpace: "nowrap",
-              pointerEvents: "none",
-              fontFamily: font.serif,
-              fontSize: size,
-              fontWeight: 600,
-              letterSpacing: Math.max(size * 0.3, spread),
-              color: map.countryInk,
-            }}
-          >
-            {name}
-          </div>
-        );
-      })}
+      {Object.entries(spots).map(([k, p]) => (
+        // Set like a country on an engraved atlas (laid out by `labelFor`).
+        <div
+          key={k}
+          style={{
+            position: "absolute",
+            left: p.x,
+            top: p.y,
+            transform: "translate(-50%, -50%)",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            fontFamily: font.serif,
+            fontSize: p.size,
+            fontWeight: 600,
+            letterSpacing: p.spacing,
+            textTransform: "uppercase",
+            color: map.countryInk,
+          }}
+        >
+          {names[k]}
+        </div>
+      ))}
     </>
   );
 }

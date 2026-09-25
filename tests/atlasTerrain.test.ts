@@ -7,7 +7,7 @@ import {
   type AtlasInput,
 } from "@/components/map/atlasTerrain";
 import { map } from "@/lib/theme";
-import type { ConceptNode } from "@/lib/curriculum";
+import type { ConceptEdge, ConceptNode } from "@/lib/curriculum";
 
 const node = (id: string, g: number): ConceptNode =>
   ({
@@ -27,6 +27,7 @@ describe("atlas terrain", () => {
     positions: { a: { x: 0, y: 0 }, b: { x: 300, y: 0 } },
     display: { a: "mastered", b: "learning" },
     region: { a: "a", b: "a" },
+    names: { a: "Alpha" },
     seed: seedOf(["a", "b"]),
   };
 
@@ -50,23 +51,23 @@ describe("atlas terrain", () => {
     expect(spots.a.x).toBeLessThan(300);
   });
 
-  it("splits a two-root graph into two regions named for their roots", () => {
-    const nodes = [
-      node("r1", 0),
-      node("a", 1),
-      node("b", 2),
-      node("r2", 0),
-      node("c", 1),
-      node("d", 2),
+  it("carves countries from runs of stages, named for their capitals", () => {
+    const ids = ["a0", "a1", "a2", "b0", "b1", "b2", "c0", "c1", "c2", "d0", "d1", "d2"];
+    const nodes = ids.map((id, i) => node(id, Math.floor(i / 3)));
+    // b1 and d1 carry the most roads, so they are the capitals.
+    const edges: ConceptEdge[] = [
+      ["a0", "b1"],
+      ["a1", "b1"],
+      ["b1", "b0"],
+      ["b1", "b2"],
+      ["c0", "d1"],
+      ["c1", "d1"],
+      ["d1", "d0"],
+      ["d1", "d2"],
     ];
-    const { of, name } = regionsOf(nodes, [
-      ["r1", "a"],
-      ["a", "b"],
-      ["r2", "c"],
-      ["c", "d"],
-    ]);
-    expect(of.b).toBe("r1");
-    expect(of.d).toBe("r2");
-    expect(name).toEqual({ r1: "R1", r2: "R2" });
+    const { of, name } = regionsOf(nodes, edges);
+    expect(new Set(ids.slice(0, 6).map((id) => of[id]))).toEqual(new Set(["b1"]));
+    expect(new Set(ids.slice(6).map((id) => of[id]))).toEqual(new Set(["d1"]));
+    expect(name).toEqual({ b1: "B1", d1: "D1" });
   });
 });
