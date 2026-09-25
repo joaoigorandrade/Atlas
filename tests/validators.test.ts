@@ -60,6 +60,17 @@ describe("validateGraphPart", () => {
     expect(out.nodes[1].summary).toBeUndefined();
   });
 
+  it("folds a restated node into the first, edges and all", () => {
+    const { nodes } = graphPayload(chainEdges);
+    const twin = { id: "nó-9", label: "node 9" }; // `n9` again, as a pt-BR model writes it
+    const out = validateGraphPart({
+      nodes: [...nodes, twin],
+      edges: [...chainEdges, ["n0", "nó-9"]],
+    });
+    expect(out.nodes).toHaveLength(10);
+    expect(out.edges).toContainEqual(["n0", "n9"]);
+  });
+
   it("rejects a prerequisite cycle (#16)", () => {
     const edges = [...chainEdges, ["n9", "n0"]];
     expect(() => validateGraphPart(graphPayload(edges))).toThrow(/cycle/);
@@ -88,9 +99,10 @@ describe("validateMapConcept", () => {
     prereqs: [],
     ...over,
   });
+  const ids = (...xs: string[]) => new Map(xs.map((x) => [x, x]));
 
   it("normalizes the id and keeps prereqs that already landed", () => {
-    const seen = new Set(["stack-and-heap"]);
+    const seen = ids("stack-and-heap");
     const out = validateMapConcept(
       concept({ id: "Ownership!", prereqs: ["Stack And Heap"] }),
       1,
@@ -101,9 +113,7 @@ describe("validateMapConcept", () => {
   });
 
   it("rejects a duplicate id — two nodes cannot share one slot on the map", () => {
-    expect(() => validateMapConcept(concept(), 1, new Set(["ownership"]))).toThrow(
-      /duplicate/,
-    );
+    expect(() => validateMapConcept(concept(), 1, ids("ownership"))).toThrow(/duplicate/);
   });
 
   it("drops forward and self references rather than believing them", () => {
@@ -112,13 +122,13 @@ describe("validateMapConcept", () => {
     const out = validateMapConcept(
       concept({ prereqs: ["lifetimes", "ownership", "stack-and-heap"] }),
       3,
-      new Set(["stack-and-heap"]),
+      ids("stack-and-heap"),
     );
     expect(out.prereqs).toEqual(["stack-and-heap"]);
   });
 
   it("treats a missing prereqs field as a foundation, not a failure", () => {
-    const out = validateMapConcept({ id: "n0", label: "Bindings" }, 0, new Set());
+    const out = validateMapConcept({ id: "n0", label: "Bindings" }, 0, new Map());
     expect(out.prereqs).toEqual([]);
   });
 
@@ -129,13 +139,39 @@ describe("validateMapConcept", () => {
     const out = validateMapConcept(
       concept({ summary: "  Who owns a value, and when it is dropped.  " }),
       0,
-      new Set(),
+      new Map(),
     );
     expect(out.summary).toBe("Who owns a value, and when it is dropped.");
   });
 
   it("accepts a concept with no summary rather than failing the map", () => {
-    expect(validateMapConcept(concept(), 0, new Set()).summary).toBeUndefined();
+    expect(validateMapConcept(concept(), 0, new Map()).summary).toBeUndefined();
+  });
+
+  // "Os 33 anos de Cristo" shipped 44 nodes for 37 concepts: the model restated
+  // "João Batista" as `joão-batista` and `joao-batista`, and "Reino de Deus" as
+  // `reino-deus` and `reino-de-deus`.
+  it("drops a concept restated under an accented id or the same label", () => {
+    const seen = new Map();
+    validateMapConcept({ id: "joão-batista", label: "João Batista" }, 0, seen);
+    expect(() =>
+      validateMapConcept({ id: "joao-batista", label: "João Batista" }, 1, seen),
+    ).toThrow(/duplicate/);
+    validateMapConcept({ id: "reino-deus", label: "Reino de Deus" }, 2, seen);
+    expect(() =>
+      validateMapConcept({ id: "reino-de-deus", label: "reino de deus" }, 3, seen),
+    ).toThrow(/duplicate/);
+    // Whatever names a dropped twin resolves to the concept that was kept.
+    const out = validateMapConcept(
+      concept({ prereqs: ["reino-de-deus", "jo-o-batista", "reino-deus"] }),
+      4,
+      seen,
+    );
+    expect(out.prereqs).toEqual(["reino-deus"]);
+    expect(
+      validateMapConcept({ id: "x", label: "X", prereqs: ["joão-batista"] }, 5, seen)
+        .prereqs,
+    ).toEqual(["joao-batista"]);
   });
 });
 

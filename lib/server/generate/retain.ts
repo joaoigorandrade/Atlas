@@ -7,6 +7,7 @@ import {
   obj,
   oneOf,
   sizeRule,
+  slug,
   str,
   user,
 } from "./common";
@@ -75,9 +76,7 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
       RETAIN_CARD_BOUNDS.max,
     ).map((v, i) => {
       const c = obj(v, `cards[${i}]`);
-      const node = str(c.node, `cards[${i}].node`)
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, "-");
+      const node = slug(c.node, `cards[${i}].node`);
       if (!nodeIds.has(node)) fail(`cards[${i}].node "${node}" is not a learned node id`);
       const type = oneOf(c.type, CARD_TYPES, `cards[${i}].type`);
       const hasCloze = Array.isArray(c.cloze) && typeof c.answer === "string";

@@ -8,6 +8,7 @@ import {
   languageNote,
   obj,
   oneOf,
+  slug,
   str,
   user,
 } from "./common";
@@ -42,9 +43,7 @@ function validateConnect(
     const cands = arr(root.cands, "cands", Math.min(2, pool.length), CONNECT_SLOTS.length)
       .map((v, i) => {
         const c = obj(v, `cands[${i}]`);
-        const id = str(c.id, `cands[${i}].id`)
-          .toLowerCase()
-          .replace(/[^a-z0-9-]/g, "-");
+        const id = slug(c.id, `cands[${i}].id`);
         if (!byId.has(id) || seen.has(id)) return null;
         seen.add(id);
         const [x, y] = CONNECT_SLOTS[seen.size - 1];

@@ -30,6 +30,16 @@ export function str(v: unknown, name: string): string {
   return v.trim();
 }
 
+/** A node id as the map stores it, and how every echoed id is matched back.
+ *  Accents are folded, not dashed: "joão-batista" and "joao-batista" must be
+ *  one id, or a pt-BR map carries the same concept twice. */
+export const slug = (v: unknown, at: string) =>
+  str(v, at)
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-");
+
 export function oneOf<T extends string>(
   v: unknown,
   allowed: readonly T[],

@@ -1,5 +1,5 @@
 // ---- kind: curriculum map --------------------------------------------------
-import { arr, fail, languageNote, obj, str, user } from "./common";
+import { arr, fail, languageNote, obj, slug, str, user } from "./common";
 import {
   graphShape,
   mapContext,
@@ -49,23 +49,22 @@ type RawConcept = {
   domain: Domain;
 };
 
-/** A node id as the map stores it — written at five sites before this existed. */
-const slug = (v: unknown, at: string) =>
-  str(v, at)
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-");
+/** Every name a written concept answers to — its id and its folded label —
+ *  mapped to the id that stays on the map. A model padding a map restates
+ *  concepts ("João Batista" twice, under two ids); the restatement is dropped
+ *  and whatever names it resolves to the concept written first. */
+export type SeenConcepts = Map<string, string>;
+
+/** Registers `id`/`label`, or answers the id they already belong to. */
+function claim(seen: SeenConcepts, id: string, label: string): string | null {
+  const kept = seen.get(id) ?? seen.get(slug(label, "label"));
+  if (kept) seen.set(id, kept);
+  else seen.set(id, id).set(slug(label, "label"), id);
+  return kept ?? null;
+}
 
 /** Column layout from topological depth — deterministic, draggable afterwards. */
-function layoutGraph(
-  rawNodes: Array<{
-    id: string;
-    label: string;
-    summary?: string;
-    kind: NodeKind;
-    domain?: Domain;
-  }>,
-  edges: ConceptEdge[],
-): ConceptNode[] {
+function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[] {
   const ids = new Set(rawNodes.map((n) => n.id));
   const indeg: Record<string, number> = {};
   const fwd: Record<string, string[]> = {};
@@ -151,15 +150,15 @@ export function validateGraphPart(
   bounds: { min: number; max: number } = mapNodeBounds(),
 ): { nodes: RawConcept[]; edges: ConceptEdge[] } {
   const root = obj(raw, "payload");
-  const seen = new Set<string>();
-  const nodes = arr(root.nodes, "nodes", bounds.min, bounds.max).map((v, i) => {
+  const seen: SeenConcepts = new Map();
+  const nodes = arr(root.nodes, "nodes", bounds.min, bounds.max).flatMap((v, i) => {
     const n = obj(v, `nodes[${i}]`);
     const id = slug(n.id, `nodes[${i}].id`);
-    if (seen.has(id)) fail(`duplicate node id "${id}"`);
-    seen.add(id);
+    const label = str(n.label, `nodes[${i}].label`);
+    if (claim(seen, id, label)) return []; // a restatement — its edges fold onto the kept node
     return {
       id,
-      label: str(n.label, `nodes[${i}].label`),
+      label,
       // A missing sentence costs one node its rail copy, not the learner their
       // whole map — the rail falls back to the state line.
       summary: n.summary ? str(n.summary, `nodes[${i}].summary`) : undefined,
@@ -172,6 +171,7 @@ export function validateGraphPart(
       domain: asDomain(n.domain),
     };
   });
+  if (nodes.length < bounds.min) fail(`only ${nodes.length} distinct concepts`);
   const edges: ConceptEdge[] = [];
   // Bounded to match the check below, which is the real floor: it tolerates up
   // to four roots, while `nodes.length - 1` demanded a spanning tree of the RAW
@@ -179,10 +179,10 @@ export function validateGraphPart(
   const floor = Math.max(1, nodes.length - 4);
   for (const [i, v] of arr(root.edges, "edges", floor, 400).entries()) {
     const e = arr(v, `edges[${i}]`, 2, 3);
-    const from = slug(e[0], `edges[${i}][0]`);
-    const to = slug(e[1], `edges[${i}][1]`);
-    if (!seen.has(from) || !seen.has(to) || from === to) continue; // drop, don't fail
-    edges.push([from, to]);
+    const from = seen.get(slug(e[0], `edges[${i}][0]`));
+    const to = seen.get(slug(e[1], `edges[${i}][1]`));
+    if (!from || !to || from === to) continue; // drop, don't fail
+    if (!edges.some(([a, b]) => a === from && b === to)) edges.push([from, to]);
   }
   if (edges.length < nodes.length - 4)
     fail("too few valid edges — every node needs prerequisites wired");
@@ -216,9 +216,7 @@ export function validateDiagnosticQuestion(
   nodeIds: Set<string>,
 ): RawDiagnostic {
   const d = obj(raw, "payload");
-  const nodeId = str(d.nodeId, "nodeId")
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-");
+  const nodeId = slug(d.nodeId, "nodeId");
   if (!nodeIds.has(nodeId))
     fail(`nodeId "${nodeId}" is not one of the offered candidates`);
   const type = asDiagnosticKind(d.type);
@@ -316,17 +314,7 @@ export async function generateMap(
     params.goal === "pareto" ? (params.paretoPct ?? PARETO_DEFAULT) : undefined,
   );
   const raw = await generateJson<
-    | { scopes: ScopeOffer[] }
-    | {
-        nodes: Array<{
-          id: string;
-          label: string;
-          summary?: string;
-          kind: NodeKind;
-          domain: Domain;
-        }>;
-        edges: ConceptEdge[];
-      }
+    { scopes: ScopeOffer[] } | { nodes: RawConcept[]; edges: ConceptEdge[] }
   >(
     user(
       `${mapContext(params)}
@@ -353,22 +341,26 @@ ${mapRules(bounds.ask)}${languageNote(language)}`,
 export function validateMapConcept(
   raw: unknown,
   index: number,
-  seen: Set<string>,
+  seen: SeenConcepts,
 ): RawConcept & { prereqs: string[] } {
   const c = obj(raw, `concept[${index}]`);
   const id = slug(c.id, `concept[${index}].id`);
-  if (seen.has(id)) fail(`duplicate node id "${id}"`);
+  const label = str(c.label, `concept[${index}].label`);
+  // Resolved before `claim`, which registers this concept: a self-reference
+  // must not find it.
   const prereqs = Array.isArray(c.prereqs)
     ? c.prereqs
-        .filter((p): p is string => typeof p === "string")
-        .map((p) => p.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+        .filter((p): p is string => typeof p === "string" && p.trim() !== "")
         // Forward and self references are dropped, not failed: one hallucinated
         // id must not cost the learner the whole map.
-        .filter((p) => seen.has(p) && p !== id)
+        .map((p) => seen.get(slug(p, "prereq")))
+        .filter((p): p is string => p !== undefined)
     : [];
+  const kept = claim(seen, id, label);
+  if (kept) fail(`duplicate concept "${label}" — already written as "${kept}"`);
   return {
     id,
-    label: str(c.label, `concept[${index}].label`),
+    label,
     // Soft, like the single-shot validator: a concept that arrives without its
     // sentence still lands on the map.
     summary: c.summary ? str(c.summary, `concept[${index}].summary`) : undefined,
@@ -376,7 +368,7 @@ export function validateMapConcept(
     // what every node was before kinds existed.
     kind: asNodeKind(c.kind),
     domain: asDomain(c.domain),
-    prereqs,
+    prereqs: [...new Set(prereqs)],
   };
 }
 
@@ -405,21 +397,13 @@ export async function* generateMapStream(params: MapParams): AsyncGenerator<Stre
   );
   let yielded = 0;
   try {
-    const seen = new Set<string>();
+    const seen: SeenConcepts = new Map();
     const depth: Record<string, number> = {};
     const column: Record<number, number> = {};
     const accepted: MapNode[] = [];
 
     const stream = streamJsonObjects<
-      | { scopes: ScopeOffer[] }
-      | {
-          id: string;
-          label: string;
-          summary?: string;
-          kind: NodeKind;
-          domain: Domain;
-          prereqs: string[];
-        }
+      { scopes: ScopeOffer[] } | (RawConcept & { prereqs: string[] })
     >(
       user(
         `${mapContext(params)}
@@ -452,7 +436,6 @@ least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
         return;
       }
       if (accepted.length >= bounds.max) break;
-      seen.add(item.id);
       const d = item.prereqs.reduce((max, p) => Math.max(max, (depth[p] ?? 0) + 1), 0);
       depth[item.id] = d;
       const i = column[d] ?? 0;
