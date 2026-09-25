@@ -13,7 +13,7 @@ type Turning = Document & {
   startViewTransition?: (update: () => Promise<void>) => { finished: Promise<void> };
 };
 
-/** How deep into the atlas a screen sits: going deeper turns the page forward. */
+/** How deep into the atlas a screen sits: going deeper settles the new screen up. */
 const depth = (s: Screen) =>
   SHEET_SCREENS.has(s)
     ? 3
@@ -24,19 +24,19 @@ const depth = (s: Screen) =>
         : 0;
 
 /**
- * Wrap the one screen setter so every change of screen turns a page.
+ * Wrap the one screen setter so every change of screen crossfades.
  *
- * The turn is the View Transitions API: the browser snapshots the outgoing
+ * The fade is the View Transitions API: the browser snapshots the outgoing
  * page, we commit the new screen, it snapshots that, and `globals.css`
  * animates the two snapshots (`::view-transition-*`) on the compositor. So a
- * turn costs nothing on the live DOM, needs no second copy of the render
+ * fade costs nothing on the live DOM, needs no second copy of the render
  * switch mounted for an exit, and every one of the ~60 call sites that set a
  * screen gets it for free — they keep calling a plain `setScreen`.
  *
- * No turn: where the browser has no view transitions, under reduced motion,
+ * No fade: where the browser has no view transitions, under reduced motion,
  * out of onboarding's building/diagnostic (those are overlays on a map that
  * stays put), and from `welcome` to anything but `building` — that is a saved
- * run hydrating, not the learner turning a page.
+ * run hydrating, not the learner changing screen.
  */
 export function usePageTurn(
   screen: Screen,

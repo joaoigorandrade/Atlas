@@ -578,86 +578,56 @@ textarea {
 }
 
 /* ---------------------------------------------------------------------------
-   Turning the page.
+   Changing screen.
 
-   A change of screen is a leaf of the atlas turning (`usePageTurn`, through
-   the View Transitions API). The browser snapshots both pages and animates
-   the snapshots on the compositor, so the turn costs nothing on the live DOM.
-   Transform and opacity only. The dark ground under the pages is the shadow
-   the lifting leaf casts: the page beneath brightens out of it.
+   A soft crossfade through the View Transitions API (`usePageTurn`): the
+   browser snapshots both screens and animates the snapshots on the
+   compositor, so it costs nothing on the live DOM. Transform and opacity
+   only. The old screen holds still and opaque underneath while the new one
+   fades in over it, so there is never a frame where both are half-there and
+   the ground shows through.
 
-   `fwd` (deeper into the atlas): the old page is lifted off its left edge and
-   turned away, uncovering the new one. `back`: the old leaf is turned back
-   over the page, from the left edge, onto the one beneath.
+   `fwd` (deeper into the atlas): the new screen settles up into place.
+   `back`: it settles down into place.
    ------------------------------------------------------------------------ */
-::view-transition {
-  background: rgb(33, 25, 18);
-}
-
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 620ms;
-  animation-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1);
+  animation-duration: 340ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   mix-blend-mode: normal;
-  backface-visibility: hidden;
 }
 
-html[data-turn="fwd"]::view-transition-old(root) {
+::view-transition-old(root) {
+  z-index: 1;
+  animation-name: screenHold;
+}
+::view-transition-new(root) {
   z-index: 2;
-  transform-origin: 0 50%;
-  animation-name: leafAway;
-}
-html[data-turn="fwd"]::view-transition-new(root) {
-  z-index: 1;
-  animation-name: leafUnder;
-}
-html[data-turn="back"]::view-transition-old(root) {
-  z-index: 1;
-  animation-name: leafUnderOut;
+  animation-name: screenIn;
 }
 html[data-turn="back"]::view-transition-new(root) {
-  z-index: 2;
-  transform-origin: 0 50%;
-  animation-name: leafOver;
+  animation-name: screenInBack;
 }
 
-@keyframes leafAway {
-  from {
-    transform: perspective(2400px) rotateY(0deg);
-  }
-  to {
-    transform: perspective(2400px) rotateY(-100deg);
-  }
-}
-
-@keyframes leafOver {
-  from {
-    transform: perspective(2400px) rotateY(-100deg);
-  }
-  to {
-    transform: perspective(2400px) rotateY(0deg);
-  }
-}
-
-@keyframes leafUnder {
-  from {
-    opacity: 0.72;
-    transform: translateX(1.5%) scale(0.985);
-  }
+/* Keeps the old snapshot on screen, untouched, until the new one covers it. */
+@keyframes screenHold {
+  from,
   to {
     opacity: 1;
-    transform: none;
   }
 }
 
-@keyframes leafUnderOut {
+@keyframes screenIn {
   from {
-    opacity: 1;
-    transform: none;
+    opacity: 0;
+    transform: translateY(10px);
   }
-  to {
-    opacity: 0.72;
-    transform: translateX(1.5%) scale(0.985);
+}
+
+@keyframes screenInBack {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
   }
 }
 

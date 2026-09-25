@@ -6,7 +6,7 @@ import { color, font } from "@/lib/theme";
 /**
  * A full-screen surface over the map: every session phase, the review queue,
  * the calibration read-out, settings — a leaf of the atlas laid over the
- * chart. It has no motion of its own: arriving and leaving is the page turn
+ * chart. It has no motion of its own: arriving and leaving is the screen crossfade
  * (`usePageTurn`), which animates snapshots of both pages on the compositor.
  */
 export default function Sheet({

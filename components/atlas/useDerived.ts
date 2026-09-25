@@ -114,7 +114,7 @@ export function useDerived(deps: {
 
   const isMap = screen === "map";
   // The full-screen surfaces. They have no exit of their own: leaving one is a
-  // page turn (`usePageTurn`), which snapshots the outgoing page — so the sheet
+  // screen crossfade (`usePageTurn`), which snapshots the outgoing page — so the sheet
   // can unmount on the frame `screen` moves on.
   const openSheet = SHEET_SCREENS.has(screen) ? screen : null;
   // The canvas backs onboarding + the map, and stays mounted under a sheet so
