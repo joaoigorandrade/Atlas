@@ -16,7 +16,6 @@ const LIFT: Partial<Record<NodeState, number>> = {
 };
 const SIGMA = 78;
 const SEA = 0.5;
-const BANDS = 5;
 
 export const seedOf = (ids: string[]) => {
   let h = 2166136261;
@@ -171,18 +170,60 @@ export function heightfield(
 
 type RGB = readonly [number, number, number];
 export interface AtlasPalette {
-  water: RGB;
-  shallows: RGB;
-  land: RGB;
-  high: RGB;
+  paper: RGB;
   ink: RGB;
+  /** Hand-colouring, one per country, washed in along its edges. */
   regions: readonly RGB[];
 }
 
 /**
- * Paints the atlas into `img`, whose pixel (0,0) is map point (x0,y0), and
- * returns where each region's name fits: the inland point of that region
- * farthest from any concept, so the name sits in open country, not on a seal.
+ * Chamfer distance (in pixels) from every pixel to the nearest `seed` pixel —
+ * two raster passes, so the washes and the water lines cost O(pixels).
+ */
+function distanceTo(seed: Uint8Array, w: number, h: number) {
+  const d = new Float32Array(w * h);
+  for (let k = 0; k < d.length; k++) d[k] = seed[k] ? 0 : 1e9;
+  const relax = (k: number, n: number, c: number) => {
+    if (d[n] + c < d[k]) d[k] = d[n] + c;
+  };
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++) {
+      const k = j * w + i;
+      if (i > 0) relax(k, k - 1, 1);
+      if (j > 0) {
+        relax(k, k - w, 1);
+        if (i > 0) relax(k, k - w - 1, 1.414);
+        if (i + 1 < w) relax(k, k - w + 1, 1.414);
+      }
+    }
+  for (let j = h - 1; j >= 0; j--)
+    for (let i = w - 1; i >= 0; i--) {
+      const k = j * w + i;
+      if (i + 1 < w) relax(k, k + 1, 1);
+      if (j + 1 < h) {
+        relax(k, k + w, 1);
+        if (i + 1 < w) relax(k, k + w + 1, 1.414);
+        if (i > 0) relax(k, k + w - 1, 1.414);
+      }
+    }
+  return d;
+}
+
+/** Where a country's name goes, and how much room it has across. */
+export interface Spot extends Pt {
+  d: number;
+  width: number;
+}
+
+/**
+ * Paints the atlas into `img`, whose pixel (0,0) is map point (x0,y0), in the
+ * manner of a hand-coloured 19th-century atlas: parchment land, each country
+ * washed in its colour along its borders and coast, a solid border between
+ * countries and a dotted one round each concept's own province, and engraved
+ * water lines rippling off the coast.
+ *
+ * Returns where each country's name fits: the inland point farthest from any
+ * concept, so the name sits in open country, not on a city — plus its width.
  */
 export function paintAtlas(
   img: ImageData,
@@ -199,75 +240,122 @@ export function paintAtlas(
   const px = lit.map((id) => (input.positions[id].x - x0) * res);
   const py = lit.map((id) => (input.positions[id].y - y0) * res);
   const pr = lit.map((id) => keys.indexOf(input.region[id]));
-  // Nearest concept's region, solved on a 4px lattice and filled per block —
-  // a border a few pixels off is invisible at map zoom.
-  // ponytail: O(pixels/16 × concepts); a bucket grid if maps pass ~300 concepts.
-  const reg = new Int16Array(w * h).fill(-1);
-  const spots: Record<string, Pt & { d: number }> = {};
-  for (let bj = 0; bj < h; bj += 4) {
-    for (let bi = 0; bi < w; bi += 4) {
+  // Each land pixel's province (nearest concept) and so its country, solved on
+  // a 2px lattice — the step is under a map unit at any zoom the map allows.
+  // ponytail: O(pixels/4 × concepts); a bucket grid if maps pass ~300 concepts.
+  const prov = new Int16Array(w * h).fill(-1);
+  const near = new Float32Array(w * h); // px to the nearest concept
+  const extent: Record<string, [number, number]> = {};
+  for (let bj = 0; bj < h; bj += 2) {
+    for (let bi = 0; bi < w; bi += 2) {
+      if (
+        hf[bj * w + bi] < SEA &&
+        hf[Math.min(h - 1, bj + 1) * w + Math.min(w - 1, bi + 1)] < SEA
+      )
+        continue;
       let best = Infinity;
-      let r = -1;
+      let p = -1;
       for (let n = 0; n < lit.length; n++) {
         const d = (px[n] - bi) ** 2 + (py[n] - bj) ** 2;
-        if (d < best) [best, r] = [d, pr[n]];
+        if (d < best) [best, p] = [d, n];
       }
-      for (let j = bj; j < Math.min(h, bj + 4); j++)
-        for (let i = bi; i < Math.min(w, bi + 4); i++)
-          if (hf[j * w + i] >= SEA) reg[j * w + i] = r;
-      const key = keys[r];
-      if (
-        key !== undefined &&
-        hf[bj * w + bi] > SEA + 0.25 &&
-        best > (spots[key]?.d ?? 0)
-      )
-        spots[key] = { x: x0 + bi / res, y: y0 + bj / res, d: best };
+      for (let j = bj; j < Math.min(h, bj + 2); j++)
+        for (let i = bi; i < Math.min(w, bi + 2); i++)
+          if (hf[j * w + i] >= SEA)
+            [prov[j * w + i], near[j * w + i]] = [p, Math.sqrt(best)];
+      const key = keys[pr[p]];
+      if (key === undefined || hf[bj * w + bi] < SEA) continue;
+      const x = x0 + bi / res;
+      const e = (extent[key] ??= [x, x]);
+      e[0] = Math.min(e[0], x);
+      e[1] = Math.max(e[1], x);
     }
   }
-  const mix = (a: RGB, b: RGB, t: number, o: number, alpha: number) => {
-    data[o] = a[0] + (b[0] - a[0]) * t;
-    data[o + 1] = a[1] + (b[1] - a[1]) * t;
-    data[o + 2] = a[2] + (b[2] - a[2]) * t;
+  const country = (p: number) => (p < 0 ? -1 : pr[p]);
+
+  // Edges: coast, country borders, province borders. The washes and the
+  // water lines are measured from the first two.
+  const edge = new Uint8Array(w * h); // 1 coast, 2 country border, 3 province border
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++) {
+      const k = j * w + i;
+      const a = prov[k];
+      const r = i + 1 < w ? prov[k + 1] : a;
+      const b = j + 1 < h ? prov[k + w] : a;
+      if (a < 0 !== r < 0 || a < 0 !== b < 0) edge[k] = 1;
+      else if (a < 0) continue;
+      else if (country(a) !== country(r) || country(a) !== country(b)) edge[k] = 2;
+      else if (a !== r || a !== b) edge[k] = 3;
+    }
+  const seed = new Uint8Array(w * h);
+  for (let k = 0; k < seed.length; k++) seed[k] = edge[k] === 1 || edge[k] === 2 ? 1 : 0;
+  const dist = distanceTo(seed, w, h);
+  for (let k = 0; k < seed.length; k++) seed[k] = edge[k] === 1 ? 1 : 0;
+  const coast = distanceTo(seed, w, h);
+
+  // A country's name goes where there is most room both from its cities and
+  // from its edges, so it reads inside the country, not across the coast.
+  const spots: Record<string, Spot> = {};
+  for (let k = 0; k < prov.length; k += 3) {
+    const key = keys[country(prov[k])];
+    if (key === undefined) continue;
+    const d = Math.min(near[k], dist[k] * 2.2);
+    if (d > (spots[key]?.d ?? 0))
+      spots[key] = {
+        x: x0 + (k % w) / res,
+        y: y0 + Math.floor(k / w) / res,
+        d,
+        width: 0,
+      };
+  }
+  for (const k in spots) spots[k].width = extent[k][1] - extent[k][0];
+
+  const put = (o: number, c: RGB, alpha: number) => {
+    data[o] = c[0];
+    data[o + 1] = c[1];
+    data[o + 2] = c[2];
     data[o + 3] = alpha;
   };
+  /** Ink laid over what is already there, `a` of the way. */
+  const ink = (o: number, a: number) => {
+    if (a <= 0) return;
+    const under = data[o + 3] / 255;
+    for (let c = 0; c < 3; c++)
+      data[o + c] =
+        (data[o + c] * under * (1 - a) + pal.ink[c] * a) / (under * (1 - a) + a);
+    data[o + 3] = 255 * (under * (1 - a) + a);
+  };
+  // Water lines sit at these distances off the coast, opening out seaward.
+  const LINES = Array.from({ length: 9 }, (_, n) => 3 + 3.4 * n ** 1.3);
+  const WASH = 22; // px of colour washed in from a border
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
       const k = j * w + i;
       const o = k * 4;
-      const v = hf[k];
-      const right = i + 1 < w ? hf[k + 1] : v;
-      const down = j + 1 < h ? hf[k + w] : v;
-      if (v < SEA) {
-        // Water only near land; the open page stays paper.
-        if (v > 0.18)
-          mix(
-            pal.water,
-            pal.shallows,
-            (v - 0.18) / (SEA - 0.18),
-            o,
-            120 * Math.min(1, (v - 0.18) * 8),
-          );
-        if (right >= SEA || down >= SEA) mix(pal.ink, pal.ink, 0, o, 170); // coast
+      const d = dist[k];
+      if (prov[k] < 0) {
+        // Engraved water lining: close-set lines off the coast, spreading and
+        // fading seaward, as on an engraved plate.
+        const c = coast[k];
+        if (c > LINES[LINES.length - 1] + 1) continue; // open sea: bare paper
+        let n = 0;
+        while (n < LINES.length - 1 && LINES[n] + 1.7 < c) n++;
+        ink(o, Math.max(0, 1 - Math.abs(c - LINES[n]) / 0.8) * (0.42 - n * 0.04));
+        ink(o, Math.max(0, 1 - c / 1.4) * 0.9); // the coast, anti-aliased seaward
         continue;
       }
-      const e = Math.min(1, (v - SEA) / 0.9);
-      const tint = pal.regions[Math.max(0, reg[k]) % pal.regions.length];
-      mix(pal.land, tint, 0.55, o, 150);
-      mix([data[o], data[o + 1], data[o + 2]], pal.high, e * 0.6, o, 150 + e * 60);
-      // Hillshade: light from the north-west.
-      const shade = (v - right + (v - down)) * res * 90;
-      const s = Math.max(-40, Math.min(40, shade));
-      data[o] += s;
-      data[o + 1] += s;
-      data[o + 2] += s;
-      const band = (x: number) => Math.floor((x - SEA) * BANDS);
-      if (band(v) !== band(right) || band(v) !== band(down))
-        mix(pal.ink, pal.ink, 0, o, 70);
-      const r = reg[k];
-      const border =
-        (i + 1 < w && reg[k + 1] >= 0 && reg[k + 1] !== r) ||
-        (j + 1 < h && reg[k + w] >= 0 && reg[k + w] !== r);
-      if (border && (i + j) % 6 < 3) mix(pal.ink, pal.ink, 0, o, 200);
+      const tint = pal.regions[country(prov[k]) % pal.regions.length];
+      // Paper inside, the country's colour strongest along its edges.
+      const t = Math.max(0, 1 - d / WASH) ** 1.4 * 0.85 + 0.12;
+      data[o] = pal.paper[0] + (tint[0] - pal.paper[0]) * t;
+      data[o + 1] = pal.paper[1] + (tint[1] - pal.paper[1]) * t;
+      data[o + 2] = pal.paper[2] + (tint[2] - pal.paper[2]) * t;
+      data[o + 3] = 235;
+      ink(o, Math.max(0, 1 - coast[k] / 1.4) * 0.9);
+      if (edge[k] === 2) {
+        const dark: RGB = [tint[0] * 0.55, tint[1] * 0.55, tint[2] * 0.55];
+        put(o, (i + j) % 7 < 4 ? pal.ink : dark, 220);
+      } else if (edge[k] === 3 && (i + j) % 5 < 1) put(o, pal.ink, 150);
     }
   }
   return spots;

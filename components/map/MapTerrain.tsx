@@ -4,9 +4,10 @@
 // layer — so all of it pans and zooms with the concepts on it.
 //
 // - `Terrain`: the graticule and one meridian per depth stage.
-// - `Land`: the learned territory as a generated atlas — worked-on concepts
-//   raise the ground, mastered ones highest, and seeded noise gives it a coast,
-//   contours and borders between regions (`atlasTerrain.ts`).
+// - `Land`: the learned territory as a hand-coloured atlas — worked-on
+//   concepts raise land, seeded noise frays its coast, and it is split into
+//   countries and each concept's province, named in spaced capitals
+//   (`atlasTerrain.ts`).
 // - `Fog`: a paper veil over whatever hasn't been reached. Holes open around
 //   every lit concept, and — transiently — around whatever the learner is
 //   looking at: the hovered chain, the locked path, the search matches.
@@ -14,7 +15,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { color, font, map } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
-import { type AtlasInput } from "@/components/map/atlasTerrain";
+import { type AtlasInput, type Spot } from "@/components/map/atlasTerrain";
 import { type Bounds, type Pt } from "@/components/map/mapGeometry";
 
 const STRINGS = {
@@ -152,7 +153,7 @@ export function Land({
   const out = useRef<HTMLCanvasElement>(null);
   const worker = useRef<Worker>(null);
   const sent = useRef("");
-  const [spots, setSpots] = useState<Record<string, Pt>>({});
+  const [spots, setSpots] = useState<Record<string, Spot>>({});
   const w = Math.round(r.width * LAND_RES);
   const h = Math.round(r.height * LAND_RES);
   useEffect(
@@ -198,27 +199,33 @@ export function Land({
           pointerEvents: "none",
         }}
       />
-      {Object.entries(spots).map(([k, p]) => (
-        <div
-          key={k}
-          style={{
-            position: "absolute",
-            left: p.x,
-            top: p.y,
-            transform: "translate(-50%, -50%)",
-            whiteSpace: "nowrap",
-            pointerEvents: "none",
-            fontFamily: font.serif,
-            fontSize: 22,
-            fontStyle: "italic",
-            letterSpacing: "0.3em",
-            fontVariant: "small-caps",
-            color: color.inkGhost,
-          }}
-        >
-          {names[k] ?? ""}
-        </div>
-      ))}
+      {Object.entries(spots).map(([k, p]) => {
+        // Set like a country on an engraved atlas: capitals spaced out to span
+        // most of the country, sized to how much room it has.
+        const name = (names[k] ?? "").toUpperCase();
+        const size = Math.max(18, Math.min(40, p.width / 14));
+        const spread = (p.width * 0.6 - name.length * size * 0.72) / name.length;
+        return (
+          <div
+            key={k}
+            style={{
+              position: "absolute",
+              left: p.x,
+              top: p.y,
+              transform: "translate(-50%, -50%)",
+              whiteSpace: "nowrap",
+              pointerEvents: "none",
+              fontFamily: font.serif,
+              fontSize: size,
+              fontWeight: 600,
+              letterSpacing: Math.max(size * 0.3, spread),
+              color: map.countryInk,
+            }}
+          >
+            {name}
+          </div>
+        );
+      })}
     </>
   );
 }

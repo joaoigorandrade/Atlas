@@ -6,6 +6,7 @@ import {
   seedOf,
   type AtlasInput,
 } from "@/components/map/atlasTerrain";
+import { map } from "@/lib/theme";
 import type { ConceptNode } from "@/lib/curriculum";
 
 const node = (id: string, g: number): ConceptNode =>
@@ -43,15 +44,7 @@ describe("atlas terrain", () => {
       height: 100,
       data: new Uint8ClampedArray(175 * 100 * 4),
     } as ImageData;
-    const pal = {
-      water: [0, 0, 0],
-      shallows: [0, 0, 0],
-      land: [0, 0, 0],
-      high: [0, 0, 0],
-      ink: [0, 0, 0],
-      regions: [[0, 0, 0]],
-    } as const;
-    const spots = paintAtlas(img, input, -200, -200, 0.25, pal);
+    const spots = paintAtlas(img, input, -200, -200, 0.25, map.atlas);
     expect(Object.keys(spots)).toEqual(["a"]);
     expect(spots.a.x).toBeGreaterThan(0); // between a and b, not on either
     expect(spots.a.x).toBeLessThan(300);

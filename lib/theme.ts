@@ -58,18 +58,17 @@ export const map = {
   graticule: "rgba(44,40,35,0.08)",
   meridian: "rgba(44,40,35,0.1)",
   /** The generated atlas (`atlasTerrain.ts`) paints pixels, so these are RGB. */
+  countryInk: "rgba(58,48,38,0.62)",
   atlas: {
-    water: [150, 178, 190],
-    shallows: [196, 212, 208],
-    land: [222, 212, 184],
-    high: [176, 150, 112],
-    ink: [60, 52, 42],
+    paper: [246, 239, 220],
+    ink: [58, 48, 38],
     regions: [
-      [196, 206, 160],
-      [222, 190, 160],
-      [190, 196, 214],
-      [214, 200, 150],
-      [200, 180, 196],
+      [226, 150, 160],
+      [150, 196, 140],
+      [236, 208, 110],
+      [150, 176, 214],
+      [206, 160, 206],
+      [236, 170, 120],
     ],
   },
 } as const;
