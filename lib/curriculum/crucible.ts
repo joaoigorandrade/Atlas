@@ -17,10 +17,10 @@ import { Language } from "@/lib/i18n";
 
 /** The Crucible's deep-rust palette (its accent everywhere it appears). */
 export const CRUCIBLE_COLOR = {
-  accent: "#a23b34",
-  soft: "rgba(162,59,52,0.08)",
-  border: "rgba(162,59,52,0.28)",
-  glow: "rgba(162,59,52,0.24)",
+  accent: "#962c22",
+  soft: "rgba(150,44,34,0.08)",
+  border: "rgba(150,44,34,0.28)",
+  glow: "rgba(150,44,34,0.24)",
 } as const;
 
 /** The stated-confidence levels captured before the problem is revealed. */

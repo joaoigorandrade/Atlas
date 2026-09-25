@@ -91,7 +91,7 @@ export type ForecastTone = "due" | "soft" | "solid";
 
 /** The forecast bar colors — due borrows the accent, soft/solid the states. */
 export const FORECAST_COLOR: Record<ForecastTone, string> = {
-  due: "#2f6b4f", // color.accent — surfaced now
+  due: "#3a6a55", // color.accent — surfaced now
   soft: STATE_COLOR.shaky,
   solid: STATE_COLOR.mastered,
 };

@@ -16,9 +16,9 @@ export type StreakDayStatus = "hit" | "freeze" | "miss" | "today";
 
 /** The flame + freeze palette — the streak borrows the design's amber, the freeze a cool slate, a miss the ghost ink. */
 export const STREAK_COLOR = {
-  flame: "#c99a2e",
+  flame: "#b0852c",
   freeze: "#6f8fa6",
-  miss: "rgba(44,40,35,0.16)",
+  miss: "rgba(43,33,24,0.16)",
 } as const;
 
 /** One day in the recent streak strip, oldest → newest, ending on today. */

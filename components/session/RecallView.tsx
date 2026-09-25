@@ -27,7 +27,6 @@ import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -53,7 +52,6 @@ const STRINGS = {
 } as const;
 
 export default function RecallView({
-  presence,
   title,
   plan,
   content,
@@ -66,7 +64,6 @@ export default function RecallView({
   onAgain,
   onAdvance,
 }: {
-  presence: PresenceState;
   title: string;
   plan: readonly PhaseId[];
   content: RecallContent;
@@ -89,7 +86,6 @@ export default function RecallView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="recall"
       kicker={copy.kicker}
       accent={accent}
@@ -115,7 +111,7 @@ export default function RecallView({
         data-testid="recall-brief"
         style={{
           padding: "18px 20px",
-          borderRadius: 12,
+          borderRadius: 3,
           background: soft,
           border: `1px solid ${border}`,
           fontFamily: font.serif,
@@ -157,7 +153,7 @@ export default function RecallView({
               width: "100%",
               resize: "vertical",
               padding: "14px 16px",
-              borderRadius: 12,
+              borderRadius: 3,
               fontSize: 14.5,
               lineHeight: 1.55,
               fontFamily: "inherit",
@@ -175,7 +171,7 @@ export default function RecallView({
               style={{
                 marginTop: 12,
                 padding: "12px 15px",
-                borderRadius: 10,
+                borderRadius: 3,
                 background: color.chipBg,
                 border: `1px solid ${color.hairline}`,
                 fontSize: 13.5,
@@ -196,10 +192,10 @@ export default function RecallView({
               style={{
                 padding: "12px 20px",
                 background:
-                  busy || !session.written.trim() ? "rgba(44,40,35,0.07)" : accent,
+                  busy || !session.written.trim() ? "rgba(43,33,24,0.07)" : accent,
                 color: busy || !session.written.trim() ? color.inkGhost : color.accentInk,
                 border: "none",
-                borderRadius: 10,
+                borderRadius: 3,
                 fontSize: 14.5,
                 fontWeight: 600,
                 cursor: busy || !session.written.trim() ? "default" : "pointer",
@@ -217,7 +213,7 @@ export default function RecallView({
                   padding: "11px 15px",
                   background: color.card,
                   border: "1px solid rgba(160,106,48,0.4)",
-                  borderRadius: 9,
+                  borderRadius: 3,
                   fontSize: 13,
                   color: color.amberInk,
                   cursor: "pointer",
@@ -270,7 +266,7 @@ export default function RecallView({
                     display: "flex",
                     gap: 11,
                     padding: "11px 14px",
-                    borderRadius: 10,
+                    borderRadius: 3,
                     background: color.card,
                     border: `1px solid ${color.hairline}`,
                   }}
@@ -355,7 +351,7 @@ export default function RecallView({
               style={{
                 marginTop: 18,
                 padding: "14px 17px",
-                borderRadius: 12,
+                borderRadius: 3,
                 background: soft,
                 border: `1px solid ${border}`,
                 fontSize: 14.5,
@@ -381,7 +377,7 @@ export default function RecallView({
                 background: passed ? color.accent : color.card,
                 color: passed ? color.accentInk : color.ink,
                 border: passed ? "none" : `1px solid ${color.hairlineStrong}`,
-                borderRadius: 12,
+                borderRadius: 3,
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -398,7 +394,7 @@ export default function RecallView({
                 padding: "15px 18px",
                 background: color.card,
                 border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 12,
+                borderRadius: 3,
                 fontSize: 14,
                 color: color.inkMuted,
                 cursor: "pointer",

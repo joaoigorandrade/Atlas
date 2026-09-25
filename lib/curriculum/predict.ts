@@ -16,9 +16,9 @@ import { Language } from "@/lib/i18n";
 
 /** Predict's accent: a forecasting indigo. */
 export const PREDICT_COLOR = {
-  accent: "#6b5f96",
-  soft: "rgba(107,95,150,0.08)",
-  border: "rgba(107,95,150,0.32)",
+  accent: "#5a4f7d",
+  soft: "rgba(90,79,125,0.08)",
+  border: "rgba(90,79,125,0.32)",
 } as const;
 
 /** How sure the learner is, taken before the outcome is revealed. Held against

@@ -15,7 +15,7 @@ export function WorkedExample({ example }: { example: ConsumeExample }) {
         background: color.cardAlt,
         border: `1px solid ${color.hairline}`,
         borderLeft: `3px solid ${BLUE}`,
-        borderRadius: 10,
+        borderRadius: 3,
         padding: "16px 18px",
       }}
     >

@@ -13,9 +13,9 @@ import { Language } from "@/lib/i18n";
 
 /** Drill's accent: a warm copper — something being worn smooth. */
 export const DRILL_COLOR = {
-  accent: "#a3672f",
-  soft: "rgba(163,103,47,0.08)",
-  border: "rgba(163,103,47,0.32)",
+  accent: "#8e5a2b",
+  soft: "rgba(142,90,43,0.08)",
+  border: "rgba(142,90,43,0.32)",
 } as const;
 
 /** What "without stopping to derive it" means, in milliseconds per call.

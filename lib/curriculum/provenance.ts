@@ -16,9 +16,9 @@ import { Language } from "@/lib/i18n";
 
 /** Provenance's accent: an archival sepia. */
 export const PROVENANCE_COLOR = {
-  accent: "#8a6f4e",
-  soft: "rgba(138,111,78,0.08)",
-  border: "rgba(138,111,78,0.32)",
+  accent: "#7d6243",
+  soft: "rgba(125,98,67,0.08)",
+  border: "rgba(125,98,67,0.32)",
 } as const;
 
 /**

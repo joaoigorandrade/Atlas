@@ -19,9 +19,10 @@ import {
 import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker, motion, transition } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import type { PresenceState } from "@/lib/motion";
+import Masthead from "@/components/ui/Masthead";
 
 import Rich from "@/components/Rich";
 // Feynman borrows the shared state colors: learning blue for the naive
@@ -152,9 +153,6 @@ const STRINGS = {
 } as const;
 
 interface FeynmanViewProps {
-  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
-   *  screen mounted through its exit. */
-  presence: PresenceState;
   /** The rubric rows for this node — never shown before the explanation. */
   beats: FeynmanBeat[];
   /** The node being taught back — titles the view. */
@@ -202,7 +200,6 @@ export default function FeynmanView({
   onFix,
   onTeachAgain,
   onAdvance,
-  presence,
 }: FeynmanViewProps) {
   const t = useT(STRINGS);
 
@@ -239,50 +236,16 @@ export default function FeynmanView({
   const breadcrumb = plan.map(phaseLabel).join(" → ");
 
   return (
-    <Sheet presence={presence} data-testid="phase-feynman" aria-label="Feynman — {title}">
-      {/* Header — ← Map · Session · Feynman · title · the student persona */}
-      <div
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          height: 58,
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
-        }}
+    <Sheet data-testid="phase-feynman" aria-label="Feynman — {title}">
+      <Masthead
+        back={t.back}
+        onBack={onExit}
+        kicker={t.sessionLabel}
+        accent={BLUE}
+        title={title}
       >
-        <button
-          className="at-press"
-          onClick={onExit}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            color: color.inkMuted,
-          }}
-        >
-          {t.back}
-        </button>
-        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: BLUE,
-          }}
-        >
-          {t.sessionLabel}
-        </span>
-        <div style={{ fontFamily: font.serif, fontSize: 19 }}>{title}</div>
-        <div style={{ flex: 1 }} />
         <StudentChip />
-      </div>
+      </Masthead>
 
       {/* Body — the opening prompt, the blank page, then the Gap Report */}
       <div
@@ -352,8 +315,8 @@ function StudentChip() {
         alignItems: "center",
         gap: 8,
         background: color.chipBg,
-        border: `1px solid rgba(44,40,35,0.09)`,
-        borderRadius: 9,
+        border: `1px solid rgba(43,33,24,0.09)`,
+        borderRadius: 3,
         padding: "5px 11px",
       }}
     >
@@ -433,11 +396,12 @@ function Prompt({
             background: color.accent,
             color: color.accentInk,
             border: "none",
-            borderRadius: 12,
+            borderRadius: 3,
             fontSize: 15,
-            fontWeight: 600,
+            fontFamily: font.caps,
+            letterSpacing: "0.06em",
             cursor: "pointer",
-            boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+            boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
           }}
         >
           {t.startTeaching}
@@ -465,7 +429,7 @@ function Prompt({
               textAlign: "left",
               background: color.amberBg,
               border: "1px solid rgba(160,106,48,0.25)",
-              borderRadius: 10,
+              borderRadius: 3,
               padding: "13px 15px",
               fontSize: 13.5,
               lineHeight: 1.5,
@@ -584,7 +548,7 @@ function TeachPage({
                   border: "none",
                   cursor: "pointer",
                   borderRadius: 2,
-                  background: i === at ? BLUE : done ? GREEN : "rgba(44,40,35,0.12)",
+                  background: i === at ? BLUE : done ? GREEN : "rgba(43,33,24,0.12)",
                   opacity: i === at ? 1 : done ? 0.55 : 1,
                   transform: i === at ? "scaleY(1.9)" : "scaleY(1)",
                   transition: transition(
@@ -622,10 +586,10 @@ function TeachPage({
           key={beat.id}
           style={{
             border: `1px solid ${color.hairlineStrong}`,
-            borderRadius: 16,
+            borderRadius: 3,
             background: color.card,
             padding: "22px 22px 18px",
-            boxShadow: "0 1px 2px rgba(44,40,35,0.04), 0 10px 30px rgba(44,40,35,0.05)",
+            boxShadow: "0 1px 2px rgba(43,33,24,0.04), 0 10px 30px rgba(43,33,24,0.05)",
             animation: `${dir === "next" ? "stepInNext" : "stepInPrev"} ${motion.duration.slow}ms ${motion.ease.enter} both`,
           }}
         >
@@ -656,7 +620,7 @@ function TeachPage({
               width: "100%",
               resize: "vertical",
               padding: "14px 16px",
-              borderRadius: 12,
+              borderRadius: 3,
               border: `1px solid ${color.hairline}`,
               background: color.cardAlt,
               fontFamily: font.serif,
@@ -760,17 +724,17 @@ function Advance({
       disabled={blocked}
       style={{
         padding: "13px 20px",
-        background: blocked ? "rgba(44,40,35,0.07)" : color.accent,
+        background: blocked ? "rgba(43,33,24,0.07)" : color.accent,
         color: blocked ? color.inkGhost : color.accentInk,
         border: "none",
-        borderRadius: 11,
+        borderRadius: 3,
         fontSize: 14.5,
         fontWeight: 600,
         cursor: blocked ? "default" : "pointer",
         display: "inline-flex",
         alignItems: "center",
         gap: 9,
-        boxShadow: blocked ? "none" : "0 6px 18px rgba(47,107,79,0.22)",
+        boxShadow: blocked ? "none" : "0 6px 18px rgba(58,106,85,0.22)",
         transition: transition(["background", "color", "box-shadow"], "fast"),
       }}
     >
@@ -856,7 +820,7 @@ function GapReport({
               display: "inline-block",
               marginBottom: 18,
               padding: "6px 12px",
-              borderRadius: 8,
+              borderRadius: 3,
               background: color.chipBg,
               fontFamily: font.mono,
               fontSize: 11,
@@ -909,7 +873,7 @@ function GapReport({
             style={{
               border: `1px solid rgba(160,106,48,0.25)`,
               background: color.amberBg,
-              borderRadius: 10,
+              borderRadius: 3,
               padding: "12px 15px",
               marginBottom: 20,
             }}
@@ -936,7 +900,7 @@ function GapReport({
                   key={term}
                   style={{
                     padding: "4px 10px",
-                    borderRadius: 7,
+                    borderRadius: 2,
                     background: color.card,
                     border: `1px solid rgba(160,106,48,0.3)`,
                     fontFamily: font.mono,
@@ -996,7 +960,7 @@ function GapReport({
                   background: color.card,
                   border: `1px solid ${color.hairline}`,
                   borderLeft: `3px solid ${c}`,
-                  borderRadius: 10,
+                  borderRadius: 3,
                   padding: "13px 16px",
                 }}
               >
@@ -1046,9 +1010,10 @@ function GapReport({
                         background: color.accent,
                         color: color.accentInk,
                         border: "none",
-                        borderRadius: 8,
+                        borderRadius: 3,
                         fontSize: 12.5,
-                        fontWeight: 600,
+                        fontFamily: font.caps,
+                        letterSpacing: "0.06em",
                         cursor: "pointer",
                       }}
                     >
@@ -1112,8 +1077,8 @@ function GapReport({
               style={{
                 marginTop: 10,
                 background: color.accentBg,
-                border: `1px solid rgba(47,107,79,0.18)`,
-                borderRadius: 10,
+                border: `1px solid rgba(58,106,85,0.18)`,
+                borderRadius: 3,
                 padding: "12px 15px",
                 fontFamily: font.serif,
                 fontSize: 15,
@@ -1136,7 +1101,7 @@ function GapReport({
               color: color.inkMuted,
               background: color.cardAlt,
               border: `1px solid ${color.hairline}`,
-              borderRadius: 9,
+              borderRadius: 3,
               padding: "12px 15px",
               marginBottom: 20,
             }}
@@ -1147,25 +1112,15 @@ function GapReport({
 
         {/* Footer actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button
-            className="at-press"
+          <Button
             data-testid="action-advance"
             onClick={onAdvance}
             style={{
-              width: "100%",
-              padding: 15,
-              background: color.accent,
-              color: color.accentInk,
-              border: "none",
-              borderRadius: 12,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+              boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
             }}
           >
             {clean ? t.cleanAdvance : t.attachGaps(gapCount)}
-          </button>
+          </Button>
           <button
             className="at-press"
             onClick={onTeachAgain}
@@ -1174,7 +1129,7 @@ function GapReport({
               padding: "12px 15px",
               background: "none",
               border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 12,
+              borderRadius: 3,
               fontSize: 13.5,
               color: color.inkMuted,
               cursor: "pointer",
@@ -1273,7 +1228,7 @@ function FixPass({
                 style={{
                   textAlign: "left",
                   padding: "10px 13px",
-                  borderRadius: 9,
+                  borderRadius: 3,
                   fontSize: 13.5,
                   lineHeight: 1.4,
                   cursor: spent ? "default" : "pointer",

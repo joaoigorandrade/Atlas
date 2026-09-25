@@ -52,7 +52,7 @@ export function AnswerModeToggle({
         display: "inline-flex",
         padding: 2,
         gap: 2,
-        borderRadius: 8,
+        borderRadius: 3,
         background: color.chipBg,
         border: `1px solid ${color.hairline}`,
       }}
@@ -72,7 +72,7 @@ export function AnswerModeToggle({
             onClick={() => onMode(key)}
             style={{
               padding: "4px 10px",
-              borderRadius: 6,
+              borderRadius: 2,
               border: "none",
               cursor: active ? "default" : "pointer",
               fontFamily: font.mono,
@@ -152,7 +152,7 @@ export function OpenAnswer({
           width: "100%",
           resize: "none",
           padding: "12px 14px",
-          borderRadius: 11,
+          borderRadius: 3,
           border: `1px solid ${color.hairlineStrong}`,
           background: color.card,
           fontFamily: font.serif,
@@ -172,12 +172,12 @@ export function OpenAnswer({
           marginTop: 10,
           width: "100%",
           padding: 13,
-          borderRadius: 11,
+          borderRadius: 3,
           border: "none",
           fontSize: 14.5,
           fontWeight: 600,
           cursor: judging || !text.trim() ? "default" : "pointer",
-          background: judging || !text.trim() ? "rgba(44,40,35,0.07)" : accent,
+          background: judging || !text.trim() ? "rgba(43,33,24,0.07)" : accent,
           color: judging || !text.trim() ? color.inkGhost : color.accentInk,
         }}
       >

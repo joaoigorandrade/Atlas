@@ -28,6 +28,8 @@ import { SkeletonBars } from "@/components/Pending";
 
 import { STRINGS } from "@/components/map/nodeDetailCopy";
 import NodeSeal from "@/components/map/NodeSeal";
+import { WaxSeal } from "@/components/ui/Ornaments";
+import Button from "@/components/ui/Button";
 
 interface NodeDetailProps {
   node: ConceptNode;
@@ -237,8 +239,8 @@ function NodeDetailBody({
         bottom: 0,
         right: 0,
         width: layout.nodePanel,
-        background: isGap ? "rgba(250,243,241,0.97)" : "rgba(248,246,240,0.97)",
-        borderLeft: isGap ? `2px solid ${stateColor}` : `1px solid ${color.hairline}`,
+        background: `url(/paper-grain.png) 0 0 / 128px, ${isGap ? color.dangerBg : color.card}`,
+        borderLeft: `3px double ${isGap ? stateColor : color.rule}`,
         padding: "28px 26px",
         zIndex: 15,
         overflowY: "auto",
@@ -251,15 +253,20 @@ function NodeDetailBody({
       {/* The same mark the map draws this concept with, at field-card size —
           ring and all, so the phases below have a picture above them. */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-        <NodeSeal node={node} state={displayState} done={phasesDone} size={50} />
+        <span style={{ position: "relative", flex: "0 0 auto" }}>
+          <NodeSeal node={node} state={displayState} done={phasesDone} size={50} />
+          {displayState === "mastered" && (
+            <WaxSeal size={24} style={{ position: "absolute", right: -8, bottom: -6 }} />
+          )}
+        </span>
         <div style={{ minWidth: 0 }}>
           <div style={{ ...kicker(10.5, "0.14em"), color: stateColor, marginBottom: 4 }}>
             {stateLabel(displayState, language)}
           </div>
           <div
             style={{
-              fontFamily: font.serif,
-              fontSize: isGap ? 21 : 26,
+              fontFamily: font.display,
+              fontSize: isGap ? 22 : 27,
               fontStyle: isGap ? "italic" : "normal",
               lineHeight: 1.1,
             }}
@@ -303,7 +310,7 @@ function NodeDetailBody({
               padding: "13px 15px",
               background: color.card,
               border: `1px solid ${stateColor}33`,
-              borderRadius: 10,
+              borderRadius: 3,
               marginBottom: 22,
             }}
           >
@@ -371,9 +378,11 @@ function NodeDetailBody({
                   left: 14,
                   top: 20,
                   width: 2,
-                  height: `calc((100% - 40px) * ${Math.min(f, 1)})`,
+                  height: "calc(100% - 40px)",
+                  transformOrigin: "50% 0",
+                  transform: `scaleY(${Math.min(f, 1)})`,
                   background: k ? STATE_COLOR.mastered : color.hairlineStrong,
-                  transition: transition("height", "deliberate", "enter"),
+                  transition: transition("transform", "deliberate", "enter"),
                 }}
               />
             ))}
@@ -421,7 +430,7 @@ function NodeDetailBody({
                     padding: "9px 4px",
                     background: "none",
                     border: "none",
-                    borderRadius: 8,
+                    borderRadius: 3,
                     width: "100%",
                     textAlign: "left",
                     fontFamily: "inherit",
@@ -530,7 +539,7 @@ function NodeDetailBody({
               style={{
                 background: color.amberBg,
                 border: "1px solid rgba(160,106,48,0.25)",
-                borderRadius: 10,
+                borderRadius: 3,
                 padding: "13px 15px",
                 marginTop: -8,
                 marginBottom: 18,
@@ -560,9 +569,10 @@ function NodeDetailBody({
                     background: color.accent,
                     color: color.accentInk,
                     border: "none",
-                    borderRadius: 9,
+                    borderRadius: 3,
                     fontSize: 13,
-                    fontWeight: 600,
+                    fontFamily: font.caps,
+                    letterSpacing: "0.06em",
                     cursor: "pointer",
                   }}
                 >
@@ -594,51 +604,36 @@ function NodeDetailBody({
         </>
       )}
 
-      <button
-        className="at-press"
+      <Button
         data-testid="action-primary"
         onClick={() => onPrimaryAction(node, displayState)}
-        style={{
-          width: "100%",
-          padding: 15,
-          borderRadius: 12,
-          fontSize: 15,
-          fontWeight: 600,
-          cursor: locked ? "default" : "pointer",
-          border: "none",
-          background: locked ? "rgba(44,40,35,0.07)" : isGap ? stateColor : color.accent,
-          color: locked ? color.inkGhost : color.accentInk,
-          boxShadow: locked
-            ? "none"
-            : isGap
-              ? "0 8px 22px rgba(193,87,74,0.26)"
-              : "0 8px 22px rgba(47,107,79,0.26)",
-        }}
+        accent={isGap ? stateColor : color.accent}
+        style={
+          locked
+            ? {
+                cursor: "default",
+                background: "rgba(43,33,24,0.07)",
+                color: color.inkGhost,
+                boxShadow: "none",
+              }
+            : undefined
+        }
       >
         {/* A part-read node's primary action is to get back into the reading,
             not to start something new. */}
         {reading ? t.resumeReading : t.cta[displayState](ctaPhaseLabel)}
-      </button>
+      </Button>
 
       {displayState === "frontier" && (
-        <button
-          className="at-press"
+        <Button
+          variant="secondary"
+          accent={color.inkMuted}
           data-testid="action-skip-known"
           onClick={() => onSkipKnown(node)}
-          style={{
-            width: "100%",
-            marginTop: 10,
-            padding: "11px 15px",
-            background: "none",
-            border: `1px solid ${color.hairlineStrong}`,
-            borderRadius: 12,
-            fontSize: 13.5,
-            color: color.inkMuted,
-            cursor: "pointer",
-          }}
+          style={{ marginTop: 10, fontSize: 14 }}
         >
           {t.skipKnown}
-        </button>
+        </Button>
       )}
 
       {chips(t.openGaps, gapIds, 24)}

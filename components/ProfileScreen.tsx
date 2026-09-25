@@ -1,5 +1,6 @@
 "use client";
 
+import Masthead from "@/components/ui/Masthead";
 import { color, font } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
@@ -83,61 +84,16 @@ export default function ProfileScreen({
   return (
     <div
       data-testid="screen-profile"
+      className="at-paper"
       style={{
         position: "absolute",
         inset: 0,
-        background: color.paper,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
       }}
     >
-      <div
-        style={{
-          flex: "0 0 auto",
-          height: 58,
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
-        }}
-      >
-        <button
-          className="at-press"
-          onClick={onHome}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            fontFamily: font.sans,
-            color: color.inkMuted,
-          }}
-        >
-          {t.home}
-        </button>
-        <div
-          style={{
-            width: 1,
-            height: 20,
-            background: color.hairlineStrong,
-          }}
-        />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: color.accent,
-          }}
-        >
-          {t.profile}
-        </span>
-      </div>
+      <Masthead back={t.home} onBack={onHome} kicker={t.profile} accent={color.accent} />
 
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div
@@ -145,7 +101,6 @@ export default function ProfileScreen({
             maxWidth: 760,
             margin: "0 auto",
             padding: "48px 40px 80px",
-            animation: "fadeUp .5s both",
           }}
         >
           <div
@@ -162,7 +117,7 @@ export default function ProfileScreen({
                 height: 78,
                 borderRadius: "50%",
                 background: color.ink,
-                color: "#f7f5ef",
+                color: "#f6efdf",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -177,8 +132,8 @@ export default function ProfileScreen({
             <div style={{ flex: 1 }}>
               <h1
                 style={{
-                  fontFamily: font.serif,
-                  fontWeight: 500,
+                  fontFamily: font.display,
+                  fontWeight: 400,
                   fontSize: 30,
                   margin: "0 0 5px",
                 }}
@@ -195,7 +150,7 @@ export default function ProfileScreen({
                 padding: "11px 18px",
                 background: color.card,
                 border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 11,
+                borderRadius: 3,
                 fontSize: 14,
                 fontFamily: font.sans,
                 color: color.ink,
@@ -220,7 +175,7 @@ export default function ProfileScreen({
                 style={{
                   background: color.card,
                   border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 14,
+                  borderRadius: 3,
                   padding: 20,
                 }}
               >
@@ -251,7 +206,7 @@ export default function ProfileScreen({
             style={{
               background: color.card,
               border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 16,
+              borderRadius: 3,
               padding: 26,
               marginBottom: 16,
             }}
@@ -304,7 +259,7 @@ export default function ProfileScreen({
                       style={{
                         padding: "7px 14px",
                         background: color.accentBg,
-                        border: "1px solid rgba(47,107,79,0.22)",
+                        border: "1px solid rgba(58,106,85,0.22)",
                         borderRadius: 20,
                         fontSize: 13.5,
                         color: color.accent,
@@ -322,7 +277,7 @@ export default function ProfileScreen({
             style={{
               background: color.card,
               border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 16,
+              borderRadius: 3,
               overflow: "hidden",
             }}
           >
@@ -369,8 +324,8 @@ export default function ProfileScreen({
               <span style={{ color: color.inkGhost }}>&rarr;</span>
             </div>
             <div className="at-press at-tint" onClick={onSignOut} style={rowStyle}>
-              <div style={{ fontSize: 15, color: "#c1574a" }}>{t.signOut}</div>
-              <span style={{ color: "#c1574a" }}>&rarr;</span>
+              <div style={{ fontSize: 15, color: "#a8412f" }}>{t.signOut}</div>
+              <span style={{ color: "#a8412f" }}>&rarr;</span>
             </div>
           </div>
         </div>

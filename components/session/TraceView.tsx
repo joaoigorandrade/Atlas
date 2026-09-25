@@ -23,8 +23,8 @@ import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/Open
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -48,7 +48,6 @@ const STRINGS = {
 } as const;
 
 export default function TraceView({
-  presence,
   topic,
   title,
   plan,
@@ -59,7 +58,6 @@ export default function TraceView({
   onNext,
   onAdvance,
 }: {
-  presence: PresenceState;
   topic: string;
   title: string;
   plan: readonly PhaseId[];
@@ -84,7 +82,6 @@ export default function TraceView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="trace"
       kicker={copy.kicker}
       accent={accent}
@@ -122,7 +119,7 @@ export default function TraceView({
         data-testid="trace-scenario"
         style={{
           padding: "14px 17px",
-          borderRadius: 12,
+          borderRadius: 3,
           background: soft,
           border: `1px solid ${border}`,
           fontFamily: font.serif,
@@ -159,7 +156,7 @@ export default function TraceView({
                     display: "flex",
                     gap: 10,
                     padding: "9px 13px",
-                    borderRadius: 9,
+                    borderRadius: 3,
                     background: color.chipBg,
                     borderLeft: `2px solid ${ok ? accent : color.amberInk}`,
                     fontSize: 13,
@@ -225,7 +222,7 @@ export default function TraceView({
                       style={{
                         textAlign: "left",
                         padding: "12px 15px",
-                        borderRadius: 11,
+                        borderRadius: 3,
                         border: `1px solid ${color.hairlineStrong}`,
                         background: color.card,
                         fontSize: 14.5,
@@ -284,7 +281,7 @@ export default function TraceView({
                       key={i}
                       style={{
                         padding: "10px 14px",
-                        borderRadius: 10,
+                        borderRadius: 3,
                         fontSize: 14,
                         lineHeight: 1.45,
                         background: isAnswer ? soft : color.card,
@@ -327,25 +324,14 @@ export default function TraceView({
                 <Rich text={item.handsOn} />
               </div>
 
-              <button
-                className="at-press"
+              <Button
                 data-testid="action-next"
                 onClick={onNext}
-                style={{
-                  marginTop: 18,
-                  width: "100%",
-                  padding: 14,
-                  borderRadius: 12,
-                  border: "none",
-                  background: accent,
-                  color: color.accentInk,
-                  fontSize: 14.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                accent={accent}
+                style={{ marginTop: 18 }}
               >
                 {copy.next}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -369,25 +355,13 @@ export default function TraceView({
           >
             {tracePassed(session, content) ? copy.passed : copy.brokeAt(brokeAt + 1)}
           </div>
-          <button
-            className="at-press"
+          <Button
             data-testid="action-finish"
             onClick={onAdvance}
-            style={{
-              marginTop: 22,
-              width: "100%",
-              padding: 15,
-              borderRadius: 12,
-              border: "none",
-              background: color.accent,
-              color: color.accentInk,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            style={{ marginTop: 22 }}
           >
             {t.advance}
-          </button>
+          </Button>
         </div>
       )}
     </PhaseShell>

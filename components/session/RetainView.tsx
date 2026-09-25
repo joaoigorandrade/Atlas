@@ -20,7 +20,8 @@ import { color, font, kicker, motion, transition } from "@/lib/theme";
 import StreakFlame from "@/components/map/StreakFlame";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import { useReducedMotion, type PresenceState } from "@/lib/motion";
+import Masthead from "@/components/ui/Masthead";
+import { useReducedMotion } from "@/lib/motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Rich from "@/components/Rich";
@@ -33,9 +34,6 @@ import Sidebar from "@/components/session/RetainSidebar";
 const ASIDE_ACCENT = CONNECT_COLOR.accent;
 
 interface RetainViewProps {
-  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
-   *  screen mounted through its exit. */
-  presence: PresenceState;
   /** The generated review queue (cards + forecast + budget). */
   content: RetainContent;
   session: RetainSession;
@@ -77,7 +75,6 @@ export default function RetainView({
   onToggleAside,
   onReteach,
   onContinue,
-  presence,
 }: RetainViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -85,47 +82,13 @@ export default function RetainView({
   const budget = retainBudget(session, content);
 
   return (
-    <Sheet presence={presence} data-testid="phase-retain" aria-label="Retain — {title}">
-      {/* Header — ← Map · Retain · Review · honest queue chip */}
-      <div
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          height: 58,
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
-        }}
+    <Sheet data-testid="phase-retain" aria-label="Retain — {title}">
+      <Masthead
+        back={t.map}
+        onBack={onExit}
+        kicker={t.retainReview}
+        accent={color.accent}
       >
-        <button
-          className="at-press"
-          onClick={onExit}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            color: color.inkMuted,
-          }}
-        >
-          {t.map}
-        </button>
-        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: color.accent,
-          }}
-        >
-          {t.retainReview}
-        </span>
-        <div style={{ flex: 1 }} />
         <StreakFlame adherence={adherence} onToggleReminder={onToggleReminder} />
         <div
           style={{
@@ -133,7 +96,7 @@ export default function RetainView({
             alignItems: "center",
             gap: 7,
             background: color.accentBg,
-            border: "1px solid rgba(47,107,79,0.22)",
+            border: "1px solid rgba(58,106,85,0.22)",
             borderRadius: 20,
             padding: "6px 14px",
             fontSize: 13,
@@ -150,7 +113,7 @@ export default function RetainView({
           />
           {retainQueueLabel(session, content, language)}
         </div>
-      </div>
+      </Masthead>
 
       {/* Body — scrolls; card column + retention-health sidebar */}
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -235,7 +198,7 @@ function QueueRail({
                   ? grades[graded]
                   : current
                     ? color.accent
-                    : "rgba(44,40,35,0.12)",
+                    : "rgba(43,33,24,0.12)",
                 transition: transition(["background", "opacity"], "slow", "enter"),
                 animation: current ? "railPulse 2.2s ease-in-out infinite" : undefined,
               }}
@@ -296,7 +259,7 @@ function Question({
         style={{
           display: "inline-block",
           minWidth: 96,
-          borderBottom: `2px solid ${filled ? STATE_COLOR.mastered : "rgba(44,40,35,0.28)"}`,
+          borderBottom: `2px solid ${filled ? STATE_COLOR.mastered : "rgba(43,33,24,0.28)"}`,
           textAlign: "center",
           transition: transition("border-color", "slow", "enter"),
         }}
@@ -402,15 +365,16 @@ function ActiveCard({
   const remaining = retainDeck(session, content).length - session.idx - 1;
   const face = {
     gridArea: "1 / 1",
-    background: color.card,
-    border: `1px solid ${color.hairlineStrong}`,
-    borderRadius: 18,
+    // A plate card, as if cut from the atlas's own stock.
+    background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
+    border: `3px double ${color.rule}`,
+    borderRadius: 2,
     padding: "32px 34px 28px",
     display: "flex",
     flexDirection: "column" as const,
     backfaceVisibility: "hidden" as const,
     WebkitBackfaceVisibility: "hidden" as const,
-    boxShadow: "0 10px 30px rgba(44,40,35,0.07)",
+    boxShadow: "0 10px 30px rgba(43,33,24,0.07)",
     // Each face carries its own rotation rather than riding a rotated parent:
     // a preserve-3d container leaves hit-testing pointing at the container, so
     // the back face's buttons become unclickable. The face that has turned away
@@ -439,7 +403,7 @@ function ActiveCard({
             color: type.color,
             background: `${type.color}14`,
             border: `1px solid ${type.color}44`,
-            borderRadius: 7,
+            borderRadius: 2,
             padding: "4px 9px",
           }}
         >
@@ -461,7 +425,7 @@ function ActiveCard({
               style={{
                 position: "absolute",
                 inset: 0,
-                borderRadius: 18,
+                borderRadius: 3,
                 pointerEvents: "none",
                 background: color.cardAlt,
                 border: `1px solid ${color.hairline}`,
@@ -508,13 +472,13 @@ function ActiveCard({
                   justifyContent: "center",
                   gap: 10,
                   padding: "15px 18px",
-                  borderRadius: 12,
+                  borderRadius: 3,
                   cursor: "pointer",
                   fontFamily: font.serif,
                   fontSize: 16,
                   color: color.accent,
                   background: color.accentBg,
-                  border: `1px solid rgba(47,107,79,0.28)`,
+                  border: `1px solid rgba(58,106,85,0.28)`,
                 }}
               >
                 {t.showAnswer}
@@ -553,7 +517,7 @@ function ActiveCard({
               transform: flipped ? "rotateY(0deg)" : "rotateY(180deg)",
               visibility: flipped ? "visible" : "hidden",
               pointerEvents: flipped ? "auto" : "none",
-              borderColor: "rgba(47,107,79,0.28)",
+              borderColor: "rgba(58,106,85,0.28)",
             }}
           >
             <div style={{ ...kicker(9.5, "0.12em"), marginBottom: 8 }}>
@@ -595,7 +559,7 @@ function ActiveCard({
                   gap: 8,
                   background: session.stage === "aside" ? `${ASIDE_ACCENT}12` : "none",
                   border: `1px solid ${session.stage === "aside" ? `${ASIDE_ACCENT}55` : "transparent"}`,
-                  borderRadius: 9,
+                  borderRadius: 3,
                   padding: "6px 10px",
                   fontSize: 13,
                   color: ASIDE_ACCENT,
@@ -664,7 +628,7 @@ function ActiveCard({
                       alignItems: "center",
                       gap: 4,
                       padding: "12px 8px 10px",
-                      borderRadius: 12,
+                      borderRadius: 3,
                       cursor: "pointer",
                       background: `${g.color}0d`,
                       border: `1px solid ${g.color}55`,
@@ -738,8 +702,8 @@ function ActiveCard({
                 alignItems: "flex-start",
                 gap: 13,
                 background: "#fbeeeb",
-                border: "1px solid rgba(189,112,56,0.35)",
-                borderRadius: 12,
+                border: "1px solid rgba(169,96,46,0.35)",
+                borderRadius: 3,
                 padding: "15px 18px",
                 marginBottom: 16,
               }}
@@ -775,11 +739,12 @@ function ActiveCard({
                 background: color.accent,
                 color: color.accentInk,
                 border: "none",
-                borderRadius: 11,
+                borderRadius: 3,
                 fontSize: 14,
-                fontWeight: 600,
+                fontFamily: font.caps,
+                letterSpacing: "0.06em",
                 cursor: "pointer",
-                boxShadow: "0 8px 20px rgba(47,107,79,0.24)",
+                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
               }}
             >
               {t.reteachNow}
@@ -792,7 +757,7 @@ function ActiveCard({
                 padding: "13px 20px",
                 background: color.card,
                 border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 11,
+                borderRadius: 3,
                 fontSize: 14,
                 fontWeight: 600,
                 color: color.ink,

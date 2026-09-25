@@ -10,6 +10,7 @@ import {
 import { color, font, kicker, motion, transition } from "@/lib/theme";
 import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
+import SwitchMark from "@/components/ui/SwitchMark";
 
 const POPOVER_EXIT_MS = motion.duration.fast;
 const IGNITE_MS = motion.duration.deliberate;
@@ -96,12 +97,14 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
         <span
           style={{
             position: "relative",
-            width: lit ? 10 : 8,
-            height: lit ? 10 : 8,
+            width: 10,
+            height: 10,
             borderRadius: "50%",
             background: STREAK_COLOR.flame,
-            boxShadow: `0 0 ${lit ? 12 : 8}px rgba(201,154,46,${lit ? 0.85 : 0.6})`,
-            transition: transition(["width", "height", "box-shadow"], "base", "spring"),
+            boxShadow: `0 0 ${lit ? 12 : 8}px rgba(176,133,44,${lit ? 0.85 : 0.6})`,
+            // Grows on the compositor; it used to animate width and height.
+            transform: `scale(${lit ? 1 : 0.8})`,
+            transition: transition("transform", "base", "spring"),
             animation: justLit
               ? `ignite ${IGNITE_MS}ms ${motion.ease.spring} both`
               : undefined,
@@ -136,7 +139,7 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
               color: STREAK_COLOR.freeze,
               background: "rgba(111,143,166,0.12)",
               border: `1px solid ${STREAK_COLOR.freeze}44`,
-              borderRadius: 6,
+              borderRadius: 2,
               padding: "2px 6px",
             }}
           >
@@ -186,8 +189,8 @@ function Popover({
         width: 288,
         background: color.card,
         border: `1px solid ${color.hairlineStrong}`,
-        borderRadius: 14,
-        boxShadow: "0 16px 40px rgba(44,40,35,0.18)",
+        borderRadius: 3,
+        boxShadow: "0 16px 40px rgba(43,33,24,0.18)",
         padding: 18,
         zIndex: 41,
         animation:
@@ -249,7 +252,7 @@ function Popover({
             style={{
               flex: 1,
               height: 26,
-              borderRadius: 5,
+              borderRadius: 2,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -257,10 +260,10 @@ function Popover({
                 day.status === "today"
                   ? "transparent"
                   : day.status === "hit"
-                    ? "rgba(201,154,46,0.16)"
+                    ? "rgba(176,133,44,0.16)"
                     : day.status === "freeze"
                       ? "rgba(111,143,166,0.16)"
-                      : "rgba(44,40,35,0.05)",
+                      : "rgba(43,33,24,0.05)",
               border:
                 day.status === "today"
                   ? `1.5px dashed ${adherence.metToday ? STREAK_COLOR.flame : color.inkGhost}`
@@ -339,30 +342,14 @@ function Popover({
             role="switch"
             aria-checked={adherence.reminderOn}
             style={{
-              position: "relative",
-              width: 38,
-              height: 22,
-              borderRadius: 11,
+              display: "flex",
               border: "none",
-              cursor: "pointer",
+              background: "none",
               padding: 0,
-              background: adherence.reminderOn ? color.accent : "rgba(44,40,35,0.18)",
-              transition: transition("background", "fast"),
+              cursor: "pointer",
             }}
           >
-            <span
-              style={{
-                position: "absolute",
-                top: 2,
-                left: adherence.reminderOn ? 18 : 2,
-                width: 18,
-                height: 18,
-                borderRadius: "50%",
-                background: color.card,
-                boxShadow: "0 1px 3px rgba(44,40,35,0.3)",
-                transition: transition("left", "fast", "enter"),
-              }}
-            />
+            <SwitchMark on={adherence.reminderOn} width={38} />
           </button>
         </div>
         <div
@@ -397,7 +384,7 @@ function Stat({
         flex: 1,
         background: color.cardAlt,
         border: `1px solid ${color.hairline}`,
-        borderRadius: 10,
+        borderRadius: 3,
         padding: "10px 12px",
       }}
     >

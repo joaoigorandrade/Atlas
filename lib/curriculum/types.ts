@@ -115,12 +115,12 @@ export function graphFromMapNodes(mapNodes: MapNode[]): ConceptGraph {
 }
 
 export const STATE_COLOR: Record<NodeState, string> = {
-  unknown: "#b3ada2",
-  frontier: "#c99a2e",
-  learning: "#5b7fbf",
-  shaky: "#bd7038",
-  mastered: "#4c8b63",
-  gap: "#c1574a",
+  unknown: "#a99f8c",
+  frontier: "#b0852c",
+  learning: "#3f5f86",
+  shaky: "#a9602e",
+  mastered: "#4a7552",
+  gap: "#a8412f",
 };
 
 export const STATE_LABEL: Record<NodeState, string> = {

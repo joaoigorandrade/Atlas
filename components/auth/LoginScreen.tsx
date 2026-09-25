@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { InkDots } from "@/components/Pending";
+import { CompassRose } from "@/components/ui/Ornaments";
 import { color, font, kicker } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -160,32 +162,30 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
   const working = status === "working";
 
   return (
+    // The atlas's cover opened: marbled endpapers under a torn-edged leaf.
     <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        overflowY: "auto",
-        display: "flex",
-        justifyContent: "center",
-        background: color.paper,
-      }}
+      className="at-endpaper"
+      style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "90px 24px" }}
     >
       <div
+        className="at-deckle"
         style={{
-          width: "100%",
-          maxWidth: 460,
-          padding: "110px 40px 90px",
-          animation: "fadeUp 0.5s both",
+          maxWidth: 520,
+          margin: "0 auto",
+          padding: "48px 56px 56px",
+          background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
+          boxShadow: "0 30px 60px rgba(10,8,6,0.45), 0 2px 0 rgba(10,8,6,0.2)",
+          animation: "fadeUp 0.6s both",
         }}
       >
-        <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>{t.kicker}</div>
+        <CompassRose size={38} />
+        <div style={{ ...kicker(12, "0.2em"), margin: "14px 0 12px" }}>{t.kicker}</div>
         <h1
           style={{
-            fontFamily: font.serif,
-            fontWeight: 500,
-            fontSize: 40,
-            lineHeight: 1.1,
-            letterSpacing: "-0.015em",
+            fontFamily: font.display,
+            fontWeight: 400,
+            fontSize: 42,
+            lineHeight: 1.08,
             margin: "0 0 14px",
           }}
         >
@@ -200,8 +200,8 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
           <div
             style={{
               background: color.successBg,
-              border: "1px solid rgba(47,107,79,0.22)",
-              borderRadius: 13,
+              border: "1px solid rgba(58,106,85,0.22)",
+              borderRadius: 3,
               padding: "22px 20px",
               fontSize: 15,
               color: color.accent,
@@ -222,10 +222,10 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
               style={{
                 background: color.card,
                 border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 14,
+                borderRadius: 3,
                 padding: 6,
                 marginBottom: 12,
-                boxShadow: "0 4px 18px rgba(44,40,35,0.05)",
+                boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
               }}
             >
               <input
@@ -243,10 +243,10 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
               style={{
                 background: color.card,
                 border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 14,
+                borderRadius: 3,
                 padding: 6,
                 marginBottom: 14,
-                boxShadow: "0 4px 18px rgba(44,40,35,0.05)",
+                boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
               }}
             >
               <input
@@ -259,22 +259,12 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                 style={inputStyle}
               />
             </div>
-            <button
-              className="at-press"
+            <Button
               type="submit"
               disabled={working}
               style={{
-                width: "100%",
-                padding: 17,
-                background: color.accent,
-                color: color.accentInk,
-                border: "none",
-                borderRadius: 13,
-                fontSize: 16,
-                fontWeight: 600,
                 cursor: working ? "default" : "pointer",
                 opacity: working ? 0.7 : 1,
-                boxShadow: "0 10px 28px rgba(47,107,79,0.28)",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -291,7 +281,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
               ) : (
                 t.createAccount
               )}
-            </button>
+            </Button>
 
             <div
               style={{
@@ -338,7 +328,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
               color: color.amberInk,
               background: color.amberBg,
               border: "1px solid rgba(160,106,48,0.2)",
-              borderRadius: 10,
+              borderRadius: 3,
               padding: "10px 14px",
             }}
           >

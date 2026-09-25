@@ -15,7 +15,8 @@ import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker, motion, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import type { PresenceState } from "@/lib/motion";
+import Masthead from "@/components/ui/Masthead";
+import Button from "@/components/ui/Button";
 
 import Rich from "@/components/Rich";
 import { BLUE, STRINGS } from "./consume/shared";
@@ -29,9 +30,6 @@ export type { ConsumeSession, PassageAsk } from "./consume/shared";
 import type { ConsumeSession } from "./consume/shared";
 
 interface ConsumeViewProps {
-  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
-   *  screen mounted through its exit. */
-  presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
   /** The node's own ladder — the breadcrumb draws this, not the catalogue,
@@ -99,7 +97,6 @@ export default function ConsumeView({
   onSkipCrucible,
   onRoutePrereq,
   incomplete,
-  presence,
 }: ConsumeViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -260,7 +257,6 @@ export default function ConsumeView({
 
     return (
       <Sheet
-        presence={presence}
         data-testid="phase-consume-recap"
         aria-label={`Consume recap — ${title}`}
         style={{
@@ -279,8 +275,8 @@ export default function ConsumeView({
           </div>
           <h1
             style={{
-              fontFamily: font.serif,
-              fontWeight: 500,
+              fontFamily: font.display,
+              fontWeight: 400,
               fontSize: 36,
               lineHeight: 1.12,
               margin: "0 0 12px",
@@ -404,12 +400,12 @@ export default function ConsumeView({
                 background: color.accent,
                 color: color.accentInk,
                 border: "none",
-                borderRadius: 12,
+                borderRadius: 3,
                 fontSize: 15,
-                fontWeight: 600,
+                fontFamily: font.caps,
+                letterSpacing: "0.06em",
                 cursor: "pointer",
-                fontFamily: "inherit",
-                boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
               }}
             >
               {t.recapBegin(nextLabel)}
@@ -437,79 +433,32 @@ export default function ConsumeView({
 
   const drawn = chunks.some((c) => c.figure);
   return (
-    <Sheet presence={presence} data-testid="phase-consume" aria-label="Consume — {title}">
-      {/* Header */}
-      <div
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          height: 58,
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
+    <Sheet data-testid="phase-consume" aria-label="Consume — {title}">
+      <Masthead
+        back={t.back}
+        onBack={() => {
+          reading.cancel();
+          onExit();
         }}
+        kicker={t.sessionLabel}
+        accent={BLUE}
+        title={title}
       >
-        <button
-          className="at-press"
-          onClick={() => {
-            reading.cancel();
-            onExit();
-          }}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            color: color.inkMuted,
-          }}
-        >
-          {t.back}
-        </button>
-        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: BLUE,
-          }}
-        >
-          {t.sessionLabel}
-        </span>
-        <div style={{ fontFamily: font.serif, fontSize: 19 }}>{title}</div>
-        <div style={{ flex: 1 }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 11,
-            color: color.inkGhost,
-          }}
-        >
+        <span style={{ fontFamily: font.caps, fontSize: 12, color: color.inkGhost }}>
           {breadcrumb}
         </span>
         {/* The escape hatch, always open: nobody should have to read past
             what they already know to prove they know it. */}
-        <button
-          className="at-press"
+        <Button
+          variant="secondary"
+          full={false}
+          accent={color.inkMuted}
           onClick={onSkipCrucible}
-          style={{
-            background: "none",
-            border: `1px solid ${color.hairlineStrong}`,
-            borderRadius: 8,
-            padding: "5px 11px",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: 12,
-            color: color.inkMuted,
-          }}
+          style={{ padding: "5px 12px", fontSize: 13 }}
         >
           {t.iKnowThis}
-        </button>
-      </div>
+        </Button>
+      </Masthead>
 
       {/* Segment progress — each revealed segment jumps straight to its
           section, instead of scroll-then-Continue being the only way back to
@@ -559,7 +508,7 @@ export default function ConsumeView({
                     width: "100%",
                     height: 3,
                     borderRadius: 2,
-                    background: reachable ? color.accent : "rgba(44,40,35,0.12)",
+                    background: reachable ? color.accent : "rgba(43,33,24,0.12)",
                     transition: transition("background"),
                   }}
                 />
@@ -593,8 +542,8 @@ export default function ConsumeView({
           <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kicker}</div>
           <h1
             style={{
-              fontFamily: font.serif,
-              fontWeight: 500,
+              fontFamily: font.display,
+              fontWeight: 400,
               fontSize: 34,
               lineHeight: 1.12,
               margin: "0 0 8px",
@@ -665,10 +614,11 @@ export default function ConsumeView({
               <div
                 key={c.id}
                 id={c.id}
+                // A section ends on a printer's flower, not a rule.
+                className="at-flowerbreak"
                 style={{
                   marginBottom: 40,
                   paddingBottom: 40,
-                  borderBottom: `1px solid rgba(44,40,35,0.08)`,
                   animation: "fadeUp 0.4s both",
                   scrollMarginTop: 24,
                 }}
@@ -808,7 +758,7 @@ export default function ConsumeView({
                                     color: color.inkSoft,
                                     background: color.amberBg,
                                     border: "1px solid rgba(160,106,48,0.2)",
-                                    borderRadius: 9,
+                                    borderRadius: 3,
                                     padding: "9px 12px",
                                     animation: "fadeUp .25s both",
                                   }}
@@ -848,13 +798,13 @@ export default function ConsumeView({
                               transform: "translateX(-50%)",
                               zIndex: 5,
                               padding: "6px 12px",
-                              borderRadius: 8,
+                              borderRadius: 3,
                               border: "none",
                               background: color.accent,
                               color: color.accentInk,
                               fontSize: 12.5,
-                              fontFamily: "inherit",
-                              fontWeight: 600,
+                              fontFamily: font.caps,
+                              letterSpacing: "0.06em",
                               cursor: "pointer",
                               boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
                               whiteSpace: "nowrap",
@@ -874,13 +824,15 @@ export default function ConsumeView({
                           return (
                             <p
                               key={pi}
+                              // A reading opens on a rubricated initial.
+                              className={pi === 0 ? "at-dropcap" : undefined}
                               style={{
                                 fontFamily: font.serif,
                                 fontSize: 19,
                                 lineHeight: 1.68,
                                 margin: "0 -8px 18px",
                                 padding: "2px 8px",
-                                borderRadius: 7,
+                                borderRadius: 2,
                                 background: spokenNow ? color.accentBg : "transparent",
                                 transition: transition("background"),
                                 color: color.ink,
@@ -906,8 +858,8 @@ export default function ConsumeView({
                             gap: 12,
                             alignItems: "baseline",
                             background: color.accentBg,
-                            border: "1px solid rgba(47,107,79,0.18)",
-                            borderRadius: 10,
+                            border: "1px solid rgba(58,106,85,0.18)",
+                            borderRadius: 3,
                             padding: "13px 16px",
                           }}
                         >
@@ -1003,7 +955,7 @@ export default function ConsumeView({
                                 onClick={() => onOpenModel(c, key)}
                                 style={{
                                   padding: "6px 12px",
-                                  borderRadius: 8,
+                                  borderRadius: 3,
                                   fontSize: 12,
                                   cursor: "pointer",
                                   fontFamily: font.mono,
@@ -1107,7 +1059,7 @@ export default function ConsumeView({
                                 fontWeight: 600,
                                 cursor: "pointer",
                                 fontFamily: "inherit",
-                                boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+                                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
                               }
                             : {
                                 padding: "12px 20px",
@@ -1167,7 +1119,7 @@ export default function ConsumeView({
                 gap: 18,
                 background: color.amberBg,
                 border: "1px solid rgba(160,106,48,0.28)",
-                borderRadius: 13,
+                borderRadius: 3,
                 padding: "18px 22px",
                 animation: "fadeUp .4s both",
               }}
@@ -1195,7 +1147,7 @@ export default function ConsumeView({
                   background: color.card,
                   color: color.amberInk,
                   border: "1px solid rgba(160,106,48,0.4)",
-                  borderRadius: 11,
+                  borderRadius: 3,
                   fontSize: 14,
                   fontWeight: 600,
                   cursor: "pointer",

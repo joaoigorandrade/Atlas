@@ -22,8 +22,8 @@ import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/Open
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -51,7 +51,6 @@ const STRINGS = {
 } as const;
 
 export default function DiscriminateView({
-  presence,
   topic,
   title,
   plan,
@@ -62,7 +61,6 @@ export default function DiscriminateView({
   onNext,
   onAdvance,
 }: {
-  presence: PresenceState;
   topic: string;
   title: string;
   plan: readonly PhaseId[];
@@ -87,7 +85,6 @@ export default function DiscriminateView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="discriminate"
       kicker={copy.kicker}
       accent={accent}
@@ -123,7 +120,7 @@ export default function DiscriminateView({
             data-testid="case-candidate"
             style={{
               padding: "16px 19px",
-              borderRadius: 12,
+              borderRadius: 3,
               background: soft,
               border: `1px solid ${border}`,
               fontFamily: font.serif,
@@ -164,7 +161,7 @@ export default function DiscriminateView({
                       style={{
                         textAlign: "left",
                         padding: "12px 15px",
-                        borderRadius: 11,
+                        borderRadius: 3,
                         border: `1px solid ${color.hairlineStrong}`,
                         background: color.card,
                         fontSize: 14.5,
@@ -226,7 +223,7 @@ export default function DiscriminateView({
                       key={i}
                       style={{
                         padding: "10px 14px",
-                        borderRadius: 10,
+                        borderRadius: 3,
                         fontSize: 14,
                         lineHeight: 1.45,
                         background: isAnswer ? soft : color.card,
@@ -283,25 +280,14 @@ export default function DiscriminateView({
                 </div>
               )}
 
-              <button
-                className="at-press"
+              <Button
                 data-testid="action-next"
                 onClick={onNext}
-                style={{
-                  marginTop: 18,
-                  width: "100%",
-                  padding: 14,
-                  borderRadius: 12,
-                  border: "none",
-                  background: accent,
-                  color: color.accentInk,
-                  fontSize: 14.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                accent={accent}
+                style={{ marginTop: 18 }}
               >
                 {copy.next}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -335,25 +321,13 @@ export default function DiscriminateView({
           >
             {discriminatePassed(session, content) ? copy.passed : copy.missed}
           </div>
-          <button
-            className="at-press"
+          <Button
             data-testid="action-finish"
             onClick={onAdvance}
-            style={{
-              marginTop: 22,
-              width: "100%",
-              padding: 15,
-              borderRadius: 12,
-              border: "none",
-              background: color.accent,
-              color: color.accentInk,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            style={{ marginTop: 22 }}
           >
             {t.advance}
-          </button>
+          </Button>
         </div>
       )}
     </PhaseShell>

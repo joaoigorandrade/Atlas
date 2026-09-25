@@ -46,17 +46,32 @@ export function useCanvas(opts: {
   const { setSelectedId, displayRef, showToast, positionsRef, setPositions } = opts;
   const { language } = useLanguage();
 
-  const [view, setView] = useState<ViewTransform>({ x: 40, y: 30, scale: 0.72 });
+  const [view, commitView] = useState<ViewTransform>({ x: 40, y: 30, scale: 0.72 });
 
+  // The view moves on every pointer event of a pan or a wheel, and a mouse can
+  // fire several of those a frame; each used to be a full render of the app.
+  // The ref takes every step at once (so wheel deltas compound correctly) and
+  // React sees at most one commit per frame.
   const viewRef = useRef(view);
-  viewRef.current = view;
+  const frame = useRef(0);
+  const setView = useCallback((next: React.SetStateAction<ViewTransform>) => {
+    viewRef.current = typeof next === "function" ? next(viewRef.current) : next;
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      commitView(viewRef.current);
+    });
+  }, []);
   const dragRef = useRef<DragState | null>(null);
   const panRef = useRef<PanState | null>(null);
 
-  const onWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    setView(zoomAt(viewRef.current, e.deltaY < 0 ? 1.08 : 0.926, e.clientX, e.clientY));
-  }, []);
+  const onWheel = useCallback(
+    (e: WheelEvent) => {
+      e.preventDefault();
+      setView(zoomAt(viewRef.current, e.deltaY < 0 ? 1.08 : 0.926, e.clientX, e.clientY));
+    },
+    [setView],
+  );
 
   const onCanvasDown = useCallback(
     (e: React.MouseEvent) => {
@@ -126,7 +141,7 @@ export function useCanvas(opts: {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [showToast, setSelectedId, displayRef, setPositions, language]);
+  }, [showToast, setSelectedId, displayRef, setPositions, language, setView]);
 
   /** Put a node in the middle of the screen at a readable zoom. */
   /**
@@ -151,7 +166,7 @@ export function useCanvas(opts: {
         scale,
       });
     },
-    [positionsRef],
+    [positionsRef, setView],
   );
 
   return {

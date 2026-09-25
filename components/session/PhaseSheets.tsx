@@ -30,12 +30,10 @@ type Spiral = ReturnType<typeof useSpiral>;
 type Derived = ReturnType<typeof useDerived>;
 import type { RunState } from "@/components/atlas/useRunState";
 import type { SessionState } from "@/components/atlas/useSessionState";
-import type { PresenceState } from "@/lib/motion";
 import type { Screen } from "@/components/atlas/screen";
 
 export function phaseSheets(p: {
   openSheet: Screen | null;
-  presence: PresenceState;
   graph: ConceptGraph;
   planOf: (nodeId: string) => readonly PhaseId[];
   judging: boolean;
@@ -49,7 +47,6 @@ export function phaseSheets(p: {
 }) {
   const {
     openSheet,
-    presence,
     graph,
     planOf,
     judging,
@@ -120,7 +117,6 @@ export function phaseSheets(p: {
         discriminateContent &&
         sheetBoundary(
           <DiscriminateView
-            presence={presence}
             topic={topic}
             title={titleOf(discriminate.nodeId)}
             plan={planOf(discriminate.nodeId)}
@@ -138,7 +134,6 @@ export function phaseSheets(p: {
         predictContent &&
         sheetBoundary(
           <PredictView
-            presence={presence}
             topic={topic}
             title={titleOf(predict.nodeId)}
             plan={planOf(predict.nodeId)}
@@ -157,7 +152,6 @@ export function phaseSheets(p: {
         traceContent &&
         sheetBoundary(
           <TraceView
-            presence={presence}
             topic={topic}
             title={titleOf(trace.nodeId)}
             plan={planOf(trace.nodeId)}
@@ -175,7 +169,6 @@ export function phaseSheets(p: {
         drillContent &&
         sheetBoundary(
           <DrillView
-            presence={presence}
             topic={topic}
             title={titleOf(drill.nodeId)}
             plan={planOf(drill.nodeId)}
@@ -193,7 +186,6 @@ export function phaseSheets(p: {
         recallContent &&
         sheetBoundary(
           <RecallView
-            presence={presence}
             title={titleOf(recall.nodeId)}
             plan={planOf(recall.nodeId)}
             content={recallContent}
@@ -213,7 +205,6 @@ export function phaseSheets(p: {
         performContent &&
         sheetBoundary(
           <PerformView
-            presence={presence}
             title={titleOf(perform.nodeId)}
             plan={planOf(perform.nodeId)}
             content={performContent}
@@ -233,7 +224,6 @@ export function phaseSheets(p: {
         provenanceContent &&
         sheetBoundary(
           <ProvenanceView
-            presence={presence}
             title={titleOf(provenance.nodeId)}
             plan={planOf(provenance.nodeId)}
             content={provenanceContent}
@@ -250,7 +240,6 @@ export function phaseSheets(p: {
         steelmanContent &&
         sheetBoundary(
           <SteelmanView
-            presence={presence}
             title={titleOf(steelman.nodeId)}
             plan={planOf(steelman.nodeId)}
             content={steelmanContent}
@@ -273,7 +262,6 @@ export function phaseSheets(p: {
         produceContent &&
         sheetBoundary(
           <ProduceView
-            presence={presence}
             title={titleOf(produce.nodeId)}
             plan={planOf(produce.nodeId)}
             content={produceContent}

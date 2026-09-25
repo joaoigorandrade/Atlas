@@ -28,8 +28,8 @@ import {
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import { color, font } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -76,7 +76,6 @@ function RepClock({ since, accent }: { since: number; accent: string }) {
 }
 
 export default function DrillView({
-  presence,
   topic,
   title,
   plan,
@@ -87,7 +86,6 @@ export default function DrillView({
   onNext,
   onAdvance,
 }: {
-  presence: PresenceState;
   topic: string;
   title: string;
   plan: readonly PhaseId[];
@@ -113,7 +111,6 @@ export default function DrillView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="drill"
       kicker={copy.kicker}
       accent={accent}
@@ -178,7 +175,7 @@ export default function DrillView({
                       style={{
                         textAlign: "left",
                         padding: "13px 16px",
-                        borderRadius: 11,
+                        borderRadius: 3,
                         border: `1px solid ${color.hairlineStrong}`,
                         background: color.card,
                         fontSize: 15.5,
@@ -240,7 +237,7 @@ export default function DrillView({
                   style={{
                     marginTop: 10,
                     padding: "10px 14px",
-                    borderRadius: 10,
+                    borderRadius: 3,
                     background: soft,
                     border: `1px solid ${accent}55`,
                     fontSize: 15,
@@ -273,25 +270,14 @@ export default function DrillView({
                 {rep.rule}
               </div>
 
-              <button
-                className="at-press"
+              <Button
                 data-testid="action-next"
                 onClick={onNext}
-                style={{
-                  marginTop: 18,
-                  width: "100%",
-                  padding: 14,
-                  borderRadius: 12,
-                  border: "none",
-                  background: accent,
-                  color: color.accentInk,
-                  fontSize: 14.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                accent={accent}
+                style={{ marginTop: 18 }}
               >
                 {copy.next}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -332,25 +318,13 @@ export default function DrillView({
           >
             {drillPassed(session, content) ? copy.passed : copy.missed}
           </div>
-          <button
-            className="at-press"
+          <Button
             data-testid="action-finish"
             onClick={onAdvance}
-            style={{
-              marginTop: 22,
-              width: "100%",
-              padding: 15,
-              borderRadius: 12,
-              border: "none",
-              background: color.accent,
-              color: color.accentInk,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            style={{ marginTop: 22 }}
           >
             {t.advance}
-          </button>
+          </Button>
         </div>
       )}
     </PhaseShell>

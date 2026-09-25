@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { STATE_COLOR, type DailyQueue } from "@/lib/curriculum";
+import Masthead from "@/components/ui/Masthead";
+import { plateStyle } from "@/components/ui/Plate";
+import { CompassRose } from "@/components/ui/Ornaments";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InlineError } from "@/components/ErrorState";
@@ -57,21 +60,8 @@ interface DashboardScreenProps {
   mapsFailed?: { onRetry: () => void };
 }
 
-const headerStyle = {
-  flex: "0 0 auto",
-  height: 58,
-  display: "flex",
-  alignItems: "center",
-  gap: 16,
-  padding: "0 24px",
-  background: "rgba(248,246,240,0.9)",
-  backdropFilter: "blur(8px)",
-  borderBottom: `1px solid ${color.hairline}`,
-} as const;
-
 const cardBase = {
-  background: color.card,
-  borderRadius: 16,
+  ...plateStyle,
   padding: "24px 26px",
   cursor: "pointer",
 } as const;
@@ -96,7 +86,7 @@ const excludeButtonStyle = {
 
 const confirmButtonBase = {
   padding: "7px 13px",
-  borderRadius: 8,
+  borderRadius: 3,
   fontFamily: font.sans,
   fontSize: 12.5,
   fontWeight: 600,
@@ -130,18 +120,16 @@ export default function DashboardScreen({
   return (
     <div
       data-testid="screen-dashboard"
+      className="at-paper"
       style={{
         position: "absolute",
         inset: 0,
-        background: color.paper,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
       }}
     >
-      <div style={headerStyle}>
-        <div style={{ fontFamily: font.serif, fontSize: 19, fontWeight: 600 }}>Atlas</div>
-        <div style={{ flex: 1 }} />
+      <Masthead kicker={<CompassRose size={20} />} title="Atlas" style={{ gap: 10 }}>
         <div
           style={{
             display: "flex",
@@ -156,8 +144,8 @@ export default function DashboardScreen({
               width: 8,
               height: 8,
               borderRadius: "50%",
-              background: "#c99a2e",
-              boxShadow: "0 0 8px rgba(201,154,46,0.6)",
+              background: "#b0852c",
+              boxShadow: "0 0 8px rgba(176,133,44,0.6)",
             }}
           />
           <span style={{ fontWeight: 600, color: color.ink }}>{streak}</span>{" "}
@@ -172,7 +160,7 @@ export default function DashboardScreen({
             height: 34,
             borderRadius: "50%",
             background: color.ink,
-            color: "#f7f5ef",
+            color: "#f6efdf",
             border: "none",
             display: "flex",
             alignItems: "center",
@@ -185,7 +173,7 @@ export default function DashboardScreen({
         >
           {initials}
         </button>
-      </div>
+      </Masthead>
 
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div
@@ -193,14 +181,13 @@ export default function DashboardScreen({
             maxWidth: 900,
             margin: "0 auto",
             padding: "44px 40px 80px",
-            animation: "fadeUp .5s both",
           }}
         >
           <div style={{ ...kicker(11), marginBottom: 10 }}>{dateLabel}</div>
           <h1
             style={{
-              fontFamily: font.serif,
-              fontWeight: 500,
+              fontFamily: font.display,
+              fontWeight: 400,
               fontSize: 38,
               lineHeight: 1.1,
               letterSpacing: "-0.015em",
@@ -232,8 +219,7 @@ export default function DashboardScreen({
               onClick={onReview}
               style={{
                 ...cardBase,
-                border: "1px solid rgba(47,107,79,0.22)",
-                boxShadow: "0 4px 16px rgba(47,107,79,0.06)",
+                border: `3px double ${color.accent}`,
               }}
             >
               <div
@@ -296,8 +282,7 @@ export default function DashboardScreen({
               onClick={onOpenMap}
               style={{
                 ...cardBase,
-                border: "1px solid rgba(201,154,46,0.28)",
-                boxShadow: "0 4px 16px rgba(201,154,46,0.06)",
+                border: `3px double ${color.gilt}`,
               }}
             >
               <div
@@ -315,8 +300,8 @@ export default function DashboardScreen({
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    background: "#c99a2e",
-                    boxShadow: "0 0 8px rgba(201,154,46,0.6)",
+                    background: "#b0852c",
+                    boxShadow: "0 0 8px rgba(176,133,44,0.6)",
                   }}
                 />
                 {t.yourFrontier}
@@ -448,12 +433,12 @@ function MapCard({
         background: color.card,
         border: `1px solid ${
           confirming
-            ? "rgba(193,87,74,0.45)"
+            ? "rgba(168,65,47,0.45)"
             : active
-              ? "rgba(201,154,46,0.35)"
+              ? "rgba(176,133,44,0.35)"
               : color.hairlineStrong
         }`,
-        borderRadius: 16,
+        borderRadius: 3,
         padding: "22px 22px 20px",
         cursor: confirming ? "default" : "pointer",
       }}
@@ -496,7 +481,7 @@ function MapCard({
               disabled={excluding}
               style={{
                 ...confirmButtonBase,
-                color: "#fbf9f4",
+                color: "#f6efdf",
                 background: STATE_COLOR.gap,
                 border: `1px solid ${STATE_COLOR.gap}`,
                 opacity: excluding ? 0.6 : 1,
@@ -540,7 +525,7 @@ function MapCard({
                   textTransform: "uppercase",
                   color: color.accent,
                   background: color.accentBg,
-                  border: "1px solid rgba(47,107,79,0.2)",
+                  border: "1px solid rgba(58,106,85,0.2)",
                   borderRadius: 20,
                   padding: "3px 9px",
                 }}
@@ -587,7 +572,7 @@ function MapCard({
                 width: `${map.masteryPct}%`,
                 height: "100%",
                 background: color.accent,
-                borderRadius: 5,
+                borderRadius: 2,
               }}
             />
           </div>

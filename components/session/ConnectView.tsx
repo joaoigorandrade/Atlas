@@ -18,7 +18,7 @@ import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import type { PresenceState } from "@/lib/motion";
+import Masthead from "@/components/ui/Masthead";
 
 import Rich from "@/components/Rich";
 // Connect owns the violet accent; candidate dots borrow mastered green (they're
@@ -113,9 +113,6 @@ const STRINGS = {
 } as const;
 
 interface ConnectViewProps {
-  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
-   *  screen mounted through its exit. */
-  presence: PresenceState;
   /** The elaboration content for this node (concept web, links, mnemonics). */
   content: ElaborationContent;
   session: ConnectSession;
@@ -151,7 +148,6 @@ export default function ConnectView({
   onDraftMnemonic,
   onAcceptMnemonic,
   onFinish,
-  presence,
 }: ConnectViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -165,54 +161,18 @@ export default function ConnectView({
   const cy = content.center.y;
 
   return (
-    <Sheet presence={presence} data-testid="phase-connect" aria-label="Connect — {title}">
-      {/* Header — ← Map · Session · Connect · title · phase breadcrumb */}
-      <div
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          height: 58,
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
-        }}
+    <Sheet data-testid="phase-connect" aria-label="Connect — {title}">
+      <Masthead
+        back={t.map}
+        onBack={onExit}
+        kicker={t.sessionConnect}
+        accent={VIOLET}
+        title={<Rich text={content.centerLabel} />}
       >
-        <button
-          className="at-press"
-          onClick={onExit}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            color: color.inkMuted,
-          }}
-        >
-          {t.map}
-        </button>
-        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: VIOLET,
-          }}
-        >
-          {t.sessionConnect}
-        </span>
-        <div style={{ fontFamily: font.serif, fontSize: 19 }}>
-          <Rich text={content.centerLabel} />
-        </div>
-        <div style={{ flex: 1 }} />
-        <span style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}>
+        <span style={{ fontFamily: font.caps, fontSize: 12, color: color.inkGhost }}>
           {plan.map((p, i) => (
             <span key={p}>
-              {i ? " → " : ""}
+              {i ? " · " : ""}
               {p === "connect" ? (
                 <b style={{ color: VIOLET }}>{phaseLabel(p)}</b>
               ) : (
@@ -221,7 +181,7 @@ export default function ConnectView({
             </span>
           ))}
         </span>
-      </div>
+      </Masthead>
 
       {/* Body — scrolls; centered 1040 column */}
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -235,8 +195,8 @@ export default function ConnectView({
           <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kickerElaboration}</div>
           <h1
             style={{
-              fontFamily: font.serif,
-              fontWeight: 500,
+              fontFamily: font.display,
+              fontWeight: 400,
               fontSize: 34,
               lineHeight: 1.12,
               margin: "0 0 10px",
@@ -339,7 +299,7 @@ export default function ConnectView({
                     style={{
                       background: color.card,
                       border: `1px solid ${color.hairlineStrong}`,
-                      borderRadius: 12,
+                      borderRadius: 3,
                       padding: "15px 17px",
                       animation: "fadeUp .3s both",
                     }}
@@ -403,14 +363,14 @@ export default function ConnectView({
               disabled={!ready}
               style={{
                 padding: "15px 26px",
-                borderRadius: 12,
+                borderRadius: 3,
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: ready ? "pointer" : "default",
                 border: "none",
-                background: ready ? color.accent : "rgba(44,40,35,0.08)",
+                background: ready ? color.accent : "rgba(43,33,24,0.08)",
                 color: ready ? color.accentInk : color.inkGhost,
-                boxShadow: ready ? "0 8px 22px rgba(47,107,79,0.26)" : "none",
+                boxShadow: ready ? "0 8px 22px rgba(58,106,85,0.26)" : "none",
               }}
             >
               {t.ctaFinish}
@@ -454,7 +414,7 @@ function ConceptWeb({
         height: 440,
         background: color.card,
         border: `1px solid ${color.hairlineStrong}`,
-        borderRadius: 16,
+        borderRadius: 3,
         overflow: "hidden",
       }}
     >
@@ -472,7 +432,7 @@ function ConceptWeb({
               y1={cy}
               x2={c.x}
               y2={c.y}
-              stroke={on ? VIOLET : "rgba(44,40,35,0.2)"}
+              stroke={on ? VIOLET : "rgba(43,33,24,0.2)"}
               strokeWidth={on ? 2.2 : 1.2}
               strokeDasharray={on ? "0" : "5 6"}
               strokeLinecap="round"
@@ -494,7 +454,7 @@ function ConceptWeb({
           padding: "12px 18px",
           background: CONNECT_COLOR.soft,
           border: `1.5px solid ${VIOLET}`,
-          borderRadius: 12,
+          borderRadius: 3,
           whiteSpace: "nowrap",
           fontFamily: font.serif,
           fontSize: 16,
@@ -536,8 +496,8 @@ function ConceptWeb({
               gap: 7,
               padding: "8px 12px",
               background: color.card,
-              border: `1px solid ${active ? VIOLET : on ? "rgba(76,139,99,0.55)" : color.hairlineStrong}`,
-              borderRadius: 10,
+              border: `1px solid ${active ? VIOLET : on ? "rgba(74,117,82,0.55)" : color.hairlineStrong}`,
+              borderRadius: 3,
               whiteSpace: "nowrap",
               cursor: "pointer",
               userSelect: "none",
@@ -546,7 +506,7 @@ function ConceptWeb({
               color: color.ink,
               boxShadow: active
                 ? `0 8px 20px ${CONNECT_COLOR.glow}`
-                : "0 2px 7px rgba(44,40,35,0.06)",
+                : "0 2px 7px rgba(43,33,24,0.06)",
               zIndex: 3,
             }}
           >
@@ -606,7 +566,7 @@ function LinkingPrompt({
       style={{
         background: color.card,
         border: `1px solid ${CONNECT_COLOR.border}`,
-        borderRadius: 14,
+        borderRadius: 3,
         padding: "22px 22px 20px",
         animation: "fadeUp .3s both",
       }}
@@ -647,7 +607,7 @@ function LinkingPrompt({
         style={{
           background: color.cardAlt,
           border: `1px solid ${color.hairlineStrong}`,
-          borderRadius: 11,
+          borderRadius: 3,
           padding: 5,
         }}
       >
@@ -708,7 +668,7 @@ function LinkingPrompt({
           marginTop: 14,
           width: "100%",
           padding: 13,
-          borderRadius: 11,
+          borderRadius: 3,
           fontSize: 14.5,
           fontWeight: 600,
           cursor: "pointer",
@@ -731,7 +691,7 @@ function IdlePrompt() {
     <div
       style={{
         border: `1px dashed ${color.hairlineStrong}`,
-        borderRadius: 14,
+        borderRadius: 3,
         padding: "40px 28px",
         textAlign: "center",
         color: color.inkFaint,
@@ -779,7 +739,7 @@ function EncodingMethod({
         marginTop: 16,
         background: color.cardAlt,
         border: `1px solid ${color.hairline}`,
-        borderRadius: 14,
+        borderRadius: 3,
         padding: "18px 20px",
       }}
     >
@@ -799,7 +759,7 @@ function EncodingMethod({
             textTransform: "uppercase",
             color: VIOLET,
             border: `1px solid ${CONNECT_COLOR.border}`,
-            borderRadius: 6,
+            borderRadius: 2,
             padding: "2px 7px",
           }}
         >
@@ -850,7 +810,7 @@ function EncodingMethod({
                   color: color.inkGhost,
                   background: color.chipBg,
                   border: `1px solid ${color.hairline}`,
-                  borderRadius: 8,
+                  borderRadius: 3,
                   padding: "5px 10px",
                   textDecoration: "line-through",
                 }}
@@ -944,7 +904,7 @@ function MnemonicTool({
                 gap: 2,
                 textAlign: "left",
                 padding: "8px 12px",
-                borderRadius: 9,
+                borderRadius: 3,
                 cursor: "pointer",
                 fontFamily: "inherit",
                 background: active ? CONNECT_COLOR.soft : color.card,
@@ -974,7 +934,7 @@ function MnemonicTool({
             style={{
               background: color.card,
               border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 11,
+              borderRadius: 3,
               padding: 5,
             }}
           >
@@ -1006,7 +966,7 @@ function MnemonicTool({
             style={{
               marginTop: 10,
               padding: "10px 15px",
-              borderRadius: 10,
+              borderRadius: 3,
               fontSize: 13.5,
               fontWeight: 600,
               cursor: "pointer",

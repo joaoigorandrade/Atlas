@@ -11,7 +11,9 @@ import {
 } from "@/lib/curriculum";
 import type { ScopeOffer } from "@/lib/api";
 import { InkDots } from "@/components/Pending";
-import { color, font, kicker } from "@/lib/theme";
+import { CompassRose, Fleuron } from "@/components/ui/Ornaments";
+import { color, font, kicker, motion } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -123,38 +125,40 @@ export default function WelcomeScreen({
   };
 
   return (
+    // The atlas opened at its cover: marbled endpapers, and the first leaf —
+    // torn-edged, hand-made — laid over them.
     <div
       data-testid="screen-welcome"
-      style={{
-        position: "absolute",
-        inset: 0,
-        overflowY: "auto",
-        display: "flex",
-        justifyContent: "center",
-        background: color.paper,
-      }}
+      className="at-endpaper"
+      style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "56px 24px" }}
     >
       <div
+        className="at-deckle"
         style={{
-          width: "100%",
-          maxWidth: 620,
-          padding: "70px 40px 90px",
-          animation: "fadeUp 0.5s both",
+          maxWidth: 680,
+          margin: "0 auto",
+          padding: "54px 60px 64px",
+          background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
+          boxShadow: "0 30px 60px rgba(10,8,6,0.45), 0 2px 0 rgba(10,8,6,0.2)",
+          animation: `fadeUp ${motion.duration.deliberate}ms ${motion.ease.enter} both`,
         }}
       >
-        <div style={{ ...kicker(11, "0.2em"), marginBottom: 18 }}>{t.kicker}</div>
-        <h1
-          style={{
-            fontFamily: font.serif,
-            fontWeight: 500,
-            fontSize: 44,
-            lineHeight: 1.08,
-            letterSpacing: "-0.015em",
-            margin: "0 0 40px",
-          }}
-        >
-          {t.title}
-        </h1>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <CompassRose size={46} />
+          <div style={{ ...kicker(12, "0.22em"), margin: "14px 0 12px" }}>{t.kicker}</div>
+          <h1
+            style={{
+              fontFamily: font.display,
+              fontWeight: 400,
+              fontSize: 48,
+              lineHeight: 1.05,
+              margin: 0,
+            }}
+          >
+            {t.title}
+          </h1>
+          <Fleuron style={{ margin: "22px 60px 0" }} />
+        </div>
 
         <div
           onDragOver={(e) => {
@@ -166,10 +170,10 @@ export default function WelcomeScreen({
           style={{
             background: color.card,
             border: `1px ${dragging ? "dashed" : "solid"} ${dragging ? color.accent : color.hairlineStrong}`,
-            borderRadius: 14,
+            borderRadius: 3,
             padding: 6,
             marginBottom: 8,
-            boxShadow: "0 4px 18px rgba(44,40,35,0.05)",
+            boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
           }}
         >
           <input
@@ -252,7 +256,7 @@ export default function WelcomeScreen({
             style={{
               background: color.amberBg,
               border: "1px solid rgba(160,106,48,0.25)",
-              borderRadius: 14,
+              borderRadius: 3,
               padding: "18px 20px",
               marginBottom: 32,
               animation: "fadeUp 0.3s both",
@@ -278,7 +282,7 @@ export default function WelcomeScreen({
                     padding: "12px 15px",
                     background: color.card,
                     border: `1px solid ${color.hairlineStrong}`,
-                    borderRadius: 11,
+                    borderRadius: 3,
                     cursor: "pointer",
                   }}
                 >
@@ -362,7 +366,7 @@ export default function WelcomeScreen({
                 style={{
                   background: color.card,
                   border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 9,
+                  borderRadius: 3,
                   padding: "9px 12px",
                   fontSize: 14,
                   color: color.ink,
@@ -387,7 +391,7 @@ export default function WelcomeScreen({
               width: "100%",
               background: color.card,
               border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 11,
+              borderRadius: 3,
               padding: "14px 16px",
               fontSize: 15,
               color: color.ink,
@@ -414,25 +418,9 @@ export default function WelcomeScreen({
           </div>
         </div>
 
-        <button
-          className="at-press"
-          data-testid="action-build"
-          onClick={onBuild}
-          style={{
-            width: "100%",
-            padding: 18,
-            background: color.accent,
-            color: color.accentInk,
-            border: "none",
-            borderRadius: 13,
-            fontSize: 17,
-            fontWeight: 600,
-            cursor: "pointer",
-            boxShadow: "0 10px 28px rgba(47,107,79,0.28)",
-          }}
-        >
+        <Button data-testid="action-build" onClick={onBuild}>
           {t.build}
-        </button>
+        </Button>
         <div
           style={{
             textAlign: "center",

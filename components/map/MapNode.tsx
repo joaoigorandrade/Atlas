@@ -10,6 +10,7 @@ import type { ConceptNode, NodeState, PhaseId } from "@/lib/curriculum";
 import { STATE_COLOR } from "@/lib/curriculum";
 import { color, font, map, motion, transition } from "@/lib/theme";
 import NodeSeal from "@/components/map/NodeSeal";
+import { WaxSeal } from "@/components/ui/Ornaments";
 
 /** The seal's diameter in map units. `MapCanvas` sizes the peek's clearance
  *  from it. */
@@ -142,7 +143,7 @@ export default function MapNode({
             display: "block",
             borderRadius: "50%",
             background: color.paper,
-            boxShadow: "0 2px 6px rgba(44,40,35,0.14)",
+            boxShadow: "0 1px 0 rgba(43,33,24,0.2), 0 2px 5px rgba(43,33,24,0.12)",
             // A node changing state is the point of the whole product; the
             // colour arrives inside the seal, and the pop lands on top of it.
             animation: earned
@@ -153,9 +154,19 @@ export default function MapNode({
           <NodeSeal node={node} state={state} done={done} size={SEAL} />
         </span>
         {earned &&
+          earned !== "mastered" &&
           ring(-1, `2px solid ${STATE_COLOR[earned]}`, {
             animation: `bloom ${CELEBRATE_MS}ms ${motion.ease.enter} both`,
           })}
+        {/* Mastery is sealed: wax pressed onto the concept, and pressed live
+            the moment it is earned. */}
+        {state === "mastered" && (
+          <WaxSeal
+            size={16}
+            stamp={earned === "mastered"}
+            style={{ position: "absolute", right: -6, bottom: -5 }}
+          />
+        )}
         <span
           style={{
             position: "absolute",
@@ -166,10 +177,9 @@ export default function MapNode({
             alignItems: "center",
             gap: 6,
             whiteSpace: "nowrap",
-            fontFamily: font.serif,
-            fontSize: 15.5,
+            fontFamily: font.display,
+            fontSize: 16.5,
             lineHeight: 1.15,
-            fontWeight: selected ? 600 : 450,
             fontStyle: state === "gap" ? "italic" : "normal",
             color: selected ? color.accent : locked ? color.inkMuted : color.ink,
             textShadow: HALO,
@@ -189,7 +199,7 @@ export default function MapNode({
                 color: map.gapInk,
                 background: color.paper,
                 border: `1px solid ${map.gapInk}66`,
-                borderRadius: 5,
+                borderRadius: 2,
                 padding: "1px 5px",
                 textShadow: "none",
               }}

@@ -11,10 +11,10 @@ import {
   type OnboardingForm,
 } from "@/lib/curriculum";
 import { useVoicePrefs, useVoiceSupport } from "@/lib/speech";
-import { color, font, kicker, transition } from "@/lib/theme";
+import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import type { PresenceState } from "@/lib/motion";
+import SwitchMark from "@/components/ui/SwitchMark";
 
 const STRINGS = {
   en: {
@@ -100,8 +100,6 @@ const STRINGS = {
 // export (map JSON, cards JSON + Anki-importable CSV).
 
 interface SettingsScreenProps {
-  /** Enter/leave state for the shared `Sheet` root. */
-  presence: PresenceState;
   form: OnboardingForm;
   adherence: AdherenceState;
   onChange: (patch: Partial<OnboardingForm>) => void;
@@ -119,7 +117,7 @@ function optionStyle(active: boolean, grow: boolean): CSSProperties {
     padding: grow ? "12px 10px" : "11px 18px",
     background: active ? color.accentBg : color.card,
     border: `1px solid ${active ? color.accent : color.hairlineStrong}`,
-    borderRadius: 11,
+    borderRadius: 3,
     fontSize: 14,
     cursor: "pointer",
     color: active ? color.accent : color.inkSoft,
@@ -131,7 +129,7 @@ const exportStyle: CSSProperties = {
   padding: "11px 15px",
   background: color.card,
   border: `1px solid ${color.hairlineStrong}`,
-  borderRadius: 11,
+  borderRadius: 3,
   fontSize: 13.5,
   color: color.ink,
   cursor: "pointer",
@@ -166,30 +164,7 @@ function ToggleRow({
         opacity: disabled ? 0.55 : 1,
       }}
     >
-      <span
-        style={{
-          width: 34,
-          height: 20,
-          borderRadius: 11,
-          background: on && !disabled ? color.accent : "rgba(44,40,35,0.14)",
-          position: "relative",
-          flex: "0 0 auto",
-          transition: transition("background"),
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 2,
-            left: on && !disabled ? 16 : 2,
-            width: 16,
-            height: 16,
-            borderRadius: "50%",
-            background: "#fff",
-            transition: transition("left", "base", "enter"),
-          }}
-        />
-      </span>
+      <SwitchMark on={on && !disabled} />
       {label}
     </button>
   );
@@ -224,7 +199,6 @@ export default function SettingsScreen({
   onExportCardsCsv,
   onDeleteAccount,
   onExit,
-  presence,
 }: SettingsScreenProps) {
   const t = useT(STRINGS);
   const { language, setLanguage } = useLanguage();
@@ -238,7 +212,6 @@ export default function SettingsScreen({
   // instruction they can act on and get nowhere with.
   return (
     <Sheet
-      presence={presence}
       data-testid="screen-settings"
       aria-label="Settings"
       style={{
@@ -273,8 +246,8 @@ export default function SettingsScreen({
         <div style={{ ...kicker(11, "0.2em"), marginBottom: 14 }}>{t.settings}</div>
         <h1
           style={{
-            fontFamily: font.serif,
-            fontWeight: 500,
+            fontFamily: font.display,
+            fontWeight: 400,
             fontSize: 34,
             lineHeight: 1.1,
             margin: "0 0 36px",
@@ -317,7 +290,7 @@ export default function SettingsScreen({
                 style={{
                   background: color.card,
                   border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 9,
+                  borderRadius: 3,
                   padding: "9px 12px",
                   fontSize: 14,
                   color: color.ink,
@@ -403,7 +376,7 @@ export default function SettingsScreen({
               width: "100%",
               background: color.card,
               border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 11,
+              borderRadius: 3,
               padding: "13px 16px",
               fontSize: 15,
               color: color.ink,
@@ -423,30 +396,7 @@ export default function SettingsScreen({
               ...exportStyle,
             }}
           >
-            <span
-              style={{
-                width: 34,
-                height: 20,
-                borderRadius: 11,
-                background: adherence.reminderOn ? color.accent : "rgba(44,40,35,0.14)",
-                position: "relative",
-                flex: "0 0 auto",
-                transition: transition("background"),
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  top: 2,
-                  left: adherence.reminderOn ? 16 : 2,
-                  width: 16,
-                  height: 16,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  transition: transition("left", "base", "enter"),
-                }}
-              />
-            </span>
+            <SwitchMark on={adherence.reminderOn} />
             {reminderCopy(adherence, language)}
           </button>
         </Section>

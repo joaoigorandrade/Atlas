@@ -14,10 +14,11 @@ import {
 import { InkDots, StreamingText } from "@/components/Pending";
 import { InlineError } from "@/components/ErrorState";
 import { MicButton } from "@/components/VoiceInput";
-import { color, font } from "@/lib/theme";
+import { color, font, kicker } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import type { PresenceState } from "@/lib/motion";
+import Masthead from "@/components/ui/Masthead";
 
 import Rich from "@/components/Rich";
 import { HelpDial, Ledger } from "@/components/session/socraticChrome";
@@ -30,9 +31,6 @@ const BLUE = STATE_COLOR.learning;
 const GREEN = STATE_COLOR.mastered;
 
 interface SocraticViewProps {
-  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
-   *  screen mounted through its exit. */
-  presence: PresenceState;
   /** The node this session teaches — titles the view. */
   title: string;
   /** The node's own ladder — the breadcrumb draws this, not the catalogue,
@@ -82,7 +80,6 @@ export default function SocraticView({
   dispatch,
   onAdvance,
   onRetryJudge,
-  presence,
 }: SocraticViewProps) {
   const t = useT(STRINGS);
   // The pass streams its probes in one at a time. While the next one is still
@@ -136,82 +133,27 @@ export default function SocraticView({
         : t.advanceTeach(phaseLabel(owed));
 
   return (
-    <Sheet
-      presence={presence}
-      data-testid="phase-socratic"
-      aria-label="Socratic — {title}"
-    >
-      {/* Header — ← Map · Session · Socratic · title · scaffolding dial */}
-      <div
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          height: 58,
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
-        }}
+    <Sheet data-testid="phase-socratic" aria-label="Socratic — {title}">
+      <Masthead
+        back={t.back}
+        onBack={onExit}
+        kicker={t.sessionLabel}
+        accent={BLUE}
+        title={title}
+        meta={
+          // How far through the pass. Both numbers were already in state and
+          // neither was ever drawn, so a learner mid-probe had no way to tell
+          // a pass that was nearly over from one that had barely started.
+          !session.done && (
+            <span data-testid="socratic-progress" style={kicker(12)}>
+              {t.probeCount(Math.min(session.step + 1, session.total), session.total)}
+            </span>
+          )
+        }
       >
-        <button
-          className="at-press"
-          onClick={onExit}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            color: color.inkMuted,
-          }}
-        >
-          {t.back}
-        </button>
-        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: BLUE,
-          }}
-        >
-          {t.sessionLabel}
-        </span>
-        <div style={{ fontFamily: font.serif, fontSize: 19 }}>{title}</div>
-        {/* How far through the pass. Both numbers were already in state and
-            neither was ever drawn, so a learner mid-probe had no way to tell a
-            pass that was nearly over from one that had barely started. */}
-        {!session.done && (
-          <span
-            data-testid="socratic-progress"
-            style={{
-              fontFamily: font.mono,
-              fontSize: 10.5,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: color.inkFaint,
-            }}
-          >
-            {t.probeCount(Math.min(session.step + 1, session.total), session.total)}
-          </span>
-        )}
-        <div style={{ flex: 1 }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: color.inkFaint,
-          }}
-        >
-          {t.scaffolding}
-        </span>
+        <span style={kicker(11.5)}>{t.scaffolding}</span>
         <HelpDial help={session.help} dispatch={dispatch} />
-      </div>
+      </Masthead>
 
       {/* Body — the dialogue */}
       <div style={{ flex: 1, overflow: "hidden", display: "flex" }}>
@@ -255,7 +197,7 @@ export default function SocraticView({
               flex: "0 0 auto",
               borderTop: `1px solid ${color.hairline}`,
               padding: "16px 32px 38px",
-              background: "rgba(248,246,240,0.55)",
+              background: "rgba(246,239,223,0.55)",
             }}
           >
             <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -281,24 +223,14 @@ export default function SocraticView({
                     />
                     {doneText}
                   </div>
-                  <button
-                    className="at-press"
+                  <Button
                     onClick={onAdvance}
                     style={{
-                      width: "100%",
-                      padding: 15,
-                      background: color.accent,
-                      color: color.accentInk,
-                      border: "none",
-                      borderRadius: 12,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+                      boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
                     }}
                   >
                     {advanceLabel}
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <>
@@ -344,7 +276,7 @@ export default function SocraticView({
                         flex: 1,
                         resize: "none",
                         padding: "12px 15px",
-                        borderRadius: 10,
+                        borderRadius: 3,
                         fontSize: 14,
                         lineHeight: 1.45,
                         fontFamily: "inherit",
@@ -363,10 +295,10 @@ export default function SocraticView({
                         flex: "0 0 auto",
                         padding: "12px 17px",
                         background:
-                          busy || !draft.trim() ? "rgba(44,40,35,0.07)" : color.accent,
+                          busy || !draft.trim() ? "rgba(43,33,24,0.07)" : color.accent,
                         color: busy || !draft.trim() ? color.inkGhost : color.accentInk,
                         border: "none",
-                        borderRadius: 10,
+                        borderRadius: 3,
                         fontSize: 14,
                         fontWeight: 600,
                         cursor: busy || !draft.trim() ? "default" : "pointer",
@@ -385,7 +317,7 @@ export default function SocraticView({
                         padding: "9px 14px",
                         background: color.card,
                         border: "1px solid rgba(160,106,48,0.4)",
-                        borderRadius: 9,
+                        borderRadius: 3,
                         fontSize: 13,
                         color: color.amberInk,
                         cursor: "pointer",
@@ -401,7 +333,7 @@ export default function SocraticView({
                         padding: "9px 14px",
                         background: color.card,
                         border: `1px solid ${color.hairlineStrong}`,
-                        borderRadius: 9,
+                        borderRadius: 3,
                         fontSize: 13,
                         color: color.inkMuted,
                         cursor: "pointer",

@@ -7,7 +7,7 @@
 // Keeping it beside the JSX made the component look like it held forty more
 // things than it does.
 
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import {
   calibItems,
   daysUntil,
@@ -24,9 +24,8 @@ import {
 import { dueCards } from "@/lib/fsrs";
 import { useLanguage, useT } from "@/lib/i18n";
 import { STRINGS } from "@/components/atlas/dashboardCopy";
-import { useEarned, usePresence } from "@/lib/motion";
+import { useEarned } from "@/lib/motion";
 import { CELEBRATE_MS } from "@/components/map/MapCanvas";
-import { SHEET_EXIT_MS } from "@/components/Sheet";
 import type { ProfileStat } from "@/components/ProfileScreen";
 import { SHEET_SCREENS, type Screen } from "@/components/atlas/screen";
 import type { RunState } from "@/components/atlas/useRunState";
@@ -114,30 +113,15 @@ export function useDerived(deps: {
   // ---- derived ----------------------------------------------------------
 
   const isMap = screen === "map";
-  // The full-screen surfaces. They animate out, which means the screen they
-  // belong to has to outlive `screen` moving on — `sheetScreen` lags behind for
-  // exactly the length of the leave. Their session state is not torn down on
-  // exit (`exitConsume` and friends only set the screen), so the outgoing view
-  // still has everything it needs to draw those last frames.
-  const onSheet = SHEET_SCREENS.has(screen);
-  const sheet = usePresence(onSheet, SHEET_EXIT_MS);
-  const lastSheet = useRef<Screen | null>(null);
-  if (onSheet) lastSheet.current = screen;
-  const sheetScreen = onSheet ? screen : lastSheet.current;
-  // …and stops lagging once the leave is over. `sheetScreen` alone never goes
-  // back to null, so rendering off it left the last sheet mounted for the rest
-  // of the run: `sheetOut` fills to opacity 0, but an inset-0 element at
-  // z-index 30 still swallows every click meant for the map behind it. The
-  // `onSheet ||` covers the entry frame, where `mounted` is still catching up
-  // in an effect and the map would otherwise flash through.
-  const openSheet = onSheet || sheet.mounted ? sheetScreen : null;
-  // The canvas backs onboarding + the map, but Consume is a full surface.
-  // Kept mounted underneath a sheet as well, so a session genuinely rises off
-  // the map and settles back onto it instead of onto blank paper. The canvas is
-  // inert behind an opaque surface — it re-renders only when the graph or the
-  // mastery states move, which during a session is a handful of times.
+  // The full-screen surfaces. They have no exit of their own: leaving one is a
+  // page turn (`usePageTurn`), which snapshots the outgoing page — so the sheet
+  // can unmount on the frame `screen` moves on.
+  const openSheet = SHEET_SCREENS.has(screen) ? screen : null;
+  // The canvas backs onboarding + the map, and stays mounted under a sheet so
+  // turning back lands on the map as it was rather than rebuilding it. It is
+  // `covered` there: hidden, its animations paused, its layers memoised.
   const showCanvas =
-    screen === "building" || screen === "diagnostic" || screen === "map" || sheet.mounted;
+    screen === "building" || screen === "diagnostic" || screen === "map" || !!openSheet;
   // Before the real map exists, assemble a placeholder territory instead of
   // an empty canvas — swapped for the real graph the instant it streams in.
   const usingFakeMap = screen === "building" && graph.nodes.length === 0;
@@ -357,7 +341,6 @@ export function useDerived(deps: {
 
   return {
     isMap,
-    sheet,
     openSheet,
     showCanvas,
     usingFakeMap,
@@ -401,6 +384,5 @@ export function useDerived(deps: {
     interests,
     profileStats,
     reviewSummary,
-    sheetScreen,
   };
 }

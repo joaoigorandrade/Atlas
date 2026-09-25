@@ -1,9 +1,30 @@
 import type { Metadata } from "next";
-import { Newsreader, Instrument_Sans, Spline_Sans_Mono } from "next/font/google";
+import {
+  EB_Garamond,
+  IM_Fell_English,
+  IM_Fell_English_SC,
+  Instrument_Sans,
+} from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
+import { cssVars } from "@/lib/theme";
 import "./globals.css";
 
-const newsreader = Newsreader({
+// The atlas's three hands: Fell for what is engraved, Garamond for what is
+// read, and a plain sans kept only for the controls.
+const fell = IM_Fell_English({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-display",
+});
+
+const fellCaps = IM_Fell_English_SC({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-caps",
+});
+
+const garamond = EB_Garamond({
   subsets: ["latin"],
   style: ["normal", "italic"],
   variable: "--font-serif",
@@ -13,12 +34,6 @@ const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-sans",
-});
-
-const splineSansMono = Spline_Sans_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
@@ -31,9 +46,9 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" style={cssVars}>
       <body
-        className={`${newsreader.variable} ${instrumentSans.variable} ${splineSansMono.variable}`}
+        className={`${fell.variable} ${fellCaps.variable} ${garamond.variable} ${instrumentSans.variable}`}
       >
         <LanguageProvider>{children}</LanguageProvider>
       </body>

@@ -13,9 +13,9 @@ import { Language } from "@/lib/i18n";
 
 /** Trace's accent: a following-the-thread teal. */
 export const TRACE_COLOR = {
-  accent: "#3f7d6d",
-  soft: "rgba(63,125,109,0.08)",
-  border: "rgba(63,125,109,0.32)",
+  accent: "#3d6e62",
+  soft: "rgba(61,110,98,0.08)",
+  border: "rgba(61,110,98,0.32)",
 } as const;
 
 /** One link of the chain. */

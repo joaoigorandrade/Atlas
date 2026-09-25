@@ -13,9 +13,9 @@ import { Language } from "@/lib/i18n";
 /** Perform's accent: a working green — the colour of something being done
  *  rather than discussed. */
 export const PERFORM_COLOR = {
-  accent: "#3f7d5f",
-  soft: "rgba(63,125,95,0.08)",
-  border: "rgba(63,125,95,0.32)",
+  accent: "#4b6b3a",
+  soft: "rgba(75,107,58,0.08)",
+  border: "rgba(75,107,58,0.32)",
 } as const;
 
 /** One thing a correct run on *this* case has to show. Not "understands step

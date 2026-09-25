@@ -1,7 +1,10 @@
 "use client";
 
 import type { AdherenceState, DailyQueue } from "@/lib/curriculum";
+import { memo } from "react";
 import { color, font } from "@/lib/theme";
+import { mastheadBar } from "@/components/ui/Masthead";
+import { CompassRose } from "@/components/ui/Ornaments";
 import StreakFlame from "@/components/map/StreakFlame";
 import HoverHint from "@/components/HoverHint";
 import { useT } from "@/lib/i18n";
@@ -61,7 +64,7 @@ interface TopBarProps {
   onProfile: () => void;
 }
 
-export default function TopBar({
+export default memo(function TopBar({
   query,
   onQuery,
   onSurface,
@@ -76,16 +79,11 @@ export default function TopBar({
   return (
     <div
       style={{
+        ...mastheadBar,
         position: "absolute",
         top: 0,
         left: 0,
         right: 0,
-        height: 58,
-        background: "rgba(248,246,240,0.88)",
-        backdropFilter: "blur(8px)",
-        borderBottom: `1px solid ${color.hairline}`,
-        display: "flex",
-        alignItems: "center",
         padding: "0 20px 0 24px",
         gap: 18,
         zIndex: 20,
@@ -98,19 +96,13 @@ export default function TopBar({
             display: "flex",
             alignItems: "center",
             gap: 8,
-            fontFamily: font.serif,
-            fontSize: 19,
-            fontWeight: 600,
-            letterSpacing: "-0.01em",
+            fontFamily: font.display,
+            fontSize: 23,
             cursor: "pointer",
           }}
         >
-          {/* The wordmark's compass point — the same rose the map frames with. */}
-          <svg width={18} height={18} viewBox="-10 -10 20 20" aria-hidden>
-            <circle r={9} fill="none" stroke={color.ink} strokeWidth={1.1} />
-            <path d="M0,-7.5 L2.2,0 L0,7.5 L-2.2,0 Z" fill={color.ink} />
-            <path d="M0,-7.5 L2.2,0 L-2.2,0 Z" fill={color.accent} />
-          </svg>
+          {/* The wordmark's compass rose — the same rose the map frames with. */}
+          <CompassRose size={20} />
           Atlas
         </div>
       </HoverHint>
@@ -120,8 +112,8 @@ export default function TopBar({
           alignItems: "center",
           gap: 2,
           background: color.chipBg,
-          border: "1px solid rgba(44,40,35,0.09)",
-          borderRadius: 10,
+          border: `1px solid ${color.hairlineStrong}`,
+          borderRadius: 3,
           padding: 3,
           marginLeft: 6,
         }}
@@ -134,15 +126,16 @@ export default function TopBar({
               key={key}
               onClick={() => onSurface(key)}
               style={{
-                padding: "6px 15px",
-                borderRadius: 8,
+                padding: "5px 15px",
+                borderRadius: 2,
                 border: "none",
-                fontSize: 13.5,
+                fontFamily: font.caps,
+                fontSize: 15,
+                letterSpacing: "0.04em",
                 cursor: "pointer",
-                fontWeight: active ? 600 : 500,
                 background: active ? color.card : "transparent",
                 color: active ? color.ink : color.inkFaint,
-                boxShadow: active ? "0 1px 3px rgba(44,40,35,0.1)" : "none",
+                boxShadow: active ? `inset 0 0 0 1px ${color.hairlineStrong}` : "none",
               }}
             >
               {t.surfaces[key]}
@@ -160,8 +153,8 @@ export default function TopBar({
           gap: 9,
           background: color.card,
           border: `1px solid ${color.hairlineStrong}`,
-          borderRadius: 9,
-          padding: "8px 12px",
+          borderRadius: 3,
+          padding: "7px 12px",
         }}
       >
         <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden>
@@ -188,7 +181,9 @@ export default function TopBar({
             flex: 1,
             border: "none",
             background: "transparent",
-            fontSize: 14,
+            fontFamily: font.serif,
+            fontStyle: "italic",
+            fontSize: 15.5,
             color: color.ink,
           }}
         />
@@ -216,7 +211,7 @@ export default function TopBar({
             alignItems: "center",
             gap: 7,
             background: color.accentBg,
-            border: "1px solid rgba(47,107,79,0.22)",
+            border: "1px solid rgba(58,106,85,0.22)",
             borderRadius: 20,
             padding: "6px 13px",
             fontSize: 13,
@@ -253,9 +248,10 @@ export default function TopBar({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 13,
-            fontWeight: 600,
+            fontFamily: font.display,
+            fontSize: 16,
             cursor: "pointer",
+            boxShadow: `0 0 0 2px ${color.card}, 0 0 0 3px ${color.ink}`,
           }}
         >
           {(userEmail[0] ?? "A").toUpperCase()}
@@ -263,4 +259,4 @@ export default function TopBar({
       </HoverHint>
     </div>
   );
-}
+});

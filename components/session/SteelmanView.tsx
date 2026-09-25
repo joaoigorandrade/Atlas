@@ -23,8 +23,8 @@ import { MicButton } from "@/components/VoiceInput";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -44,7 +44,6 @@ const STRINGS = {
 } as const;
 
 export default function SteelmanView({
-  presence,
   title,
   plan,
   content,
@@ -56,7 +55,6 @@ export default function SteelmanView({
   onSubmit,
   onAdvance,
 }: {
-  presence: PresenceState;
   title: string;
   plan: readonly PhaseId[];
   content: SteelmanContent;
@@ -79,7 +77,6 @@ export default function SteelmanView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="steelman"
       kicker={copy.kicker}
       accent={accent}
@@ -105,7 +102,7 @@ export default function SteelmanView({
         data-testid="steelman-question"
         style={{
           padding: "16px 19px",
-          borderRadius: 12,
+          borderRadius: 3,
           background: soft,
           border: `1px solid ${border}`,
           fontFamily: font.serif,
@@ -155,7 +152,7 @@ export default function SteelmanView({
                   style={{
                     marginTop: 8,
                     padding: "12px 15px",
-                    borderRadius: 11,
+                    borderRadius: 3,
                     border: `1px solid ${color.hairline}`,
                     background: color.card,
                     fontSize: 14,
@@ -179,7 +176,7 @@ export default function SteelmanView({
                     width: "100%",
                     padding: "13px 15px",
                     paddingRight: 46,
-                    borderRadius: 11,
+                    borderRadius: 3,
                     border: `1px solid ${color.hairlineStrong}`,
                     background: color.card,
                     fontFamily: font.sans,
@@ -225,7 +222,7 @@ export default function SteelmanView({
                 onClick={() => onHold(p.id, disconfirmer)}
                 style={{
                   padding: "10px 14px",
-                  borderRadius: 11,
+                  borderRadius: 3,
                   border: `1px solid ${session.holds === p.id ? accent : color.hairlineStrong}`,
                   background: session.holds === p.id ? soft : color.card,
                   fontSize: 14,
@@ -263,7 +260,7 @@ export default function SteelmanView({
             style={{
               width: "100%",
               padding: "13px 15px",
-              borderRadius: 11,
+              borderRadius: 3,
               border: `1px solid ${color.hairlineStrong}`,
               background: color.card,
               fontFamily: font.sans,
@@ -283,12 +280,13 @@ export default function SteelmanView({
               marginTop: 18,
               width: "100%",
               padding: 15,
-              borderRadius: 12,
+              borderRadius: 3,
               border: "none",
               background: ready && !judging ? accent : color.hairlineStrong,
               color: color.accentInk,
               fontSize: 15,
-              fontWeight: 600,
+              fontFamily: font.caps,
+              letterSpacing: "0.06em",
               cursor: ready && !judging ? "pointer" : "default",
             }}
           >
@@ -326,25 +324,13 @@ export default function SteelmanView({
                 ? copy.noDisconfirmer
                 : copy.missed}
           </div>
-          <button
-            className="at-press"
+          <Button
             data-testid="action-finish"
             onClick={onAdvance}
-            style={{
-              marginTop: 22,
-              width: "100%",
-              padding: 15,
-              borderRadius: 12,
-              border: "none",
-              background: color.accent,
-              color: color.accentInk,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            style={{ marginTop: 22 }}
           >
             {t.advance}
-          </button>
+          </Button>
         </div>
       )}
     </PhaseShell>

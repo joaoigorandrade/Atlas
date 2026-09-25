@@ -42,8 +42,8 @@ export function SectionCheck({
         <div
           style={{
             background: color.card,
-            border: `1px solid ${passed ? "rgba(76,139,99,0.4)" : "rgba(91,127,191,0.28)"}`,
-            borderRadius: 13,
+            border: `1px solid ${passed ? "rgba(74,117,82,0.4)" : "rgba(63,95,134,0.28)"}`,
+            borderRadius: 3,
             padding: "18px 20px",
             animation: "fadeUp .45s both",
             transition: transition("border-color"),
@@ -109,7 +109,7 @@ export function SectionCheck({
                   style={{
                     textAlign: "left",
                     padding: "13px 16px",
-                    borderRadius: 10,
+                    borderRadius: 3,
                     fontSize: 14.5,
                     fontFamily: "inherit",
                     cursor: passed ? "default" : "pointer",

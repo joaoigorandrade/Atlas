@@ -16,9 +16,9 @@ import { Language } from "@/lib/i18n";
 
 /** Steelman's accent: a contested indigo. */
 export const STEELMAN_COLOR = {
-  accent: "#5b6ba8",
-  soft: "rgba(91,107,168,0.08)",
-  border: "rgba(91,107,168,0.32)",
+  accent: "#4d5b94",
+  soft: "rgba(77,91,148,0.08)",
+  border: "rgba(77,91,148,0.32)",
 } as const;
 
 /** One side of the question, named by who actually held it — a position with

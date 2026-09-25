@@ -85,7 +85,7 @@ export function Figure({
       style={{
         width: "100%",
         height: "auto",
-        borderRadius: 12,
+        borderRadius: 3,
         border: `1px solid ${color.hairline}`,
         background: color.card,
         display: "block",

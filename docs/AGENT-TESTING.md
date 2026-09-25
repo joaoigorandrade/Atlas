@@ -67,6 +67,12 @@ await openPhase(page, "core-rule", 4); // 4 = Crucible
 Applied to navigation landmarks and interactive controls only — not to every
 div. Prefer these over text: the app is bilingual and the copy moves.
 
+A change of screen is a page turn (View Transitions, ~620ms). `data-screen` and
+`data-sheet` update one frame after the old page is snapshotted, and the turn is
+purely visual — the new page is live under it — so assert on the attributes,
+not on a screenshot taken mid-turn. Under `reducedMotion: "reduce"` there is no
+turn at all.
+
 | Selector                                                                         | What it addresses                                                                   |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `[data-testid=app]`                                                              | The app root. **Read the state off it, don't guess:**                               |

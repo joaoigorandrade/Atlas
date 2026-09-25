@@ -8,6 +8,7 @@ import type {
   DiagnosticAnswer as Answer,
 } from "@/lib/curriculum";
 import { color, font, kicker, transition } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useT } from "@/lib/i18n";
 import { InkDots, InkRule } from "@/components/Pending";
 import { gradeDiagnostic } from "@/lib/curriculum";
@@ -132,9 +133,11 @@ export default function DiagnosticPanel({
         right: 0,
         bottom: 0,
         width: 440,
-        background: "rgba(248,246,240,0.92)",
-        backdropFilter: "blur(6px)",
-        borderLeft: `1px solid ${color.hairline}`,
+        // A leaf laid over the chart's right edge, opaque: blurring the map
+        // behind it cost a full re-blur on every frame of the build.
+        background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
+        borderLeft: `3px double ${color.rule}`,
+        boxShadow: "-12px 0 30px rgba(43,33,24,0.12)",
         padding: "52px 44px",
         display: "flex",
         flexDirection: "column",
@@ -152,7 +155,7 @@ export default function DiagnosticPanel({
                 flex: 1,
                 height: 4,
                 borderRadius: 3,
-                background: i < answered ? color.accent : "rgba(44,40,35,0.12)",
+                background: i < answered ? color.accent : "rgba(43,33,24,0.12)",
                 transition: transition("background"),
               }}
             />
@@ -182,25 +185,9 @@ export default function DiagnosticPanel({
           >
             {t.introBody(total)}
           </div>
-          <button
-            className="at-press"
-            data-testid="action-take-placement"
-            onClick={() => setStarted(true)}
-            style={{
-              width: "100%",
-              padding: 16,
-              background: color.accent,
-              color: color.accentInk,
-              border: "none",
-              borderRadius: 12,
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 8px 24px rgba(47,107,79,0.28)",
-            }}
-          >
+          <Button data-testid="action-take-placement" onClick={() => setStarted(true)}>
             {t.take}
-          </button>
+          </Button>
           <button
             className="at-press"
             onClick={onSkip}
@@ -211,7 +198,7 @@ export default function DiagnosticPanel({
               background: "transparent",
               color: color.inkMuted,
               border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 12,
+              borderRadius: 3,
               fontSize: 15,
               cursor: "pointer",
             }}
@@ -273,7 +260,7 @@ export default function DiagnosticPanel({
                 textTransform: "uppercase",
                 color: color.inkGhost,
                 padding: "3px 8px",
-                borderRadius: 6,
+                borderRadius: 2,
                 border: `1px solid ${color.hairline}`,
               }}
             >
@@ -359,7 +346,7 @@ export default function DiagnosticPanel({
                   background: readyToAdvance ? color.accent : color.chipBg,
                   color: readyToAdvance ? color.accentInk : color.inkFaint,
                   border: "none",
-                  borderRadius: 11,
+                  borderRadius: 3,
                   fontSize: 15,
                   fontWeight: 600,
                   cursor: readyToAdvance ? "pointer" : "default",
@@ -425,25 +412,9 @@ export default function DiagnosticPanel({
           >
             {t.readyBody}
           </div>
-          <button
-            className="at-press"
-            data-testid="action-start"
-            onClick={onStart}
-            style={{
-              width: "100%",
-              padding: 16,
-              background: color.accent,
-              color: color.accentInk,
-              border: "none",
-              borderRadius: 12,
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 8px 24px rgba(47,107,79,0.28)",
-            }}
-          >
+          <Button data-testid="action-start" onClick={onStart}>
             {t.start}
-          </button>
+          </Button>
         </div>
       )}
     </div>

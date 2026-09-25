@@ -57,6 +57,7 @@ import { useWarming } from "@/components/atlas/useWarming";
 import { useDerived } from "@/components/atlas/useDerived";
 import { useNavigation } from "@/components/atlas/useNavigation";
 import type { Screen } from "@/components/atlas/screen";
+import { usePageTurn } from "@/components/atlas/usePageTurn";
 import { exportCardsCsv, exportCardsJson, exportMap } from "@/components/atlas/exporters";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar from "@/components/map/TopBar";
@@ -103,7 +104,8 @@ export default function AtlasApp({
     retain,
     reset: resetSessions,
   } = sessions;
-  const [screen, setScreen] = useState<Screen>("welcome");
+  const [screen, setScreenNow] = useState<Screen>("welcome");
+  const setScreen = usePageTurn(screen, setScreenNow);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // The "AI is writing this" overlay, or null.
   const [loading, setLoading] = useState<{
@@ -507,8 +509,6 @@ export default function AtlasApp({
   });
   const {
     isMap,
-    sheet,
-    sheetScreen,
     openSheet,
     showCanvas,
     usingFakeMap,
@@ -657,8 +657,8 @@ export default function AtlasApp({
    */
   const sheetBoundary = (children: ReactNode) => (
     <ErrorBoundary
-      resetKeys={[sheetScreen, selectedId]}
-      onError={(err) => logWarning("session_view_crashed", err, { sheetScreen })}
+      resetKeys={[openSheet, selectedId]}
+      onError={(err) => logWarning("session_view_crashed", err, { openSheet })}
       fallback={(_err, reset) => (
         <ErrorState
           compact
@@ -691,6 +691,7 @@ export default function AtlasApp({
       data-screen={screen}
       data-sheet={openSheet ?? "none"}
       data-hydrated={hydrated ? "1" : "0"}
+      className="at-paper"
       style={{
         position: "relative",
         width: "100%",
@@ -698,10 +699,9 @@ export default function AtlasApp({
         // clip (not hidden) forbids programmatic scrolling — scrollIntoView on
         // off-screen canvas content can never drag the UI off-screen (#7).
         overflow: "clip",
-        background: color.paper,
         color: color.ink,
-        fontFamily: font.sans,
-        fontSize: 15,
+        fontFamily: font.serif,
+        fontSize: 16,
       }}
     >
       {showCanvas && (
@@ -730,10 +730,9 @@ export default function AtlasApp({
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeHover={hoverNode}
           onView={setView}
-          insets={{
-            left: !narrow || railOpen ? layout.leftRail : 0,
-            right: selectedNode && (!narrow || detailOpen) ? layout.nodePanel : 0,
-          }}
+          insetLeft={!narrow || railOpen ? layout.leftRail : 0}
+          insetRight={selectedNode && (!narrow || detailOpen) ? layout.nodePanel : 0}
+          covered={!!openSheet}
         />
       )}
 
@@ -870,7 +869,6 @@ export default function AtlasApp({
 
       {openSheet === "settings" && (
         <SettingsScreen
-          presence={sheet.state}
           form={form}
           adherence={adherence}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
@@ -908,7 +906,6 @@ export default function AtlasApp({
         consumeChunks &&
         sheetBoundary(
           <ConsumeView
-            presence={sheet.state}
             title={graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"}
             plan={planOf(consume.nodeId)}
             chunks={consumeChunks}
@@ -943,7 +940,6 @@ export default function AtlasApp({
         socraticSteps &&
         sheetBoundary(
           <SocraticView
-            presence={sheet.state}
             title={graph.nodes.find((n) => n.id === socratic.nodeId)?.label ?? "Concept"}
             plan={planOf(socratic.nodeId)}
             session={socratic}
@@ -963,7 +959,6 @@ export default function AtlasApp({
         feynmanBeats &&
         sheetBoundary(
           <FeynmanView
-            presence={sheet.state}
             topic={form.topic}
             title={graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"}
             plan={planOf(feynman.nodeId)}
@@ -988,7 +983,6 @@ export default function AtlasApp({
         connectContent &&
         sheetBoundary(
           <ConnectView
-            presence={sheet.state}
             content={connectContent}
             session={connect}
             plan={planOf(connect.nodeId)}
@@ -1008,7 +1002,6 @@ export default function AtlasApp({
         crucibleContent &&
         sheetBoundary(
           <CrucibleView
-            presence={sheet.state}
             content={crucibleContent}
             session={crucible}
             plan={planOf(crucible.nodeId)}
@@ -1028,7 +1021,6 @@ export default function AtlasApp({
           each owns its own screen, its own content shape and its own grader. */}
       {phaseSheets({
         openSheet,
-        presence: sheet.state,
         topic: form.topic,
         graph,
         planOf,
@@ -1045,7 +1037,6 @@ export default function AtlasApp({
         retainContent &&
         sheetBoundary(
           <RetainView
-            presence={sheet.state}
             content={retainContent}
             session={retain}
             nodeLabel={
@@ -1067,12 +1058,7 @@ export default function AtlasApp({
 
       {openSheet === "calibration" &&
         sheetBoundary(
-          <CalibrationView
-            presence={sheet.state}
-            items={calib}
-            onExit={exitCalib}
-            onCloseGap={closeCalibGap}
-          />,
+          <CalibrationView items={calib} onExit={exitCalib} onCloseGap={closeCalibGap} />,
         )}
 
       {/* Mounted through its own fade-out; `loading` is already null by then,

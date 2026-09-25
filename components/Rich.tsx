@@ -93,7 +93,7 @@ export default function Rich({
               ...codeStyle,
               display: "block",
               padding: "12px 14px",
-              borderRadius: 8,
+              borderRadius: 3,
               margin: "10px 0",
               overflowX: "auto",
               lineHeight: 1.5,

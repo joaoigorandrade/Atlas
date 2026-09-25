@@ -140,13 +140,13 @@ export default function HoverHint({
                 width: "max-content",
                 maxWidth: 240,
                 padding: "8px 11px",
-                background: "rgba(44,40,35,0.94)",
+                background: "rgba(43,33,24,0.94)",
                 color: color.paper,
-                borderRadius: 9,
+                borderRadius: 3,
                 fontFamily: font.sans,
                 fontSize: 12.5,
                 lineHeight: 1.45,
-                boxShadow: "0 10px 26px rgba(44,40,35,0.24)",
+                boxShadow: "0 10px 26px rgba(43,33,24,0.24)",
                 transformOrigin: ORIGIN[place],
                 animation:
                   state === "in"

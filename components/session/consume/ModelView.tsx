@@ -97,8 +97,7 @@ export function ModelView({
         alignItems: "center",
         justifyContent: "center",
         padding: 24,
-        background: "rgba(28,25,21,0.42)",
-        backdropFilter: "blur(3px)",
+        background: "rgba(33,25,18,0.5)",
         animation:
           state === "in"
             ? `softIn ${motion.duration.base}ms ${motion.ease.enter} both`
@@ -114,7 +113,7 @@ export function ModelView({
           flexDirection: "column",
           background: color.card,
           border: `1px solid ${color.hairlineStrong}`,
-          borderRadius: 16,
+          borderRadius: 3,
           boxShadow: "0 24px 60px rgba(28,25,21,0.28)",
           overflow: "hidden",
           animation:
@@ -241,7 +240,7 @@ export function ModelView({
                       style={{
                         flex: 1,
                         width: 1,
-                        background: "rgba(91,127,191,0.32)",
+                        background: "rgba(63,95,134,0.32)",
                       }}
                     />
                   )}
@@ -344,7 +343,7 @@ export function ModelView({
                 onClick={() => setRevealed((n) => n + 1)}
                 style={{
                   padding: "8px 14px",
-                  borderRadius: 9,
+                  borderRadius: 3,
                   border: `1px solid ${color.hairlineStrong}`,
                   background: color.card,
                   fontFamily: "inherit",
@@ -364,13 +363,13 @@ export function ModelView({
               onClick={onClose}
               style={{
                 padding: "8px 15px",
-                borderRadius: 9,
+                borderRadius: 3,
                 border: "none",
                 background: color.accent,
                 color: color.accentInk,
-                fontFamily: "inherit",
                 fontSize: 13,
-                fontWeight: 600,
+                fontFamily: font.caps,
+                letterSpacing: "0.06em",
                 cursor: "pointer",
               }}
             >

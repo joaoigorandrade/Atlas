@@ -24,7 +24,7 @@ export default function Sidebar({
         style={{
           background: color.card,
           border: `1px solid ${color.hairlineStrong}`,
-          borderRadius: 14,
+          borderRadius: 3,
           padding: "18px 18px 8px",
           marginBottom: 16,
         }}
@@ -36,18 +36,18 @@ export default function Sidebar({
         <div
           style={{
             height: 8,
-            background: "rgba(44,40,35,0.1)",
+            background: "rgba(43,33,24,0.1)",
             borderRadius: 4,
             overflow: "hidden",
           }}
         >
           <div
             style={{
-              width: `${budget.pct}%`,
               height: "100%",
               background: color.accent,
-              borderRadius: 4,
-              transition: transition("width", "deliberate", "enter"),
+              transformOrigin: "0 50%",
+              transform: `scaleX(${Math.min(budget.pct, 100) / 100})`,
+              transition: transition("transform", "deliberate", "enter"),
             }}
           />
         </div>
@@ -69,7 +69,7 @@ export default function Sidebar({
         style={{
           background: color.cardAlt,
           border: `1px solid ${color.hairline}`,
-          borderRadius: 14,
+          borderRadius: 3,
           padding: 18,
         }}
       >

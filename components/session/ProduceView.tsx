@@ -25,8 +25,8 @@ import { MicButton } from "@/components/VoiceInput";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -79,7 +79,7 @@ function SayIt({
             width: "100%",
             padding: "13px 15px",
             paddingRight: 46,
-            borderRadius: 11,
+            borderRadius: 3,
             border: `1px solid ${color.hairlineStrong}`,
             background: color.card,
             fontFamily: font.sans,
@@ -103,12 +103,13 @@ function SayIt({
           marginTop: 14,
           width: "100%",
           padding: 14,
-          borderRadius: 12,
+          borderRadius: 3,
           border: "none",
           background: blocked ? color.hairlineStrong : accent,
           color: color.accentInk,
           fontSize: 14.5,
-          fontWeight: 600,
+          fontFamily: font.caps,
+          letterSpacing: "0.06em",
           cursor: blocked ? "default" : "pointer",
         }}
       >
@@ -119,7 +120,6 @@ function SayIt({
 }
 
 export default function ProduceView({
-  presence,
   title,
   plan,
   content,
@@ -130,7 +130,6 @@ export default function ProduceView({
   onNext,
   onAdvance,
 }: {
-  presence: PresenceState;
   title: string;
   plan: readonly PhaseId[];
   content: ProduceContent;
@@ -160,7 +159,6 @@ export default function ProduceView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="produce"
       kicker={copy.kicker}
       accent={accent}
@@ -194,7 +192,7 @@ export default function ProduceView({
         data-testid="produce-scene"
         style={{
           padding: "14px 17px",
-          borderRadius: 12,
+          borderRadius: 3,
           background: soft,
           border: `1px solid ${border}`,
           fontSize: 14.5,
@@ -301,7 +299,7 @@ export default function ProduceView({
               <div
                 style={{
                   padding: "12px 15px",
-                  borderRadius: 11,
+                  borderRadius: 3,
                   border: `1px solid ${color.hairline}`,
                   background: color.card,
                   fontSize: 14.5,
@@ -323,25 +321,14 @@ export default function ProduceView({
                 <Rich text={session.reads[turn.id] ?? ""} />
               </div>
 
-              <button
-                className="at-press"
+              <Button
                 data-testid="action-next"
                 onClick={onNext}
-                style={{
-                  marginTop: 18,
-                  width: "100%",
-                  padding: 14,
-                  borderRadius: 12,
-                  border: "none",
-                  background: accent,
-                  color: color.accentInk,
-                  fontSize: 14.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                accent={accent}
+                style={{ marginTop: 18 }}
               >
                 {copy.next}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -373,25 +360,13 @@ export default function ProduceView({
           >
             {passed ? copy.passed : copy.missed}
           </div>
-          <button
-            className="at-press"
+          <Button
             data-testid="action-finish"
             onClick={onAdvance}
-            style={{
-              marginTop: 22,
-              width: "100%",
-              padding: 15,
-              borderRadius: 12,
-              border: "none",
-              background: color.accent,
-              color: color.accentInk,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            style={{ marginTop: 22 }}
           >
             {t.advance}
-          </button>
+          </Button>
         </div>
       )}
     </PhaseShell>

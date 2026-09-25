@@ -26,7 +26,6 @@ import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -50,7 +49,6 @@ const STRINGS = {
 } as const;
 
 export default function PerformView({
-  presence,
   title,
   plan,
   content,
@@ -63,7 +61,6 @@ export default function PerformView({
   onRerun,
   onAdvance,
 }: {
-  presence: PresenceState;
   title: string;
   plan: readonly PhaseId[];
   content: PerformContent;
@@ -89,7 +86,6 @@ export default function PerformView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="perform"
       kicker={copy.kicker}
       accent={accent}
@@ -116,7 +112,7 @@ export default function PerformView({
         data-testid="perform-task"
         style={{
           padding: "18px 20px",
-          borderRadius: 12,
+          borderRadius: 3,
           background: soft,
           border: `1px solid ${border}`,
         }}
@@ -169,7 +165,7 @@ export default function PerformView({
               width: "100%",
               resize: "vertical",
               padding: "14px 16px",
-              borderRadius: 12,
+              borderRadius: 3,
               fontSize: 14.5,
               lineHeight: 1.6,
               fontFamily: font.mono,
@@ -187,7 +183,7 @@ export default function PerformView({
               style={{
                 marginTop: 12,
                 padding: "12px 15px",
-                borderRadius: 10,
+                borderRadius: 3,
                 background: color.chipBg,
                 border: `1px solid ${color.hairline}`,
                 fontSize: 13.5,
@@ -207,10 +203,10 @@ export default function PerformView({
               disabled={busy || !session.work.trim()}
               style={{
                 padding: "12px 20px",
-                background: busy || !session.work.trim() ? "rgba(44,40,35,0.07)" : accent,
+                background: busy || !session.work.trim() ? "rgba(43,33,24,0.07)" : accent,
                 color: busy || !session.work.trim() ? color.inkGhost : color.accentInk,
                 border: "none",
-                borderRadius: 10,
+                borderRadius: 3,
                 fontSize: 14.5,
                 fontWeight: 600,
                 cursor: busy || !session.work.trim() ? "default" : "pointer",
@@ -228,7 +224,7 @@ export default function PerformView({
                   padding: "11px 15px",
                   background: color.card,
                   border: "1px solid rgba(160,106,48,0.4)",
-                  borderRadius: 9,
+                  borderRadius: 3,
                   fontSize: 13,
                   color: color.amberInk,
                   cursor: "pointer",
@@ -273,7 +269,7 @@ export default function PerformView({
                     display: "flex",
                     gap: 11,
                     padding: "11px 14px",
-                    borderRadius: 10,
+                    borderRadius: 3,
                     background: color.card,
                     border: `1px solid ${color.hairline}`,
                     borderLeft: `3px solid ${VERDICT_COLOR[verdict]}`,
@@ -342,7 +338,7 @@ export default function PerformView({
               style={{
                 marginTop: 18,
                 padding: "14px 17px",
-                borderRadius: 12,
+                borderRadius: 3,
                 background: soft,
                 border: `1px solid ${border}`,
                 fontSize: 14.5,
@@ -368,7 +364,7 @@ export default function PerformView({
                 background: passed ? color.accent : color.card,
                 color: passed ? color.accentInk : color.ink,
                 border: passed ? "none" : `1px solid ${color.hairlineStrong}`,
-                borderRadius: 12,
+                borderRadius: 3,
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -385,7 +381,7 @@ export default function PerformView({
                 padding: "15px 18px",
                 background: color.card,
                 border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 12,
+                borderRadius: 3,
                 fontSize: 14,
                 color: color.inkMuted,
                 cursor: "pointer",

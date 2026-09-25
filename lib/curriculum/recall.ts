@@ -14,9 +14,9 @@ import { Language } from "@/lib/i18n";
 /** Recall's accent: Retain's cool grey-blue. It is retrieval, the same family
  *  as review, and the palette says so before the copy does. */
 export const RECALL_COLOR = {
-  accent: "#5a6b86",
-  soft: "rgba(90,107,134,0.08)",
-  border: "rgba(90,107,134,0.32)",
+  accent: "#56657a",
+  soft: "rgba(86,101,122,0.08)",
+  border: "rgba(86,101,122,0.32)",
 } as const;
 
 /** One thing a cold retrieval has to bring back. Not something to explain —

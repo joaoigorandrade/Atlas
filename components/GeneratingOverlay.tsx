@@ -36,8 +36,8 @@ export default function GeneratingOverlay({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(248,246,240,0.86)",
-        backdropFilter: "blur(6px)",
+        // A flat wash of paper, not a blur: the map under it is still moving.
+        background: "rgba(239,230,210,0.9)",
         animation:
           state === "in"
             ? `softIn ${motion.duration.base}ms ${motion.ease.enter} both`

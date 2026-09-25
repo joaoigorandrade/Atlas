@@ -137,21 +137,32 @@ export function SkeletonBars({
           key={i}
           aria-hidden
           style={{
+            position: "relative",
+            overflow: "hidden",
             height: Array.isArray(heights) ? heights[i] : heights,
             width: w,
-            borderRadius: 5,
-            background: reduced
-              ? "rgba(44,40,35,0.08)"
-              : `linear-gradient(90deg, rgba(44,40,35,0.06) 30%, rgba(44,40,35,0.13) 50%, rgba(44,40,35,0.06) 70%)`,
-            backgroundSize: "200% 100%",
-            animation: reduced
-              ? undefined
-              : `shimmer 1.6s ${motion.ease.standard} infinite`,
-            // Staggered so the stack reads as one sweep down the page rather
-            // than five bars blinking in unison.
-            animationDelay: `${(i * 0.12).toFixed(2)}s`,
+            borderRadius: 2,
+            background: "rgba(43,33,24,0.07)",
           }}
-        />
+        >
+          {/* The wash is a strip sliding on `transform` — animating the
+              gradient's position instead repainted every bar every frame. */}
+          {!reduced && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "36%",
+                background:
+                  "linear-gradient(90deg, transparent, rgba(43,33,24,0.08), transparent)",
+                animation: `inkSweep 1.8s ${motion.ease.standard} infinite`,
+                // Staggered so the stack reads as one sweep down the page
+                // rather than five bars blinking in unison.
+                animationDelay: `${(i * 0.12).toFixed(2)}s`,
+              }}
+            />
+          )}
+        </div>
       ))}
     </>
   );

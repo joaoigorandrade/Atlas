@@ -15,7 +15,7 @@ import {
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import type { PresenceState } from "@/lib/motion";
+import Masthead from "@/components/ui/Masthead";
 
 const STRINGS = {
   en: {
@@ -95,9 +95,6 @@ const px = (c: number) => X0 + (c / 100) * W;
 const py = (a: number) => YB - (a / 100) * H;
 
 interface CalibrationViewProps {
-  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
-   *  screen mounted through its exit. */
-  presence: PresenceState;
   /** Every confidence-vs-performance reading, resolved with verdict + label. */
   items: CalibItem[];
   onExit: () => void;
@@ -109,53 +106,18 @@ export default function CalibrationView({
   items,
   onExit,
   onCloseGap,
-  presence,
 }: CalibrationViewProps) {
   const t = useT(STRINGS);
   return (
-    <Sheet presence={presence} data-testid="screen-calibration" aria-label="Calibration">
-      {/* Header — ← Map · Analytics · Calibration */}
-      <div
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          height: 58,
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
-        }}
+    <Sheet data-testid="screen-calibration" aria-label="Calibration">
+      <Masthead
+        back={t.backToMap}
+        onBack={onExit}
+        kicker={t.analyticsCalibration}
+        accent={OVER}
       >
-        <button
-          className="at-press"
-          onClick={onExit}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            color: color.inkMuted,
-          }}
-        >
-          {t.backToMap}
-        </button>
-        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: OVER,
-          }}
-        >
-          {t.analyticsCalibration}
-        </span>
-        <div style={{ flex: 1 }} />
         <div style={{ fontSize: 13, color: color.inkFaint }}>{t.headerTagline}</div>
-      </div>
+      </Masthead>
 
       {/* Body — scrolls; curve on the left, readout on the right */}
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -207,9 +169,9 @@ function CurveCard({ items }: { items: CalibItem[] }) {
       style={{
         background: color.card,
         border: `1px solid ${color.hairline}`,
-        borderRadius: 18,
+        borderRadius: 3,
         padding: "26px 26px 22px",
-        boxShadow: "0 4px 18px rgba(44,40,35,0.05)",
+        boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
       }}
     >
       <div style={{ ...kicker(10, "0.14em"), marginBottom: 4 }}>{t.calibrationCurve}</div>
@@ -231,11 +193,11 @@ function CurveCard({ items }: { items: CalibItem[] }) {
         {/* Overconfident (below diagonal) / underconfident (above) regions */}
         <polygon
           points={`${X0},${YB} ${X1},${YB} ${X1},${YT}`}
-          fill="rgba(189,112,56,0.07)"
+          fill="rgba(169,96,46,0.07)"
         />
         <polygon
           points={`${X0},${YB} ${X0},${YT} ${X1},${YT}`}
-          fill="rgba(91,127,191,0.07)"
+          fill="rgba(63,95,134,0.07)"
         />
         {grid.map((g, i) => (
           <line
@@ -244,7 +206,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
             y1={g.y1}
             x2={g.x2}
             y2={g.y2}
-            stroke="rgba(44,40,35,0.07)"
+            stroke="rgba(43,33,24,0.07)"
             strokeWidth={1}
           />
         ))}
@@ -254,7 +216,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           y1={YB}
           x2={X1}
           y2={YT}
-          stroke="rgba(44,40,35,0.4)"
+          stroke="rgba(43,33,24,0.4)"
           strokeWidth={1.5}
           strokeDasharray="5 5"
         />
@@ -328,7 +290,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           y1={26}
           x2={60}
           y2={400}
-          stroke="rgba(44,40,35,0.28)"
+          stroke="rgba(43,33,24,0.28)"
           strokeWidth={1.5}
         />
         <line
@@ -336,7 +298,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           y1={400}
           x2={438}
           y2={400}
-          stroke="rgba(44,40,35,0.28)"
+          stroke="rgba(43,33,24,0.28)"
           strokeWidth={1.5}
         />
         <text
@@ -460,9 +422,9 @@ function Readout({
       <div
         style={{
           background: color.card,
-          border: `1px solid rgba(189,112,56,0.28)`,
+          border: `1px solid rgba(169,96,46,0.28)`,
           borderLeft: `3px solid ${OVER}`,
-          borderRadius: 14,
+          borderRadius: 3,
           padding: "20px 22px",
         }}
       >
@@ -502,8 +464,8 @@ function Readout({
         <div
           style={{
             background: "#f2f4f8",
-            border: `1px solid rgba(91,127,191,0.22)`,
-            borderRadius: 14,
+            border: `1px solid rgba(63,95,134,0.22)`,
+            borderRadius: 3,
             padding: "17px 19px",
           }}
         >
@@ -525,7 +487,7 @@ function Readout({
           style={{
             background: color.cardAlt,
             border: `1px solid ${color.hairline}`,
-            borderRadius: 14,
+            borderRadius: 3,
             padding: "17px 19px",
           }}
         >
@@ -587,7 +549,7 @@ function CalibRow({
         padding: "13px 16px",
         background: color.card,
         border: `1px solid ${color.hairline}`,
-        borderRadius: 11,
+        borderRadius: 3,
         cursor: over ? "pointer" : "default",
       }}
     >
@@ -603,7 +565,7 @@ function CalibRow({
             textTransform: "uppercase",
             color: CALIB_COLOR[item.verdict],
             border: `1px solid ${CALIB_COLOR[item.verdict]}55`,
-            borderRadius: 6,
+            borderRadius: 2,
             padding: "3px 8px",
             whiteSpace: "nowrap",
           }}
@@ -612,7 +574,7 @@ function CalibRow({
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <Bar label={t.felt} pct={item.felt} fill="rgba(44,40,35,0.34)" />
+        <Bar label={t.felt} pct={item.felt} fill="rgba(43,33,24,0.34)" />
         <Bar label={t.real} pct={item.real} fill={CALIB_COLOR[item.verdict]} />
       </div>
       <div
@@ -656,7 +618,7 @@ function Bar({ label, pct, fill }: { label: string; pct: number; fill: string })
         style={{
           flex: 1,
           height: 7,
-          background: "rgba(44,40,35,0.08)",
+          background: "rgba(43,33,24,0.08)",
           borderRadius: 3,
           overflow: "hidden",
         }}

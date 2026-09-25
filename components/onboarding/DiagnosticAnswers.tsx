@@ -73,12 +73,13 @@ function Submit({
         marginTop: 12,
         width: "100%",
         padding: 14,
-        borderRadius: 12,
+        borderRadius: 3,
         border: "none",
         background: disabled ? color.hairlineStrong : accent,
         color: color.accentInk,
         fontSize: 14.5,
-        fontWeight: 600,
+        fontFamily: font.caps,
+        letterSpacing: "0.06em",
         cursor: disabled ? "default" : "pointer",
       }}
     >
@@ -321,9 +322,9 @@ export default function DiagnosticAnswer({
                       ? color.accent
                       : isWrongPick
                         ? color.amberInk
-                        : "rgba(44,40,35,0.16)"
+                        : "rgba(43,33,24,0.16)"
                   }`,
-                  borderRadius: 11,
+                  borderRadius: 3,
                   fontSize: 15,
                   color: color.ink,
                   opacity: picked && !isAnswer && !isWrongPick ? 0.5 : 1,

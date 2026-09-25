@@ -6,18 +6,13 @@
 import { ErrorState } from "@/components/ErrorState";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
 import { useT } from "@/lib/i18n";
-import { color } from "@/lib/theme";
 
 export default function NotFound() {
   const t = useT(ERROR_STRINGS);
   return (
     <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        overflowY: "auto",
-        background: color.paper,
-      }}
+      className="at-paper"
+      style={{ position: "absolute", inset: 0, overflowY: "auto" }}
     >
       <ErrorState
         kicker={t.notFoundKicker}

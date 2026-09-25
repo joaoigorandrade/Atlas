@@ -13,7 +13,7 @@ import {
 import { color, font } from "@/lib/theme";
 import { useLanguage } from "@/lib/i18n";
 
-const GREEN = "#2F6B4F";
+const GREEN = "#3a6a55";
 
 /**
  * What this probe has already established, and what is still open.
@@ -44,8 +44,8 @@ export function Ledger({
       style={{
         marginBottom: 13,
         padding: "10px 13px",
-        borderRadius: 10,
-        background: "rgba(44,40,35,0.035)",
+        borderRadius: 3,
+        background: "rgba(43,33,24,0.035)",
         border: `1px solid ${color.hairline}`,
       }}
     >
@@ -111,8 +111,8 @@ export function HelpDial({
         display: "flex",
         gap: 3,
         background: color.chipBg,
-        border: `1px solid rgba(44,40,35,0.09)`,
-        borderRadius: 9,
+        border: `1px solid rgba(43,33,24,0.09)`,
+        borderRadius: 3,
         padding: 3,
       }}
     >
@@ -126,7 +126,7 @@ export function HelpDial({
             onClick={() => dispatch({ type: "setHelp", level: i as HelpLevel })}
             style={{
               padding: "5px 11px",
-              borderRadius: 6,
+              borderRadius: 2,
               border: "none",
               fontFamily: font.mono,
               fontSize: 10.5,

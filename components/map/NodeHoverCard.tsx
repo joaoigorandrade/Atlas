@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   STATE_COLOR,
   meetsPrereq,
@@ -23,6 +23,8 @@ import {
 import { color, font, motion } from "@/lib/theme";
 import { usePresence } from "@/lib/motion";
 import NodeSeal from "@/components/map/NodeSeal";
+import { SEAL } from "@/components/map/MapNode";
+import type { ViewTransform } from "@/components/map/mapGeometry";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -185,12 +187,13 @@ function Body({
       <div
         style={{
           width: 272,
-          background: "rgba(251,249,244,0.97)",
-          backdropFilter: "blur(7px)",
-          border: `1px solid ${color.hairlineStrong}`,
+          background: color.card,
+          border: `1px solid ${color.rule}`,
+          outline: `1px solid ${color.hairline}`,
+          outlineOffset: -4,
           borderTop: `3px solid ${stateColor}`,
-          borderRadius: 12,
-          boxShadow: "0 16px 40px rgba(44,40,35,0.17)",
+          borderRadius: 3,
+          boxShadow: "0 16px 40px rgba(43,33,24,0.17)",
           padding: "12px 14px 11px",
           transformOrigin: above ? "50% 100%" : "50% 0",
           animation: presence
@@ -305,4 +308,80 @@ export function useDwell(value: string | null, ms = 300, handoffMs = 90): string
   }, [value, settled, open, ms, handoffMs]);
 
   return settled;
+}
+
+/** Half the peek card's width, and how much room it needs below a node. */
+const CARD_HALF = 136;
+const CARD_CLEARANCE = 190;
+
+/**
+ * Where the peek for `peekId` sits on screen, and what it says: beside the
+ * node at the current view, kept inside the canvas, opening upward when there
+ * is no room below.
+ */
+export function usePeek(
+  peekId: string | null,
+  view: ViewTransform,
+  box: { w: number; h: number },
+  map: {
+    nodes: ConceptNode[];
+    positions: Record<string, { x: number; y: number }>;
+    display: Record<string, NodeState>;
+    edges: ConceptEdge[];
+    reviewedNodes?: string[];
+    shakyReasons?: Record<string, ShakyReason>;
+    phasesDone?: Record<string, readonly PhaseId[]>;
+    consumeProgress?: Record<string, ConsumeProgress>;
+  },
+): NodeHoverCardProps | null {
+  const {
+    nodes,
+    positions,
+    display,
+    edges,
+    reviewedNodes,
+    shakyReasons,
+    phasesDone,
+    consumeProgress,
+  } = map;
+  return useMemo(() => {
+    const node = peekId ? nodes.find((n) => n.id === peekId) : null;
+    const pos = node ? positions[node.id] : null;
+    if (!node || !pos || !box.h) return null;
+    const x = view.x + pos.x * view.scale;
+    const y = view.y + pos.y * view.scale;
+    // The seal and the name under it, scaled — the card clears both.
+    const reach = (SEAL / 2 + 26) * view.scale;
+    return {
+      node,
+      displayState: display[node.id] ?? "unknown",
+      display,
+      edges,
+      reviewed: reviewedNodes?.includes(node.id) ?? false,
+      phasesDone: phasesDone?.[node.id],
+      shakyReason: shakyReasons?.[node.id],
+      consumeProgress: consumeProgress?.[node.id],
+      // Kept inside the canvas so a node near an edge doesn't push its card
+      // off-screen.
+      x: Math.min(
+        Math.max(x, CARD_HALF + 8),
+        Math.max(box.w - CARD_HALF - 8, CARD_HALF + 8),
+      ),
+      y,
+      reach,
+      above: y + reach + CARD_CLEARANCE > box.h,
+    };
+  }, [
+    peekId,
+    nodes,
+    positions,
+    view,
+    display,
+    edges,
+    reviewedNodes,
+    shakyReasons,
+    phasesDone,
+    consumeProgress,
+    box,
+  ]);
 }

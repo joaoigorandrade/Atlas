@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ancestorsOf,
   type ConceptEdge,
@@ -12,8 +12,8 @@ import {
 } from "@/lib/curriculum";
 import { color, layout } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
-import NodeHoverCard, { useDwell } from "@/components/map/NodeHoverCard";
-import MapNode, { SEAL } from "@/components/map/MapNode";
+import NodeHoverCard, { useDwell, usePeek } from "@/components/map/NodeHoverCard";
+import MapNode from "@/components/map/MapNode";
 import MapEdges from "@/components/map/MapEdges";
 import MapControls from "@/components/map/MapControls";
 import { regionsOf, seedOf } from "@/components/map/atlasTerrain";
@@ -97,10 +97,22 @@ interface MapCanvasProps {
   onView: (view: ViewTransform) => void;
   /** The rails over each side of the canvas right now; the instruments sit
    *  clear of them, and framing centres in what is left. */
-  insets: { left: number; right: number };
+  insetLeft: number;
+  insetRight: number;
+  /** A sheet is over the map: nothing here is visible, so nothing paints. */
+  covered?: boolean;
 }
 
-export default function MapCanvas({
+export default memo(MapCanvas, (a, b) =>
+  // Every callback is read through `on` (the latest one, always), so a parent
+  // re-creating its handlers each render — which AtlasApp does, ~15 times a
+  // second while a reading streams — is not a reason to redraw the map.
+  (Object.keys(b) as (keyof MapCanvasProps)[]).every(
+    (k) => typeof b[k] === "function" || Object.is(a[k], b[k]),
+  ),
+);
+
+function MapCanvas({
   screen,
   nodes,
   edges,
@@ -125,17 +137,28 @@ export default function MapCanvas({
   onNodeDoubleClick,
   onNodeHover,
   onView,
-  insets,
+  insetLeft,
+  insetRight,
+  covered,
 }: MapCanvasProps) {
   const t = useT(STRINGS);
   const elRef = useRef<HTMLDivElement | null>(null);
-  const wheelRef = useRef(onWheel);
-  wheelRef.current = onWheel;
+  const handlers = {
+    onWheel,
+    onCanvasDown,
+    onNodeDown,
+    onNodeSelect,
+    onNodeDoubleClick,
+    onNodeHover,
+  };
+  const on = useRef(handlers);
+  on.current = handlers;
+  const hover = useCallback((id: string | null) => on.current.onNodeHover(id), []);
 
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
-    const handler = (e: WheelEvent) => wheelRef.current(e);
+    const handler = (e: WheelEvent) => on.current.onWheel(e);
     el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
   }, []);
@@ -175,46 +198,16 @@ export default function MapCanvas({
   const peekId = useDwell(
     screen === "map" && !dragging && hoverId !== selectedId ? hoverId : null,
   );
-  const peek = useMemo(() => {
-    const node = peekId ? nodes.find((n) => n.id === peekId) : null;
-    const pos = node ? positions[node.id] : null;
-    if (!node || !pos || !box.h) return null;
-    const x = view.x + pos.x * view.scale;
-    const y = view.y + pos.y * view.scale;
-    // The seal and the name under it, scaled — the card clears both.
-    const reach = (SEAL / 2 + 26) * view.scale;
-    return {
-      node,
-      displayState: display[node.id] ?? "unknown",
-      display,
-      edges,
-      reviewed: reviewedNodes?.includes(node.id) ?? false,
-      phasesDone: phasesDone?.[node.id],
-      shakyReason: shakyReasons?.[node.id],
-      consumeProgress: consumeProgress?.[node.id],
-      // Kept inside the canvas so a node near an edge doesn't push its card
-      // off-screen.
-      x: Math.min(
-        Math.max(x, CARD_HALF + 8),
-        Math.max(box.w - CARD_HALF - 8, CARD_HALF + 8),
-      ),
-      y,
-      reach,
-      above: y + reach + CARD_CLEARANCE > box.h,
-    };
-  }, [
-    peekId,
+  const peek = usePeek(peekId, view, box, {
     nodes,
     positions,
-    view,
     display,
     edges,
     reviewedNodes,
     shakyReasons,
     phasesDone,
     consumeProgress,
-    box,
-  ]);
+  });
 
   const q = query.trim().toLowerCase();
   const ids = useMemo(() => nodes.map((n) => n.id), [nodes]);
@@ -231,54 +224,33 @@ export default function MapCanvas({
   useEffect(() => {
     if (screen !== "map" || !bounds || !box.w || framed.current) return;
     framed.current = true;
-    onView(fitView(bounds, box, { ...insets, top: layout.topBar, bottom: 0 }));
-  }, [screen, bounds, box, insets, onView]);
-  const clear = (id: string) =>
-    (display[id] ?? "unknown") !== "unknown" ||
-    id === selectedId ||
-    Boolean(lockedPath?.has(id) || highlighted?.has(id)) ||
-    Boolean(
-      q &&
-      nodes
-        .find((n) => n.id === id)
-        ?.label.toLowerCase()
-        .includes(q),
-    );
+    const insets = { left: insetLeft, right: insetRight, top: layout.topBar, bottom: 0 };
+    onView(fitView(bounds, box, insets));
+  }, [screen, bounds, box, insetLeft, insetRight, onView]);
+  const clear = useCallback(
+    (id: string) =>
+      (display[id] ?? "unknown") !== "unknown" ||
+      id === selectedId ||
+      Boolean(lockedPath?.has(id) || highlighted?.has(id)) ||
+      Boolean(
+        q &&
+        nodes
+          .find((n) => n.id === id)
+          ?.label.toLowerCase()
+          .includes(q),
+      ),
+    [display, selectedId, lockedPath, highlighted, q, nodes],
+  );
 
-  return (
-    <div
-      ref={elRef}
-      data-testid="map-canvas"
-      role="application"
-      aria-label={t.canvas}
-      data-dragging={dragging || undefined}
-      onMouseDown={(e) => {
-        setDragging(true);
-        onCanvasDown(e);
-      }}
-      style={{
-        position: "absolute",
-        inset: 0,
-        cursor: "grab",
-        background: color.paper,
-        // A vignette, fixed to the window rather than the map: the paper
-        // darkens toward its edges the way an old sheet does.
-        backgroundImage:
-          "radial-gradient(ellipse at 55% 45%, transparent 55%, rgba(44,40,35,0.07) 100%)",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          transformOrigin: "0 0",
-          transform: `translate(${view.x}px,${view.y}px) scale(${view.scale})`,
-          willChange: "transform",
-        }}
-      >
+  // Everything inside the transformed layer, built once per change to the map
+  // itself — not per pan frame. A pan re-renders only the transform, the
+  // instruments and the peek; it used to re-render every node and road and
+  // re-run the bakes' change checks (JSON over the whole map) each frame.
+  const chart = useMemo(
+    () => (
+      <>
         {/* The land and the fog are baked into bitmaps (see `Baked`); only
-            the strokes and the labels are live SVG. */}
+                the strokes and the labels are live SVG. */}
         {bounds && (
           <>
             <svg style={layer} width={1} height={1}>
@@ -305,7 +277,7 @@ export default function MapCanvas({
                 highlighted={highlighted}
                 lockedPath={lockedPath}
                 building={building}
-                onHover={onNodeHover}
+                onHover={hover}
               />
             </svg>
             {screen === "map" && (
@@ -343,22 +315,71 @@ export default function MapCanvas({
             matches={!q || node.label.toLowerCase().includes(q)}
             earned={won[node.id]}
             gapLabel={t.gap}
-            onSelect={() => onNodeSelect(node.id)}
+            onSelect={() => on.current.onNodeSelect(node.id)}
             onDown={(e) => {
               // A node's press stops propagating (it starts a drag, not a
               // pan), so the card is closed from here too.
               setDragging(true);
-              onNodeDown(e, node.id);
+              on.current.onNodeDown(e, node.id);
             }}
-            onOpen={() => onNodeDoubleClick(node.id)}
-            onHover={(on) => onNodeHover(on ? node.id : null)}
+            onOpen={() => on.current.onNodeDoubleClick(node.id)}
+            onHover={(v) => hover(v ? node.id : null)}
           />
         ))}
+      </>
+    ),
+    // prettier-ignore
+    [bounds, stages, building, ids, edges, positions, display, regions, seed, dragging, highlighted, lockedPath, hover, screen, clear, nodes, phasesDone, staggered, spawnedIds, selectedId, q, won, t.gap],
+  );
+
+  return (
+    <div
+      ref={elRef}
+      data-testid="map-canvas"
+      role="application"
+      aria-label={t.canvas}
+      data-dragging={dragging || undefined}
+      data-covered={covered || undefined}
+      onMouseDown={(e) => {
+        setDragging(true);
+        on.current.onCanvasDown(e);
+      }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        cursor: "grab",
+        background: color.paper,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          transformOrigin: "0 0",
+          transform: `translate(${view.x}px,${view.y}px) scale(${view.scale})`,
+          willChange: "transform",
+        }}
+      >
+        {chart}
       </div>
 
       {/* Outside the transformed layer on purpose: the card and the
           instruments are chrome, so they keep their own type size and shadow
           at every zoom level. */}
+      {/* The sheet's grain, foxing and darkened edges, laid over the chart and
+          fixed to the window like the paper it is printed on: a static layer
+          that no pan repaints, with no blend mode for Safari to re-run. */}
+      <div
+        aria-hidden
+        className="at-paper"
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          backgroundColor: "transparent",
+        }}
+      />
       <NodeHoverCard shown={peek} />
       {screen === "map" && box.w > 0 && (
         <MapControls
@@ -368,14 +389,10 @@ export default function MapCanvas({
           display={display}
           view={view}
           box={box}
-          insets={{ ...insets, top: layout.topBar, bottom: 0 }}
+          insets={{ left: insetLeft, right: insetRight, top: layout.topBar, bottom: 0 }}
           onView={onView}
         />
       )}
     </div>
   );
 }
-
-/** Half the peek card's width, and how much room it needs below a node. */
-const CARD_HALF = 136;
-const CARD_CLEARANCE = 190;

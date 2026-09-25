@@ -8,7 +8,9 @@
 
 import { useRef } from "react";
 import { STATE_COLOR, type ConceptEdge, type NodeState } from "@/lib/curriculum";
-import { color, font, map, motion, transition } from "@/lib/theme";
+import { color, figures, map, motion, transition } from "@/lib/theme";
+import { plateStyle } from "@/components/ui/Plate";
+import { CompassRose, ScaleBar } from "@/components/ui/Ornaments";
 import { useT } from "@/lib/i18n";
 import HoverHint from "@/components/HoverHint";
 import {
@@ -123,12 +125,11 @@ export default function MapControls({
     </button>
   );
 
+  // A plate pasted over the chart. Opaque: a blurred glass here was re-blurred
+  // on every frame of every pan.
   const panel = {
-    background: "rgba(251,249,244,0.94)",
-    backdropFilter: "blur(8px)",
-    border: `1px solid ${color.hairlineStrong}`,
-    borderRadius: 12,
-    boxShadow: "0 10px 30px rgba(44,40,35,0.1)",
+    ...plateStyle,
+    boxShadow: "0 8px 22px rgba(43,33,24,0.16)",
   } as const;
 
   return (
@@ -140,15 +141,17 @@ export default function MapControls({
       onDoubleClick={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
-        right: insets.right + 18,
+        right: 18,
+        // Slides clear of the detail rail on the compositor, not by `right`.
+        transform: `translateX(${-insets.right}px)`,
         // Clear of the session timer that sits in the corner.
         bottom: 58,
         zIndex: 12,
         display: "flex",
         alignItems: "flex-end",
         gap: 10,
-        transition: transition("right", "slow", "enter"),
-        animation: `fadeUp ${motion.duration.slow}ms ${motion.ease.enter} both`,
+        transition: transition("transform", "slow", "enter"),
+        animation: `softIn ${motion.duration.slow}ms ${motion.ease.enter} both`,
       }}
     >
       <div style={{ ...panel, padding: "9px 10px 7px" }}>
@@ -196,7 +199,7 @@ export default function MapControls({
             width={Math.max(port.w, 4)}
             height={Math.max(port.h, 4)}
             rx={3}
-            fill="rgba(44,40,35,0.05)"
+            fill="rgba(43,33,24,0.05)"
             stroke={color.ink}
             strokeOpacity={0.55}
             strokeWidth={1.2}
@@ -210,22 +213,12 @@ export default function MapControls({
             display: "flex",
             alignItems: "center",
             gap: 8,
-            fontFamily: font.mono,
-            fontSize: 9.5,
-            letterSpacing: "0.08em",
+            ...figures,
+            fontSize: 12,
             color: color.inkFaint,
           }}
         >
-          <span
-            style={{
-              width: 100 * view.scale * 0.6,
-              height: 5,
-              borderLeft: `1px solid ${color.inkFaint}`,
-              borderRight: `1px solid ${color.inkFaint}`,
-              borderBottom: `1px solid ${color.inkFaint}`,
-              transition: transition("width", "fast"),
-            }}
-          />
+          <ScaleBar scale={view.scale} />
           {Math.round(view.scale * 100)}%
           <span style={{ flex: 1 }} />
           <HoverHint place="top" hint={t.hint}>
@@ -249,23 +242,11 @@ export default function MapControls({
       </div>
 
       <div style={{ ...panel, display: "flex", flexDirection: "column", padding: 3 }}>
-        {button(t.fit, fit, <Compass />)}
+        {button(t.fit, fit, <CompassRose size={22} />)}
         <span style={{ height: 1, margin: "2px 6px", background: color.hairline }} />
         {button(t.zoomIn, () => zoom(1.2), "+")}
         {button(t.zoomOut, () => zoom(1 / 1.2), "−")}
       </div>
     </div>
-  );
-}
-
-/** A four-point compass rose, north in the accent. */
-function Compass() {
-  return (
-    <svg width={20} height={20} viewBox="-10 -10 20 20" aria-hidden>
-      <circle r={8.6} fill="none" stroke={color.inkGhost} strokeWidth={0.8} />
-      <path d="M0,-9 L2,0 L-2,0 Z" fill={color.accent} />
-      <path d="M0,9 L2,0 L-2,0 Z" fill={color.inkFaint} />
-      <path d="M-9,0 L0,-1.6 L0,1.6 Z M9,0 L0,-1.6 L0,1.6 Z" fill={color.inkGhost} />
-    </svg>
   );
 }

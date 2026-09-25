@@ -17,9 +17,9 @@ import { Language } from "@/lib/i18n";
 
 /** Produce's accent: a spoken terracotta. */
 export const PRODUCE_COLOR = {
-  accent: "#b06a45",
-  soft: "rgba(176,106,69,0.08)",
-  border: "rgba(176,106,69,0.32)",
+  accent: "#a45a3a",
+  soft: "rgba(164,90,58,0.08)",
+  border: "rgba(164,90,58,0.32)",
 } as const;
 
 export interface ProduceTurn {

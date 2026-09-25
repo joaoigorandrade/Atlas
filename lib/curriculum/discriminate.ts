@@ -12,9 +12,9 @@ import { Language } from "@/lib/i18n";
 
 /** Discriminate's accent: a boundary-drawing slate blue. */
 export const DISCRIMINATE_COLOR = {
-  accent: "#4f6f8f",
-  soft: "rgba(79,111,143,0.08)",
-  border: "rgba(79,111,143,0.32)",
+  accent: "#4a5d70",
+  soft: "rgba(74,93,112,0.08)",
+  border: "rgba(74,93,112,0.32)",
 } as const;
 
 /** One candidate case, described without naming any concept. */

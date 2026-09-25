@@ -110,7 +110,7 @@ export function PassagePanel({
                 flex: 1,
                 resize: "vertical",
                 padding: "10px 12px",
-                borderRadius: 9,
+                borderRadius: 3,
                 border: `1px solid ${color.hairlineStrong}`,
                 background: color.card,
                 color: color.ink,
@@ -135,13 +135,13 @@ export function PassagePanel({
               onClick={submit}
               style={{
                 padding: "8px 14px",
-                borderRadius: 9,
+                borderRadius: 3,
                 border: "none",
                 background: color.accent,
                 color: color.accentInk,
-                fontFamily: "inherit",
                 fontSize: 13,
-                fontWeight: 600,
+                fontFamily: font.caps,
+                letterSpacing: "0.06em",
                 cursor: "pointer",
               }}
             >

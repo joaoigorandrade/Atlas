@@ -26,8 +26,8 @@ import {
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
+import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
-import type { PresenceState } from "@/lib/motion";
 
 const STRINGS = {
   en: {
@@ -47,7 +47,6 @@ const STRINGS = {
 } as const;
 
 export default function ProvenanceView({
-  presence,
   title,
   plan,
   content,
@@ -57,7 +56,6 @@ export default function ProvenanceView({
   onNext,
   onAdvance,
 }: {
-  presence: PresenceState;
   title: string;
   plan: readonly PhaseId[];
   content: ProvenanceContent;
@@ -81,7 +79,6 @@ export default function ProvenanceView({
 
   return (
     <PhaseShell
-      presence={presence}
       phase="provenance"
       kicker={copy.kicker}
       accent={accent}
@@ -120,7 +117,7 @@ export default function ProvenanceView({
         data-testid="provenance-source"
         style={{
           padding: "16px 19px",
-          borderRadius: 12,
+          borderRadius: 3,
           background: soft,
           border: `1px solid ${border}`,
         }}
@@ -192,7 +189,7 @@ export default function ProvenanceView({
                   style={{
                     textAlign: "left",
                     padding: "12px 15px",
-                    borderRadius: 11,
+                    borderRadius: 3,
                     border: `1px solid ${color.hairlineStrong}`,
                     background: color.card,
                     fontSize: 14.5,
@@ -258,25 +255,14 @@ export default function ProvenanceView({
                 <Rich text={item.because} />
               </div>
 
-              <button
-                className="at-press"
+              <Button
                 data-testid="action-next"
                 onClick={onNext}
-                style={{
-                  marginTop: 18,
-                  width: "100%",
-                  padding: 14,
-                  borderRadius: 12,
-                  border: "none",
-                  background: accent,
-                  color: color.accentInk,
-                  fontSize: 14.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                accent={accent}
+                style={{ marginTop: 18 }}
               >
                 {copy.next}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -316,7 +302,7 @@ export default function ProvenanceView({
             style={{
               marginTop: 18,
               padding: "14px 17px",
-              borderRadius: 12,
+              borderRadius: 3,
               background: soft,
               border: `1px solid ${border}`,
             }}
@@ -338,25 +324,13 @@ export default function ProvenanceView({
             </div>
           </div>
 
-          <button
-            className="at-press"
+          <Button
             data-testid="action-finish"
             onClick={onAdvance}
-            style={{
-              marginTop: 22,
-              width: "100%",
-              padding: 15,
-              borderRadius: 12,
-              border: "none",
-              background: color.accent,
-              color: color.accentInk,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            style={{ marginTop: 22 }}
           >
             {t.advance}
-          </button>
+          </Button>
         </div>
       )}
     </PhaseShell>

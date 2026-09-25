@@ -19,7 +19,7 @@ import { MicButton } from "@/components/VoiceInput";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
-import type { PresenceState } from "@/lib/motion";
+import Masthead from "@/components/ui/Masthead";
 
 import Rich from "@/components/Rich";
 import { STRINGS } from "@/components/session/crucibleCopy";
@@ -29,9 +29,6 @@ import { STRINGS } from "@/components/session/crucibleCopy";
 const RUST = CRUCIBLE_COLOR.accent;
 
 interface CrucibleViewProps {
-  /** Enter/leave state for the shared `Sheet` root — AtlasApp holds this
-   *  screen mounted through its exit. */
-  presence: PresenceState;
   /** The transfer content for this node (problem ladder, interleaved draws, gap). */
   content: CrucibleContent;
   session: CrucibleSession;
@@ -70,7 +67,6 @@ export default function CrucibleView({
   onRetry,
   onFinish,
   lifts,
-  presence,
 }: CrucibleViewProps) {
   const t = useT(STRINGS);
   const problem = crucibleProblem(session, content);
@@ -78,58 +74,18 @@ export default function CrucibleView({
   const isWork = session.stage === "work";
 
   return (
-    <Sheet
-      presence={presence}
-      data-testid="phase-crucible"
-      aria-label="Crucible — {title}"
-    >
-      {/* Header — ← Map · Session · Crucible · title · phase breadcrumb */}
-      <div
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "0 24px",
-          height: 58,
-          background: "rgba(248,246,240,0.92)",
-          backdropFilter: "blur(8px)",
-          borderBottom: `1px solid ${color.hairline}`,
-        }}
+    <Sheet data-testid="phase-crucible" aria-label="Crucible — {title}">
+      <Masthead
+        back={t.map}
+        onBack={onExit}
+        kicker={t.sessionCrucible}
+        accent={RUST}
+        title={<Rich text={content.centerLabel} />}
       >
-        <button
-          className="at-press"
-          onClick={onExit}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 13.5,
-            color: color.inkMuted,
-          }}
-        >
-          {t.map}
-        </button>
-        <div style={{ width: 1, height: 20, background: color.hairlineStrong }} />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: RUST,
-          }}
-        >
-          {t.sessionCrucible}
-        </span>
-        <div style={{ fontFamily: font.serif, fontSize: 19 }}>
-          <Rich text={content.centerLabel} />
-        </div>
-        <div style={{ flex: 1 }} />
-        <span style={{ fontFamily: font.mono, fontSize: 11, color: color.inkGhost }}>
+        <span style={{ fontFamily: font.caps, fontSize: 12, color: color.inkGhost }}>
           {plan.map((p, i) => (
             <span key={p}>
-              {i ? " → " : ""}
+              {i ? " · " : ""}
               {p === "crucible" ? (
                 <b style={{ color: RUST }}>{phaseLabel(p)}</b>
               ) : (
@@ -138,7 +94,7 @@ export default function CrucibleView({
             </span>
           ))}
         </span>
-      </div>
+      </Masthead>
 
       {/* Body — scrolls; centered 1040 column */}
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -152,8 +108,8 @@ export default function CrucibleView({
           <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kickerApplication}</div>
           <h1
             style={{
-              fontFamily: font.serif,
-              fontWeight: 500,
+              fontFamily: font.display,
+              fontWeight: 400,
               fontSize: 34,
               lineHeight: 1.12,
               margin: "0 0 10px",
@@ -197,7 +153,7 @@ export default function CrucibleView({
                   style={{
                     background: color.card,
                     border: `1px solid ${color.hairlineStrong}`,
-                    borderRadius: 12,
+                    borderRadius: 3,
                     padding: 5,
                     marginBottom: 12,
                   }}
@@ -249,10 +205,10 @@ export default function CrucibleView({
                       disabled={judging}
                       style={{
                         padding: "14px 26px",
-                        background: judging ? "rgba(44,40,35,0.07)" : RUST,
+                        background: judging ? "rgba(43,33,24,0.07)" : RUST,
                         color: judging ? color.inkGhost : color.accentInk,
                         border: "none",
-                        borderRadius: 12,
+                        borderRadius: 3,
                         fontSize: 15,
                         fontWeight: 600,
                         cursor: judging ? "default" : "pointer",
@@ -301,7 +257,7 @@ function ConfidenceGate({
         maxWidth: 600,
         background: color.card,
         border: `1px solid ${CRUCIBLE_COLOR.border}`,
-        borderRadius: 16,
+        borderRadius: 3,
         padding: "30px 30px 26px",
         animation: "fadeUp .3s both",
       }}
@@ -341,7 +297,7 @@ function ConfidenceGate({
               style={{
                 flex: 1,
                 padding: "15px 12px",
-                borderRadius: 12,
+                borderRadius: 3,
                 cursor: "pointer",
                 fontSize: 15,
                 textAlign: "center",
@@ -372,7 +328,7 @@ function Problem({
       style={{
         background: color.card,
         border: `1px solid ${color.hairlineStrong}`,
-        borderRadius: 16,
+        borderRadius: 3,
         padding: "24px 26px",
         marginBottom: 18,
       }}
@@ -387,7 +343,7 @@ function Problem({
           color: RUST,
           background: CRUCIBLE_COLOR.soft,
           border: `1px solid ${CRUCIBLE_COLOR.border}`,
-          borderRadius: 7,
+          borderRadius: 2,
           padding: "4px 9px",
           marginBottom: 14,
         }}
@@ -466,7 +422,7 @@ function Diagnostic({
               background: color.card,
               border: `1px solid ${color.hairline}`,
               borderLeft: `3px solid ${color.hairlineStrong}`,
-              borderRadius: 10,
+              borderRadius: 3,
             }}
           >
             <InkDots size={4} />
@@ -485,7 +441,7 @@ function Diagnostic({
                 background: color.card,
                 border: `1px solid ${color.hairline}`,
                 borderLeft: `3px solid ${col}`,
-                borderRadius: 10,
+                borderRadius: 3,
                 fontSize: 14,
                 lineHeight: 1.55,
                 color: color.inkSoft,
@@ -511,7 +467,7 @@ function Diagnostic({
         style={{
           background: color.cardAlt,
           border: `1px solid ${color.hairline}`,
-          borderRadius: 12,
+          borderRadius: 3,
           padding: "16px 18px",
           marginBottom: 16,
         }}
@@ -532,8 +488,8 @@ function Diagnostic({
               alignItems: "flex-start",
               gap: 13,
               background: "#fbeeeb",
-              border: `1px solid rgba(193,87,74,0.32)`,
-              borderRadius: 12,
+              border: `1px solid rgba(168,65,47,0.32)`,
+              borderRadius: 3,
               padding: "15px 18px",
               marginBottom: 18,
             }}
@@ -585,7 +541,7 @@ function Diagnostic({
                 padding: "13px 20px",
                 background: color.card,
                 border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 11,
+                borderRadius: 3,
                 fontSize: 14,
                 fontWeight: 600,
                 color: color.ink,
@@ -602,9 +558,10 @@ function Diagnostic({
                 background: RUST,
                 color: color.accentInk,
                 border: "none",
-                borderRadius: 11,
+                borderRadius: 3,
                 fontSize: 14,
-                fontWeight: 600,
+                fontFamily: font.caps,
+                letterSpacing: "0.06em",
                 cursor: "pointer",
                 boxShadow: `0 8px 20px ${CRUCIBLE_COLOR.glow}`,
               }}
@@ -652,8 +609,8 @@ function Diagnostic({
               alignItems: "flex-start",
               gap: 13,
               background: color.successBg,
-              border: `1px solid rgba(76,139,99,0.34)`,
-              borderRadius: 12,
+              border: `1px solid rgba(74,117,82,0.34)`,
+              borderRadius: 3,
               padding: "15px 18px",
               marginBottom: 18,
             }}
@@ -698,11 +655,12 @@ function Diagnostic({
               background: color.accent,
               color: color.accentInk,
               border: "none",
-              borderRadius: 12,
+              borderRadius: 3,
               fontSize: 15,
-              fontWeight: 600,
+              fontFamily: font.caps,
+              letterSpacing: "0.06em",
               cursor: "pointer",
-              boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+              boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
             }}
           >
             {lifts ? t.markMastered : t.markCrucibleDone}
@@ -733,7 +691,7 @@ function Sidebar({
         style={{
           background: color.card,
           border: `1px solid ${color.hairlineStrong}`,
-          borderRadius: 14,
+          borderRadius: 3,
           padding: "18px 18px 16px",
           marginBottom: 16,
         }}
@@ -767,7 +725,7 @@ function Sidebar({
                     fontSize: 12,
                     background:
                       status === "done"
-                        ? "rgba(76,139,99,0.14)"
+                        ? "rgba(74,117,82,0.14)"
                         : status === "current"
                           ? CRUCIBLE_COLOR.soft
                           : "transparent",
@@ -798,7 +756,7 @@ function Sidebar({
         style={{
           background: color.cardAlt,
           border: `1px solid ${color.hairline}`,
-          borderRadius: 14,
+          borderRadius: 3,
           padding: "16px 18px",
           marginBottom: 16,
         }}
@@ -846,7 +804,7 @@ function Sidebar({
         style={{
           background: color.card,
           border: `1px solid ${CRUCIBLE_COLOR.border}`,
-          borderRadius: 14,
+          borderRadius: 3,
           padding: "15px 18px",
         }}
       >

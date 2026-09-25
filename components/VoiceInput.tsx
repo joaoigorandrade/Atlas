@@ -129,7 +129,7 @@ export function MicButton({
             animation: starting
               ? "breathe 1.1s ease-in-out infinite"
               : listening
-                ? "pulseGlow 1.6s ease-in-out infinite"
+                ? "breathe 1.6s ease-in-out infinite"
                 : undefined,
           }}
         >

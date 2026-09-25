@@ -91,11 +91,11 @@ function ToastBody({
           color: error ? color.dangerInk : color.accentInk,
           border: error ? `1px solid rgba(154,64,52,0.24)` : "none",
           padding: "13px 20px",
-          borderRadius: 11,
+          borderRadius: 3,
           fontSize: 14,
           boxShadow: error
             ? "0 12px 32px rgba(154,64,52,0.16)"
-            : "0 12px 32px rgba(44,40,35,0.3)",
+            : "0 12px 32px rgba(43,33,24,0.3)",
           animation:
             state === "in"
               ? `fadeUp ${motion.duration.slow}ms ${motion.ease.enter} both`
@@ -116,7 +116,7 @@ function ToastBody({
                 textTransform: "uppercase",
                 // On ink the kicker is the warm gold the design uses; on the
                 // danger ground it is the same ink at reading weight.
-                color: error ? color.dangerInk : "#c99a2e",
+                color: error ? color.dangerInk : "#b0852c",
                 opacity: error ? 0.72 : 1,
                 marginBottom: 5,
               }}
@@ -134,7 +134,7 @@ function ToastBody({
             style={{
               flexShrink: 0,
               padding: "8px 13px",
-              borderRadius: 9,
+              borderRadius: 3,
               border: error
                 ? `1px solid rgba(154,64,52,0.3)`
                 : `1px solid rgba(247,245,239,0.28)`,
@@ -164,7 +164,7 @@ function ToastBody({
               justifyContent: "center",
               padding: 0,
               border: "none",
-              borderRadius: 6,
+              borderRadius: 2,
               background: "transparent",
               color: error ? color.dangerInk : color.accentInk,
               opacity: 0.55,

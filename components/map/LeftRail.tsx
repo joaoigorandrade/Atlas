@@ -14,6 +14,7 @@ import { color, font, kicker, layout, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import { useCountUp } from "@/lib/motion";
 import HoverHint from "@/components/HoverHint";
+import Button from "@/components/ui/Button";
 import NodeSeal from "@/components/map/NodeSeal";
 
 const STRINGS = {
@@ -75,9 +76,9 @@ const RAIL_BUTTON = {
   justifyContent: "space-between",
   padding: "12px 15px",
   background: color.card,
-  border: "1px solid rgba(44,40,35,0.16)",
-  borderRadius: 11,
-  fontSize: 14,
+  border: `1px solid ${color.rule}`,
+  borderRadius: 2,
+  fontSize: 15,
   color: color.ink,
   cursor: "pointer",
 } as const;
@@ -143,6 +144,9 @@ export default function LeftRail({
   const shownPct = useCountUp(masteryPct);
   const states = Object.values(display);
   const count = (s: NodeState) => states.filter((d) => d === s).length;
+  const total = states.length || 1;
+  const before = (i: number) =>
+    TERRITORY_ORDER.slice(0, i).reduce((n, s) => n + count(s), 0);
   return (
     <div
       style={{
@@ -151,8 +155,8 @@ export default function LeftRail({
         bottom: 0,
         left: 0,
         width: layout.leftRail,
-        background: "rgba(248,246,240,0.94)",
-        borderRight: `1px solid ${color.hairline}`,
+        background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
+        borderRight: `3px double ${color.rule}`,
         padding: "26px 22px",
         zIndex: 15,
         display: "flex",
@@ -164,15 +168,17 @@ export default function LeftRail({
       <div
         style={{
           padding: "14px 15px 15px",
-          border: `1px solid ${color.hairlineStrong}`,
-          borderRadius: 4,
-          // A cartouche: the title block of a printed map, double-ruled.
-          boxShadow: `inset 0 0 0 3px ${color.paper}, inset 0 0 0 4px ${color.hairline}`,
-          background: color.card,
+          textAlign: "center",
+          border: `3px double ${color.rule}`,
+          borderRadius: 2,
+          // A cartouche: the title block of a printed map, double-ruled with a
+          // hairline set inside.
+          boxShadow: `inset 0 0 0 3px ${color.paper}, inset 0 0 0 4px ${color.hairlineStrong}`,
+          background: color.paper,
         }}
       >
-        <div style={{ ...kicker(10), marginBottom: 8 }}>{t.subject}</div>
-        <div style={{ fontFamily: font.serif, fontSize: 24, lineHeight: 1.1 }}>
+        <div style={{ ...kicker(11), marginBottom: 6 }}>❦ {t.subject} ❦</div>
+        <div style={{ fontFamily: font.display, fontSize: 25, lineHeight: 1.1 }}>
           {subject}
         </div>
         {pace && (
@@ -186,7 +192,7 @@ export default function LeftRail({
               color: color.amberInk,
               background: color.amberBg,
               border: "1px solid rgba(160,106,48,0.24)",
-              borderRadius: 7,
+              borderRadius: 2,
               padding: "4px 9px",
             }}
           >
@@ -195,7 +201,7 @@ export default function LeftRail({
                 width: 5,
                 height: 5,
                 borderRadius: "50%",
-                background: "#c99a2e",
+                background: "#b0852c",
               }}
             />
             {t.finalExam(pace.daysLeft)}
@@ -254,7 +260,7 @@ export default function LeftRail({
                     padding: "8px 11px",
                     background: color.card,
                     border: `1px solid ${color.hairlineStrong}`,
-                    borderRadius: 9,
+                    borderRadius: 3,
                     fontSize: 13.5,
                     color: color.ink,
                     cursor: "pointer",
@@ -315,25 +321,28 @@ export default function LeftRail({
         </div>
         {/* The whole territory, split the way the map colours it — mastered
             ground first, uncharted last. */}
+        {/* Each band is the full bar scaled down to its share and slid to its
+            start — on the compositor, where `flex-grow` re-laid-out the rail. */}
         <div
           style={{
-            display: "flex",
-            gap: 2,
+            position: "relative",
             height: 8,
-            borderRadius: 5,
-            background: "rgba(44,40,35,0.06)",
+            border: `1px solid ${color.rule}`,
+            background: "rgba(43,33,24,0.05)",
             overflow: "hidden",
           }}
         >
-          {TERRITORY_ORDER.map((s) => (
+          {TERRITORY_ORDER.map((s, i) => (
             <div
               key={s}
               style={{
-                flexGrow: count(s),
-                flexBasis: 0,
+                position: "absolute",
+                inset: 0,
+                transformOrigin: "0 50%",
+                transform: `translateX(${(100 * before(i)) / total}%) scaleX(${count(s) / total})`,
                 background: STATE_COLOR[s],
                 opacity: s === "unknown" ? 0.28 : 1,
-                transition: transition("flex-grow", "deliberate", "enter"),
+                transition: transition("transform", "deliberate", "enter"),
               }}
             />
           ))}
@@ -357,7 +366,7 @@ export default function LeftRail({
               fontSize: 10.5,
               color: STATE_COLOR.shaky,
               border: `1px solid ${STATE_COLOR.shaky}66`,
-              borderRadius: 6,
+              borderRadius: 2,
               padding: "2px 7px",
             }}
           >
@@ -410,22 +419,12 @@ export default function LeftRail({
       </div>
 
       <div style={{ marginTop: "auto" }}>
-        <button
-          className="at-press"
+        <Button
+          variant={momentumPlaying ? "primary" : "secondary"}
           onClick={onToggleMomentum}
-          style={{
-            width: "100%",
-            padding: "12px 15px",
-            borderRadius: 11,
-            fontSize: 14,
-            cursor: "pointer",
-            background: momentumPlaying ? color.accent : color.card,
-            color: momentumPlaying ? color.accentInk : color.ink,
-            border: `1px solid ${momentumPlaying ? color.accent : "rgba(44,40,35,0.16)"}`,
-          }}
         >
           {momentumPlaying ? t.stopReplay : t.momentumReplay}
-        </button>
+        </Button>
         {momentumPlaying && (
           <div
             style={{

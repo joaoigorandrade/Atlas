@@ -47,11 +47,11 @@ export default function RailToggle({
         padding: "8px 11px",
         background: color.card,
         border: `1px solid ${color.hairlineStrong}`,
-        borderRadius: 9,
+        borderRadius: 3,
         fontSize: 12.5,
         color: color.inkMuted,
         cursor: "pointer",
-        boxShadow: "0 4px 14px rgba(44,40,35,0.08)",
+        boxShadow: "0 4px 14px rgba(43,33,24,0.08)",
       }}
     >
       {plan ? (open ? t.hidePlan : t.showPlan) : open ? t.hideNode : t.showNode}

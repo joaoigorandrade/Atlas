@@ -16,10 +16,10 @@ import { Language } from "@/lib/i18n";
 
 /** The Connect phase's violet palette (its accent everywhere it appears). */
 export const CONNECT_COLOR = {
-  accent: "#8c6b9e",
-  soft: "#f4eef7",
-  border: "rgba(140,107,158,0.35)",
-  glow: "rgba(140,107,158,0.26)",
+  accent: "#7a5a82",
+  soft: "rgba(122,90,130,0.08)",
+  border: "rgba(122,90,130,0.35)",
+  glow: "rgba(122,90,130,0.26)",
 } as const;
 
 /** How the app encodes a node — the auto-detected choice the whole phase turns on. */

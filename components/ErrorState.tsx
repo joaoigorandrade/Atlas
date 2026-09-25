@@ -133,7 +133,7 @@ export function InlineError({
         flexWrap: "wrap",
         gap: 10,
         padding: "11px 14px",
-        borderRadius: 10,
+        borderRadius: 3,
         background: color.dangerBg,
         border: "1px solid rgba(154,64,52,0.2)",
         color: color.dangerInk,
@@ -149,7 +149,7 @@ export function InlineError({
           style={{
             flexShrink: 0,
             padding: "6px 11px",
-            borderRadius: 8,
+            borderRadius: 3,
             border: "1px solid rgba(154,64,52,0.3)",
             background: "transparent",
             color: color.dangerInk,
@@ -168,25 +168,25 @@ export function InlineError({
 
 const primaryButton = {
   padding: "11px 18px",
-  borderRadius: 11,
+  borderRadius: 3,
   border: "none",
   background: color.accent,
   color: color.accentInk,
-  fontFamily: font.sans,
-  fontSize: 14.5,
-  fontWeight: 600,
+  fontFamily: font.caps,
+  fontSize: 15.5,
+  letterSpacing: "0.06em",
   cursor: "pointer",
-  boxShadow: "0 8px 22px rgba(47,107,79,0.24)",
+  boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
 } as const;
 
 const secondaryButton = {
   padding: "11px 18px",
-  borderRadius: 11,
+  borderRadius: 3,
   border: `1px solid ${color.hairlineStrong}`,
   background: color.card,
   color: color.inkSoft,
-  fontFamily: font.sans,
-  fontSize: 14.5,
-  fontWeight: 500,
+  fontFamily: font.caps,
+  fontSize: 15.5,
+  letterSpacing: "0.06em",
   cursor: "pointer",
 } as const;

@@ -37,8 +37,8 @@ export default function Finished({
     <div
       style={{
         background: color.card,
-        border: "1px solid rgba(76,139,99,0.3)",
-        borderRadius: 18,
+        border: "1px solid rgba(74,117,82,0.3)",
+        borderRadius: 3,
         padding: "40px 40px 32px",
         textAlign: "center",
         animation: "fadeUp .4s both",
@@ -79,8 +79,8 @@ export default function Finished({
             alignItems: "center",
             gap: 9,
             background: color.successBg,
-            border: "1px solid rgba(76,139,99,0.32)",
-            borderRadius: 10,
+            border: "1px solid rgba(74,117,82,0.32)",
+            borderRadius: 3,
             padding: "9px 15px",
             margin: "0 auto 24px",
             fontSize: 13.5,
@@ -104,9 +104,9 @@ export default function Finished({
       <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
         <div
           style={{
-            background: "rgba(201,154,46,0.1)",
+            background: "rgba(176,133,44,0.1)",
             border: `1px solid ${STREAK_COLOR.flame}44`,
-            borderRadius: 12,
+            borderRadius: 3,
             padding: "14px 22px",
           }}
         >
@@ -126,8 +126,8 @@ export default function Finished({
         <div
           style={{
             background: color.accentBg,
-            border: "1px solid rgba(47,107,79,0.22)",
-            borderRadius: 12,
+            border: "1px solid rgba(58,106,85,0.22)",
+            borderRadius: 3,
             padding: "14px 22px",
           }}
         >
@@ -146,7 +146,7 @@ export default function Finished({
           style={{
             background: color.cardAlt,
             border: `1px solid ${color.hairlineStrong}`,
-            borderRadius: 12,
+            borderRadius: 3,
             padding: "14px 22px",
           }}
         >
@@ -199,11 +199,12 @@ export default function Finished({
             background: color.accent,
             color: color.accentInk,
             border: "none",
-            borderRadius: 12,
+            borderRadius: 3,
             fontSize: 15,
-            fontWeight: 600,
+            fontFamily: font.caps,
+            letterSpacing: "0.06em",
             cursor: "pointer",
-            boxShadow: "0 8px 22px rgba(47,107,79,0.26)",
+            boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
           }}
         >
           {t.backToMap}
