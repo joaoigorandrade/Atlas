@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { layout } from "@/lib/theme";
-import type { ViewTransform } from "@/components/map/MapCanvas";
+import { zoomAt, type ViewTransform } from "@/components/map/mapGeometry";
 import type { NodeState } from "@/lib/curriculum";
 import { useLanguage } from "@/lib/i18n";
 import { TOAST_STRINGS } from "@/lib/toastCopy";
@@ -55,16 +55,7 @@ export function useCanvas(opts: {
 
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.08 : 0.926;
-    const current = viewRef.current;
-    const nextScale = Math.min(1.7, Math.max(0.4, current.scale * factor));
-    const mx = e.clientX;
-    const my = e.clientY;
-    setView({
-      x: mx - (mx - current.x) * (nextScale / current.scale),
-      y: my - (my - current.y) * (nextScale / current.scale),
-      scale: nextScale,
-    });
+    setView(zoomAt(viewRef.current, e.deltaY < 0 ? 1.08 : 0.926, e.clientX, e.clientY));
   }, []);
 
   const onCanvasDown = useCallback(

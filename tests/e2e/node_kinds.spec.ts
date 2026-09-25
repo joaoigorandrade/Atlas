@@ -142,7 +142,9 @@ test.describe("the phase catalogue, end to end", () => {
     });
 
     await clearRuns(page.request);
-    await runOnboarding(page);
+    // Paced: the intermediate frontiers (Notation, The core rule) are only
+    // warmed if the placement pauses on them past the warm pass's settle.
+    await runOnboarding(page, { settleMs: 900 });
 
     // Waits on the four nodes this test is actually about — one per kind —
     // rather than on the whole map's warm having drained. The warm queue is

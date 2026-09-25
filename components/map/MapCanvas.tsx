@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  STATE_COLOR,
   ancestorsOf,
   type ConceptEdge,
   type ConceptNode,
@@ -11,23 +10,35 @@ import {
   type PhasesDoneMap,
   type ShakyReason,
 } from "@/lib/curriculum";
-import { color, font, motion, transition } from "@/lib/theme";
+import { color, layout } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import NodeHoverCard, { useDwell } from "@/components/map/NodeHoverCard";
+import MapNode, { SEAL } from "@/components/map/MapNode";
+import MapEdges from "@/components/map/MapEdges";
+import MapControls from "@/components/map/MapControls";
+import { Fog, Terrain } from "@/components/map/MapTerrain";
+import {
+  fitView,
+  mapBounds,
+  stageBands,
+  type ViewTransform,
+} from "@/components/map/mapGeometry";
+
+export type { ViewTransform } from "@/components/map/mapGeometry";
+export { CELEBRATE_MS } from "@/components/map/MapNode";
 
 const STRINGS = {
-  en: { gap: "gap" },
-  "pt-BR": { gap: "lacuna" },
+  en: {
+    gap: "gap",
+    canvas:
+      "Concept map — scroll to zoom, drag to pan, double-click a lit concept to begin",
+  },
+  "pt-BR": {
+    gap: "lacuna",
+    canvas:
+      "Mapa de conceitos — role para dar zoom, arraste para mover, dê dois cliques num conceito aceso para começar",
+  },
 } as const;
-
-export interface ViewTransform {
-  x: number;
-  y: number;
-  scale: number;
-}
-
-/** Amber used for the "learn these first" path (the frontier glow color). */
-const PATH_COLOR = "#c99a2e";
 
 interface MapCanvasProps {
   screen: "map" | "building" | "diagnostic";
@@ -72,6 +83,11 @@ interface MapCanvasProps {
   onNodeSelect: (id: string) => void;
   onNodeDoubleClick: (id: string) => void;
   onNodeHover: (id: string | null) => void;
+  /** The instruments move the view directly — zoom, frame, overview. */
+  onView: (view: ViewTransform) => void;
+  /** The rails over each side of the canvas right now; the instruments sit
+   *  clear of them, and framing centres in what is left. */
+  insets: { left: number; right: number };
 }
 
 export default function MapCanvas({
@@ -98,6 +114,8 @@ export default function MapCanvas({
   onNodeSelect,
   onNodeDoubleClick,
   onNodeHover,
+  onView,
+  insets,
 }: MapCanvasProps) {
   const t = useT(STRINGS);
   const elRef = useRef<HTMLDivElement | null>(null);
@@ -153,8 +171,8 @@ export default function MapCanvas({
     if (!node || !pos || !box.h) return null;
     const x = view.x + pos.x * view.scale;
     const y = view.y + pos.y * view.scale;
-    // Half a chip, scaled — the card clears the node it points at.
-    const reach = 21 * view.scale;
+    // The seal and the name under it, scaled — the card clears both.
+    const reach = (SEAL / 2 + 26) * view.scale;
     return {
       node,
       displayState: display[node.id] ?? "unknown",
@@ -189,13 +207,38 @@ export default function MapCanvas({
   ]);
 
   const q = query.trim().toLowerCase();
+  const ids = useMemo(() => nodes.map((n) => n.id), [nodes]);
+  const bounds = useMemo(() => mapBounds(positions, ids), [positions, ids]);
+  const stages = useMemo(() => stageBands(nodes, positions), [nodes, positions]);
+  const building = screen === "building";
+
+  // Frame the whole map the first time it is on screen — a reload used to open
+  // on a fixed corner of it, half under the plan rail. Opening a fresh map
+  // still lands on its lit node: onboarding's `centerOn` runs after this.
+  const framed = useRef(false);
+  useEffect(() => {
+    if (screen !== "map" || !bounds || !box.w || framed.current) return;
+    framed.current = true;
+    onView(fitView(bounds, box, { ...insets, top: layout.topBar, bottom: 0 }));
+  }, [screen, bounds, box, insets, onView]);
+  const clear = (id: string) =>
+    (display[id] ?? "unknown") !== "unknown" ||
+    id === selectedId ||
+    Boolean(lockedPath?.has(id) || highlighted?.has(id)) ||
+    Boolean(
+      q &&
+      nodes
+        .find((n) => n.id === id)
+        ?.label.toLowerCase()
+        .includes(q),
+    );
 
   return (
     <div
       ref={elRef}
       data-testid="map-canvas"
       role="application"
-      aria-label="Concept map — scroll to zoom, drag to pan, double-click a lit node to begin"
+      aria-label={t.canvas}
       onMouseDown={(e) => {
         setDragging(true);
         onCanvasDown(e);
@@ -205,8 +248,10 @@ export default function MapCanvas({
         inset: 0,
         cursor: "grab",
         background: color.paper,
-        backgroundImage: "radial-gradient(rgba(44,40,35,0.05) 1px, transparent 1px)",
-        backgroundSize: "26px 26px",
+        // A vignette, fixed to the window rather than the map: the paper
+        // darkens toward its edges the way an old sheet does.
+        backgroundImage:
+          "radial-gradient(ellipse at 55% 45%, transparent 55%, rgba(44,40,35,0.07) 100%)",
       }}
     >
       <div
@@ -219,246 +264,96 @@ export default function MapCanvas({
           willChange: "transform",
         }}
       >
-        <svg
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            overflow: "visible",
-            pointerEvents: "none",
-          }}
-          width={2000}
-          height={860}
-        >
-          {edges.map(([a, b, dashed], i) => {
-            const pa = positions[a];
-            const pb = positions[b];
-            if (!pa || !pb) return null;
-            const hoverLit = highlighted?.has(a) && highlighted?.has(b);
-            const pathLit = lockedPath?.has(a) && lockedPath?.has(b);
-            return (
-              <g key={i}>
-                <line
-                  x1={pa.x}
-                  y1={pa.y}
-                  x2={pb.x}
-                  y2={pb.y}
-                  stroke={
-                    dashed
-                      ? "rgba(193,87,74,0.5)"
-                      : hoverLit
-                        ? color.accent
-                        : pathLit
-                          ? PATH_COLOR
-                          : "rgba(44,40,35,0.16)"
-                  }
-                  strokeWidth={hoverLit || pathLit ? 2 : 1.2}
-                  strokeDasharray={dashed ? "5 6" : "0"}
-                  strokeLinecap="round"
-                  style={{
-                    transition: transition(["stroke", "stroke-width"], "fast"),
-                  }}
-                />
-                {/* Invisible hit area: hovering an edge highlights the
-                    prerequisite chain of its dependent end. */}
-                <line
-                  x1={pa.x}
-                  y1={pa.y}
-                  x2={pb.x}
-                  y2={pb.y}
-                  stroke="transparent"
-                  strokeWidth={14}
-                  style={{ pointerEvents: "stroke", cursor: "pointer" }}
-                  onMouseEnter={() => onNodeHover(b)}
-                  onMouseLeave={() => onNodeHover(null)}
-                />
-              </g>
-            );
-          })}
-        </svg>
+        {bounds && (
+          <svg
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              overflow: "visible",
+              pointerEvents: "none",
+            }}
+            width={1}
+            height={1}
+          >
+            <Terrain
+              ids={ids}
+              edges={edges}
+              positions={positions}
+              display={display}
+              bounds={bounds}
+              stages={stages}
+              land={!building}
+            />
+            <MapEdges
+              edges={edges}
+              positions={positions}
+              display={display}
+              highlighted={highlighted}
+              lockedPath={lockedPath}
+              building={building}
+              onHover={onNodeHover}
+            />
+            <Fog
+              ids={ids}
+              positions={positions}
+              clear={clear}
+              bounds={bounds}
+              stages={stages}
+              on={screen === "map"}
+            />
+          </svg>
+        )}
 
-        {nodes.map((node, i) => {
-          const pos = positions[node.id];
-          const displayState = display[node.id] ?? "unknown";
-          const dotColor = STATE_COLOR[displayState];
-          const isFrontier = displayState === "frontier";
-          const isSelected = selectedId === node.id;
-          const onPath = Boolean(lockedPath?.has(node.id)) && !isSelected;
-          const matches = !q || node.label.toLowerCase().includes(q);
-          // A node left unknown after derivation is locked by definition;
-          // keep the assemble moment uniform while the map is building.
-          const dimmedLock = displayState === "unknown" && screen !== "building";
-          const justEarned = won[node.id];
-          // Split across the two layers on purpose. `assemble` animates
-          // `transform`, so it has to sit on the positioner — the layer whose
-          // `translate(-50%,-50%)` it bakes in. If it ran on the chip its
-          // `both` fill would pin `transform: scale(1)` forever and the
-          // `.at-lift` hover could never take effect. `pulseGlow` animates
-          // box-shadow only, so it is safe on the chip.
-          const arrival =
-            screen === "building"
-              ? `assemble 0.5s ${staggered ? (0.04 * i).toFixed(2) : "0"}s both`
-              : spawnedIds.has(node.id)
-                ? "assemble 0.45s both"
-                : "none";
-
-          return (
-            // Positioner. Owns `left`/`top` and the centring transform, so the
-            // chip inside is free to use `transform` for hover — the two must
-            // not share a property or the class and the inline style collide.
-            <div
-              key={node.id}
-              style={{
-                position: "absolute",
-                left: pos.x,
-                top: pos.y,
-                transform: "translate(-50%,-50%)",
-                zIndex: isSelected ? 6 : isFrontier ? 4 : 2,
-                // While building, `left`/`top` are transitioned: streamed
-                // concepts are placed with a provisional vertical offset (a
-                // column can't be centred until its height is known), and the
-                // settling pass at the end of the stream moves them. Only while
-                // building — dragging a node on the real map must track the
-                // cursor exactly.
-                transition:
-                  screen === "building"
-                    ? transition(["left", "top"], "slow", "enter")
-                    : undefined,
-                animation: arrival,
-              }}
-            >
-              <div
-                className="at-lift"
-                data-testid={`node-${node.id}`}
-                data-state={displayState}
-                role="button"
-                tabIndex={0}
-                aria-label={`${node.label} — ${displayState}`}
-                onKeyDown={(e) => {
-                  // The map is a mouse surface — pan, drag, double-click to
-                  // begin — and none of that is reachable from a keyboard.
-                  // Enter selects (opening the detail rail, whose phase buttons
-                  // are ordinary buttons), and that is the whole ladder: every
-                  // action on a node lives in that rail.
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onNodeSelect(node.id);
-                  }
-                }}
-                onMouseDown={(e) => {
-                  // A node's press stops propagating (it starts a drag, not a
-                  // pan), so the card is closed from here too.
-                  setDragging(true);
-                  onNodeDown(e, node.id);
-                }}
-                onDoubleClick={() => onNodeDoubleClick(node.id)}
-                onMouseEnter={() => onNodeHover(node.id)}
-                onMouseLeave={() => onNodeHover(null)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  padding: "10px 15px",
-                  background: color.card,
-                  // One shorthand, not `border` plus a `borderStyle` override:
-                  // mixing them makes React rewrite the style during render and
-                  // warn on every node, every render.
-                  border: `1px ${dimmedLock ? "dashed" : "solid"} ${
-                    isSelected
-                      ? color.accent
-                      : onPath
-                        ? "rgba(201,154,46,0.75)"
-                        : isFrontier
-                          ? "rgba(201,154,46,0.5)"
-                          : color.hairlineStrong
-                  }`,
-                  borderRadius: 12,
-                  whiteSpace: "nowrap",
-                  cursor: "pointer",
-                  userSelect: "none",
-                  fontFamily: font.serif,
-                  fontSize: 15,
-                  color: color.ink,
-                  opacity:
-                    dimmedLock && !onPath && !isSelected ? 0.5 : matches ? 1 : 0.26,
-                  boxShadow: isFrontier
-                    ? "0 0 0 1px rgba(201,154,46,0.5), 0 6px 22px rgba(201,154,46,0.26)"
-                    : isSelected
-                      ? "0 10px 26px rgba(47,107,79,0.2)"
-                      : onPath
-                        ? "0 0 0 1px rgba(201,154,46,0.45), 0 4px 14px rgba(201,154,46,0.18)"
-                        : "0 2px 7px rgba(44,40,35,0.06)",
-                  animation: isFrontier ? "pulseGlow 2.8s ease-in-out infinite" : "none",
-                }}
-              >
-                {/* The status dot, and — the moment it changes to something
-                    earned — a ring pressed out of it. A separate element
-                    because an inline style has no `::after` to put it on. */}
-                <span
-                  style={{
-                    position: "relative",
-                    width: 9,
-                    height: 9,
-                    flex: "0 0 auto",
-                    display: "block",
-                  }}
-                >
-                  <span
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      borderRadius: "50%",
-                      background: dotColor,
-                      boxShadow: isFrontier ? `0 0 8px ${dotColor}` : "none",
-                      // A node changing state is the point of the whole
-                      // product; let the colour arrive rather than snap.
-                      transition: transition(["background", "box-shadow"], "slow"),
-                      animation: justEarned
-                        ? `markPop ${CELEBRATE_MS}ms ${motion.ease.spring} both`
-                        : undefined,
-                    }}
-                  />
-                  {justEarned && (
-                    <span
-                      aria-hidden
-                      style={{
-                        position: "absolute",
-                        inset: -1,
-                        borderRadius: "50%",
-                        border: `2px solid ${STATE_COLOR[justEarned]}`,
-                        animation: `bloom ${CELEBRATE_MS}ms ${motion.ease.enter} both`,
-                        pointerEvents: "none",
-                      }}
-                    />
-                  )}
-                </span>
-                <span>{node.label}</span>
-                {displayState === "gap" && (
-                  <span
-                    style={{
-                      fontFamily: font.mono,
-                      fontSize: 9.5,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                      color: "#c1574a",
-                      border: "1px solid rgba(193,87,74,0.4)",
-                      borderRadius: 5,
-                      padding: "1px 5px",
-                      marginLeft: 2,
-                    }}
-                  >
-                    {t.gap}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {nodes.map((node, i) => (
+          <MapNode
+            key={node.id}
+            node={node}
+            pos={positions[node.id]}
+            state={display[node.id] ?? "unknown"}
+            done={phasesDone?.[node.id]}
+            arrival={
+              building
+                ? `assemble 0.5s ${staggered ? (0.04 * i).toFixed(2) : "0"}s both`
+                : spawnedIds.has(node.id)
+                  ? "assemble 0.45s both"
+                  : "none"
+            }
+            building={building}
+            selected={selectedId === node.id}
+            onPath={Boolean(lockedPath?.has(node.id)) && selectedId !== node.id}
+            matches={!q || node.label.toLowerCase().includes(q)}
+            earned={won[node.id]}
+            gapLabel={t.gap}
+            onSelect={() => onNodeSelect(node.id)}
+            onDown={(e) => {
+              // A node's press stops propagating (it starts a drag, not a
+              // pan), so the card is closed from here too.
+              setDragging(true);
+              onNodeDown(e, node.id);
+            }}
+            onOpen={() => onNodeDoubleClick(node.id)}
+            onHover={(on) => onNodeHover(on ? node.id : null)}
+          />
+        ))}
       </div>
 
-      {/* Outside the transformed layer on purpose: the card is chrome, so it
-          keeps its own type size and shadow at every zoom level. */}
+      {/* Outside the transformed layer on purpose: the card and the
+          instruments are chrome, so they keep their own type size and shadow
+          at every zoom level. */}
       <NodeHoverCard shown={peek} />
+      {screen === "map" && box.w > 0 && (
+        <MapControls
+          ids={ids}
+          edges={edges}
+          positions={positions}
+          display={display}
+          view={view}
+          box={box}
+          insets={{ ...insets, top: layout.topBar, bottom: 0 }}
+          onView={onView}
+        />
+      )}
     </div>
   );
 }
@@ -466,5 +361,3 @@ export default function MapCanvas({
 /** Half the peek card's width, and how much room it needs below a node. */
 const CARD_HALF = 136;
 const CARD_CLEARANCE = 190;
-
-export const CELEBRATE_MS = 900;

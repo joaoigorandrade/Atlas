@@ -14,6 +14,7 @@ import { color, font, kicker, layout, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import { useCountUp } from "@/lib/motion";
 import HoverHint from "@/components/HoverHint";
+import NodeSeal from "@/components/map/NodeSeal";
 
 const STRINGS = {
   en: {
@@ -68,6 +69,28 @@ const STRINGS = {
   },
 } as const;
 
+const RAIL_BUTTON = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: "12px 15px",
+  background: color.card,
+  border: "1px solid rgba(44,40,35,0.16)",
+  borderRadius: 11,
+  fontSize: 14,
+  color: color.ink,
+  cursor: "pointer",
+} as const;
+
+const TERRITORY_ORDER: NodeState[] = [
+  "mastered",
+  "learning",
+  "shaky",
+  "frontier",
+  "gap",
+  "unknown",
+];
+
 const LEGEND_ORDER: NodeState[] = [
   "frontier",
   "learning",
@@ -93,6 +116,8 @@ interface LeftRailProps {
   onCalibration: () => void;
   onToggleMomentum: () => void;
   onPickNode: (id: string) => void;
+  /** Display state per node — the legend counts it, the territory bar splits by it. */
+  display: Record<string, NodeState>;
 }
 
 export default function LeftRail({
@@ -108,6 +133,7 @@ export default function LeftRail({
   onCalibration,
   onToggleMomentum,
   onPickNode,
+  display,
 }: LeftRailProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -115,6 +141,8 @@ export default function LeftRail({
   // One value drives both now — and it snaps on the first read, so a restored
   // run doesn't count up from zero every time the map opens.
   const shownPct = useCountUp(masteryPct);
+  const states = Object.values(display);
+  const count = (s: NodeState) => states.filter((d) => d === s).length;
   return (
     <div
       style={{
@@ -133,7 +161,16 @@ export default function LeftRail({
         overflowY: "auto",
       }}
     >
-      <div>
+      <div
+        style={{
+          padding: "14px 15px 15px",
+          border: `1px solid ${color.hairlineStrong}`,
+          borderRadius: 4,
+          // A cartouche: the title block of a printed map, double-ruled.
+          boxShadow: `inset 0 0 0 3px ${color.paper}, inset 0 0 0 4px ${color.hairline}`,
+          background: color.card,
+        }}
+      >
         <div style={{ ...kicker(10), marginBottom: 8 }}>{t.subject}</div>
         <div style={{ fontFamily: font.serif, fontSize: 24, lineHeight: 1.1 }}>
           {subject}
@@ -224,16 +261,7 @@ export default function LeftRail({
                     textAlign: "left",
                   }}
                 >
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: STATE_COLOR.frontier,
-                      boxShadow: `0 0 6px ${STATE_COLOR.frontier}`,
-                      flex: "0 0 auto",
-                    }}
-                  />
+                  <NodeSeal node={node} state="frontier" size={20} />
                   <span
                     style={{
                       flex: 1,
@@ -285,71 +313,41 @@ export default function LeftRail({
             {Math.round(shownPct)}%
           </span>
         </div>
+        {/* The whole territory, split the way the map colours it — mastered
+            ground first, uncharted last. */}
         <div
           style={{
+            display: "flex",
+            gap: 2,
             height: 8,
             borderRadius: 5,
-            background: "rgba(44,40,35,0.08)",
+            background: "rgba(44,40,35,0.06)",
             overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              width: `${shownPct}%`,
-              height: "100%",
-              background: color.accent,
-              borderRadius: 5,
-              transition: transition("width", "deliberate", "enter"),
-            }}
-          />
+          {TERRITORY_ORDER.map((s) => (
+            <div
+              key={s}
+              style={{
+                flexGrow: count(s),
+                flexBasis: 0,
+                background: STATE_COLOR[s],
+                opacity: s === "unknown" ? 0.28 : 1,
+                transition: transition("flex-grow", "deliberate", "enter"),
+              }}
+            />
+          ))}
         </div>
       </div>
 
-      <button
-        className="at-press"
-        onClick={onJumpFrontier}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 15px",
-          background: color.card,
-          border: "1px solid rgba(44,40,35,0.16)",
-          borderRadius: 11,
-          fontSize: 14,
-          color: color.ink,
-          cursor: "pointer",
-        }}
-      >
+      <button className="at-press" onClick={onJumpFrontier} style={RAIL_BUTTON}>
         <span>{t.jumpToFrontier}</span>
-        <span style={{ color: "#c99a2e" }}>→</span>
+        <span style={{ color: STATE_COLOR.frontier }}>→</span>
       </button>
 
-      <button
-        className="at-press"
-        onClick={onCalibration}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 15px",
-          background: color.card,
-          border: "1px solid rgba(44,40,35,0.16)",
-          borderRadius: 11,
-          fontSize: 14,
-          color: color.ink,
-          cursor: "pointer",
-        }}
-      >
+      <button className="at-press" onClick={onCalibration} style={RAIL_BUTTON}>
         <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: STATE_COLOR.shaky,
-            }}
-          />
+          <NodeSeal node={{}} state="shaky" size={10} ring={false} />
           {t.calibration}
         </span>
         {calibOver > 0 ? (
@@ -394,20 +392,17 @@ export default function LeftRail({
                   cursor: "default",
                 }}
               >
+                <NodeSeal node={{}} state={state} size={12} ring={false} />
+                <span style={{ flex: 1 }}>
+                  {stateLabel(state, language)
+                    .replace(" · ready", "")
+                    .replace(" · pronto", "")}
+                </span>
                 <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    background: STATE_COLOR[state],
-                    flex: "0 0 auto",
-                    boxShadow:
-                      state === "frontier" ? `0 0 7px ${STATE_COLOR[state]}` : "none",
-                  }}
-                />
-                {stateLabel(state, language)
-                  .replace(" · ready", "")
-                  .replace(" · pronto", "")}
+                  style={{ fontFamily: font.mono, fontSize: 11, color: color.inkFaint }}
+                >
+                  {count(state)}
+                </span>
               </div>
             </HoverHint>
           ))}

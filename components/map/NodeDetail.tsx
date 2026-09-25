@@ -27,6 +27,7 @@ import Rich from "@/components/Rich";
 import { SkeletonBars } from "@/components/Pending";
 
 import { STRINGS } from "@/components/map/nodeDetailCopy";
+import NodeSeal from "@/components/map/NodeSeal";
 
 interface NodeDetailProps {
   node: ConceptNode;
@@ -216,6 +217,14 @@ function NodeDetailBody({
     </button>
   );
 
+  const chips = (title: string, ids: string[], marginTop: number) =>
+    ids.length > 0 && (
+      <div style={{ marginTop }}>
+        <div style={{ ...kicker(10), marginBottom: 10 }}>{title}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{ids.map(chip)}</div>
+      </div>
+    );
+
   return (
     <div
       data-testid="panel-node"
@@ -239,58 +248,36 @@ function NodeDetailBody({
             : `drawerOut ${EXIT_MS}ms ${motion.ease.exit} both`,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 6,
-        }}
-      >
-        <span
-          style={{
-            width: 11,
-            height: 11,
-            borderRadius: "50%",
-            background: stateColor,
-            boxShadow: displayState === "frontier" ? `0 0 7px ${stateColor}` : "none",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: font.mono,
-            fontSize: 11,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: stateColor,
-          }}
-        >
-          {stateLabel(displayState, language)}
-        </span>
-      </div>
-      <div
-        style={{
-          fontFamily: font.serif,
-          fontSize: isGap ? 21 : 26,
-          fontStyle: isGap ? "italic" : "normal",
-          lineHeight: 1.14,
-          marginBottom: 14,
-        }}
-      >
-        {node.label}
+      {/* The same mark the map draws this concept with, at field-card size —
+          ring and all, so the phases below have a picture above them. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+        <NodeSeal node={node} state={displayState} done={phasesDone} size={50} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ ...kicker(10.5, "0.14em"), color: stateColor, marginBottom: 4 }}>
+            {stateLabel(displayState, language)}
+          </div>
+          <div
+            style={{
+              fontFamily: font.serif,
+              fontSize: isGap ? 21 : 26,
+              fontStyle: isGap ? "italic" : "normal",
+              lineHeight: 1.1,
+            }}
+          >
+            {node.label}
+          </div>
+        </div>
       </div>
 
       <div
         style={{
-          fontSize: 13.5,
-          lineHeight: 1.55,
+          fontFamily: font.serif,
+          fontSize: 16,
+          lineHeight: 1.5,
           color: color.inkSoft,
-          background: color.card,
-          border: `1px solid ${color.hairline}`,
-          borderLeft: `3px solid ${stateColor}`,
-          borderRadius: 9,
-          padding: "13px 15px",
-          marginBottom: 22,
+          borderLeft: `2px solid ${stateColor}`,
+          padding: "2px 0 2px 15px",
+          marginBottom: 24,
           ...(summary || !summaryWriting
             ? null
             : { display: "flex", flexDirection: "column", gap: 8 }),
@@ -366,12 +353,30 @@ function NodeDetailBody({
           <div style={{ ...kicker(10), marginBottom: 12 }}>{t.phaseSpiral}</div>
           <div
             style={{
+              position: "relative",
               display: "flex",
               flexDirection: "column",
               gap: 2,
               marginBottom: 24,
             }}
           >
+            {/* The route: one line through every station, inked as far as the
+                learner has walked it. The stations sit on top of it. */}
+            {[1, Math.max(currentPhase, 0) / Math.max(plan.length - 1, 1)].map((f, k) => (
+              <span
+                key={k}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: 20,
+                  width: 2,
+                  height: `calc((100% - 40px) * ${Math.min(f, 1)})`,
+                  background: k ? STATE_COLOR.mastered : color.hairlineStrong,
+                  transition: transition("height", "deliberate", "enter"),
+                }}
+              />
+            ))}
             {plan.map((id, i) => {
               const name = phaseLabel(id);
               // Done because the ledger says so, not because it sits left of
@@ -388,7 +393,11 @@ function NodeDetailBody({
                       : "locked";
               const isCurrent = status === "current";
               const markerColor =
-                status === "done" ? "#4c8b63" : isCurrent ? stateColor : "#c3bdb2";
+                status === "done"
+                  ? STATE_COLOR.mastered
+                  : isCurrent
+                    ? stateColor
+                    : "#c3bdb2";
               // Done phases re-open, the current one starts, and later ones can
               // be jumped to (after the nudge). Only a locked node stays inert.
               const clickable = currentPhase >= 0;
@@ -422,6 +431,7 @@ function NodeDetailBody({
                 >
                   <span
                     style={{
+                      position: "relative",
                       width: 22,
                       height: 22,
                       borderRadius: "50%",
@@ -430,12 +440,13 @@ function NodeDetailBody({
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: 12,
+                      // Opaque, so the route line passes behind the station.
                       background:
                         status === "done"
-                          ? "rgba(76,139,99,0.14)"
+                          ? color.successBg
                           : isCurrent
-                            ? "rgba(201,154,46,0.14)"
-                            : "transparent",
+                            ? color.amberBg
+                            : color.paper,
                       border: `1px solid ${status === "locked" ? color.hairlineStrong : markerColor}`,
                       color: markerColor,
                       transition: transition(
@@ -630,32 +641,9 @@ function NodeDetailBody({
         </button>
       )}
 
-      {gapIds.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ ...kicker(10), marginBottom: 10 }}>{t.openGaps}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {gapIds.map(chip)}
-          </div>
-        </div>
-      )}
-
-      {prereqIds.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ ...kicker(10), marginBottom: 10 }}>{edgeLabel.back}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {prereqIds.map(chip)}
-          </div>
-        </div>
-      )}
-
-      {dependentIds.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <div style={{ ...kicker(10), marginBottom: 10 }}>{edgeLabel.forward}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {dependentIds.map(chip)}
-          </div>
-        </div>
-      )}
+      {chips(t.openGaps, gapIds, 24)}
+      {chips(edgeLabel.back, prereqIds, 24)}
+      {chips(edgeLabel.forward, dependentIds, 20)}
     </div>
   );
 }

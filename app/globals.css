@@ -104,17 +104,23 @@ textarea {
   transform: none;
 }
 
-@keyframes pulseGlow {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 1px rgba(201, 154, 46, 0.55),
-      0 4px 16px rgba(201, 154, 46, 0.18);
+/* The map's roads: a trail into the frontier flows toward it, and every road
+   inks itself in while the map is drawn (its `pathLength` is 1 then). */
+@keyframes trailFlow {
+  from {
+    stroke-dashoffset: 13;
   }
-  50% {
-    box-shadow:
-      0 0 0 1px rgba(201, 154, 46, 0.75),
-      0 6px 30px rgba(201, 154, 46, 0.42);
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes inkIn {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
 

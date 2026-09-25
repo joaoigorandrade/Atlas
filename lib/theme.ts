@@ -44,6 +44,21 @@ export const layout = {
   railsMin: 1280,
 } as const;
 
+/**
+ * The map canvas drawn as a map: roads between known concepts, an amber trail
+ * into the frontier, fog over the uncharted part, a graticule underneath.
+ * Mastery colours stay `STATE_COLOR`; these are the cartography around them.
+ */
+export const map = {
+  road: "rgba(44,40,35,0.34)",
+  track: "rgba(44,40,35,0.16)",
+  trail: "#c99a2e",
+  gapInk: "#c1574a",
+  fog: "rgba(244,241,234,0.62)",
+  graticule: "rgba(44,40,35,0.08)",
+  meridian: "rgba(44,40,35,0.1)",
+} as const;
+
 export const font = {
   serif: "var(--font-serif), Newsreader, serif",
   sans: "var(--font-sans), 'Instrument Sans', system-ui, sans-serif",

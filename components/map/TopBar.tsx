@@ -95,6 +95,9 @@ export default function TopBar({
         <div
           onClick={onHome}
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
             fontFamily: font.serif,
             fontSize: 19,
             fontWeight: 600,
@@ -102,6 +105,12 @@ export default function TopBar({
             cursor: "pointer",
           }}
         >
+          {/* The wordmark's compass point — the same rose the map frames with. */}
+          <svg width={18} height={18} viewBox="-10 -10 20 20" aria-hidden>
+            <circle r={9} fill="none" stroke={color.ink} strokeWidth={1.1} />
+            <path d="M0,-7.5 L2.2,0 L0,7.5 L-2.2,0 Z" fill={color.ink} />
+            <path d="M0,-7.5 L2.2,0 L-2.2,0 Z" fill={color.accent} />
+          </svg>
           Atlas
         </div>
       </HoverHint>
@@ -155,14 +164,22 @@ export default function TopBar({
           padding: "8px 12px",
         }}
       >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            border: `1.5px solid ${color.inkGhost}`,
-            borderRadius: "50%",
-          }}
-        />
+        <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden>
+          <circle
+            cx={6}
+            cy={6}
+            r={4.3}
+            fill="none"
+            stroke={color.inkFaint}
+            strokeWidth={1.4}
+          />
+          <path
+            d="M9.2 9.2 L12.6 12.6"
+            stroke={color.inkFaint}
+            strokeWidth={1.4}
+            strokeLinecap="round"
+          />
+        </svg>
         <input
           value={query}
           onChange={(e) => onQuery(e.target.value)}

@@ -22,6 +22,7 @@ import {
 } from "@/lib/curriculum";
 import { color, font, motion } from "@/lib/theme";
 import { usePresence } from "@/lib/motion";
+import NodeSeal from "@/components/map/NodeSeal";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -187,7 +188,7 @@ function Body({
           background: "rgba(251,249,244,0.97)",
           backdropFilter: "blur(7px)",
           border: `1px solid ${color.hairlineStrong}`,
-          borderLeft: `3px solid ${stateColor}`,
+          borderTop: `3px solid ${stateColor}`,
           borderRadius: 12,
           boxShadow: "0 16px 40px rgba(44,40,35,0.17)",
           padding: "12px 14px 11px",
@@ -205,16 +206,7 @@ function Body({
             marginBottom: 5,
           }}
         >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: stateColor,
-              boxShadow: displayState === "frontier" ? `0 0 6px ${stateColor}` : "none",
-              flex: "0 0 auto",
-            }}
-          />
+          <NodeSeal node={node} state={displayState} done={phasesDone} size={18} />
           <span
             style={{
               fontFamily: font.mono,

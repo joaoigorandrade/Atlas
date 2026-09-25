@@ -72,8 +72,16 @@ async function writeTables(request: APIRequestContext, tables: Tables): Promise<
   expect(res.ok()).toBeTruthy();
 }
 
-/** Onboarding, driven for real: topic → goal → build → placement → map. */
-export async function runOnboarding(page: Page): Promise<void> {
+/** Onboarding, driven for real: topic → goal → build → placement → map.
+ *
+ *  `settleMs` pauses after each placement answer. Each answer moves the
+ *  frontier, and the warm pass only fires once the plan has been still for
+ *  600ms (`useWarming`), so a spec that asserts on what that pass requests has
+ *  to give it the quiet it waits for, rather than rely on the clicks being slow. */
+export async function runOnboarding(
+  page: Page,
+  { settleMs = 0 }: { settleMs?: number } = {},
+): Promise<void> {
   await page.goto("/");
   await page.getByTestId("screen-welcome").waitFor();
   await page.getByTestId("field-topic").fill(TOPIC);
@@ -88,6 +96,7 @@ export async function runOnboarding(page: Page): Promise<void> {
     // The fixture question's correct option is index 1 (lib/server/fixtures.ts).
     await page.getByTestId("action-answer-1").click({ timeout: 20_000 });
     await page.getByTestId("action-next").click();
+    if (settleMs) await page.waitForTimeout(settleMs);
   }
   await page.getByTestId("action-start").click({ timeout: 20_000 });
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");

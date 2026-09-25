@@ -68,7 +68,6 @@ import OfflineBanner from "@/components/OfflineBanner";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
 
 import RailToggle from "@/components/map/RailToggle";
-import CanvasHint from "@/components/map/CanvasHint";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 
@@ -644,6 +643,7 @@ export default function AtlasApp({
     );
   }
   const narrow = vw < layout.railsMin;
+  const pickNode = (id: string) => (setSelectedId(id), centerOn(id));
   const errorStrings = ERROR_STRINGS[language];
 
   /**
@@ -726,12 +726,14 @@ export default function AtlasApp({
           onWheel={onWheel}
           onCanvasDown={onCanvasDown}
           onNodeDown={onNodeDown}
-          onNodeSelect={(id) => {
-            setSelectedId(id);
-            centerOn(id);
-          }}
+          onNodeSelect={pickNode}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeHover={hoverNode}
+          onView={setView}
+          insets={{
+            left: !narrow || railOpen ? layout.leftRail : 0,
+            right: selectedNode && (!narrow || detailOpen) ? layout.nodePanel : 0,
+          }}
         />
       )}
 
@@ -776,10 +778,8 @@ export default function AtlasApp({
               onJumpFrontier={jumpFrontier}
               onCalibration={enterCalib}
               onToggleMomentum={toggleMomentum}
-              onPickNode={(id) => {
-                setSelectedId(id);
-                centerOn(id);
-              }}
+              onPickNode={pickNode}
+              display={display}
             />
           )}
           {/* Always mounted: the drawer owns its own enter and exit, so it
@@ -827,7 +827,6 @@ export default function AtlasApp({
               )}
             </>
           )}
-          <CanvasHint left={!narrow || railOpen ? 280 : 18} />
         </>
       )}
 
