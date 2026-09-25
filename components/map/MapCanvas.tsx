@@ -16,7 +16,7 @@ import NodeHoverCard, { useDwell } from "@/components/map/NodeHoverCard";
 import MapNode, { SEAL } from "@/components/map/MapNode";
 import MapEdges from "@/components/map/MapEdges";
 import MapControls from "@/components/map/MapControls";
-import { Fog, Terrain } from "@/components/map/MapTerrain";
+import { Fog, Land, StageLabels, Terrain } from "@/components/map/MapTerrain";
 import {
   fitView,
   mapBounds,
@@ -273,45 +273,40 @@ export default function MapCanvas({
           willChange: "transform",
         }}
       >
-        {/* Three SVGs, each its own compositor layer, so the edges' endless
-            trail animation never forces the land filter to re-run. */}
+        {/* The land and the fog are baked into bitmaps (see `Baked`); only
+            the strokes and the labels are live SVG. */}
         {bounds && (
-          <svg style={layer} width={1} height={1}>
-            <Terrain
-              ids={ids}
-              edges={edges}
-              positions={positions}
-              display={display}
-              bounds={bounds}
-              stages={stages}
-              land={!building}
-            />
-          </svg>
-        )}
-        {bounds && (
-          <svg style={layer} width={1} height={1}>
-            <MapEdges
-              edges={edges}
-              positions={positions}
-              display={display}
-              highlighted={highlighted}
-              lockedPath={lockedPath}
-              building={building}
-              onHover={onNodeHover}
-            />
-          </svg>
-        )}
-        {bounds && (
-          <svg style={layer} width={1} height={1}>
-            <Fog
-              ids={ids}
-              positions={positions}
-              clear={clear}
-              bounds={bounds}
-              stages={stages}
-              on={screen === "map"}
-            />
-          </svg>
+          <>
+            <svg style={layer} width={1} height={1}>
+              <Terrain bounds={bounds} stages={stages} />
+            </svg>
+            {!building && (
+              <Land
+                ids={ids}
+                edges={edges}
+                positions={positions}
+                display={display}
+                bounds={bounds}
+              />
+            )}
+            <svg style={layer} width={1} height={1}>
+              <MapEdges
+                edges={edges}
+                positions={positions}
+                display={display}
+                highlighted={highlighted}
+                lockedPath={lockedPath}
+                building={building}
+                onHover={onNodeHover}
+              />
+            </svg>
+            {screen === "map" && (
+              <Fog ids={ids} positions={positions} clear={clear} bounds={bounds} />
+            )}
+            <svg style={layer} width={1} height={1}>
+              <StageLabels bounds={bounds} stages={stages} />
+            </svg>
+          </>
         )}
 
         {nodes.map((node, i) => (
