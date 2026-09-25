@@ -40,6 +40,15 @@ const STRINGS = {
   },
 } as const;
 
+const layer = {
+  position: "absolute",
+  left: 0,
+  top: 0,
+  overflow: "visible",
+  pointerEvents: "none",
+  willChange: "transform",
+} as const;
+
 interface MapCanvasProps {
   screen: "map" | "building" | "diagnostic";
   /** The live graph — re-planning spawns nodes into it mid-session. */
@@ -264,18 +273,10 @@ export default function MapCanvas({
           willChange: "transform",
         }}
       >
+        {/* Three SVGs, each its own compositor layer, so the edges' endless
+            trail animation never forces the land filter to re-run. */}
         {bounds && (
-          <svg
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              overflow: "visible",
-              pointerEvents: "none",
-            }}
-            width={1}
-            height={1}
-          >
+          <svg style={layer} width={1} height={1}>
             <Terrain
               ids={ids}
               edges={edges}
@@ -285,6 +286,10 @@ export default function MapCanvas({
               stages={stages}
               land={!building}
             />
+          </svg>
+        )}
+        {bounds && (
+          <svg style={layer} width={1} height={1}>
             <MapEdges
               edges={edges}
               positions={positions}
@@ -294,6 +299,10 @@ export default function MapCanvas({
               building={building}
               onHover={onNodeHover}
             />
+          </svg>
+        )}
+        {bounds && (
+          <svg style={layer} width={1} height={1}>
             <Fog
               ids={ids}
               positions={positions}

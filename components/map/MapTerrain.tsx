@@ -83,9 +83,16 @@ export function Terrain({
             values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -11"
             result="mass"
           />
-          <feMorphology in="mass" operator="dilate" radius={9} result="outer" />
-          <feMorphology in="mass" operator="dilate" radius={7.6} result="inner" />
-          <feComposite in="outer" in2="inner" operator="out" result="line" />
+          {/* The coast is a second, lower threshold of the same blur minus the
+              land — not feMorphology, which Chrome runs on the CPU and which
+              pinned the map at ~7fps. */}
+          <feColorMatrix
+            in="blur"
+            type="matrix"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -9.6"
+            result="outer"
+          />
+          <feComposite in="outer" in2="mass" operator="out" result="line" />
           <feComponentTransfer in="mass" result="fill">
             <feFuncA type="linear" slope={0.13} />
           </feComponentTransfer>
@@ -185,16 +192,15 @@ export function Fog({
       {on && (
         <>
           <defs>
-            <filter
-              id="atlas-fog-soft"
-              filterUnits="userSpaceOnUse"
-              {...region(bounds, 600)}
-            >
-              <feGaussianBlur stdDeviation={46} />
-            </filter>
+            {/* A gradient, not a blur: a blur re-runs over the whole map on
+                every repaint and froze the page. */}
+            <radialGradient id="atlas-fog-hole">
+              <stop offset="0.45" stopColor="black" />
+              <stop offset="1" stopColor="black" stopOpacity={0} />
+            </radialGradient>
             <mask id="atlas-fog" maskUnits="userSpaceOnUse" {...whole}>
               <rect {...whole} fill="white" />
-              <g filter="url(#atlas-fog-soft)">
+              <g>
                 {ids.map((id) => {
                   const p = positions[id];
                   if (!p) return null;
@@ -203,8 +209,8 @@ export function Fog({
                       key={id}
                       cx={p.x}
                       cy={p.y}
-                      r={clear(id) ? 150 : 0}
-                      fill="black"
+                      r={clear(id) ? 220 : 0}
+                      fill="url(#atlas-fog-hole)"
                       style={{
                         transition: `r ${motion.duration.slow}ms ${motion.ease.enter}`,
                       }}
