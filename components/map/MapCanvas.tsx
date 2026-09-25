@@ -248,6 +248,7 @@ export default function MapCanvas({
       data-testid="map-canvas"
       role="application"
       aria-label={t.canvas}
+      data-dragging={dragging || undefined}
       onMouseDown={(e) => {
         setDragging(true);
         onCanvasDown(e);
@@ -287,6 +288,7 @@ export default function MapCanvas({
                 positions={positions}
                 display={display}
                 bounds={bounds}
+                frozen={dragging}
               />
             )}
             <svg style={layer} width={1} height={1}>
@@ -301,7 +303,13 @@ export default function MapCanvas({
               />
             </svg>
             {screen === "map" && (
-              <Fog ids={ids} positions={positions} clear={clear} bounds={bounds} />
+              <Fog
+                ids={ids}
+                positions={positions}
+                clear={clear}
+                bounds={bounds}
+                frozen={dragging}
+              />
             )}
             <svg style={layer} width={1} height={1}>
               <StageLabels bounds={bounds} stages={stages} />

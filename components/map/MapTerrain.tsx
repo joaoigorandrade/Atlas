@@ -47,13 +47,25 @@ type Box = ReturnType<typeof region>;
  * frame over the whole map; a bitmap is only moved. `res` is bitmap pixels per
  * map unit — the land and the fog are soft, so less than 1 costs nothing.
  */
-function Baked({ box, res, children }: { box: Box; res: number; children: ReactNode }) {
+function Baked({
+  box,
+  res,
+  frozen,
+  children,
+}: {
+  box: Box;
+  res: number;
+  /** Mid-drag: hold the last bitmap and bake once on release, not per frame. */
+  frozen: boolean;
+  children: ReactNode;
+}) {
   const src = useRef<SVGSVGElement>(null);
   const out = useRef<HTMLCanvasElement>(null);
   const drawn = useRef("");
   const w = Math.round(box.width * res);
   const h = Math.round(box.height * res);
   useEffect(() => {
+    if (frozen) return;
     const vb = `${box.x} ${box.y} ${box.width} ${box.height}`;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${vb}">${src.current?.innerHTML ?? ""}</svg>`;
     if (svg === drawn.current) return;
@@ -136,16 +148,18 @@ export function Land({
   positions,
   display,
   bounds,
+  frozen,
 }: {
   ids: string[];
   edges: ConceptEdge[];
   positions: Record<string, Pt>;
   display: Record<string, NodeState>;
   bounds: Bounds;
+  frozen: boolean;
 }) {
   const r = region(bounds, 600);
   return (
-    <Baked box={r} res={0.5}>
+    <Baked box={r} res={0.5} frozen={frozen}>
       <defs>
         <filter
           id="atlas-land"
@@ -223,16 +237,18 @@ export function Fog({
   positions,
   clear,
   bounds,
+  frozen,
 }: {
   ids: string[];
   positions: Record<string, Pt>;
   /** Which concepts the fog opens around. */
   clear: (id: string) => boolean;
   bounds: Bounds;
+  frozen: boolean;
 }) {
   const whole = region(bounds, MARGIN);
   return (
-    <Baked box={whole} res={0.25}>
+    <Baked box={whole} res={0.25} frozen={frozen}>
       <defs>
         <radialGradient id="atlas-fog-hole">
           <stop offset="0.45" stopColor="black" />
