@@ -6,6 +6,7 @@
 // around (`discriminateFalsePositives`).
 
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -69,7 +70,7 @@ export function validateDiscriminate(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface DiscriminateParams {
+export interface DiscriminateParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -77,8 +78,6 @@ export interface DiscriminateParams {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generateDiscriminate(

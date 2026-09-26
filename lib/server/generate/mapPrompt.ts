@@ -29,6 +29,9 @@ export interface MapParams {
    *  the escape hatch is spent — offering it again is the app re-asking a
    *  question it has already been answered. See `mapContext`. */
   scoped?: boolean;
+  /** The other maps of this map's continent (`withNeighbours`) — each owns its
+   *  own concepts, so this map must not carry them. */
+  neighbours?: string[];
   language?: Language;
 }
 
@@ -79,8 +82,13 @@ export function mapContext(params: MapParams): string {
     ? `This topic is ALREADY a scoped sub-topic the learner chose from a list of offers. Build the map for it. Do NOT return "tooBroad" — narrow the treatment instead, and if the label is missing the period or qualifier that bounds it, pick the reading its offer plainly meant and say so in the first concept's summary.`
     : `If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
 {"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
+  // One country of a continent: its neighbours are whole maps of their own,
+  // and a concept both of them carry is a lesson the learner sits twice.
+  const continent = params.neighbours?.length
+    ? `\nThis map is one country of a larger continent the learner is charting. The NEIGHBOURING maps below are separate maps with their own concepts:\n${params.neighbours.map((n) => `- ${n}`).join("\n")}\nNo concept on this map may duplicate or re-teach one of theirs. Where this topic genuinely rests on one of them, start from it as known instead of mapping it again.\n`
+    : "";
   return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}${paretoNote(params)}
-${grounding}
+${grounding}${continent}
 ${escape}`;
 }
 

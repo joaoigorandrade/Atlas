@@ -7,6 +7,7 @@ export type Screen =
   | "building"
   | "diagnostic"
   | "dashboard"
+  | "continent"
   | "profile"
   | "settings"
   | "map"

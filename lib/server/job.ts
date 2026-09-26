@@ -58,6 +58,7 @@ import {
   CAPS,
   badRequest,
   boundary,
+  neighboursAxis,
   labels,
   nodeAxes,
   poolOf,
@@ -188,6 +189,7 @@ function buildJob(body: GenerateBody): Job {
         // always did. A scoped build genuinely asks a different prompt and
         // earns its own row rather than forking the common one.
         ...(body.scoped === true ? { scoped: true } : {}),
+        ...neighboursAxis(body),
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
       };
@@ -200,15 +202,7 @@ function buildJob(body: GenerateBody): Job {
         // asks for — a Pareto map is deliberately smaller. The scopes variant
         // is the too-broad answer (#30) — a complete, cacheable payload with
         // no map in it at all.
-        shape: [
-          {
-            nodes: {
-              min: mapNodeBounds(paretoPct).min,
-              max: mapNodeBounds(paretoPct).max,
-            },
-          },
-          { scopes: { min: 2, max: 3 } },
-        ],
+        shape: [{ nodes: mapNodeBounds(paretoPct) }, { scopes: { min: 2, max: 3 } }],
       };
     }
 

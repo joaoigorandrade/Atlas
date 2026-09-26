@@ -192,6 +192,14 @@ It is part of the cache key for `consume`, `socratic`, `feynman` and
 `crucible`, so a warm and the click after it must derive it from the same
 `boundaryOf` callback; gap nodes are excluded so the row stays shared across
 learners on the same topic.
+A map can also sit in a **continent** (`continents`, `topics.continent_id`):
+maps that belong together, drawn as one landmass (`ContinentScreen`) and
+grouped on the dashboard. What the sibling maps teach reaches every per-node
+prompt and the map build as `neighbours`, and **only the server sets it**:
+`withNeighbours` (`lib/server/store/continents.ts`) stamps the body from its
+`topicId` before `resolveJob` in `/api/generate`, `/api/content` and the
+frontier warm. So no client carries the axis, and a map outside a continent
+omits it and keys to the row it always did.
 
 Configure via
 `.env.local` (see `.env.example`): `OPENROUTER_API_KEY` (required),

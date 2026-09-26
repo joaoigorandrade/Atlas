@@ -3,6 +3,7 @@
 // The ladder is fixed copy, not generated — so it is translated here rather
 // than asked for from the model.
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -129,20 +130,20 @@ const rerunNote = (rerun: number): string =>
     ? `\nThis learner has already worked a transfer problem on this concept and passed it, so the obvious framing is spent. Set this one in ${RERUN_DOMAINS[rerun % RERUN_DOMAINS.length] || RERUN_DOMAINS[1]} — a different world from a first attempt, testing the same idea.`
     : "";
 
-export async function generateCrucible(params: {
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  masteredLabels: string[];
-  interests: string;
-  language?: Language;
-  priorLabels?: string[];
-  laterLabels?: string[];
-  /** Which time through this concept's Crucible this is — 0 on the first. */
-  rerun?: number;
-}): Promise<CrucibleContent> {
+export async function generateCrucible(
+  params: Boundary & {
+    nodeKind?: NodeKind;
+    domain?: Domain;
+    topic: string;
+    nodeId: string;
+    nodeLabel: string;
+    masteredLabels: string[];
+    interests: string;
+    language?: Language;
+    /** Which time through this concept's Crucible this is — 0 on the first. */
+    rerun?: number;
+  },
+): Promise<CrucibleContent> {
   const {
     topic,
     nodeId,

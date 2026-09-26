@@ -1,5 +1,6 @@
 // ---- kind: feynman ---------------------------------------------------------
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -75,14 +76,12 @@ export function validateFeynman(nodeId: string) {
   };
 }
 
-interface FeynmanParams {
+interface FeynmanParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   interests: string;
   language?: Language;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 /** The shared framing of both Feynman prompts. */

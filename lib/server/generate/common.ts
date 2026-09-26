@@ -178,6 +178,14 @@ export function interestNote(interests: string): string {
     : "Use concrete, everyday analogies when they genuinely fit.";
 }
 
+/** The map around a concept, as every per-node generator's params carry it —
+ *  see `boundaryNote`. */
+export interface Boundary {
+  priorLabels?: string[];
+  laterLabels?: string[];
+  neighbours?: string[];
+}
+
 /**
  * The concept's boundary on the map: what the other passes already taught and
  * what they are going to. Every per-node generation gets this, because without
@@ -187,15 +195,15 @@ export function interestNote(interests: string): string {
  *
  * `prior` is licence, not an instruction to cover: build on it freely, never
  * re-teach it. `later` is a fence: name it in one clause if the connection is
- * genuinely load-bearing, never explain it.
+ * genuinely load-bearing, never explain it. `neighbours` is the same fence
+ * one level up: the other maps of this map's continent, each with its own
+ * concepts and its own passes.
  */
-export function boundaryNote(params: {
-  priorLabels?: string[];
-  laterLabels?: string[];
-}): string {
+export function boundaryNote(params: Boundary): string {
   const prior = (params.priorLabels ?? []).filter(Boolean);
   const later = (params.laterLabels ?? []).filter(Boolean);
-  if (!prior.length && !later.length) return "";
+  const neighbours = (params.neighbours ?? []).filter(Boolean);
+  if (!prior.length && !later.length && !neighbours.length) return "";
   const lines = [
     "",
     "THE MAP AROUND THIS CONCEPT — the learner is working through a whole map, and every other concept on it has its own pass. Stay inside this one:",
@@ -207,6 +215,10 @@ export function boundaryNote(params: {
   if (later.length)
     lines.push(
       `- Taught later, by their OWN pass: ${later.join(", ")}. These are not yours. Do not explain, define, derive or work an example of any of them; at most name one in a single clause to say where this leads ("which is what X builds on"). Anything you teach here the learner meets again as a repeat.`,
+    );
+  if (neighbours.length)
+    lines.push(
+      `- Taught in the NEIGHBOURING maps of this map's continent, each by its own passes:\n${neighbours.map((n) => `  · ${n}`).join("\n")}\n  Those belong to the learner's other maps. Do not teach any of them here; you may name one in a single clause where this concept genuinely meets it.`,
     );
   lines.push(
     "- Anything the concept genuinely needs that appears in NEITHER list is yours to teach, in as much depth as it earns.",

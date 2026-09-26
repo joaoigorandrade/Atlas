@@ -1,5 +1,6 @@
 // ---- kind: consume ---------------------------------------------------------
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -183,18 +184,17 @@ export function validateConsume(raw: unknown): ConsumeChunk[] {
   ).map(validateConsumeSection);
 }
 
-function consumeContext(params: {
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  topic: string;
-  nodeLabel: string;
-  prereqLabels: string[];
-  interests: string;
-  language?: Language;
-  /** What the rest of the map already taught / will teach — see `boundaryNote`. */
-  priorLabels?: string[];
-  laterLabels?: string[];
-}): string {
+function consumeContext(
+  params: Boundary & {
+    nodeKind?: NodeKind;
+    domain?: Domain;
+    topic: string;
+    nodeLabel: string;
+    prereqLabels: string[];
+    interests: string;
+    language?: Language;
+  },
+): string {
   const { topic, nodeLabel, prereqLabels, interests, language = "en" } = params;
   return `Write the Consume (first reading) pass for the concept "${nodeLabel}" within the topic "${topic}".
 The learner already knows: ${prereqLabels.join(", ") || "nothing yet — this is a foundation"}.
@@ -231,18 +231,17 @@ Rules for the prose:
 ${boundaryNote(params)}${kindNote(params.nodeKind, "consume")}${domainNote(params.domain, "consume")}${languageNote(language)}`;
 }
 
-export async function generateConsume(params: {
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  topic: string;
-  nodeLabel: string;
-  prereqLabels: string[];
-  interests: string;
-  language?: Language;
-  /** What the rest of the map already taught / will teach — see `boundaryNote`. */
-  priorLabels?: string[];
-  laterLabels?: string[];
-}): Promise<ConsumeChunk[]> {
+export async function generateConsume(
+  params: Boundary & {
+    nodeKind?: NodeKind;
+    domain?: Domain;
+    topic: string;
+    nodeLabel: string;
+    prereqLabels: string[];
+    interests: string;
+    language?: Language;
+  },
+): Promise<ConsumeChunk[]> {
   return generateJson(
     user(
       `${consumeContext(params)}
@@ -277,18 +276,17 @@ Return JSON:
  * rare in practice since `generateConsume`'s single-shot path covers the
  * common failure mode (format non-compliance) upstream of this point.
  */
-export async function* generateConsumeStream(params: {
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  topic: string;
-  nodeLabel: string;
-  prereqLabels: string[];
-  interests: string;
-  language?: Language;
-  /** What the rest of the map already taught / will teach — see `boundaryNote`. */
-  priorLabels?: string[];
-  laterLabels?: string[];
-}): AsyncGenerator<StreamFrame> {
+export async function* generateConsumeStream(
+  params: Boundary & {
+    nodeKind?: NodeKind;
+    domain?: Domain;
+    topic: string;
+    nodeLabel: string;
+    prereqLabels: string[];
+    interests: string;
+    language?: Language;
+  },
+): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   try {
     const stream = streamJsonObjectsProgressive(

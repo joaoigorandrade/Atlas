@@ -8,6 +8,7 @@
 // sanity check the learner skipped makes the run thinner rather than wrong.
 
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -69,7 +70,7 @@ export function validatePerform(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface PerformParams {
+export interface PerformParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -77,8 +78,6 @@ export interface PerformParams {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generatePerform(params: PerformParams): Promise<PerformContent> {

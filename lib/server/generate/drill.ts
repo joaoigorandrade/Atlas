@@ -5,6 +5,7 @@
 // have to be the slips made *at speed*, not leisurely conceptual distractors.
 
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -66,7 +67,7 @@ export function validateDrill(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface DrillParams {
+export interface DrillParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -74,8 +75,6 @@ export interface DrillParams {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generateDrill(params: DrillParams): Promise<DrillContent> {

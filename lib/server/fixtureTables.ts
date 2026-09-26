@@ -81,21 +81,28 @@ const CONFLICT_KEYS: Record<string, string[]> = {
 
 export function fixtureTable(name: string) {
   const filters: Filter[] = [];
-  let sort: { column: string; ascending: boolean } | null = null;
+  const sorts: { column: string; ascending: boolean }[] = [];
+  let embed = false;
   let window: { from: number; to: number } | null = null;
   let pending: Result = { data: null, error: null };
   let mode: "select" | "delete" | "write" = "select";
 
   const matching = () => {
     let rows = rowsOf(name).filter((row) => filters.every((f) => f(row)));
-    if (sort) {
-      const { column, ascending } = sort;
+    for (const { column, ascending } of [...sorts].reverse()) {
+      // Stable, so applying the last key first leaves the first one in charge.
       rows = [...rows].sort((a, b) => {
-        const l = String(a[column] ?? "");
-        const r = String(b[column] ?? "");
+        const l = a[column] ?? "";
+        const r = b[column] ?? "";
         return (l < r ? -1 : l > r ? 1 : 0) * (ascending ? 1 : -1);
       });
     }
+    // The one embed `store/` issues: a topic's continent, many-to-one.
+    if (embed)
+      rows = rows.map((row) => ({
+        ...row,
+        continent: rowsOf("continents").find((c) => c.id === row.continent_id) ?? null,
+      }));
     return rows;
   };
 
@@ -108,6 +115,12 @@ export function fixtureTable(name: string) {
       // The cascade Postgres gives us for free. Fixture mode has to do it by
       // hand, and a test that deletes a topic must see the same emptiness a
       // learner does — that is the behaviour worth checking here at all.
+      // `topics.continent_id` is `on delete set null`: a dissolved continent
+      // lets its maps go rather than taking them with it.
+      if (name === "continents")
+        for (const topic of rowsOf("topics"))
+          if ([...doomed].some((c) => c.id === topic.continent_id))
+            topic.continent_id = null;
       if (name === "topics")
         for (const child of ["nodes", "edges", "cards", "node_content"]) {
           const ids = new Set([...doomed].map((row) => row.id));
@@ -127,9 +140,16 @@ export function fixtureTable(name: string) {
   };
 
   const api = {
-    select: () => api,
+    select: (columns?: string) => {
+      if (columns?.includes("continents(")) embed = true;
+      return api;
+    },
     eq: (column: string, value: unknown) => {
       filters.push((row) => row[column] === value);
+      return api;
+    },
+    neq: (column: string, value: unknown) => {
+      filters.push((row) => row[column] !== value);
       return api;
     },
     in: (column: string, values: unknown[]) => {
@@ -141,7 +161,7 @@ export function fixtureTable(name: string) {
       return api;
     },
     order: (column: string, opts?: { ascending?: boolean }) => {
-      sort = { column, ascending: opts?.ascending !== false };
+      sorts.push({ column, ascending: opts?.ascending !== false });
       return api;
     },
     limit: () => api,
@@ -153,10 +173,17 @@ export function fixtureTable(name: string) {
       mode = "delete";
       return api;
     },
-    insert: async (rows: Row | Row[]) => {
-      for (const row of [rows].flat())
-        rowsOf(name).push({ user_id: FIXTURE_USER_ID, ...row });
-      return { data: null, error: null };
+    insert: (rows: Row | Row[]) => {
+      mode = "write";
+      const written: Row[] = [];
+      for (const incoming of [rows].flat()) {
+        const row: Row = { user_id: FIXTURE_USER_ID, ...incoming };
+        if (!row.id && name === "continents") row.id = crypto.randomUUID();
+        rowsOf(name).push(row);
+        written.push(row);
+      }
+      pending = { data: written, error: null };
+      return api;
     },
     update: (patch: Row) => {
       mode = "write";
@@ -168,6 +195,11 @@ export function fixtureTable(name: string) {
       return {
         eq: (column: string, value: unknown) => {
           filters.push((row) => row[column] === value);
+          applied();
+          return api;
+        },
+        in: (column: string, values: unknown[]) => {
+          filters.push((row) => values.includes(row[column]));
           applied();
           return api;
         },

@@ -1,8 +1,8 @@
 {
   "default": 400,
   "files": {
-    "components/AtlasApp.tsx": 1120,
-    "components/DashboardScreen.tsx": 595,
+    "components/AtlasApp.tsx": 1118,
+    "components/DashboardScreen.tsx": 590,
     "components/SettingsScreen.tsx": 441,
     "components/analytics/CalibrationView.tsx": 649,
     "components/atlas/useGeneration.ts": 845,
@@ -13,7 +13,6 @@
     "components/map/NodeDetail.tsx": 645,
     "components/map/StreakFlame.tsx": 428,
     "components/onboarding/DiagnosticPanel.tsx": 423,
-    "components/onboarding/WelcomeScreen.tsx": 438,
     "components/session/ConnectView.tsx": 987,
     "components/session/ConsumeView.tsx": 1186,
     "components/session/CrucibleView.tsx": 831,
@@ -25,9 +24,9 @@
     "lib/api.ts": 787,
     "lib/curriculum/socratic.ts": 461,
     "lib/persistence.ts": 443,
-    "lib/server/fixtures.ts": 443,
+    "lib/server/fixtures.ts": 442,
     "lib/server/generate/map.ts": 497,
-    "lib/server/job.ts": 815,
+    "lib/server/job.ts": 809,
     "lib/server/openrouter.ts": 540,
     "lib/speech.ts": 779
   }

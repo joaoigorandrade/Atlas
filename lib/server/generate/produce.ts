@@ -8,7 +8,16 @@
 // utterance that was understood while routing around the form the turn existed
 // to elicit. Every other phase, and most conversations, score that as success.
 
-import { arr, boundaryNote, fail, languageNote, obj, str, user } from "./common";
+import {
+  type Boundary,
+  arr,
+  boundaryNote,
+  fail,
+  languageNote,
+  obj,
+  str,
+  user,
+} from "./common";
 import { JUDGE_SYSTEM, judgeStream } from "./judge";
 import {
   PRODUCE_VERDICTS,
@@ -58,14 +67,12 @@ export function validateProduce(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface ProduceParams {
+export interface ProduceParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   language?: Language;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generateProduce(params: ProduceParams): Promise<ProduceContent> {

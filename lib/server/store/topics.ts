@@ -34,6 +34,8 @@ import type {
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
 import { fail, readAll } from "@/lib/server/store/shared";
+import { ownsContinent } from "@/lib/server/store/continents";
+import { AtlasError } from "@/lib/errors";
 import type { Language } from "@/lib/i18n";
 // The wire contract lives with the client that speaks it — one definition of
 // what a topic is, shared by the module that assembles it from rows and the
@@ -64,6 +66,8 @@ type TopicRow = {
   modality_tally: ModalityTally;
   lit_today: string[];
   updated_at: string;
+  /** Many-to-one, so PostgREST sends an object or null; untyped, it infers an array. */
+  continent: unknown;
 };
 
 type NodeRow = {
@@ -103,7 +107,7 @@ export type CardRow = {
 };
 
 const TOPIC_COLUMNS =
-  "id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at";
+  "id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at, continent:continents(id, name, scopes)";
 const NODE_COLUMNS =
   "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress";
 export const CARD_COLUMNS = "topic_id, id, node_id, type, source, content, fsrs";
@@ -153,6 +157,7 @@ function assemble(
     connectProgress: {},
     phaseProgress: {},
     cards: [],
+    continent: (topic.continent as Topic["continent"]) ?? null,
   };
   for (const n of nodes) {
     const node: ConceptNode = {
@@ -305,6 +310,7 @@ export async function createTopic(
     .eq("subject", topic.subject)
     .maybeSingle();
   if (existingError) fail("createTopic/existing", existingError);
+  await continentIsMine(db, topic.continentId);
 
   const { data, error } = await db
     .from("topics")
@@ -317,6 +323,7 @@ export async function createTopic(
         pareto_pct: topic.paretoPct ?? 20,
         exam_date: topic.examDate ?? "",
         ...(topic.language ? { language: topic.language } : null),
+        ...(topic.continentId ? { continent_id: topic.continentId } : null),
       },
       { onConflict: "user_id,subject" },
     )
@@ -352,10 +359,19 @@ export async function patchTopic(
       ? { modality_tally: patch.modalityTally }
       : null),
     ...(patch.litToday !== undefined ? { lit_today: patch.litToday } : null),
+    ...(patch.continentId !== undefined ? { continent_id: patch.continentId } : null),
   };
   if (Object.keys(row).length === 0) return;
+  await continentIsMine(db, patch.continentId);
   const { error } = await db.from("topics").update(row).eq("id", id);
   if (error) fail("patchTopic", error);
+}
+
+/** A foreign key ignores RLS, so a topic could otherwise join a continent
+ *  that is somebody else's. `null` (leaving one) needs no check. */
+async function continentIsMine(db: SupabaseClient, id: string | null | undefined) {
+  if (id && !(await ownsContinent(db, id)))
+    throw new AtlasError("invalid", "continentId: not the caller's continent");
 }
 
 /** One statement. The cascade takes nodes, edges, cards and node_content with

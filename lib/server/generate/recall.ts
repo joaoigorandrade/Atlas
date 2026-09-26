@@ -11,6 +11,7 @@
 // learner Recall is trying to reward.
 
 import {
+  type Boundary,
   arr,
   boundaryNote,
   interestNote,
@@ -70,7 +71,7 @@ export function validateRecall(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface RecallParams {
+export interface RecallParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -78,8 +79,6 @@ export interface RecallParams {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generateRecall(params: RecallParams): Promise<RecallContent> {

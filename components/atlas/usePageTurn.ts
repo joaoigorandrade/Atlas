@@ -17,7 +17,7 @@ type Turning = Document & {
 const depth = (s: Screen) =>
   SHEET_SCREENS.has(s)
     ? 3
-    : s === "map" || s === "profile"
+    : s === "map" || s === "profile" || s === "continent"
       ? 2
       : s === "dashboard"
         ? 1

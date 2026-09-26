@@ -39,6 +39,7 @@ export type ErrorContext =
   | "maps"
   | "openMap"
   | "exclude"
+  | "continent"
   | "account"
   | "crash";
 
@@ -69,6 +70,7 @@ export const ERROR_STRINGS = {
       maps: "Couldn't load your maps",
       openMap: "Couldn't open that map",
       exclude: "Couldn't exclude",
+      continent: "Couldn't change the continent",
       account: "Couldn't delete right now",
       crash: "This screen hit a snag",
     } satisfies Record<ErrorContext, string>,
@@ -123,6 +125,7 @@ export const ERROR_STRINGS = {
       maps: "Não deu para carregar seus mapas",
       openMap: "Não deu para abrir esse mapa",
       exclude: "Não deu para excluir",
+      continent: "Não deu para mudar o continente",
       account: "Não deu para excluir agora",
       crash: "Esta tela travou",
     } satisfies Record<ErrorContext, string>,

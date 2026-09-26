@@ -6,6 +6,7 @@
 // don't already.
 
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -57,7 +58,7 @@ export function validateTrace(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface TraceParams {
+export interface TraceParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -65,8 +66,6 @@ export interface TraceParams {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generateTrace(params: TraceParams): Promise<TraceContent> {

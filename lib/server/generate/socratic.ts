@@ -1,5 +1,6 @@
 // ---- kind: socratic --------------------------------------------------------
 import {
+  type Boundary,
   arr,
   boundaryNote,
   domainNote,
@@ -35,14 +36,14 @@ const MOVES = [
 export const QUALITIES = ["correct", "partial", "near", "wrong", "lost"] as const;
 
 /** The shared framing of both Socratic prompts. */
-function socraticContext(params: {
-  topic: string;
-  nodeLabel: string;
-  interests: string;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}): string {
+function socraticContext(
+  params: Boundary & {
+    topic: string;
+    nodeLabel: string;
+    interests: string;
+    domain?: Domain;
+  },
+): string {
   return `Write a Socratic questioning session for the concept "${params.nodeLabel}" within "${params.topic}".
 The learner just finished a first reading. You are a contingent tutor: hint when near, teach when lost, and — most important — anti-sycophantic: a wrong reply is caught and named, gently but plainly.
 ${interestNote(params.interests)}
@@ -130,14 +131,14 @@ export function validateSocratic(raw: unknown): SocraticStep[] {
   );
 }
 
-export async function generateSocratic(params: {
-  topic: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}): Promise<SocraticStep[]> {
+export async function generateSocratic(
+  params: Boundary & {
+    topic: string;
+    nodeLabel: string;
+    interests: string;
+    language?: Language;
+  },
+): Promise<SocraticStep[]> {
   return generateJson(
     user(
       `${socraticContext(params)}
@@ -167,14 +168,14 @@ ${SOCRATIC_STEP_EXAMPLE}${languageNote(params.language ?? "en")}`,
  * `AtlasApp` hands the judge as the reference answer, so a step without it
  * cannot be judged.
  */
-export async function* generateSocraticStream(params: {
-  topic: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}): AsyncGenerator<StreamFrame> {
+export async function* generateSocraticStream(
+  params: Boundary & {
+    topic: string;
+    nodeLabel: string;
+    interests: string;
+    language?: Language;
+  },
+): AsyncGenerator<StreamFrame> {
   let yielded = 0;
   try {
     const stream = streamJsonObjects(

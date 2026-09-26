@@ -5,6 +5,7 @@
 // learner picks the plausible one without consulting the mechanism at all.
 
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -62,7 +63,7 @@ export function validatePredict(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface PredictParams {
+export interface PredictParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -70,8 +71,6 @@ export interface PredictParams {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generatePredict(params: PredictParams): Promise<PredictContent> {

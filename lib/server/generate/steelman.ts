@@ -9,6 +9,7 @@
 // habit this phase exists to break rather than rehearse.
 
 import {
+  type Boundary,
   arr,
   boundaryNote,
   fail,
@@ -54,14 +55,12 @@ export function validateSteelman(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface SteelmanParams {
+export interface SteelmanParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   language?: Language;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generateSteelman(params: SteelmanParams): Promise<SteelmanContent> {

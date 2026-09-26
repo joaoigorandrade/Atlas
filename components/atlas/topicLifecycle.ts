@@ -27,7 +27,8 @@ import type { OnboardingForm } from "@/lib/curriculum";
  * and the first phase generates on the click the way it used to.
  */
 export async function openTopic(
-  form: OnboardingForm,
+  /** `continentId`: the continent a charted scope joins as it is created. */
+  form: OnboardingForm & { continentId?: string | null },
   language: Language | undefined,
   setTopicId: (id: string | null) => void,
 ): Promise<{ id: string | null; abandon: () => void }> {
@@ -41,6 +42,7 @@ export async function openTopic(
       paretoPct: form.paretoPct,
       examDate: form.examDate,
       ...(language ? { language } : null),
+      ...(form.continentId ? { continentId: form.continentId } : null),
     };
     const topic = await createTopic(body);
     id = topic.id;

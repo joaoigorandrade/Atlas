@@ -182,6 +182,8 @@ export function frontierWarmBody(
     // the client's click will never look in.
     nodeKind: node.kind,
     ...(kind === "consume" ? { prereqLabels } : null),
+    // Already stamped by the route (`withNeighbours`) for this same topic.
+    ...(body.neighbours ? { neighbours: body.neighbours } : null),
   };
 }
 

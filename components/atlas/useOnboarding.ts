@@ -128,8 +128,8 @@ export function useOnboarding(deps: {
    *  bare label with the period or qualifier that bounded it left behind in
    *  the offer's note — so without this the model reads it as wide again and
    *  offers to scope it a second and third time, and church history never
-   *  becomes a map. Consumed at the top of `build`. */
-  const scopedRef = useRef(false);
+   *  becomes a map. Consumed at the top of `build`, with any continent it joins. */
+  const scopedRef = useRef<{ continentId: string | null } | null>(null);
   const nextDifficultyRef = useRef<DiagnosticDifficulty>("medium");
   const maxCorrectDifficultyRef = useRef<DiagnosticDifficulty | null>(null);
 
@@ -165,7 +165,7 @@ export function useOnboarding(deps: {
     // who types a fresh topic after a scoped build is asking the open question
     // again and should get the offers back.
     const scoped = scopedRef.current;
-    scopedRef.current = false;
+    scopedRef.current = null;
     // A fresh map is generated in the UI language, so this is the one moment
     // the run's content language is known for certain.
     setRunLanguage(languageRef.current);
@@ -208,7 +208,7 @@ export function useOnboarding(deps: {
     maxCorrectDifficultyRef.current = null;
     // Before the generation, not after — see `openTopic`.
     const { id: created, abandon } = await openTopic(
-      { ...formRef.current, topic },
+      { ...formRef.current, topic, continentId: scoped?.continentId },
       languageRef.current,
       setTopicId,
     );
@@ -347,8 +347,8 @@ export function useOnboarding(deps: {
   /** A picked scope becomes the topic and builds immediately (#30). The build
    *  it triggers is marked scoped so the offer cannot come back — see
    *  `scopedRef`. */
-  const pickScope = (label: string) => {
-    scopedRef.current = true;
+  const pickScope = (label: string, continentId: string | null = null) => {
+    scopedRef.current = { continentId };
     setForm((prev) => ({ ...prev, topic: label }));
     setScopes(null);
     // formRef updates on render; build reads the ref, so defer one tick.

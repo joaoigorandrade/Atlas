@@ -25,13 +25,11 @@ import { createClient } from "@/lib/supabase/client";
 import type { Profile, Topic } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
 import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
-import {
-  FAKE_MAP_EDGES,
-  FAKE_MAP_NODES,
-  FAKE_MAP_POSITIONS,
-} from "@/components/onboarding/fakeMap";
+import * as fake from "@/components/onboarding/fakeMap";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
+import ContinentScreen from "@/components/ContinentScreen";
+import { useContinents } from "@/components/atlas/useContinents";
 import ProfileScreen from "@/components/ProfileScreen";
 import SettingsScreen from "@/components/SettingsScreen";
 import ConsumeView from "@/components/session/ConsumeView";
@@ -67,7 +65,6 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
 import OfflineBanner from "@/components/OfflineBanner";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
-
 import RailToggle from "@/components/map/RailToggle";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
@@ -381,6 +378,7 @@ export default function AtlasApp({
     frontierTargetId,
   });
   resetOnboardingRef.current = resetOnboarding;
+  const continents = useContinents(run, { scopes, pickScope, setScreen, showError });
 
   const gen = useGeneration({
     run,
@@ -401,8 +399,8 @@ export default function AtlasApp({
    */
   /** A session sheet's breadcrumb draws the node's own ladder, not the
    *  catalogue — a `fact` and a `principle` no longer run the same rungs. */
-  const planOf = (nodeId: string) =>
-    phasePlan(graph.nodes.find((n) => n.id === nodeId) ?? {});
+  const nodeOf = (id: string) => graph.nodes.find((n) => n.id === id);
+  const planOf = (nodeId: string) => phasePlan(nodeOf(nodeId) ?? {});
 
   const hoverNode = (id: string | null) => {
     setHoverId(id);
@@ -707,14 +705,14 @@ export default function AtlasApp({
       {showCanvas && (
         <MapCanvas
           screen={screen as "map" | "building" | "diagnostic"}
-          nodes={usingFakeMap ? FAKE_MAP_NODES : graph.nodes}
-          edges={usingFakeMap ? FAKE_MAP_EDGES : graph.edges}
+          nodes={usingFakeMap ? fake.FAKE_MAP_NODES : graph.nodes}
+          edges={usingFakeMap ? fake.FAKE_MAP_EDGES : graph.edges}
           spawnedIds={spawnedIds}
           staggered={usingFakeMap}
           display={display}
           lockedPath={lockedPath}
           earned={earnedNodes}
-          positions={usingFakeMap ? FAKE_MAP_POSITIONS : positions}
+          positions={usingFakeMap ? fake.FAKE_MAP_POSITIONS : positions}
           view={view}
           selectedId={selectedId}
           hoverId={hoverId}
@@ -839,6 +837,7 @@ export default function AtlasApp({
           uploadBusy={uploadNote !== null && outline === null}
           scopes={scopes}
           onPickScope={pickScope}
+          onChartContinent={continents.chartAll}
         />
       )}
 
@@ -864,8 +863,10 @@ export default function AtlasApp({
           onExcludeTopic={excludeTopic}
           excluding={excluding}
           mapsFailed={mapsFailed ? { onRetry: refreshMaps } : undefined}
+          continents={continents}
         />
       )}
+      {screen === "continent" && <ContinentScreen continents={continents} />}
 
       {openSheet === "settings" && (
         <SettingsScreen
@@ -906,7 +907,7 @@ export default function AtlasApp({
         consumeChunks &&
         sheetBoundary(
           <ConsumeView
-            title={graph.nodes.find((n) => n.id === consume.nodeId)?.label ?? "Concept"}
+            title={nodeOf(consume.nodeId)?.label ?? "Concept"}
             plan={planOf(consume.nodeId)}
             chunks={consumeChunks}
             streaming={consumeStreaming}
@@ -940,11 +941,11 @@ export default function AtlasApp({
         socraticSteps &&
         sheetBoundary(
           <SocraticView
-            title={graph.nodes.find((n) => n.id === socratic.nodeId)?.label ?? "Concept"}
+            title={nodeOf(socratic.nodeId)?.label ?? "Concept"}
             plan={planOf(socratic.nodeId)}
             session={socratic}
             judging={judging}
-            gapMode={graph.nodes.find((n) => n.id === socratic.nodeId)?.gap ?? false}
+            gapMode={nodeOf(socratic.nodeId)?.gap ?? false}
             onExit={exitSocratic}
             onAnswer={socraticAnswer}
             done={phasesDone[socratic.nodeId]}
@@ -960,7 +961,7 @@ export default function AtlasApp({
         sheetBoundary(
           <FeynmanView
             topic={form.topic}
-            title={graph.nodes.find((n) => n.id === feynman.nodeId)?.label ?? "Concept"}
+            title={nodeOf(feynman.nodeId)?.label ?? "Concept"}
             plan={planOf(feynman.nodeId)}
             beats={feynmanBeats}
             session={feynman}
@@ -1039,10 +1040,7 @@ export default function AtlasApp({
           <RetainView
             content={retainContent}
             session={retain}
-            nodeLabel={
-              graph.nodes.find((n) => n.id === reviewCard(retain, retainContent).node)
-                ?.label
-            }
+            nodeLabel={nodeOf(reviewCard(retain, retainContent).node)?.label}
             litNodes={masteredCount}
             adherence={adherence}
             litToday={litToday}

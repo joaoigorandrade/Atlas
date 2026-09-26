@@ -9,6 +9,8 @@ import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InlineError } from "@/components/ErrorState";
 import { STRINGS } from "@/components/dashboardScreenCopy";
+import ContinentShelf from "@/components/ContinentShelf";
+import type { Continents } from "@/components/atlas/useContinents";
 
 /** One card's worth of a saved map — the "Your maps" grid. */
 export interface MapCardSummary {
@@ -58,13 +60,10 @@ interface DashboardScreenProps {
    *  there are no maps — two states that used to look identical, and one of
    *  them looks like the app lost your work. */
   mapsFailed?: { onRetry: () => void };
+  continents: Continents;
 }
 
-const cardBase = {
-  ...plateStyle,
-  padding: "24px 26px",
-  cursor: "pointer",
-} as const;
+const cardBase = { ...plateStyle, padding: "24px 26px", cursor: "pointer" } as const;
 
 /** The quiet "×" that opens the exclude confirmation on a map card. */
 const excludeButtonStyle = {
@@ -114,6 +113,7 @@ export default function DashboardScreen({
   onExcludeTopic,
   excluding,
   mapsFailed,
+  continents,
 }: DashboardScreenProps) {
   const t = useT(STRINGS);
 
@@ -176,13 +176,7 @@ export default function DashboardScreen({
       </Masthead>
 
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <div
-          style={{
-            maxWidth: 900,
-            margin: "0 auto",
-            padding: "44px 40px 80px",
-          }}
-        >
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: "44px 40px 80px" }}>
           <div style={{ ...kicker(11), marginBottom: 10 }}>{dateLabel}</div>
           <h1
             style={{
@@ -338,6 +332,7 @@ export default function DashboardScreen({
             </div>
           </div>
 
+          <ContinentShelf continents={continents} />
           <div
             style={{
               display: "flex",

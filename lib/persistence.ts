@@ -57,6 +57,7 @@ import type {
   StateMap,
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
+import type { Continent } from "@/lib/continents";
 import type { Language } from "@/lib/i18n";
 
 // ---------------------------------------------------------- the contract --
@@ -98,6 +99,7 @@ export interface Topic {
    *  later phase lands here, so adding one is a key rather than a migration. */
   phaseProgress: Record<string, PhaseProgress>;
   cards: StoredCard[];
+  continent: Continent | null;
 }
 
 /** One node's changed fields — the unit every map write is made of. A drag is
@@ -142,6 +144,7 @@ export interface TopicPatch {
   misconceptions?: MisconceptionRecord[];
   modalityTally?: ModalityTally;
   litToday?: string[];
+  continentId?: string | null;
 }
 
 export interface ProfilePatch {
@@ -224,7 +227,7 @@ async function failure(res: Response, op: string): Promise<AtlasError> {
   });
 }
 
-async function call<T>(
+export async function call<T>(
   op: string,
   path: string,
   init?: { method?: string; body?: unknown },
@@ -298,10 +301,7 @@ export function putCards(id: string, cards: StoredCard[]): Promise<void> {
 }
 
 export function deleteCards(id: string, ids: string[]): Promise<void> {
-  return call("deleteCards", `/topics/${id}/cards`, {
-    method: "DELETE",
-    body: { ids },
-  });
+  return call("deleteCards", `/topics/${id}/cards`, { method: "DELETE", body: { ids } });
 }
 
 /**

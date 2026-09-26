@@ -89,6 +89,8 @@ const MAP: Array<[string, string, string[], NodeKind]> = [
   ],
 ];
 
+const TOO_BROAD = { scopes: ["Stars", "Cells"].map((l) => ({ label: l, note: l })) };
+
 /** Column = topological depth, row = position within it — the same left-to-right
  *  reading the real layout produces, without the layout pass. */
 function mapNodes(): MapNode[] {
@@ -343,10 +345,7 @@ function judgement(body: GenerateBody): Record<string, unknown> {
         reExplain: "The rule holds wherever its requirement is met.",
       };
     default:
-      return {
-        quality: "correct",
-        response: "Yes — that is the move.",
-      };
+      return { quality: "correct", response: "Yes — that is the move." };
   }
 }
 
@@ -357,8 +356,8 @@ export function fixturePayload(
 ): Record<string, unknown> | null {
   const v = vars(body);
   switch (kind) {
-    case "curriculum":
-      return { nodes: mapNodes() };
+    case "curriculum": // "Everything" is too broad, so a spec can chart a continent.
+      return /^everything$/i.test(v.topic) ? TOO_BROAD : { nodes: mapNodes() };
     case "summary":
       return { summary: `What ${v.nodeLabel} is, in one line.` };
     case "diagnosticQuestion":

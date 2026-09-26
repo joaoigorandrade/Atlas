@@ -288,9 +288,11 @@ export function useDerived(deps: {
   // The dashboard's "Your maps" grid: the live run's numbers stay live (they
   // update mid-session, before any save lands); every other saved map reads
   // off its last-saved snapshot from `maps`.
+  // A map in a continent is reached through its continent (`ContinentShelf`).
   const mapCards = useMemo(() => {
+    const liveGrouped = maps.some((m) => m.subject === runSubject && m.continent);
     const others = maps
-      .filter((m) => m.subject !== runSubject)
+      .filter((m) => m.subject !== runSubject && !m.continent)
       .map((m) => {
         const otherDisplay = displayStates(m.states, m.graph);
         const mastered = m.graph.nodes.filter(
@@ -306,7 +308,7 @@ export function useDerived(deps: {
             .length,
         };
       });
-    return graph.nodes.length
+    return graph.nodes.length && !liveGrouped
       ? [{ subject, goalLabel, masteryPct, frontierTotal }, ...others]
       : others;
   }, [

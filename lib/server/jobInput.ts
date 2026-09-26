@@ -52,6 +52,9 @@ export interface GenerateBody {
   /** The map around the concept — see `boundary` / `boundaryNote`. */
   priorLabels?: string[];
   laterLabels?: string[];
+  /** What the other maps of this topic's continent teach. Set by the server
+   *  alone (`withNeighbours`) — whatever a client sends is dropped. */
+  neighbours?: string[];
   // model fields — the section a lens was opened over, as it is on screen
   // (`kicker` is shared with the passage fields below)
   lens?: string;
@@ -175,13 +178,29 @@ export const boundary = (
 ): {
   priorLabels?: string[];
   laterLabels?: string[];
+  neighbours?: string[];
 } => {
   const priorLabels = labels(body.priorLabels);
   const laterLabels = labels(body.laterLabels);
   return {
     ...(priorLabels.length ? { priorLabels } : {}),
     ...(laterLabels.length ? { laterLabels } : {}),
+    ...neighboursAxis(body),
   };
+};
+
+/** The continent's other maps (`withNeighbours`), or nothing outside one —
+ *  omitted rather than empty, so a map on its own keys to the row it always
+ *  did and no VERSION bump is owed. Each line is a whole map's worth of
+ *  labels, so it is capped as free text rather than as a label. */
+export const neighboursAxis = (body: GenerateBody): { neighbours?: string[] } => {
+  const lines = Array.isArray(body.neighbours)
+    ? body.neighbours
+        .filter((x): x is string => typeof x === "string" && !!x.trim())
+        .slice(0, CAPS.listItems)
+        .map((x) => x.slice(0, CAPS.freeText))
+    : [];
+  return lines.length ? { neighbours: lines } : {};
 };
 
 /** The two axes a node is written on, each omitted when it is the default —

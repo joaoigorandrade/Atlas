@@ -11,6 +11,7 @@ import {
 } from "@/lib/curriculum";
 import type { ScopeOffer } from "@/lib/api";
 import { InkDots } from "@/components/Pending";
+import ScopeOffers from "@/components/onboarding/ScopeOffers";
 import { CompassRose, Fleuron } from "@/components/ui/Ornaments";
 import { color, font, kicker, motion } from "@/lib/theme";
 import Button from "@/components/ui/Button";
@@ -24,8 +25,6 @@ const STRINGS = {
     dropPrefix: "or drop a PDF / course outline here · ",
     browse: "browse",
     dropSuffix: " · we ground the map in a real source",
-    scopeIntro: (topic: string) =>
-      `"${topic}" is a continent, not a map. Pick a scoped territory to start with:`,
     goalQuestion: "Why are you learning this?",
     goalHint: "— steers what we prune and prioritize",
     examDate: "Exam date",
@@ -51,8 +50,6 @@ const STRINGS = {
     dropPrefix: "ou solte um PDF / ementa aqui · ",
     browse: "procurar",
     dropSuffix: " · fundamentamos o mapa numa fonte real",
-    scopeIntro: (topic: string) =>
-      `"${topic}" é um continente, não um mapa. Escolha um território mais específico para começar:`,
     goalQuestion: "Por que você está aprendendo isso?",
     goalHint: "— orienta o que priorizamos e deixamos de lado",
     examDate: "Data da prova",
@@ -86,6 +83,8 @@ interface WelcomeScreenProps {
   /** Scoped sub-map offers when the topic was too broad, else null (#30). */
   scopes: ScopeOffer[] | null;
   onPickScope: (label: string) => void;
+  /** Take every offer at once, as one continent (`useContinents.chartAll`). */
+  onChartContinent: () => void;
 }
 
 function optionStyle(active: boolean, grow: boolean): CSSProperties {
@@ -111,6 +110,7 @@ export default function WelcomeScreen({
   uploadBusy,
   scopes,
   onPickScope,
+  onChartContinent,
 }: WelcomeScreenProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -252,56 +252,12 @@ export default function WelcomeScreen({
         </div>
 
         {scopes && (
-          <div
-            style={{
-              background: color.amberBg,
-              border: "1px solid rgba(160,106,48,0.25)",
-              borderRadius: 3,
-              padding: "18px 20px",
-              marginBottom: 32,
-              animation: "fadeUp 0.3s both",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 14.5,
-                color: color.amberInk,
-                marginBottom: 14,
-              }}
-            >
-              {t.scopeIntro(form.topic)}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {scopes.map((scope) => (
-                <button
-                  className="at-press"
-                  key={scope.label}
-                  onClick={() => onPickScope(scope.label)}
-                  style={{
-                    textAlign: "left",
-                    padding: "12px 15px",
-                    background: color.card,
-                    border: `1px solid ${color.hairlineStrong}`,
-                    borderRadius: 3,
-                    cursor: "pointer",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: font.serif,
-                      fontSize: 16.5,
-                      color: color.ink,
-                    }}
-                  >
-                    {scope.label} →
-                  </div>
-                  <div style={{ fontSize: 13, color: color.inkSoft, marginTop: 3 }}>
-                    {scope.note}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <ScopeOffers
+            topic={form.topic}
+            scopes={scopes}
+            onPick={onPickScope}
+            onChartAll={onChartContinent}
+          />
         )}
 
         <div style={{ marginBottom: 32 }}>

@@ -81,6 +81,7 @@ fade at all.
 | → `data-hydrated`                                                                | `1` once the persisted run has been applied                                         |
 | `screen-welcome` · `screen-building` · `screen-diagnostic`                       | onboarding surfaces                                                                 |
 | `screen-dashboard` · `screen-profile` · `screen-settings` · `screen-calibration` | the rest                                                                            |
+| `screen-continent`                                                               | a continent's atlas — its maps drawn as countries (`data-screen=continent`)         |
 | `map-canvas`                                                                     | the map itself (`role="application"`)                                               |
 | `node-<id>`                                                                      | one concept chip. `data-state` carries its display state                            |
 | `panel-node`                                                                     | the node detail rail. `data-node` carries the selected id                           |
@@ -91,17 +92,20 @@ fade at all.
 
 `action-<verb>` in full:
 
-| Where                                             | Controls                                                                    |
-| ------------------------------------------------- | --------------------------------------------------------------------------- |
-| onboarding                                        | `build` · `goal-<key>` · `take-placement` · `answer-<i>` · `next` · `start` |
-| map                                               | `primary` · `phase-<i>` · `skip-confirm` · `skip-cancel`                    |
-| Consume                                           | `check-<i>` · `continue` · `finish` · `begin-socratic`                      |
-| Socratic                                          | `submit`                                                                    |
-| Feynman                                           | `begin` · `next` · `submit` · `advance`                                     |
-| Crucible                                          | `confidence-<i>` · `submit` · `finish`                                      |
-| the deck (Discriminate · Predict · Trace · Drill) | `mode-<open\|choices>` · `pick-<i>` · `next` · `finish` · `exit`            |
-| Recall                                            | `submit` · `scaffold` · `finish` · `again` · `exit`                         |
-| Retain                                            | `flip` · `grade-<again\|hard\|good\|easy>` · `continue`                     |
+| Where                                             | Controls                                                                                                                                                                                |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| onboarding                                        | `build` · `goal-<key>` · `take-placement` · `answer-<i>` · `next` · `start`                                                                                                             |
+| too-broad offer (topic `Everything` in fixtures)  | `chart-continent`                                                                                                                                                                       |
+| dashboard                                         | `new-continent` · `found-continent` · `open-continent` (`data-continent`)                                                                                                               |
+| continent                                         | `open-map` (`data-subject`) · `chart-scope` (`data-scope`) · `leave-continent` · `add-to-continent` · `rename-continent` · `dissolve-continent` · `dissolve-confirm` · `back-dashboard` |
+| map                                               | `primary` · `phase-<i>` · `skip-confirm` · `skip-cancel`                                                                                                                                |
+| Consume                                           | `check-<i>` · `continue` · `finish` · `begin-socratic`                                                                                                                                  |
+| Socratic                                          | `submit`                                                                                                                                                                                |
+| Feynman                                           | `begin` · `next` · `submit` · `advance`                                                                                                                                                 |
+| Crucible                                          | `confidence-<i>` · `submit` · `finish`                                                                                                                                                  |
+| the deck (Discriminate · Predict · Trace · Drill) | `mode-<open\|choices>` · `pick-<i>` · `next` · `finish` · `exit`                                                                                                                        |
+| Recall                                            | `submit` · `scaffold` · `finish` · `again` · `exit`                                                                                                                                     |
+| Retain                                            | `flip` · `grade-<again\|hard\|good\|easy>` · `continue`                                                                                                                                 |
 
 Two things that catch people out:
 

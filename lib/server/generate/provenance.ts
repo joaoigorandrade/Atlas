@@ -6,7 +6,17 @@
 // No judge: every claim ships its own ruling, and `provenancePassed` grades
 // locally. One generation, no grading call, ever.
 
-import { arr, boundaryNote, fail, languageNote, obj, oneOf, str, user } from "./common";
+import {
+  type Boundary,
+  arr,
+  boundaryNote,
+  fail,
+  languageNote,
+  obj,
+  oneOf,
+  str,
+  user,
+} from "./common";
 import {
   PROVENANCE_RULINGS,
   type Domain,
@@ -57,14 +67,12 @@ export function validateProvenance(nodeId: string, nodeLabel: string) {
   };
 }
 
-export interface ProvenanceParams {
+export interface ProvenanceParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
   language?: Language;
   domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
 }
 
 export async function generateProvenance(
