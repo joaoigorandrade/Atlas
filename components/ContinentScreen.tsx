@@ -338,6 +338,7 @@ export default function ContinentScreen({ continents }: { continents: Continents
                 <div style={{ display: "flex", gap: 8 }}>
                   <Button
                     variant="secondary"
+                    full={false}
                     accent={color.inkMuted}
                     disabled={busy}
                     data-testid="action-dissolve-confirm"
