@@ -55,6 +55,8 @@ export interface GenerateBody {
   /** What the other maps of this topic's continent teach. Set by the server
    *  alone (`withNeighbours`) — whatever a client sends is dropped. */
   neighbours?: string[];
+  /** continentLinks: the continent's maps, each with its concept labels. */
+  maps?: Array<{ subject?: unknown; labels?: unknown }>;
   // model fields — the section a lens was opened over, as it is on screen
   // (`kicker` is shared with the passage fields below)
   lens?: string;

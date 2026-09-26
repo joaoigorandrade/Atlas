@@ -74,8 +74,8 @@ export default function ContinentScreen({ continents }: { continents: Continents
   // Coarse on purpose: a resize of a few pixels must not repack and re-bake.
   const aspect = box.w && box.h ? Math.round((box.w / box.h) * 4) / 4 : 1.5;
   const input = useMemo(
-    () => (c ? continentAtlas(c.members, c.uncharted, aspect) : null),
-    [c, aspect],
+    () => (c ? continentAtlas(c.members, c.uncharted, aspect, continents.links) : null),
+    [c, aspect, continents.links],
   );
   const bounds = useMemo(
     () => (input ? mapBounds(input.positions, input.ids) : null),

@@ -101,7 +101,7 @@ async function postOnce<T>(body: Record<string, unknown>, opts?: FetchOpts): Pro
  * they can choose than by the app spending their credit three times in silence.
  * `WarmDeclined` is not retryable, so a declined warm still returns instantly.
  */
-function post<T>(body: Record<string, unknown>, opts?: FetchOpts): Promise<T> {
+export function post<T>(body: Record<string, unknown>, opts?: FetchOpts): Promise<T> {
   return withRetry(() => postOnce<T>(body, opts), { delays: [1200] });
 }
 

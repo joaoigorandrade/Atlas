@@ -6,6 +6,7 @@
 // fixture run that only ever passes tests the screen and not the rule.
 
 import type { GenerateBody } from "./jobInput";
+import { continentLinksParams } from "./generate/continentLinks";
 import { asDomain } from "@/lib/curriculum";
 import type {
   DiagnosticQuestion,
@@ -290,4 +291,33 @@ export function domainPhaseJudgement(body: GenerateBody): Record<string, unknown
     default:
       return null;
   }
+}
+
+/**
+ * Fixture kinds that are not a phase. A continent's links: two maps connect
+ * when their subjects and concepts share a word of four letters or more — so a
+ * fixture continent of look-alike maps is one landmass, and maps with nothing
+ * in common stay islands, without a model deciding either.
+ */
+export function otherFixture(kind: string, body: GenerateBody) {
+  if (kind !== "continentLinks") return null;
+  const { maps } = continentLinksParams(body, "fixture");
+  const words = maps.map(
+    (m) =>
+      new Set(
+        [m.subject, ...m.labels]
+          .join(" ")
+          .toLowerCase()
+          .split(/\W+/)
+          .filter((w) => w.length >= 4),
+      ),
+  );
+  const links: [string, string][] = [];
+  maps.forEach((a, i) =>
+    maps.forEach((b, j) => {
+      if (j > i && [...words[i]].some((w) => words[j].has(w)))
+        links.push([a.subject, b.subject]);
+    }),
+  );
+  return { links };
 }

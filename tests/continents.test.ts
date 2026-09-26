@@ -11,6 +11,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveJob } from "@/lib/server/job";
 import { boundaryNote } from "@/lib/server/generate/common";
 import { mapContext } from "@/lib/server/generate/mapPrompt";
+import { validateContinentLinks } from "@/lib/server/generate/continentLinks";
+import { otherFixture } from "@/lib/server/fixturesPhases";
 import { FIXTURE_USER_ID, fixtureSupabase } from "@/lib/server/fixtures";
 import { resetTables } from "@/lib/server/fixtureTables";
 import {
@@ -216,5 +218,82 @@ describe("continentAtlas", () => {
     const one = mapBounds(input.positions, ["t1:a", "t1:b"])!;
     const two = mapBounds(input.positions, ["t2:a", "t2:b"])!;
     expect(two.minY).toBeGreaterThan(one.maxY);
+  });
+});
+
+describe("which maps share a coast", () => {
+  const maps = [
+    { subject: "Jesus Cristo", labels: ["Judaísmo do Segundo Templo"] },
+    { subject: "Humor Negro", labels: ["Incongruência"] },
+  ];
+
+  it("keys one row for the same maps in any order", () => {
+    const one = resolveJob({ kind: "continentLinks", topic: "continent", maps });
+    const two = resolveJob({
+      kind: "continentLinks",
+      topic: "continent",
+      maps: [...maps].reverse(),
+    });
+    expect(one.key).toBe(two.key);
+    expect(() =>
+      resolveJob({ kind: "continentLinks", topic: "continent", maps: [maps[0]] }),
+    ).toThrow();
+  });
+
+  it("takes only real, distinct pairs from the model", () => {
+    expect(
+      validateContinentLinks(
+        {
+          links: [
+            [1, 0],
+            [0, 1],
+          ],
+        },
+        2,
+      ),
+    ).toEqual([[0, 1]]);
+    expect(validateContinentLinks({ links: [] }, 2)).toEqual([]);
+    expect(() => validateContinentLinks({ links: [[0, 2]] }, 2)).toThrow();
+    expect(() => validateContinentLinks({ links: [[1, 1]] }, 2)).toThrow();
+  });
+
+  it("answers from the fixture by shared words, so fixture mode never calls a model", () => {
+    expect(otherFixture("continentLinks", { kind: "continentLinks", maps })).toEqual({
+      links: [],
+    });
+    const kin = [
+      { subject: "Linear Algebra", labels: ["Vectors"] },
+      { subject: "Vectors in Physics", labels: ["Forces"] },
+    ];
+    expect(otherFixture("continentLinks", { kind: "continentLinks", maps: kin })).toEqual(
+      {
+        links: [["Linear Algebra", "Vectors in Physics"]],
+      },
+    );
+  });
+
+  const member = (id: string) => ({
+    id,
+    subject: id,
+    graph,
+    states: {},
+    positions: { a: { x: 0, y: 0 }, b: { x: 600, y: 150 } },
+  });
+  const gapBetween = (links: [string, string][]) => {
+    const input = continentAtlas([member("t1"), member("t2")], [], 3, links);
+    const one = mapBounds(input.positions, ["t1:a", "t1:b"])!;
+    const two = mapBounds(input.positions, ["t2:a", "t2:b"])!;
+    return Math.max(
+      two.minX - one.maxX,
+      one.minX - two.maxX,
+      two.minY - one.maxY,
+      one.minY - two.maxY,
+    );
+  };
+
+  it("leaves unrelated maps as islands across open sea, and joins related ones", () => {
+    // Land reaches ~160 units past a concept: 60 apart the coasts meet, 520 they can't.
+    expect(gapBetween([])).toBeGreaterThanOrEqual(500);
+    expect(gapBetween([["t1", "t2"]])).toBeLessThan(100);
   });
 });

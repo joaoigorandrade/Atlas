@@ -7,9 +7,15 @@
 // one call followed by `refreshMaps()` — the library is a few hundred rows and
 // one request. ponytail: refresh-after-write; go optimistic if the wait shows.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { patchTopic } from "@/lib/persistence";
-import { createContinent, deleteContinent, renameContinent } from "@/lib/continents";
+import {
+  createContinent,
+  deleteContinent,
+  fetchContinentLinks,
+  renameContinent,
+} from "@/lib/continents";
+import { logWarning } from "@/lib/log";
 import type { ScopeOffer } from "@/lib/api";
 import type { ErrorContext } from "@/lib/errorCopy";
 import type { RunState } from "@/components/atlas/useRunState";
@@ -22,6 +28,9 @@ export interface ContinentView {
   members: (ContinentMember & { masteryPct: number })[];
   /** Scopes offered when the continent was charted that no member covers yet. */
   uncharted: ScopeOffer[];
+  /** The territories of one too-broad topic — its charted scopes and its
+   *  uncharted ones. Related by construction: no model needs to say so. */
+  kin: string[];
 }
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -44,7 +53,12 @@ export function useContinents(
     const by = new Map<string, ContinentView & { scopes: ScopeOffer[] }>();
     for (const t of maps) {
       if (!t.continent) continue;
-      const c = by.get(t.continent.id) ?? { ...t.continent, members: [], uncharted: [] };
+      const c = by.get(t.continent.id) ?? {
+        ...t.continent,
+        members: [],
+        uncharted: [],
+        kin: [],
+      };
       by.set(c.id, c);
       // The live run's numbers move mid-session, before any save lands.
       const live = t.id === topicId;
@@ -62,10 +76,12 @@ export function useContinents(
         masteryPct: total ? Math.round((mastered / total) * 100) : 0,
       });
     }
-    for (const c of by.values())
+    for (const c of by.values()) {
       c.uncharted = c.scopes.filter(
         (s) => !c.members.some((m) => same(m.subject, s.label)),
       );
+      c.kin = c.scopes.map((s) => s.label);
+    }
     return [...by.values()]
       .map(({ scopes: _all, ...c }) => c)
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -102,11 +118,49 @@ export function useContinents(
     [refreshMaps, setScreen],
   );
 
+  const opened = continents.find((c) => c.id === openId) ?? null;
+
+  // Which of the open continent's maps share material. Asked once per set of
+  // maps (the server caches the answer) and never waited on: until it lands,
+  // every map is its own island, which is the one layout that claims nothing.
+  const asked = useMemo(
+    () =>
+      opened && opened.members.length >= 2
+        ? opened.members
+            .map((m) => ({
+              subject: m.subject,
+              labels: m.graph.nodes.filter((n) => !n.gap).map((n) => n.label),
+            }))
+            .sort((a, b) => a.subject.localeCompare(b.subject))
+        : null,
+    [opened],
+  );
+  const sig = asked ? JSON.stringify(asked) : null;
+  const [linksBy, setLinksBy] = useState<Record<string, [string, string][]>>({});
+  useEffect(() => {
+    if (!sig) return;
+    let live = true;
+    fetchContinentLinks(JSON.parse(sig))
+      .then((links) => live && setLinksBy((prev) => ({ ...prev, [sig]: links })))
+      .catch((err: unknown) => logWarning("continent_links_failed", err));
+    return () => {
+      live = false;
+    };
+  }, [sig]);
+  const links = useMemo<[string, string][]>(() => {
+    const kin = opened?.kin ?? [];
+    return [
+      ...((sig && linksBy[sig]) || []),
+      ...kin.slice(1).map((k, i): [string, string] => [kin[i], k]),
+    ];
+  }, [sig, linksBy, opened]);
+
   return {
     continents,
     loose,
     busy,
-    open: continents.find((c) => c.id === openId) ?? null,
+    open: opened,
+    links,
     openContinent: open,
     create: (name: string, topicIds: string[]) =>
       void write(() => createContinent({ name, topicIds })),
@@ -117,7 +171,7 @@ export function useContinents(
         setScreen("dashboard");
       }),
     join: (continentId: string, id: string) =>
-      write(() => patchTopic(id, { continentId })),
+      void write(() => patchTopic(id, { continentId })),
     leave: (id: string) => void write(() => patchTopic(id, { continentId: null })),
     enterMap: switchMap,
     /** Build one uncharted scope into its continent — onboarding's own path. */

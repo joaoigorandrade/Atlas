@@ -52,6 +52,8 @@ import {
   judgeSocratic,
   judgeSocraticStream,
   mapNodeBounds,
+  continentLinksParams,
+  linksPayload,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import {
@@ -74,6 +76,7 @@ import {
   type StreamShapes,
 } from "@/lib/server/stream";
 import { FIXTURES, fixturePayload } from "@/lib/server/fixtures";
+import { otherFixture } from "@/lib/server/fixturesPhases";
 import {
   ALT_KEYS,
   DIAGNOSTIC_DIFFICULTIES,
@@ -128,7 +131,7 @@ export function resolveJob(body: GenerateBody): Job {
  * `content_cache`, where a live deploy could later read it as real content.
  */
 function asFixture(job: Job, body: GenerateBody): Job {
-  const payload = fixturePayload(job.kind, body);
+  const payload = fixturePayload(job.kind, body) ?? otherFixture(job.kind, body);
   if (!payload) return job;
   const shape = job.shape;
   return {
@@ -213,15 +216,12 @@ function buildJob(body: GenerateBody): Job {
       // the same topic share the row, and it is a handful of tokens either way.
       return cacheable(
         "summary",
-        {
-          topic,
-          nodeLabel,
-          prereqLabels: labels(body.prereqLabels),
-          language,
-        },
+        { topic, nodeLabel, prereqLabels: labels(body.prereqLabels), language },
         async (p) => ({ summary: await generateSummary(p) }),
       );
     }
+    case "continentLinks": // which maps of a continent share material
+      return cacheable("continentLinks", continentLinksParams(body, topic), linksPayload);
 
     case "diagnosticQuestion": {
       const pool = poolOf(body);
@@ -390,9 +390,7 @@ function buildJob(body: GenerateBody): Job {
       return cacheable(
         "connect",
         { topic, nodeId, nodeLabel, pool, interests, language, ...nodeAxes(body) },
-        async (p) => ({
-          content: await generateConnect(p),
-        }),
+        async (p) => ({ content: await generateConnect(p) }),
       );
     }
 
@@ -587,9 +585,7 @@ function buildJob(body: GenerateBody): Job {
       return cacheable(
         "retain",
         { topic, budgetMin, nodes, interests, language },
-        async (p) => ({
-          content: await generateRetain(p),
-        }),
+        async (p) => ({ content: await generateRetain(p) }),
       );
     }
 

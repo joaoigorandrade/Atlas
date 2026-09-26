@@ -8,6 +8,7 @@
 // the three things only the continent itself can do.
 
 import { call } from "@/lib/persistence";
+import { post } from "@/lib/api";
 import type { ScopeOffer } from "@/lib/api";
 
 export interface Continent {
@@ -36,4 +37,20 @@ export function renameContinent(id: string, name: string): Promise<void> {
 /** Dissolve it. The maps stay — `on delete set null` just lets them go. */
 export function deleteContinent(id: string): Promise<void> {
   return call("deleteContinent", `/continents/${id}`, { method: "DELETE" });
+}
+
+/**
+ * Which of these maps share material, as pairs of subjects — the judgement
+ * behind which countries share a coast. A generation like any other, so the
+ * same set of maps is answered from the shared cache after the first time.
+ */
+export async function fetchContinentLinks(
+  maps: { subject: string; labels: string[] }[],
+): Promise<[string, string][]> {
+  const { links } = await post<{ links: [string, string][] }>({
+    kind: "continentLinks",
+    topic: "continent",
+    maps,
+  });
+  return links;
 }

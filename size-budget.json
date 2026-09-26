@@ -26,7 +26,7 @@
     "lib/persistence.ts": 443,
     "lib/server/fixtures.ts": 442,
     "lib/server/generate/map.ts": 497,
-    "lib/server/job.ts": 809,
+    "lib/server/job.ts": 805,
     "lib/server/openrouter.ts": 540,
     "lib/speech.ts": 779
   }

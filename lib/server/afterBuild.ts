@@ -62,7 +62,8 @@ export async function logGenerationCalls(
  * replayed.
  */
 export const RECORDED_KINDS: ReadonlySet<string> = new Set(
-  CACHEABLE_KINDS.filter((kind) => kind !== "curriculum"),
+  // A map and a continent's links belong to no one node.
+  CACHEABLE_KINDS.filter((kind) => kind !== "curriculum" && kind !== "continentLinks"),
 );
 
 /**

@@ -75,11 +75,16 @@ describe("renderShape", () => {
 // slot, and stays recordable.
 
 describe("every cacheable kind is wired all the way through", () => {
-  const recordable = CACHEABLE_KINDS.filter((k) => k !== "curriculum");
+  // Two kinds belong to no node: the map itself, and a continent's links
+  // (which maps share a coast). Both are read whole and filed nowhere.
+  const recordable = CACHEABLE_KINDS.filter(
+    (k) => k !== "curriculum" && k !== "continentLinks",
+  );
 
   it("has a payload slot, so nothing is served still wearing its envelope", () => {
     // `curriculum` is exempt: its payload is the flat `nodes` list itself, and
-    // `renderShape` rightly passes an unslotted kind through untouched.
+    // `renderShape` rightly passes an unslotted kind through untouched. So is
+    // `continentLinks`, whose `{ links }` is exactly what the client reads.
     const missing = recordable.filter((kind) => !SLOT[kind]);
     expect(missing, "kinds with no renderShape slot").toEqual([]);
   });
