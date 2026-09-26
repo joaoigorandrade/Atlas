@@ -20,7 +20,7 @@
     "components/session/FeynmanView.tsx": 1283,
     "components/session/PerformView.tsx": 414,
     "components/session/RecallView.tsx": 429,
-    "components/session/RetainView.tsx": 775,
+    "components/session/RetainCard.tsx": 611,
     "components/session/SocraticView.tsx": 459,
     "lib/api.ts": 787,
     "lib/curriculum/socratic.ts": 461,
