@@ -169,7 +169,7 @@ export const DOMAIN_MAP_RULE = `NOW APPLY YOUR CHOSEN DOMAIN. This row overrides
  */
 const AXES_MIX: Record<GoalKind, string> = {
   pareto: `Roughly half the concepts "core" and half "working".`,
-  exam: `Roughly 40% "core", 40% "working", and "peripheral" only for the easy context an exam still asks about.`,
+  exam: `Roughly 40% "core" and the rest "working"; "peripheral" only for easy context the syllabus itself names.`,
   project: `Roughly 40% "core" and 60% "working". A hard idea the build needs is a TOOL here: rate its difficulty by how hard it is to USE, not by how hard it is to understand inside.`,
   mastery: `Weight the map to the core: at least half the concepts are "core". "working" and "peripheral" fill in what the core needs around it.`,
 };
@@ -183,7 +183,7 @@ export function axesRule(goal: GoalKind): string {
   "working" — the learner must be able to USE it to reach the core, not master it: a tool, a stepping stone.
   "peripheral" — context the learner only has to RECOGNISE when they meet it: a term, a detail, a side branch.
 "difficulty" is how hard the concept is for a newcomer who ALREADY holds its prerequisites: "easy" when it lands on first explanation, "hard" only for the few concepts that genuinely resist — counter-intuitive, many moving parts, the classic stumbling blocks of this topic — and "medium" otherwise. Most nodes are "medium"; never mark everything the same.
-For this goal, every node's importance/difficulty pair must be one of: ${pairs}. A concept that would fall outside that list does not belong on this map — leave it out rather than tag it outside the list. ${AXES_MIX[goal]} Never tag every concept "core".`;
+For this goal, every node's importance/difficulty pair must be one of: ${pairs}. A concept that would fall outside that list does not belong on this map — leave it out rather than tag it outside the list. The mix that follows SPLITS the concepts the topic genuinely needs; it never adds any — the concept count comes from the size rule alone, and a row is never padded to reach its share. ${AXES_MIX[goal]} Never tag every concept "core".`;
 }
 
 /** The summary rule, shared by the single-shot and streamed map prompts: it is
