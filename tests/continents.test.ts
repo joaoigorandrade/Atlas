@@ -205,4 +205,16 @@ describe("continentAtlas", () => {
       two.maxY < one.minY;
     expect(apart).toBe(true);
   });
+
+  it("stacks long maps rather than laying them end to end into a strip", () => {
+    // A real curriculum runs left to right: twenty stages wide, two rows deep.
+    const long = (id: string) => ({
+      ...member(id, id),
+      positions: { a: { x: 0, y: 0 }, b: { x: 5000, y: 150 } },
+    });
+    const input = continentAtlas([long("t1"), long("t2")], [], 1);
+    const one = mapBounds(input.positions, ["t1:a", "t1:b"])!;
+    const two = mapBounds(input.positions, ["t2:a", "t2:b"])!;
+    expect(two.minY).toBeGreaterThan(one.maxY);
+  });
 });

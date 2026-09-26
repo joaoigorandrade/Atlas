@@ -13,7 +13,7 @@ import Button from "@/components/ui/Button";
 import { plateStyle } from "@/components/ui/Plate";
 import { Land } from "@/components/map/MapTerrain";
 import { continentAtlas, ownerOf } from "@/components/map/continentLayout";
-import { fitView, mapBounds } from "@/components/map/mapGeometry";
+import { mapBounds } from "@/components/map/mapGeometry";
 import { useBox, type Territory } from "@/components/map/useMapPointer";
 import type { Continents } from "@/components/atlas/useContinents";
 import { color, font, kicker } from "@/lib/theme";
@@ -58,7 +58,9 @@ const STRINGS = {
   },
 } as const;
 
-const NO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
+/** Map units of margin round the outermost concepts — the coast and its
+ *  water lines reach this far past them. */
+const PAD = 200;
 
 export default function ContinentScreen({ continents }: { continents: Continents }) {
   const t = useT(STRINGS);
@@ -69,12 +71,29 @@ export default function ContinentScreen({ continents }: { continents: Continents
   const [naming, setNaming] = useState<string | null>(null);
   const [dissolving, setDissolving] = useState(false);
 
-  const input = useMemo(() => (c ? continentAtlas(c.members, c.uncharted) : null), [c]);
+  // Coarse on purpose: a resize of a few pixels must not repack and re-bake.
+  const aspect = box.w && box.h ? Math.round((box.w / box.h) * 4) / 4 : 1.5;
+  const input = useMemo(
+    () => (c ? continentAtlas(c.members, c.uncharted, aspect) : null),
+    [c, aspect],
+  );
   const bounds = useMemo(
     () => (input ? mapBounds(input.positions, input.ids) : null),
     [input],
   );
-  const view = bounds && box.w ? fitView(bounds, box, NO_INSETS, 200) : null;
+  // Its own fit, not the map's `fitView`: that one never zooms out past the
+  // map's floor, and a whole continent is meant to be seen at once.
+  const view = (() => {
+    if (!bounds || !box.w) return null;
+    const w = bounds.maxX - bounds.minX + PAD * 2;
+    const h = bounds.maxY - bounds.minY + PAD * 2;
+    const scale = Math.min(box.w / w, box.h / h, 1.1);
+    return {
+      scale,
+      x: box.w / 2 - ((bounds.minX + bounds.maxX) / 2) * scale,
+      y: box.h / 2 - ((bounds.minY + bounds.maxY) / 2) * scale,
+    };
+  })();
 
   if (!c) return null;
 
