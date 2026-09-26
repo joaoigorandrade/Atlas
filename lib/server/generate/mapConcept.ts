@@ -5,6 +5,7 @@
 
 import { fail, obj, slug, str } from "./common";
 import { nodeAxes, type GoalKind } from "@/lib/curriculum";
+import { logEvent } from "@/lib/log";
 
 /** A validated concept before layout — the same shape whether it arrived in one
  *  payload or one streamed object at a time. */
@@ -78,8 +79,10 @@ export function restartGuard<T>(
       restated = 0;
       return value;
     } catch (err) {
-      if (String(err).includes("duplicate concept") && ++restated >= 3)
+      if (String(err).includes("duplicate concept") && ++restated >= 3) {
+        logEvent("map_stream_restarted", { at: index });
         return { restarted: true };
+      }
       throw err;
     }
   };
