@@ -130,7 +130,7 @@ public actor AtlasAPI {
 
     /// A scoped sub-map offer: what comes back instead of a map when the topic
     /// is a continent rather than a territory.
-    public struct ScopeOffer: Decodable, Sendable {
+    public struct ScopeOffer: Codable, Sendable, Hashable {
         public let label: String
         public let note: String
     }

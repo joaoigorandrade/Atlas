@@ -101,6 +101,116 @@ final class HomeViewModel {
         await store.switchTo(map)
     }
 
+    // MARK: - Continentes
+
+    /// One continent on "Seus mapas": its member maps, and the scopes it was
+    /// charted from that no member covers yet (`useContinents.ts`).
+    struct ContinentGroup: Identifiable {
+        let continent: Continent
+        let maps: [AtlasRun]
+        let uncharted: [AtlasAPI.ScopeOffer]
+        var id: String { continent.id }
+    }
+
+    var continents: [ContinentGroup] {
+        let same = { (a: String, b: String) in
+            a.trimmingCharacters(in: .whitespaces).lowercased() == b.trimmingCharacters(in: .whitespaces).lowercased()
+        }
+        return Dictionary(grouping: maps.filter { $0.continent != nil }) { $0.continent!.id }
+            .values
+            .map { members in
+                let continent = members[0].continent!
+                return ContinentGroup(
+                    continent: continent, maps: members,
+                    uncharted: continent.scopes.filter { scope in !members.contains { same($0.subject, scope.label) } }
+                )
+            }
+            .sorted { $0.continent.name.localizedCompare($1.continent.name) == .orderedAscending }
+    }
+
+    /// Maps in no continent.
+    var looseMaps: [AtlasRun] { maps.filter { $0.continent == nil } }
+
+    /// Build an uncharted scope into its continent: the store clears the open
+    /// run, and the fresh onboarding picks the scope up and builds it.
+    func chart(_ scope: AtlasAPI.ScopeOffer, in continent: Continent) async {
+        store.charting = (scope.label, continent.id)
+        await store.newMap()
+    }
+
+    func move(_ map: AtlasRun, to continent: Continent?) async {
+        await continentWrite(String(localized: "mover esse mapa")) { try await self.store.move(map.id, to: continent) }
+    }
+
+    /// What the name alert is naming: a new continent around one map, or an
+    /// existing one being renamed.
+    enum Naming { case new(AtlasRun), rename(Continent) }
+    private(set) var naming: Naming?
+    var draftName = ""
+
+    var isNaming: Binding<Bool> {
+        Binding(get: { self.naming != nil }, set: { if !$0 { self.naming = nil } })
+    }
+
+    func startContinent(with map: AtlasRun) {
+        draftName = ""
+        naming = .new(map)
+    }
+
+    func startRename(_ continent: Continent) {
+        draftName = continent.name
+        naming = .rename(continent)
+    }
+
+    func saveName() async {
+        let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Held, like `confirmed` below: the alert clears `naming` before this runs.
+        let naming = naming
+        self.naming = nil
+        guard !name.isEmpty, let naming else { return }
+        switch naming {
+        case .new(let map):
+            await continentWrite(String(localized: "criar o continente")) {
+                _ = try await self.store.createContinent(name: name, topicIds: [map.id])
+            }
+        case .rename(let continent):
+            await continentWrite(String(localized: "renomear o continente")) {
+                try await self.store.renameContinent(continent.id, to: name)
+            }
+        }
+    }
+
+    /// Dissolving asks first. The maps stay; only the grouping goes.
+    private(set) var pendingDissolve: Continent?
+    private var dissolving: Continent?
+
+    func askToDissolve(_ continent: Continent) {
+        pendingDissolve = continent
+        dissolving = continent
+    }
+
+    var isConfirmingDissolve: Binding<Bool> {
+        Binding(get: { self.pendingDissolve != nil }, set: { if !$0 { self.pendingDissolve = nil } })
+    }
+
+    var dissolveAsk: String {
+        String(localized: "Desfazer “\((pendingDissolve ?? dissolving)?.name ?? "")”?")
+    }
+
+    func dissolve() async {
+        guard let continent = dissolving else { return }
+        dissolving = nil
+        pendingDissolve = nil
+        await continentWrite(String(localized: "desfazer o continente")) {
+            try await self.store.dissolveContinent(continent.id)
+        }
+    }
+
+    private func continentWrite(_ doing: String, _ op: () async throws -> Void) async {
+        message = ""
+        do { try await op() } catch { message = ErrorCopy.sentence(for: error, doing: doing) }
+    }
+
     // MARK: - Excluir um mapa
 
     /// The card the learner is being asked about, and the failure if the delete

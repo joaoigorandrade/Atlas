@@ -233,7 +233,36 @@ public extension ConceptNode {
     /// render no spiral at all.
     var plan: [Phase] {
         if let stored = phasePlan, !stored.isEmpty { return stored }
-        return resolvePlan(kind ?? .concept, domain ?? .general)
+        return resolvePlan(kind ?? .concept, domain ?? .general, importance ?? .core, difficulty ?? .medium)
+    }
+
+    /// Minutes of work this node still owes: its unfinished gates, at its
+    /// pace. Mirrors `minutesLeft` in `replan.ts`.
+    func minutesLeft(_ done: [Phase]) -> Int {
+        let raw = planGates(plan).filter { !done.contains($0) }.reduce(0) { $0 + $1.minutes }
+        let pace: Double = switch difficulty ?? .medium {
+        case .easy: 0.75
+        case .medium: 1
+        case .hard: 1.4
+        }
+        return Int((Double(raw) * pace).rounded())
+    }
+}
+
+public extension Phase {
+    /// Rough minutes of focused work per phase — `PHASE_MINUTES` in
+    /// `replan.ts`. Retain is the shared review queue, budgeted on its own.
+    /// ponytail: estimates until real session-length analytics exist (#23).
+    var minutes: Int {
+        switch self {
+        case .consume, .steelman, .perform, .crucible: 10
+        case .socratic, .feynman, .produce: 8
+        case .provenance: 6
+        case .predict, .trace, .connect, .recall: 5
+        case .discriminate: 4
+        case .drill: 3
+        case .retain: 0
+        }
     }
 }
 

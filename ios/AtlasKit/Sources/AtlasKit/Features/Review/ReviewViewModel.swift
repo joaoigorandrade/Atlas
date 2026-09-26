@@ -212,4 +212,22 @@ public final class ReviewViewModel {
         return cloze[0].trimmingCharacters(in: .whitespaces) + " ______ "
             + cloze[1].trimmingCharacters(in: .whitespaces)
     }
+
+    /// A turned cloze card, its blank filled: the answer is set in its own
+    /// question rather than printed a second time beneath it (`RetainCard.tsx`).
+    public func filled(_ card: ReviewCard) -> (before: String, answer: String, after: String)? {
+        guard stage != .question, let cloze = card.cloze, cloze.count == 2,
+              let answer = card.answer, !answer.isEmpty else { return nil }
+        return (cloze[0].trimmingCharacters(in: .whitespaces) + " ", answer,
+                " " + cloze[1].trimmingCharacters(in: .whitespaces))
+    }
+
+    /// The back, unless the filled blank already says all of it.
+    public func back(_ card: ReviewCard) -> String? {
+        guard filled(card) != nil,
+              card.back.trimmingCharacters(in: .whitespacesAndNewlines)
+                == card.answer?.trimmingCharacters(in: .whitespacesAndNewlines)
+        else { return card.back }
+        return nil
+    }
 }

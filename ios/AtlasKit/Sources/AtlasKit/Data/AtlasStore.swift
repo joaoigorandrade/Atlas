@@ -32,6 +32,10 @@ public final class AtlasStore {
     /// The node under a "prove it" challenge, if any — session-only, so a
     /// relaunch drops it and the attempt just credits itself. See `ledgerAfter`.
     @ObservationIgnored var challenge: String?
+    /// The scope the next onboarding builds, and the continent it joins — set
+    /// by charting an uncharted scope from "Seus mapas", read once by the fresh
+    /// onboarding machine that "Novo mapa" puts on screen.
+    @ObservationIgnored var charting: (label: String, continentId: String)?
 
     /// Every review card drafted for this run. The generation is a card
     /// factory; `deck` below is the queue it feeds, and the scheduler that
@@ -840,7 +844,7 @@ public extension AtlasStore {
     /// map's frontier the moment the map lands, and it needs a topic to file
     /// what it generates under. A build that produces nothing calls
     /// `abandonTopic()`.
-    func createTopic(_ form: OnboardingForm) async {
+    func createTopic(_ form: OnboardingForm, continentId: String? = nil) async {
         guard let token = await bearer() else { return }
         // Not fatal here: the map still builds and still draws. What is lost is
         // the server-side warm's address, so the first phase generates on the
@@ -853,7 +857,58 @@ public extension AtlasStore {
             "paretoPct": .number(Double(form.paretoPct)),
             "examDate": .string(form.examDate),
             "language": .string(language),
+            // Joined at birth, so the server tells the build what its
+            // neighbours teach (`withNeighbours`).
+            "continentId": continentId.map(JSONValue.string) ?? .null,
         ]), token: token)
+    }
+
+    // MARK: - Continents
+
+    /// Group maps — `lib/continents.ts`. A continent travels inside each member
+    /// topic, so every write below edits `library` in place once it lands and
+    /// nothing is re-fetched.
+    func createContinent(
+        name: String, scopes: [AtlasAPI.ScopeOffer] = [], topicIds: [String] = []
+    ) async throws -> Continent {
+        let made = try await runs.createContinent(
+            name: name, scopes: scopes, topicIds: topicIds, token: try await continentToken()
+        )
+        regroup { topicIds.contains($0.id) ? made : $0.continent }
+        return made
+    }
+
+    func renameContinent(_ id: String, to name: String) async throws {
+        try await runs.renameContinent(id, name: name, token: try await continentToken())
+        regroup { run in
+            guard var continent = run.continent, continent.id == id else { return run.continent }
+            continent.name = name
+            return continent
+        }
+    }
+
+    /// Dissolve it. The maps stay — the server only lets them go.
+    func dissolveContinent(_ id: String) async throws {
+        try await runs.deleteContinent(id, token: try await continentToken())
+        regroup { $0.continent?.id == id ? nil : $0.continent }
+    }
+
+    /// Put one map into a continent, or (nil) take it out.
+    func move(_ topicId: String, to continent: Continent?) async throws {
+        try await runs.patchTopic(topicId, body: .object([
+            "continentId": continent.map { .string($0.id) } ?? .null,
+        ]), token: try await continentToken())
+        regroup { $0.id == topicId ? continent : $0.continent }
+    }
+
+    private func continentToken() async throws -> String {
+        guard let token = await bearer() else { throw AtlasError(code: "auth", message: "signed out") }
+        return token
+    }
+
+    private func regroup(_ pick: (AtlasRun) -> Continent?) {
+        for index in library.indices { library[index].continent = pick(library[index]) }
+        local.replace(topics: library)
     }
 
     /// The row every write below needs, asked for again when the build's own

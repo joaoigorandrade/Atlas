@@ -131,6 +131,22 @@ struct WelcomeView: View {
                 }
                 .pressable()
             }
+            // All of them, as one continent: the first builds now, the rest
+            // wait on "Seus mapas" as uncharted land.
+            Button { onboarding.chartAll() } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Mapear o continente inteiro →").font(.atlas(.serif, 16)).foregroundStyle(Palette.amberInk)
+                    Text("Construa o primeiro território agora; os outros esperam no continente, prontos para mapear.")
+                        .font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(Palette.amberInk, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                }
+            }
+            .pressable()
         }
     }
 

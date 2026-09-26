@@ -232,3 +232,19 @@ import Testing
     #expect(graph.boundary(of: "a").prior.isEmpty)
     #expect(graph.boundary(of: "a").later == ["B", "C", "D"])
 }
+
+/// The two cost axes only remove rungs, and their defaults are the old ladder.
+/// Mirrors `resolvePlan` / `minutesLeft` in `phases.ts` / `replan.ts`.
+@Test func importanceAndDifficultyTrimTheLadderAndPriceIt() {
+    #expect(resolvePlan(.concept, .general, .core, .medium) == phasePlans[.concept]!)
+    #expect(resolvePlan(.concept, .general, .support, .medium) == [.consume, .discriminate, .recall, .retain])
+    #expect(resolvePlan(.concept, .general, .support, .hard).contains(.socratic))
+    #expect(!resolvePlan(.concept, .general, .core, .easy).contains(.socratic))
+
+    var node = ConceptNode(id: "a", label: "A", kind: .concept, domain: .general)
+    // consume 10 + discriminate 4 + socratic 8 + feynman 8 + connect 5 + crucible 10 + recall 5
+    #expect(node.minutesLeft([]) == 50)
+    #expect(node.minutesLeft([.consume]) == 40)
+    node.difficulty = .hard
+    #expect(node.minutesLeft([]) == 70)
+}

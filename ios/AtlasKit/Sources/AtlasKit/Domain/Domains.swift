@@ -82,16 +82,26 @@ public let domainPlans: [Domain: DomainPlanRule] = [
 /// The merge is a *filter over `Phase.allCases`* rather than a concatenation,
 /// which is what makes the subsequence invariant hold by construction: whatever
 /// the two tables ask for comes back in canonical order with no duplicates.
-public func resolvePlan(_ kind: NodeKind, _ domain: Domain) -> [Phase] {
+///
+/// Then the two cost axes only ever *remove* rungs: a support concept drops the
+/// depth phases, and Socratic is dropped for an easy concept (and for a support
+/// one unless it is hard). Defaults reproduce the pre-axes ladder. Mirrors
+/// `resolvePlan` in `phases.ts`.
+public func resolvePlan(
+    _ kind: NodeKind, _ domain: Domain,
+    _ importance: NodeImportance = .core, _ difficulty: NodeDifficulty = .medium
+) -> [Phase] {
     let base = phasePlans[kind] ?? legacyPhasePlan
-    guard let rule = domainPlans[domain] else { return base }
-    switch rule {
-    case .plan(let replacement):
-        return replacement
-    case .add(let extra):
-        let want = Set(base).union(extra)
-        return Phase.allCases.filter { want.contains($0) }
+    var want: Set<Phase>
+    switch domainPlans[domain] {
+    case nil: want = Set(base)
+    case .plan(let replacement): want = Set(replacement)
+    case .add(let extra): want = Set(base).union(extra)
     }
+    let support = importance == .support
+    if support { want.subtract([.feynman, .connect, .crucible, .drill, .steelman]) }
+    if difficulty == .easy || (support && difficulty != .hard) { want.remove(.socratic) }
+    return Phase.allCases.filter { want.contains($0) }
 }
 
 /// What settles a claim about this topic, read off the map it produced.

@@ -237,13 +237,18 @@ private struct NodeMark: View {
     /// The frontier is the biggest disc on the map and untouched territory the
     /// smallest — size carries "where am I" before colour does.
     private var diameter: CGFloat {
-        switch state {
+        let base: CGFloat = switch state {
         case .frontier: 28
         case .unknown: 22
         case .gap: 24
         default: 25
         }
+        return town ? base * 0.8 : base
     }
+
+    /// A concept the goal only passes through — the web's town beside a city:
+    /// a size down, its name in italic. The button's reach is unchanged.
+    private var town: Bool { node.importance == .support && state != .gap }
 
     var body: some View {
         Button(action: open) {
@@ -253,6 +258,7 @@ private struct NodeMark: View {
                 disc.frame(height: 52)
                 Text(verbatim: node.label)
                     .font(.atlas(.serif, state == .frontier ? 14.5 : 13.5))
+                    .italic(town)
                     .foregroundStyle(state == .unknown ? Palette.inkMuted : Palette.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)

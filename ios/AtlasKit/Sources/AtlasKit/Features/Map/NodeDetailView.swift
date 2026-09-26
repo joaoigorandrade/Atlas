@@ -90,6 +90,12 @@ struct NodeDetailView: View {
                 .font(.atlas(.serif, 26))
                 .foregroundStyle(Palette.ink)
                 .padding(.top, 6)
+            if let cost = model.cost {
+                Text(verbatim: cost)
+                    .font(.atlas(.sans, 12.5))
+                    .foregroundStyle(Palette.inkFaint)
+                    .padding(.top, 4)
+            }
 
             if let summary = node.summary {
                 Text(verbatim: summary)

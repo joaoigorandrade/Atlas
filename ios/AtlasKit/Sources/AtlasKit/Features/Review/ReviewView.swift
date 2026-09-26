@@ -196,7 +196,9 @@ public struct ReviewView: View {
                 .padding(.top, 18)
 
                 face(model, card).padding(.top, 12)
-                    .id(card.id)
+                    // Keyed by slot, not card: a missed card dealt again
+                    // straight after itself still arrives as a new card.
+                    .id(model.index)
                     .transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
@@ -220,7 +222,7 @@ public struct ReviewView: View {
                     .offset(y: back.0)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text(verbatim: model.front(card))
+                question(model, card)
                     .font(.atlas(.serif, 22))
                     .foregroundStyle(Palette.ink)
                     .lineSpacing(6)
@@ -239,13 +241,15 @@ public struct ReviewView: View {
                     .pressable()
                     .padding(.top, 24)
                 case .reveal:
-                    Divider().overlay(Palette.hairline).padding(.vertical, 18)
-                    Text(verbatim: card.back)
-                        .font(.atlas(.serif, 17))
-                        .foregroundStyle(Palette.inkSoft)
-                        .lineSpacing(5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    if let back = model.back(card) {
+                        Divider().overlay(Palette.hairline).padding(.vertical, 18)
+                        Text(verbatim: back)
+                            .font(.atlas(.serif, 17))
+                            .foregroundStyle(Palette.inkSoft)
+                            .lineSpacing(5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 case .failed:
                     failed(model, card).padding(.top, 18)
                         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -261,13 +265,24 @@ public struct ReviewView: View {
         .animation(Motion.standard, value: model.stage)
     }
 
+    /// The question, its cloze blank answered in the mastered colour once the
+    /// card is turned.
+    private func question(_ model: ReviewViewModel, _ card: ReviewCard) -> Text {
+        guard let cloze = model.filled(card) else { return Text(verbatim: model.front(card)) }
+        return Text(verbatim: cloze.before)
+            + Text(verbatim: cloze.answer).foregroundColor(NodeState.mastered.color).underline()
+            + Text(verbatim: cloze.after)
+    }
+
     /// The alive-loop: a miss doesn't only reschedule. The node is Shaky on the
     /// map, the re-explanation is right here, and the spiral is one tap away.
     private func failed(_ model: ReviewViewModel, _ card: ReviewCard) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Kicker("De volta ao ciclo", tint: NodeState.gap.color, size: 10)
-            Text(verbatim: card.back)
-                .font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).lineSpacing(5)
+            if let back = model.back(card) {
+                Text(verbatim: back)
+                    .font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).lineSpacing(5)
+            }
             if let reExplain = card.reExplain {
                 Text(verbatim: reExplain)
                     .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkSoft).lineSpacing(3)

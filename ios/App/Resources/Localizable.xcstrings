@@ -6993,6 +6993,226 @@
           }
         }
       }
+    },
+    "Nome do continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continent name"
+          }
+        }
+      }
+    },
+    "Desfazer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dissolve"
+          }
+        }
+      }
+    },
+    "Os mapas continuam em Seus mapas; só o agrupamento some." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The maps stay in Your maps; only the grouping goes."
+          }
+        }
+      }
+    },
+    "Salvar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }
+      }
+    },
+    "Opções do continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continent options"
+          }
+        }
+      }
+    },
+    "Continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continent"
+          }
+        }
+      }
+    },
+    "Renomear" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        }
+      }
+    },
+    "Desfazer o continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dissolve the continent"
+          }
+        }
+      }
+    },
+    "Mapear →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chart it →"
+          }
+        }
+      }
+    },
+    "Terra inexplorada" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncharted land"
+          }
+        }
+      }
+    },
+    "Sair do continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave the continent"
+          }
+        }
+      }
+    },
+    "Adicionar a um continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to a continent"
+          }
+        }
+      }
+    },
+    "Novo continente…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New continent…"
+          }
+        }
+      }
+    },
+    "mover esse mapa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "move this map"
+          }
+        }
+      }
+    },
+    "criar o continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "create the continent"
+          }
+        }
+      }
+    },
+    "renomear o continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rename the continent"
+          }
+        }
+      }
+    },
+    "Desfazer “%@”?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dissolve “%@”?"
+          }
+        }
+      }
+    },
+    "desfazer o continente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dissolve the continent"
+          }
+        }
+      }
+    },
+    "De apoio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Support"
+          }
+        }
+      }
+    },
+    "Essencial" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Core"
+          }
+        }
+      }
+    },
+    "Mapear o continente inteiro →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chart the whole continent →"
+          }
+        }
+      }
+    },
+    "Construa o primeiro território agora; os outros esperam no continente, prontos para mapear." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build the first territory now; the rest wait on the continent, ready to chart."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

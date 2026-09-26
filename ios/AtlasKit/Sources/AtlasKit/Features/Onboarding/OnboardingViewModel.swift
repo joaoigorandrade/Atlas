@@ -90,6 +90,9 @@ public final class OnboardingViewModel {
     private var asked: Set<String> = []
     private var nextDifficulty: DiagnosticDifficulty = .medium
     private var maxCorrect: DiagnosticDifficulty?
+    /// The continent the next build joins. Consumed at the top of `buildMap`,
+    /// so a failed build doesn't carry it onto whatever is typed next.
+    private var continentId: String?
 
     public init(store: AtlasStore) {
         self.store = store
@@ -102,6 +105,13 @@ public final class OnboardingViewModel {
         // someone who has only ever picked "Dominar tudo".
         if dailyTargets.contains(store.dailyTarget) { form.target = store.dailyTarget }
         form.goal = store.goal
+        // An uncharted scope charted from "Seus mapas": straight to the build.
+        if let charting = store.charting {
+            store.charting = nil
+            form.topic = charting.label
+            continentId = charting.continentId
+            buildMap()
+        }
     }
 
     /// Minimum time the assembly beat plays. A floor, not a target: SPEC §2
@@ -137,6 +147,8 @@ public final class OnboardingViewModel {
             return
         }
         form.topic = topic
+        let joining = continentId
+        continentId = nil
         // A re-submit (or a picked scope) starts a second stream: cancelling
         // the first is what stops its concepts landing on the new map.
         stopBuilding()
@@ -167,7 +179,7 @@ public final class OnboardingViewModel {
             // the learner is still answering placement questions. Every exit
             // below that produces no map deletes the row again; an empty topic
             // must never reach the dashboard.
-            await store.createTopic(form)
+            await store.createTopic(form, continentId: joining)
             // The clock starts after it: `buildFloor` is the floor the *build*
             // is held to, and the learner is watching concepts land, not a
             // topic row being created.
@@ -237,10 +249,26 @@ public final class OnboardingViewModel {
     }
 
     /// A picked scope becomes the topic and builds immediately.
-    public func pick(_ scope: AtlasAPI.ScopeOffer) {
+    public func pick(_ scope: AtlasAPI.ScopeOffer, into continent: String? = nil) {
         form.topic = scope.label
+        continentId = continent
         scopes = []
         buildMap()
+    }
+
+    /// Every offer as one continent: build the first now, and leave the rest
+    /// as uncharted land to chart from "Seus mapas" (`chartAll` on the web).
+    public func chartAll() {
+        guard let first = scopes.first else { return }
+        let offers = scopes
+        Task {
+            do {
+                let continent = try await store.createContinent(name: form.topic, scopes: offers)
+                pick(first, into: continent.id)
+            } catch {
+                message = ErrorCopy.sentence(for: error, doing: String(localized: "criar o continente"))
+            }
+        }
     }
 
     // MARK: - Screens 7 and 8, the placement

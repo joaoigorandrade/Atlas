@@ -164,3 +164,17 @@ private func decoded() throws -> AtlasRun {
     #expect(run.shakyReasons["a"] == .socraticTold)
     #expect(run.shakyReasons["b"] == .crucibleFail)
 }
+
+/// A continent rides inside its member topic, and survives the mirror.
+@Test func aContinentArrivesInsideItsTopic() throws {
+    let json = topicJSON().replacingOccurrences(
+        of: #""litToday": [],"#,
+        with: #""litToday": [], "continent": { "id": "k1", "name": "Cristo", "scopes": [{ "label": "Paixão", "note": "…" }] },"#
+    )
+    let run = try JSONDecoder().decode(AtlasRun.self, from: Data(json.utf8))
+    #expect(run.continent?.name == "Cristo")
+    #expect(run.continent?.scopes.map(\.label) == ["Paixão"])
+    let mirrored = try JSONDecoder().decode(AtlasRun.self, from: JSONEncoder().encode(run))
+    #expect(mirrored.continent == run.continent)
+    #expect(try decoded().continent == nil)
+}

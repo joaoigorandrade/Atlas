@@ -68,6 +68,21 @@ enum RunEndpoint {
             .jsonBody(body).bearer(token)
     }
 
+    /// A continent: create one (with any maps that join at once), rename it,
+    /// or dissolve it. Membership after that is a topic field (`continentId`).
+    static func createContinent(_ body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/continents", method: .post).jsonBody(body).bearer(token)
+    }
+
+    static func renameContinent(_ id: String, body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/continents/\(id)", method: .patch).jsonBody(body).bearer(token)
+    }
+
+    /// The maps stay — `topics.continent_id` is `on delete set null`.
+    static func deleteContinent(_ id: String, token: String) -> HTTPRequestData {
+        HTTPRequestData(path: "api/v1/continents/\(id)", method: .delete).bearer(token)
+    }
+
     /// The learner's own row — the streak, the daily target, the reminders.
     /// One copy, rather than one per topic and a third in UserDefaults.
     static func patchProfile(_ body: JSONValue, token: String) throws -> HTTPRequestData {

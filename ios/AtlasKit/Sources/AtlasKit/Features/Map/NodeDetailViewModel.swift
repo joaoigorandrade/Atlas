@@ -156,6 +156,24 @@ final class NodeDetailViewModel {
 
     var headline: LocalizedStringKey { state.headline }
 
+    /// "Essencial · Difícil · ~38 min restantes" — the node's two cost axes and
+    /// the work it still owes (`settlementLine` / `minutesLine` on the web).
+    /// Nil on a gap: a sub-point of its parent has no rank or relief of its own.
+    var cost: String? {
+        guard !isGap else { return nil }
+        let owed = state == .mastered ? 0 : node.minutesLeft(done)
+        let relief = switch node.difficulty ?? .medium {
+        case .easy: String(localized: "Fácil")
+        case .medium: String(localized: "Média")
+        case .hard: String(localized: "Difícil")
+        }
+        return [
+            node.importance == .support ? String(localized: "De apoio") : String(localized: "Essencial"),
+            relief,
+            owed > 0 ? String(localized: "~\(owed) min restantes") : nil,
+        ].compactMap(\.self).joined(separator: " · ")
+    }
+
     /// "Já sei isso — provar": not the honour system. Opens the proof gate, and
     /// only a first-try pass credits the whole plan (`ledgerAfter`).
     func prove() -> Phase { store.armChallenge(node) }

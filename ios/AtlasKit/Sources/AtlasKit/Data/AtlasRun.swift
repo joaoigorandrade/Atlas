@@ -60,6 +60,8 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     /// node one: the whole point of it is that it crosses concepts.
     public var misconceptions: [MisconceptionRecord]
     public var cards: [StoredCard]
+    /// The continent this map belongs to, if any — see `Continent`.
+    public var continent: Continent?
 
     public struct Point: Codable, Sendable {
         public let x: Double
@@ -83,6 +85,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         case calibSamples, litToday, updatedAt, graph, states, positions
         case shakyReasons, phasesDone, reviewedNodes, consumeProgress, socraticProgress
         case feynmanProgress, connectProgress, phaseProgress, misconceptions, cards
+        case continent
     }
 
     public init(from decoder: Decoder) throws {
@@ -115,6 +118,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         phaseProgress = (try? c.decode([String: JSONValue].self, forKey: .phaseProgress)) ?? [:]
         misconceptions = (try? c.decode([MisconceptionRecord].self, forKey: .misconceptions)) ?? []
         cards = (try? c.decode([StoredCard].self, forKey: .cards)) ?? []
+        continent = try? c.decodeIfPresent(Continent.self, forKey: .continent)
         // Positions are their own map because the browser draws from it and
         // never from a node's generated coordinates. Folding it onto the nodes
         // here is what makes the two clients draw the same map, and leaves this
@@ -125,6 +129,24 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
             graph.nodes[index].y = at.y
         }
         self.graph = graph
+    }
+}
+
+/// Maps that belong together. It travels inside each member topic, so the
+/// library the bootstrap already returns is the whole picture and nothing else
+/// is fetched — `lib/continents.ts`.
+public struct Continent: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public var name: String
+    /// Every scope a too-broad build offered. One no member's subject covers is
+    /// *uncharted* — derived, never stored.
+    public var scopes: [AtlasAPI.ScopeOffer]
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        scopes = (try? c.decode([AtlasAPI.ScopeOffer].self, forKey: .scopes)) ?? []
     }
 }
 

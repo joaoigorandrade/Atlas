@@ -83,6 +83,24 @@ public actor RunStore {
         _ = try await send(try RunEndpoint.patchTopic(id, body: body, token: token))
     }
 
+    public func createContinent(
+        name: String, scopes: [AtlasAPI.ScopeOffer], topicIds: [String], token: String
+    ) async throws -> Continent {
+        try await decode(try RunEndpoint.createContinent(.object([
+            "name": .string(name),
+            "scopes": try JSONValue(encoding: scopes),
+            "topicIds": .array(topicIds.map(JSONValue.string)),
+        ]), token: token))
+    }
+
+    public func renameContinent(_ id: String, name: String, token: String) async throws {
+        _ = try await send(try RunEndpoint.renameContinent(id, body: .object(["name": .string(name)]), token: token))
+    }
+
+    public func deleteContinent(_ id: String, token: String) async throws {
+        _ = try await send(RunEndpoint.deleteContinent(id, token: token))
+    }
+
     public func patchProfile(_ body: JSONValue, token: String) async throws {
         _ = try await send(try RunEndpoint.patchProfile(body, token: token))
     }

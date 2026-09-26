@@ -66,7 +66,10 @@ public struct HomeView: View {
                     if model.hasRun {
                         Text("Seus mapas").font(.atlas(.serif, 21)).foregroundStyle(Palette.ink)
                             .padding(.top, 32)
-                        ForEach(model.maps) { map in
+                        ForEach(model.continents) { group in
+                            continentSection(group, model).padding(.top, 18)
+                        }
+                        ForEach(model.looseMaps) { map in
                             mapCard(map, model).padding(.top, 14)
                                 // Switching maps re-sorts this list; the cards
                                 // slide rather than teleport past each other.
@@ -90,6 +93,7 @@ public struct HomeView: View {
                 // list only ever needs to not jump.
                 .animation(Motion.spring, value: model.streak)
                 .animation(Motion.standard, value: model.maps.map(\.subject))
+                .animation(Motion.standard, value: model.maps.map(\.continent))
                 .animation(Motion.standard, value: model.message)
             }
         }
@@ -101,6 +105,66 @@ public struct HomeView: View {
             Button("Excluir", role: .destructive) { Task { await model.delete() } }
         } message: {
             Text("O mapa, seus estados de domínio, seus cartões e tudo que foi gerado para ele são apagados. Sua sequência permanece. Não dá para desfazer.")
+        }
+        .alert(model.dissolveAsk, isPresented: model.isConfirmingDissolve) {
+            Button("Manter", role: .cancel) {}
+            Button("Desfazer", role: .destructive) { Task { await model.dissolve() } }
+        } message: {
+            Text("Os mapas continuam em Seus mapas; só o agrupamento some.")
+        }
+        .alert("Nome do continente", isPresented: model.isNaming) {
+            TextField("Nome do continente", text: Bindable(model).draftName)
+            Button("Cancelar", role: .cancel) {}
+            Button("Salvar") { Task { await model.saveName() } }
+        }
+    }
+
+    /// A continent: its name, its member maps, and the land still uncharted —
+    /// each of those one tap from being built into it.
+    private func continentSection(_ group: HomeViewModel.ContinentGroup, _ model: HomeViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Kicker("Continente", tint: Palette.amberInk)
+                    Text(verbatim: group.continent.name).font(.atlas(.serif, 19)).foregroundStyle(Palette.ink)
+                }
+                Spacer(minLength: 0)
+                Menu {
+                    Button("Renomear", systemImage: "pencil") { model.startRename(group.continent) }
+                    Button("Desfazer o continente", systemImage: "square.split.2x1", role: .destructive) {
+                        model.askToDissolve(group.continent)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis").foregroundStyle(Palette.inkMuted)
+                        .frame(width: Metrics.tap, height: Metrics.tap)
+                }
+                .accessibilityLabel("Opções do continente")
+            }
+            ForEach(group.maps) { map in
+                mapCard(map, model).padding(.top, 10)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            ForEach(group.uncharted, id: \.label) { scope in
+                Button { Task { await model.chart(scope, in: group.continent) } } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Kicker("Terra inexplorada")
+                        Text(verbatim: scope.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+                        Text(verbatim: scope.note).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                        Text("Mapear →").font(.atlas(.sans, 13.5, weight: .semibold))
+                            .foregroundStyle(Palette.amberInk).padding(.top, 4)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 11)
+                            .strokeBorder(Palette.hairlineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    }
+                }
+                .pressable()
+                .padding(.top, 10)
+            }
+            // Closes the continent, so a loose map below doesn't read as a member.
+            Rectangle().fill(Palette.hairlineStrong).frame(height: 1).padding(.top, 18)
         }
     }
 
@@ -183,6 +247,20 @@ public struct HomeView: View {
         }
         .buttonStyle(Pressable())
         .contextMenu {
+            if map.continent != nil {
+                Button("Sair do continente", systemImage: "arrow.up.forward.square") {
+                    Task { await model.move(map, to: nil) }
+                }
+            } else {
+                Menu("Adicionar a um continente", systemImage: "square.stack.3d.up") {
+                    ForEach(model.continents) { group in
+                        Button { Task { await model.move(map, to: group.continent) } } label: {
+                            Text(verbatim: group.continent.name)
+                        }
+                    }
+                    Button("Novo continente…", systemImage: "plus") { model.startContinent(with: map) }
+                }
+            }
             Button("Excluir este tópico", systemImage: "trash", role: .destructive) {
                 model.askToDelete(map)
             }
