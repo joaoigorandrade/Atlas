@@ -18,6 +18,7 @@ import MapEdges from "@/components/map/MapEdges";
 import MapControls from "@/components/map/MapControls";
 import { regionsOf, seedOf } from "@/components/map/atlasTerrain";
 import { Fog, Land, StageLabels, Terrain } from "@/components/map/MapTerrain";
+import { useBox, useTerritory } from "@/components/map/useMapPointer";
 import {
   fitView,
   mapBounds,
@@ -32,12 +33,12 @@ const STRINGS = {
   en: {
     gap: "gap",
     canvas:
-      "Concept map — scroll to zoom, drag to pan, double-click a lit concept to begin",
+      "Concept map — scroll to zoom, drag to pan, click a territory to select it, double-click a lit one to begin",
   },
   "pt-BR": {
     gap: "lacuna",
     canvas:
-      "Mapa de conceitos — role para dar zoom, arraste para mover, dê dois cliques num conceito aceso para começar",
+      "Mapa de conceitos — role para dar zoom, arraste para mover, clique num território para selecioná-lo, dê dois cliques num aceso para começar",
   },
 } as const;
 
@@ -86,7 +87,9 @@ interface MapCanvasProps {
   phasesDone?: PhasesDoneMap;
   query: string;
   onWheel: (e: WheelEvent) => void;
-  onCanvasDown: (e: React.MouseEvent) => void;
+  /** A press on the canvas: a pan, and a select if it lands on a territory
+   *  and never moves. */
+  onCanvasDown: (e: React.MouseEvent, id?: string) => void;
   onNodeDown: (e: React.MouseEvent, id: string) => void;
   /** Keyboard select — the pointer path goes through `onNodeDown`, which also
    *  starts a drag and so needs a real mouse event. */
@@ -154,6 +157,7 @@ function MapCanvas({
   const on = useRef(handlers);
   on.current = handlers;
   const hover = useCallback((id: string | null) => on.current.onNodeHover(id), []);
+  const land = useTerritory(elRef, view, screen === "map");
 
   useEffect(() => {
     const el = elRef.current;
@@ -168,19 +172,7 @@ function MapCanvas({
     [hoverId, edges],
   );
 
-  // The peek needs the canvas box to know whether a card fits below the node
-  // it describes, or has to open upward.
-  const [box, setBox] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    const el = elRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setBox({ w: width, h: height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const box = useBox(elRef);
 
   // Dragging a node and panning the canvas both start with a press. A card
   // parked next to the cursor through either is in the way, so the press
@@ -267,6 +259,7 @@ function MapCanvas({
                 seed={seed}
                 bounds={bounds}
                 frozen={dragging}
+                territory={land.territory}
               />
             )}
             <svg style={layer} width={1} height={1}>
@@ -301,7 +294,7 @@ function MapCanvas({
             node={node}
             pos={positions[node.id]}
             state={display[node.id] ?? "unknown"}
-            done={phasesDone?.[node.id]}
+            capital={node.id in regions.name}
             arrival={
               building
                 ? `assemble 0.5s ${staggered ? (0.04 * i).toFixed(2) : "0"}s both`
@@ -329,7 +322,7 @@ function MapCanvas({
       </>
     ),
     // prettier-ignore
-    [bounds, stages, building, ids, edges, positions, display, regions, seed, dragging, highlighted, lockedPath, hover, screen, clear, nodes, phasesDone, staggered, spawnedIds, selectedId, q, won, t.gap],
+    [bounds, stages, building, ids, edges, positions, display, regions, seed, dragging, highlighted, lockedPath, hover, screen, clear, nodes, staggered, spawnedIds, selectedId, q, won, t.gap, land.territory],
   );
 
   return (
@@ -342,7 +335,12 @@ function MapCanvas({
       data-covered={covered || undefined}
       onMouseDown={(e) => {
         setDragging(true);
-        on.current.onCanvasDown(e);
+        on.current.onCanvasDown(e, land.at(e));
+      }}
+      onDoubleClick={(e) => {
+        const id = land.at(e); // a city's own double-click already opened it
+        if (id && !(e.target as Element).closest("[data-testid^='node-']"))
+          on.current.onNodeDoubleClick(id);
       }}
       style={{
         position: "absolute",

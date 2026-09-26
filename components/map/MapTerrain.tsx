@@ -4,10 +4,9 @@
 // layer — so all of it pans and zooms with the concepts on it.
 //
 // - `Terrain`: the graticule and one meridian per depth stage.
-// - `Land`: the learned territory as a hand-coloured atlas — worked-on
-//   concepts raise land, seeded noise frays its coast, and it is split into
-//   countries and each concept's province, named in spaced capitals
-//   (`atlasTerrain.ts`).
+// - `Land`: the concepts as a hand-coloured war map — each one a territory,
+//   grouped into countries named in spaced capitals, washed in as the learner
+//   wins them (`atlasTerrain.ts`).
 // - `Fog`: a paper veil over whatever hasn't been reached. Holes open around
 //   every lit concept, and — transiently — around whatever the learner is
 //   looking at: the hovered chain, the locked path, the search matches.
@@ -17,6 +16,7 @@ import { color, font, map } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { type AtlasInput, type Spot } from "@/components/map/atlasTerrain";
 import { type Bounds, type Pt } from "@/components/map/mapGeometry";
+import type { Territory } from "@/components/map/useMapPointer";
 
 const STRINGS = {
   en: { stage: (n: string) => `Stage ${n}` },
@@ -138,16 +138,22 @@ export function Terrain({
 }
 
 /**
- * The learned territory as a generated atlas (`atlasTerrain.ts`), baked in a
- * worker into a canvas — repainted only when its inputs change and never
- * mid-drag, the same bargain as `Baked`, without an SVG filter. Each region's
- * name is set where the bake found open country for it.
+ * The concepts' territories as a generated atlas (`atlasTerrain.ts`), baked
+ * in a worker into a canvas — repainted only when its inputs change and never
+ * mid-drag, the same bargain as `Baked`, without an SVG filter. Each country's
+ * name is set where the bake found open country for it; `territory` is kept
+ * pointed at the last bake, so a click resolves to the territory drawn.
  */
 export function Land({
   frozen,
   bounds,
+  territory,
   ...input
-}: AtlasInput & { bounds: Bounds; frozen: boolean }) {
+}: AtlasInput & {
+  bounds: Bounds;
+  frozen: boolean;
+  territory: React.RefObject<Territory | null>;
+}) {
   const { names } = input;
   const r = region(bounds, 600);
   const out = useRef<HTMLCanvasElement>(null);
@@ -182,6 +188,12 @@ export function Land({
       if (!ctx || data.key !== sent.current) return; // a newer bake is on its way
       ctx.putImageData(data.img, 0, 0);
       setSpots(data.spots);
+      const { prov, lit } = data as { prov: Int16Array; lit: string[] };
+      territory.current = (p) => {
+        const i = Math.floor((p.x - r.x) * LAND_RES);
+        const j = Math.floor((p.y - r.y) * LAND_RES);
+        return i < 0 || j < 0 || i >= w || j >= h ? undefined : lit[prov[j * w + i]];
+      };
     };
     worker.current.postMessage({ key, input, x0: r.x, y0: r.y, w, h, res: LAND_RES });
   });

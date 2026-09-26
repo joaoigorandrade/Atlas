@@ -1,20 +1,20 @@
 "use client";
 
-// One concept on the map, drawn the way a map draws a town: a mark at the
-// place, its name set underneath on a paper halo, no box round either. The
-// mark is `NodeSeal` — mastery colour, kind glyph, phase ring. A concept on
-// the frontier sends out a beacon; the selected one is ringed; one on the
-// "learn these first" path gets an amber ring of its own.
+// One concept on the map, drawn the way a war map draws a city: the concept
+// is its territory (painted by `atlasTerrain.ts`), and this is the city at its
+// heart — a town mark in its mastery colour, a country's capital ringed
+// twice, its name set underneath on a paper halo. A concept on the frontier
+// sends out a beacon; the selected one is ringed; one on the "learn these
+// first" path gets an amber ring of its own.
 
-import type { ConceptNode, NodeState, PhaseId } from "@/lib/curriculum";
+import type { ConceptNode, NodeState } from "@/lib/curriculum";
 import { STATE_COLOR } from "@/lib/curriculum";
 import { color, font, map, motion, transition } from "@/lib/theme";
-import NodeSeal from "@/components/map/NodeSeal";
 import { WaxSeal } from "@/components/ui/Ornaments";
 
-/** The seal's diameter in map units. `MapCanvas` sizes the peek's clearance
+/** The city's hit box in map units. `MapCanvas` sizes the peek's clearance
  *  from it. */
-export const SEAL = 30;
+export const SEAL = 22;
 export const CELEBRATE_MS = 900;
 
 const HALO = `0 0 2px ${color.paper}, 0 0 4px ${color.paper}, 0 0 8px ${color.paper}, 0 0 12px ${color.paper}`;
@@ -23,7 +23,7 @@ export default function MapNode({
   node,
   pos,
   state,
-  done,
+  capital,
   arrival,
   building,
   selected,
@@ -39,7 +39,8 @@ export default function MapNode({
   node: ConceptNode;
   pos: { x: number; y: number };
   state: NodeState;
-  done?: readonly PhaseId[];
+  /** The concept its country is named after — drawn as the capital. */
+  capital: boolean;
   /** The `animation` for the assemble beat, decided by the canvas. */
   arrival: string;
   building: boolean;
@@ -138,33 +139,45 @@ export default function MapNode({
         )}
         {selected && ring(-6, `2px solid ${color.accent}`)}
         {onPath && !selected && ring(-5, `1.5px dashed ${map.trail}`)}
-        <span
+        <svg
+          width={SEAL}
+          height={SEAL}
+          viewBox="-11 -11 22 22"
           style={{
             display: "block",
-            borderRadius: "50%",
-            background: color.paper,
-            boxShadow: "0 1px 0 rgba(43,33,24,0.2), 0 2px 5px rgba(43,33,24,0.12)",
+            overflow: "visible",
             // A node changing state is the point of the whole product; the
-            // colour arrives inside the seal, and the pop lands on top of it.
+            // colour arrives in the city, and the pop lands on top of it.
             animation: earned
               ? `markPop ${CELEBRATE_MS}ms ${motion.ease.spring} both`
               : undefined,
           }}
         >
-          <NodeSeal node={node} state={state} done={done} size={SEAL} />
-        </span>
+          {capital && (
+            <circle r={9} fill={color.paper} stroke={color.ink} strokeWidth={1.4} />
+          )}
+          <circle
+            r={capital ? 5.5 : 5}
+            fill={state === "unknown" ? color.paper : STATE_COLOR[state]}
+            stroke={locked ? color.inkMuted : color.ink}
+            strokeWidth={1.6}
+            strokeDasharray={state === "gap" ? "2.5 2" : undefined}
+            style={{ transition: transition("fill", "fast") }}
+          />
+          {capital && <circle r={1.6} fill={color.ink} />}
+        </svg>
         {earned &&
           earned !== "mastered" &&
           ring(-1, `2px solid ${STATE_COLOR[earned]}`, {
             animation: `bloom ${CELEBRATE_MS}ms ${motion.ease.enter} both`,
           })}
-        {/* Mastery is sealed: wax pressed onto the concept, and pressed live
-            the moment it is earned. */}
+        {/* Mastery is sealed: wax pressed over the city, and pressed live the
+            moment it is earned. */}
         {state === "mastered" && (
           <WaxSeal
-            size={16}
+            size={capital ? 22 : 18}
             stamp={earned === "mastered"}
-            style={{ position: "absolute", right: -6, bottom: -5 }}
+            style={{ position: "absolute", inset: 0, margin: "auto" }}
           />
         )}
         <span
@@ -178,7 +191,8 @@ export default function MapNode({
             gap: 6,
             whiteSpace: "nowrap",
             fontFamily: font.display,
-            fontSize: 16.5,
+            fontSize: capital ? 17.5 : 15.5,
+            fontVariant: capital ? "small-caps" : undefined,
             lineHeight: 1.15,
             fontStyle: state === "gap" ? "italic" : "normal",
             color: selected ? color.accent : locked ? color.inkMuted : color.ink,

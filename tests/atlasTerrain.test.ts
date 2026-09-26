@@ -31,21 +31,26 @@ describe("atlas terrain", () => {
     seed: seedOf(["a", "b"]),
   };
 
-  it("is deterministic and raises land under every worked-on concept", () => {
+  it("is deterministic and raises land under every concept, reached or not", () => {
     const one = heightfield(input, -200, -200, 175, 100, 0.25);
     expect(heightfield(input, -200, -200, 175, 100, 0.25)).toEqual(one);
     expect(one[50 * 175 + 50]).toBeGreaterThan(0.5); // a at (0,0)
     expect(one[50 * 175 + 125]).toBeGreaterThan(0.5); // b at (300,0)
     expect(one[0]).toBeLessThan(0.5);
+    const unreached = { ...input, display: {} };
+    expect(heightfield(unreached, -200, -200, 175, 100, 0.25)).toEqual(one);
   });
 
-  it("sets each region's name inland, away from its concepts", () => {
+  it("sets each region's name inland and resolves each point to its territory", () => {
     const img = {
       width: 175,
       height: 100,
       data: new Uint8ClampedArray(175 * 100 * 4),
     } as ImageData;
-    const spots = paintAtlas(img, input, -200, -200, 0.25, map.atlas);
+    const { spots, prov, lit } = paintAtlas(img, input, -200, -200, 0.25, map.atlas);
+    expect(lit[prov[50 * 175 + 50]]).toBe("a"); // a's city at (0,0)
+    expect(lit[prov[50 * 175 + 125]]).toBe("b");
+    expect(prov[0]).toBe(-1); // the corner is sea
     expect(Object.keys(spots)).toEqual(["a"]);
     expect(spots.a.x).toBeGreaterThan(0); // between a and b, not on either
     expect(spots.a.x).toBeLessThan(300);

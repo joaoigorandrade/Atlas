@@ -1,7 +1,10 @@
-// The generated atlas under the concepts: a heightfield raised by what the
-// learner has worked on and roughened by seeded noise gives the coast; the
-// graph is carved into countries and provinces; and it is all painted like a
-// hand-coloured engraved atlas. Pure — the canvas it paints into is passed in.
+// The generated atlas the concepts are drawn as, like a war map: every
+// concept is a territory with a city at its heart, grouped into countries.
+// The land is static — raised under every concept and roughened by seeded
+// noise, so the coast never moves as the learner works — and progress shows
+// as colour: a territory is washed in its country's colour as it is won, and
+// hatched as terra incognita until it is reached. Pure — the canvas it paints
+// into is passed in.
 
 import type { ConceptEdge, ConceptNode, NodeState } from "@/lib/curriculum";
 import type { Pt } from "@/components/map/mapGeometry";
@@ -9,13 +12,14 @@ import { distanceTo, fbm } from "@/components/map/atlasFields";
 
 export { seedOf } from "@/components/map/atlasFields";
 
-/** How high each state raises the ground. Unreached concepts leave shallows. */
-const LIFT: Partial<Record<NodeState, number>> = {
-  frontier: 0.3,
-  unknown: 0.22,
-  learning: 0.75,
-  shaky: 0.85,
-  mastered: 1.15,
+/** How strongly each state washes its territory in its country's colour. */
+const HOLD: Record<NodeState, number> = {
+  unknown: 0.12,
+  frontier: 0.4,
+  gap: 0.4,
+  learning: 0.7,
+  shaky: 0.6,
+  mastered: 1,
 };
 const SIGMA = 78;
 const SEA = 0.5;
@@ -78,7 +82,7 @@ export function heightfield(
   h: number,
   res: number,
 ) {
-  const { ids, edges, positions, display, seed } = input;
+  const { ids, edges, positions, seed } = input;
   const out = new Float32Array(w * h);
   // Separable: exp(-(dx²+dy²)) = exp(-dx²)·exp(-dy²), so one row and one
   // column of exponentials per bump instead of one per pixel.
@@ -99,22 +103,19 @@ export function heightfield(
   };
   for (const id of ids) {
     const p = positions[id];
-    const lift = LIFT[display[id]];
-    if (p && lift) bump(p, lift, SIGMA);
+    if (p) bump(p, 1, SIGMA);
   }
-  // Roads between two worked-on concepts become ridges joining their land.
+  // Roads become ridges joining their land; a gap's dashed road stays a strait.
   for (const [a, b, dashed] of edges) {
     const pa = positions[a];
     const pb = positions[b];
-    const la = LIFT[display[a]] ?? 0;
-    const lb = LIFT[display[b]] ?? 0;
-    if (!pa || !pb || dashed || Math.min(la, lb) < 0.5) continue;
+    if (!pa || !pb || dashed) continue;
     const steps = Math.ceil(Math.hypot(pb.x - pa.x, pb.y - pa.y) / 60);
     for (let k = 1; k < steps; k++) {
       const t = k / steps;
       bump(
         { x: pa.x + (pb.x - pa.x) * t, y: pa.y + (pb.y - pa.y) * t },
-        Math.min(la, lb) * 0.45,
+        0.45,
         SIGMA * 0.7,
       );
     }
@@ -173,12 +174,14 @@ function labelFor(name: string, width: number) {
 
 /**
  * Paints the atlas into `img`, whose pixel (0,0) is map point (x0,y0), in the
- * manner of a hand-coloured 19th-century atlas: parchment land, each country
- * washed in its colour along its borders and coast, a solid border between
- * countries and a dotted one round each concept's own province, and engraved
- * water lines rippling off the coast.
+ * manner of a hand-coloured 19th-century war map: parchment land, each
+ * concept's territory washed in its country's colour along its borders — as
+ * deep as the learner's hold on it — a heavy border between countries and a
+ * fine one between territories, and engraved water lines off the coast.
  *
- * Returns each country's name, laid out (see the placement below).
+ * Returns each country's name, laid out (see the placement below), and the
+ * territory under every pixel (`prov`, an index into `lit`, -1 at sea) — what
+ * a click on the map is resolved against.
  */
 export function paintAtlas(
   img: ImageData,
@@ -251,6 +254,9 @@ export function paintAtlas(
   const seed = new Uint8Array(w * h);
   for (let k = 0; k < seed.length; k++) seed[k] = edge[k] === 1 || edge[k] === 2 ? 1 : 0;
   const dist = distanceTo(seed, w, h);
+  // Each territory is washed in from its own borders, not just the country's.
+  for (let k = 0; k < seed.length; k++) seed[k] = edge[k] ? 1 : 0;
+  const own = distanceTo(seed, w, h);
   for (let k = 0; k < seed.length; k++) seed[k] = edge[k] === 1 ? 1 : 0;
   const coast = distanceTo(seed, w, h);
 
@@ -343,18 +349,25 @@ export function paintAtlas(
         continue;
       }
       const tint = pal.regions[country(prov[k]) % pal.regions.length];
-      // Paper inside, the country's colour strongest along its edges.
-      const t = Math.max(0, 1 - d / WASH) ** 1.4 * 0.85 + 0.12;
+      const state = input.display[lit[prov[k]]] ?? "unknown";
+      // Paper inside, the colour strongest along the territory's edges and
+      // as deep as the learner's hold on it.
+      const t =
+        (Math.max(0, 1 - own[k] / WASH) ** 1.4 * 0.6 + 0.32 + (d < 3 ? 0.15 : 0)) *
+        HOLD[state];
       data[o] = pal.paper[0] + (tint[0] - pal.paper[0]) * t;
       data[o + 1] = pal.paper[1] + (tint[1] - pal.paper[1]) * t;
       data[o + 2] = pal.paper[2] + (tint[2] - pal.paper[2]) * t;
       data[o + 3] = 235;
+      // Terra incognita: ground nobody has reached is hatched, as a surveyor
+      // shades what he has only heard of.
+      if (state === "unknown" && (i + j) % 7 === 0) ink(o, 0.1);
       ink(o, Math.max(0, 1 - coast[k] / 1.4) * 0.9);
       if (edge[k] === 2) {
-        const dark: RGB = [tint[0] * 0.55, tint[1] * 0.55, tint[2] * 0.55];
-        put(o, (i + j) % 7 < 4 ? pal.ink : dark, 220);
-      } else if (edge[k] === 3 && (i + j) % 5 < 1) put(o, pal.ink, 150);
+        const dark: RGB = [tint[0] * 0.5, tint[1] * 0.5, tint[2] * 0.5];
+        put(o, (i + j) % 7 < 5 ? pal.ink : dark, 235);
+      } else if (edge[k] === 3) put(o, pal.ink, (i + j) % 3 ? 90 : 150);
     }
   }
-  return spots;
+  return { spots, prov, lit };
 }

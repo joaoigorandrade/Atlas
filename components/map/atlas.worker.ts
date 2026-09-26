@@ -14,6 +14,16 @@ export interface AtlasJob {
 
 self.onmessage = ({ data: job }: MessageEvent<AtlasJob>) => {
   const img = new ImageData(job.w, job.h);
-  const spots = paintAtlas(img, job.input, job.x0, job.y0, job.res, map.atlas);
-  self.postMessage({ key: job.key, img, spots }, { transfer: [img.data.buffer] });
+  const { spots, prov, lit } = paintAtlas(
+    img,
+    job.input,
+    job.x0,
+    job.y0,
+    job.res,
+    map.atlas,
+  );
+  self.postMessage(
+    { key: job.key, img, spots, prov, lit },
+    { transfer: [img.data.buffer, prov.buffer] },
+  );
 };

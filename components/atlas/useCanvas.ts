@@ -27,6 +27,8 @@ interface PanState {
   startY: number;
   originX: number;
   originY: number;
+  /** The territory pressed on, selected if the press never became a pan. */
+  id?: string;
 }
 
 export function useCanvas(opts: {
@@ -74,12 +76,13 @@ export function useCanvas(opts: {
   );
 
   const onCanvasDown = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent, id?: string) => {
       panRef.current = {
         startX: e.clientX,
         startY: e.clientY,
         originX: viewRef.current.x,
         originY: viewRef.current.y,
+        id,
       };
       setSelectedId(null);
     },
@@ -125,11 +128,15 @@ export function useCanvas(opts: {
         }));
       }
     };
-    const onUp = () => {
+    const onUp = (e: MouseEvent) => {
       const drag = dragRef.current;
-      if (drag && !drag.moved) {
-        setSelectedId(drag.id);
-        if (displayRef.current[drag.id] === "unknown")
+      const pan = panRef.current;
+      const still =
+        pan && Math.abs(e.clientX - pan.startX) + Math.abs(e.clientY - pan.startY) <= 3;
+      const id = drag && !drag.moved ? drag.id : still ? pan.id : undefined;
+      if (id) {
+        setSelectedId(id);
+        if (displayRef.current[id] === "unknown")
           showToast(TOAST_STRINGS[language].locked);
       }
       dragRef.current = null;
