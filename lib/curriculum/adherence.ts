@@ -145,6 +145,25 @@ export function rolloverAdherence(
 export interface DailyQueue {
   minutes: number;
   cards: number;
+  /** Concepts learned but not yet carded. Review drafts their cards when it
+   *  opens, so a queue with these in it is not clear — for a recognise-only
+   *  node, review is the only practice it will ever get. */
+  fresh?: number;
+}
+
+/** Concepts learned but not yet carded — `DailyQueue.fresh`. */
+export function freshConcepts(
+  graph: { nodes: ReadonlyArray<{ id: string; gap?: boolean }> },
+  states: Record<string, string | undefined>,
+  cards: ReadonlyArray<{ nodeId: string }>,
+): number {
+  const touched = ["learning", "shaky", "mastered"];
+  return graph.nodes.filter(
+    (n) =>
+      !n.gap &&
+      touched.includes(states[n.id] ?? "") &&
+      !cards.some((c) => c.nodeId === n.id),
+  ).length;
 }
 
 /** The honest top-bar queue: minutes budget + cards due now, read off the FSRS forecast. */

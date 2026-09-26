@@ -264,7 +264,7 @@ export default function DashboardScreen({
                     ? t.metTodayBody
                     : queue.cards > 0
                       ? t.cardsDueBody(queue.minutes)
-                      : t.nothingDueBody}
+                      : t.nothingDueBody(queue.fresh)}
               </div>
               <div style={{ fontSize: 13.5, color: color.accent, fontWeight: 600 }}>
                 {t.startReview}

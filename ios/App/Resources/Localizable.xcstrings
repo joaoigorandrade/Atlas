@@ -193,6 +193,16 @@
         }
       }
     },
+    "%lld conceitos novos para revisar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld new concepts to review"
+          }
+        }
+      }
+    },
     "%lld conceitos posicionados" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1236,6 +1246,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Currently learning for"
+          }
+        }
+      }
+    },
+    "A primeira revisão cria os cartões do que você acabou de aprender — é isso que evita que se apague." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your first review drafts the cards for what you just learned — that is what keeps it from fading."
           }
         }
       }

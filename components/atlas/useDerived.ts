@@ -20,6 +20,7 @@ import {
   type NodeState,
   type ProgressState,
   type StateMap,
+  freshConcepts,
 } from "@/lib/curriculum";
 import { dueCards } from "@/lib/fsrs";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -279,7 +280,11 @@ export function useDerived(deps: {
   // The honest queue chip, read from the real card store (#21): cards
   // actually due now, in minutes.
   const dueNow = useMemo(() => dueCards(cards).length, [cards]);
-  const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow };
+  const fresh = useMemo(
+    () => freshConcepts(graph, states, cards),
+    [graph, states, cards],
+  );
+  const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow, fresh };
   const frontierTotal = graph.nodes.filter((n) => display[n.id] === "frontier").length;
   const frontierConcept = nextUp[0]?.node.label ?? null;
   const subject = form.topic.trim() || t.yourMap;
@@ -337,7 +342,9 @@ export function useDerived(deps: {
   ];
   // "Clear" has to mean the queue is empty, not that the budget is spent.
   const reviewSummary = !queue.cards
-    ? t.queueClear
+    ? fresh
+      ? t.queueFresh(fresh)
+      : t.queueClear
     : adherence.metToday
       ? t.queueWaiting(queue.cards)
       : t.queueDue(queue.cards, queue.minutes);

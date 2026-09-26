@@ -20,7 +20,11 @@ export const STRINGS = {
       `Today's budget is spent — ${n} card${n === 1 ? "" : "s"} still waiting. They keep until tomorrow, or raise your daily target to take them now.`,
     cardsDueBody: (min: number) =>
       `~${min} min · timed to the moment these memories are about to fade.`,
-    nothingDueBody: "Learn a concept to the end and it starts feeding the review queue.",
+    // `fresh`: concepts learned but not yet carded — review is waiting on them.
+    nothingDueBody: (fresh = 0) =>
+      fresh
+        ? `${fresh} newly learned concept${fresh === 1 ? "" : "s"} waiting for a first review — that is what keeps ${fresh === 1 ? "it" : "them"} from fading.`
+        : "Learn a concept to the end and it starts feeding the review queue.",
     startReview: "Start review →",
     yourFrontier: "Your frontier",
     allCaughtUp: "All caught up",
@@ -62,8 +66,12 @@ export const STRINGS = {
       `A meta de hoje foi cumprida — ${n === 1 ? "1 cartão ainda espera" : `${n} cartões ainda esperam`}. Eles ficam para amanhã, ou aumente sua meta diária para pegá-los agora.`,
     cardsDueBody: (min: number) =>
       `~${min} min · no momento exato em que essas memórias estão prestes a desvanecer.`,
-    nothingDueBody:
-      "Aprenda um conceito até o fim e ele passa a alimentar a fila de revisão.",
+    nothingDueBody: (fresh = 0) =>
+      fresh === 1
+        ? "1 conceito recém-aprendido espera a primeira revisão — é isso que evita que ele se apague."
+        : fresh
+          ? `${fresh} conceitos recém-aprendidos esperam a primeira revisão — é isso que evita que eles se apaguem.`
+          : "Aprenda um conceito até o fim e ele passa a alimentar a fila de revisão.",
     startReview: "Iniciar revisão →",
     yourFrontier: "Sua fronteira",
     allCaughtUp: "Tudo em dia",

@@ -28,7 +28,7 @@ struct DiscriminateView: View {
         VStack(spacing: 0) {
             PhaseBar(.discriminate, title: model.node.label, back: { navigator.pop() }) {
                 if model.total > 0 {
-                    Chip(verbatim: "\(min(model.session.index + 1, model.total))/\(model.total)",
+                    Chip(verbatim: model.session.done ? "\(model.answered)/\(model.answered)" : "\(min(model.session.index + 1, model.total))/\(model.total)",
                          tint: Palette.discriminateInk)
                 }
             }

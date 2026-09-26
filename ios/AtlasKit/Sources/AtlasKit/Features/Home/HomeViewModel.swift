@@ -28,18 +28,23 @@ final class HomeViewModel {
     /// `dueToday` and not `dueCount`: the deck is budgeted to half the daily
     /// target, so the raw due pile is a promise Review does not keep.
     private var dueCount: Int { store.dueToday }
-    var queueIsEmpty: Bool { dueCount == 0 }
+    var queueIsEmpty: Bool { dueCount == 0 && store.freshConcepts == 0 }
 
     /// The queue, framed in minutes against the daily target — never a wall of
     /// cards, and never a number that isn't due.
     var reviewHeadline: String {
-        queueIsEmpty ? String(localized: "Fila limpa") : String(localized: "\(dueCount) cartões pendentes")
+        if dueCount > 0 { return String(localized: "\(dueCount) cartões pendentes") }
+        let fresh = store.freshConcepts
+        return fresh == 0 ? String(localized: "Fila limpa") : String(localized: "\(fresh) conceitos novos para revisar")
     }
 
     var reviewNote: String {
-        queueIsEmpty
+        if dueCount > 0 {
+            return String(localized: "~\(Int((Double(dueCount) * cardMinutes).rounded())) min · no momento exato em que essas memórias estão prestes a desvanecer.")
+        }
+        return store.freshConcepts == 0
             ? String(localized: "Nada a recuperar agora. O próximo cartão volta assim que a memória começar a esfriar.")
-            : String(localized: "~\(Int((Double(dueCount) * cardMinutes).rounded())) min · no momento exato em que essas memórias estão prestes a desvanecer.")
+            : String(localized: "A primeira revisão cria os cartões do que você acabou de aprender — é isso que evita que se apague.")
     }
 
     var reviewAction: LocalizedStringKey { queueIsEmpty ? "Abrir a revisão →" : "Iniciar revisão →" }

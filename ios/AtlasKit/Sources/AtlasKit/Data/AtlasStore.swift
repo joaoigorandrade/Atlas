@@ -1117,6 +1117,17 @@ public extension AtlasStore {
     /// deck that opened with six cards and nine minutes.
     var dueToday: Int { min(dueCount, max(1, Int(Double(reviewBudgetMin) / cardMinutes))) }
 
+    /// Concepts learned but not yet carded. Review drafts their cards when it
+    /// opens, so a queue with these in it is not clear — for a recognise-only
+    /// node, review is the only practice it ever gets. Mirrors `freshConcepts`.
+    var freshConcepts: Int {
+        graph.nodes.filter { node in
+            node.gap != true
+                && [.learning, .shaky, .mastered].contains(states[node.id])
+                && !cards.contains { $0.nodeId == node.id }
+        }.count
+    }
+
     /// When the next card comes back — the soonest due date still ahead. What
     /// lets an empty queue name the day instead of guessing at "tomorrow".
     var nextDue: Date? {

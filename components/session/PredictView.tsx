@@ -100,10 +100,15 @@ export default function PredictView({
           data-testid="phase-progress"
           style={{ fontFamily: font.mono, fontSize: 11, color: color.inkFaint }}
         >
-          {t.of(
-            Math.min(session.index + 1, content.setups.length),
-            content.setups.length,
-          )}
+          {session.done
+            ? t.of(
+                Object.keys(session.forecasts).length,
+                Object.keys(session.forecasts).length,
+              )
+            : t.of(
+                Math.min(session.index + 1, content.setups.length),
+                content.setups.length,
+              )}
         </span>
       }
     >

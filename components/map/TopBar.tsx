@@ -19,6 +19,9 @@ const STRINGS = {
     queueDue: (cards: number) =>
       `${cards} cards due now — framed in minutes, not a card wall`,
     reviewClear: "Review · clear ✓",
+    reviewFresh: (n: number) => `Review · ${n} new`,
+    queueFresh: (n: number) =>
+      `${n} concept${n === 1 ? "" : "s"} learned and not yet reviewed — review drafts their cards`,
     reviewWaiting: (cards: number) => `Review · budget spent, ${cards} waiting`,
     queueWaiting: (cards: number) =>
       `Today's budget is spent — ${cards} card${cards === 1 ? "" : "s"} still due`,
@@ -34,6 +37,11 @@ const STRINGS = {
     queueDue: (cards: number) =>
       `${cards} cartões vencidos agora — em minutos, não um mural de cartões`,
     reviewClear: "Revisão · limpa ✓",
+    reviewFresh: (n: number) => `Revisão · ${n} ${n === 1 ? "novo" : "novos"}`,
+    queueFresh: (n: number) =>
+      n === 1
+        ? "1 conceito aprendido e ainda não revisado — a revisão cria os cartões dele"
+        : `${n} conceitos aprendidos e ainda não revisados — a revisão cria os cartões deles`,
     reviewWaiting: (cards: number) => `Revisão · meta cumprida, ${cards} esperando`,
     queueWaiting: (cards: number) =>
       `A meta de hoje foi cumprida — ainda ${cards === 1 ? "há 1 cartão vencido" : `há ${cards} cartões vencidos`}`,
@@ -197,7 +205,9 @@ export default memo(function TopBar({
           // budget is spent: this chip used to say so with cards still due,
           // while the review screen's own chip said the opposite.
           !queue.cards
-            ? t.queueClear
+            ? queue.fresh
+              ? t.queueFresh(queue.fresh)
+              : t.queueClear
             : adherence.metToday
               ? t.queueWaiting(queue.cards)
               : t.queueDue(queue.cards)
@@ -228,7 +238,9 @@ export default memo(function TopBar({
             }}
           />
           {!queue.cards
-            ? t.reviewClear
+            ? queue.fresh
+              ? t.reviewFresh(queue.fresh)
+              : t.reviewClear
             : adherence.metToday
               ? t.reviewWaiting(queue.cards)
               : t.reviewMinutes(queue.minutes)}

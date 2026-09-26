@@ -563,7 +563,7 @@ export default function ConsumeView({
             {/* While still streaming, `chunks.length` is a running count, not
                 the final section count — fall back to the no-count phrasing
                 rather than announce a number about to change. */}
-            {t.intro(streaming ? 0 : chunks.length, drawn)} {t.introTail}
+            {t.intro(streaming ? 0 : chunks.length, drawn)} {t.introTail(nextLabel)}
           </p>
 
           {/* The very first open of a fresh node: the screen is already up,

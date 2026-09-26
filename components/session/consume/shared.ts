@@ -20,8 +20,9 @@ export const STRINGS = {
       n > 0
         ? `This is the reading. ${n} sections, each with a worked example${figures ? " and a diagram" : ""} — read them straight through.`
         : "This is the reading —",
-    introTail:
-      "Rewrite any section to fit how you think, tap a term for its meaning before it’s used, and ask about any passage that doesn’t land. The questioning starts in Socratic, after this.",
+    // Names the rung this node really owes next — not every plan has Socratic.
+    introTail: (phase?: string) =>
+      `Rewrite any section to fit how you think, tap a term for its meaning before it’s used, and ask about any passage that doesn’t land. ${phase ? `The practice starts in ${phase}, after this.` : "This reading is all this concept asks of you."}`,
     writingFirst: "Writing your first section…",
     workedExample: "Worked example",
     takeaway: "Takeaway",
@@ -106,8 +107,8 @@ export const STRINGS = {
       n > 0
         ? `Esta é a leitura. ${n} seções, cada uma com um exemplo resolvido${figures ? " e um diagrama" : ""} — leia-as em sequência.`
         : "Esta é a leitura —",
-    introTail:
-      "Reescreva qualquer seção do jeito que funciona melhor para você, toque em um termo para ver o significado antes de ele ser usado, e pergunte sobre qualquer trecho que não fez sentido. As perguntas começam no Socrático, depois disso.",
+    introTail: (phase?: string) =>
+      `Reescreva qualquer seção do jeito que funciona melhor para você, toque em um termo para ver o significado antes de ele ser usado, e pergunte sobre qualquer trecho que não fez sentido. ${phase ? `A prática começa em ${phase}, depois disso.` : "Esta leitura é tudo o que este conceito pede de você."}`,
     writingFirst: "Escrevendo sua primeira seção…",
     workedExample: "Exemplo resolvido",
     takeaway: "Ideia central",

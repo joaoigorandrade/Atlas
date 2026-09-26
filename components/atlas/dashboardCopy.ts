@@ -15,6 +15,8 @@ export const STRINGS = {
     onTheFrontier: "On the frontier",
     mapMastered: "Map mastered",
     queueClear: "Today's queue is clear — new cards surface as memories fade",
+    queueFresh: (n: number) =>
+      `${n} newly learned concept${n === 1 ? "" : "s"} ready for their first review`,
     queueWaiting: (cards: number) =>
       `Today's budget is spent · ${cards} card${cards === 1 ? "" : "s"} still waiting`,
     queueDue: (cards: number, minutes: number) =>
@@ -33,6 +35,10 @@ export const STRINGS = {
     mapMastered: "Do mapa dominado",
     queueClear:
       "A fila de hoje está zerada — novos cards aparecem conforme a memória enfraquece",
+    queueFresh: (n: number) =>
+      n === 1
+        ? "1 conceito recém-aprendido pronto para a primeira revisão"
+        : `${n} conceitos recém-aprendidos prontos para a primeira revisão`,
     queueWaiting: (cards: number) =>
       `A meta de hoje foi cumprida · ${cards} cart${cards === 1 ? "ão ainda espera" : "ões ainda esperam"}`,
     queueDue: (cards: number, minutes: number) =>

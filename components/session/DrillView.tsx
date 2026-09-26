@@ -128,7 +128,12 @@ export default function DrillView({
             data-testid="phase-progress"
             style={{ fontFamily: font.mono, fontSize: 11, color: color.inkFaint }}
           >
-            {t.of(Math.min(session.index + 1, content.reps.length), content.reps.length)}
+            {session.done
+              ? t.of(Object.keys(session.hits).length, Object.keys(session.hits).length)
+              : t.of(
+                  Math.min(session.index + 1, content.reps.length),
+                  content.reps.length,
+                )}
           </span>
         </div>
       }

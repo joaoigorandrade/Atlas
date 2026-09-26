@@ -98,7 +98,12 @@ export default function DiscriminateView({
           data-testid="phase-progress"
           style={{ fontFamily: font.mono, fontSize: 11, color: color.inkFaint }}
         >
-          {t.of(Math.min(session.index + 1, content.cases.length), content.cases.length)}
+          {session.done
+            ? t.of(Object.keys(session.calls).length, Object.keys(session.calls).length)
+            : t.of(
+                Math.min(session.index + 1, content.cases.length),
+                content.cases.length,
+              )}
         </span>
       }
     >
