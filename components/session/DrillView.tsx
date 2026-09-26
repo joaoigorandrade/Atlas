@@ -20,6 +20,7 @@ import {
   drillLabored,
   drillMedianMs,
   drillPassed,
+  drillEarly,
   drillScore,
   type DrillContent,
   type DrillSession,
@@ -289,7 +290,7 @@ export default function DrillView({
             data-testid="phase-score"
             style={{ fontFamily: font.serif, fontSize: 21, marginBottom: 6 }}
           >
-            {t.score(drillScore(session, content), content.reps.length)}
+            {t.score(drillScore(session, content), Object.keys(session.hits).length)}
           </div>
           <div
             data-testid="drill-pace"
@@ -316,7 +317,11 @@ export default function DrillView({
               color: drillPassed(session, content) ? color.inkMuted : color.amberInk,
             }}
           >
-            {drillPassed(session, content) ? copy.passed : copy.missed}
+            {drillEarly(session, content)
+              ? copy.early
+              : drillPassed(session, content)
+                ? copy.passed
+                : copy.missed}
           </div>
           <Button
             data-testid="action-finish"

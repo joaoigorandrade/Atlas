@@ -148,6 +148,17 @@ public actor RunStore {
         return payload.card
     }
 
+    /// Active seconds spent on one phase of one node.
+    public func phaseTime(
+        _ id: String, nodeId: String, phase: Phase, seconds: Int, token: String
+    ) async throws {
+        let body = JSONValue.object([
+            "nodeId": .string(nodeId), "phase": .string(phase.rawValue),
+            "seconds": .number(Double(seconds)),
+        ])
+        _ = try await send(try RunEndpoint.phaseTime(id, body: body, token: token))
+    }
+
     /// Cards a phase minted itself — Connect's one per confirmed link, and the
     /// deck Retain drafts.
     public func putCards(_ id: String, cards: [StoredCard], token: String) async throws {

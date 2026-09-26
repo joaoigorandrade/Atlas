@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { DIFFICULTIES, IMPORTANCES } from "@/lib/curriculum";
+import { cellNote, consumeBand } from "@/lib/server/generate/cellNote";
 import { describe, expect, it } from "vitest";
 import { contentKey } from "@/lib/server/contentCache";
 import { resolveJob } from "@/lib/server/job";
@@ -248,5 +250,36 @@ describe("the curriculum warm addresses the learner's own rows", () => {
       resolveJob({ ...warmConsume, nodeKind: "procedure", domain: "formal" }).key,
     ];
     expect(new Set(keys).size).toBe(4);
+  });
+
+  // The cell (importance × difficulty) changes the prompt through `cellNote`
+  // and the reading's size band, so it keys — except the default cell, which
+  // writes exactly the pre-grid prompt and must keep its row.
+  it("keys core/medium to the row a request from before the grid wrote", () => {
+    expect(
+      resolveJob({ ...warmConsume, importance: "core", nodeDifficulty: "medium" }).key,
+    ).toBe(resolveJob(warmConsume).key);
+  });
+
+  it("separates every other cell", () => {
+    const keys = IMPORTANCES.flatMap((importance) =>
+      DIFFICULTIES.map(
+        (nodeDifficulty) =>
+          resolveJob({ ...warmConsume, importance, nodeDifficulty }).key,
+      ),
+    );
+    expect(new Set(keys).size).toBe(9);
+  });
+
+  it("writes the pre-grid prompt for the default cell and a note for the rest", () => {
+    expect(cellNote(undefined, "consume")).toBe("");
+    expect(cellNote("12", "drill")).toBe("");
+    expect(consumeBand("12")).toEqual({ min: 2, max: 5 });
+    expect(cellNote("22", "consume")).toMatch(/WORKING TOOL/);
+    expect(cellNote("33", "consume")).toMatch(/BLACK BOX/);
+    expect(cellNote("33", "consume")).not.toMatch(/HARD for newcomers/);
+    expect(cellNote("13", "consume")).toMatch(/misconception/);
+    expect(cellNote("13", "drill")).toMatch(/climb/);
+    expect(consumeBand("31")).toEqual({ min: 2, max: 2 });
   });
 });

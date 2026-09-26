@@ -146,7 +146,13 @@ struct DrillView: View {
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
-                    Text("\(model.score) de \(model.total) certas.")
+                    if model.early {
+                        Text("Encerrado mais cedo — um começo limpo já é prova suficiente.")
+                            .font(.atlas(.sans, 14))
+                            .foregroundStyle(Palette.inkMuted)
+                            .padding(.top, 8)
+                    }
+                    Text("\(model.score) de \(model.answered) certas.")
                         .font(.atlas(.sans, 14))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)

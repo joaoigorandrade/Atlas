@@ -16,6 +16,7 @@ import {
   nodeAxes,
   resolvePlan,
   type DiagnosticKind,
+  type GoalKind,
   PARETO_DEFAULT,
   graphFromMapNodes,
 } from "@/lib/curriculum";
@@ -90,13 +91,7 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
     const col = byCol[d];
     const i = col.indexOf(n.id);
     return {
-      id: n.id,
-      label: n.label,
-      summary: n.summary,
-      kind: n.kind,
-      domain: n.domain,
-      importance: n.importance,
-      difficulty: n.difficulty,
+      ...n, // id, label, summary and the four axes, exactly as validated
       // Resolved here, once, and stored on the node. Recomputing it on every
       // read would mean shipping a new catalogue silently re-cut the ladder
       // under a run already in progress.
@@ -144,6 +139,7 @@ export function validateScopeOffer(raw: unknown): ScopeOffer[] | null {
 export function validateGraphPart(
   raw: unknown,
   bounds: { min: number; max: number } = mapNodeBounds(),
+  goal?: GoalKind,
 ): { nodes: RawConcept[]; edges: ConceptEdge[] } {
   const root = obj(raw, "payload");
   const seen: SeenConcepts = new Map();
@@ -158,7 +154,7 @@ export function validateGraphPart(
       // A missing sentence costs one node its rail copy, not the learner their
       // whole map — the rail falls back to the state line.
       summary: n.summary ? str(n.summary, `nodes[${i}].summary`) : undefined,
-      ...nodeAxes(n),
+      ...nodeAxes(n, goal),
     };
   });
   if (nodes.length < bounds.min) fail(`only ${nodes.length} distinct concepts`);
@@ -311,11 +307,11 @@ export async function generateMap(
 Otherwise return JSON:
 ${graphShape(bounds.ask)}
 
-${mapRules(bounds.ask)}${languageNote(language)}`,
+${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
     ),
     (r) => {
       const scopes = validateScopeOffer(r);
-      return scopes ? { scopes } : validateGraphPart(r, bounds);
+      return scopes ? { scopes } : validateGraphPart(r, bounds, params.goal);
     },
     { label: "curriculum-map" },
   );
@@ -331,6 +327,7 @@ export function validateMapConcept(
   raw: unknown,
   index: number,
   seen: SeenConcepts,
+  goal?: GoalKind,
 ): RawConcept & { prereqs: string[] } {
   const c = obj(raw, `concept[${index}]`);
   const id = slug(c.id, `concept[${index}].id`);
@@ -353,7 +350,7 @@ export function validateMapConcept(
     // Soft, like the single-shot validator: a concept that arrives without its
     // sentence still lands on the map.
     summary: c.summary ? str(c.summary, `concept[${index}].summary`) : undefined,
-    ...nodeAxes(c),
+    ...nodeAxes(c, goal),
     prereqs: [...new Set(prereqs)],
   };
 }
@@ -402,14 +399,14 @@ written above it. Each object has this shape:
 ${NODE_SHAPE.slice(0, -1)}, "prereqs": ["ids of concepts already written above"]}
 
 "prereqs" is empty only for true foundations — every other concept names at
-least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
+least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
       ),
       (raw, index) => {
         // The too-broad answer is a single object and always the first one, so
         // it comes down this same wire untouched (#30).
         const offers = index === 0 ? validateScopeOffer(raw) : null;
         if (offers) return { scopes: offers };
-        return validateMapConcept(raw, index, seen);
+        return validateMapConcept(raw, index, seen, params.goal);
       },
       { label: "curriculum-map-stream" },
     );

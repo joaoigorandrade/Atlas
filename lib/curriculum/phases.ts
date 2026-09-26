@@ -7,6 +7,16 @@
 // the node carries its own plan and state is derived from what the learner has
 // finished (`stateFromPlan` in `calibration.ts`).
 
+import type { GoalKind } from "./calibration";
+import {
+  BAR,
+  asDifficulty,
+  asImportance,
+  clampCell,
+  appliedRung,
+  type NodeDifficulty,
+  type NodeImportance,
+} from "./cells";
 import { DOMAIN_PLAN, asDomain, type Domain } from "./domains";
 
 import type { Language } from "@/lib/i18n";
@@ -216,53 +226,20 @@ export type PhasesDoneMap = Record<string, readonly PhaseId[]>;
 export type PhaseProgress = Partial<Record<PhaseId, unknown>>;
 
 /**
- * How much the learner's goal rests on a concept. `core` is a hub or a
- * capstone; `support` is needed to *use*, not to master. Decides how DEEP the
- * ladder goes. Missing reads as `core`, which is what every node was before.
- */
-export type NodeImportance = "core" | "support";
-
-/**
- * How hard a concept is for a newcomer who already holds its prerequisites.
- * Decides how much GUIDANCE the ladder gives, and how long it should take.
- * Missing reads as `medium`, which is what every node was before.
- */
-export type NodeDifficulty = "easy" | "medium" | "hard";
-
-export function asImportance(raw: unknown): NodeImportance {
-  return raw === "support" ? "support" : "core";
-}
-
-export function asDifficulty(raw: unknown): NodeDifficulty {
-  return raw === "easy" || raw === "hard" ? raw : "medium";
-}
-
-/**
- * Every axis the map generation tags a node with, read leniently.
+ * Every axis the map generation tags a node with, read leniently — and, given
+ * the learner's goal, pulled into a cell that goal allows (`clampCell`).
  *
  * Defaulted, never failed: one bad discriminator must not cost a whole map.
- * Each default — `concept`, `general`, `core`, `medium` — is exactly how every
- * node behaved before that axis existed, so a bad pick degrades to the old
- * ladder rather than to nonsense.
  */
-export function nodeAxes(raw: Record<string, unknown>) {
+export function nodeAxes(raw: Record<string, unknown>, goal?: GoalKind) {
+  const importance = asImportance(raw.importance);
+  const difficulty = asDifficulty(raw.difficulty);
   return {
     kind: asNodeKind(raw.kind),
     domain: asDomain(raw.domain),
-    importance: asImportance(raw.importance),
-    difficulty: asDifficulty(raw.difficulty),
+    ...(goal ? clampCell(goal, importance, difficulty) : { importance, difficulty }),
   };
 }
-
-/** Proof and transfer — the rungs that buy depth rather than working use.
- *  Only a concept the goal rests on pays for them. */
-const DEPTH_PHASES: ReadonlySet<PhaseId> = new Set([
-  "feynman",
-  "connect",
-  "crucible",
-  "drill",
-  "steelman",
-]);
 
 /**
  * The ladder a node runs, before anything is stored.
@@ -274,11 +251,12 @@ const DEPTH_PHASES: ReadonlySet<PhaseId> = new Set([
  * kind entirely — see `DOMAIN_PLAN` for why that is a different thing from
  * adding rungs.
  *
- * Then the two cost axes only ever *remove* rungs, so every invariant survives
- * them: importance decides depth (a support concept drops `DEPTH_PHASES`),
- * difficulty decides guidance (Socratic questioning is dropped for an easy
- * concept, and for a support one unless it is hard). Neither can touch
- * Consume or Retain. Defaults reproduce the pre-axes ladder exactly.
+ * Then importance sets the bar (`cells.ts`), and only ever *removes* rungs, so
+ * every invariant survives it: `master` keeps the whole ladder, `use` keeps
+ * Consume, the one applied rung that fits the kind (`appliedRung`) and Retain,
+ * `recognise` keeps Consume and Retain alone. Difficulty removes one rung — an
+ * easy concept needs no Socratic questioning — and otherwise sizes the phases
+ * rather than choosing them.
  */
 export function resolvePlan(
   kind: NodeKind,
@@ -291,10 +269,12 @@ export function resolvePlan(
   const want = new Set<PhaseId>(
     !rule ? base : "plan" in rule ? rule.plan : [...base, ...rule.add],
   );
-  const support = importance === "support";
-  if (support) for (const p of DEPTH_PHASES) want.delete(p);
-  if (difficulty === "easy" || (support && difficulty !== "hard"))
-    want.delete("socratic");
+  const bar = BAR[importance];
+  if (bar !== "master") {
+    const rung = bar === "use" ? appliedRung([...want], kind, domain) : undefined;
+    return PHASE_ORDER.filter((p) => p === "consume" || p === "retain" || p === rung);
+  }
+  if (difficulty === "easy") want.delete("socratic");
   return PHASE_ORDER.filter((p) => want.has(p));
 }
 

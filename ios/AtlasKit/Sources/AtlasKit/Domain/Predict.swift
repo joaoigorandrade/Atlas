@@ -65,7 +65,13 @@ public struct PredictSession: Sendable {
     public mutating func next(_ content: PredictContent) {
         guard let item = content.setups[safe: index], forecasts[item.id] != nil else { return }
         index += 1
-        done = index >= content.setups.count
+        done = index >= content.setups.count || early(content)
+    }
+
+    /// Early exit: the opening three forecasts all held. Mirrors `predictEarly`.
+    public func early(_ content: PredictContent) -> Bool {
+        content.setups.count > 3
+            && content.setups.prefix(3).allSatisfy { forecasts[$0.id] == $0.answerIndex }
     }
 
     public func score(_ content: PredictContent) -> Int {
@@ -95,6 +101,7 @@ public struct PredictSession: Sendable {
     /// reported, never gated on — being unsure and right is a good forecast.
     public func passed(_ content: PredictContent) -> Bool {
         guard !content.setups.isEmpty else { return done }
+        if early(content) { return true }
         return score(content) >= Int((Double(content.setups.count) * 2 / 3).rounded(.up))
     }
 }

@@ -187,7 +187,13 @@ struct PredictView: View {
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
-                    Text("\(model.score) de \(model.total) previsões confirmadas.")
+                    if model.early {
+                        Text("Encerrado mais cedo — um começo limpo já é prova suficiente.")
+                            .font(.atlas(.sans, 14))
+                            .foregroundStyle(Palette.inkMuted)
+                            .padding(.top, 8)
+                    }
+                    Text("\(model.score) de \(model.answered) previsões confirmadas.")
                         .font(.atlas(.sans, 14))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)

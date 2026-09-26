@@ -24,7 +24,8 @@ test("predict: the outcome is not on screen until the forecast is committed", as
   await expect(sheet.getByTestId("forecast-held")).toHaveCount(0);
   await expect(sheet.getByTestId("forecast-broke")).toHaveCount(0);
 
-  for (let i = 0; i < 4; i++) {
+  // Three forecasts held from the start end the run early (`predictEarly`).
+  for (let i = 0; i < 3; i++) {
     // Confidence first: the forecast controls do not appear until it is in,
     // because a rating taken after the outcome is not a calibration reading.
     await expect(sheet.getByTestId("action-mode-choices")).toHaveCount(0);
@@ -36,6 +37,7 @@ test("predict: the outcome is not on screen until the forecast is committed", as
     await sheet.getByTestId("action-next").click();
   }
 
+  await expect(sheet).toContainText("Ended early");
   await sheet.getByTestId("action-finish").click();
   await expect(async () => {
     const row = (await readNodeRows(page.request)).find((r) => r.id === "core-rule")!;

@@ -25,10 +25,12 @@ test("drill: the clock is reported, and correctness is what closes the rung", as
   await expect(sheet.getByTestId("action-pick-0")).toBeVisible();
   await expect(sheet.getByTestId("rep-clock")).toBeVisible();
 
-  // Deliberately unhurried: every item is answered correctly, slowly enough
-  // that a speed gate would fail the run. The rung must still close.
+  // Deliberately unhurried: every item is answered correctly, the first one
+  // past the target time — so a speed gate would fail the run, and the clean
+  // fast opening that ends a drill early (`drillEarly`) is not on offer. The
+  // rung must still close.
   for (let i = 0; i < 5; i++) {
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(i === 0 ? 8_500 : 400);
     await sheet.getByTestId(`action-pick-${i % 2}`).click();
     await sheet.getByTestId("action-next").click();
   }

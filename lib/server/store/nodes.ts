@@ -3,6 +3,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fail } from "@/lib/server/store/shared";
 import type { NodeDelta } from "@/lib/persistence";
+import type { NodeDifficulty, NodeImportance } from "@/lib/curriculum";
+import type { GenerateBody } from "@/lib/server/jobInput";
 
 // ------------------------------------------------------------------ nodes --
 
@@ -113,4 +115,47 @@ export async function deleteNodes(
       .in(column, ids);
     if (edgeError) fail("deleteNodes/edges", edgeError);
   }
+}
+
+// ------------------------------------------------------------------ cells --
+
+type CellRows = Map<string, { importance?: NodeImportance; difficulty?: NodeDifficulty }>;
+
+/**
+ * Stamp a per-node generation with the node's stored importance and
+ * difficulty, *on the server* — the same move as `withNeighbours`, for the
+ * same reason: every path that hashes a job calls it first, so the browser,
+ * the phone and the frontier warm address the same row without either client
+ * carrying the cell. Whatever a client sends is dropped.
+ */
+export async function withNodeCell<T extends GenerateBody>(
+  db: SupabaseClient,
+  body: T,
+  memo?: Map<string, Promise<CellRows>>,
+): Promise<T> {
+  const { importance: _i, nodeDifficulty: _d, ...rest } = body;
+  if (!body.topicId || !body.nodeId) return rest as T;
+  let pending = memo?.get(body.topicId);
+  if (!pending) {
+    pending = cellRows(db, body.topicId);
+    memo?.set(body.topicId, pending);
+  }
+  const row = (await pending).get(body.nodeId);
+  return (
+    row ? { ...rest, importance: row.importance, nodeDifficulty: row.difficulty } : rest
+  ) as T;
+}
+
+async function cellRows(db: SupabaseClient, topicId: string): Promise<CellRows> {
+  const { data, error } = await db
+    .from("nodes")
+    .select("id, importance, difficulty")
+    .eq("topic_id", topicId);
+  if (error) fail("read node cells", error);
+  return new Map(
+    (data ?? []).map((r) => [
+      r.id,
+      { importance: r.importance, difficulty: r.difficulty },
+    ]),
+  );
 }

@@ -156,7 +156,8 @@ final class NodeDetailViewModel {
 
     var headline: LocalizedStringKey { state.headline }
 
-    /// "Essencial · Difícil · ~38 min restantes" — the node's two cost axes and
+    /// "Dominar · Difícil · ~38 min restantes" — the bar the node is held to, its
+    /// difficulty and
     /// the work it still owes (`settlementLine` / `minutesLine` on the web).
     /// Nil on a gap: a sub-point of its parent has no rank or relief of its own.
     var cost: String? {
@@ -167,8 +168,13 @@ final class NodeDetailViewModel {
         case .medium: String(localized: "Média")
         case .hard: String(localized: "Difícil")
         }
+        let bar = switch node.importance ?? .core {
+        case .core: String(localized: "Dominar")
+        case .working: String(localized: "Usar")
+        case .peripheral: String(localized: "Reconhecer")
+        }
         return [
-            node.importance == .support ? String(localized: "De apoio") : String(localized: "Essencial"),
+            bar,
             relief,
             owed > 0 ? String(localized: "~\(owed) min restantes") : nil,
         ].compactMap(\.self).joined(separator: " · ")

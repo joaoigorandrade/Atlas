@@ -2359,6 +2359,16 @@
         }
       }
     },
+    "Dominar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master it"
+          }
+        }
+      }
+    },
     "Dominar tudo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2443,6 +2453,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In thirty seconds"
+          }
+        }
+      }
+    },
+    "Encerrado mais cedo — um começo limpo já é prova suficiente." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended early — a clean start is proof enough."
           }
         }
       }
@@ -5325,6 +5345,16 @@
         }
       }
     },
+    "Reconhecer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognise it"
+          }
+        }
+      }
+    },
     "recordados" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6370,6 +6400,16 @@
         }
       }
     },
+    "Usar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use it"
+          }
+        }
+      }
+    },
     "Ver a sugestão do mapa" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7170,26 +7210,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "dissolve the continent"
-          }
-        }
-      }
-    },
-    "De apoio" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Support"
-          }
-        }
-      }
-    },
-    "Essencial" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Core"
           }
         }
       }

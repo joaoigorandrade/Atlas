@@ -14,6 +14,7 @@ import {
   predictCopy,
   predictOverconfident,
   predictPassed,
+  predictEarly,
   predictScore,
   type PhaseId,
   type PredictContent,
@@ -332,7 +333,10 @@ export default function PredictView({
             data-testid="phase-score"
             style={{ fontFamily: font.serif, fontSize: 21, marginBottom: 6 }}
           >
-            {t.score(predictScore(session, content), content.setups.length)}
+            {t.score(
+              predictScore(session, content),
+              Object.keys(session.forecasts).length,
+            )}
           </div>
           {overconfident.length > 0 && (
             <div
@@ -350,7 +354,11 @@ export default function PredictView({
               color: predictPassed(session, content) ? color.inkMuted : color.amberInk,
             }}
           >
-            {predictPassed(session, content) ? copy.passed : copy.missed}
+            {predictEarly(session, content)
+              ? copy.early
+              : predictPassed(session, content)
+                ? copy.passed
+                : copy.missed}
           </div>
           <Button
             data-testid="action-finish"

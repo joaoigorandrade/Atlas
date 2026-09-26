@@ -18,7 +18,7 @@ import {
 import { recordContent } from "@/lib/server/afterBuild";
 import { readManyContent } from "@/lib/server/contentCache";
 import { BadRequest, resolveJob, type GenerateBody } from "@/lib/server/job";
-import { withNeighbours } from "@/lib/server/store";
+import { withNeighbours, withNodeCell } from "@/lib/server/store";
 import { createClient } from "@/lib/supabase/server";
 
 /** A pure cache read — bounded so one request can't sweep the table.
@@ -59,12 +59,15 @@ export async function POST(request: Request) {
   // Stamped exactly as /api/generate stamps them, or a warm and the click after
   // it hash different rows. One read per topic, however many items share it.
   const memo = new Map<string, Promise<string[]>>();
+  const cells: Parameters<typeof withNodeCell>[2] = new Map();
   const items = await Promise.all(
     raw.map((item) =>
-      withNeighbours(supabase as never, item, memo).catch((err: unknown) => {
-        logError("content_neighbours_failed", err, { req: requestId });
-        return null;
-      }),
+      withNeighbours(supabase as never, item, memo)
+        .then((b) => withNodeCell(supabase as never, b, cells))
+        .catch((err: unknown) => {
+          logError("content_neighbours_failed", err, { req: requestId });
+          return null;
+        }),
     ),
   );
   // Map each item to its cache key, dropping anything malformed or uncacheable

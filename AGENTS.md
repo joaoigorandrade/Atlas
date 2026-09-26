@@ -154,6 +154,18 @@ kinds existed, and for the same reason `nodeKind` is omitted from the cache key
 when it is `concept` (`job.ts`) — so no existing `content_cache` row was
 orphaned and no `VERSION` bump was owed.
 
+The third lever is the **cell** (`lib/curriculum/cells.ts`): importance ×
+difficulty, tagged by the map generation. Importance sets the _bar_ and so the
+plan — `core` masters (the kind's full ladder), `working` uses (Consume, one
+applied rung by kind via `appliedRung`, Retain), `peripheral` recognises
+(Consume, Retain). Difficulty sets the _budget_ under that bar (`CELL_BUDGET`,
+`cellNote`, `consumeBand`), never the bar. The goal decides which cells a map
+may hold (`GOAL_CELLS`; `clampCell` backs up the prompt). The cell is a cache-key
+axis stamped **by the server** from the stored row (`withNodeCell`), like
+`neighbours`; core/medium is omitted so it keys to the pre-grid row. Both
+clients post active seconds per phase to `/api/v1/topics/:id/time`
+(`nodes.phase_seconds`) — tune the budgets from that, not from intuition.
+
 The rail is driven by `data-phase` (the phase id), never by
 `action-phase-${i}`: plans vary in length, so index N is a different phase on a
 different node.

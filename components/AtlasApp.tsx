@@ -56,6 +56,7 @@ import { useDerived } from "@/components/atlas/useDerived";
 import { useNavigation } from "@/components/atlas/useNavigation";
 import type { Screen } from "@/components/atlas/screen";
 import { usePageTurn } from "@/components/atlas/usePageTurn";
+import { usePhaseClock } from "@/components/atlas/usePhaseClock";
 import { exportCardsCsv, exportCardsJson, exportMap } from "@/components/atlas/exporters";
 import NodeDetail from "@/components/map/NodeDetail";
 import TopBar from "@/components/map/TopBar";
@@ -249,7 +250,6 @@ export default function AtlasApp({
   useEffect(() => {
     if (retain?.finished) setAdherence((prev) => markTodayMet(prev));
   }, [retain?.finished, setAdherence]);
-
   const onToggleReminder = () => setAdherence((prev) => toggleReminder(prev));
 
   const displayRef = useRef<Record<string, NodeState>>({});
@@ -543,7 +543,7 @@ export default function AtlasApp({
     profileStats,
     reviewSummary,
   } = derived;
-
+  usePhaseClock(openSheet, selectedId);
   // The warm pass: what to have generated before the learner asks for it.
   useWarming({
     run,

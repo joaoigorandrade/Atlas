@@ -45,6 +45,10 @@ final class DrillViewModel {
     var labored: [DrillRep] { content.map(session.labored) ?? [] }
     var automatic: Bool { content.map(session.automatic) ?? false }
     var passed: Bool { content.map(session.passed) ?? false }
+    /// Ended on a clean opening (`DrillSession.early`) — scored against the reps
+    /// actually answered, not the ones never reached.
+    var early: Bool { content.map(session.early) ?? false }
+    var answered: Int { session.hits.count }
 
     /// The clock, to one decimal — seconds, because a millisecond count on a
     /// phone reads as noise rather than as pace.

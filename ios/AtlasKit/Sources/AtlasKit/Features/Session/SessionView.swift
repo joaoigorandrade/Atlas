@@ -13,6 +13,10 @@ struct SessionView: View {
     /// Built once, in `task`: a pass marks its node Learning on the way in, so
     /// re-making it during a view update would re-run that write every redraw.
     @State private var session: SessionViewModel?
+    /// When the phase on screen started counting — reset whenever the app
+    /// leaves the foreground, so only time actually spent on it is reported.
+    @State private var clockStart: Date?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -43,7 +47,29 @@ struct SessionView: View {
         // The map has the screen again — by the back swipe, the phase bar, or a
         // finished pass. Whichever it was, there is no pass to reopen next
         // launch. Backgrounding does not come through here, which is the point.
-        .onDisappear { SessionViewModel.forget() }
+        .onDisappear {
+            SessionViewModel.forget()
+            if let shown = session?.phase { stopClock(shown) }
+        }
+        // The phase clock: foreground time only, reported per phase as it
+        // closes (`/api/v1/topics/:id/time`) — what the per-cell budgets in
+        // `Cells.swift` are tuned against.
+        .onChange(of: session?.phase) { old, new in
+            if let old { stopClock(old) }
+            if new != nil { clockStart = .now }
+        }
+        .onChange(of: scenePhase) { _, now in
+            guard let shown = session?.phase else { return }
+            if now == .active { clockStart = .now } else { stopClock(shown) }
+        }
+    }
+
+    private func stopClock(_ phase: Phase) {
+        guard let start = clockStart else { return }
+        clockStart = nil
+        // Capped like the server: an hour is longer than any honest session.
+        let seconds = min(3600, Int(Date.now.timeIntervalSince(start).rounded()))
+        store.recordPhaseTime(node, phase, seconds: seconds)
     }
 
     @ViewBuilder

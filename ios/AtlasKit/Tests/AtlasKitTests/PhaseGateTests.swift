@@ -260,3 +260,43 @@ private func setups(_ count: Int) -> PredictContent {
     session.sure(2, content)
     #expect(session.sureness["p0"] == 0)
 }
+
+// MARK: - Early exit · a clean opening is the proof
+
+/// A clean start ends the run: the rest of it would only collect proof the
+/// learner has already given. Mirrors the `*Early` tests in `curriculum.test.ts`.
+@Test func aCleanOpeningEndsTheRunEarly() {
+    // Discriminate: three right, one of them a near-miss turned away.
+    let boundary = cases([
+        ("1", 0, true), ("2", 1, false), ("3", 0, true), ("4", 1, false), ("5", 0, true),
+    ])
+    var sharp = DiscriminateSession(nodeId: "n")
+    for item in boundary.cases.prefix(3) { sharp.call(item.answerIndex, boundary); sharp.next(boundary) }
+    #expect(sharp.done)
+    #expect(sharp.early(boundary))
+    #expect(sharp.passed(boundary))
+
+    // …but not on a streak of instances alone: that could be luck.
+    let instances = cases([
+        ("1", 0, true), ("2", 0, true), ("3", 0, true), ("4", 1, false), ("5", 1, false),
+    ])
+    var lucky = DiscriminateSession(nodeId: "n")
+    for _ in 0..<3 { lucky.call(0, instances); lucky.next(instances) }
+    #expect(!lucky.done)
+
+    // Drill: four reps right and inside the target time.
+    let reps = try! JSONDecoder().decode(DrillContent.self, from: Data("""
+    {"nodeId":"n","nodeLabel":"N","reps":[
+    \((1...6).map { "{\"id\":\"r\($0)\",\"prompt\":\"p\",\"answers\":[\"a\",\"b\"],\"answerIndex\":0,\"rule\":\"r\"}" }.joined(separator: ","))
+    ]}
+    """.utf8))
+    let t0 = Date(timeIntervalSince1970: 0)
+    var fast = DrillSession(nodeId: "n", now: t0)
+    for i in 0..<4 {
+        let at = t0.addingTimeInterval(Double(i + 1) * 2)
+        fast.answer(0, reps, now: at)
+        fast.next(reps, now: at)
+    }
+    #expect(fast.done)
+    #expect(fast.passed(reps))
+}

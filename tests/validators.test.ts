@@ -111,11 +111,30 @@ describe("validateMapConcept", () => {
     );
     expect([odd.importance, odd.difficulty]).toEqual(["core", "medium"]);
     const tagged = validateMapConcept(
-      concept({ importance: "support", difficulty: "hard" }),
+      concept({ importance: "peripheral", difficulty: "hard" }),
       0,
       new Map(),
     );
-    expect([tagged.importance, tagged.difficulty]).toEqual(["support", "hard"]);
+    expect([tagged.importance, tagged.difficulty]).toEqual(["peripheral", "hard"]);
+  });
+
+  it("clamps a cell the learner's goal does not allow", () => {
+    // An exam keeps only easy peripheral context.
+    const exam = validateMapConcept(
+      concept({ importance: "peripheral", difficulty: "hard" }),
+      0,
+      new Map(),
+      "exam",
+    );
+    expect([exam.importance, exam.difficulty]).toEqual(["peripheral", "easy"]);
+    // Mastery holds every cell.
+    const mastery = validateMapConcept(
+      concept({ importance: "peripheral", difficulty: "hard" }),
+      0,
+      new Map(),
+      "mastery",
+    );
+    expect([mastery.importance, mastery.difficulty]).toEqual(["peripheral", "hard"]);
   });
 
   it("normalizes the id and keeps prereqs that already landed", () => {

@@ -2,6 +2,8 @@
 
 // The ladder is fixed copy, not generated — so it is translated here rather
 // than asked for from the model.
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -134,6 +136,8 @@ export async function generateCrucible(
   params: Boundary & {
     nodeKind?: NodeKind;
     domain?: Domain;
+    /** The node's cell — `cellNote`; server-stamped, never from a client. */
+    cell?: Cell;
     topic: string;
     nodeId: string;
     nodeLabel: string;
@@ -159,7 +163,7 @@ export async function generateCrucible(
 Force the knowledge into a NOVEL context it was never taught in — that's the truest mastery signal.
 Concepts the learner already owns, to interleave: ${masteredLabels.join(", ") || "the concept's own prerequisites"}.
 ${interestNote(interests)}${rerunNote(rerun)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "crucible")}${domainNote(params.domain, "crucible")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "crucible")}${domainNote(params.domain, "crucible")}${cellNote(params.cell, "crucible")}
 
 Return JSON:
 {

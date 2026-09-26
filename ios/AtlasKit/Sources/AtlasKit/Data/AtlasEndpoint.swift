@@ -121,6 +121,13 @@ enum RunEndpoint {
             .jsonBody(body).bearer(token)
     }
 
+    /// Active seconds on one phase of one node — what the per-cell time budgets
+    /// are tuned against. Added atomically server-side (`add_phase_seconds`).
+    static func phaseTime(_ id: String, body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/topics/\(id)/time", method: .post)
+            .jsonBody(body).bearer(token)
+    }
+
     /// Cards the phases mint themselves — Connect's one card per confirmed
     /// link, and the deck Retain drafts. Scheduler state is the server's; these
     /// arrive new.

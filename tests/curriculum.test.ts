@@ -16,6 +16,22 @@ import {
   paceStatus,
   minutesLeft,
   ledgerAfter,
+  discriminateEarly,
+  drillEarly,
+  DRILL_TARGET_MS,
+  predictEarly,
+  predictPassed,
+  CELL_BUDGET,
+  DIFFICULTIES,
+  GOAL_CELLS,
+  IMPORTANCES,
+  cellOf,
+  clampCell,
+  proofGate,
+  type Domain,
+  type NodeDifficulty,
+  type NodeImportance,
+  type NodeKind,
   nodeAxes,
   PHASE_MINUTES,
   crucibleMasters,
@@ -526,13 +542,27 @@ describe("socraticOutcome", () => {
 // ---- adaptive length (#D) — the fifth pre-generated step earns its keep ----
 
 describe("socraticReducer adaptive length", () => {
-  it("ends a pass early after three unaided answers running, even with a step to spare", () => {
+  it("ends a pass on a clean unaided opening pair, with steps to spare", () => {
     const four = [0, 1, 2, 3].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
     let s = socraticStart("n", four);
-    for (let i = 0; i < 3; i++) s = answered(s, "correct", four);
+    for (let i = 0; i < 2; i++) s = answered(s, "correct", four);
     expect(s.done).toBe(true);
-    expect(s.total).toBe(3);
-    expect(s.resolutions).toEqual(["unaided", "unaided", "unaided"]);
+    expect(s.total).toBe(2);
+    expect(s.resolutions).toEqual(["unaided", "unaided"]);
+  });
+
+  it("ends a pass after three unaided answers running, once the opening needed help", () => {
+    const five = [0, 1, 2, 3, 4].map((i) => ({ ...steps[0], id: `s${i + 1}` }));
+    let s = socraticStart("n", five);
+    s = answered(socraticReducer(s, { type: "stuck" }, five), "correct", five);
+    s = answered(s, "correct", five);
+    expect(s.done).toBe(false); // hint, unaided: not a clean opening
+    s = answered(s, "correct", five);
+    expect(s.done).toBe(false);
+    s = answered(s, "correct", five);
+    expect(s.done).toBe(true);
+    expect(s.total).toBe(4);
+    expect(s.resolutions).toEqual(["hint", "unaided", "unaided", "unaided"]);
   });
 
   it("buys probes, one per two assisted steps running, while spares last", () => {
@@ -1448,6 +1478,118 @@ describe("discriminate", () => {
   it("passes a run that gets the boundary right", () => {
     expect(discriminatePassed(run([0, 1, 0, 1]), content)).toBe(true);
   });
+
+  it("ends early on a clean opening that turned a near-miss away", () => {
+    const s = run([0, 1, 0]);
+    expect(s.done).toBe(true);
+    expect(s.index).toBe(3);
+    expect(discriminateEarly(s, content)).toBe(true);
+    expect(discriminatePassed(s, content)).toBe(true);
+  });
+
+  it("does not end early on a streak of instances alone", () => {
+    const instances = {
+      ...content,
+      cases: content.cases.map((c, i) => ({
+        ...c,
+        answerIndex: 0,
+        isInstance: i < 3 ? true : c.isInstance,
+      })),
+    };
+    let s = discriminateStart("n");
+    for (let i = 0; i < 3; i++)
+      s = discriminateReducer(
+        discriminateReducer(s, { type: "call", index: 0 }, instances),
+        { type: "next" },
+        instances,
+      );
+    expect(s.done).toBe(false);
+  });
+
+  it("does not end early after a miss", () => {
+    expect(run([1, 1, 0]).done).toBe(false);
+  });
+});
+
+describe("predict early exit", () => {
+  const content = {
+    nodeId: "n",
+    nodeLabel: "The rule",
+    setups: [0, 1, 2, 3, 4].map((i) => ({
+      id: `s${i}`,
+      situation: `setup ${i}`,
+      outcomes: ["holds", "reverses"],
+      answerIndex: 0,
+      because: "the chain",
+    })),
+  };
+  const run = (picks: number[]) =>
+    picks.reduce(
+      (acc, pick) =>
+        predictReducer(
+          predictReducer(acc, { type: "commit", index: pick }, content),
+          { type: "next" },
+          content,
+        ),
+      predictStart("n"),
+    );
+
+  it("ends after three forecasts held from the start", () => {
+    const s = run([0, 0, 0]);
+    expect(s.done).toBe(true);
+    expect(predictEarly(s, content)).toBe(true);
+    expect(predictPassed(s, content)).toBe(true);
+  });
+
+  it("runs on when the opening is not clean", () => {
+    expect(run([0, 1, 0]).done).toBe(false);
+  });
+});
+
+describe("drill early exit", () => {
+  const content = {
+    nodeId: "n",
+    nodeLabel: "The rule",
+    reps: [0, 1, 2, 3, 4, 5].map((i) => ({
+      id: `r${i}`,
+      prompt: `rep ${i}`,
+      answers: ["a", "b"],
+      answerIndex: 0,
+      rule: "the rule",
+    })),
+  };
+  const run = (reps: Array<[number, number]>) => {
+    let s = drillStart("n", 0);
+    let t = 0;
+    for (const [pick, ms] of reps) {
+      t += ms;
+      s = drillReducer(s, { type: "answer", index: pick, now: t }, content);
+      s = drillReducer(s, { type: "next", now: t }, content);
+    }
+    return s;
+  };
+
+  it("ends after four fast, right reps from the start", () => {
+    const s = run([
+      [0, 2000],
+      [0, 2000],
+      [0, 2000],
+      [0, 2000],
+    ]);
+    expect(s.done).toBe(true);
+    expect(drillEarly(s, content)).toBe(true);
+    expect(drillPassed(s, content)).toBe(true);
+  });
+
+  it("runs on when one of them was right but slow", () => {
+    const s = run([
+      [0, 2000],
+      [0, DRILL_TARGET_MS + 1000],
+      [0, 2000],
+      [0, 2000],
+    ]);
+    expect(s.done).toBe(false);
+  });
 });
 
 describe("predict", () => {
@@ -1702,8 +1844,8 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10);
     expect(pace.remaining).toBe(1);
     expect(pace.daysLeft).toBe(10);
-    // One plan-less node runs the full concept ladder: 50 min over 10 days.
-    expect(pace.neededPerDay).toBe(5);
+    // One plan-less node is a core/medium concept: its 35-minute budget over 10 days.
+    expect(pace.neededPerDay).toBe(4);
     expect(pace.onTrack).toBe(true);
   });
 
@@ -1712,7 +1854,8 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10, {
       b: [...done.b],
     });
-    expect(pace.neededPerDay).toBe(3); // 50 - 22 = 28 min → ceil(2.8)
+    // 28 of the ladder's 50 phase-minutes are owed: 35 × 28/50 ≈ 20 min → 2/day.
+    expect(pace.neededPerDay).toBe(2);
   });
 });
 
@@ -1727,32 +1870,32 @@ describe("minutesLeft", () => {
     y: 0,
   } as const;
 
-  it("sums the unfinished gates and never charges Retain", () => {
-    const full = planGates(PHASE_PLAN.concept).reduce((m, p) => m + PHASE_MINUTES[p], 0);
-    expect(minutesLeft(node)).toBe(full);
+  it("charges the cell's budget, spread over the unfinished gates", () => {
+    expect(minutesLeft(node)).toBe(CELL_BUDGET["12"]);
     expect(minutesLeft(node, [...planGates(PHASE_PLAN.concept)])).toBe(0);
+    const gates = planGates(PHASE_PLAN.concept);
+    const whole = gates.reduce((m, p) => m + PHASE_MINUTES[p], 0);
+    expect(minutesLeft(node, ["consume"])).toBe(
+      Math.round((CELL_BUDGET["12"] * (whole - PHASE_MINUTES.consume)) / whole),
+    );
   });
 
-  it("scales by difficulty", () => {
-    expect(minutesLeft({ ...node, difficulty: "hard" })).toBe(70); // 50 × 1.4
-    // Easy also sheds Socratic: (50 - 8) × 0.75.
-    expect(minutesLeft({ ...node, difficulty: "easy" })).toBe(32);
-  });
-
-  it("follows a short support ladder", () => {
-    expect(minutesLeft({ ...node, importance: "support" })).toBe(19);
+  it("an easier or less important cell costs less", () => {
+    expect(minutesLeft({ ...node, difficulty: "hard" })).toBe(CELL_BUDGET["13"]);
+    expect(minutesLeft({ ...node, difficulty: "easy" })).toBe(CELL_BUDGET["11"]);
+    expect(minutesLeft({ ...node, importance: "working" })).toBe(CELL_BUDGET["22"]);
+    expect(minutesLeft({ ...node, importance: "peripheral" })).toBe(CELL_BUDGET["32"]);
   });
 });
 
-// The cost axes only ever REMOVE rungs, so the catalogue's invariants must hold
-// over every combination — and the defaults must reproduce today's ladders.
+// Importance sets the bar and only ever REMOVES rungs, so the catalogue's
+// invariants must hold over every combination — and the default cell must
+// reproduce today's ladders.
 describe("importance × difficulty", () => {
   const combos = NODE_KINDS.flatMap((kind) =>
     DOMAINS.flatMap((domain) =>
-      (["core", "support"] as const).flatMap((importance) =>
-        (["easy", "medium", "hard"] as const).map(
-          (difficulty) => [kind, domain, importance, difficulty] as const,
-        ),
+      IMPORTANCES.flatMap((importance) =>
+        DIFFICULTIES.map((difficulty) => [kind, domain, importance, difficulty] as const),
       ),
     ),
   );
@@ -1764,7 +1907,12 @@ describe("importance × difficulty", () => {
       expect([...at], c.join("/")).toEqual([...at].sort((a, b) => a - b));
       expect(plan[0], c.join("/")).toBe("consume");
       expect(plan.at(-1), c.join("/")).toBe("retain");
-      expect(planGates(plan).length, c.join("/")).toBeGreaterThan(1);
+      // A recognise node's reading IS its gate, a use node adds one applied
+      // rung, a master node owes a real ladder.
+      const gates = planGates(plan).length;
+      if (c[2] === "peripheral") expect(gates, c.join("/")).toBe(1);
+      else if (c[2] === "working") expect(gates, c.join("/")).toBe(2);
+      else expect(gates, c.join("/")).toBeGreaterThan(2);
     }
   });
 
@@ -1776,21 +1924,32 @@ describe("importance × difficulty", () => {
         );
   });
 
-  it("draws the concept table from the plan", () => {
-    const row = (i: "core" | "support", d: "easy" | "medium" | "hard") =>
+  it("draws each bar from the plan", () => {
+    const row = (i: NodeImportance, d: NodeDifficulty) =>
       resolvePlan("concept", "general", i, d).join(" ");
     expect(row("core", "easy")).toBe(
       "consume discriminate feynman connect crucible recall retain",
     );
     expect(row("core", "hard")).toBe(PHASE_PLAN.concept.join(" "));
-    expect(row("support", "medium")).toBe("consume discriminate recall retain");
-    expect(row("support", "hard")).toBe("consume discriminate socratic recall retain");
+    // use: Consume, the applied rung the kind wants, Retain — at any difficulty.
+    expect(row("working", "medium")).toBe("consume discriminate retain");
+    expect(row("working", "hard")).toBe("consume discriminate retain");
+    // recognise: the reading alone, then review keeps it alive.
+    expect(row("peripheral", "hard")).toBe("consume retain");
   });
 
-  it("a support node on a formal map still computes something", () => {
-    expect(resolvePlan("concept", "formal", "support").join(" ")).toBe(
-      "consume discriminate trace perform recall retain",
-    );
+  it("the use rung follows the kind, and the domain where it replaces the ladder", () => {
+    const rung = (k: NodeKind, d: Domain) =>
+      planGates(resolvePlan(k, d, "working")).at(-1);
+    expect(rung("fact", "general")).toBe("drill");
+    expect(rung("concept", "general")).toBe("discriminate");
+    expect(rung("procedure", "general")).toBe("perform");
+    expect(rung("principle", "general")).toBe("predict");
+    expect(rung("concept", "performative")).toBe("produce");
+    expect(rung("concept", "craft")).toBe("perform");
+    // The proof gate of a use node is its applied rung, of a recognise node the reading.
+    expect(proofGate(resolvePlan("procedure", "general", "working"))).toBe("perform");
+    expect(proofGate(resolvePlan("procedure", "general", "peripheral"))).toBe("consume");
   });
 
   it("reads unknown axes as core / medium", () => {
@@ -1798,10 +1957,40 @@ describe("importance × difficulty", () => {
       importance: "core",
       difficulty: "medium",
     });
-    expect(nodeAxes({ importance: "support", difficulty: "hard" })).toMatchObject({
-      importance: "support",
+    expect(nodeAxes({ importance: "working", difficulty: "hard" })).toMatchObject({
+      importance: "working",
       difficulty: "hard",
     });
+  });
+
+  it("clamps a node into a cell its goal allows", () => {
+    // Project has no hard cells: a hard core idea keeps its row, loses difficulty.
+    expect(nodeAxes({ importance: "core", difficulty: "hard" }, "project")).toMatchObject(
+      {
+        importance: "core",
+        difficulty: "medium",
+      },
+    );
+    // Pareto holds no peripheral row at all: it is promoted, not dropped.
+    expect(
+      nodeAxes({ importance: "peripheral", difficulty: "hard" }, "pareto"),
+    ).toMatchObject({ importance: "working", difficulty: "medium" });
+    // Exam keeps only the easy context.
+    expect(clampCell("exam", "peripheral", "hard")).toEqual({
+      importance: "peripheral",
+      difficulty: "easy",
+    });
+    // An allowed cell is left alone, on every goal.
+    for (const goal of ["exam", "project", "mastery", "pareto"] as const)
+      for (const cell of GOAL_CELLS[goal]) {
+        const i = IMPORTANCES[Number(cell[0]) - 1];
+        const d = DIFFICULTIES[Number(cell[1]) - 1];
+        expect(clampCell(goal, i, d), `${goal} ${cell}`).toEqual({
+          importance: i,
+          difficulty: d,
+        });
+        expect(cellOf(i, d)).toBe(cell);
+      }
   });
 });
 

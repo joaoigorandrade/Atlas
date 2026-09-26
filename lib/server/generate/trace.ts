@@ -5,6 +5,8 @@
 // same concept would render identically and test nothing the other phases
 // don't already.
 
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -66,6 +68,8 @@ export interface TraceParams extends Boundary {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
 }
 
 export async function generateTrace(params: TraceParams): Promise<TraceContent> {
@@ -74,7 +78,7 @@ export async function generateTrace(params: TraceParams): Promise<TraceContent> 
     user(
       `Write a TRACE pass for "${nodeLabel}" within "${topic}": the learner walks the mechanism one stage at a time, saying at each stage what it hands the next.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "trace")}${domainNote(params.domain, "trace")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "trace")}${domainNote(params.domain, "trace")}${cellNote(params.cell, "trace")}
 
 THE STAGES ARE THE LINKS OF ONE CHAIN ON ONE RUNNING CASE, IN ORDER. Stage 1 starts the case; every later stage begins from where the previous one ended and never repeats it. If the stages could be shuffled without anything reading oddly, this is the wrong shape.
 

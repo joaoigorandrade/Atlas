@@ -9,12 +9,19 @@
 
 import { type CacheableKind } from "@/lib/server/contentCache";
 import {
+  asDifficulty,
   asDomain,
+  asImportance,
   asNodeKind,
+  cellOf,
+  type Cell,
   type Domain,
   type GoalKind,
+  type NodeDifficulty,
+  type NodeImportance,
   type NodeKind,
 } from "@/lib/curriculum";
+import { DEFAULT_CELL } from "@/lib/server/generate/cellNote";
 import type { Language } from "@/lib/i18n";
 
 export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion" | "passage";
@@ -48,6 +55,11 @@ export interface GenerateBody {
   nodeKind?: NodeKind;
   /** What settles a claim about it — see `nodeAxes`. */
   domain?: Domain;
+  /** The node's importance and difficulty. Set by the server alone
+   *  (`withNodeCell`, from the stored row) — whatever a client sends is
+   *  dropped, so the phone and the browser can never key a pass differently. */
+  importance?: NodeImportance;
+  nodeDifficulty?: NodeDifficulty;
   prereqLabels?: string[];
   /** The map around the concept — see `boundary` / `boundaryNote`. */
   priorLabels?: string[];
@@ -205,7 +217,7 @@ export const neighboursAxis = (body: GenerateBody): { neighbours?: string[] } =>
   return lines.length ? { neighbours: lines } : {};
 };
 
-/** The two axes a node is written on, each omitted when it is the default —
+/** The axes a node is written on, each omitted when it is the default —
  *  same trick as `boundary`, and for the same reason: `concept` and `general`
  *  produce byte-identical prompts to the engine that predated them, so a plain
  *  node keys to the row it already wrote and no VERSION bump is owed. A node on
@@ -213,12 +225,15 @@ export const neighboursAxis = (body: GenerateBody): { neighbours?: string[] } =>
  *  into a new key. */
 export const nodeAxes = (
   body: GenerateBody,
-): { nodeKind?: NodeKind; domain?: Domain } => {
+): { nodeKind?: NodeKind; domain?: Domain; cell?: Cell } => {
   const k = asNodeKind(body.nodeKind);
   const d = asDomain(body.domain);
+  const cell = cellOf(asImportance(body.importance), asDifficulty(body.nodeDifficulty));
   return {
     ...(k === "concept" ? {} : { nodeKind: k }),
     ...(d === "general" ? {} : { domain: d }),
+    // The default cell writes the pre-grid prompt, so it keys to its old row.
+    ...(cell === DEFAULT_CELL ? {} : { cell }),
   };
 };
 

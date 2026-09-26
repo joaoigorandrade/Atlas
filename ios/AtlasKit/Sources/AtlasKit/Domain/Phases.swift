@@ -27,11 +27,12 @@ public func asNodeKind(_ raw: String?) -> NodeKind {
     NodeKind(rawValue: raw ?? "") ?? .concept
 }
 
-/// How much the learner's goal rests on a concept — drawn as a city (`core`)
-/// or a town (`support`). Mirrors `NodeImportance` in `phases.ts`; anything
-/// unknown reads as `core`, which is what every node was before the axis.
+/// How much the learner's goal rests on a concept, and so the bar it is held
+/// to: `core` is mastered (a city), `working` is used (a town), `peripheral`
+/// is recognised (a village). Mirrors `NodeImportance` in `cells.ts`; anything
+/// unknown reads as `core`.
 public enum NodeImportance: String, Codable, Sendable, CaseIterable {
-    case core, support
+    case core, working, peripheral
 }
 
 /// How hard a concept is for a newcomer holding its prerequisites — drawn as
@@ -236,16 +237,15 @@ public extension ConceptNode {
         return resolvePlan(kind ?? .concept, domain ?? .general, importance ?? .core, difficulty ?? .medium)
     }
 
-    /// Minutes of work this node still owes: its unfinished gates, at its
-    /// pace. Mirrors `minutesLeft` in `replan.ts`.
+    /// Minutes of work this node still owes: its cell's budget, in proportion
+    /// to the gates it has not finished yet. Mirrors `minutesLeft` in `replan.ts`.
     func minutesLeft(_ done: [Phase]) -> Int {
-        let raw = planGates(plan).filter { !done.contains($0) }.reduce(0) { $0 + $1.minutes }
-        let pace: Double = switch difficulty ?? .medium {
-        case .easy: 0.75
-        case .medium: 1
-        case .hard: 1.4
-        }
-        return Int((Double(raw) * pace).rounded())
+        let gates = planGates(plan)
+        let whole = gates.reduce(0) { $0 + $1.minutes }
+        guard whole > 0 else { return 0 }
+        let owed = gates.filter { !done.contains($0) }.reduce(0) { $0 + $1.minutes }
+        let budget = cellBudget(importance ?? .core, difficulty ?? .medium)
+        return Int((Double(budget * owed) / Double(whole)).rounded())
     }
 }
 

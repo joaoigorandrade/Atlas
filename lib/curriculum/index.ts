@@ -4,6 +4,7 @@
 // this module holds only types, tokens, and logic.
 
 export * from "./phases";
+export * from "./cells";
 export * from "./domains";
 export * from "./answerCheck";
 export * from "./diagnostic";

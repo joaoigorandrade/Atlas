@@ -4,6 +4,8 @@
 // the concept and unguessable by someone who does not — and the wrong answers
 // have to be the slips made *at speed*, not leisurely conceptual distractors.
 
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -75,6 +77,8 @@ export interface DrillParams extends Boundary {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
 }
 
 export async function generateDrill(params: DrillParams): Promise<DrillContent> {
@@ -83,7 +87,7 @@ export async function generateDrill(params: DrillParams): Promise<DrillContent> 
     user(
       `Write a DRILL pass for "${nodeLabel}" within "${topic}": the same small call made over and over until it stops being derived and starts being known.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "drill")}${domainNote(params.domain, "drill")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "drill")}${domainNote(params.domain, "drill")}${cellNote(params.cell, "drill")}
 
 The learner is TIMED. Every rep must be answerable in a few seconds by someone who has the concept, and impossible to guess by someone who does not. A rep is its prompt and nothing else — no scenario, no setup, no preamble.
 

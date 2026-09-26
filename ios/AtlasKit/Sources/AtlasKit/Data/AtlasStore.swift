@@ -585,6 +585,18 @@ public extension AtlasStore {
         deckRemaining = content.remaining ?? 0
     }
 
+    /// Report the active seconds a phase took (`/api/v1/topics/:id/time`).
+    /// Best-effort: a lost measurement costs a data point, never the learner.
+    func recordPhaseTime(_ node: ConceptNode, _ phase: Phase, seconds: Int) {
+        guard seconds > 0, let topicId else { return }
+        Task {
+            guard let token = await bearer() else { return }
+            try? await runs.phaseTime(
+                topicId, nodeId: node.id, phase: phase, seconds: seconds, token: token
+            )
+        }
+    }
+
     /// Grade a card.
     ///
     /// The card leaves today's deck immediately and the write settles behind

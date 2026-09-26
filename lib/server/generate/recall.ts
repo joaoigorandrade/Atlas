@@ -10,6 +10,8 @@
 // unpacked-jargon check that makes Feynman work would punish exactly the
 // learner Recall is trying to reward.
 
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -79,6 +81,8 @@ export interface RecallParams extends Boundary {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
 }
 
 export async function generateRecall(params: RecallParams): Promise<RecallContent> {
@@ -87,7 +91,7 @@ export async function generateRecall(params: RecallParams): Promise<RecallConten
     user(
       `Write an UNAIDED RETRIEVAL pass for the concept "${nodeLabel}" within "${topic}": the learner has nothing in front of them and writes down everything they can still produce about it.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "recall")}${domainNote(params.domain, "recall")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "recall")}${domainNote(params.domain, "recall")}${cellNote(params.cell, "recall")}
 
 The learner NEVER sees the rubric before answering — they work from the brief alone. So a row is a thing a cold retrieval has to BRING BACK, not a thing to explain: a definition, a value, a condition, a consequence.
 

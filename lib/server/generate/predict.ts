@@ -4,6 +4,8 @@
 // forecast task whose wrong answers are absurd tests nothing, because the
 // learner picks the plausible one without consulting the mechanism at all.
 
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -71,6 +73,8 @@ export interface PredictParams extends Boundary {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
 }
 
 export async function generatePredict(params: PredictParams): Promise<PredictContent> {
@@ -79,7 +83,7 @@ export async function generatePredict(params: PredictParams): Promise<PredictCon
     user(
       `Write a PREDICTION pass for the principle "${nodeLabel}" within "${topic}": the learner is given a situation it governs and must say what HAPPENS before being shown.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "predict")}${domainNote(params.domain, "predict")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "predict")}${domainNote(params.domain, "predict")}${cellNote(params.cell, "predict")}
 
 The forecast is the test and it is worthless once the answer is visible, so no situation may hint at its own outcome, and none may reuse a case worked in the reading.
 

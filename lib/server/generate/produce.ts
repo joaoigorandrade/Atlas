@@ -8,6 +8,8 @@
 // utterance that was understood while routing around the form the turn existed
 // to elicit. Every other phase, and most conversations, score that as success.
 
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -73,6 +75,8 @@ export interface ProduceParams extends Boundary {
   nodeLabel: string;
   language?: Language;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
 }
 
 export async function generateProduce(params: ProduceParams): Promise<ProduceContent> {
@@ -80,7 +84,7 @@ export async function generateProduce(params: ProduceParams): Promise<ProduceCon
   return generateJson(
     user(
       `Write a LIVE PRODUCTION pass for "${nodeLabel}" within "${topic}". The learner will SPEAK each turn out loud, first try, against a clock.
-${boundaryNote(params)}
+${boundaryNote(params)}${cellNote(params.cell, "produce")}
 
 Set one ordinary situation the turns all happen inside — someone the learner would really talk to, about something they would really say.
 

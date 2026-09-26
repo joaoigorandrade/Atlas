@@ -10,13 +10,8 @@ import {
   NodeState,
   ProgressState,
 } from "./types";
-import {
-  phasePlan,
-  planGates,
-  type NodeDifficulty,
-  type PhaseId,
-  type PhasesDoneMap,
-} from "./phases";
+import { CELL_BUDGET, cellOf } from "./cells";
+import { phasePlan, planGates, type PhaseId, type PhasesDoneMap } from "./phases";
 import { Language } from "@/lib/i18n";
 
 export type StateMap = Record<string, ProgressState>;
@@ -166,18 +161,18 @@ export const PHASE_MINUTES: Record<PhaseId, number> = {
   retain: 0,
 };
 
-/** A hard concept takes longer on every rung, an easy one less. */
-const DIFFICULTY_PACE: Record<NodeDifficulty, number> = {
-  easy: 0.75,
-  medium: 1,
-  hard: 1.4,
-};
-
-/** Minutes of work this node still owes: its unfinished gates, at its pace. */
+/** Minutes of work this node still owes: its cell's budget, in proportion to
+ *  the gates it has not finished yet (weighted by `PHASE_MINUTES`). */
 export function minutesLeft(node: ConceptNode, done: readonly PhaseId[] = []): number {
-  const owed = planGates(phasePlan(node)).filter((p) => !done.includes(p));
-  const raw = owed.reduce((sum, p) => sum + PHASE_MINUTES[p], 0);
-  return Math.round(raw * DIFFICULTY_PACE[node.difficulty ?? "medium"]);
+  const gates = planGates(phasePlan(node));
+  const weight = (ps: readonly PhaseId[]) =>
+    ps.reduce((sum, p) => sum + PHASE_MINUTES[p], 0);
+  const whole = weight(gates);
+  if (!whole) return 0;
+  const owed = weight(gates.filter((p) => !done.includes(p)));
+  return Math.round(
+    (CELL_BUDGET[cellOf(node.importance, node.difficulty)] * owed) / whole,
+  );
 }
 
 /** Whole days from now until an ISO date (YYYY-MM-DD), floor 0; NaN-safe. */

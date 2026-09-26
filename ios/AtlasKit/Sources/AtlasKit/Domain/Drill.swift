@@ -21,6 +21,9 @@ public let drillTarget: TimeInterval = 8
 /// busy main thread is never mistaken for a backgrounded app.
 public let idleBeat: TimeInterval = 1
 
+/// Reps that can end a run: this many from the first, right and at speed.
+public let drillEarlyStreak = 4
+
 /// One rep. No context, no setup: a drill item is its prompt and nothing else.
 public struct DrillRep: Decodable, Sendable, Identifiable {
     public let id: String
@@ -67,7 +70,17 @@ public struct DrillSession: Sendable {
         guard let rep = content.reps[safe: index], hits[rep.id] != nil else { return }
         index += 1
         openedAt = now
-        done = index >= content.reps.count
+        done = index >= content.reps.count || early(content)
+    }
+
+    /// Early exit: the opening `drillEarlyStreak` reps all right and inside the
+    /// target — the proof the rest of the run exists to collect. Mirrors
+    /// `drillEarly` in `drill.ts`; derived, so a saved session needs no field.
+    public func early(_ content: DrillContent) -> Bool {
+        content.reps.count > drillEarlyStreak
+            && content.reps.prefix(drillEarlyStreak).allSatisfy {
+                hits[$0.id] == $0.answerIndex && (took[$0.id] ?? .infinity) <= drillTarget
+            }
     }
 
     /// Discount an interval the learner was not actually looking at the rep.
@@ -119,6 +132,7 @@ public struct DrillSession: Sendable {
     /// worth blocking on; `labored` is the reading that would show it.
     public func passed(_ content: DrillContent) -> Bool {
         guard !content.reps.isEmpty else { return done }
+        if early(content) { return true }
         return score(content) >= Int((Double(content.reps.count) * 2 / 3).rounded(.up))
     }
 }

@@ -11,7 +11,7 @@ import type { ConceptNode, NodeState } from "@/lib/curriculum";
 import { STATE_COLOR } from "@/lib/curriculum";
 import { color, font, map, motion, transition } from "@/lib/theme";
 import { WaxSeal } from "@/components/ui/Ornaments";
-import { CityMark, Relief } from "@/components/map/Relief";
+import { CityMark, Relief, rankOf } from "@/components/map/Relief";
 
 /** The city's hit box in map units. `MapCanvas` sizes the peek's clearance
  *  from it. */
@@ -60,7 +60,8 @@ export default function MapNode({
   // A node left unknown after derivation is locked by definition; keep the
   // assemble moment uniform while the map is building.
   const locked = state === "unknown" && !building;
-  const town = node.importance === "support" && !capital;
+  const rank = capital ? "city" : rankOf(node.importance);
+  const town = rank !== "city";
   const ring = (inset: number, border: string, extra?: React.CSSProperties) => (
     <span
       aria-hidden
@@ -172,7 +173,7 @@ export default function MapNode({
           ) : (
             // Rank: a city the goal rests on, or a town it only passes through.
             <CityMark
-              importance={state === "gap" ? "support" : node.importance}
+              importance={state === "gap" ? "working" : node.importance}
               fill={state === "unknown" ? color.paper : STATE_COLOR[state]}
               stroke={locked ? color.inkMuted : color.ink}
               dash={state === "gap" ? "2.5 2" : undefined}
@@ -188,7 +189,7 @@ export default function MapNode({
             moment it is earned. */}
         {state === "mastered" && (
           <WaxSeal
-            size={capital ? 22 : town ? 14 : 18}
+            size={capital ? 22 : { city: 18, town: 14, village: 11 }[rank]}
             stamp={earned === "mastered"}
             style={{ position: "absolute", inset: 0, margin: "auto" }}
           />
@@ -204,7 +205,7 @@ export default function MapNode({
             gap: 6,
             whiteSpace: "nowrap",
             fontFamily: font.display,
-            fontSize: capital ? 17.5 : town ? 13.5 : 15.5,
+            fontSize: capital ? 17.5 : { city: 15.5, town: 13.5, village: 12.5 }[rank],
             fontVariant: capital ? "small-caps" : undefined,
             lineHeight: 1.15,
             // A town's name is set in italic, as an atlas sets a village.

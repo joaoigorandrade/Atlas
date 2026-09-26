@@ -5,6 +5,8 @@
 // definition would wave through — which is the error the phase's gate is built
 // around (`discriminateFalsePositives`).
 
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -78,6 +80,8 @@ export interface DiscriminateParams extends Boundary {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
 }
 
 export async function generateDiscriminate(
@@ -88,7 +92,7 @@ export async function generateDiscriminate(
     user(
       `Write a DISCRIMINATION pass for the concept "${nodeLabel}" within "${topic}": the learner decides, case by case, whether something IS an instance of it — and when it is not, which neighbouring concept it actually is.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "discriminate")}${domainNote(params.domain, "discriminate")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "discriminate")}${domainNote(params.domain, "discriminate")}${cellNote(params.cell, "discriminate")}
 
 Each case is committed before it is revealed, so nothing in a case may give its own answer away: never name a concept inside the case itself, and no "note that…".
 

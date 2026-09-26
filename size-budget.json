@@ -22,10 +22,10 @@
     "components/session/RetainCard.tsx": 611,
     "components/session/SocraticView.tsx": 459,
     "lib/api.ts": 787,
-    "lib/curriculum/socratic.ts": 461,
+    "lib/curriculum/socratic.ts": 458,
     "lib/persistence.ts": 443,
     "lib/server/fixtures.ts": 438,
-    "lib/server/generate/map.ts": 483,
+    "lib/server/generate/map.ts": 480,
     "lib/server/job.ts": 805,
     "lib/server/openrouter.ts": 540,
     "lib/speech.ts": 779

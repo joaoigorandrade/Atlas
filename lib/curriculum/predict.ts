@@ -91,11 +91,29 @@ export function predictReducer(
     case "next": {
       if (session.forecasts[item.id] === undefined) return session;
       const index = session.index + 1;
-      return { ...session, index, done: index >= content.setups.length };
+      return {
+        ...session,
+        index,
+        done: index >= content.setups.length || predictEarly(session, content),
+      };
     }
     default:
       return session;
   }
+}
+
+/** Forecasts that can end a run: this many from the first, all right. */
+export const PREDICT_EARLY_STREAK = 3;
+
+/** Early exit: the opening forecasts all held. A mechanism that forecasts
+ *  three fresh setups in a row is the one the rest of the run would test for. */
+export function predictEarly(session: PredictSession, content: PredictContent): boolean {
+  return (
+    content.setups.length > PREDICT_EARLY_STREAK &&
+    content.setups
+      .slice(0, PREDICT_EARLY_STREAK)
+      .every((s) => session.forecasts[s.id] === s.answerIndex)
+  );
 }
 
 export function predictScore(session: PredictSession, content: PredictContent): number {
@@ -137,6 +155,7 @@ export function predictCalibration(
  *  reported, never gated on — being unsure and right is a good forecast. */
 export function predictPassed(session: PredictSession, content: PredictContent): boolean {
   if (!content.setups.length) return session.done;
+  if (predictEarly(session, content)) return true;
   return predictScore(session, content) >= Math.ceil(content.setups.length * (2 / 3));
 }
 
@@ -151,6 +170,7 @@ const PREDICT_COPY = {
     passed: "The mechanism forecasts for you. That is what having one is for.",
     missed: "Some of these went the other way. The reasons say what you left out.",
     overconfident: "The ones you were certain of and got wrong are the ones to look at.",
+    early: "Ended early — a clean start is proof enough.",
     next: "Next →",
   },
   "pt-BR": {
@@ -163,6 +183,7 @@ const PREDICT_COPY = {
     passed: "O mecanismo prevê por você. É para isso que serve ter um.",
     missed: "Alguns foram para o outro lado. Os motivos dizem o que ficou de fora.",
     overconfident: "Os que você tinha certeza e errou são os que valem revisitar.",
+    early: "Encerrado mais cedo — um começo limpo já é prova suficiente.",
     next: "Próximo →",
   },
 } as const;

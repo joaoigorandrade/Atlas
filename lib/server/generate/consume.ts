@@ -1,4 +1,6 @@
 // ---- kind: consume ---------------------------------------------------------
+import { cellNote, consumeBand } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -188,6 +190,8 @@ function consumeContext(
   params: Boundary & {
     nodeKind?: NodeKind;
     domain?: Domain;
+    /** The node's cell — `cellNote`; server-stamped, never from a client. */
+    cell?: Cell;
     topic: string;
     nodeLabel: string;
     prereqLabels: string[];
@@ -202,8 +206,7 @@ ${interestNote(interests)}
 
 ${sizeRule({
   unit: "sections",
-  min: 2,
-  max: 5,
+  ...consumeBand(params.cell),
   atMin: "a concept with one mechanism and one way to get it wrong",
   atMax: "a concept with several genuinely separate moving parts",
 })}
@@ -228,13 +231,15 @@ Rules for the prose:
   ORDER, not a checklist of five sections — a small concept covers several of
   those beats inside one section.
 - Name the common misconception explicitly and say why it is wrong.
-${boundaryNote(params)}${kindNote(params.nodeKind, "consume")}${domainNote(params.domain, "consume")}${languageNote(language)}`;
+${boundaryNote(params)}${kindNote(params.nodeKind, "consume")}${domainNote(params.domain, "consume")}${cellNote(params.cell, "consume")}${languageNote(language)}`;
 }
 
 export async function generateConsume(
   params: Boundary & {
     nodeKind?: NodeKind;
     domain?: Domain;
+    /** The node's cell — `cellNote`; server-stamped, never from a client. */
+    cell?: Cell;
     topic: string;
     nodeLabel: string;
     prereqLabels: string[];
@@ -280,6 +285,8 @@ export async function* generateConsumeStream(
   params: Boundary & {
     nodeKind?: NodeKind;
     domain?: Domain;
+    /** The node's cell — `cellNote`; server-stamped, never from a client. */
+    cell?: Cell;
     topic: string;
     nodeLabel: string;
     prereqLabels: string[];

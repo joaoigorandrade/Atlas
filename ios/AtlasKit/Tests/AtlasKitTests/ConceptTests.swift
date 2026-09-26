@@ -233,18 +233,23 @@ import Testing
     #expect(graph.boundary(of: "a").later == ["B", "C", "D"])
 }
 
-/// The two cost axes only remove rungs, and their defaults are the old ladder.
-/// Mirrors `resolvePlan` / `minutesLeft` in `phases.ts` / `replan.ts`.
+/// Importance sets the bar and only removes rungs, and the default cell is the
+/// old ladder. Mirrors `resolvePlan` / `minutesLeft` in `phases.ts` / `replan.ts`.
 @Test func importanceAndDifficultyTrimTheLadderAndPriceIt() {
     #expect(resolvePlan(.concept, .general, .core, .medium) == phasePlans[.concept]!)
-    #expect(resolvePlan(.concept, .general, .support, .medium) == [.consume, .discriminate, .recall, .retain])
-    #expect(resolvePlan(.concept, .general, .support, .hard).contains(.socratic))
+    #expect(resolvePlan(.concept, .general, .working, .medium) == [.consume, .discriminate, .retain])
+    #expect(resolvePlan(.procedure, .general, .working, .hard) == [.consume, .perform, .retain])
+    #expect(resolvePlan(.concept, .performative, .working, .easy) == [.consume, .produce, .retain])
+    #expect(resolvePlan(.principle, .formal, .peripheral, .hard) == [.consume, .retain])
     #expect(!resolvePlan(.concept, .general, .core, .easy).contains(.socratic))
 
     var node = ConceptNode(id: "a", label: "A", kind: .concept, domain: .general)
-    // consume 10 + discriminate 4 + socratic 8 + feynman 8 + connect 5 + crucible 10 + recall 5
-    #expect(node.minutesLeft([]) == 50)
-    #expect(node.minutesLeft([.consume]) == 40)
+    // The default cell's 35-minute budget, spread over the gates by weight:
+    // consume 10 of the ladder's 50 phase-minutes.
+    #expect(node.minutesLeft([]) == 35)
+    #expect(node.minutesLeft([.consume]) == 28)
     node.difficulty = .hard
-    #expect(node.minutesLeft([]) == 70)
+    #expect(node.minutesLeft([]) == 50)
+    node.importance = .peripheral
+    #expect(node.minutesLeft([]) == 6)
 }

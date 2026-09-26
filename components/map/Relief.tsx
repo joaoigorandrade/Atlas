@@ -2,9 +2,10 @@
 
 // A concept's two cost axes, drawn the way an engraved atlas draws a place.
 //
-// Importance is settlement rank: a concept the learner's goal rests on is a
-// city, one they only need to use is a town — a smaller open ring, its name in
-// italic, as old atlases set a village. Difficulty is relief: nothing on the
+// Importance is settlement rank, which is also the bar the node is held to: a
+// concept the learner must master is a city, one they only need to use is a
+// town — a smaller open ring, its name in italic — and one they only need to
+// recognise is a village, the smallest ring an atlas sets. Difficulty is relief: nothing on the
 // lowland, one hachured hill, or a small range of peaks up and to the left of
 // the city, shaded on the lee side. These are pictorial glyphs, not the relief
 // shading `atlasTerrain.ts` removed on purpose — they say "this will take a
@@ -81,10 +82,23 @@ export function Relief({
   );
 }
 
+/** The settlement a node's importance is drawn as. */
+export type Rank = "city" | "town" | "village";
+
+export function rankOf(importance: ConceptNode["importance"]): Rank {
+  return importance === "working"
+    ? "town"
+    : importance === "peripheral"
+      ? "village"
+      : "city";
+}
+
 const WORDS = {
   en: {
     city: "City",
     town: "Town",
+    village: "Village",
+    bar: { city: "master it", town: "use it", village: "recognise it" },
     easy: "Lowland",
     medium: "In the hills",
     hard: "In the mountains",
@@ -93,6 +107,8 @@ const WORDS = {
   "pt-BR": {
     city: "Cidade",
     town: "Vila",
+    village: "Aldeia",
+    bar: { city: "domine", town: "use", village: "reconheça" },
     easy: "Planície",
     medium: "Nas colinas",
     hard: "Nas montanhas",
@@ -106,7 +122,7 @@ export function settlementLine(
   lang: Language,
 ): string {
   const w = WORDS[lang];
-  return `${node.importance === "support" ? w.town : w.city} · ${w[node.difficulty ?? "medium"]}`;
+  return `${w[rankOf(node.importance)]} · ${w[node.difficulty ?? "medium"]}`;
 }
 
 /** "Learning · Town · In the mountains" — a state label with the node's axes.
@@ -124,7 +140,8 @@ export function minutesLine(minutes: number, lang: Language): string {
   return WORDS[lang].minutes(minutes);
 }
 
-/** The legend row: both settlement marks and both relief glyphs, in words. */
+/** The legend row: the three settlement marks with the bar each holds a node
+ *  to, then the two relief glyphs, in words. */
 export function SettlementLegend({ lang }: { lang: Language }) {
   const w = WORDS[lang];
   const item = (glyph: React.ReactNode, label: string, italic?: boolean) => (
@@ -153,19 +170,24 @@ export function SettlementLegend({ lang }: { lang: Language }) {
         color: color.inkSoft,
       }}
     >
-      {item(<CityMark importance="core" />, w.city)}
-      {item(<CityMark importance="support" />, w.town, true)}
+      {item(<CityMark importance="core" />, `${w.city} — ${w.bar.city}`)}
+      {item(<CityMark importance="working" />, `${w.town} — ${w.bar.town}`, true)}
+      {item(
+        <CityMark importance="peripheral" />,
+        `${w.village} — ${w.bar.village}`,
+        true,
+      )}
       {item(
         <>
           <Relief difficulty="medium" />
-          <CityMark importance="support" />
+          <CityMark importance="working" />
         </>,
         w.medium,
       )}
       {item(
         <>
           <Relief difficulty="hard" />
-          <CityMark importance="support" />
+          <CityMark importance="working" />
         </>,
         w.hard,
       )}
@@ -175,8 +197,9 @@ export function SettlementLegend({ lang }: { lang: Language }) {
 
 /**
  * The settlement mark itself: a city is a heavy ring with an ink dot at its
- * heart, a town a small open ring. `fill` is the mastery colour; the capital's
- * double ring is `MapNode`'s, since capital is layout and not rank.
+ * heart, a town a small open ring, a village a smaller, finer one. `fill` is
+ * the mastery colour; the capital's double ring is `MapNode`'s, since capital
+ * is layout and not rank.
  */
 export function CityMark({
   importance,
@@ -189,17 +212,17 @@ export function CityMark({
   stroke?: string;
   dash?: string;
 }) {
-  const town = importance === "support";
+  const rank = rankOf(importance);
   return (
     <>
       <circle
-        r={town ? 4 : 6}
+        r={{ city: 6, town: 4, village: 2.8 }[rank]}
         fill={fill}
         stroke={stroke}
-        strokeWidth={town ? 1.2 : 1.8}
+        strokeWidth={{ city: 1.8, town: 1.2, village: 0.9 }[rank]}
         strokeDasharray={dash}
       />
-      {!town && <circle r={1.3} fill={stroke} />}
+      {rank === "city" && <circle r={1.3} fill={stroke} />}
     </>
   );
 }

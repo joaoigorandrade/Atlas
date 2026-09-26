@@ -382,13 +382,15 @@ final class SocraticViewModel {
     }
 
     /// A step closing is what buys and sells probes. Three unaided answers
-    /// running end the pass early; two assisted ones running buy another probe
-    /// out of the spares the generation already wrote — which is the only way
-    /// a spare is ever spent. Mirrors `advance` in `socratic.ts`.
+    /// running, or a clean unaided opening pair, end the pass early; two
+    /// assisted ones running buy another probe out of the spares the generation
+    /// already wrote — which is the only way a spare is ever spent. Mirrors
+    /// `advance` in `socratic.ts`.
     private func close(_ resolution: Resolution) {
         resolutions.append(resolution)
-        if resolutions.count >= 3, total > resolutions.count,
-           resolutions.suffix(3).allSatisfy({ $0 == .unaided }) {
+        let run = resolutions.count == 2 ? 2 : 3
+        if resolutions.count >= 2, total > resolutions.count,
+           resolutions.suffix(run).allSatisfy({ $0 == .unaided }) {
             total = resolutions.count
         }
         let recent = resolutions.suffix(2)

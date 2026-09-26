@@ -7,14 +7,8 @@
 
 import type { Language } from "@/lib/i18n";
 import type { Domain } from "./domains";
-import {
-  phaseLabel,
-  planGates,
-  type NodeDifficulty,
-  type NodeImportance,
-  type NodeKind,
-  type PhaseId,
-} from "./phases";
+import type { NodeDifficulty, NodeImportance } from "./cells";
+import { phaseLabel, planGates, type NodeKind, type PhaseId } from "./phases";
 
 export type NodeState =
   "unknown" | "frontier" | "learning" | "shaky" | "mastered" | "gap";

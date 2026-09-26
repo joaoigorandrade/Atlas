@@ -83,12 +83,33 @@ export function drillReducer(
         ...session,
         index,
         openedAt: action.now ?? Date.now(),
-        done: index >= content.reps.length,
+        done: index >= content.reps.length || drillEarly(session, content),
       };
     }
     default:
       return session;
   }
+}
+
+/** Reps that can end a run: this many from the first, all right and at speed. */
+export const DRILL_EARLY_STREAK = 4;
+
+/**
+ * Early exit: the opening reps, every one right and inside the target time,
+ * are already the proof the rest of the run exists to collect — automatic and
+ * correct from the first call. Derived from `hits`/`took`, so a saved session
+ * needs no new field. Only a run longer than the streak can end early.
+ */
+export function drillEarly(session: DrillSession, content: DrillContent): boolean {
+  const opening = content.reps.slice(0, DRILL_EARLY_STREAK);
+  return (
+    content.reps.length > DRILL_EARLY_STREAK &&
+    opening.every(
+      (r) =>
+        session.hits[r.id] === r.answerIndex &&
+        (session.took[r.id] ?? Infinity) <= DRILL_TARGET_MS,
+    )
+  );
 }
 
 export function drillScore(session: DrillSession, content: DrillContent): number {
@@ -139,6 +160,7 @@ export function drillAutomatic(session: DrillSession, content: DrillContent): bo
  */
 export function drillPassed(session: DrillSession, content: DrillContent): boolean {
   if (!content.reps.length) return session.done;
+  if (drillEarly(session, content)) return true;
   return drillScore(session, content) >= Math.ceil(content.reps.length * (2 / 3));
 }
 
@@ -151,6 +173,7 @@ const DRILL_COPY = {
     passed: "It comes without working for it. That is what automatic means.",
     missed: "Still being reasoned out rather than known. Run it again.",
     labored: "Right, but slowly — those are the ones still being derived.",
+    early: "Ended early — a clean start is proof enough.",
     next: "Next →",
   },
   "pt-BR": {
@@ -161,6 +184,7 @@ const DRILL_COPY = {
     passed: "Sai sem esforço. É isso que significa estar automático.",
     missed: "Ainda está sendo deduzido em vez de sabido. Rode de novo.",
     labored: "Certo, mas devagar — esses ainda estão sendo deduzidos.",
+    early: "Encerrado mais cedo — um começo limpo já é prova suficiente.",
     next: "Próximo →",
   },
 } as const;

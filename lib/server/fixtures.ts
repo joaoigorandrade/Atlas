@@ -80,7 +80,7 @@ const MAP: Array<[string, string, string[], ...Parameters<typeof resolvePlan>]> 
   ["notation", "Notation", ["foundations"], "fact", "general", "core", "easy"],
   ["core-rule", "The core rule", ["notation"], "principle", "general", "core", "hard"],
   ["worked-cases", "Worked cases", ["core-rule"], "procedure", "general"],
-  ["edge-cases", "Edge cases", ["core-rule"], "concept", "general", "support"],
+  ["edge-cases", "Edge cases", ["core-rule"], "concept", "general", "working"],
   [
     "putting-it-together",
     "Putting it together",

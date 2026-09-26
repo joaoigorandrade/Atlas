@@ -243,12 +243,19 @@ private struct NodeMark: View {
         case .gap: 24
         default: 25
         }
-        return town ? base * 0.8 : base
+        return switch rank {
+        case .core: base
+        case .working: base * 0.8
+        case .peripheral: base * 0.65
+        }
     }
 
-    /// A concept the goal only passes through — the web's town beside a city:
-    /// a size down, its name in italic. The button's reach is unchanged.
-    private var town: Bool { node.importance == .support && state != .gap }
+    /// The bar the concept is held to, drawn as the web's settlement rank: a
+    /// city to master, a town to use a size down, a village to recognise a size
+    /// below that — both lesser ranks with their names in italic. The button's
+    /// reach is unchanged. A gap is a sub-point of its parent, drawn full size.
+    private var rank: NodeImportance { state == .gap ? .core : node.importance ?? .core }
+    private var town: Bool { rank != .core }
 
     var body: some View {
         Button(action: open) {

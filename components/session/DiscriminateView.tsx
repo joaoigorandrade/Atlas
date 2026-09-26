@@ -13,6 +13,7 @@ import {
   discriminateCopy,
   discriminateFalsePositives,
   discriminatePassed,
+  discriminateEarly,
   discriminateScore,
   type DiscriminateContent,
   type DiscriminateSession,
@@ -299,7 +300,10 @@ export default function DiscriminateView({
             data-testid="phase-score"
             style={{ fontFamily: font.serif, fontSize: 21, marginBottom: 6 }}
           >
-            {t.score(discriminateScore(session, content), content.cases.length)}
+            {t.score(
+              discriminateScore(session, content),
+              Object.keys(session.calls).length,
+            )}
           </div>
           {waved.length > 0 && (
             <div
@@ -319,7 +323,11 @@ export default function DiscriminateView({
                 : color.amberInk,
             }}
           >
-            {discriminatePassed(session, content) ? copy.passed : copy.missed}
+            {discriminateEarly(session, content)
+              ? copy.early
+              : discriminatePassed(session, content)
+                ? copy.passed
+                : copy.missed}
           </div>
           <Button
             data-testid="action-finish"

@@ -321,22 +321,19 @@ export function socraticReducer(
   // Nothing to act on until the parked step lands.
   if (!step) return session;
 
-  // Advancing earns the ending: three unaided answers running end the pass
-  // early (#D); two straight assisted ones buy another probe out of the spares
-  // — again and again, while spares last — otherwise it runs to `total`.
+  // Advancing earns the ending: three unaided answers running, or a clean
+  // unaided opening pair, end the pass early (#D); two straight assisted ones
+  // buy a probe out of the spares, while they last; else it runs to `total`.
   const advance = (
     base: SocraticSession,
     resolution: StepResolution,
   ): SocraticSession => {
     const resolutions = [...base.resolutions, resolution];
     let total = base.total;
-    if (
-      resolutions.length >= 3 &&
-      total > resolutions.length &&
-      resolutions.slice(-3).every((r) => r === "unaided")
-    ) {
+    const run = resolutions.length === 2 ? 2 : 3;
+    const lastUnaided = resolutions.slice(-run).every((r) => r === "unaided");
+    if (resolutions.length >= 2 && lastUnaided && total > resolutions.length)
       total = resolutions.length;
-    }
     // Weak understanding buys probes — one per two assisted steps running, for
     // as long as the plan wrote spares to spend. Not the single spare slot
     // `steps.length` used to allow: a learner still working at it keeps

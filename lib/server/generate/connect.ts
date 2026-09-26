@@ -1,4 +1,6 @@
 // ---- kind: connect ---------------------------------------------------------
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   arr,
   fail,
@@ -100,6 +102,8 @@ function validateConnect(
 export async function generateConnect(params: {
   nodeKind?: NodeKind;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
   topic: string;
   nodeId: string;
   nodeLabel: string;
@@ -113,7 +117,7 @@ export async function generateConnect(params: {
       `Write the Connect (elaboration) pass for the concept "${nodeLabel}" within "${topic}".
 The learner wires the new concept into concepts they already own. Their prior concepts (id: label):
 ${pool.map((p) => `- ${p.id}: ${p.label}`).join("\n")}
-${interestNote(interests)}${kindNote(params.nodeKind, "connect")}${domainNote(params.domain, "connect")}
+${interestNote(interests)}${kindNote(params.nodeKind, "connect")}${domainNote(params.domain, "connect")}${cellNote(params.cell, "connect")}
 
 First auto-detect the encoding. Apply this test: could a learner be fairly asked to reproduce a fixed set or ordered sequence from memory — named stages, a closed taxonomy, an algorithm's steps, vocabulary? Then it is "list-like", even when the material also carries deep ideas (the stages of mitosis, the HTTP status classes, the cranial nerves, an elimination procedure are all list-like). Use "conceptual" when there is nothing enumerable to hold in order and a mnemonic would be noise.
 

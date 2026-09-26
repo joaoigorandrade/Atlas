@@ -1,4 +1,6 @@
 // ---- kind: socratic --------------------------------------------------------
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -42,6 +44,8 @@ function socraticContext(
     nodeLabel: string;
     interests: string;
     domain?: Domain;
+    /** The node's cell — `cellNote`; server-stamped, never from a client. */
+    cell?: Cell;
   },
 ): string {
   return `Write a Socratic questioning session for the concept "${params.nodeLabel}" within "${params.topic}".
@@ -55,7 +59,7 @@ ${sizeRule({
   atMax: "a genuinely layered concept",
 })} Each core probe uses a different move, in the order listed, and picks up where the last left off.
 Then write exactly ${SOCRATIC_SPARES} further ${SOCRATIC_SPARES === 1 ? "probe" : "probes"} marked "spare": true, last. A spare is held back — only ever asked of a learner who keeps needing help — so it must go DEEPER on the hardest part of the concept rather than restate an earlier probe.
-${boundaryNote(params)}${domainNote(params.domain, "socratic")}`;
+${boundaryNote(params)}${domainNote(params.domain, "socratic")}${cellNote(params.cell, "socratic")}`;
 }
 
 const SOCRATIC_STEP_SHAPE = `{

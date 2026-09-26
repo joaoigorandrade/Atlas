@@ -7,7 +7,13 @@
 // file is what pushed it past its ceiling once the domain axis landed.
 
 import { sizeRule } from "./common";
-import { PARETO_DEFAULT, type GoalKind } from "@/lib/curriculum";
+import {
+  DIFFICULTIES,
+  GOAL_CELLS,
+  IMPORTANCES,
+  PARETO_DEFAULT,
+  type GoalKind,
+} from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 
 const GOAL_HINT: Record<GoalKind, string> = {
@@ -94,7 +100,7 @@ ${escape}`;
 
 /** One node as the model writes it — shared by the single-shot and streamed
  *  prompts so the two can't ask for different fields. */
-export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "importance": "core|support", "difficulty": "easy|medium|hard"}`;
+export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard"}`;
 
 export const graphShape = (ask: [number, number]) => `{
   "nodes": [${NODE_SHAPE}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
@@ -155,23 +161,41 @@ export const DOMAIN_MAP_RULE = `NOW APPLY YOUR CHOSEN DOMAIN. This row overrides
 - general: the generic rules above stand unchanged.`;
 
 /**
- * The two cost axes. They decide how long a node's ladder is — importance its
- * depth, difficulty its guidance — which is why a map where everything is
- * `core` and `hard` is the old uniform map the learner gave up on.
+ * The two cost axes — importance sets the bar a node is held to, difficulty the
+ * budget under it (`lib/curriculum/cells.ts`) — and, per goal, the cells a map
+ * may hold at all. `nodeAxes` clamps anything outside `GOAL_CELLS` afterwards;
+ * naming the cells here is what keeps a concept the goal does not need from
+ * being generated in the first place.
  */
-export const AXES_RULE = `"importance" is "core" when the learner's goal genuinely rests on the concept — the hubs many others build on and the capstones the goal is about, typically a third to a half of the map — and "support" when the learner only needs to USE it, not master it: a supporting term, a stepping stone, a detail. Judge it against the learner's goal above, not in general.
-"difficulty" is how hard the concept is for a newcomer who ALREADY holds its prerequisites: "easy" when it lands on first explanation, "hard" only for the few concepts that genuinely resist — counter-intuitive, many moving parts, the classic stumbling blocks of this topic — and "medium" otherwise. Most nodes are "medium"; never mark everything the same.`;
+const AXES_MIX: Record<GoalKind, string> = {
+  pareto: `Roughly half the concepts "core" and half "working".`,
+  exam: `Roughly 40% "core", 40% "working", and "peripheral" only for the easy context an exam still asks about.`,
+  project: `Roughly 40% "core" and 60% "working". A hard idea the build needs is a TOOL here: rate its difficulty by how hard it is to USE, not by how hard it is to understand inside.`,
+  mastery: `Weight the map to the core: at least half the concepts are "core". "working" and "peripheral" fill in what the core needs around it.`,
+};
+
+export function axesRule(goal: GoalKind): string {
+  const pairs = GOAL_CELLS[goal]
+    .map((c) => `${IMPORTANCES[Number(c[0]) - 1]}/${DIFFICULTIES[Number(c[1]) - 1]}`)
+    .join(", ");
+  return `"importance" is judged against the learner's goal above, never in general, and says how far the learner must take the concept:
+  "core" — the goal rests on it: a hub many others build on, or a capstone the goal is about. The learner must MASTER it.
+  "working" — the learner must be able to USE it to reach the core, not master it: a tool, a stepping stone.
+  "peripheral" — context the learner only has to RECOGNISE when they meet it: a term, a detail, a side branch.
+"difficulty" is how hard the concept is for a newcomer who ALREADY holds its prerequisites: "easy" when it lands on first explanation, "hard" only for the few concepts that genuinely resist — counter-intuitive, many moving parts, the classic stumbling blocks of this topic — and "medium" otherwise. Most nodes are "medium"; never mark everything the same.
+For this goal, every node's importance/difficulty pair must be one of: ${pairs}. A concept that would fall outside that list does not belong on this map — leave it out rather than tag it outside the list. ${AXES_MIX[goal]} Never tag every concept "core".`;
+}
 
 /** The summary rule, shared by the single-shot and streamed map prompts: it is
  *  the only thing the detail rail says about the topic itself, so it has to
  *  teach the gist rather than restate the label. */
 export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a learner who has never met this concept what it actually is and what it lets them do — concrete and specific to this topic. Never restate the label ("Gradient Descent is about gradient descent"), never describe the concept's role in the map or its difficulty, never start with "This concept".`;
 
-export const mapRules = (ask: [number, number]) =>
+export const mapRules = (ask: [number, number], goal: GoalKind) =>
   `Rules: labels are 1-3 words, capitalized the way the output language capitalizes a heading — English title case, but sentence case in languages that do not title-case (pt-BR: "Reações dependentes da luz", never "Reações Dependentes Da Luz"). ${SUMMARY_RULE}
 ${KIND_RULE}
 ${DOMAIN_RULE}
-${AXES_RULE}
+${axesRule(goal)}
 ${sizeRule({
   unit: "concepts",
   min: ask[0],

@@ -182,6 +182,10 @@ export function frontierWarmBody(
     // `kindNote`), so the server-side warm must send it or it writes a row
     // the client's click will never look in.
     nodeKind: node.kind,
+    // What `withNodeCell` would stamp from the row — which may not be written
+    // yet this early, so the warm reads the node it already holds.
+    importance: node.importance,
+    nodeDifficulty: node.difficulty,
     ...(kind === "consume" ? { prereqLabels } : null),
     // Already stamped by the route (`withNeighbours`) for this same topic.
     ...(body.neighbours ? { neighbours: body.neighbours } : null),

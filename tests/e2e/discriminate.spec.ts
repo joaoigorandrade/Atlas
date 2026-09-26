@@ -41,14 +41,16 @@ test.describe("discriminate", () => {
 
     // The fixture deck alternates its answer between option 0 and option 1,
     // which is also what the generator's "not every item answers to the same
-    // index" guard requires of a real one.
-    for (let i = 0; i < 4; i++) {
+    // index" guard requires of a real one. Three right from the start, with a
+    // near-miss turned away among them, is proof enough: the run ends early.
+    for (let i = 0; i < 3; i++) {
       await sheet.getByTestId(`action-pick-${i % 2}`).click();
       await expect(sheet.getByTestId("call-right")).toBeVisible();
       await sheet.getByTestId("action-next").click();
     }
 
     await expect(sheet.getByTestId("phase-score")).toBeVisible();
+    await expect(sheet).toContainText("Ended early");
     await sheet.getByTestId("action-finish").click();
 
     await expect(async () => {

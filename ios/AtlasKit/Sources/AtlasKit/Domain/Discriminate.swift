@@ -61,7 +61,17 @@ public struct DiscriminateSession: Sendable {
     public mutating func next(_ content: DiscriminateContent) {
         guard let item = content.cases[safe: index], calls[item.id] != nil else { return }
         index += 1
-        done = index >= content.cases.count
+        done = index >= content.cases.count || early(content)
+    }
+
+    /// Early exit: the opening three cases all called right, with a near-miss
+    /// turned away among them — the boundary, not a lucky run of instances.
+    /// Mirrors `discriminateEarly` in `discriminate.ts`.
+    public func early(_ content: DiscriminateContent) -> Bool {
+        let opening = content.cases.prefix(3)
+        return content.cases.count > 3
+            && opening.allSatisfy { calls[$0.id] == $0.answerIndex }
+            && opening.contains { !$0.isInstance }
     }
 
     public func score(_ content: DiscriminateContent) -> Int {
@@ -83,6 +93,7 @@ public struct DiscriminateSession: Sendable {
     /// is precisely the failure this phase exists to catch.
     public func passed(_ content: DiscriminateContent) -> Bool {
         guard !content.cases.isEmpty else { return done }
+        if early(content) { return true }
         let bar = Int((Double(content.cases.count) * 2 / 3).rounded(.up))
         return score(content) >= bar && falsePositives(content).count <= 1
     }

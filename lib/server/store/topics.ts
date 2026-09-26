@@ -177,7 +177,7 @@ function assemble(
       // Omitted when `general` for the same reason the cache key omits it:
       // that is exactly what every node was before this axis existed.
       ...(n.domain && n.domain !== "general" ? { domain: n.domain } : null),
-      ...(n.importance === "support" ? { importance: n.importance } : null),
+      ...(n.importance && n.importance !== "core" ? { importance: n.importance } : null),
       ...(n.difficulty && n.difficulty !== "medium"
         ? { difficulty: n.difficulty }
         : null),

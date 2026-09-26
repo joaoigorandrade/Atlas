@@ -7,6 +7,8 @@
 // everything after it depends on must actually have been carried out, while a
 // sanity check the learner skipped makes the run thinner rather than wrong.
 
+import { cellNote } from "./cellNote";
+import type { Cell } from "@/lib/curriculum";
 import {
   type Boundary,
   arr,
@@ -78,6 +80,8 @@ export interface PerformParams extends Boundary {
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
+  /** The node's cell — `cellNote`; server-stamped, never from a client. */
+  cell?: Cell;
 }
 
 export async function generatePerform(params: PerformParams): Promise<PerformContent> {
@@ -86,7 +90,7 @@ export async function generatePerform(params: PerformParams): Promise<PerformCon
     user(
       `Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "perform")}${domainNote(params.domain, "perform")}
+${boundaryNote(params)}${kindNote(params.nodeKind, "perform")}${domainNote(params.domain, "perform")}${cellNote(params.cell, "perform")}
 
 The case must be self-contained and specific — real values, real units, or a real situation — and must NOT say which steps to use or in what order. Working it out is the test.
 

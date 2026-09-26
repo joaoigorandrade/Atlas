@@ -41,6 +41,9 @@ final class DiscriminateViewModel {
     var score: Int { content.map(session.score) ?? 0 }
     var overIncluded: [DiscriminateCase] { content.map(session.falsePositives) ?? [] }
     var passed: Bool { content.map(session.passed) ?? false }
+    /// Ended on a clean opening (`DiscriminateSession.early`).
+    var early: Bool { content.map(session.early) ?? false }
+    var answered: Int { session.calls.count }
 
     /// One capsule per case: green for a case read correctly, amber for a miss,
     /// hollow for one not reached. The rail is the only progress this screen has.

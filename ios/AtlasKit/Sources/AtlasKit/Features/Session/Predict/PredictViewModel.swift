@@ -44,6 +44,9 @@ final class PredictViewModel {
     var score: Int { content.map(session.score) ?? 0 }
     var overconfident: [PredictSetup] { content.map(session.overconfident) ?? [] }
     var passed: Bool { content.map(session.passed) ?? false }
+    /// Ended on a clean opening (`PredictSession.early`).
+    var early: Bool { content.map(session.early) ?? false }
+    var answered: Int { session.forecasts.count }
 
     var rail: [Color?] {
         guard let content else { return [] }

@@ -82,11 +82,35 @@ export function discriminateReducer(
     case "next": {
       if (!item || session.calls[item.id] === undefined) return session;
       const index = session.index + 1;
-      return { ...session, index, done: index >= content.cases.length };
+      return {
+        ...session,
+        index,
+        done: index >= content.cases.length || discriminateEarly(session, content),
+      };
     }
     default:
       return session;
   }
+}
+
+/** Cases that can end a run: this many from the first, all called right. */
+export const DISCRIMINATE_EARLY_STREAK = 3;
+
+/**
+ * Early exit: the opening cases all called right, with at least one near-miss
+ * among them turned away — so the streak is the boundary, not a run of luck on
+ * instances. Derived from `calls`, so a saved session needs no new field.
+ */
+export function discriminateEarly(
+  session: DiscriminateSession,
+  content: DiscriminateContent,
+): boolean {
+  const opening = content.cases.slice(0, DISCRIMINATE_EARLY_STREAK);
+  return (
+    content.cases.length > DISCRIMINATE_EARLY_STREAK &&
+    opening.every((c) => session.calls[c.id] === c.answerIndex) &&
+    opening.some((c) => !c.isInstance)
+  );
 }
 
 export function discriminateScore(
@@ -124,6 +148,7 @@ export function discriminatePassed(
   content: DiscriminateContent,
 ): boolean {
   if (!content.cases.length) return session.done;
+  if (discriminateEarly(session, content)) return true;
   const enough =
     discriminateScore(session, content) >= Math.ceil(content.cases.length * (2 / 3));
   return enough && discriminateFalsePositives(session, content).length <= 1;
@@ -139,6 +164,7 @@ const DISCRIMINATE_COPY = {
     missed: "The boundary is still soft in places. The reasons above say where.",
     overIncluded:
       "You waved near-misses through — that is the boundary, not the definition.",
+    early: "Ended early — a clean start is proof enough.",
     next: "Next case →",
   },
   "pt-BR": {
@@ -150,6 +176,7 @@ const DISCRIMINATE_COPY = {
     missed: "A fronteira ainda está solta em alguns pontos. Os motivos acima dizem onde.",
     overIncluded:
       "Você deixou passar casos que só parecem. É aí que está a fronteira, não na definição.",
+    early: "Encerrado mais cedo — um começo limpo já é prova suficiente.",
     next: "Próximo caso →",
   },
 } as const;
