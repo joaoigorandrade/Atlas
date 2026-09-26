@@ -16,6 +16,7 @@ import { useCountUp } from "@/lib/motion";
 import HoverHint from "@/components/HoverHint";
 import Button from "@/components/ui/Button";
 import NodeSeal from "@/components/map/NodeSeal";
+import { SettlementLegend } from "@/components/map/Relief";
 
 const STRINGS = {
   en: {
@@ -403,9 +404,7 @@ export default function LeftRail({
               >
                 <NodeSeal node={{}} state={state} size={12} ring={false} />
                 <span style={{ flex: 1 }}>
-                  {stateLabel(state, language)
-                    .replace(" · ready", "")
-                    .replace(" · pronto", "")}
+                  {stateLabel(state, language).split(" · ")[0]}
                 </span>
                 <span
                   style={{ fontFamily: font.mono, fontSize: 11, color: color.inkFaint }}
@@ -416,6 +415,7 @@ export default function LeftRail({
             </HoverHint>
           ))}
         </div>
+        <SettlementLegend lang={language} />
       </div>
 
       <div style={{ marginTop: "auto" }}>

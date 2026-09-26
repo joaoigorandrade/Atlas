@@ -216,6 +216,8 @@ public struct NodeDelta: Encodable, Sendable {
     /// keys to the pre-axis cache row.
     public var kind: NodeKind?
     public var domain: Domain?
+    public var importance: NodeImportance?
+    public var difficulty: NodeDifficulty?
     public var phasePlan: [Phase]?
     /// The phases finished on this node. The one *derived-from* field the
     /// client owns: state is computed from it, so a save that carried the state
@@ -256,6 +258,8 @@ public struct NodeDelta: Encodable, Sendable {
         try c.encodeIfPresent(state, forKey: .state)
         try c.encodeIfPresent(kind, forKey: .kind)
         try c.encodeIfPresent(domain, forKey: .domain)
+        try c.encodeIfPresent(importance, forKey: .importance)
+        try c.encodeIfPresent(difficulty, forKey: .difficulty)
         try c.encodeIfPresent(phasePlan, forKey: .phasePlan)
         try c.encodeIfPresent(phasesDone, forKey: .phasesDone)
         // Double optional: absent means "leave it", `.some(nil)` means "clear
@@ -272,6 +276,7 @@ public struct NodeDelta: Encodable, Sendable {
 
     private enum Key: String, CodingKey {
         case id, label, summary, g, week, x, y, isGap, state, kind, domain, phasePlan, phasesDone
+        case importance, difficulty
         case shakyReason
         case reviewed, consumeProgress, socraticProgress, feynmanProgress
         case connectProgress, phaseProgress, prereqs

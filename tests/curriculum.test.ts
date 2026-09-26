@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDiagnosticEffect,
+  applyDiagnosticLedger,
   crucibleReducer,
   crucibleStart,
   daysUntil,
@@ -13,6 +14,10 @@ import {
   freshAdherence,
   markTodayMet,
   paceStatus,
+  minutesLeft,
+  ledgerAfter,
+  nodeAxes,
+  PHASE_MINUTES,
   crucibleMasters,
   phaseIndex,
   planGates,
@@ -1697,8 +1702,106 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10);
     expect(pace.remaining).toBe(1);
     expect(pace.daysLeft).toBe(10);
-    expect(pace.neededPerDay).toBe(4); // ceil(35/10)
+    // One plan-less node runs the full concept ladder: 50 min over 10 days.
+    expect(pace.neededPerDay).toBe(5);
     expect(pace.onTrack).toBe(true);
+  });
+
+  it("paceStatus counts only the phases still owed", () => {
+    const done = { b: ["consume", "discriminate", "socratic"] as const };
+    const pace = paceStatus({ a: "mastered" }, graph, 35, 10, {
+      b: [...done.b],
+    });
+    expect(pace.neededPerDay).toBe(3); // 50 - 22 = 28 min → ceil(2.8)
+  });
+});
+
+describe("minutesLeft", () => {
+  const node = {
+    id: "n",
+    label: "N",
+    state: "unknown",
+    g: 1,
+    week: 0,
+    x: 0,
+    y: 0,
+  } as const;
+
+  it("sums the unfinished gates and never charges Retain", () => {
+    const full = planGates(PHASE_PLAN.concept).reduce((m, p) => m + PHASE_MINUTES[p], 0);
+    expect(minutesLeft(node)).toBe(full);
+    expect(minutesLeft(node, [...planGates(PHASE_PLAN.concept)])).toBe(0);
+  });
+
+  it("scales by difficulty", () => {
+    expect(minutesLeft({ ...node, difficulty: "hard" })).toBe(70); // 50 × 1.4
+    // Easy also sheds Socratic: (50 - 8) × 0.75.
+    expect(minutesLeft({ ...node, difficulty: "easy" })).toBe(32);
+  });
+
+  it("follows a short support ladder", () => {
+    expect(minutesLeft({ ...node, importance: "support" })).toBe(19);
+  });
+});
+
+// The cost axes only ever REMOVE rungs, so the catalogue's invariants must hold
+// over every combination — and the defaults must reproduce today's ladders.
+describe("importance × difficulty", () => {
+  const combos = NODE_KINDS.flatMap((kind) =>
+    DOMAINS.flatMap((domain) =>
+      (["core", "support"] as const).flatMap((importance) =>
+        (["easy", "medium", "hard"] as const).map(
+          (difficulty) => [kind, domain, importance, difficulty] as const,
+        ),
+      ),
+    ),
+  );
+
+  it("every combination keeps the three invariants and a real gate", () => {
+    for (const c of combos) {
+      const plan = resolvePlan(...c);
+      const at = plan.map((p) => PHASE_ORDER.indexOf(p));
+      expect([...at], c.join("/")).toEqual([...at].sort((a, b) => a - b));
+      expect(plan[0], c.join("/")).toBe("consume");
+      expect(plan.at(-1), c.join("/")).toBe("retain");
+      expect(planGates(plan).length, c.join("/")).toBeGreaterThan(1);
+    }
+  });
+
+  it("core + medium is the pre-axes ladder, byte for byte", () => {
+    for (const kind of NODE_KINDS)
+      for (const domain of DOMAINS)
+        expect(resolvePlan(kind, domain, "core", "medium")).toEqual(
+          resolvePlan(kind, domain),
+        );
+  });
+
+  it("draws the concept table from the plan", () => {
+    const row = (i: "core" | "support", d: "easy" | "medium" | "hard") =>
+      resolvePlan("concept", "general", i, d).join(" ");
+    expect(row("core", "easy")).toBe(
+      "consume discriminate feynman connect crucible recall retain",
+    );
+    expect(row("core", "hard")).toBe(PHASE_PLAN.concept.join(" "));
+    expect(row("support", "medium")).toBe("consume discriminate recall retain");
+    expect(row("support", "hard")).toBe("consume discriminate socratic recall retain");
+  });
+
+  it("a support node on a formal map still computes something", () => {
+    expect(resolvePlan("concept", "formal", "support").join(" ")).toBe(
+      "consume discriminate trace perform recall retain",
+    );
+  });
+
+  it("reads unknown axes as core / medium", () => {
+    expect(nodeAxes({ importance: "vital", difficulty: 9 })).toMatchObject({
+      importance: "core",
+      difficulty: "medium",
+    });
+    expect(nodeAxes({ importance: "support", difficulty: "hard" })).toMatchObject({
+      importance: "support",
+      difficulty: "hard",
+    });
   });
 });
 
@@ -1796,5 +1899,72 @@ describe("DOMAIN_PLAN invariants", () => {
     expect(asDomain("astrology")).toBe("general");
     expect(asDomain(undefined)).toBe("general");
     expect(asDomain(7)).toBe("general");
+  });
+});
+
+describe('ledgerAfter — "I already know this" has to be proven', () => {
+  const plan = PHASE_PLAN.concept;
+
+  it("appends the phase that closed, once", () => {
+    expect(ledgerAfter(plan, ["consume"], "discriminate", false)).toEqual([
+      "consume",
+      "discriminate",
+    ]);
+    expect(ledgerAfter(plan, ["consume"], "consume", false)).toEqual(["consume"]);
+  });
+
+  it("a challenged pass of the last gate credits every gate, never Retain", () => {
+    const done = ledgerAfter(plan, ["consume"], "crucible", true);
+    expect(new Set(done)).toEqual(new Set(planGates(plan)));
+    expect(done[0]).toBe("consume");
+    expect(done).not.toContain("retain");
+    expect(stateFromPlan(plan, done)).toBe("mastered");
+  });
+
+  it("credits nothing extra without the challenge, or on any other gate", () => {
+    expect(ledgerAfter(plan, [], "crucible", false)).toEqual(["crucible"]);
+    expect(ledgerAfter(plan, [], "discriminate", true)).toEqual(["discriminate"]);
+  });
+
+  it("proves on the Crucible when the plan has one, even before Recall", () => {
+    expect(ledgerAfter(plan, [], "recall", true)).toEqual(["recall"]);
+  });
+
+  it("uses the plan's own last gate when it has no Crucible", () => {
+    const fact = PHASE_PLAN.fact;
+    expect(stateFromPlan(fact, ledgerAfter(fact, [], "recall", true))).toBe("mastered");
+  });
+});
+
+describe("applyDiagnosticLedger — a placement writes the ledger, not just states", () => {
+  const g: ConceptGraph = {
+    nodes: [
+      {
+        id: "a",
+        label: "A",
+        state: "unknown",
+        kind: "concept",
+        g: 1,
+        week: 0,
+        x: 0,
+        y: 0,
+      },
+      { id: "b", label: "B", state: "unknown", kind: "fact", g: 2, week: 0, x: 0, y: 0 },
+    ],
+    edges: [["a", "b"]],
+  };
+
+  it("a known node and its whole chain get every gate, and derive mastered", () => {
+    const done = applyDiagnosticLedger({}, "mastered", "b", g);
+    expect(done.a).toEqual(planGates(PHASE_PLAN.concept));
+    expect(done.b).toEqual(planGates(PHASE_PLAN.fact));
+    expect(done.b).not.toContain("retain");
+    expect(stateFromPlan(PHASE_PLAN.fact, done.b)).toBe("mastered");
+  });
+
+  it("a genuine miss owes exactly the last gate, and touches nothing else", () => {
+    const done = applyDiagnosticLedger({}, "shaky", "b", g);
+    expect(done.b).toEqual(planGates(PHASE_PLAN.fact).slice(0, -1));
+    expect(done.a).toBeUndefined();
   });
 });

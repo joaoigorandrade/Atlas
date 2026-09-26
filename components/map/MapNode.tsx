@@ -11,6 +11,7 @@ import type { ConceptNode, NodeState } from "@/lib/curriculum";
 import { STATE_COLOR } from "@/lib/curriculum";
 import { color, font, map, motion, transition } from "@/lib/theme";
 import { WaxSeal } from "@/components/ui/Ornaments";
+import { CityMark, Relief } from "@/components/map/Relief";
 
 /** The city's hit box in map units. `MapCanvas` sizes the peek's clearance
  *  from it. */
@@ -59,6 +60,7 @@ export default function MapNode({
   // A node left unknown after derivation is locked by definition; keep the
   // assemble moment uniform while the map is building.
   const locked = state === "unknown" && !building;
+  const town = node.importance === "support" && !capital;
   const ring = (inset: number, border: string, extra?: React.CSSProperties) => (
     <span
       aria-hidden
@@ -153,18 +155,29 @@ export default function MapNode({
               : undefined,
           }}
         >
-          {capital && (
-            <circle r={9} fill={color.paper} stroke={color.ink} strokeWidth={1.4} />
+          {/* How hard the climb is, drawn behind the city it leads to. */}
+          {state !== "gap" && <Relief difficulty={node.difficulty} muted={locked} />}
+          {capital ? (
+            <>
+              <circle r={9} fill={color.paper} stroke={color.ink} strokeWidth={1.4} />
+              <circle
+                r={5.5}
+                fill={state === "unknown" ? color.paper : STATE_COLOR[state]}
+                stroke={locked ? color.inkMuted : color.ink}
+                strokeWidth={1.6}
+                style={{ transition: transition("fill", "fast") }}
+              />
+              <circle r={1.6} fill={color.ink} />
+            </>
+          ) : (
+            // Rank: a city the goal rests on, or a town it only passes through.
+            <CityMark
+              importance={state === "gap" ? "support" : node.importance}
+              fill={state === "unknown" ? color.paper : STATE_COLOR[state]}
+              stroke={locked ? color.inkMuted : color.ink}
+              dash={state === "gap" ? "2.5 2" : undefined}
+            />
           )}
-          <circle
-            r={capital ? 5.5 : 5}
-            fill={state === "unknown" ? color.paper : STATE_COLOR[state]}
-            stroke={locked ? color.inkMuted : color.ink}
-            strokeWidth={1.6}
-            strokeDasharray={state === "gap" ? "2.5 2" : undefined}
-            style={{ transition: transition("fill", "fast") }}
-          />
-          {capital && <circle r={1.6} fill={color.ink} />}
         </svg>
         {earned &&
           earned !== "mastered" &&
@@ -175,7 +188,7 @@ export default function MapNode({
             moment it is earned. */}
         {state === "mastered" && (
           <WaxSeal
-            size={capital ? 22 : 18}
+            size={capital ? 22 : town ? 14 : 18}
             stamp={earned === "mastered"}
             style={{ position: "absolute", inset: 0, margin: "auto" }}
           />
@@ -191,10 +204,11 @@ export default function MapNode({
             gap: 6,
             whiteSpace: "nowrap",
             fontFamily: font.display,
-            fontSize: capital ? 17.5 : 15.5,
+            fontSize: capital ? 17.5 : town ? 13.5 : 15.5,
             fontVariant: capital ? "small-caps" : undefined,
             lineHeight: 1.15,
-            fontStyle: state === "gap" ? "italic" : "normal",
+            // A town's name is set in italic, as an atlas sets a village.
+            fontStyle: state === "gap" || town ? "italic" : "normal",
             color: selected ? color.accent : locked ? color.inkMuted : color.ink,
             textShadow: HALO,
             transition: transition("color", "fast"),

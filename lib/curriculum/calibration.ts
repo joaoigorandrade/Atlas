@@ -7,7 +7,7 @@
 // as mastery. Content ships the design's sample confidence-vs-performance set so
 // the curve → per-node breakdown → "jump to its Crucible" loop is real.
 import { CONNECT_COLOR } from "./connect";
-import { planGates, type PhaseId } from "./phases";
+import { planGates, proofGate, type PhaseId } from "./phases";
 import { ConceptEdge, NodeState, ProgressState, STATE_COLOR, ShakyReason } from "./types";
 import { Language } from "@/lib/i18n";
 
@@ -337,4 +337,26 @@ export function descendantsOf(id: string, edges: ConceptEdge[]): Set<string> {
     }
   }
   return seen;
+}
+
+/**
+ * The ledger after `phase` closes on a node.
+ *
+ * Normally that phase is appended. Under a "prove it" challenge — the learner
+ * said they already know this and was sent straight to the plan's `proofGate`
+ * — passing that gate credits every gate before it, in plan order after what was
+ * already done. Passing the hardest test cold is the proof the skipped rungs
+ * exist to build; failing it spawns the gap as any attempt does and credits
+ * nothing. Retain never enters the ledger — review history closes it.
+ */
+export function ledgerAfter(
+  plan: readonly PhaseId[],
+  prev: readonly PhaseId[],
+  phase: PhaseId,
+  challenged: boolean,
+): PhaseId[] {
+  const gates = planGates(plan);
+  if (challenged && phase === proofGate(plan))
+    return [...prev, ...gates.filter((p) => !prev.includes(p))];
+  return prev.includes(phase) ? [...prev] : [...prev, phase];
 }

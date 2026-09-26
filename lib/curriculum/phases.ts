@@ -7,7 +7,7 @@
 // the node carries its own plan and state is derived from what the learner has
 // finished (`stateFromPlan` in `calibration.ts`).
 
-import { DOMAIN_PLAN, type Domain } from "./domains";
+import { DOMAIN_PLAN, asDomain, type Domain } from "./domains";
 
 import type { Language } from "@/lib/i18n";
 
@@ -176,6 +176,13 @@ export function planGates(plan: readonly PhaseId[]): readonly PhaseId[] {
   return plan.filter((p) => p !== "retain");
 }
 
+/** The gate that proves a concept cold: the Crucible (transfer into a framing
+ *  never taught) wherever the plan has one, else the plan's last gate. What
+ *  "I already know this" sends the learner to. */
+export function proofGate(plan: readonly PhaseId[]): PhaseId {
+  return plan.includes("crucible") ? "crucible" : (planGates(plan).at(-1) ?? "consume");
+}
+
 /** The pre-catalogue ladder, and the `phase_plan` every row built before it was
  *  defaulted to by the migration. Kept as its own name so the backfill check
  *  has something explicit to assert against — it is also, unchanged, what
@@ -209,34 +216,106 @@ export type PhasesDoneMap = Record<string, readonly PhaseId[]>;
 export type PhaseProgress = Partial<Record<PhaseId, unknown>>;
 
 /**
- * The ladder a `(kind, domain)` pair runs, before anything is stored.
- *
- * The merge is a *filter over `PHASE_ORDER`* rather than a concatenation, which
- * is what makes invariant 1 hold by construction: whatever the two tables ask
- * for, the result comes back in canonical order with no duplicates, so it
- * cannot stop being a subsequence. A `plan` rule bypasses the kind entirely —
- * see `DOMAIN_PLAN` for why that is a different thing from adding rungs.
+ * How much the learner's goal rests on a concept. `core` is a hub or a
+ * capstone; `support` is needed to *use*, not to master. Decides how DEEP the
+ * ladder goes. Missing reads as `core`, which is what every node was before.
  */
-export function resolvePlan(kind: NodeKind, domain: Domain): readonly PhaseId[] {
+export type NodeImportance = "core" | "support";
+
+/**
+ * How hard a concept is for a newcomer who already holds its prerequisites.
+ * Decides how much GUIDANCE the ladder gives, and how long it should take.
+ * Missing reads as `medium`, which is what every node was before.
+ */
+export type NodeDifficulty = "easy" | "medium" | "hard";
+
+export function asImportance(raw: unknown): NodeImportance {
+  return raw === "support" ? "support" : "core";
+}
+
+export function asDifficulty(raw: unknown): NodeDifficulty {
+  return raw === "easy" || raw === "hard" ? raw : "medium";
+}
+
+/**
+ * Every axis the map generation tags a node with, read leniently.
+ *
+ * Defaulted, never failed: one bad discriminator must not cost a whole map.
+ * Each default — `concept`, `general`, `core`, `medium` — is exactly how every
+ * node behaved before that axis existed, so a bad pick degrades to the old
+ * ladder rather than to nonsense.
+ */
+export function nodeAxes(raw: Record<string, unknown>) {
+  return {
+    kind: asNodeKind(raw.kind),
+    domain: asDomain(raw.domain),
+    importance: asImportance(raw.importance),
+    difficulty: asDifficulty(raw.difficulty),
+  };
+}
+
+/** Proof and transfer — the rungs that buy depth rather than working use.
+ *  Only a concept the goal rests on pays for them. */
+const DEPTH_PHASES: ReadonlySet<PhaseId> = new Set([
+  "feynman",
+  "connect",
+  "crucible",
+  "drill",
+  "steelman",
+]);
+
+/**
+ * The ladder a node runs, before anything is stored.
+ *
+ * The `(kind, domain)` merge is a *filter over `PHASE_ORDER`* rather than a
+ * concatenation, which is what makes invariant 1 hold by construction: whatever
+ * the two tables ask for, the result comes back in canonical order with no
+ * duplicates, so it cannot stop being a subsequence. A `plan` rule bypasses the
+ * kind entirely — see `DOMAIN_PLAN` for why that is a different thing from
+ * adding rungs.
+ *
+ * Then the two cost axes only ever *remove* rungs, so every invariant survives
+ * them: importance decides depth (a support concept drops `DEPTH_PHASES`),
+ * difficulty decides guidance (Socratic questioning is dropped for an easy
+ * concept, and for a support one unless it is hard). Neither can touch
+ * Consume or Retain. Defaults reproduce the pre-axes ladder exactly.
+ */
+export function resolvePlan(
+  kind: NodeKind,
+  domain: Domain,
+  importance: NodeImportance = "core",
+  difficulty: NodeDifficulty = "medium",
+): readonly PhaseId[] {
   const base = PHASE_PLAN[kind];
   const rule = DOMAIN_PLAN[domain];
-  if (!rule) return base;
-  if ("plan" in rule) return rule.plan;
-  const want = new Set<PhaseId>([...base, ...rule.add]);
+  const want = new Set<PhaseId>(
+    !rule ? base : "plan" in rule ? rule.plan : [...base, ...rule.add],
+  );
+  const support = importance === "support";
+  if (support) for (const p of DEPTH_PHASES) want.delete(p);
+  if (difficulty === "easy" || (support && difficulty !== "hard"))
+    want.delete("socratic");
   return PHASE_ORDER.filter((p) => want.has(p));
 }
 
-/** The plan a node runs: its stored one, else the one its kind and domain
- *  resolve to. A node with neither is one the client invented this tick (a
- *  spawned gap), and gap nodes render no spiral at all. */
+/** The plan a node runs: its stored one, else the one its axes resolve to. A
+ *  node with neither is one the client invented this tick (a spawned gap), and
+ *  gap nodes render no spiral at all. */
 export function phasePlan(node: {
   phasePlan?: readonly PhaseId[];
   kind?: NodeKind;
   domain?: Domain;
+  importance?: NodeImportance;
+  difficulty?: NodeDifficulty;
 }): readonly PhaseId[] {
   return node.phasePlan?.length
     ? node.phasePlan
-    : resolvePlan(node.kind ?? "concept", node.domain ?? "general");
+    : resolvePlan(
+        node.kind ?? "concept",
+        node.domain ?? "general",
+        node.importance,
+        node.difficulty,
+      );
 }
 
 /**

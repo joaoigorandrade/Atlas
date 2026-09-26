@@ -26,6 +26,8 @@ import type {
   MisconceptionRecord,
   ModalityTally,
   ProgressState,
+  NodeDifficulty,
+  NodeImportance,
   NodeKind,
   PhaseId,
   PhaseProgress,
@@ -85,6 +87,8 @@ type NodeRow = {
   reviewed: boolean;
   kind: NodeKind;
   domain: Domain;
+  importance: NodeImportance;
+  difficulty: NodeDifficulty;
   phase_plan: PhaseId[];
   phases_done: PhaseId[];
   consume_progress: ConsumeProgress | null;
@@ -109,7 +113,7 @@ export type CardRow = {
 const TOPIC_COLUMNS =
   "id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at, continent:continents(id, name, scopes)";
 const NODE_COLUMNS =
-  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress";
+  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, importance, difficulty, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress";
 export const CARD_COLUMNS = "topic_id, id, node_id, type, source, content, fsrs";
 
 /** A card row as the screens hold it. The content fields travel as one object
@@ -173,6 +177,10 @@ function assemble(
       // Omitted when `general` for the same reason the cache key omits it:
       // that is exactly what every node was before this axis existed.
       ...(n.domain && n.domain !== "general" ? { domain: n.domain } : null),
+      ...(n.importance === "support" ? { importance: n.importance } : null),
+      ...(n.difficulty && n.difficulty !== "medium"
+        ? { difficulty: n.difficulty }
+        : null),
       ...(n.phase_plan?.length ? { phasePlan: n.phase_plan } : null),
       ...(n.is_gap ? { gap: true } : null),
     };

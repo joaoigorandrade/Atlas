@@ -58,8 +58,6 @@ const EN = {
   reReadFirst: "Re-read this first",
   leaningOnTold: (label: string) =>
     `Leaning on "Just tell me" — back through the reading on ${label} before the questions come again.`,
-  pruned: (label: string) =>
-    `${label} pruned — diagnosed known. The frontier moved past it.`,
   redoing: (phase: string, label: string) =>
     `Re-doing ${phase} · ${label} — the spiral stays open`,
   jumpingAhead: (phase: string, label: string) => `Jumping ahead · ${label} → ${phase}`,
@@ -146,8 +144,6 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     reReadFirst: "Releia isto primeiro",
     leaningOnTold: (label: string) =>
       `Apoiando-se no “Só me diga” — volte à leitura de ${label} antes que as perguntas voltem.`,
-    pruned: (label: string) =>
-      `${label} podado — diagnosticado como conhecido. A fronteira avançou.`,
     redoing: (phase: string, label: string) =>
       `Refazendo ${phase} · ${label} — a espiral continua aberta`,
     jumpingAhead: (phase: string, label: string) =>

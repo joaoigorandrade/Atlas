@@ -21,10 +21,10 @@ import {
 } from "@/lib/contentMigrate";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
 import type {
-  Domain,
   AdherenceState,
   CalibSample,
   ConceptGraph,
+  ConceptNode,
   ConnectSession,
   ConsumeChunk,
   ConsumeModelBeat,
@@ -49,7 +49,6 @@ import type {
   ReviewGrade,
   PhaseProgress,
   PhasesDoneMap,
-  NodeKind,
   PhaseId,
   ShakyReason,
   SocraticSession,
@@ -117,10 +116,12 @@ export interface NodeDelta {
   /** `null` clears it — a node that stopped being shaky. */
   shakyReason?: ShakyReason | null;
   reviewed?: boolean;
-  /** What the concept is, what settles a claim about it, and the ladder that
-   *  follows — all written once, when the map generation creates the node. */
-  kind?: NodeKind;
-  domain?: Domain;
+  /** What the concept is, what settles a claim about it, what it costs, and
+   *  the ladder those resolve to — all written once, at map generation. */
+  kind?: ConceptNode["kind"];
+  domain?: ConceptNode["domain"];
+  importance?: ConceptNode["importance"];
+  difficulty?: ConceptNode["difficulty"];
   phasePlan?: readonly PhaseId[];
   /** Finished phases, in order — mastery state is derived from this. */
   phasesDone?: readonly PhaseId[];
@@ -364,10 +365,9 @@ export async function loadContentItems(
   const params = new URLSearchParams();
   if (at?.nodes?.length) params.set("nodes", at.nodes.join(","));
   if (at?.kinds?.length) params.set("kinds", at.kinds.join(","));
-  const query = params.toString();
   const { items } = await call<{ items: ContentItem[] }>(
     "loadContent",
-    `/topics/${id}/content${query ? `?${query}` : ""}`,
+    `/topics/${id}/content${params.size ? `?${params}` : ""}`,
   );
   return items ?? [];
 }

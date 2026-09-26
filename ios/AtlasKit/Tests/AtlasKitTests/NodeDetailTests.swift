@@ -25,7 +25,12 @@ import Testing
         ),
         // An unmet prerequisite is the only thing that leaves a node locked —
         // with "lat" mastered the display derives Fronteira instead.
-        states: ["lat": state == .unknown ? .unknown : .mastered, "cadeia": state, "lacuna": .gap],
+        // Frontier is never stored — it is an unknown node whose prerequisites
+        // are met, which is what the display derives it from.
+        states: [
+            "lat": state == .unknown ? .unknown : .mastered,
+            "cadeia": state == .frontier ? .unknown : state, "lacuna": .gap,
+        ],
         subject: "Cálculo I"
     )
     if reviewed { store.reviewed.insert("cadeia") }
@@ -110,10 +115,23 @@ import Testing
     let model = drawer(.frontier)
     model.pendingSkip = .crucible
     #expect(model.pendingSkip == .crucible)
-    model.skip()
-    // The node is Mastered now — a question about skipping the Crisol is a
-    // question about nothing.
+    #expect(model.prove() == .crucible)
+    // The node is Learning now — a question about skipping the Crisol it was
+    // just sent to is a question about nothing.
     #expect(model.pendingSkip == nil)
+}
+
+/// "Já sei isso" is proven, not claimed: only a first-try pass of the proof
+/// gate credits the plan, and a failure or an ordinary entry credits nothing.
+@MainActor
+@Test func knowingItHasToBeProven() {
+    let plan = phasePlans[.concept]!
+    #expect(proofGate(plan) == .crucible)
+    #expect(proofGate(phasePlans[.fact]!) == .recall)
+    #expect(Set(ledgerAfter(plan, [.consume], .crucible, challenged: true)) == Set(planGates(plan)))
+    #expect(ledgerAfter(plan, [], .crucible, challenged: false) == [.crucible])
+    #expect(ledgerAfter(plan, [], .recall, challenged: true) == [.recall])
+    #expect(!ledgerAfter(plan, [], .crucible, challenged: true).contains(.retain))
 }
 
 /// The rail reads the ledger, not the position. Ticking "everything before the

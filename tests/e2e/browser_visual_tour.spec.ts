@@ -57,7 +57,10 @@ test.describe("Full Visual Browser Tour", () => {
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "05_node_detail.png") });
 
-    // 5. Phase 0: Consume (Reading pass)
+    // 5. Phase 0: Consume (Reading pass). The placement above pruned this
+    // node as known, ledger and all — so walk the spiral from a fresh frontier,
+    // or the recap would rightly have nothing left to hand off to.
+    await openRun(page, { [FIRST_NODE]: "frontier" });
     await openPhase(page, FIRST_NODE, "consume");
     const consumeSheet = page.getByTestId("phase-consume");
     await expect(consumeSheet).toBeVisible();

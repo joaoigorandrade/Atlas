@@ -2975,13 +2975,12 @@
         }
       }
     },
-    "Eu já sei isso — pular" : {
-      "extractionState" : "stale",
+    "Eu já sei isso — provar" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "I already know this — skip it"
+            "value" : "I already know this — prove it"
           }
         }
       }

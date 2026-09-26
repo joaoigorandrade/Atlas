@@ -92,8 +92,12 @@ ${grounding}${continent}
 ${escape}`;
 }
 
+/** One node as the model writes it — shared by the single-shot and streamed
+ *  prompts so the two can't ask for different fields. */
+export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "importance": "core|support", "difficulty": "easy|medium|hard"}`;
+
 export const graphShape = (ask: [number, number]) => `{
-  "nodes": [{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general"}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
+  "nodes": [${NODE_SHAPE}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
   "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
 }`;
 
@@ -150,6 +154,14 @@ export const DOMAIN_MAP_RULE = `NOW APPLY YOUR CHOSEN DOMAIN. This row overrides
 - craft: the map IS the build sequence and it is IRREVERSIBLE — an edge means "A must be finished before B can start". 8-14 stages. The FIRST node is always the manifest: materials, cut list, tools, total cost and total hours, with nothing to learn and everything to gather. Every later node is a stage the learner carries out away from the screen, so each must name its tolerances and the ways it goes wrong.
 - general: the generic rules above stand unchanged.`;
 
+/**
+ * The two cost axes. They decide how long a node's ladder is — importance its
+ * depth, difficulty its guidance — which is why a map where everything is
+ * `core` and `hard` is the old uniform map the learner gave up on.
+ */
+export const AXES_RULE = `"importance" is "core" when the learner's goal genuinely rests on the concept — the hubs many others build on and the capstones the goal is about, typically a third to a half of the map — and "support" when the learner only needs to USE it, not master it: a supporting term, a stepping stone, a detail. Judge it against the learner's goal above, not in general.
+"difficulty" is how hard the concept is for a newcomer who ALREADY holds its prerequisites: "easy" when it lands on first explanation, "hard" only for the few concepts that genuinely resist — counter-intuitive, many moving parts, the classic stumbling blocks of this topic — and "medium" otherwise. Most nodes are "medium"; never mark everything the same.`;
+
 /** The summary rule, shared by the single-shot and streamed map prompts: it is
  *  the only thing the detail rail says about the topic itself, so it has to
  *  teach the gist rather than restate the label. */
@@ -159,6 +171,7 @@ export const mapRules = (ask: [number, number]) =>
   `Rules: labels are 1-3 words, capitalized the way the output language capitalizes a heading — English title case, but sentence case in languages that do not title-case (pt-BR: "Reações dependentes da luz", never "Reações Dependentes Da Luz"). ${SUMMARY_RULE}
 ${KIND_RULE}
 ${DOMAIN_RULE}
+${AXES_RULE}
 ${sizeRule({
   unit: "concepts",
   min: ask[0],

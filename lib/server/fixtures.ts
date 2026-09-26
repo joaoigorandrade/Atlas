@@ -22,9 +22,8 @@ import type {
   MapNode,
   RetainContent,
   SocraticStep,
-  NodeKind,
 } from "@/lib/curriculum";
-import { PHASE_PLAN } from "@/lib/curriculum";
+import { resolvePlan } from "@/lib/curriculum";
 import { FIXTURES } from "@/lib/fixtureMode";
 import {
   discriminateContent,
@@ -74,18 +73,20 @@ function vars(body: GenerateBody): Vars {
 // ---- the map ---------------------------------------------------------------
 
 /** Every kind is represented, so fixture mode exercises the per-kind ladder
- *  and the per-kind prompt rather than only the `concept` path. */
-const MAP: Array<[string, string, string[], NodeKind]> = [
-  ["foundations", "Foundations", [], "concept"],
-  ["notation", "Notation", ["foundations"], "fact"],
-  ["core-rule", "The core rule", ["notation"], "principle"],
-  ["worked-cases", "Worked cases", ["core-rule"], "procedure"],
-  ["edge-cases", "Edge cases", ["core-rule"], "concept"],
+ *  and the per-kind prompt rather than only the `concept` path — and every
+ *  rank and relief, so the map draws towns, hills and mountains. */
+const MAP: Array<[string, string, string[], ...Parameters<typeof resolvePlan>]> = [
+  ["foundations", "Foundations", [], "concept", "general"],
+  ["notation", "Notation", ["foundations"], "fact", "general", "core", "easy"],
+  ["core-rule", "The core rule", ["notation"], "principle", "general", "core", "hard"],
+  ["worked-cases", "Worked cases", ["core-rule"], "procedure", "general"],
+  ["edge-cases", "Edge cases", ["core-rule"], "concept", "general", "support"],
   [
     "putting-it-together",
     "Putting it together",
     ["worked-cases", "edge-cases"],
     "procedure",
+    "general",
   ],
 ];
 
@@ -96,7 +97,7 @@ const TOO_BROAD = { scopes: ["Stars", "Cells"].map((l) => ({ label: l, note: l }
 function mapNodes(): MapNode[] {
   const depth = new Map<string, number>();
   const rows = new Map<number, number>();
-  return MAP.map(([id, label, prereqs, kind]) => {
+  return MAP.map(([id, label, prereqs, ...axes]) => {
     const g = prereqs.reduce((d, p) => Math.max(d, (depth.get(p) ?? 0) + 1), 0);
     depth.set(id, g);
     const row = rows.get(g) ?? 0;
@@ -105,8 +106,10 @@ function mapNodes(): MapNode[] {
       id,
       label,
       summary: `What ${label.toLowerCase()} is, in one line.`,
-      kind,
-      phasePlan: PHASE_PLAN[kind],
+      kind: axes[0],
+      importance: axes[2],
+      difficulty: axes[3],
+      phasePlan: resolvePlan(...axes),
       prereqs,
       state: "unknown" as const,
       g,
@@ -377,36 +380,29 @@ export function fixturePayload(
       return { steps: socraticSteps(v) };
     case "feynman":
       return { beats: feynmanBeats(v) };
-    case "connect":
-      return { content: connectContent(v) };
-    case "crucible":
-      return { content: crucibleContent(v) };
-    case "discriminate":
-      return { content: discriminateContent(v) };
-    case "predict":
-      return { content: predictContent(v) };
-    case "trace":
-      return { content: traceContent(v) };
-    case "drill":
-      return { content: drillContent(v) };
-    case "recall":
-      return { content: recallContent(v) };
-    case "perform":
-      return { content: performContent(v) };
-    case "provenance":
-      return { content: provenanceContent(v) };
-    case "steelman":
-      return { content: steelmanContent(v) };
-    case "produce":
-      return { content: produceContent(v) };
     case "retain":
       return { content: retainContent(body, v) };
     case "judge":
       return { judgement: judgement(body) };
     default:
-      return null;
+      return kind in CONTENT ? { content: CONTENT[kind](v) } : null;
   }
 }
+
+/** Every phase whose payload is `{ content }`, written from the job's vars. */
+const CONTENT: Record<string, (v: Vars) => unknown> = {
+  connect: connectContent,
+  crucible: crucibleContent,
+  discriminate: discriminateContent,
+  predict: predictContent,
+  trace: traceContent,
+  drill: drillContent,
+  recall: recallContent,
+  perform: performContent,
+  provenance: provenanceContent,
+  steelman: steelmanContent,
+  produce: produceContent,
+};
 
 // ---- the Supabase stand-in -------------------------------------------------
 

@@ -1,6 +1,7 @@
 // ---- kind: curriculum map --------------------------------------------------
 import { arr, fail, languageNote, obj, slug, str, user } from "./common";
 import {
+  NODE_SHAPE,
   graphShape,
   mapContext,
   mapNodeBounds,
@@ -12,13 +13,10 @@ import {
   ConceptNode,
   MapNode,
   asDiagnosticKind,
-  asDomain,
+  nodeAxes,
   resolvePlan,
   type DiagnosticKind,
-  type Domain,
-  NodeKind,
   PARETO_DEFAULT,
-  asNodeKind,
   graphFromMapNodes,
 } from "@/lib/curriculum";
 import { generateJson, streamJsonObjects } from "@/lib/server/openrouter";
@@ -41,13 +39,9 @@ export interface ScopeOffer {
 
 /** A validated concept before layout — the same shape whether it arrived in one
  *  payload or one streamed object at a time. */
-type RawConcept = {
-  id: string;
-  label: string;
-  summary?: string;
-  kind: NodeKind;
-  domain: Domain;
-};
+type RawConcept = { id: string; label: string; summary?: string } & ReturnType<
+  typeof nodeAxes
+>;
 
 /** Every name a written concept answers to — its id and its folded label —
  *  mapped to the id that stays on the map. A model padding a map restates
@@ -101,10 +95,12 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
       summary: n.summary,
       kind: n.kind,
       domain: n.domain,
+      importance: n.importance,
+      difficulty: n.difficulty,
       // Resolved here, once, and stored on the node. Recomputing it on every
       // read would mean shipping a new catalogue silently re-cut the ladder
       // under a run already in progress.
-      phasePlan: resolvePlan(n.kind, n.domain ?? "general"),
+      phasePlan: resolvePlan(n.kind, n.domain, n.importance, n.difficulty),
       state: "unknown" as const,
       g: d + 1,
       week: 0,
@@ -162,13 +158,7 @@ export function validateGraphPart(
       // A missing sentence costs one node its rail copy, not the learner their
       // whole map — the rail falls back to the state line.
       summary: n.summary ? str(n.summary, `nodes[${i}].summary`) : undefined,
-      // Defaulted, never failed: one bad discriminator must not cost a whole
-      // map, and "concept" is exactly the behaviour every node had before
-      // kinds existed.
-      kind: asNodeKind(n.kind),
-      // Same softness as `kind`: an unrecognised domain becomes `general`, which
-      // is exactly how every node behaved before this axis existed.
-      domain: asDomain(n.domain),
+      ...nodeAxes(n),
     };
   });
   if (nodes.length < bounds.min) fail(`only ${nodes.length} distinct concepts`);
@@ -283,12 +273,11 @@ function layoutMapNodes(mapNodes: MapNode[]): MapNode[] {
   const { edges } = graphFromMapNodes(mapNodes);
   return withPrereqs(
     layoutGraph(
-      mapNodes.map(({ id, label, summary, kind, domain }) => ({
+      mapNodes.map(({ id, label, summary, ...axes }) => ({
         id,
         label,
         summary,
-        kind: asNodeKind(kind),
-        domain: asDomain(domain),
+        ...nodeAxes(axes),
       })),
       edges,
     ),
@@ -364,10 +353,7 @@ export function validateMapConcept(
     // Soft, like the single-shot validator: a concept that arrives without its
     // sentence still lands on the map.
     summary: c.summary ? str(c.summary, `concept[${index}].summary`) : undefined,
-    // Same softness: an unrecognised discriminator becomes `concept`, which is
-    // what every node was before kinds existed.
-    kind: asNodeKind(c.kind),
-    domain: asDomain(c.domain),
+    ...nodeAxes(c),
     prereqs: [...new Set(prereqs)],
   };
 }
@@ -413,7 +399,7 @@ another — NOT wrapped in an array or a {"nodes": [...]} object, no markdown
 fences, no numbering, no commentary before/after/between them. Write them in
 prerequisite order: every concept another one depends on must already have been
 written above it. Each object has this shape:
-{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "prereqs": ["ids of concepts already written above"]}
+${NODE_SHAPE.slice(0, -1)}, "prereqs": ["ids of concepts already written above"]}
 
 "prereqs" is empty only for true foundations — every other concept names at
 least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
@@ -446,7 +432,7 @@ least one. ${mapRules(bounds.ask)}${languageNote(language)}`,
       // re-space and never cross.
       const node: MapNode = {
         ...item,
-        phasePlan: resolvePlan(item.kind, item.domain ?? "general"),
+        phasePlan: resolvePlan(item.kind, item.domain, item.importance, item.difficulty),
         state: "unknown",
         g: d + 1,
         week: 0,

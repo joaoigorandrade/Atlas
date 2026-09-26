@@ -29,6 +29,9 @@ public final class AtlasStore {
     /// screen that set `states[id]` directly would leave the two disagreeing,
     /// and the next open would re-derive over whatever it wrote.
     public var phasesDone: PhasesDoneMap = [:] { didSet { saveSoon() } }
+    /// The node under a "prove it" challenge, if any — session-only, so a
+    /// relaunch drops it and the attempt just credits itself. See `ledgerAfter`.
+    @ObservationIgnored var challenge: String?
 
     /// Every review card drafted for this run. The generation is a card
     /// factory; `deck` below is the queue it feeds, and the scheduler that
@@ -396,8 +399,9 @@ public extension AtlasStore {
     /// node's existing reason stands — so re-doing an unrelated phase can't
     /// silently promote a node past a Crucible it is still failing.
     func completePhase(_ node: ConceptNode, _ phase: Phase, shaky: ShakyReason?? = nil) {
-        var done = phasesDone[node.id] ?? []
-        if !done.contains(phase) { done.append(phase) }
+        let challenged = challenge == node.id
+        if challenged { challenge = nil } // one attempt, one verdict
+        let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged)
         phasesDone[node.id] = done
         let reason: ShakyReason?
         switch shaky {
@@ -414,6 +418,7 @@ public extension AtlasStore {
     /// which is what keeps state and the record of finished phases from
     /// disagreeing about the same node.
     func markShaky(_ node: ConceptNode, _ reason: ShakyReason) {
+        if challenge == node.id { challenge = nil } // a failed proof credits nothing
         shakyReasons[node.id] = reason
         states[node.id] = stateFromPlan(node.plan, phasesDone[node.id] ?? [], shaky: reason)
     }
@@ -427,12 +432,12 @@ public extension AtlasStore {
         states[node.id] = stateFromPlan(node.plan, phasesDone[node.id] ?? [], started: true)
     }
 
-    /// The learner asserting they already own the concept: the whole plan, not
-    /// just its last rung, so the frontier re-derives past it.
-    func completeWholePlan(_ node: ConceptNode) {
-        phasesDone[node.id] = node.plan
-        shakyReasons[node.id] = nil
-        states[node.id] = .mastered
+    /// "Já sei isso": the next close of this node's proof gate credits the
+    /// whole plan. Returns the gate to open.
+    func armChallenge(_ node: ConceptNode) -> Phase {
+        markStarted(node)
+        challenge = node.id
+        return proofGate(node.plan)
     }
 
     /// Put the reading back to the top, unread. What a flagged Socratic pass
@@ -1233,6 +1238,8 @@ public extension AtlasStore {
                     // on the write that creates the row, and never again.
                     delta.kind = node.kind
                     delta.domain = node.domain
+                    delta.importance = node.importance
+                    delta.difficulty = node.difficulty
                     delta.phasePlan = node.phasePlan
                 }
                 deltas.append(delta)

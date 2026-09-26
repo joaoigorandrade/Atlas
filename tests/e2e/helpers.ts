@@ -153,7 +153,16 @@ function withStates(tables: Tables, patches: Record<string, NodePatch>): Tables 
       if (!forced) return node;
       return typeof forced === "string"
         ? { ...node, state: forced, phases_done: LEDGER[forced] ?? [] }
-        : { ...node, ...forced };
+        : // A forced state brings its implied ledger too, unless the patch
+          // names one: the placement now writes the ledger it prunes, so the
+          // captured row's own record belongs to the state being replaced.
+          {
+            ...node,
+            ...(typeof forced.state === "string"
+              ? { phases_done: LEDGER[forced.state] ?? [] }
+              : null),
+            ...forced,
+          };
     }),
   };
 }

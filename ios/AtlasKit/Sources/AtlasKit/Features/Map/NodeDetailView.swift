@@ -69,15 +69,11 @@ struct NodeDetailView: View {
             Dock {
                 CTAButton(model.actionTitle, tint: model.actionTint) { primary(model) }
                     .disabled(model.isLocked)
-                // The aggressive faster lever prunes a node the learner already
-                // owns — which only a frontier node can be. On anything else it
-                // would paint over prerequisites they never did, or delete a
-                // diagnosed gap with one tap (`NodeDetail.tsx:634`).
+                // The faster lever, proven rather than claimed: straight to the
+                // proof gate. Frontier only, so a failed proof can't be re-armed
+                // for a second try at the same problem (`NodeDetail.tsx:634`).
                 if model.state == .frontier {
-                    GhostButton("Eu já sei isso — pular") {
-                        model.skip()
-                        navigator.dismissSheet()
-                    }
+                    GhostButton("Eu já sei isso — provar") { start(model.prove()) }
                 }
             }
         }
@@ -209,6 +205,7 @@ struct NodeDetailView: View {
     /// than a pass — the same fork `onPhaseAction` takes on the web.
     private func open(_ phase: Phase, _ model: NodeDetailViewModel) {
         model.pendingSkip = nil
+        model.disarm()
         if phase == .retain {
             navigator.dismissSheet()
             tabs.switchTab(to: .review)

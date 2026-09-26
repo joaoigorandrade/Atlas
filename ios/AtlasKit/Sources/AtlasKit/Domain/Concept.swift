@@ -109,6 +109,10 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
     /// treats a missing domain as `general`, which is exactly how every node
     /// behaved then.
     public var domain: Domain?
+    /// How much the goal rests on it and how hard it is — the two cost axes the
+    /// map draws. Absent on a run built before them; read as `core` / `medium`.
+    public var importance: NodeImportance?
+    public var difficulty: NodeDifficulty?
     /// The phases this node runs, resolved from `kind` at map-build time and
     /// frozen on the row. Stored rather than recomputed so shipping a new
     /// catalogue can't rewrite a run already in progress.
@@ -149,6 +153,10 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
         // the map.
         kind = (try? c.decodeIfPresent(String.self, forKey: .kind)).map { asNodeKind($0) }
         domain = (try? c.decodeIfPresent(String.self, forKey: .domain)).map { asDomain($0) }
+        importance = (try? c.decodeIfPresent(String.self, forKey: .importance))
+            .flatMap { NodeImportance(rawValue: $0) }
+        difficulty = (try? c.decodeIfPresent(String.self, forKey: .difficulty))
+            .flatMap { NodeDifficulty(rawValue: $0) }
         phasePlan = (try? c.decodeIfPresent([String].self, forKey: .phasePlan))?
             .compactMap(Phase.init(rawValue:))
     }

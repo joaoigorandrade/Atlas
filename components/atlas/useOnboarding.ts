@@ -14,6 +14,7 @@ import {
   gradeDiagnostic,
   type DiagnosticAnswer,
   applyDiagnosticEffect,
+  applyDiagnosticLedger,
   diagnosticEffect,
   emptyGraph,
   graphFromMapNodes,
@@ -89,6 +90,7 @@ export function useOnboarding(deps: {
     setForm,
     setGraph,
     setStates,
+    setPhasesDone,
     setPositions,
     setSpawnedIds,
     setRunLanguage,
@@ -386,13 +388,10 @@ export function useOnboarding(deps: {
       maxCorrectDifficultyRef.current = q.difficulty;
     // Written as a value, not an updater, so the pool below can filter on the
     // post-answer truth — the placement is the only writer on this screen.
-    const applied = applyDiagnosticEffect(
-      statesRef.current,
-      effect,
-      q.nodeId,
-      graphRef.current.edges,
-    );
+    const map = graphRef.current;
+    const applied = applyDiagnosticEffect(statesRef.current, effect, q.nodeId, map.edges);
     setStates(applied);
+    setPhasesDone((p) => applyDiagnosticLedger(p, effect, q.nodeId, map));
     if (effect === "shaky") {
       setShakyReason(q.nodeId, "diagnostic-hesitation");
       if (q.gap) pendingGapsRef.current.push({ parentId: q.nodeId, spec: q.gap });

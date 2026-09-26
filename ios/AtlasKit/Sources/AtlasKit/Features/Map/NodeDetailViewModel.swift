@@ -156,9 +156,10 @@ final class NodeDetailViewModel {
 
     var headline: LocalizedStringKey { state.headline }
 
-    /// "Já sei isso" — the learner asserting they already own the concept. The
-    /// whole plan is ticked, not just a state written: mastery is derived from
-    /// the ledger now, and a state with an empty ledger behind it re-derives
-    /// back to Learning the next time any phase closes.
-    func skip() { store.completeWholePlan(node) }
+    /// "Já sei isso — provar": not the honour system. Opens the proof gate, and
+    /// only a first-try pass credits the whole plan (`ledgerAfter`).
+    func prove() -> Phase { store.armChallenge(node) }
+
+    /// Any ordinary way into a phase ends a pending challenge.
+    func disarm() { store.challenge = nil }
 }

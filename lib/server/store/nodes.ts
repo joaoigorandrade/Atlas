@@ -47,6 +47,8 @@ export async function applyNodeDeltas(
     ...(d.reviewed != null ? { reviewed: d.reviewed } : null),
     ...(d.kind != null ? { kind: d.kind } : null),
     ...(d.domain != null ? { domain: d.domain } : null),
+    ...(d.importance != null ? { importance: d.importance } : null),
+    ...(d.difficulty != null ? { difficulty: d.difficulty } : null),
     ...(d.phasePlan != null ? { phase_plan: d.phasePlan } : null),
     ...(d.phasesDone != null ? { phases_done: d.phasesDone } : null),
     ...(d.consumeProgress !== undefined ? { consume_progress: d.consumeProgress } : null),

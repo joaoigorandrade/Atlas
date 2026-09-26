@@ -84,7 +84,7 @@ const STRINGS = {
         Fix them here, or carry them to the map and close them in the loop.
       </>
     ),
-    cleanAdvance: "Clean diff · Connect →",
+    cleanAdvance: "Clean diff · Continue →",
     attachGaps: (n: number) => `Attach ${n} gap${n === 1 ? "" : "s"} & continue →`,
     teachAgain: "↺ Teach it again from the top",
     targetedPass: "Targeted Socratic pass",
@@ -143,7 +143,7 @@ const STRINGS = {
         Corrija-as aqui, ou leve-as ao mapa e feche-as no ciclo.
       </>
     ),
-    cleanAdvance: "Diff limpo · Conectar →",
+    cleanAdvance: "Diff limpo · Continuar →",
     attachGaps: (n: number) => `Anexar ${n} lacuna${n === 1 ? "" : "s"} e continuar →`,
     teachAgain: "↺ Ensinar de novo desde o início",
     targetedPass: "Passagem socrática focada",
@@ -179,7 +179,7 @@ interface FeynmanViewProps {
   onCloseFix: () => void;
   onFix: (index: number) => void;
   onTeachAgain: () => void;
-  /** Attach any remaining gaps to the map and advance toward Connect. */
+  /** Attach any remaining gaps to the map and advance to what the plan owes. */
   onAdvance: () => void;
 }
 

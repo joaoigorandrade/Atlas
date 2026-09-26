@@ -25,7 +25,7 @@ import { useLanguage, useT } from "@/lib/i18n";
 
 import Rich from "@/components/Rich";
 import { SkeletonBars } from "@/components/Pending";
-
+import { withSettlement } from "@/components/map/Relief";
 import { STRINGS } from "@/components/map/nodeDetailCopy";
 import NodeSeal from "@/components/map/NodeSeal";
 import { WaxSeal } from "@/components/ui/Ornaments";
@@ -261,7 +261,7 @@ function NodeDetailBody({
         </span>
         <div style={{ minWidth: 0 }}>
           <div style={{ ...kicker(10.5, "0.14em"), color: stateColor, marginBottom: 4 }}>
-            {stateLabel(displayState, language)}
+            {withSettlement(stateLabel(displayState, language), node, language)}
           </div>
           <div
             style={{

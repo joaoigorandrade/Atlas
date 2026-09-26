@@ -101,6 +101,23 @@ describe("validateMapConcept", () => {
   });
   const ids = (...xs: string[]) => new Map(xs.map((x) => [x, x]));
 
+  it("reads the cost axes leniently — unknown is core / medium", () => {
+    const plain = validateMapConcept(concept(), 0, new Map());
+    expect([plain.importance, plain.difficulty]).toEqual(["core", "medium"]);
+    const odd = validateMapConcept(
+      concept({ importance: "crucial", difficulty: "brutal" }),
+      0,
+      new Map(),
+    );
+    expect([odd.importance, odd.difficulty]).toEqual(["core", "medium"]);
+    const tagged = validateMapConcept(
+      concept({ importance: "support", difficulty: "hard" }),
+      0,
+      new Map(),
+    );
+    expect([tagged.importance, tagged.difficulty]).toEqual(["support", "hard"]);
+  });
+
   it("normalizes the id and keeps prereqs that already landed", () => {
     const seen = ids("stack-and-heap");
     const out = validateMapConcept(

@@ -11,7 +11,16 @@
 // purpose, so these run against a real mix rather than six `concept`s.
 
 import { expect, test } from "@playwright/test";
-import { NODE_KINDS, PHASE_PLAN, type NodeKind, type PhaseId } from "@/lib/curriculum";
+import {
+  NODE_KINDS,
+  planGates,
+  resolvePlan,
+  type ConceptNode,
+  type NodeDifficulty,
+  type NodeImportance,
+  type NodeKind,
+  type PhaseId,
+} from "@/lib/curriculum";
 import {
   clearRuns,
   openPhase,
@@ -40,7 +49,7 @@ test.describe("the phase catalogue, end to end", () => {
 
     for (const node of run.graph.nodes) {
       if (node.gap) continue; // a gap runs no plan of its own
-      const n = node as typeof node & { kind?: string; phasePlan?: string[] };
+      const n = node as ConceptNode;
       expect(
         NODE_KINDS as readonly string[],
         `node ${node.id} has a kind the catalogue knows`,
@@ -48,8 +57,8 @@ test.describe("the phase catalogue, end to end", () => {
       expect(n.kind, `node ${node.id} kept the kind the map gave it`).toBe(
         KIND_OF[node.id],
       );
-      expect(n.phasePlan, `node ${node.id} stores its kind's plan`).toEqual([
-        ...PHASE_PLAN[n.kind as NodeKind],
+      expect(n.phasePlan, `node ${node.id} stores the plan its axes resolve to`).toEqual([
+        ...resolvePlan(n.kind!, "general", n.importance, n.difficulty),
       ]);
     }
   });
@@ -79,9 +88,18 @@ test.describe("the phase catalogue, end to end", () => {
       const id = row.id as string;
       expect(row.kind, `row ${id} persisted its kind`).toBe(KIND_OF[id]);
       expect(row.phase_plan, `row ${id} persisted its plan`).toEqual([
-        ...PHASE_PLAN[KIND_OF[id]],
+        ...resolvePlan(
+          KIND_OF[id],
+          "general",
+          row.importance as NodeImportance,
+          row.difficulty as NodeDifficulty,
+        ),
       ]);
-      expect(row.phases_done, `row ${id} starts with an empty ledger`).toEqual([]);
+      // The placement writes the ledger it prunes: a node it placed as known
+      // holds every gate, and one it never reached holds nothing.
+      expect(row.phases_done, `row ${id} holds the ledger its placement implies`).toEqual(
+        row.state === "mastered" ? planGates(row.phase_plan as PhaseId[]) : [],
+      );
     }
   });
 
@@ -103,19 +121,19 @@ test.describe("the phase catalogue, end to end", () => {
   });
 
   test("the rail draws each node's own plan, addressed by phase id", async ({ page }) => {
-    await openRun(page);
+    const run = await openRun(page);
 
     for (const id of Object.keys(KIND_OF)) {
+      // The node's own stored plan — which the first test pins to its axes.
+      const plan = (run.graph.nodes.find((n) => n.id === id) as ConceptNode).phasePlan!;
       await page.getByTestId(`node-${id}`).press("Enter");
       await expect(page.getByTestId("panel-node")).toHaveAttribute("data-node", id);
       const rail = page.locator('[data-testid="panel-node"] [data-phase]');
-      await expect(rail, `${id} draws its whole plan`).toHaveCount(
-        PHASE_PLAN[KIND_OF[id]].length,
-      );
+      await expect(rail, `${id} draws its whole plan`).toHaveCount(plan.length);
       expect(
         await rail.evaluateAll((els) => els.map((e) => e.dataset.phase)),
         `${id} draws its plan in catalogue order`,
-      ).toEqual([...PHASE_PLAN[KIND_OF[id]]]);
+      ).toEqual([...plan]);
     }
   });
 
@@ -369,14 +387,14 @@ test.describe("the phase catalogue, end to end", () => {
     }).toPass({ timeout: 15_000 });
   });
 
-  test("pruning a node completes its whole plan, not just its last rung", async ({
+  test('"I already know this" sends the learner to prove it, not to green', async ({
     page,
   }) => {
-    // "I already know this" is the one path to green fixture mode can reach
-    // (see the report: the fixture judge returns `partial` on every Crucible
-    // attempt, so the transfer-confirmed path is unreachable). It is also the
-    // sharper test of the inversion: nothing writes `mastered` as a literal,
-    // the whole plan lands in the ledger and the state falls out of it.
+    // The honour-system prune is gone: the button opens the plan's last gate,
+    // and only a first-try pass credits the whole ledger (`ledgerAfter`, unit
+    // tested). The fixture judge returns `partial` on every Crucible attempt,
+    // so what this pins is the half fixture mode can reach — the proof opens,
+    // and nothing is credited before it is passed.
     await openRun(page, { foundations: { state: "unknown" } });
     await expect(page.getByTestId("node-foundations")).toHaveAttribute(
       "data-state",
@@ -386,14 +404,11 @@ test.describe("the phase catalogue, end to end", () => {
     await page.getByTestId("node-foundations").press("Enter");
     await page.getByTestId("action-skip-known").click();
 
-    await expect(page.getByTestId("node-foundations")).toHaveAttribute(
-      "data-state",
-      "mastered",
-    );
+    await expect(page.getByTestId("phase-crucible")).toBeVisible();
     await expect(async () => {
       const row = (await readNodeRows(page.request)).find((r) => r.id === "foundations")!;
-      expect(row.state).toBe("mastered");
-      expect(row.phases_done).toEqual([...PHASE_PLAN.concept]);
+      expect(row.state).not.toBe("mastered");
+      expect(row.phases_done).toEqual([]);
     }).toPass({ timeout: 15_000 });
   });
 });

@@ -10,6 +10,13 @@ import {
   NodeState,
   ProgressState,
 } from "./types";
+import {
+  phasePlan,
+  planGates,
+  type NodeDifficulty,
+  type PhaseId,
+  type PhasesDoneMap,
+} from "./phases";
 import { Language } from "@/lib/i18n";
 
 export type StateMap = Record<string, ProgressState>;
@@ -137,9 +144,41 @@ export function orderedFrontier(
   return entries;
 }
 
-/** Rough minutes of focused work to take one concept through the spiral.
- *  ponytail: constant until real session-length analytics exist (#23). */
-export const NODE_MINUTES = 35;
+/** Rough minutes of focused work per phase, read off the item counts each
+ *  generator enforces (`*_BOUNDS` in `lib/server/generate/`). Retain is the
+ *  shared review queue, budgeted on its own.
+ *  ponytail: estimates until real session-length analytics exist (#23). */
+export const PHASE_MINUTES: Record<PhaseId, number> = {
+  consume: 10,
+  discriminate: 4,
+  provenance: 6,
+  socratic: 8,
+  steelman: 10,
+  predict: 5,
+  trace: 5,
+  feynman: 8,
+  perform: 10,
+  drill: 3,
+  produce: 8,
+  connect: 5,
+  crucible: 10,
+  recall: 5,
+  retain: 0,
+};
+
+/** A hard concept takes longer on every rung, an easy one less. */
+const DIFFICULTY_PACE: Record<NodeDifficulty, number> = {
+  easy: 0.75,
+  medium: 1,
+  hard: 1.4,
+};
+
+/** Minutes of work this node still owes: its unfinished gates, at its pace. */
+export function minutesLeft(node: ConceptNode, done: readonly PhaseId[] = []): number {
+  const owed = planGates(phasePlan(node)).filter((p) => !done.includes(p));
+  const raw = owed.reduce((sum, p) => sum + PHASE_MINUTES[p], 0);
+  return Math.round(raw * DIFFICULTY_PACE[node.difficulty ?? "medium"]);
+}
 
 /** Whole days from now until an ISO date (YYYY-MM-DD), floor 0; NaN-safe. */
 export function daysUntil(dateISO: string, now: Date = new Date()): number {
@@ -166,11 +205,12 @@ export function paceStatus(
   graph: ConceptGraph,
   targetPerDay: number,
   daysLeft: number,
+  phasesDone: PhasesDoneMap = {},
 ): PaceStatus {
-  const remaining = graph.nodes.filter(
-    (n) => !n.gap && states[n.id] !== "mastered",
-  ).length;
-  const neededPerDay = Math.ceil((remaining * NODE_MINUTES) / Math.max(1, daysLeft));
+  const open = graph.nodes.filter((n) => !n.gap && states[n.id] !== "mastered");
+  const minutes = open.reduce((sum, n) => sum + minutesLeft(n, phasesDone[n.id]), 0);
+  const remaining = open.length;
+  const neededPerDay = Math.ceil(minutes / Math.max(1, daysLeft));
   return {
     remaining,
     daysLeft,

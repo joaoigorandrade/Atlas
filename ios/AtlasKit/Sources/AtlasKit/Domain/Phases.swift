@@ -27,6 +27,19 @@ public func asNodeKind(_ raw: String?) -> NodeKind {
     NodeKind(rawValue: raw ?? "") ?? .concept
 }
 
+/// How much the learner's goal rests on a concept — drawn as a city (`core`)
+/// or a town (`support`). Mirrors `NodeImportance` in `phases.ts`; anything
+/// unknown reads as `core`, which is what every node was before the axis.
+public enum NodeImportance: String, Codable, Sendable, CaseIterable {
+    case core, support
+}
+
+/// How hard a concept is for a newcomer holding its prerequisites — drawn as
+/// relief beside the city. Mirrors `NodeDifficulty`; unknown reads as `medium`.
+public enum NodeDifficulty: String, Codable, Sendable, CaseIterable {
+    case easy, medium, hard
+}
+
 /// The phase catalogue, in canonical order. Every node's plan is a
 /// *subsequence* of this list, which is what keeps a phase index monotone and
 /// the rail left-to-right whatever plan a node is on.
@@ -190,6 +203,22 @@ public let legacyPhasePlan: [Phase] = [
 /// which is closed by weeks of review history rather than by a session.
 public func planGates(_ plan: [Phase]) -> [Phase] {
     plan.filter { $0 != .retain }
+}
+
+/// The gate that proves a concept cold: the Crucible wherever the plan has
+/// one, else its last gate. Mirrors `proofGate` in `phases.ts`.
+public func proofGate(_ plan: [Phase]) -> Phase {
+    plan.contains(.crucible) ? .crucible : (planGates(plan).last ?? .consume)
+}
+
+/// The ledger after `phase` closes. Under a "prove it" challenge, passing the
+/// proof gate credits every gate before it; otherwise the phase is appended.
+/// Retain never enters the ledger. Mirrors `ledgerAfter` in `calibration.ts`.
+public func ledgerAfter(_ plan: [Phase], _ prev: [Phase], _ phase: Phase, challenged: Bool) -> [Phase] {
+    if challenged && phase == proofGate(plan) {
+        return prev + planGates(plan).filter { !prev.contains($0) }
+    }
+    return prev.contains(phase) ? prev : prev + [phase]
 }
 
 /// Which phases each node has finished, in completion order — the record

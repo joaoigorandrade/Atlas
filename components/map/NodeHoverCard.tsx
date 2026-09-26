@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   STATE_COLOR,
   meetsPrereq,
+  minutesLeft,
   phaseIndex,
   phaseLabel,
   phasePlan,
@@ -23,6 +24,7 @@ import {
 import { color, font, motion } from "@/lib/theme";
 import { usePresence } from "@/lib/motion";
 import NodeSeal from "@/components/map/NodeSeal";
+import { minutesLine, settlementLine } from "@/components/map/Relief";
 import { SEAL } from "@/components/map/MapNode";
 import type { ViewTransform } from "@/components/map/mapGeometry";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -162,7 +164,12 @@ function Body({
           ? t.next(phaseLabel(nextUp))
           : t.inReview;
 
+  // What the node costs: its rank and relief, and the work it still owes.
+  const owed =
+    node.gap || displayState === "mastered" ? 0 : minutesLeft(node, phasesDone);
   const facts = [
+    node.gap ? null : settlementLine(node, language),
+    owed > 0 ? minutesLine(owed, language) : null,
     reading ? t.reading(reading.read, reading.total) : null,
     gaps > 0 ? t.openGaps(gaps) : null,
     unlocks > 0 ? t.unlocks(unlocks) : null,

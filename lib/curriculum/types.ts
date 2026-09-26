@@ -7,7 +7,14 @@
 
 import type { Language } from "@/lib/i18n";
 import type { Domain } from "./domains";
-import { phaseLabel, planGates, type NodeKind, type PhaseId } from "./phases";
+import {
+  phaseLabel,
+  planGates,
+  type NodeDifficulty,
+  type NodeImportance,
+  type NodeKind,
+  type PhaseId,
+} from "./phases";
 
 export type NodeState =
   "unknown" | "frontier" | "learning" | "shaky" | "mastered" | "gap";
@@ -40,6 +47,11 @@ export interface ConceptNode {
    *  domains existed, and everything treats a missing domain as `general`,
    *  which is exactly what every node behaved as then. */
   domain?: Domain;
+  /** How much the goal rests on it (drawn as city vs town) and how hard it is
+   *  (drawn as relief beside the city). Written by the map generation; absent
+   *  reads as `core` / `medium`, which is what every node was before. */
+  importance?: NodeImportance;
+  difficulty?: NodeDifficulty;
   /** The phases this node runs, resolved from `kind` and `domain` at map-build
    *  time and
    *  frozen here. Stored rather than recomputed so shipping a new catalogue

@@ -77,6 +77,8 @@ export function projectNodes(run: {
       // on its first write or it comes back kind-less and plan-less.
       kind: node.kind,
       domain: node.domain,
+      importance: node.importance,
+      difficulty: node.difficulty,
       phasePlan: node.phasePlan,
       // The record mastery state is derived from — the one progress field that
       // must never be dropped from a delta.

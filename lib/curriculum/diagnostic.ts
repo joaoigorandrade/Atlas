@@ -12,7 +12,8 @@ import { checkNumeric, checkOrder, checkText } from "./answerCheck";
 // more than placement.
 import { ancestorsOf } from "./calibration";
 import type { GapSpec, StateMap } from "./replan";
-import type { ConceptEdge } from "./types";
+import { phasePlan, planGates, type PhasesDoneMap } from "./phases";
+import type { ConceptEdge, ConceptGraph } from "./types";
 
 export type DiagnosticEffect = "mastered" | "shaky";
 
@@ -162,5 +163,32 @@ export function applyDiagnosticEffect(
   if (effect === "mastered")
     for (const id of ancestorsOf(nodeId, edges)) next[id] = "mastered";
   else next[nodeId] = "shaky";
+  return next;
+}
+
+/**
+ * The ledger write that goes with `applyDiagnosticEffect`. Mastery state is
+ * derived from the ledger, so a placement that wrote only states left every
+ * pruned node `mastered` with nothing finished behind it — and the next phase
+ * it closed walked it straight back to Learning. Mirrors
+ * `applyDiagnosticLedger` in the iOS `Diagnostic.swift`:
+ *
+ * - known → every gate of the node and of its whole prerequisite chain. Gates,
+ *   not the plan: Retain is closed by review history, never by a session.
+ * - a genuine miss → every gate but the last, so the node is owed exactly the
+ *   gate its `diagnostic-hesitation` line sends the learner back to.
+ */
+export function applyDiagnosticLedger(
+  phasesDone: PhasesDoneMap,
+  effect: DiagnosticEffect,
+  nodeId: string,
+  graph: ConceptGraph,
+): PhasesDoneMap {
+  const gatesOf = (id: string) =>
+    planGates(phasePlan(graph.nodes.find((n) => n.id === id) ?? {}));
+  const next = { ...phasesDone };
+  if (effect === "mastered")
+    for (const id of ancestorsOf(nodeId, graph.edges)) next[id] = gatesOf(id);
+  else next[nodeId] = gatesOf(nodeId).slice(0, -1);
   return next;
 }

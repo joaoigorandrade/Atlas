@@ -15,8 +15,9 @@
 // the same six rungs, and why a plan without a Crucible in it could never go
 // green.
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
+  ledgerAfter,
   phasePlan,
   stateFromPlan,
   type ConceptNode,
@@ -37,6 +38,9 @@ export function usePhaseLedger(deps: {
   warmOne: (kind: Exclude<PhaseId, "retain">, node: ConceptNode) => void;
 }) {
   const { phasesDoneRef, setPhasesDone, shakyReasonsRef, setStates, warmOne } = deps;
+  /** The node under a "prove it" challenge, if any. Session-only on purpose:
+   *  a reload drops it, which fails safe — the attempt just credits itself. */
+  const challengeRef = useRef<string | null>(null);
 
   /**
    * A phase closed. Record it, and let mastery state fall out of the record.
@@ -49,7 +53,9 @@ export function usePhaseLedger(deps: {
   const completePhase = useCallback(
     (node: ConceptNode, phase: PhaseId, shaky?: ShakyReason | null) => {
       const prev = phasesDoneRef.current[node.id] ?? [];
-      const done = prev.includes(phase) ? prev : [...prev, phase];
+      const challenged = challengeRef.current === node.id;
+      if (challenged) challengeRef.current = null; // one attempt, one verdict
+      const done = ledgerAfter(phasePlan(node), prev, phase, challenged);
       // Written through the ref as well as the setter: the handlers below run
       // several of these in one tick, and each needs to see the last.
       phasesDoneRef.current = { ...phasesDoneRef.current, [node.id]: done };
@@ -100,17 +106,15 @@ export function usePhaseLedger(deps: {
     [warmOne],
   );
 
-  /** The learner asserting they already own the concept: the whole plan, not
-   *  just its last rung, so the frontier re-derives past it. */
-  const completeWholePlan = useCallback(
-    (node: ConceptNode) => {
-      const plan = phasePlan(node);
-      phasesDoneRef.current = { ...phasesDoneRef.current, [node.id]: plan };
-      setPhasesDone((p) => ({ ...p, [node.id]: plan }));
-      setStates((p) => ({ ...p, [node.id]: "mastered" }));
-    },
-    [phasesDoneRef, setPhasesDone, setStates],
-  );
+  /** "I already know this": the next close of this node's proof gate credits
+   *  the whole plan (`ledgerAfter`). Any ordinary entry disarms it, and so does
+   *  a failed first attempt — only a cold pass is proof. */
+  const armChallenge = useCallback((id: string) => {
+    challengeRef.current = id;
+  }, []);
+  const disarmChallenge = useCallback(() => {
+    challengeRef.current = null;
+  }, []);
 
-  return { completePhase, markStarted, warmNext, completeWholePlan };
+  return { completePhase, markStarted, warmNext, armChallenge, disarmChallenge };
 }

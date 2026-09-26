@@ -19,6 +19,7 @@ import {
   phaseLabel,
   phasePlan,
   planGates,
+  proofGate,
   primaryPhase,
   SOCRATIC_STEPS,
   connectCards,
@@ -261,7 +262,7 @@ export function useSpiral(deps: {
     setStates,
     warmOne,
   });
-  const { completePhase, markStarted, warmNext, completeWholePlan } = ledger;
+  const { completePhase, markStarted, warmNext, armChallenge, disarmChallenge } = ledger;
 
   // The six phases the catalogue added in its growth to twelve, one hook
   // each. Split out of this module on the `phaseLedger` precedent: the spiral
@@ -1401,8 +1402,8 @@ export function useSpiral(deps: {
   /**
    * The write-back — Feynman's connective tissue. Every unresolved gap becomes
    * a red Gap sub-node hung under the parent (via `attachGap`, idempotent),
-   * then the phase hands straight off to Connect. The node stays Learning —
-   * mastery waits for the Crucible.
+   * then the phase hands off to whatever the plan owes next — Perform on a
+   * procedure, Connect on a concept. The node stays Learning.
    */
   const advanceFromFeynman = () => {
     if (!feynman) return;
@@ -1419,7 +1420,7 @@ export function useSpiral(deps: {
     });
     if (node) {
       completePhase(node, "feynman");
-      enterConnect(node);
+      enterOwedPhase(node);
       if (specs.length)
         showToast(tc().gapsAttached(specs.length, node.label), tc().mapUpdated);
     } else {
@@ -1597,6 +1598,7 @@ export function useSpiral(deps: {
             j.outcome === "partial" ? 45 : 88,
           );
         if (j.outcome !== "partial") return;
+        disarmChallenge(); // a scaffolded re-attempt is not a cold pass
         // The judged gap replaces the pre-generated one when the judge named
         // a different missing sub-concept.
         const gap: GapSpec =
@@ -2015,6 +2017,7 @@ export function useSpiral(deps: {
     exhausted: () => void = () => setScreen("map"),
     state: NodeState | undefined = displayRef.current[node.id],
   ) => {
+    disarmChallenge();
     const next = primaryPhase(phasePlan(node), phasesDoneRef.current[node.id], state);
     if (next) enterPhase[next](node);
     else exhausted();
@@ -2111,16 +2114,12 @@ export function useSpiral(deps: {
     enterOwedPhase(node, enterReview, displayState);
   };
 
-  /**
-   * The aggressive faster lever: prune a frontier node the learner already
-   * owns. Mastery is written back, so the frontier re-derives past it and
-   * the pace math immediately eases.
-   */
+  /** "I already know this" — prove it: open the node's proof gate, and a
+   *  first-try pass credits every rung before it (`ledgerAfter`). */
   const skipKnown = (node: ConceptNode) => {
-    // Pruning is the learner asserting the whole plan, not just its last rung.
-    completeWholePlan(node);
-    setShakyReason(node.id, null);
-    showToast(tc().pruned(node.label), tc().mapUpdated);
+    markStarted(node);
+    armChallenge(node.id);
+    enterPhase[proofGate(phasePlan(node))](node);
   };
 
   const onPhaseAction = (node: ConceptNode, displayState: NodeState, idx: number) => {
@@ -2134,6 +2133,7 @@ export function useSpiral(deps: {
       reviewedNodes.includes(node.id),
     );
     if (current < 0) return;
+    disarmChallenge();
     const phase = plan[idx];
     if (!phase) return;
     // Every phase opens from its own row, done or not: re-reading and re-doing
