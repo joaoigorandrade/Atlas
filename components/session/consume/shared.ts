@@ -36,7 +36,8 @@ export const STRINGS = {
     modelBack: "← Back to the section",
     modelEmpty: "This view came back empty — close it and try another lens.",
     diagramLabel: "diagram ·",
-    finishBegin: (phase: string) => `Finish · begin ${phase} →`,
+    finishBegin: (phase?: string) =>
+      phase ? `Finish · begin ${phase} →` : "Finish the reading →",
     continueSection: (next: string) => `Continue · ${next} ↓`,
     writingNext: "Writing the next section…",
     simplifyingTitle: "Simplifying a lot?",
@@ -76,15 +77,19 @@ export const STRINGS = {
     // ---- the closing beat
     recapKicker: "Session · Consume — complete",
     recapTitle: (t: string) => `That was ${t}.`,
-    recapLead: (phase: string) =>
-      `Everything below came out of the reading you just did. ${phase} starts from here, and works from it without letting you look back.`,
+    // No phase: a recognise-only node, whose reading was the whole of it.
+    recapLead: (phase?: string) =>
+      phase
+        ? `Everything below came out of the reading you just did. ${phase} starts from here, and works from it without letting you look back.`
+        : "That is all this concept asks of you — to recognise it when you meet it. Review keeps it from fading.",
     recapSections: (n: number) => `${n} section${n === 1 ? "" : "s"} read`,
     recapMinutes: (n: number) => `~${n} min`,
     recapTerms: (n: number) => `${n} term${n === 1 ? "" : "s"} met`,
     recapTakeaways: "What you took away",
     recapSkipped: "skipped",
     recapTermsHeading: "Terms you opened",
-    recapBegin: (phase: string) => `Begin ${phase} →`,
+    recapBegin: (phase?: string) =>
+      phase ? `Begin ${phase} →` : "Done — back to the map →",
     recapBackToMap: "Back to the map",
     recapReread: "↑ Re-read",
     checkKicker: "Before you continue",
@@ -117,7 +122,8 @@ export const STRINGS = {
     modelBack: "← Voltar à seção",
     modelEmpty: "Esta visão voltou vazia — feche e tente outra lente.",
     diagramLabel: "diagrama ·",
-    finishBegin: (phase: string) => `Concluir · começar ${phase} →`,
+    finishBegin: (phase?: string) =>
+      phase ? `Concluir · começar ${phase} →` : "Concluir a leitura →",
     continueSection: (next: string) => `Continuar · ${next} ↓`,
     writingNext: "Escrevendo a próxima seção…",
     simplifyingTitle: "Simplificando bastante?",
@@ -157,15 +163,18 @@ export const STRINGS = {
     // ---- the closing beat
     recapKicker: "Sessão · Consumir — concluída",
     recapTitle: (t: string) => `Isso foi ${t}.`,
-    recapLead: (phase: string) =>
-      `Tudo abaixo saiu da leitura que você acabou de fazer. ${phase} começa daqui, e trabalha em cima disso sem deixar você olhar de volta.`,
+    recapLead: (phase?: string) =>
+      phase
+        ? `Tudo abaixo saiu da leitura que você acabou de fazer. ${phase} começa daqui, e trabalha em cima disso sem deixar você olhar de volta.`
+        : "É tudo o que este conceito pede de você — reconhecê-lo quando aparecer. A revisão evita que ele se apague.",
     recapSections: (n: number) => `${n} ${n === 1 ? "seção lida" : "seções lidas"}`,
     recapMinutes: (n: number) => `~${n} min`,
     recapTerms: (n: number) => `${n} ${n === 1 ? "termo visto" : "termos vistos"}`,
     recapTakeaways: "O que você leva daqui",
     recapSkipped: "pulada",
     recapTermsHeading: "Termos que você abriu",
-    recapBegin: (phase: string) => `Começar ${phase} →`,
+    recapBegin: (phase?: string) =>
+      phase ? `Começar ${phase} →` : "Pronto — voltar ao mapa →",
     recapBackToMap: "Voltar ao mapa",
     recapReread: "↑ Reler",
     checkKicker: "Antes de continuar",

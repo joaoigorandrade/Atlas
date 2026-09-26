@@ -4,6 +4,7 @@
 // gap offsets are computed here, never trusted from the model.
 
 export * from "./map";
+export * from "./mapConcept";
 export * from "./summary";
 export * from "./consume";
 export * from "./model";

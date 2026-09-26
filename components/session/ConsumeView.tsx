@@ -173,9 +173,9 @@ export default function ConsumeView({
   const simpleFlag = simpleCount >= 3 && session.preferred !== "simpler";
 
   const breadcrumb = plan.map(phaseLabel).join(" → ");
-  // The recap's forward CTA names the rung this node actually owes next —
-  // Consume is index 0 of every plan, and what follows it is per-kind.
-  const nextLabel = phaseLabel(plan[1] ?? "retain");
+  // The rung owed next, per kind — none on a recognise-only (Consume, Retain) plan.
+  const next = plan.find((p) => p !== "consume" && p !== "retain");
+  const nextLabel = next && phaseLabel(next);
 
   // Honest time-left estimate: word count of what's left, at ~200wpm.
   // ponytail: while still streaming we don't yet know the pass's true length

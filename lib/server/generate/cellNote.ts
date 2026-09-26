@@ -16,9 +16,9 @@ import { BAR, type Cell, type PhaseId } from "@/lib/curriculum";
 export const DEFAULT_CELL: Cell = "12";
 
 const BAR_NOTE = {
-  use: "THIS CONCEPT IS A WORKING TOOL for the learner's goal: they must be able to USE it correctly, not master its theory. Spend the words on when to reach for it, how to apply it, and the mistake people make applying it; leave out derivations, proofs and history.",
+  use: "THIS CONCEPT IS A WORKING TOOL for the learner's goal: they must be able to USE it correctly, not master its theory. Spend the words on when to reach for it, how to apply it, and the mistake people make applying it; leave out derivations, proofs and history. Every field the shape asks for is still written.",
   recognise:
-    "THIS CONCEPT IS PERIPHERAL to the learner's goal: they only need to RECOGNISE it when they meet it — what it is, what it looks like, and how to tell it from its neighbours. Do not derive, prove or drill it. Be brief.",
+    "THIS CONCEPT IS PERIPHERAL to the learner's goal: they only need to RECOGNISE it when they meet it — what it is, what it looks like, and how to tell it from its neighbours. Leave out derivations and proofs and keep the prose short — but brief is about length, never about the shape: every field it asks for is still written, the closing check included.",
 } as const;
 
 const BLACK_BOX =

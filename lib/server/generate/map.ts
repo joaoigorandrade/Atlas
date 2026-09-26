@@ -20,6 +20,13 @@ import {
   PARETO_DEFAULT,
   graphFromMapNodes,
 } from "@/lib/curriculum";
+import {
+  claim,
+  restartGuard,
+  validateMapConcept,
+  type RawConcept,
+  type SeenConcepts,
+} from "./mapConcept";
 import { generateJson, streamJsonObjects } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
 
@@ -36,26 +43,6 @@ export interface CurriculumMapPayload {
 export interface ScopeOffer {
   label: string;
   note: string;
-}
-
-/** A validated concept before layout — the same shape whether it arrived in one
- *  payload or one streamed object at a time. */
-type RawConcept = { id: string; label: string; summary?: string } & ReturnType<
-  typeof nodeAxes
->;
-
-/** Every name a written concept answers to — its id and its folded label —
- *  mapped to the id that stays on the map. A model padding a map restates
- *  concepts ("João Batista" twice, under two ids); the restatement is dropped
- *  and whatever names it resolves to the concept written first. */
-export type SeenConcepts = Map<string, string>;
-
-/** Registers `id`/`label`, or answers the id they already belong to. */
-function claim(seen: SeenConcepts, id: string, label: string): string | null {
-  const kept = seen.get(id) ?? seen.get(slug(label, "label"));
-  if (kept) seen.set(id, kept);
-  else seen.set(id, id).set(slug(label, "label"), id);
-  return kept ?? null;
 }
 
 /** Column layout from topological depth — deterministic, draggable afterwards. */
@@ -319,42 +306,6 @@ ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
   return { nodes: withPrereqs(layoutGraph(raw.nodes, raw.edges), raw.edges) };
 }
 
-/** One streamed concept, before layout: its id, its label, and the concepts it
- *  depends on — which must already have been written, so a forward reference is
- *  dropped rather than believed. That one rule is what makes a prerequisite
- *  cycle structurally impossible without a whole-graph check. */
-export function validateMapConcept(
-  raw: unknown,
-  index: number,
-  seen: SeenConcepts,
-  goal?: GoalKind,
-): RawConcept & { prereqs: string[] } {
-  const c = obj(raw, `concept[${index}]`);
-  const id = slug(c.id, `concept[${index}].id`);
-  const label = str(c.label, `concept[${index}].label`);
-  // Resolved before `claim`, which registers this concept: a self-reference
-  // must not find it.
-  const prereqs = Array.isArray(c.prereqs)
-    ? c.prereqs
-        .filter((p): p is string => typeof p === "string" && p.trim() !== "")
-        // Forward and self references are dropped, not failed: one hallucinated
-        // id must not cost the learner the whole map.
-        .map((p) => seen.get(slug(p, "prereq")))
-        .filter((p): p is string => p !== undefined)
-    : [];
-  const kept = claim(seen, id, label);
-  if (kept) fail(`duplicate concept "${label}" — already written as "${kept}"`);
-  return {
-    id,
-    label,
-    // Soft, like the single-shot validator: a concept that arrives without its
-    // sentence still lands on the map.
-    summary: c.summary ? str(c.summary, `concept[${index}].summary`) : undefined,
-    ...nodeAxes(c, goal),
-    prereqs: [...new Set(prereqs)],
-  };
-}
-
 /**
  * The map, one concept at a time.
  *
@@ -385,8 +336,11 @@ export async function* generateMapStream(params: MapParams): AsyncGenerator<Stre
     const column: Record<number, number> = {};
     const accepted: MapNode[] = [];
 
+    const guard = restartGuard((raw, i) => validateMapConcept(raw, i, seen, params.goal));
     const stream = streamJsonObjects<
-      { scopes: ScopeOffer[] } | (RawConcept & { prereqs: string[] })
+      | { scopes: ScopeOffer[] }
+      | { restarted: true }
+      | (RawConcept & { prereqs: string[] })
     >(
       user(
         `${mapContext(params)}
@@ -406,12 +360,13 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
         // it comes down this same wire untouched (#30).
         const offers = index === 0 ? validateScopeOffer(raw) : null;
         if (offers) return { scopes: offers };
-        return validateMapConcept(raw, index, seen, params.goal);
+        return guard(raw, index);
       },
       { label: "curriculum-map-stream" },
     );
 
     for await (const item of stream) {
+      if ("restarted" in item) break;
       // The too-broad answer is the whole reply, and always arrives first (the
       // validator only accepts it at index 0), so there is nothing to reconcile.
       if ("scopes" in item) {

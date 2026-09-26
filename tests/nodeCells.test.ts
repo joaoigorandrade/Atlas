@@ -85,3 +85,20 @@ describe("axesRule", () => {
     expect(axesRule("mastery")).toMatch(/at least half the concepts are "core"/);
   });
 });
+
+describe("restartGuard", () => {
+  it("drops one restatement but ends the stream on a map started over", async () => {
+    const { restartGuard, validateMapConcept } = await import("@/lib/server/generate");
+    const seen = new Map<string, string>();
+    const guard = restartGuard((raw, i) => validateMapConcept(raw, i, seen));
+    const c = (id: string) => ({ id, label: id.toUpperCase() });
+    guard(c("a"), 0);
+    guard(c("b"), 1);
+    guard(c("c"), 2);
+    expect(() => guard(c("a"), 3)).toThrow(/duplicate/); // one slip: dropped
+    expect(guard(c("d"), 3)).toMatchObject({ id: "d" }); // and the run resets
+    expect(() => guard(c("a"), 4)).toThrow(/duplicate/);
+    expect(() => guard(c("b"), 4)).toThrow(/duplicate/);
+    expect(guard(c("c"), 4)).toEqual({ restarted: true });
+  });
+});
