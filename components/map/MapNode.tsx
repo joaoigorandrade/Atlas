@@ -8,7 +8,8 @@
 // first" path gets an amber ring of its own.
 
 import type { ConceptNode, NodeState } from "@/lib/curriculum";
-import { STATE_COLOR } from "@/lib/curriculum";
+import { STATE_COLOR, stateLabel } from "@/lib/curriculum";
+import { useLanguage } from "@/lib/i18n";
 import { color, font, map, motion, transition } from "@/lib/theme";
 import { WaxSeal } from "@/components/ui/Ornaments";
 import { CityMark, Relief, rankOf } from "@/components/map/Relief";
@@ -18,7 +19,9 @@ import { CityMark, Relief, rankOf } from "@/components/map/Relief";
 export const SEAL = 22;
 export const CELEBRATE_MS = 900;
 
-const HALO = `0 0 2px ${color.paper}, 0 0 4px ${color.paper}, 0 0 8px ${color.paper}, 0 0 12px ${color.paper}`;
+// Two blurs, not four: Safari re-rasterises every label's shadow on each zoom
+// frame of the scaled layer, and the 2px + 6px pair reads as the same halo.
+const HALO = `0 0 2px ${color.paper}, 0 0 6px ${color.paper}`;
 
 export default function MapNode({
   node,
@@ -56,6 +59,7 @@ export default function MapNode({
   onOpen: () => void;
   onHover: (on: boolean) => void;
 }) {
+  const { language } = useLanguage();
   const frontier = state === "frontier";
   // A node left unknown after derivation is locked by definition; keep the
   // assemble moment uniform while the map is building.
@@ -102,7 +106,7 @@ export default function MapNode({
         data-state={state}
         role="button"
         tabIndex={0}
-        aria-label={`${node.label} — ${state}`}
+        aria-label={`${node.label} — ${stateLabel(state, language)}`}
         onKeyDown={(e) => {
           // The map is a mouse surface — pan, drag, double-click to begin — and
           // none of that is reachable from a keyboard. Enter selects (opening

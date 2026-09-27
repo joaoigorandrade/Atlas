@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { STATE_COLOR, type DailyQueue } from "@/lib/curriculum";
 import Masthead from "@/components/ui/Masthead";
+import { pressable } from "@/components/ui/Button";
 import { plateStyle } from "@/components/ui/Plate";
 import { CompassRose } from "@/components/ui/Ornaments";
 import { color, font, kicker } from "@/lib/theme";
@@ -190,13 +191,7 @@ export default function DashboardScreen({
           >
             {greeting}, {name}
           </h1>
-          <div
-            style={{
-              fontSize: 15,
-              color: color.inkMuted,
-              marginBottom: 36,
-            }}
-          >
+          <div style={{ fontSize: 15, color: color.inkMuted, marginBottom: 36 }}>
             {frontierTotal > 0 ? t.frontierIntro(frontierTotal) : t.fullyMastered}
           </div>
 
@@ -210,7 +205,7 @@ export default function DashboardScreen({
           >
             <div
               className="at-lift"
-              onClick={onReview}
+              {...pressable(onReview)}
               style={{
                 ...cardBase,
                 border: `3px double ${color.accent}`,
@@ -273,7 +268,7 @@ export default function DashboardScreen({
 
             <div
               className="at-lift"
-              onClick={onOpenMap}
+              {...pressable(onOpenMap)}
               style={{
                 ...cardBase,
                 border: `3px double ${color.gilt}`,
@@ -423,7 +418,7 @@ function MapCard({
       // The confirmation state is a decision point, not a target — it stops
       // inviting the cursor.
       className={confirming ? undefined : "at-lift"}
-      onClick={confirming ? undefined : onOpen}
+      {...(confirming ? null : pressable(onOpen))}
       style={{
         background: color.card,
         border: `1px solid ${

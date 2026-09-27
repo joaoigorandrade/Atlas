@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, CSSProperties } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, KeyboardEvent } from "react";
 import { color, font } from "@/lib/theme";
 
 /**
@@ -33,6 +33,8 @@ export default function Button({
         ...base,
         ...VARIANT[variant](accent),
         width: full ? "100%" : undefined,
+        // A disabled button used to look exactly like a live one and do nothing.
+        ...(rest.disabled ? { opacity: 0.5, cursor: "default" } : null),
         ...style,
       }}
     />
@@ -75,3 +77,20 @@ const VARIANT: Record<"primary" | "secondary" | "quiet", (ink: string) => CSSPro
       letterSpacing: 0,
     }),
   };
+
+/**
+ * Button semantics for a card or row that has to stay a block (a whole
+ * dashboard card is the target). Without these, keyboard users could not open
+ * a map, start a review, reach Settings or sign out.
+ */
+export const pressable = (onPress: () => void) => ({
+  role: "button" as const,
+  tabIndex: 0,
+  onClick: onPress,
+  onKeyDown: (e: KeyboardEvent) => {
+    // Only the card's own keys: Enter on a button inside it is that button's.
+    if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    onPress();
+  },
+});

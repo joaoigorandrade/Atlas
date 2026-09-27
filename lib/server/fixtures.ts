@@ -162,7 +162,7 @@ const consumeChunks = (v: Vars): ConsumeChunk[] =>
         { label: "It is unrelated to the topic.", correct: false },
       ],
       right: "Yes — that is the point of the section.",
-      wrong: "Not quite — it was in the second paragraph.",
+      wrong: "It was in the second paragraph.",
     },
   }));
 

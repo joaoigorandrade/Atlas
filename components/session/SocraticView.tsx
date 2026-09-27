@@ -133,7 +133,7 @@ export default function SocraticView({
         : t.advanceTeach(phaseLabel(owed));
 
   return (
-    <Sheet data-testid="phase-socratic" aria-label="Socratic — {title}">
+    <Sheet data-testid="phase-socratic" aria-label={`Socratic — ${title}`}>
       <Masthead
         back={t.back}
         onBack={onExit}
@@ -380,13 +380,7 @@ function Turn({
   const t = useT(STRINGS);
   if (turn.role === "learner") {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: 18,
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
         <div
           style={{
             maxWidth: "82%",

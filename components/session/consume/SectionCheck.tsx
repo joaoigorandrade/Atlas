@@ -105,7 +105,7 @@ export function SectionCheck({
                   // there made every `action-check-N` match twice.
                   data-testid={passed ? undefined : `action-check-${oi}`}
                   onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
-                  disabled={passed}
+                  disabled={passed || picked}
                   style={{
                     textAlign: "left",
                     padding: "13px 16px",

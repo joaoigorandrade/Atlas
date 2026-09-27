@@ -74,7 +74,7 @@ export default function CrucibleView({
   const isWork = session.stage === "work";
 
   return (
-    <Sheet data-testid="phase-crucible" aria-label="Crucible — {title}">
+    <Sheet data-testid="phase-crucible" aria-label={`Crucible — ${content.centerLabel}`}>
       <Masthead
         back={t.map}
         onBack={onExit}
@@ -98,13 +98,7 @@ export default function CrucibleView({
 
       {/* Body — scrolls; centered 1040 column */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <div
-          style={{
-            maxWidth: 1040,
-            margin: "0 auto",
-            padding: "40px 32px 120px",
-          }}
-        >
+        <div style={{ maxWidth: 1040, margin: "0 auto", padding: "40px 32px 120px" }}>
           <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kickerApplication}</div>
           <h1
             style={{

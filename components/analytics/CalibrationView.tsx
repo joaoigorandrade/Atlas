@@ -1,5 +1,6 @@
 "use client";
 
+import { pressable } from "@/components/ui/Button";
 import {
   CALIB_COLOR,
   CALIB_TREND_COLOR,
@@ -47,6 +48,7 @@ const STRINGS = {
     feelingMatches: "Feeling matches result",
     felt: "Felt",
     real: "Real",
+    noReadings: "No readings yet — rate your confidence before a Crucible or a card.",
   },
   "pt-BR": {
     backToMap: "← Mapa",
@@ -77,6 +79,8 @@ const STRINGS = {
     feelingMatches: "A sensação bate com o resultado",
     felt: "Sentiu",
     real: "Real",
+    noReadings:
+      "Nenhuma leitura ainda — indique sua confiança antes de um Crucible ou cartão.",
   },
 } as const;
 
@@ -109,7 +113,7 @@ export default function CalibrationView({
 }: CalibrationViewProps) {
   const t = useT(STRINGS);
   return (
-    <Sheet data-testid="screen-calibration" aria-label="Calibration">
+    <Sheet data-testid="screen-calibration" aria-label={t.analyticsCalibration}>
       <Masthead
         back={t.backToMap}
         onBack={onExit}
@@ -127,7 +131,8 @@ export default function CalibrationView({
             margin: "0 auto",
             padding: "34px 32px 120px",
             display: "grid",
-            gridTemplateColumns: "512px 1fr",
+            // Two columns only when both fit (at 768–1000px the readout got ~160px).
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 460px), 1fr))",
             gap: 34,
             alignItems: "start",
           }}
@@ -440,10 +445,10 @@ function Readout({
             marginBottom: 14,
           }}
         >
-          {calibCoach(items, language)}
+          {items.length ? calibCoach(items, language) : t.noReadings}
         </div>
         <div style={{ fontSize: 13.5, color: color.inkMuted, lineHeight: 1.58 }}>
-          {calibTopicLine(items, language)}
+          {items.length > 0 && calibTopicLine(items, language)}
         </div>
       </div>
 
@@ -540,7 +545,7 @@ function CalibRow({
       : t.feelingMatches;
   return (
     <div
-      onClick={over ? () => onCloseGap(item.id) : undefined}
+      {...(over ? pressable(() => onCloseGap(item.id)) : null)}
       style={{
         display: "grid",
         gridTemplateColumns: "148px 1fr auto",
@@ -624,12 +629,7 @@ function Bar({ label, pct, fill }: { label: string; pct: number; fill: string })
         }}
       >
         <div
-          style={{
-            width: `${pct}%`,
-            height: "100%",
-            background: fill,
-            borderRadius: 3,
-          }}
+          style={{ width: `${pct}%`, height: "100%", background: fill, borderRadius: 3 }}
         />
       </div>
       <span

@@ -232,7 +232,7 @@ function NodeDetailBody({
       data-testid="panel-node"
       data-node={node?.id ?? ""}
       role="complementary"
-      aria-label="Concept detail"
+      aria-label={node?.label}
       style={{
         position: "absolute",
         top: layout.topBar,

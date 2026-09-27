@@ -78,7 +78,7 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
   });
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", flexShrink: 0 }}>
       <button
         className="at-press"
         onClick={() => setOpen((v) => !v)}
@@ -92,6 +92,7 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
           fontSize: 13,
           color: color.inkMuted,
           padding: 0,
+          whiteSpace: "nowrap",
         }}
       >
         <span
@@ -199,14 +200,7 @@ function Popover({
             : `fadeDown ${POPOVER_EXIT_MS}ms ${motion.ease.exit} both`,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: 9,
-          marginBottom: 10,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9, marginBottom: 10 }}>
         <span
           style={{
             fontFamily: font.serif,

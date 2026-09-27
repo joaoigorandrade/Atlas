@@ -19,7 +19,7 @@ import {
 } from "@/lib/curriculum";
 import { createWarmQueue } from "@/lib/warm";
 import { type Language, languageAction, useLanguage } from "@/lib/i18n";
-import { InkRule } from "@/components/Pending";
+import AppGate from "@/components/AppGate";
 import { color, font, layout } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, Topic } from "@/lib/persistence";
@@ -69,17 +69,6 @@ import { ERROR_STRINGS } from "@/lib/errorCopy";
 import RailToggle from "@/components/map/RailToggle";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
-
-/** The full-screen centred sheet the hydrate mark and the small-screen gate share. */
-const CENTERED: React.CSSProperties = {
-  position: "relative",
-  width: "100%",
-  height: "100vh",
-  background: color.paper,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
 
 export default function AtlasApp({
   userEmail,
@@ -570,72 +559,9 @@ export default function AtlasApp({
   // Hold the paper blank until the saved-run fetch settles — a resumed run
   // must open on the map, never flash the welcome screen first. The mark is
   // delayed past a fast hydration so a quick resume never flashes a spinner.
-  if (!hydrated) {
-    return (
-      <div style={CENTERED}>
-        <div style={{ textAlign: "center", animation: "softIn 0.5s 0.4s both" }}>
-          <div
-            style={{
-              fontFamily: font.mono,
-              fontSize: 11,
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              color: color.inkFaint,
-              marginBottom: 16,
-            }}
-          >
-            Atlas · learn anything, deeply
-          </div>
-          <InkRule width={180} />
-        </div>
-      </div>
-    );
-  }
-
+  if (!hydrated) return <AppGate narrow={false} />;
   // Below the hard minimum a polished gate beats a broken layout (#8).
-  if (vw < 768) {
-    return (
-      <div
-        style={{
-          ...CENTERED,
-          color: color.ink,
-          fontFamily: font.sans,
-          padding: 32,
-          textAlign: "center",
-        }}
-      >
-        <div style={{ maxWidth: 380, animation: "fadeUp 0.4s both" }}>
-          <div
-            style={{
-              fontFamily: font.mono,
-              fontSize: 11,
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              color: color.inkFaint,
-              marginBottom: 16,
-            }}
-          >
-            Atlas · learn anything, deeply
-          </div>
-          <div
-            style={{
-              fontFamily: font.serif,
-              fontSize: 28,
-              lineHeight: 1.2,
-              marginBottom: 14,
-            }}
-          >
-            Atlas is best on a desktop screen
-          </div>
-          <div style={{ fontSize: 14.5, lineHeight: 1.6, color: color.inkSoft }}>
-            The living concept map needs room to breathe. Open Atlas on a laptop or
-            desktop — your progress is saved to your account and will be right where you
-            left it.
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (vw < 768) return <AppGate narrow />;
   const narrow = vw < layout.railsMin;
   const pickNode = (id: string) => (setSelectedId(id), centerOn(id));
   const errorStrings = ERROR_STRINGS[language];
@@ -1061,6 +987,7 @@ export default function AtlasApp({
         open={Boolean(loading)}
         phase={loading?.phase ?? lastLoading.current?.phase ?? ""}
         message={loading?.message ?? lastLoading.current?.message ?? ""}
+        onCancel={gen.cancelGenerate}
       />
 
       <OfflineBanner offline={!online} message={errorStrings.offlineBanner} />

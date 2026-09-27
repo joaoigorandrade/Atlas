@@ -71,7 +71,7 @@ export default function RetainView({
   const budget = retainBudget(session, content);
 
   return (
-    <Sheet data-testid="phase-retain" aria-label="Retain — {title}">
+    <Sheet data-testid="phase-retain" aria-label="Retain">
       <Masthead
         back={t.map}
         onBack={onExit}

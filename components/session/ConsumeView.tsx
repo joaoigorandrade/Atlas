@@ -258,7 +258,7 @@ export default function ConsumeView({
     return (
       <Sheet
         data-testid="phase-consume-recap"
-        aria-label={`Consume recap — ${title}`}
+        aria-label={`Consume — ${title}`}
         style={{
           overflowY: "auto",
         }}
@@ -433,7 +433,7 @@ export default function ConsumeView({
 
   const drawn = chunks.some((c) => c.figure);
   return (
-    <Sheet data-testid="phase-consume" aria-label="Consume — {title}">
+    <Sheet data-testid="phase-consume" aria-label={`Consume — ${title}`}>
       <Masthead
         back={t.back}
         onBack={() => {

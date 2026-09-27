@@ -161,7 +161,7 @@ export default function ConnectView({
   const cy = content.center.y;
 
   return (
-    <Sheet data-testid="phase-connect" aria-label="Connect — {title}">
+    <Sheet data-testid="phase-connect" aria-label={`Connect — ${content.centerLabel}`}>
       <Masthead
         back={t.map}
         onBack={onExit}
@@ -185,13 +185,7 @@ export default function ConnectView({
 
       {/* Body — scrolls; centered 1040 column */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <div
-          style={{
-            maxWidth: 1040,
-            margin: "0 auto",
-            padding: "40px 32px 110px",
-          }}
-        >
+        <div style={{ maxWidth: 1040, margin: "0 auto", padding: "40px 32px 110px" }}>
           <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kickerElaboration}</div>
           <h1
             style={{
@@ -941,6 +935,7 @@ function MnemonicTool({
             <textarea
               value={session.mnemonicDraft}
               onChange={(e) => onDraftMnemonic(e.target.value)}
+              aria-label={t.mnemonicCard}
               rows={4}
               style={{
                 width: "100%",

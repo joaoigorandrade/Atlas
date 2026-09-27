@@ -213,7 +213,7 @@ export default function SettingsScreen({
   return (
     <Sheet
       data-testid="screen-settings"
-      aria-label="Settings"
+      aria-label={t.settings}
       style={{
         overflowY: "auto",
         flexDirection: "row",

@@ -302,7 +302,7 @@ export default function DiagnosticAnswer({
                 data-testid={`action-answer-${oi}`}
                 role="radio"
                 aria-checked={oi === picked}
-                disabled={!picked === undefined}
+                disabled={picked !== undefined}
                 onClick={() => {
                   onAnswer(oi);
                 }}
@@ -327,8 +327,8 @@ export default function DiagnosticAnswer({
                   borderRadius: 3,
                   fontSize: 15,
                   color: color.ink,
-                  opacity: picked && !isAnswer && !isWrongPick ? 0.5 : 1,
-                  cursor: picked ? "default" : "pointer",
+                  opacity: picked !== undefined && !isAnswer && !isWrongPick ? 0.5 : 1,
+                  cursor: picked !== undefined ? "default" : "pointer",
                 }}
               >
                 <span

@@ -4,10 +4,11 @@ import { InkDots, InkRule } from "@/components/Pending";
 import { color, font, kicker, motion } from "@/lib/theme";
 import { usePresence } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
+import Button from "@/components/ui/Button";
 
 const STRINGS = {
-  en: { generating: "generating" },
-  "pt-BR": { generating: "gerando" },
+  en: { generating: "generating", back: "Cancel" },
+  "pt-BR": { generating: "gerando", back: "Cancelar" },
 } as const;
 
 /**
@@ -18,11 +19,14 @@ export default function GeneratingOverlay({
   open,
   phase,
   message,
+  onCancel,
 }: {
   /** False fades the scrim out; content behind it shouldn't snap into view. */
   open: boolean;
   phase: string;
   message: string;
+  /** A slow model can hold this for minutes; the learner is never trapped. */
+  onCancel: () => void;
 }) {
   const t = useT(STRINGS);
   const { mounted, state } = usePresence(open, EXIT_MS);
@@ -74,6 +78,9 @@ export default function GeneratingOverlay({
           {t.generating}
           <InkDots size={3} />
         </div>
+        <Button variant="quiet" onClick={onCancel} style={{ marginTop: 18 }}>
+          {t.back}
+        </Button>
       </div>
     </div>
   );

@@ -128,20 +128,21 @@ export function useDerived(deps: {
   // an empty canvas — swapped for the real graph the instant it streams in.
   const usingFakeMap = screen === "building" && graph.nodes.length === 0;
 
-  // What the canvas shows: the live state map, masked during onboarding
-  // (generations beyond the diagnostic reveal stay hidden) and during the
-  // momentum replay (states that lit after the replay week stay hidden).
+  // What the canvas shows: the live state map, with generations past the reveal
+  // masked during onboarding only (masked on every non-map screen, the dashboard
+  // lost its real frontier) and lit-after-this-week states masked in the replay.
+  const staging = screen === "building" || screen === "diagnostic";
   const visibleStates = useMemo<StateMap>(
     () =>
       Object.fromEntries(
         graph.nodes.map((n) => [
           n.id,
-          (!isMap && n.g > reveal) || (momentumPlaying && n.week > momentumWeek)
+          (staging && n.g > reveal) || (momentumPlaying && n.week > momentumWeek)
             ? "unknown"
             : states[n.id],
         ]),
       ),
-    [graph, isMap, reveal, momentumPlaying, momentumWeek, states],
+    [graph, staging, reveal, momentumPlaying, momentumWeek, states],
   );
   // Concepts the learner just moved. Tracked against stored progress rather
   // than `display`, which is masked during onboarding and by the replay, and

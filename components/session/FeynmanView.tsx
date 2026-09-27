@@ -236,7 +236,7 @@ export default function FeynmanView({
   const breadcrumb = plan.map(phaseLabel).join(" → ");
 
   return (
-    <Sheet data-testid="phase-feynman" aria-label="Feynman — {title}">
+    <Sheet data-testid="phase-feynman" aria-label={`Feynman — ${title}`}>
       <Masthead
         back={t.back}
         onBack={onExit}
@@ -795,13 +795,7 @@ function GapReport({
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "30px 32px 60px" }}>
-      <div
-        style={{
-          maxWidth: 620,
-          margin: "0 auto",
-          animation: "fadeUp .35s both",
-        }}
-      >
+      <div style={{ maxWidth: 620, margin: "0 auto", animation: "fadeUp .35s both" }}>
         <div style={{ ...kicker(10.5), marginBottom: 10 }}>{t.gapReportLead}</div>
         <div
           style={{

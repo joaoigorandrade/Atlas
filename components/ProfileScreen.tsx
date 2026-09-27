@@ -1,5 +1,6 @@
 "use client";
 
+import { pressable } from "@/components/ui/Button";
 import Masthead from "@/components/ui/Masthead";
 import { color, font } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
@@ -282,7 +283,7 @@ export default function ProfileScreen({
             }}
           >
             <div
-              onClick={onSettings}
+              {...pressable(onSettings)}
               style={{
                 ...rowStyle,
                 borderBottom: `1px solid ${color.hairline}`,
@@ -303,7 +304,7 @@ export default function ProfileScreen({
               <span style={{ color: color.inkGhost }}>&rarr;</span>
             </div>
             <div
-              onClick={onReview}
+              {...pressable(onReview)}
               style={{
                 ...rowStyle,
                 borderBottom: `1px solid ${color.hairline}`,
@@ -323,7 +324,7 @@ export default function ProfileScreen({
               </div>
               <span style={{ color: color.inkGhost }}>&rarr;</span>
             </div>
-            <div className="at-press at-tint" onClick={onSignOut} style={rowStyle}>
+            <div className="at-press at-tint" {...pressable(onSignOut)} style={rowStyle}>
               <div style={{ fontSize: 15, color: "#a8412f" }}>{t.signOut}</div>
               <span style={{ color: "#a8412f" }}>&rarr;</span>
             </div>

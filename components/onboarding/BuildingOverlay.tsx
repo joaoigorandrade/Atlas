@@ -40,8 +40,9 @@ export default function BuildingOverlay({ note }: { note?: string | null }) {
   return (
     <div
       data-testid="screen-building"
-      role="status"
-      aria-live="polite"
+      // Not a live region: the narration rotates every 1.4s, and a reader
+      // announcing each line talked over the whole build. Only the note is live.
+      aria-busy="true"
       style={{
         position: "absolute",
         inset: 0,
@@ -70,6 +71,7 @@ export default function BuildingOverlay({ note }: { note?: string | null }) {
         <InkRule width={260} />
         {note && (
           <div
+            role="status"
             style={{
               marginTop: 14,
               fontFamily: font.mono,

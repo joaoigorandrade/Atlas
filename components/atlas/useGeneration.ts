@@ -212,6 +212,8 @@ export function useGeneration(opts_: {
       onReady: (content: T) => void,
     ) => {
       if (loadingRef.current) return;
+      const ticket = ++ticketRef.current; // `cancelGenerate` moves it on
+      const live = () => ticket === ticketRef.current;
       setLoading({ phase, message });
       // Through the warm queue: if this content is already being fetched in
       // the background, the click joins that request instead of paying for a
@@ -225,10 +227,9 @@ export function useGeneration(opts_: {
           warm.drop(key);
           return warm.run(key, fetcher, true);
         })
-        .then((content) => {
-          onReady(content);
-        })
+        .then((content) => live() && onReady(content))
         .catch((err: unknown) => {
+          if (!live()) return;
           showError(err, {
             context: "content",
             retry: () => {
@@ -237,10 +238,17 @@ export function useGeneration(opts_: {
             },
           });
         })
-        .finally(() => setLoading(null));
+        .finally(() => live() && setLoading(null));
     },
     [showError, warm, loadingRef, setLoading],
   );
+  const ticketRef = useRef(0);
+  /** The overlay's way out. The request still lands in the warm cache; only
+   *  its "open the screen" is dropped, so leaving can't be overruled later. */
+  const cancelGenerate = useCallback(() => {
+    ticketRef.current++;
+    setLoading(null);
+  }, [setLoading]);
 
   // `generate` retries itself from the toast, so it needs a handle on its own
   // latest identity — the button is pressed long after this render.
@@ -361,32 +369,22 @@ export function useGeneration(opts_: {
     [formRef, languageRef],
   );
 
+  // Socratic carries no `nodeKind` — no kind steers it — but it does carry
+  // the domain: `interpretive` pushes the questioning onto material cause
+  // rather than doctrine, and the server keys on it. Feynman carries neither.
   const socraticParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      // Socratic carries no `nodeKind` — no kind steers it — but it does carry
-      // the domain: `interpretive` pushes the questioning onto material cause
-      // rather than doctrine, and the server keys on it.
-      domain: node.domain,
-    }),
-    [boundaryOf, formRef, languageRef],
+    (node: ConceptNode) => {
+      const { nodeKind: _kind, ...params } = nodeParams(node);
+      return params;
+    },
+    [nodeParams],
   );
-
   const feynmanParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      interests: formRef.current.interests,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-    }),
-    [boundaryOf, formRef, languageRef],
+    (node: ConceptNode) => {
+      const { nodeKind: _kind, domain: _domain, ...params } = nodeParams(node);
+      return params;
+    },
+    [nodeParams],
   );
 
   /**
@@ -798,6 +796,7 @@ export function useGeneration(opts_: {
 
   return {
     generate,
+    cancelGenerate,
     generateRef,
     prereqNodesOf,
     prereqLabelsOf,

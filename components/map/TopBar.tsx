@@ -1,5 +1,6 @@
 "use client";
 
+import { pressable } from "@/components/ui/Button";
 import type { AdherenceState, DailyQueue } from "@/lib/curriculum";
 import { memo } from "react";
 import { color, font } from "@/lib/theme";
@@ -99,7 +100,7 @@ export default memo(function TopBar({
     >
       <HoverHint place="bottom" hint={t.homeHint}>
         <div
-          onClick={onHome}
+          {...pressable(onHome)}
           style={{
             display: "flex",
             alignItems: "center",
@@ -155,6 +156,8 @@ export default memo(function TopBar({
         style={{
           flex: 1,
           maxWidth: 300,
+          // Shrinks first: at 800px it was the avatar that got pushed off.
+          minWidth: 0,
           marginLeft: 8,
           display: "flex",
           alignItems: "center",
@@ -185,8 +188,10 @@ export default memo(function TopBar({
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           placeholder={t.searchPlaceholder}
+          aria-label={t.searchPlaceholder}
           style={{
             flex: 1,
+            minWidth: 0,
             border: "none",
             background: "transparent",
             fontFamily: font.serif,
@@ -227,6 +232,8 @@ export default memo(function TopBar({
             fontSize: 13,
             color: color.accent,
             cursor: "pointer",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
           <span
@@ -250,7 +257,9 @@ export default memo(function TopBar({
         <button
           className="at-press"
           onClick={onProfile}
+          aria-label={userEmail ? t.profileWith(userEmail) : t.profile}
           style={{
+            flexShrink: 0,
             width: 32,
             height: 32,
             borderRadius: "50%",
