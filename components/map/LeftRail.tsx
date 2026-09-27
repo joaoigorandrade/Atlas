@@ -1,5 +1,6 @@
 "use client";
 
+import { memoLatest } from "@/components/ui/memoLatest";
 import {
   STATE_COLOR,
   goalOrderCaption,
@@ -122,7 +123,9 @@ interface LeftRailProps {
   display: Record<string, NodeState>;
 }
 
-export default function LeftRail({
+export default memoLatest(LeftRail);
+
+function LeftRail({
   subject,
   goal,
   pace,
@@ -227,13 +230,7 @@ export default function LeftRail({
       {nextUp.length > 0 && (
         <div>
           <div style={{ ...kicker(10), marginBottom: 5 }}>{t.nextUp}</div>
-          <div
-            style={{
-              fontSize: 11.5,
-              color: color.inkGhost,
-              marginBottom: 10,
-            }}
-          >
+          <div style={{ fontSize: 11.5, color: color.inkGhost, marginBottom: 10 }}>
             {goalOrderCaption(goal, language)}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

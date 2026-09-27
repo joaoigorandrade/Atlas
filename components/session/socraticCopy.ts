@@ -54,7 +54,7 @@ export const STRINGS = {
     advanceGap: "Fechar a lacuna · voltar ao mapa →",
     advanceTeach: (phase: string) => `Continuar · ${phase} →`,
     advanceBack: "Voltar ao mapa →",
-    advanceReread: "Reler primeiro · Consumir →",
+    advanceReread: "Reler primeiro · Consume →",
     yourAnswer: "Sua resposta — com suas próprias palavras",
     placeholderJudging: "Lendo sua resposta…",
     placeholderWriting: "Escrevendo a próxima pergunta…",

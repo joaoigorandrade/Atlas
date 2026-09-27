@@ -1,8 +1,8 @@
 "use client";
 
+import { memoLatest } from "@/components/ui/memoLatest";
 import { pressable } from "@/components/ui/Button";
 import type { AdherenceState, DailyQueue } from "@/lib/curriculum";
-import { memo } from "react";
 import { color, font } from "@/lib/theme";
 import { mastheadBar } from "@/components/ui/Masthead";
 import { CompassRose } from "@/components/ui/Ornaments";
@@ -73,7 +73,7 @@ interface TopBarProps {
   onProfile: () => void;
 }
 
-export default memo(function TopBar({
+export default memoLatest(function TopBar({
   query,
   onQuery,
   onSurface,

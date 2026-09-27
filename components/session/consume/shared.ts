@@ -162,7 +162,7 @@ export const STRINGS = {
     askFailed: "Não consegui responder essa.",
     askRetry: "Perguntar de novo",
     // ---- the closing beat
-    recapKicker: "Sessão · Consumir — concluída",
+    recapKicker: "Sessão · Consume — concluída",
     recapTitle: (t: string) => `Isso foi ${t}.`,
     recapLead: (phase?: string) =>
       phase

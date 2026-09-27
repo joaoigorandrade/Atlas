@@ -1,5 +1,6 @@
 "use client";
 
+import { memoLatest } from "@/components/ui/memoLatest";
 import { useEffect, useRef, useState } from "react";
 import {
   STATE_COLOR,
@@ -30,6 +31,15 @@ import { STRINGS } from "@/components/map/nodeDetailCopy";
 import NodeSeal from "@/components/map/NodeSeal";
 import { WaxSeal } from "@/components/ui/Ornaments";
 import Button from "@/components/ui/Button";
+
+/** The right-aligned small-caps note a row carries. */
+const TAG: React.CSSProperties = {
+  marginLeft: "auto",
+  fontFamily: font.mono,
+  fontSize: 10,
+  letterSpacing: "0.08em",
+  color: color.inkMuted,
+};
 
 interface NodeDetailProps {
   node: ConceptNode;
@@ -69,7 +79,7 @@ interface NodeDetailProps {
  * panel mid-air, and the last node is held back so there is something to
  * animate out.
  */
-export default function NodeDetail({
+function NodeDetail({
   visible,
   node,
   displayState,
@@ -334,17 +344,7 @@ function NodeDetailBody({
             <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 600 }}>
               {t.repairStep}
             </span>
-            <span
-              style={{
-                marginLeft: "auto",
-                fontFamily: font.mono,
-                fontSize: 10,
-                letterSpacing: "0.08em",
-                color: color.inkMuted,
-              }}
-            >
-              {t.repairNote}
-            </span>
+            <span style={TAG}>{t.repairNote}</span>
           </div>
           {parentIds.length > 0 && (
             <div style={{ marginBottom: 22 }}>
@@ -489,15 +489,7 @@ function NodeDetailBody({
                   {/* How far into the reading, on the reading's own row — the
                     one place "you're part-way through this" belongs. */}
                   {i === 0 && reading && (
-                    <span
-                      style={{
-                        marginLeft: "auto",
-                        fontFamily: font.mono,
-                        fontSize: 10,
-                        letterSpacing: "0.08em",
-                        color: color.inkMuted,
-                      }}
-                    >
+                    <span style={TAG}>
                       {t.readingProgress(reading.read, reading.total)}
                     </span>
                   )}
@@ -642,3 +634,4 @@ function NodeDetailBody({
     </div>
   );
 }
+export default memoLatest(NodeDetail);

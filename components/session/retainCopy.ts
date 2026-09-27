@@ -72,7 +72,7 @@ export const STRINGS = {
       `gerado automaticamente · da sua sessão de ${source}`,
     showAnswer: "Virar o card",
     flipKey: "espaço",
-    explainAside: "Explicar · aparte Socrático rápido",
+    explainAside: "Explicar · aparte Socratic rápido",
     failedReexplainLead:
       "Um card que falha não só reagenda — uma reexplicação Socrática de 30 segundos, bem aqui:",
     nodeFlaggedShaky: (nodeLabel: string) =>

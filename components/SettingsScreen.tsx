@@ -78,7 +78,7 @@ const STRINGS = {
     voiceHint: "fale em vez de digitar, ouça em vez de ler",
     dictationOn: "Ditado ligado — microfone em toda caixa de resposta",
     dictationOff: "Ditado desligado — só digitação",
-    readAloudOn: "Leitura em voz alta ligada — as seções do Consumir podem ser ouvidas",
+    readAloudOn: "Leitura em voz alta ligada — as seções do Consume podem ser ouvidas",
     readAloudOff: "Leitura em voz alta desligada — a leitura fica em silêncio",
     dictationUnsupported: "Este navegador não faz ditado — Chrome, Edge e Safari fazem.",
     readAloudUnsupported:

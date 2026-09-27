@@ -86,7 +86,7 @@ export const STRINGS = {
       </>
     ),
     hideReExplain: "Ocultar reexplicação",
-    reExplainSocratic: "Reexplicar · Socrático de 30s",
+    reExplainSocratic: "Reexplicar · Socratic de 30s",
     retryRung: "Tentar de novo · um degrau abaixo →",
     reExplainLead: "Uma reexplicação Socrática de 30 segundos, direto na lacuna:",
     transferConfirmedTitle: "Transferência confirmada.",

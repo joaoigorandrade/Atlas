@@ -174,7 +174,7 @@ const STATE_CONFIDENCE_PT: Record<NodeState, string> = {
   mastered:
     "Compreendido, retido e aplicado em um contexto novo. Isso é domínio de verdade — mantenha-o vivo na Revisão.",
   frontier:
-    "Pré-requisitos cumpridos. Esta é sua fronteira — o lugar certo para começar. Comece com uma leitura curta no Consumir.",
+    "Pré-requisitos cumpridos. Esta é sua fronteira — o lugar certo para começar. Comece com uma leitura curta no Consume.",
   learning:
     "A compreensão está se formando. Ensine de volta em seguida para revelar as partes que você ainda está enrolando.",
   shaky:
