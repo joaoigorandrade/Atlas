@@ -200,6 +200,22 @@ describe("a landed generation", () => {
 });
 
 describe("hydrateContent", () => {
+  // Hydration only paints into the run that is open when it lands.
+  beforeEach(async () =>
+    (await import("@/lib/generationTopic")).setGenerationTopic("t1"),
+  );
+  afterEach(setGenerationTopicToNull);
+
+  it("paints nothing into a run switched to while it was loading", async () => {
+    await writeMirror("t1", [reading()]);
+    answering([reading()]);
+    const { setGenerationTopic } = await import("@/lib/generationTopic");
+    setGenerationTopic("t2");
+    const painted: string[][] = [];
+    await hydrateContent("t1", (c) => painted.push(Object.keys(c.consume)));
+    expect(painted).toEqual([]);
+  });
+
   it("paints from the mirror before the network answers", async () => {
     await writeMirror("t1", [reading()]);
     answering([reading()]);
@@ -230,6 +246,7 @@ describe("hydrateContent", () => {
     // a topic whose reading has not arrived.
     answering([]);
     const painted: number[] = [];
+    (await import("@/lib/generationTopic")).setGenerationTopic("t-empty");
     await hydrateContent("t-empty", (c) => painted.push(Object.keys(c.consume).length));
     expect(painted).toEqual([0]);
   });

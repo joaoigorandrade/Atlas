@@ -70,6 +70,17 @@ import RailToggle from "@/components/map/RailToggle";
 import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 
+/** The full-screen centred sheet the hydrate mark and the small-screen gate share. */
+const CENTERED: React.CSSProperties = {
+  position: "relative",
+  width: "100%",
+  height: "100vh",
+  background: color.paper,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
 export default function AtlasApp({
   userEmail,
   initial,
@@ -178,6 +189,7 @@ export default function AtlasApp({
     setSelectedId(null);
     pendingGapsRef.current = [];
     setMomentumPlaying(false);
+    clearInterval(momentumRef.current ?? undefined); // a replay must not outlive its map
     // Onboarding's own state, through a ref: the run mounts first — onboarding
     // needs it — so this cannot name `useOnboarding`'s reset directly.
     resetOnboardingRef.current();
@@ -560,17 +572,7 @@ export default function AtlasApp({
   // delayed past a fast hydration so a quick resume never flashes a spinner.
   if (!hydrated) {
     return (
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "100vh",
-          background: color.paper,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div style={CENTERED}>
         <div style={{ textAlign: "center", animation: "softIn 0.5s 0.4s both" }}>
           <div
             style={{
@@ -595,15 +597,9 @@ export default function AtlasApp({
     return (
       <div
         style={{
-          position: "relative",
-          width: "100%",
-          height: "100vh",
-          background: color.paper,
+          ...CENTERED,
           color: color.ink,
           fontFamily: font.sans,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
           padding: 32,
           textAlign: "center",
         }}

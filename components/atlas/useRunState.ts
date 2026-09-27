@@ -75,7 +75,7 @@ import {
   projectTopic,
   pushRun,
 } from "@/components/atlas/runProjection";
-import { setGenerationTopic } from "@/lib/generationTopic";
+import { setGenerationTopic, supersedeGenerations } from "@/lib/generationTopic";
 import { hydrateContent } from "@/lib/contentMirror";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
@@ -346,8 +346,7 @@ export function useRunState(opts: {
   /** The open topic's id — the address every write goes to. Null before the
    *  first load, and while a map is being built but not yet created. */
   const [topicId, setTopicId] = useState<string | null>(null);
-  const topicIdRef = useRef<string | null>(null);
-  topicIdRef.current = topicId;
+  const topicIdRef = useLive(topicId);
   // Every generation is addressed to the open topic — see `setGenerationTopic`.
   setGenerationTopic(topicId);
 
@@ -444,6 +443,7 @@ export function useRunState(opts: {
   const applyRun = useCallback(
     (topic: Topic) => {
       setTopicId(topic.id);
+      setGenerationTopic(topic.id); // now, not next render: `hydrateContent` checks it
       warm.clear();
       resetSessions();
       resetTransient();
@@ -583,8 +583,9 @@ export function useRunState(opts: {
     // The grid's copy is a full topic already, but it was read at bootstrap;
     // re-reading is what makes switching to a map another device has been
     // working on show that work.
+    const current = supersedeGenerations(); // a later switch, or a slow earlier one, loses
     loadTopic(row.id)
-      .then(applyRun)
+      .then((t) => current() && applyRun(t))
       .catch((err: unknown) =>
         showError(err, {
           context: "openMap",
@@ -594,7 +595,7 @@ export function useRunState(opts: {
   };
   const switchMapRef = useLive(switchMap);
 
-  // Write-through, debounced, and proportional to what actually changed.
+  // Write-through, debounced (projection too: a drag re-runs this per frame).
   //
   // There used to be two whole-run uploads here — the snapshot on a 1.2s
   // debounce, the content on a 4s one so a drag would stop re-uploading every
@@ -605,33 +606,32 @@ export function useRunState(opts: {
   // the server last acknowledged, so a failed write is retried by the next tick.
   useEffect(() => {
     if (!runActive || !topicId) return;
-    const nodes = projectNodes({
-      graph,
-      states,
-      positions,
-      shakyReasons,
-      phasesDone,
-      reviewedNodes,
-      consumeProgress,
-      socraticProgress,
-      feynmanProgress,
-      connectProgress,
-      phaseProgress,
-    });
-    const cardShots = projectCards(cards);
-    const topicShot = projectTopic({
-      goal: form.goal,
-      interests: form.interests,
-      examDate: form.examDate,
-      paretoPct: form.paretoPct ?? PARETO_DEFAULT,
-      language: runLanguage ?? null,
-      calibSamples,
-      misconceptions,
-      modalityTally,
-      litToday,
-    });
-
     const timer = setTimeout(() => {
+      const nodes = projectNodes({
+        graph,
+        states,
+        positions,
+        shakyReasons,
+        phasesDone,
+        reviewedNodes,
+        consumeProgress,
+        socraticProgress,
+        feynmanProgress,
+        connectProgress,
+        phaseProgress,
+      });
+      const cardShots = projectCards(cards);
+      const topicShot = projectTopic({
+        goal: form.goal,
+        interests: form.interests,
+        examDate: form.examDate,
+        paretoPct: form.paretoPct ?? PARETO_DEFAULT,
+        language: runLanguage ?? null,
+        calibSamples,
+        misconceptions,
+        modalityTally,
+        litToday,
+      });
       // The write itself lives in `runProjection` — all this hook decides is
       // *when*, which is the debounce it is wrapped in.
       pushRun({

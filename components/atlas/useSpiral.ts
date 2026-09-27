@@ -18,7 +18,7 @@ import {
   phaseIndex,
   phaseLabel,
   phasePlan,
-  planGates,
+  stateFromPlan,
   proofGate,
   primaryPhase,
   SOCRATIC_STEPS,
@@ -87,7 +87,7 @@ import { usePredict } from "@/components/atlas/usePredict";
 import { useTrace } from "@/components/atlas/useTrace";
 import { useDrill } from "@/components/atlas/useDrill";
 import { useRecall } from "@/components/atlas/useRecall";
-import { dropParked, parkedSession } from "@/components/atlas/phaseParking";
+import { dropParked, omitKey, parkedSession } from "@/components/atlas/phaseParking";
 import { usePerform } from "@/components/atlas/usePerform";
 import { useDomainPhases } from "@/components/atlas/useDomainPhases";
 import type { Language } from "@/lib/i18n";
@@ -259,6 +259,7 @@ export function useSpiral(deps: {
     phasesDoneRef,
     setPhasesDone,
     shakyReasonsRef,
+    setShakyReason,
     setStates,
     warmOne,
   });
@@ -364,6 +365,8 @@ export function useSpiral(deps: {
         );
         return;
       }
+      // Still streaming from a visit moments ago: rejoin it, don't bill a second.
+      if (liveConsumeRef.current?.nodeId === node.id) return open();
       if (loadingRef.current) return;
       // Open the screen immediately rather than behind an overlay spinner —
       // ConsumeView shows its own inline skeleton for a still-empty section
@@ -408,6 +411,7 @@ export function useSpiral(deps: {
     },
     [
       warmNext,
+      liveConsumeRef,
       tc,
       consumeParams,
       generate,
@@ -799,6 +803,8 @@ export function useSpiral(deps: {
         );
         return;
       }
+      const live = liveSocraticRef.current; // still streaming: rejoin, don't re-bill
+      if (live?.nodeId === node.id) return open(live.steps, SOCRATIC_STEPS);
       if (loadingRef.current) return;
       // Nothing cached and nothing warming: open on the first probe and let
       // the rest arrive behind it, the way Consume already does.
@@ -858,6 +864,7 @@ export function useSpiral(deps: {
     },
     [
       warmNext,
+      liveSocraticRef,
       markStarted,
       tc,
       generate,
@@ -928,7 +935,9 @@ export function useSpiral(deps: {
     setJudging(true);
     const apply = (action: SocraticAction) =>
       setSocratic((prev) =>
-        prev ? socraticReducer(prev, action, steps, languageRef.current) : prev,
+        prev?.nodeId === session.nodeId
+          ? socraticReducer(prev, action, steps, languageRef.current)
+          : prev,
       );
     // The turns since this step opened — the tutor's actual last question
     // (which may be a reframe, not the opening prompt) plus enough history
@@ -1203,7 +1212,9 @@ export function useSpiral(deps: {
     // Report opens; the student's actual words fill in behind it.
     let applied = false;
     const apply = (action: FeynmanAction) =>
-      setFeynman((prev) => (prev ? feynmanReducer(prev, action, beats) : prev));
+      setFeynman((prev) =>
+        prev?.nodeId === session.nodeId ? feynmanReducer(prev, action, beats) : prev,
+      );
     /** Rows come back by rubric index; the session keys verdicts by beat id. */
     const byBeat = (rows: FeynmanJudgement["verdicts"]) => {
       const verdicts: Record<string, TeachVerdict> = {};
@@ -1304,9 +1315,8 @@ export function useSpiral(deps: {
 
   // ---- Connect (Phase 4 · Elaboration) ---------------------------------
 
-  // Connect can skip straight to the Crucible, defined below — the ref keeps
-  // that hand-off out of a forward reference.
-  const enterCrucibleRef = useRef<(node: ConceptNode) => void>(() => {});
+  // Connect hands off to the owed phase, resolved below — out of a forward reference.
+  const enterOwedRef = useRef<(node: ConceptNode) => void>(() => {});
 
   /**
    * Closing the Connect rung, from either exit — the finished pass and the
@@ -1317,11 +1327,15 @@ export function useSpiral(deps: {
    */
   const completeConnect = useCallback(
     (node: ConceptNode) => {
-      const owes = planGates(phasePlan(node)).at(-1) !== "connect";
+      // Only a Crucible still ahead makes "now prove it transfers" true — a
+      // `fact` runs Recall next, and the reason used to outlive it.
+      const owes =
+        phasePlan(node).includes("crucible") &&
+        !phasesDoneRef.current[node.id]?.includes("crucible");
       completePhase(node, "connect", owes ? "connect-complete" : undefined);
       if (owes) setShakyReason(node.id, "connect-complete");
     },
-    [completePhase, setShakyReason],
+    [completePhase, phasesDoneRef, setShakyReason],
   );
 
   /** Open the Connect surface on a node, generating its elaboration content
@@ -1335,8 +1349,7 @@ export function useSpiral(deps: {
       if (connectParams(node).pool.length === 0) {
         showToast(tc().nothingToWire(node.label));
         completeConnect(node);
-        if (phasePlan(node).includes("crucible")) enterCrucibleRef.current(node);
-        return;
+        return enterOwedRef.current(node);
       }
       const open = () => {
         setStates((prev) =>
@@ -1413,11 +1426,7 @@ export function useSpiral(deps: {
     if (node) specs.forEach((spec) => attachGap(node.id, spec));
     setFeynman(null);
     // The gaps are on the map now — the pass has nothing left to come back to.
-    setFeynmanProgress((prev) => {
-      if (!prev[feynman.nodeId]) return prev;
-      const { [feynman.nodeId]: _done, ...rest } = prev;
-      return rest;
-    });
+    setFeynmanProgress(omitKey(feynman.nodeId));
     if (node) {
       completePhase(node, "feynman");
       enterOwedPhase(node);
@@ -1473,19 +1482,13 @@ export function useSpiral(deps: {
     }
     if (node) completeConnect(node);
     // Finished — the parked copy has nothing left to come back to.
-    setConnectProgress((prev) => {
-      if (!prev[connect.nodeId]) return prev;
-      const { [connect.nodeId]: _done, ...rest } = prev;
-      return rest;
-    });
+    setConnectProgress(omitKey(connect.nodeId));
     setConnect(null);
     if (!node) return setScreen("map");
     setSelectedId(node.id);
     showToast(tc().cardsDrafted(drafted.length));
-    // "Continue to the Crucible →" used to land on the map, leaving the node
-    // reading "Try again · Crucible" for a phase it had never shown.
-    if (phasePlan(node).includes("crucible")) return enterCrucibleRef.current(node);
-    leaveTo(node.id);
+    // The plan decides what opens — skipped rungs, a fact's Recall, or the map.
+    enterOwedPhase(node, () => leaveTo(node.id));
   };
 
   // ---- Crucible (Phase 5 · application / transfer) ---------------------
@@ -1531,7 +1534,6 @@ export function useSpiral(deps: {
       setSelectedId,
     ],
   );
-  enterCrucibleRef.current = enterCrucible;
 
   const dispatchCrucible = (action: CrucibleAction) => {
     setCrucible((prev) => {
@@ -1567,7 +1569,9 @@ export function useSpiral(deps: {
     // land into an already-open panel.
     let applied = false;
     const apply = (action: CrucibleAction) =>
-      setCrucible((prev) => (prev ? crucibleReducer(prev, action, content) : prev));
+      setCrucible((prev) =>
+        prev?.nodeId === cur.nodeId ? crucibleReducer(prev, action, content) : prev,
+      );
     fetchJudgeCrucible(
       {
         topic: formRef.current.topic,
@@ -1642,12 +1646,8 @@ export function useSpiral(deps: {
     const gapId = crucibleCacheRef.current[cur.nodeId]?.gap.id;
     if (gapId) {
       setGraph((g) => removeNode(g, gapId));
-      setPositions((prev) => {
-        if (!prev[gapId]) return prev;
-        const nextPos = { ...prev };
-        delete nextPos[gapId];
-        return nextPos;
-      });
+      setPositions(omitKey(gapId));
+      setStates(omitKey(gapId));
       setSpawnedIds((prev) => {
         if (!prev.has(gapId)) return prev;
         const nextIds = new Set(prev);
@@ -1655,12 +1655,6 @@ export function useSpiral(deps: {
         return nextIds;
       });
     }
-    if (gapId)
-      setStates((prev) => {
-        const nextStates = { ...prev };
-        delete nextStates[gapId];
-        return nextStates;
-      });
     // The transfer held, so the Crucible rung closes. What that makes the node
     // is `stateFromPlan`'s call, not a literal written here — which is the
     // whole point: this used to be the only path to green in the app, so a
@@ -1672,14 +1666,16 @@ export function useSpiral(deps: {
       // attempt that passed.
       dropParked(setPhaseProgress, node.id, "crucible");
     }
-    leaveTo(node?.id);
     setCrucible(null);
-    if (node) {
-      // Adherence: a node just went green — the day's winnable end.
-      setLitToday((prev) => (prev.includes(node.label) ? prev : [...prev, node.label]));
-      setAdherence((prev) => markTodayMet(prev));
-      showToast(tc().transferConfirmed(node.label));
-    }
+    if (!node) return leaveTo(undefined);
+    // A `concept` still owes Recall: green, the toast and the streak wait for it.
+    if (stateFromPlan(phasePlan(node), phasesDoneRef.current[node.id]) !== "mastered")
+      return enterOwedPhase(node, () => leaveTo(node.id));
+    leaveTo(node.id);
+    // Adherence: a node just went green — the day's winnable end.
+    setLitToday((prev) => (prev.includes(node.label) ? prev : [...prev, node.label]));
+    setAdherence((prev) => markTodayMet(prev));
+    showToast(tc().transferConfirmed(node.label));
   };
 
   const exitCrucible = () => {
@@ -2022,6 +2018,7 @@ export function useSpiral(deps: {
     if (next) enterPhase[next](node);
     else exhausted();
   };
+  enterOwedRef.current = (node) => enterOwedPhase(node, () => leaveTo(node.id));
 
   /** The recap's primary CTA: forward into whatever the plan says is next. */
   const beginNextFromConsume = () => leaveConsume(enterOwedPhase);

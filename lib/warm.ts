@@ -10,6 +10,7 @@
 // arriving while the warm is still queued promotes it and starts it at once.
 
 import { mirrorLanded } from "@/lib/contentMirror";
+import { supersedeGenerations } from "@/lib/generationTopic";
 
 /** Concurrent background requests. Two keeps the next two phases moving
  *  without competing with a foreground generation for the model's attention. */
@@ -176,6 +177,7 @@ export function createWarmQueue(): WarmQueue {
       // decrement it when they land, and zeroing it here would go negative.
       entries.clear();
       queue.length = 0;
+      supersedeGenerations();
     },
     suspend() {
       suspended = true;

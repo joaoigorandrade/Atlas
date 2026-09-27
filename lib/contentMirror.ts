@@ -200,11 +200,14 @@ export async function hydrateContent(
   topicId: string,
   apply: (caches: RunCaches) => void,
 ): Promise<void> {
+  // A switch away while this read was in flight must not fold this run's
+  // content into the next one's caches (node ids collide across related maps).
+  const live = () => generationTopic() === topicId;
   const mirrored = await readMirror(topicId);
-  if (mirrored?.length) apply(foldContent(mirrored));
+  if (mirrored?.length && live()) apply(foldContent(mirrored));
   try {
     const items = await loadContentItems(topicId);
-    apply(foldContent(items));
+    if (live()) apply(foldContent(items));
     await writeMirror(topicId, items);
   } catch (err) {
     logWarning("load_content_failed", err);

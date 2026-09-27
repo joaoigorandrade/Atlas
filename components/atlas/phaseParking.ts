@@ -54,6 +54,15 @@ export function dropParked(
   });
 }
 
+/** A state updater that forgets `id`, keeping identity when it isn't there. */
+export const omitKey =
+  (id: string) =>
+  <T>(prev: Record<string, T>): Record<string, T> => {
+    if (!(id in prev)) return prev;
+    const { [id]: _gone, ...rest } = prev;
+    return rest;
+  };
+
 /** Mirror one live session into its phase's slot. `skip` is how a pass caught
  *  mid-judgement keeps its last complete state instead of parking a spinner. */
 function useParked(

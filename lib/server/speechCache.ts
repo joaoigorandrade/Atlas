@@ -90,15 +90,14 @@ export async function readClip(key: string): Promise<SpeechClip | null> {
   }
 }
 
-/** Store a fresh clip. Not awaited: the learner hears it the moment it exists,
- *  and the write settles behind them. */
-export function writeClip(key: string, clip: SpeechClip): void {
+/** Store a fresh clip. The route runs this inside `after()`: the learner hears
+ *  the clip the moment it exists, and a bare `void` write is one the platform
+ *  may freeze before it lands — a clip every later reader then pays for. */
+export async function writeClip(key: string, clip: SpeechClip): Promise<void> {
   const db = admin();
   if (!db) return;
-  void db
+  const { error } = await db
     .from("speech_cache")
-    .upsert({ key, payload: clip }, { onConflict: "key" })
-    .then(({ error }) => {
-      if (error) logError("speech_cache_write_failed", new Error(error.message));
-    });
+    .upsert({ key, payload: clip }, { onConflict: "key" });
+  if (error) logError("speech_cache_write_failed", new Error(error.message));
 }

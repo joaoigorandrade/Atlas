@@ -19,6 +19,7 @@ import { useCallback, useRef } from "react";
 import {
   ledgerAfter,
   phasePlan,
+  reasonAfter,
   stateFromPlan,
   type ConceptNode,
   type PhaseId,
@@ -31,13 +32,21 @@ export function usePhaseLedger(deps: {
   phasesDoneRef: React.MutableRefObject<PhasesDoneMap>;
   setPhasesDone: React.Dispatch<React.SetStateAction<PhasesDoneMap>>;
   shakyReasonsRef: React.MutableRefObject<Record<string, ShakyReason>>;
+  setShakyReason: (id: string, reason: ShakyReason | null) => void;
   setStates: React.Dispatch<React.SetStateAction<StateMap>>;
   /** Pull the next phase's material forward while the learner is in this one.
    *  Retain is excluded because it has no per-node generation to pull: it is
    *  the shared review queue, warmed on its own schedule by `retainPlan`. */
   warmOne: (kind: Exclude<PhaseId, "retain">, node: ConceptNode) => void;
 }) {
-  const { phasesDoneRef, setPhasesDone, shakyReasonsRef, setStates, warmOne } = deps;
+  const {
+    phasesDoneRef,
+    setPhasesDone,
+    shakyReasonsRef,
+    setShakyReason,
+    setStates,
+    warmOne,
+  } = deps;
   /** The node under a "prove it" challenge, if any. Session-only on purpose:
    *  a reload drops it, which fails safe — the attempt just credits itself. */
   const challengeRef = useRef<string | null>(null);
@@ -47,27 +56,28 @@ export function usePhaseLedger(deps: {
    *
    * `shaky` is passed when the phase closed on a failed gate, and `null` to
    * clear a reason the phase has now cleared. Left off, the node's existing
-   * reason stands — so re-doing an unrelated phase can't silently promote a
-   * node past a Crucible it is still failing.
+   * reason stands — see `reasonAfter` for the one clean close that clears it.
    */
   const completePhase = useCallback(
     (node: ConceptNode, phase: PhaseId, shaky?: ShakyReason | null) => {
       const prev = phasesDoneRef.current[node.id] ?? [];
       const challenged = challengeRef.current === node.id;
       if (challenged) challengeRef.current = null; // one attempt, one verdict
-      const done = ledgerAfter(phasePlan(node), prev, phase, challenged);
+      const plan = phasePlan(node);
+      const done = ledgerAfter(plan, prev, phase, challenged);
       // Written through the ref as well as the setter: the handlers below run
       // several of these in one tick, and each needs to see the last.
       phasesDoneRef.current = { ...phasesDoneRef.current, [node.id]: done };
       setPhasesDone((p) => ({ ...p, [node.id]: done }));
-      const reason =
-        shaky === null ? undefined : (shaky ?? shakyReasonsRef.current[node.id]);
+      const held = shakyReasonsRef.current[node.id];
+      const reason = reasonAfter(plan, done, phase, shaky, held);
+      if (held && !reason) setShakyReason(node.id, null);
       setStates((p) => ({
         ...p,
-        [node.id]: stateFromPlan(phasePlan(node), done, { shaky: reason }),
+        [node.id]: stateFromPlan(plan, done, { shaky: reason }),
       }));
     },
-    [phasesDoneRef, setPhasesDone, shakyReasonsRef, setStates],
+    [phasesDoneRef, setPhasesDone, shakyReasonsRef, setShakyReason, setStates],
   );
 
   /** Mark work begun on a node that has finished no phase yet — a part-read

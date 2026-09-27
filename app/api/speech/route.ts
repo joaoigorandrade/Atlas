@@ -4,7 +4,7 @@
 // every generation is — see `lib/server/speechCache.ts` for why that cache is
 // its own table rather than a kind inside `content_cache`.
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import type { Language } from "@/lib/i18n";
 import { logError, logEvent } from "@/lib/log";
 import {
@@ -17,7 +17,9 @@ import { readClip, speechKey, writeClip } from "@/lib/server/speechCache";
 import { modelFor, synthesize, ttsConfigured, voiceId } from "@/lib/server/tts";
 import { createClient } from "@/lib/supabase/server";
 
-export const maxDuration = 30;
+// Long segments synthesize in 2–3 pieces at up to 20s each; 30 cut them off
+// as a bodiless platform 504 after the pieces were already billed.
+export const maxDuration = 60;
 
 /** A Consume paragraph runs a few hundred characters; this only stops abuse.
  *  The client splits by segment, so nothing legitimate comes close. */
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
     }
     const clip = await synthesize(text, language, requestId);
     // Not awaited: the learner hears it now, the row settles behind them.
-    writeClip(key, clip);
+    after(() => writeClip(key, clip));
     return withRequestId(NextResponse.json(clip), requestId);
   } catch (err) {
     // `apiErrorFrom` keeps the upstream status: a 429 from the provider has to

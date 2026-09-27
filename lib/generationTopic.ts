@@ -11,10 +11,23 @@
 // moment it exists, with no upload from any client.
 
 let openTopicId: string | null = null;
+/** Bumped whenever what is in flight stops being wanted — another map, or the
+ *  caches cleared for a new language. A response that lands across a bump is
+ *  dropped (`WarmDeclined`), or it writes into the run that replaced its own. */
+let epoch = 0;
 
 export function setGenerationTopic(id: string | null): void {
+  // null → id is a new build getting its address mid-flight, not a switch.
+  if (openTopicId && id !== openTopicId) epoch++;
   openTopicId = id;
 }
+
+/** Bump, and hand back "is nothing newer since?" for whoever bumped. */
+export function supersedeGenerations(): () => boolean {
+  const at = ++epoch;
+  return () => epoch === at;
+}
+export const generationEpoch = (): number => epoch;
 
 /** The open topic, for the one other thing that is per-run and reaches for it
  *  ambiently rather than through props: the device mirror, which files a landed

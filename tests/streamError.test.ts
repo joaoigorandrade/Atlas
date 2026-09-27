@@ -187,3 +187,33 @@ describe("ndjsonStream", () => {
     expect(onComplete).toHaveBeenCalledOnce();
   });
 });
+
+describe("ndjsonStream when the reader leaves", () => {
+  it("finishes the generation and still hands every frame to onComplete", async () => {
+    // A closed tab used to throw on the next enqueue: the run was aborted,
+    // logged as a failure, and the tokens already billed were never cached.
+    async function* gen() {
+      for (const f of chunkFrames(5)) {
+        await Promise.resolve();
+        yield f;
+      }
+    }
+    let completed: StreamFrame[] | null = null;
+    const done = new Promise<void>((resolve) => {
+      void ndjsonStream(gen(), {
+        onComplete: (frames) => {
+          completed = frames;
+          resolve();
+        },
+        onError: () => resolve(),
+        errorResponse: () => new Response(null, { status: 500 }),
+      }).then(async (res) => {
+        const reader = res.body!.getReader();
+        await reader.read();
+        await reader.cancel();
+      });
+    });
+    await done;
+    expect(completed).toHaveLength(5);
+  });
+});

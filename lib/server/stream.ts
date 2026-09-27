@@ -229,15 +229,31 @@ export async function ndjsonStream(
 
   const enc = new TextEncoder();
   const frames: StreamFrame[] = first.value.partial ? [] : [first.value];
+  // A reader that leaves (tab closed, screen changed) must not end the run:
+  // the tokens are already billed, and finishing is what lets `onComplete`
+  // cache them for the next open. Enqueueing to a cancelled stream throws,
+  // which used to abort the generation and log it as a failure.
+  let gone = false;
   const stream = new ReadableStream<Uint8Array>({
+    cancel() {
+      gone = true;
+    },
     async start(controller) {
-      controller.enqueue(enc.encode(JSON.stringify(first.value) + "\n"));
+      const send = (frame: StreamFrame) => {
+        if (gone) return;
+        try {
+          controller.enqueue(enc.encode(JSON.stringify(frame) + "\n"));
+        } catch {
+          gone = true;
+        }
+      };
+      send(first.value);
       try {
         for await (const frame of gen) {
           // Redraws go out on the wire but are not retained: only the complete
           // frames are the payload, and a long prose stream produces hundreds.
           if (!frame.partial) frames.push(frame);
-          controller.enqueue(enc.encode(JSON.stringify(frame) + "\n"));
+          send(frame);
         }
         await opts.onComplete(frames);
       } catch (err) {
@@ -261,12 +277,12 @@ export async function ndjsonStream(
               requestId: opts.requestId,
             },
           };
-          controller.enqueue(enc.encode(JSON.stringify(frame) + "\n"));
+          send(frame);
         } catch {
           // Nothing to do — the reader is gone.
         }
       } finally {
-        controller.close();
+        if (!gone) controller.close();
       }
     },
   });

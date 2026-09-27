@@ -400,8 +400,8 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
     // here is deliberate: it is mid-stream, so nothing is written to
     // `content_cache` and reopening retries, while the learner keeps the map
     // already on their screen.
-    const edgeCount = settled.reduce((n, node) => n + node.prereqs.length, 0);
-    if (edgeCount < settled.length - 4)
+    if (settled.length < bounds.min) fail(`a ${settled.length}-concept map is too short`);
+    if (settled.reduce((n, node) => n + node.prereqs.length, 0) < settled.length - 4)
       fail("too few prerequisites — every concept past the foundations needs one");
     for (const [i, v] of settled.entries()) yield { p: "nodes", i, v };
   } catch (err) {

@@ -29,7 +29,7 @@ import type {
   SocraticStep,
 } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode, toAtlasError } from "@/lib/errors";
-import { addressed } from "@/lib/generationTopic";
+import { addressed, generationEpoch } from "@/lib/generationTopic";
 import type { Language } from "@/lib/i18n";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
@@ -75,20 +75,24 @@ async function failure(res: Response): Promise<AtlasError> {
   });
 }
 
+/** A 200 that carried nothing usable. */
+const emptyBody = (res: Response, why: string) =>
+  new AtlasError("upstream", why, {
+    status: res.status,
+    requestId: res.headers.get("x-atlas-request-id") ?? undefined,
+  });
+
 async function postOnce<T>(body: Record<string, unknown>, opts?: FetchOpts): Promise<T> {
+  const at = generationEpoch();
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(addressed(body, opts?.prefetch === true)),
   });
-  if (res.status === 204) throw new WarmDeclined();
+  if (res.status === 204 || generationEpoch() !== at) throw new WarmDeclined();
   if (!res.ok) throw await failure(res);
   const data = (await res.json().catch(() => null)) as T | null;
-  if (!data)
-    throw new AtlasError("upstream", "empty response body", {
-      status: res.status,
-      requestId: res.headers.get("x-atlas-request-id") ?? undefined,
-    });
+  if (!data) throw emptyBody(res, "empty response body");
   return data;
 }
 
@@ -312,11 +316,7 @@ export async function fetchStream(
   });
   if (!res.ok) throw await failure(res);
   const requestId = res.headers.get("x-atlas-request-id") ?? undefined;
-  if (!res.body)
-    throw new AtlasError("upstream", "no response body", {
-      status: res.status,
-      requestId,
-    });
+  if (!res.body) throw emptyBody(res, "no response body");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -772,11 +772,7 @@ export async function fetchSpeech(params: {
   });
   if (!res.ok) throw await failure(res);
   const data = (await res.json().catch(() => null)) as SpeechClip | null;
-  if (!data?.audio)
-    throw new AtlasError("upstream", "speech response carried no audio", {
-      status: res.status,
-      requestId: res.headers.get("x-atlas-request-id") ?? undefined,
-    });
+  if (!data?.audio) throw emptyBody(res, "speech response carried no audio");
   return { audio: data.audio, marks: data.marks ?? [] };
 }
 

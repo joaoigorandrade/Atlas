@@ -199,6 +199,29 @@ export function stateFromPlan(
 }
 
 /**
+ * The Shaky reason a node carries after closing `phase`. `shaky` is how the
+ * phase closed: a reason when it failed its gate, `null` when it cleared one,
+ * absent for a plain pass — which leaves the old reason standing, so re-doing
+ * an unrelated phase can't promote a node past a Crucible it is still failing.
+ * The exception is a clean close of the plan's last gate on a full ledger:
+ * that is the gate a Shaky node's CTA re-opens (`primaryPhase`), and a plan
+ * with no Crucible (every fact, every use/recognise node) had no other way out.
+ */
+export function reasonAfter(
+  plan: readonly PhaseId[],
+  done: readonly PhaseId[],
+  phase: PhaseId,
+  shaky: ShakyReason | null | undefined,
+  held: ShakyReason | undefined,
+): ShakyReason | undefined {
+  if (shaky !== undefined) return shaky ?? undefined;
+  const gates = planGates(plan);
+  return phase === gates.at(-1) && gates.every((p) => done.includes(p))
+    ? undefined
+    : held;
+}
+
+/**
  * Which phase of its own plan a node is on — an index into `plan`, `-1` when
  * locked, and `plan.length` when the spiral is closed. That past-the-end value
  * is load-bearing: `NodeHoverCard` tests for it to say "nothing left to do".

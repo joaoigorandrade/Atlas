@@ -212,9 +212,9 @@ export function useOnboarding(deps: {
     const { id: created, abandon } = await openTopic(
       { ...formRef.current, topic, continentId: scoped?.continentId },
       languageRef.current,
-      setTopicId,
+      (id) => current() && setTopicId(id), // a superseded build must not re-address the run
     );
-
+    if (!current()) return abandon(); // don't bill a stream nobody will see
     // The clock starts after it, not before: `BUILD_MS` is the floor the
     // *build* is held to, and the learner is watching concepts land, not a
     // topic row being created. Timing it from before the round trip took that

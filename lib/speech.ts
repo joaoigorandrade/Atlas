@@ -529,6 +529,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
   // token tells a stale callback from the live run, exactly as it did when the
   // engine was `speechSynthesis`.
   const runRef = useRef(0);
+  const pausedRef = useRef(false);
 
   useEffect(() => {
     langRef.current = language;
@@ -639,8 +640,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
         try {
           clip = await clipFor(segments[i], lang);
         } catch (err) {
-          if (run !== runRef.current) return;
-          fail(err);
+          if (run === runRef.current) fail(err);
           return;
         }
         if (run !== runRef.current) return;
@@ -660,11 +660,11 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
         if (run === runRef.current && audio.src) fail(new Error("playback failed"));
       };
       audio.src = urlRef.current;
+      if (pausedRef.current) return; // paused while it loaded — `resume` starts it
       try {
         await audio.play();
       } catch (err) {
-        if (run !== runRef.current) return;
-        fail(err);
+        if (run === runRef.current) fail(err);
         return;
       }
       if (run !== runRef.current) return;
@@ -697,6 +697,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
       // Starting one reading cancels any other — one section speaks at a time.
       runRef.current++;
       const run = runRef.current;
+      pausedRef.current = false;
       stopClock();
 
       if (!audioRef.current) {
@@ -710,11 +711,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
       audioRef.current.pause();
       audioRef.current.load();
 
-      if (!spoken.length) {
-        setStatus("idle");
-        silence();
-        return;
-      }
+      // An empty reading needs no branch: `play(0)` finds nothing and goes idle.
       spokenRef.current = spoken;
       lengthsRef.current = spoken.map((s) => s.length);
       indexRef.current = 0;
@@ -726,7 +723,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
       setStatus("preparing");
       void play(0, run);
     },
-    [play, silence, stopClock],
+    [play, stopClock],
   );
 
   const pause = useCallback(() => {
@@ -734,6 +731,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
     if (!audio) return;
     // Exact, unlike `speechSynthesis.pause()`, which several engines ignored
     // mid-utterance and left the control claiming a pause that never happened.
+    pausedRef.current = true;
     audio.pause();
     stopClock();
     setStatus("paused");
@@ -742,6 +740,7 @@ export function useReadAloud({ language }: { language: Language }): ReadAloud {
   const resume = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    pausedRef.current = false;
     audio.play().then(
       () => {
         setStatus("playing");

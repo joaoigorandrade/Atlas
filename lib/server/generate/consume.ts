@@ -310,6 +310,9 @@ ${CONSUME_SECTION_SHAPE}${languageNote(params.language)}`,
       { label: "consume-stream", partial: draftConsumeSection },
     );
     for await (const chunk of stream) {
+      // Past the cap the payload fails its shape and is never cached, so every
+      // learner on this node would pay for the same over-long reading again.
+      if (yielded >= CONSUME_SECTION_BOUNDS.max) break;
       if (chunk.partial) {
         yield { p: "chunks", i: yielded, v: chunk.value, partial: true };
         continue;
