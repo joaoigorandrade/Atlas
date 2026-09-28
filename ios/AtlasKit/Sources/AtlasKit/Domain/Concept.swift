@@ -320,12 +320,15 @@ public func orderedFrontier(
 /// learners on the same topic otherwise hash to.
 public extension ConceptGraph {
     func boundary(of id: String) -> (prior: [String], later: [String]) {
+        // Indexed once: scanning every edge per visited ancestor was O(V·E), run
+        // on the main actor for every context a warm builds.
+        var parents: [String: [String]] = [:]
+        for edge in edges where !edge.dashed { parents[edge.to, default: []].append(edge.from) }
         var ancestors: Set<String> = []
-        var queue = [id]
-        while let current = queue.first {
-            queue.removeFirst()
-            for edge in edges where !edge.dashed && edge.to == current && edge.from != id {
-                if ancestors.insert(edge.from).inserted { queue.append(edge.from) }
+        var stack = [id]
+        while let current = stack.popLast() {
+            for from in parents[current] ?? [] where from != id && ancestors.insert(from).inserted {
+                stack.append(from)
             }
         }
         var prior: [String] = [], later: [String] = []

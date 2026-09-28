@@ -307,7 +307,10 @@ public final class Dictation {
             let text = result?.bestTranscription.formattedString
             let (failed, final) = (error != nil, result?.isFinal ?? false)
             Task { @MainActor in
-                if let text { self.transcript = text; self.heard = text }
+                // Not after `end`: `finish()` still sends the final result,
+                // and landing it here redrew the delivered answer a second
+                // time beside the draft it was just appended to.
+                if let text, self.listening { self.transcript = text; self.heard = text }
                 // The recogniser ends on its own on a network drop and at
                 // Apple's ~one-minute cap on a single utterance. Nothing would
                 // fire again: the mic would keep breathing over an engine

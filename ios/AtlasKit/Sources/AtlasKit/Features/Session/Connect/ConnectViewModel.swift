@@ -241,17 +241,19 @@ final class ConnectViewModel {
         ))
     }
 
-    /// Leave without an elaboration behind you. The node is *not* marked
-    /// "understood and connected" — nothing was connected, and `advance` is
-    /// what claims it was. The web's skip does the same: it enters the Crucible
-    /// directly, past `advanceFromConnect`.
     /// What the two exits off this phase say and are tinted by. A `fact`'s
     /// ladder goes Connect → Recall and has no Crucible at all, so the button
     /// must name the phase it opens rather than the Crisol.
     var handOffLabel: LocalizedStringKey { session.handOffLabel }
     var handOffTint: Color { session.handOffTint }
 
-    func skip() { session.advance() }
+    /// Nothing to wire into: the rung still closes, exactly as a finished pass
+    /// does, or a map's first node could never lift. Mirrors the web's
+    /// nothing-to-wire skip through `completeConnect`.
+    func skip() {
+        session.finishConnect()
+        session.advance()
+    }
 
     func load() async {
         // Nothing owned yet is nothing true to wire into: the phase has no

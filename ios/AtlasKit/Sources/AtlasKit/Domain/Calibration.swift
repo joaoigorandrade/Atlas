@@ -63,11 +63,13 @@ public struct CalibItem: Sendable, Identifiable {
 /// The readings, resolved against the map and sorted for the breakdown:
 /// the worst overconfidence leads, because that is the one to act on.
 public func calibItems(_ samples: [CalibSample], _ graph: ConceptGraph) -> [CalibItem] {
-    samples
+    let index = graph.byId
+    return samples
         .map { sample in
             CalibItem(
                 id: sample.id,
-                label: graph.nodes.first { $0.id == sample.id }?.label ?? sample.id,
+                // `labelOf(id) || id`: an empty label falls back too.
+                label: index[sample.id].map(\.label).flatMap { $0.isEmpty ? nil : $0 } ?? sample.id,
                 felt: sample.felt,
                 real: sample.real
             )
@@ -110,6 +112,22 @@ public func stateFromPlan(
     if planGates(plan).allSatisfy(done.contains) { return shaky != nil ? .shaky : .mastered }
     if shaky != nil { return .shaky }
     return !done.isEmpty || started ? .learning : .unknown
+}
+
+/// The Shaky reason a node carries after closing `phase`. `shaky` is how the
+/// phase closed: `.some(reason)` on a failed gate, `.some(nil)` when it cleared
+/// one, `nil` for a plain pass — which leaves `held` standing, except on a clean
+/// close of the plan's last gate over a full ledger. That is the gate a Shaky
+/// node's CTA re-opens (`primaryPhase`), and a plan with no Crucible (every
+/// fact, every working/peripheral node) had no other way back to green.
+/// Mirrors `reasonAfter` in `calibration.ts`.
+public func reasonAfter(
+    _ plan: [Phase], _ done: [Phase], _ phase: Phase,
+    shaky: ShakyReason??, held: ShakyReason?
+) -> ShakyReason? {
+    if let shaky { return shaky }
+    let gates = planGates(plan)
+    return phase == gates.last && gates.allSatisfy(done.contains) ? nil : held
 }
 
 /// Which phase of its own plan a node is on — an index into `plan`, `-1` when

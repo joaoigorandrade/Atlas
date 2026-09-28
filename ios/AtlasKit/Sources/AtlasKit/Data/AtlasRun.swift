@@ -308,11 +308,13 @@ public struct NodeDelta: Encodable, Sendable {
 enum ISODate {
     /// Parse the format `ts-fsrs` writes a due date in — `toISOString()`, which
     /// carries milliseconds. `ISO8601DateFormatter`'s default options reject
-    /// those outright, so a card would read as never due; and the formatter
-    /// itself is not `Sendable`, so it is built per call rather than shared.
+    /// those outright, so a card would read as never due. Format styles, not
+    /// formatters: they are `Sendable` values, so they are shared rather than
+    /// built per call — this runs per card on every dashboard read.
+    private static let fractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private static let whole = Date.ISO8601FormatStyle()
+
     static func parse(_ text: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: text) ?? ISO8601DateFormatter().date(from: text)
+        (try? fractional.parse(text)) ?? (try? whole.parse(text))
     }
 }

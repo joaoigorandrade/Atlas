@@ -34,6 +34,8 @@ struct SocraticView: View {
             self.model = model
             await model.load()
         }
+        // The back swipe leaves without the phase bar's `leave`.
+        .onDisappear { model?.leave() }
     }
 
     private func content(_ model: SocraticViewModel) -> some View {

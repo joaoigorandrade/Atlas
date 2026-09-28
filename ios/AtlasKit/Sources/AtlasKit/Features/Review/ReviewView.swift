@@ -27,7 +27,7 @@ public struct ReviewView: View {
         // alone, so re-entering never restarts a pass.
         .task(id: tabs.selectedTab) {
             guard tabs.selectedTab == .review else { return }
-            let model = model ?? ReviewViewModel(store: store)
+            let model = model.flatMap { $0.subject == store.subject ? $0 : nil } ?? ReviewViewModel(store: store)
             self.model = model
             await model.open()
         }

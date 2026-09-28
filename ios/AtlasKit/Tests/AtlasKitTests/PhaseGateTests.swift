@@ -300,3 +300,14 @@ private func setups(_ count: Int) -> PredictContent {
     #expect(fast.done)
     #expect(fast.passed(reps))
 }
+
+/// A Shaky fact re-closing its last gate goes green; any other plain pass keeps
+/// the reason. Mirrors `reasonAfter` in `calibration.ts`.
+@Test func aCleanCloseOfTheLastGateClearsAHeldReason() {
+    let plan = phasePlans[.fact]!
+    let full = planGates(plan)
+    #expect(reasonAfter(plan, full, .recall, shaky: nil, held: .reviewMiss) == nil)
+    #expect(reasonAfter(plan, full, .drill, shaky: nil, held: .reviewMiss) == .reviewMiss)
+    #expect(reasonAfter(plan, [.consume, .recall], .recall, shaky: nil, held: .reviewMiss) == .reviewMiss)
+    #expect(reasonAfter(plan, full, .recall, shaky: .some(.crucibleFail), held: nil) == .crucibleFail)
+}

@@ -31,12 +31,7 @@ struct DrillView: View {
                     // The clock is the phase. It reads out loud as well as on
                     // screen, because a learner using VoiceOver is being timed
                     // the same way.
-                    Text(verbatim: "\(model.clock)s")
-                        .font(.atlas(.mono, 15))
-                        .foregroundStyle(model.clockTint)
-                        .monospacedDigit()
-                        .accessibilityLabel("Tempo nesta repetição")
-                        .accessibilityValue(Text(verbatim: "\(model.clock)s"))
+                    DrillClock(model: model)
                 }
             }
             if let content = model.content {
@@ -221,5 +216,20 @@ struct DrillView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 9)
+    }
+}
+
+/// The clock in its own view, so the ten-a-second tick redraws this text and
+/// not the whole rep under it.
+private struct DrillClock: View {
+    let model: DrillViewModel
+
+    var body: some View {
+        Text(verbatim: "\(model.clock)s")
+            .font(.atlas(.mono, 15))
+            .foregroundStyle(model.clockTint)
+            .monospacedDigit()
+            .accessibilityLabel("Tempo nesta repetição")
+            .accessibilityValue(Text(verbatim: "\(model.clock)s"))
     }
 }

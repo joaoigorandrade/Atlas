@@ -321,10 +321,12 @@ struct CrucibleView: View {
             }
 
             Dock {
-                if model.isSettled {
-                    CTAButton("Voltar ao mapa", tint: judgement.passed ? Palette.accent : Palette.crucibleInk) {
-                        navigator.pop()
-                    }
+                if judgement.passed {
+                    // The plan decides what opens past the Crucible — a
+                    // `concept` still owes Recall. Mirrors `advanceFromCrucible`.
+                    CTAButton(session.handOffLabel, tint: session.handOffTint) { session.advance() }
+                } else if model.isSettled {
+                    CTAButton("Voltar ao mapa", tint: Palette.crucibleInk) { navigator.pop() }
                 } else {
                     CTAButton("Tentar de novo · um degrau abaixo", tint: Palette.crucibleInk) { model.retry() }
                     // A failed transfer already wrote the gap to the map. The

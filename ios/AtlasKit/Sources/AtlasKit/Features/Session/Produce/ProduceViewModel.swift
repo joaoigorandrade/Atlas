@@ -91,20 +91,24 @@ final class ProduceViewModel {
         dictation.flush()
         judging = true
         message = ""
-        session.said(said.trimmed, content)
         judge?.cancel()
         var context = pass.context
         context["mode"] = .string("produce")
         context["scene"] = .string(content.scene)
         context["cue"] = .string(turn.cue)
         context["targetForms"] = .array(turn.targetForms.map { .string($0) })
-        context["answer"] = .string(said.trimmed)
+        let text = said.trimmed
+        context["answer"] = .string(text)
         let sent = context
         judge = Task {
             defer { judging = false }
             do {
                 let ruling: ProduceJudgement = try await api.judge("produce", sent)
                 try Task.checkCancellation()
+                // Filed with the ruling, not at send: `said` keeps the first
+                // text it is given, so a send that failed would pin its words
+                // under the verdict on the retry.
+                session.said(text, content)
                 withAnimation(Motion.enter) {
                     session.judged(ruling.verdict, read: ruling.read, content)
                 }

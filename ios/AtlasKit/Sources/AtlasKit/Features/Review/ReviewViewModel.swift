@@ -26,12 +26,17 @@ public final class ReviewViewModel {
     public private(set) var drafting = false
 
     private let store: AtlasStore
+    /// The map this deck was dealt from. The tab outlives a switch in "Seus
+    /// mapas", and a pass left half-done on the last map must not be graded
+    /// into this one.
+    let subject: String
     /// Cards already sent back to the end of the deck once.
     private var requeued: Set<String> = []
 
     public init(store: AtlasStore, deck: [ReviewCard] = []) {
         self.store = store
         self.deck = deck
+        subject = store.subject
     }
 
     public var card: ReviewCard? { deck[safe: index] }

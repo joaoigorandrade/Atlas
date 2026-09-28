@@ -121,16 +121,19 @@ public func resolvePlan(
 /// topic.
 public func topicDomainOf(_ nodes: [ConceptNode]) -> Domain {
     var counts: [Domain: Int] = [:]
+    var seen: [Domain] = []
     for node in nodes {
         guard let domain = node.domain, domain != .general else { continue }
+        if counts[domain] == nil { seen.append(domain) }
         counts[domain, default: 0] += 1
     }
-    // Walked in `allCases` order, first past the post — so a tie always breaks
-    // the same way and the same map always answers the same thing. A dictionary
-    // walk would not, and the answer reaches a cache key.
+    // Walked in first-seen order, first past the post — the web's `Map`
+    // insertion order, so a tie breaks the same way on both clients. The answer
+    // reaches the placement's cache key; `allCases` order split a tied map into
+    // two rows.
     var best: Domain = .general
     var most = 0
-    for domain in Domain.allCases where (counts[domain] ?? 0) > most {
+    for domain in seen where (counts[domain] ?? 0) > most {
         best = domain
         most = counts[domain] ?? 0
     }

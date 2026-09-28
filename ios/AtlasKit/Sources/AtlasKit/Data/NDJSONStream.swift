@@ -34,8 +34,10 @@ struct NDJSONStreamer: Sendable {
                     // One decoder for the whole stream: a long generation is
                     // thousands of lines, and each one was building its own.
                     let decoder = JSONDecoder()
-                    for try await line in bytes.lines where !line.isEmpty {
-                        let frame = try decoder.decode(StreamFrame.self, from: Data(line.utf8))
+                    func emit(_ line: Data) throws {
+                        // Blank, or the `\r` of a CRLF: nothing to decode.
+                        guard line.contains(where: { $0 > 0x20 }) else { return }
+                        let frame = try decoder.decode(StreamFrame.self, from: line)
                         // The terminal frame carries `{code, message, requestId}`
                         // (`lib/server/stream.ts`). Reading it is what lets a quota
                         // or an expired token say so, instead of every mid-stream
@@ -43,7 +45,22 @@ struct NDJSONStreamer: Sendable {
                         guard frame.p != StreamFrame.errorPart else { throw AtlasError.frame(frame.v) }
                         continuation.yield(frame)
                     }
+                    // Split on `\n` alone. `bytes.lines` also breaks at U+2028,
+                    // U+2029 and NEL, which `JSON.stringify` leaves raw inside a
+                    // string — one in the model's prose cut a frame in two and
+                    // failed the whole pass on a decode error.
+                    var line = Data()
+                    for try await byte in bytes {
+                        guard byte == UInt8(ascii: "\n") else { line.append(byte); continue }
+                        try emit(line)
+                        line.removeAll(keepingCapacity: true)
+                    }
+                    try emit(line)
                     continuation.finish()
+                } catch let error as URLError where error.code == .notConnectedToInternet {
+                    // The unary path says "offline" (`AtlasError.transport`); a
+                    // raw `URLError` here fell through to the generic sentence.
+                    continuation.finish(throwing: AtlasError(code: "offline", message: "no connection"))
                 } catch {
                     continuation.finish(throwing: error)
                 }

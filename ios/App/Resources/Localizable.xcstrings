@@ -194,6 +194,7 @@
       }
     },
     "%lld conceitos novos para revisar" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -733,6 +734,17 @@
         }
       }
     },
+    "A primeira revisão cria os cartões do que você acabou de aprender — é isso que evita que se apague." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your first review drafts the cards for what you just learned — that is what keeps it from fading."
+          }
+        }
+      }
+    },
     "A questão" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -938,6 +950,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Acronym"
+          }
+        }
+      }
+    },
+    "Adicionar a um continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to a continent"
           }
         }
       }
@@ -1246,16 +1269,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Currently learning for"
-          }
-        }
-      }
-    },
-    "A primeira revisão cria os cartões do que você acabou de aprender — é isso que evita que se apague." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your first review drafts the cards for what you just learned — that is what keeps it from fading."
           }
         }
       }
@@ -1920,6 +1933,17 @@
         }
       }
     },
+    "Construa o primeiro território agora; os outros esperam no continente, prontos para mapear." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build the first territory now; the rest wait on the continent, ready to chart."
+          }
+        }
+      }
+    },
     "Construir um projeto" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1949,6 +1973,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New context, on purpose. If you only memorised the pattern, this is where it shows."
+          }
+        }
+      }
+    },
+    "Continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continent"
           }
         }
       }
@@ -2015,6 +2050,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Create account →"
+          }
+        }
+      }
+    },
+    "criar o continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "create the continent"
           }
         }
       }
@@ -2188,6 +2234,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "Desfazer" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dissolve"
+          }
+        }
+      }
+    },
+    "Desfazer “%@”?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dissolve “%@”?"
+          }
+        }
+      }
+    },
+    "desfazer o continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dissolve the continent"
+          }
+        }
+      }
+    },
+    "Desfazer o continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dissolve the continent"
           }
         }
       }
@@ -2380,6 +2470,7 @@
       }
     },
     "Dominar" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2478,6 +2569,7 @@
       }
     },
     "Encerrado mais cedo — um começo limpo já é prova suficiente." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3016,6 +3108,7 @@
       }
     },
     "Eu já sei isso — provar" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3836,6 +3929,28 @@
         }
       }
     },
+    "Mapear →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chart it →"
+          }
+        }
+      }
+    },
+    "Mapear o continente inteiro →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chart the whole continent →"
+          }
+        }
+      }
+    },
     "Matéria-prima" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4122,6 +4237,17 @@
         }
       }
     },
+    "mover esse mapa" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "move this map"
+          }
+        }
+      }
+    },
     "Muito confiante" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4338,6 +4464,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Placement · adaptive"
+          }
+        }
+      }
+    },
+    "Nome do continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continent name"
+          }
+        }
+      }
+    },
+    "Novo continente…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New continent…"
           }
         }
       }
@@ -4650,6 +4798,17 @@
         }
       }
     },
+    "Opções do continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continent options"
+          }
+        }
+      }
+    },
     "orienta o que priorizamos" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4679,6 +4838,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Both sides"
+          }
+        }
+      }
+    },
+    "Os mapas continuam em Seus mapas; só o agrupamento some." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The maps stay in Your maps; only the grouping goes."
           }
         }
       }
@@ -5366,6 +5536,7 @@
       }
     },
     "Reconhecer" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5492,6 +5663,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Re-read this first · Consume →"
+          }
+        }
+      }
+    },
+    "Renomear" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        }
+      }
+    },
+    "renomear o continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rename the continent"
           }
         }
       }
@@ -5672,6 +5865,17 @@
         }
       }
     },
+    "Sair do continente" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave the continent"
+          }
+        }
+      }
+    },
     "Saiu" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5679,6 +5883,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Landed"
+          }
+        }
+      }
+    },
+    "Salvar" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
           }
         }
       }
@@ -6189,6 +6404,17 @@
         }
       }
     },
+    "Terra inexplorada" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncharted land"
+          }
+        }
+      }
+    },
     "território dominado" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6421,6 +6647,7 @@
       }
     },
     "Usar" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7050,206 +7277,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voice"
-          }
-        }
-      }
-    },
-    "Nome do continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Continent name"
-          }
-        }
-      }
-    },
-    "Desfazer" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dissolve"
-          }
-        }
-      }
-    },
-    "Os mapas continuam em Seus mapas; só o agrupamento some." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The maps stay in Your maps; only the grouping goes."
-          }
-        }
-      }
-    },
-    "Salvar" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save"
-          }
-        }
-      }
-    },
-    "Opções do continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Continent options"
-          }
-        }
-      }
-    },
-    "Continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Continent"
-          }
-        }
-      }
-    },
-    "Renomear" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rename"
-          }
-        }
-      }
-    },
-    "Desfazer o continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dissolve the continent"
-          }
-        }
-      }
-    },
-    "Mapear →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chart it →"
-          }
-        }
-      }
-    },
-    "Terra inexplorada" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uncharted land"
-          }
-        }
-      }
-    },
-    "Sair do continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Leave the continent"
-          }
-        }
-      }
-    },
-    "Adicionar a um continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add to a continent"
-          }
-        }
-      }
-    },
-    "Novo continente…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New continent…"
-          }
-        }
-      }
-    },
-    "mover esse mapa" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "move this map"
-          }
-        }
-      }
-    },
-    "criar o continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "create the continent"
-          }
-        }
-      }
-    },
-    "renomear o continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rename the continent"
-          }
-        }
-      }
-    },
-    "Desfazer “%@”?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dissolve “%@”?"
-          }
-        }
-      }
-    },
-    "desfazer o continente" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "dissolve the continent"
-          }
-        }
-      }
-    },
-    "Mapear o continente inteiro →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chart the whole continent →"
-          }
-        }
-      }
-    },
-    "Construa o primeiro território agora; os outros esperam no continente, prontos para mapear." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Build the first territory now; the rest wait on the continent, ready to chart."
           }
         }
       }

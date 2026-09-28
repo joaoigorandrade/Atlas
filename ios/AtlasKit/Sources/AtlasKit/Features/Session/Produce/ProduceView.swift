@@ -121,6 +121,16 @@ struct ProduceView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
 
+                    // A judge that failed leaves the turn open; without this the
+                    // tap on "Falar" simply did nothing visible.
+                    if !model.message.isEmpty && !model.settled {
+                        Text(verbatim: model.message)
+                            .font(.atlas(.sans, 13))
+                            .foregroundStyle(Palette.amberInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 14)
+                    }
+
                     if model.settled, let verdict = model.verdict {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 8) {

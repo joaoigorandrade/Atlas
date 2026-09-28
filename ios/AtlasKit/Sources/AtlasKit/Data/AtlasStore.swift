@@ -233,6 +233,10 @@ public final class AtlasStore {
     /// be deleted again — see `abandonTopic`.
     private var topicWasCreatedHere = false
     private var pendingSave: Task<Void, Never>?
+    /// Bumped whenever the live run is swapped (`open`, `clearRun`). A write in
+    /// flight across a swap must not diff the new run against the old one's
+    /// shots — that put one map's cards and settings into the other's row.
+    @ObservationIgnored private var runEpoch = 0
     /// The token renewal in flight, if there is one.
     ///
     /// GoTrue *rotates* refresh tokens: a second renewal started with the same
@@ -291,9 +295,7 @@ public final class AtlasStore {
 
     /// The kinds the mirror holds — every kind that hangs off a node. `retain`
     /// is absent because what it drafts becomes `cards` rows, not content.
-    private static let mirrored: Set<String> = [
-        "consume", "socratic", "feynman", "connect", "crucible", "model",
-    ]
+    private static let mirrored: Set<String> = Set(Phase.allCases.compactMap(\.kind)).union(["model"])
 
     /// What each node displays as, frontier included. The only way a surface
     /// asks about a node's state.
@@ -407,11 +409,7 @@ public extension AtlasStore {
         if challenged { challenge = nil } // one attempt, one verdict
         let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged)
         phasesDone[node.id] = done
-        let reason: ShakyReason?
-        switch shaky {
-        case .some(let value): reason = value
-        case .none: reason = shakyReasons[node.id]
-        }
+        let reason = reasonAfter(node.plan, done, phase, shaky: shaky, held: shakyReasons[node.id])
         shakyReasons[node.id] = reason
         states[node.id] = stateFromPlan(node.plan, done, shaky: reason)
     }
@@ -815,11 +813,14 @@ public extension AtlasStore {
         let wasQuiet = quiet
         quiet = true
         defer { quiet = wasQuiet }
+        runEpoch += 1
+        challenge = nil
         loaded = run
         topicId = run.id
         warm.clear()
         deck = []
         forecast = []
+        deckRemaining = 0
         subject = run.subject
         graph = run.graph
         states = run.states
@@ -963,6 +964,9 @@ public extension AtlasStore {
         savedCards = [:]
         savedTopic = ""
         quiet = false
+        // The create is an upsert: a subject the learner already has comes back
+        // as the row the library already lists.
+        library.removeAll { $0.id == run.id }
         library.insert(run, at: 0)
     }
 
@@ -1049,11 +1053,14 @@ public extension AtlasStore {
         // Before the request, not after: the debounce is armed with writes
         // against a topic this delete is about to remove, and letting them land
         // would recreate rows under it.
-        pendingSave?.cancel()
-        pendingSave = nil
         // Every warmed key belongs to a topic that is about to stop existing,
         // and a generation still in flight is spend on content nobody will see.
-        if id == topicId { warm.clear() }
+        // Deleting some *other* map leaves the open one's pending write alone.
+        if id == topicId {
+            pendingSave?.cancel()
+            pendingSave = nil
+            warm.clear()
+        }
         try await runs.delete(id, token: token)
         // The local half of the cascade the foreign keys make on the server.
         local.delete(topicId: id)
@@ -1261,6 +1268,7 @@ public extension AtlasStore {
         let nodes = nodeShots()
         let cardsNow = cardShots()
         let topic = topicShot()
+        let epoch = runEpoch
 
         do {
             if profile != savedProfile {
@@ -1284,6 +1292,7 @@ public extension AtlasStore {
                 }
                 return
             }
+            guard epoch == runEpoch else { return }
 
             var deltas: [NodeDelta] = []
             for node in graph.nodes where savedNodes[node.id] != nodes[node.id] {
@@ -1325,12 +1334,14 @@ public extension AtlasStore {
             let removed = savedNodes.keys.filter { nodes[$0] == nil }
             if !deltas.isEmpty || !removed.isEmpty {
                 try await runs.patchNodes(topicId, deltas: deltas, remove: Array(removed), token: token)
+                guard epoch == runEpoch else { return }
                 savedNodes = nodes
             }
 
             let changed = cards.filter { savedCards[$0.id] != cardsNow[$0.id] }
             if !changed.isEmpty {
                 try await runs.putCards(topicId, cards: changed, token: token)
+                guard epoch == runEpoch else { return }
                 savedCards = cardsNow
             }
 
@@ -1344,6 +1355,7 @@ public extension AtlasStore {
                     "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
                     "misconceptions": (try? JSONValue(encoding: misconceptions)) ?? .array([]),
                 ]), token: token)
+                guard epoch == runEpoch else { return }
                 savedTopic = topic
             }
         } catch {
@@ -1360,7 +1372,7 @@ public extension AtlasStore {
             // every fifteen seconds forever and nothing the learner did was
             // ever saved. Dropping it makes the retry create a fresh row and
             // re-send the whole run to it.
-            if (error as? AtlasError)?.status == 404 { forgetTopicRow() }
+            if (error as? AtlasError)?.status == 404, epoch == runEpoch { forgetTopicRow() }
             saveFailed = true
             saveIn(15)
             return
@@ -1453,7 +1465,12 @@ public extension AtlasStore {
     /// a second map — both leave the shell with no map, which is what routes it
     /// to onboarding. Callers hold `quiet` for the duration.
     private func clearRun() {
+        runEpoch += 1
+        challenge = nil
         warm.clear()
+        deck = []
+        forecast = []
+        deckRemaining = 0
         graph = ConceptGraph()
         states = [:]
         shakyReasons = [:]
@@ -1469,6 +1486,7 @@ public extension AtlasStore {
         socraticProgress = [:]
         feynmanProgress = [:]
         connectProgress = [:]
+        phaseProgress = [:]
         misconceptions = []
     }
 
@@ -1520,7 +1538,8 @@ public extension AtlasStore {
         renewal = task
         let outcome = await task.value
         renewal = nil
-        if case .success(let renewed) = outcome { await adopt(renewed, opening: false) }
+        // A sign-out while the refresh was in flight must stay signed out.
+        if case .success(let renewed) = outcome, session != nil { await adopt(renewed, opening: false) }
         return outcome
     }
 

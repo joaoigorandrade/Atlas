@@ -155,3 +155,11 @@ private func probe(
     // A map built before the axis carries no domain at all.
     #expect(topicDomainOf([ConceptNode(id: "a", label: "a")]) == .general)
 }
+
+/// A tie breaks on the domain seen first, as the web's `Map` does — the answer
+/// reaches the placement's cache key, so the two clients must agree.
+@Test func aTiedMapTakesTheDomainSeenFirst() {
+    let node = { (id: String, domain: Domain) in ConceptNode(id: id, label: id, domain: domain) }
+    #expect(topicDomainOf([node("a", .interpretive), node("b", .formal)]) == .interpretive)
+    #expect(topicDomainOf([node("a", .formal), node("b", .interpretive)]) == .formal)
+}

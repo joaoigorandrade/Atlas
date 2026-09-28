@@ -121,7 +121,10 @@ public final class WarmCache {
             // Whole, and only now: a pass that ended short threw above, so
             // nothing short of the kind's floor ever reaches the mirror.
             self.commit(key, raw, era)
-            self.inflight[key] = nil
+            // Only this run's entry is this task's: after a `clear()` the key
+            // may already name the next run's pass, and dropping it let a third
+            // caller start that generation again.
+            if era == self.generation { self.inflight[key] = nil }
             return nil
         }
         inflight[key] = task
@@ -143,7 +146,7 @@ public final class WarmCache {
                 let landed = try await once()
                 self.write(key, landed.value, era)
                 self.commit(key, landed.raw, era)
-                self.inflight[key] = nil
+                if era == self.generation { self.inflight[key] = nil }
                 return nil
             } catch {
                 // One object: there is no prefix of it to keep.
@@ -222,8 +225,8 @@ public final class WarmCache {
     /// incomplete.
     @discardableResult
     private func failed(_ key: String, _ error: Error, keeping prefix: (any Sendable)?, _ era: Int) -> Error {
-        inflight[key] = nil
         guard era == generation else { return error }
+        inflight[key] = nil
         content[key] = prefix
         if prefix == nil { incomplete.remove(key) } else { incomplete.insert(key) }
         return error
@@ -543,6 +546,9 @@ public extension AtlasStore {
             case "drill": await drill(node)
             case "recall": await recall(node)
             case "perform": await perform(node)
+            case "provenance": await provenance(node)
+            case "steelman": await steelman(node)
+            case "produce": await produce(node)
             default: break
             }
         }
@@ -588,10 +594,15 @@ public extension AtlasStore {
         // below, forever. The browser mints its own for exactly this reason
         // (`useSpiral.ts`), and this is the same shape so one deck reads the
         // same on both clients.
+        //
+        // Every caller that joined the draft resumes here with the same cards,
+        // and each mints a fresh stamp — so the guard is on the node, read
+        // before this caller files anything: a node another caller already
+        // carded is skipped rather than carded twice.
         let stamp = Int(Date.now.timeIntervalSince1970 * 1000)
-        for (index, card) in drafted.enumerated() {
+        let carded = Set(cards.map(\.nodeId))
+        for (index, card) in drafted.enumerated() where !carded.contains(card.node) {
             let id = "\(card.node)-retain-\(stamp)-\(index)"
-            guard !cards.contains(where: { $0.id == id }) else { continue }
             cards.append(StoredCard(
                 id: id, nodeId: card.node, type: card.type, source: card.source,
                 cloze: card.cloze, answer: card.answer, front: card.front,
@@ -666,6 +677,9 @@ public extension AtlasStore {
             case "drill": seed(key, item.payload, as: DrillContent.self)
             case "recall": seed(key, item.payload, as: RecallContent.self)
             case "perform": seed(key, item.payload, as: PerformContent.self)
+            case "provenance": seed(key, item.payload, as: ProvenanceContent.self)
+            case "steelman": seed(key, item.payload, as: SteelmanContent.self)
+            case "produce": seed(key, item.payload, as: ProduceContent.self)
             // A walkthrough's address within its node is `<chunkId>:<lens>`;
             // without one there is no way to tell two lenses apart.
             case "model":

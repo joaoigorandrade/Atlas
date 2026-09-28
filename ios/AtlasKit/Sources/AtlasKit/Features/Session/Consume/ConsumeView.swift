@@ -28,6 +28,8 @@ struct ConsumeView: View {
             self.model = model
             await model.load()
         }
+        // The back swipe leaves without the phase bar's stop.
+        .onDisappear { model?.stopReadAloud() }
     }
 
     @ViewBuilder

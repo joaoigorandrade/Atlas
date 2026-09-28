@@ -242,7 +242,10 @@ public final class SessionViewModel: Identifiable {
     /// — a loop with no way out. Such a plan is simply finished here, and the
     /// state `advance` derives is Mastered.
     public func finishConnect() {
-        guard planGates(node.plan).last != .connect else { return }
+        // Only a Crucible still ahead can prove it — a `fact` runs Recall next,
+        // and closing that last gate keeps the reason, so it was Shaky forever.
+        // Mirrors `completeConnect`.
+        guard node.plan.contains(.crucible), store.phasesDone[node.id]?.contains(.crucible) != true else { return }
         store.shakyReasons[node.id] = .connectComplete
     }
 

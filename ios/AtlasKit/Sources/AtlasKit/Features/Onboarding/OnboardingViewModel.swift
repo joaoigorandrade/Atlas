@@ -142,12 +142,16 @@ public final class OnboardingViewModel {
         // would replace the first one's cards, calibration and caches with
         // empties. Caught here rather than at the commit — it is knowable
         // before a map is paid for, and the topic field is where it is fixable.
-        guard !store.library.contains(where: { $0.subject == topic }) else {
+        // Except the row this onboarding's own last build made: "Tentar de
+        // novo" after a stream that died re-submits the same topic, and it is
+        // in the library already because `createTopic` put it there.
+        let retrying = store.library.first { $0.subject == topic }
+        guard retrying == nil || retrying?.id == store.topicId else {
             message = String(localized: "Você já tem um mapa de \(topic). Abra-o em Seus mapas, ou escolha outro nome.")
             return
         }
         form.topic = topic
-        let joining = continentId
+        let joining = continentId ?? retrying?.continent?.id
         continentId = nil
         // A re-submit (or a picked scope) starts a second stream: cancelling
         // the first is what stops its concepts landing on the new map.
@@ -173,6 +177,10 @@ public final class OnboardingViewModel {
 
         build = Task { [form] in
             var first: Task<DiagnosticQuestion, Error>?
+            // Dropped and made again rather than upserted: the upsert would come
+            // back as not created here, and a retry that fails too would then
+            // leave an empty topic on the dashboard.
+            if retrying != nil { await store.abandonTopic() }
             // The topic row is created before the map is generated, not after,
             // because the server's post-build warm needs somewhere to file what
             // it generates — and that warm runs the moment the map lands, while
