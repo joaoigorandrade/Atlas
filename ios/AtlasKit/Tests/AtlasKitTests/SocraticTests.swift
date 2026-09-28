@@ -193,3 +193,20 @@ private func probe(_ id: String, spare: Bool = false) -> JSONValue {
     // A probe written before the bar has no ledger to judge progress by.
     #expect(partial.descent(banked: false, bar: 0) == 0)
 }
+
+/// The judge grades the union of what was said to *this* probe. Handing it the
+/// whole pass let answers to probe 1 close probe 2.
+@MainActor
+@Test func theJudgeHearsOnlyWhatWasSaidSinceThisProbeOpened() async throws {
+    let store = store()
+    script(store, [probe("s1"), probe("s2"), probe("s3")])
+    let (_, model) = pass(store)
+    await model.load()
+    model.stuck()
+    model.tell()
+    model.stuck()
+    let said = model.judgeContext(try #require(model.steps[safe: 1]), "resposta")["said"]
+    // The one "Estou travado." on probe 2 — the new answer itself is the
+    // trailing turn in `send`, so here the hint after it is what is dropped.
+    #expect(said == .array([.string(String(localized: "Estou travado."))]))
+}

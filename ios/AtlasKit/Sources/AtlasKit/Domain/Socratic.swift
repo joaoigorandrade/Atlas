@@ -175,7 +175,7 @@ public struct SocraticSnapshot: Codable, Sendable {
         log = (try? c.decode([Turn].self, forKey: .log)) ?? []
         ruledOut = (try? c.decode([String].self, forKey: .ruledOut)) ?? []
         tells = (try? c.decode(Int.self, forKey: .tells)) ?? 0
-        resolutions = (try? c.decode([SocraticResolution].self, forKey: .resolutions)) ?? []
+        resolutions = c.lenient(.resolutions, default: [String]()).compactMap(SocraticResolution.init(rawValue:))
         floor = try? c.decode(Int.self, forKey: .floor)
         covered = (try? c.decode([Int].self, forKey: .covered)) ?? []
         bar = (try? c.decode([String].self, forKey: .bar)) ?? []

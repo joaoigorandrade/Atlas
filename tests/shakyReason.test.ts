@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PHASE_PLAN, reasonAfter, stateFromPlan } from "@/lib/curriculum";
+import { PHASE_PLAN, primaryPhase, reasonAfter, stateFromPlan } from "@/lib/curriculum";
 
 // A Shaky reason used to be cleared by one thing only: a passed Crucible. A
 // plan without one — every fact, every use/recognise node — stayed Shaky for
@@ -27,6 +27,16 @@ describe("reasonAfter", () => {
     expect(reasonAfter(concept, noCrucible, "recall", undefined, "crucible-fail")).toBe(
       "crucible-fail",
     );
+  });
+
+  it("on a concept, only a re-passed Crucible clears it — not the Recall after it", () => {
+    const concept = PHASE_PLAN.concept;
+    const full = concept.filter((p) => p !== "retain");
+    expect(reasonAfter(concept, full, "recall", undefined, "crucible-fail")).toBe(
+      "crucible-fail",
+    );
+    expect(reasonAfter(concept, full, "crucible", undefined, "crucible-fail")).toBeUndefined();
+    expect(primaryPhase(concept, full, "shaky")).toBe("crucible");
   });
 
   it("lets an explicit verdict win either way", () => {

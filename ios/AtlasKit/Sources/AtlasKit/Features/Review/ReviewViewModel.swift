@@ -28,15 +28,16 @@ public final class ReviewViewModel {
     private let store: AtlasStore
     /// The map this deck was dealt from. The tab outlives a switch in "Seus
     /// mapas", and a pass left half-done on the last map must not be graded
-    /// into this one.
-    let subject: String
+    /// into this one. The row, not the subject: a map deleted and rebuilt on
+    /// the same subject is a different deck.
+    let topicId: String?
     /// Cards already sent back to the end of the deck once.
     private var requeued: Set<String> = []
 
     public init(store: AtlasStore, deck: [ReviewCard] = []) {
         self.store = store
         self.deck = deck
-        subject = store.subject
+        topicId = store.topicId
     }
 
     public var card: ReviewCard? { deck[safe: index] }
@@ -126,7 +127,7 @@ public final class ReviewViewModel {
         // The deck — which cards are due, in what order, and what each grade
         // button would schedule — is the server's answer, because that is where
         // the scheduler runs. See `Retain.swift`.
-        await store.loadDeck()
+        guard await deal() else { return }
         if !store.deck.isEmpty { return reset(to: store.deck) }
         let uncovered = store.uncovered
         guard !uncovered.isEmpty, !drafting else { return }
@@ -137,9 +138,19 @@ public final class ReviewViewModel {
         // cards already written. See `AtlasStore.draftCards`.
         if let error = await store.draftCards(for: uncovered) {
             message = ErrorCopy.sentence(for: error, doing: String(localized: "montar sua revisão"))
-        } else {
-            await store.loadDeck()
+        } else if await deal() {
             reset(to: store.deck)
+        }
+    }
+
+    /// Ask for the deck; false, with the reason on screen, when that failed.
+    private func deal() async -> Bool {
+        do {
+            try await store.loadDeck()
+            return true
+        } catch {
+            message = ErrorCopy.sentence(for: error, doing: String(localized: "carregar sua revisão"))
+            return false
         }
     }
 

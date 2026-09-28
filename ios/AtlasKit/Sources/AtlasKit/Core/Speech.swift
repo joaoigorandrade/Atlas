@@ -33,11 +33,12 @@ public final class Speaker {
 
     /// Speak `segments` in order, packed into requests under the route's cap.
     ///
-    /// `self` is captured weakly on purpose: the task parks in `Task.sleep` for
-    /// the length of a clip, and a strong capture kept the whole speaker — and
-    /// its player — alive and audible over whatever screen the learner went to
-    /// next. Screens still stop it explicitly on the way out; this is the
-    /// backstop for the ones that forget.
+    /// `self` is captured weakly on purpose, and never re-bound strongly across
+    /// an `await`: the task parks in `Task.sleep` for the length of a clip, and
+    /// a strong reference held there kept the whole speaker — and its player —
+    /// alive and audible over whatever screen the learner went to next. Screens
+    /// still stop it explicitly on the way out; this is the backstop for the
+    /// ones that forget.
     public func toggle(_ segments: [String], api: AtlasAPI) {
         if speaking || loading { return stop() }
         let clips = Self.batched(segments)
@@ -46,36 +47,42 @@ public final class Speaker {
         loading = true
         clip = Task { [weak self] in
             for text in clips {
-                guard let self, !Task.isCancelled else { return }
+                guard !Task.isCancelled else { return }
                 let audio: Data
                 do {
                     audio = try await api.speech(text)
                 } catch {
-                    self.message = ErrorCopy.sentence(
+                    self?.message = ErrorCopy.sentence(
                         for: error, doing: String(localized: "ler esta seção em voz alta")
                     )
-                    return self.stop()
+                    self?.stop()
+                    return
                 }
-                guard !Task.isCancelled, let player = try? AVAudioPlayer(data: audio) else { return }
-                // Dictation leaves the shared session on `.record`, which plays
-                // this back into silence. Whoever speaks last says what the
-                // session is for.
-                try? AVAudioSession.sharedInstance().setCategory(.playback)
-                try? AVAudioSession.sharedInstance().setActive(true)
-                self.player = player
-                player.play()
-                self.speaking = true
-                // The clip is playing, so it is no longer loading: the flag ran
-                // to the *end* of the closure before, which drew the control at
-                // 40% for the whole time it was speaking.
-                self.loading = false
+                guard !Task.isCancelled, let (duration, playing) = self?.play(audio) else { return }
                 // No delegate for one boolean: the clip's own duration is when
                 // it stops, and a stray tap on `stop` clears the flag either way.
-                try? await Task.sleep(for: .seconds(player.duration))
-                guard self.player === player else { return }
+                try? await Task.sleep(for: .seconds(duration))
+                guard let current = self?.player, ObjectIdentifier(current) == playing else { return }
             }
             self?.stop()
         }
+    }
+
+    /// Start one clip; its length and identity, or nil when it won't decode.
+    private func play(_ audio: Data) -> (TimeInterval, ObjectIdentifier)? {
+        guard let player = try? AVAudioPlayer(data: audio) else { return nil }
+        // Dictation leaves the shared session on `.record`, which plays this
+        // back into silence. Whoever speaks last says what the session is for.
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        self.player = player
+        player.play()
+        speaking = true
+        // The clip is playing, so it is no longer loading: the flag ran to the
+        // *end* of the closure before, which drew the control at 40% for the
+        // whole time it was speaking.
+        loading = false
+        return (player.duration, ObjectIdentifier(player))
     }
 
     /// The route caps one request at 4 000 characters
@@ -112,7 +119,12 @@ public final class Speaker {
     public func stop() {
         clip?.cancel()
         clip = nil
-        player?.stop()
+        if let player {
+            player.stop()
+            // `.playback` is not mixable: without handing the session back, the
+            // learner's music or podcast stays paused after the clip.
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
         player = nil
         speaking = false
         loading = false
@@ -166,6 +178,10 @@ public final class Dictation {
     /// error: the app dies where a Swift `throw` would have been drawn.
     private var engine: AVAudioEngine?
     private var task: SFSpeechRecognitionTask?
+    /// Which recording the callbacks belong to. A stopped run's recogniser
+    /// still reports once more; without this, that late final result landed
+    /// in the *next* run — overwriting its transcript and ending it.
+    private var run = 0
     private var transcript = ""
     /// Where the transcription goes. Held for the whole run so the recogniser
     /// stopping on its own can still deliver what it heard.
@@ -239,6 +255,8 @@ public final class Dictation {
     }
 
     private func listen(_ recognizer: SFSpeechRecognizer) {
+        run += 1
+        let current = run
         transcript = ""
         heard = ""
         // The buffer request is handed to an audio-thread tap and to the
@@ -291,7 +309,7 @@ public final class Dictation {
             // One `Double` crosses back, roughly forty times a second — the
             // buffer itself never leaves the render thread.
             let loudness = Self.loudness(buffer)
-            Task { @MainActor in self.level = loudness }
+            Task { @MainActor in if self.run == current, self.listening { self.level = loudness } }
         }
         engine.prepare()
         guard (try? engine.start()) != nil else {
@@ -307,10 +325,9 @@ public final class Dictation {
             let text = result?.bestTranscription.formattedString
             let (failed, final) = (error != nil, result?.isFinal ?? false)
             Task { @MainActor in
-                // Not after `end`: `finish()` still sends the final result,
-                // and landing it here redrew the delivered answer a second
-                // time beside the draft it was just appended to.
-                if let text, self.listening { self.transcript = text; self.heard = text }
+                // Only this run's: a stopped one still reports once more.
+                guard self.run == current, self.listening else { return }
+                if let text { self.transcript = text; self.heard = text }
                 // The recogniser ends on its own on a network drop and at
                 // Apple's ~one-minute cap on a single utterance. Nothing would
                 // fire again: the mic would keep breathing over an engine
@@ -332,7 +349,9 @@ public final class Dictation {
             engine.inputNode.removeTap(onBus: 0)
             self.engine = nil
         }
-        task?.finish()
+        // Cancelled, not finished: the transcript is read right here from the
+        // partials, so a final result after this point has nowhere to go.
+        task?.cancel()
         task = nil
         listening = false
         starting = false

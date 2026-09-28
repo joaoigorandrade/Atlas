@@ -166,9 +166,7 @@ struct WelcomeView: View {
     /// whole map from, and the web's `PARETO_LEVELS`.
     private var paretoRow: some View {
         VStack(alignment: .leading, spacing: 9) {
-            (Text("Quanto do tema?").foregroundStyle(Palette.inkSoft)
-                + Text(verbatim: " — ")
-                + Text("a fatia de resultado real que você quer").foregroundStyle(Palette.inkGhost))
+            Text("\(Text("Quanto do tema?").foregroundStyle(Palette.inkSoft)) — \(Text("a fatia de resultado real que você quer").foregroundStyle(Palette.inkGhost))")
                 .font(.atlas(.sans, 14))
             LazyVGrid(columns: columns(3), spacing: 9) {
                 ForEach(paretoLevels, id: \.self) { pct in
@@ -241,8 +239,7 @@ struct WelcomeView: View {
         _ title: LocalizedStringKey, _ hint: LocalizedStringKey, @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 11) {
-            (Text(title).foregroundStyle(Palette.inkSoft)
-                + Text(verbatim: " — ") + Text(hint).foregroundStyle(Palette.inkGhost))
+            Text("\(Text(title).foregroundStyle(Palette.inkSoft)) — \(Text(hint).foregroundStyle(Palette.inkGhost))")
                 .font(.atlas(.sans, 14))
             content()
         }

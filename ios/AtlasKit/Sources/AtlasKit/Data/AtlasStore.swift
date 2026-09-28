@@ -233,6 +233,8 @@ public final class AtlasStore {
     /// be deleted again — see `abandonTopic`.
     private var topicWasCreatedHere = false
     private var pendingSave: Task<Void, Never>?
+    /// The write on the wire, if any — see `saveNow`.
+    @ObservationIgnored private var saving: Task<Void, Never>?
     /// Bumped whenever the live run is swapped (`open`, `clearRun`). A write in
     /// flight across a swap must not diff the new run against the old one's
     /// shots — that put one map's cards and settings into the other's row.
@@ -573,11 +575,16 @@ public extension AtlasStore {
     /// part of its key.
     var reviewBudgetMin: Int { min(15, max(5, Int((Double(dailyTarget) / 2).rounded()))) }
 
-    func loadDeck() async {
-        guard let topicId, let token = await bearer() else { return }
-        guard let content = try? await runs.review(
+    /// Throws rather than reading a failed request as "nothing due" — the
+    /// screen said "fila limpa" to a learner who was simply offline.
+    func loadDeck() async throws {
+        guard let topicId else { return }
+        guard let token = await bearer() else { throw AtlasError(code: "auth", message: "no session") }
+        let content = try await runs.review(
             topicId, budgetMin: reviewBudgetMin, language: language, token: token
-        ) else { return }
+        )
+        // The learner can have switched maps during the GET.
+        guard topicId == self.topicId else { return }
         deck = content.cards
         forecast = content.forecast ?? []
         deckRemaining = content.remaining ?? 0
@@ -614,11 +621,11 @@ public extension AtlasStore {
                 // this the dashboard keeps counting a card the learner has just
                 // answered as due, because the copy here still holds the old
                 // date — and the next write would send that stale state back.
-                quiet = true
-                if let index = cards.firstIndex(where: { $0.id == graded.id }) {
-                    cards[index] = graded
+                silently {
+                    if let index = cards.firstIndex(where: { $0.id == graded.id }) {
+                        cards[index] = graded
+                    }
                 }
-                quiet = false
                 savedCards[graded.id] = (try? JSONValue(encoding: graded))?.compact ?? graded.id
             } catch {
                 // A grade that did not land is a card that comes back tomorrow
@@ -695,7 +702,15 @@ public extension AtlasStore {
             return
         }
         defer { quiet = false }
-        guard await renew(stored) else { return }
+        guard await renew(stored) else {
+            // Nothing on disk and no way to renew: offline with an expired
+            // token. `adopt` raised `opening`, and only a library clears it —
+            // the splash waited for one forever. Still signed in, so the shell
+            // offers the retry instead.
+            opening = false
+            libraryFailed = session != nil
+            return
+        }
         await loadLibrary()
     }
 
@@ -709,7 +724,7 @@ public extension AtlasStore {
             // transport failure means the phone is on a plane — keep the
             // refresh token and try again next launch rather than signing the
             // learner out for being offline.
-            if (error as? AtlasError)?.status != nil { await signOut(flush: false) }
+            if Self.rejected(error) { await signOut(flush: false) }
             return false
         }
     }
@@ -739,14 +754,17 @@ public extension AtlasStore {
         library = topics
         local.replace(topics: topics)
         adopt(profile)
-        guard let freshest = topics.first else { return }
+        guard let wanted = topics.first(where: { $0.id == (topicId ?? Defaults.lastTopic) }) ?? topics.first
+        else { return }
         // Re-open when nothing was drawn, or when the server's copy of the open
-        // map is newer than the one on disk — another device having moved it on.
-        // A *different* map being freshest is deliberately not a reason to
-        // re-open: the learner is looking at this one.
-        let stale = mirrored.first.map { $0.id != freshest.id || $0.updatedAt < freshest.updatedAt } ?? true
-        if graph.nodes.isEmpty || (stale && freshest.id == topicId) {
-            open(freshest)
+        // map is newer than the one on disk — another device having moved it
+        // on. Never over work this phone has not written yet: that would throw
+        // it away. A *different* map is deliberately not a reason to re-open:
+        // the learner is looking at this one.
+        let drawn = mirrored.first { $0.id == wanted.id }
+        let stale = drawn.map { ISODate.older($0.updatedAt, than: wanted.updatedAt) } ?? true
+        if graph.nodes.isEmpty || (stale && wanted.id == topicId && !unsaved) {
+            open(wanted)
         }
         // Outside the branch on purpose. Content is refreshed on every load,
         // not only on the loads that re-open the map: a reading generated in a
@@ -765,9 +783,9 @@ public extension AtlasStore {
     private func draw(_ mirrored: [AtlasRun]) -> Bool {
         guard !mirrored.isEmpty, graph.nodes.isEmpty else { return false }
         library = mirrored
-        if let freshest = mirrored.first {
-            open(freshest)
-            seedWarm(local.content(topicId: freshest.id))
+        if let last = mirrored.first(where: { $0.id == Defaults.lastTopic }) ?? mirrored.first {
+            open(last)
+            seedWarm(local.content(topicId: last.id))
         }
         // Drawn: the shell can stop holding onboarding back.
         opening = false
@@ -816,8 +834,11 @@ public extension AtlasStore {
         runEpoch += 1
         challenge = nil
         loaded = run
+        // The same map re-read keeps what is warm: clearing it blanked a
+        // reading still streaming on screen.
+        if run.id != topicId { warm.clear() }
         topicId = run.id
-        warm.clear()
+        Defaults.lastTopic = run.id
         deck = []
         forecast = []
         deckRemaining = 0
@@ -957,13 +978,14 @@ public extension AtlasStore {
         let run = made.run
         // Only a row this call created may be undone — see `abandonTopic`.
         topicWasCreatedHere = made.created
-        quiet = true
-        topicId = run.id
-        loaded = run
-        savedNodes = [:]
-        savedCards = [:]
-        savedTopic = ""
-        quiet = false
+        silently {
+            topicId = run.id
+            Defaults.lastTopic = run.id
+            loaded = run
+            savedNodes = [:]
+            savedCards = [:]
+            savedTopic = ""
+        }
         // The create is an upsert: a subject the learner already has comes back
         // as the row the library already lists.
         library.removeAll { $0.id == run.id }
@@ -1027,14 +1049,29 @@ public extension AtlasStore {
     /// behind is a row, and stays on the dashboard.
     func newMap() async {
         await saveNow()
+        closeRun()
+    }
+
+    /// No map open, and nothing the server holds to diff against.
+    private func closeRun() {
+        silently {
+            loaded = nil
+            topicId = nil
+            savedNodes = [:]
+            savedCards = [:]
+            savedTopic = ""
+            clearRun()
+        }
+    }
+
+    /// Writes that are the store being filled in, not the learner working, so
+    /// they queue no save. Restores what `quiet` was rather than clearing it:
+    /// a grade landing inside a restore window un-quieted the restore.
+    private func silently(_ body: () -> Void) {
+        let wasQuiet = quiet
         quiet = true
-        defer { quiet = false }
-        loaded = nil
-        topicId = nil
-        savedNodes = [:]
-        savedCards = [:]
-        savedTopic = ""
-        clearRun()
+        defer { quiet = wasQuiet }
+        body()
     }
 
     /// Exclude a topic: one DELETE, and the foreign keys behind it take the
@@ -1066,14 +1103,7 @@ public extension AtlasStore {
         local.delete(topicId: id)
         library.removeAll { $0.id == id }
         guard id == topicId else { return }
-        quiet = true
-        loaded = nil
-        topicId = nil
-        savedNodes = [:]
-        savedCards = [:]
-        savedTopic = ""
-        clearRun()
-        quiet = false
+        closeRun()
         if let next = library.first {
             open(next)
             await hydrateContent()
@@ -1194,8 +1224,10 @@ public extension AtlasStore {
         return shots
     }
 
-    private func topicShot() -> String {
-        JSONValue.object([
+    /// The topic's own fields, as the PATCH sends them — and, compacted, the
+    /// shot a save diffs against. One body, so the two can't drift.
+    private func topicBody() -> JSONValue {
+        .object([
             "goal": .string(goal.rawValue),
             "interests": .string(interests),
             "paretoPct": .number(Double(paretoPct)),
@@ -1203,7 +1235,42 @@ public extension AtlasStore {
             "language": .string(language),
             "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
             "misconceptions": (try? JSONValue(encoding: misconceptions)) ?? .array([]),
-        ]).compact
+        ])
+    }
+
+    private func topicShot() -> String { topicBody().compact }
+
+    /// Something the learner did that the server has not acknowledged yet.
+    private var unsaved: Bool {
+        pendingSave != nil || saving != nil
+            || savedNodes != nodeShots() || savedCards != cardShots() || savedTopic != topicShot()
+    }
+
+    /// The live run as a row — every persisted field, in one place. The mirror
+    /// copy written after a save listed them by hand and had dropped five, so
+    /// an offline relaunch reopened with the old goal and content language.
+    private func currentRun(over base: AtlasRun) -> AtlasRun {
+        var run = base
+        run.subject = subject
+        run.goal = goal
+        run.interests = interests
+        run.paretoPct = paretoPct
+        run.examDate = examDate
+        run.language = language
+        run.calibSamples = calib
+        run.graph = graph
+        run.states = states
+        run.shakyReasons = shakyReasons
+        run.phasesDone = phasesDone
+        run.reviewedNodes = reviewed.sorted()
+        run.consumeProgress = consumeProgress
+        run.socraticProgress = socraticProgress
+        run.feynmanProgress = feynmanProgress
+        run.connectProgress = connectProgress
+        run.phaseProgress = phaseProgress
+        run.misconceptions = misconceptions
+        run.cards = cards
+        return run
     }
 
     private static func profileShot(target: Int, streak: Int, day: String) -> String {
@@ -1248,9 +1315,24 @@ public extension AtlasStore {
     ///
     /// A failure is kept — `saveFailed` draws the chip and a retry is armed, so
     /// a session worked through offline lands as soon as there is signal.
+    ///
+    /// One at a time. `saveIn` lets go of its handle before it gets here, so a
+    /// second debounce, a map switch or a sign-out could start a write while
+    /// one was still on the wire: both diffed against the same baseline, sent
+    /// the same changes, and could land out of order — the server keeping the
+    /// older node while the baseline said the newer one was saved. A caller
+    /// arriving mid-write waits for it, then writes whatever is left.
     func saveNow() async {
         pendingSave?.cancel()
         pendingSave = nil
+        while let running = saving { await running.value }
+        let write = Task { await self.write() }
+        saving = write
+        await write.value
+        saving = nil
+    }
+
+    private func write() async {
         guard signedIn else { return }
         // A session that is present but dead — the access token expired and the
         // refresh was refused — leaves `signedIn` true forever, because it is
@@ -1269,6 +1351,9 @@ public extension AtlasStore {
         let cardsNow = cardShots()
         let topic = topicShot()
         let epoch = runEpoch
+        // The PATCH moves the row's `updated_at`; the mirror has to follow, or
+        // the next launch reads its own write as another device's and re-opens.
+        var touched = false
 
         do {
             if profile != savedProfile {
@@ -1346,17 +1431,10 @@ public extension AtlasStore {
             }
 
             if topic != savedTopic {
-                try await runs.patchTopic(topicId, body: .object([
-                    "goal": .string(goal.rawValue),
-                    "interests": .string(interests),
-                    "paretoPct": .number(Double(paretoPct)),
-                    "examDate": .string(examDate),
-                    "language": .string(language),
-                    "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
-                    "misconceptions": (try? JSONValue(encoding: misconceptions)) ?? .array([]),
-                ]), token: token)
+                try await runs.patchTopic(topicId, body: topicBody(), token: token)
                 guard epoch == runEpoch else { return }
                 savedTopic = topic
+                touched = true
             }
         } catch {
             // A 401 means the token died between the check above and the write.
@@ -1381,21 +1459,10 @@ public extension AtlasStore {
         // The learner can have signed out — or signed in as somebody else —
         // while those writes were in flight.
         guard session?.accessToken == token else { return }
+        guard epoch == runEpoch else { return }
         if let index = library.firstIndex(where: { $0.id == topicId }) {
-            library[index].subject = subject
-            library[index].graph = graph
-            library[index].states = states
-            library[index].cards = cards
-            library[index].shakyReasons = shakyReasons
-            library[index].phasesDone = phasesDone
-            library[index].reviewedNodes = reviewed.sorted()
-            library[index].consumeProgress = consumeProgress
-            library[index].socraticProgress = socraticProgress
-            library[index].feynmanProgress = feynmanProgress
-            library[index].connectProgress = connectProgress
-            library[index].phaseProgress = phaseProgress
-            library[index].misconceptions = misconceptions
-            library[index].calibSamples = calib
+            library[index] = currentRun(over: library[index])
+            if touched { library[index].updatedAt = ISODate.now() }
             // The mirror holds what the server acknowledged, never what the
             // screen hopes it did — so it is written here, after the write
             // landed, and not beside the state change that caused it.
@@ -1521,11 +1588,25 @@ public extension AtlasStore {
     /// Nil means there is no usable credential — offline, or a refresh token
     /// GoTrue has rejected. The caller treats that as the request failing;
     /// signing the learner out on it would do it for a flight-mode phone too.
+    ///
+    /// GoTrue *refusing* the refresh token is different: it will never work
+    /// again, and every save and warm used to ask again with it, forever.
     func bearer(renew: Bool = false) async -> String? {
         guard let session else { return nil }
         guard renew || session.isExpired else { return session.accessToken }
-        guard case .success(let renewed) = await renewOnce(session.refreshToken) else { return nil }
-        return renewed.accessToken
+        switch await renewOnce(session.refreshToken) {
+        case .success(let renewed): return renewed.accessToken
+        case .failure(let error):
+            if Self.rejected(error) { await signOut(flush: false) }
+            return nil
+        }
+    }
+
+    /// GoTrue answered and said no. A transport failure — a phone on a plane —
+    /// keeps the refresh token for next time, and so does a rate limit.
+    private static func rejected(_ error: any Error) -> Bool {
+        guard let status = (error as? AtlasError)?.status else { return false }
+        return (400..<500).contains(status) && status != 429
     }
 
     /// Renew the session, once — see `renewal`.
@@ -1538,8 +1619,11 @@ public extension AtlasStore {
         renewal = task
         let outcome = await task.value
         renewal = nil
-        // A sign-out while the refresh was in flight must stay signed out.
-        if case .success(let renewed) = outcome, session != nil { await adopt(renewed, opening: false) }
+        // A sign-out while the refresh was in flight must stay signed out — and
+        // a different learner signed in meanwhile must not get this one's.
+        if case .success(let renewed) = outcome, session?.refreshToken == refreshToken {
+            await adopt(renewed, opening: false)
+        }
         return outcome
     }
 
@@ -1552,6 +1636,6 @@ public extension AtlasStore {
         if opening { self.opening = true }
         self.session = session
         SessionStore.save(session)
-        await api.setAccessToken(session.accessToken)
+        await api.setAccessToken(session.accessToken) { [weak self] in await self?.bearer() }
     }
 }

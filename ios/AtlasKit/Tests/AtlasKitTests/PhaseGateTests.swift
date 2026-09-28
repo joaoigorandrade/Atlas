@@ -311,3 +311,13 @@ private func setups(_ count: Int) -> PredictContent {
     #expect(reasonAfter(plan, [.consume, .recall], .recall, shaky: nil, held: .reviewMiss) == .reviewMiss)
     #expect(reasonAfter(plan, full, .recall, shaky: .some(.crucibleFail), held: nil) == .crucibleFail)
 }
+
+/// A concept ends on Recall, but its proof is the Crucible: passing Recall
+/// again must not clear a Crucible failure, and the CTA re-opens the Crucible.
+@Test func onAConceptOnlyTheCrucibleClearsAHeldReason() {
+    let plan = phasePlans[.concept]!
+    let full = planGates(plan)
+    #expect(reasonAfter(plan, full, .recall, shaky: nil, held: .crucibleFail) == .crucibleFail)
+    #expect(reasonAfter(plan, full, .crucible, shaky: nil, held: .crucibleFail) == nil)
+    #expect(primaryPhase(plan, full, state: .shaky) == .crucible)
+}

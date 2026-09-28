@@ -97,13 +97,13 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         paretoPct = (try? c.decode(Int.self, forKey: .paretoPct)) ?? paretoLevels[0]
         examDate = (try? c.decode(String.self, forKey: .examDate)) ?? ""
         language = try? c.decode(String.self, forKey: .language)
-        calibSamples = (try? c.decode([CalibSample].self, forKey: .calibSamples)) ?? []
+        calibSamples = c.lenientList(.calibSamples)
         litToday = (try? c.decode([String].self, forKey: .litToday)) ?? []
         updatedAt = (try? c.decode(String.self, forKey: .updatedAt)) ?? ""
         var graph = (try? c.decode(ConceptGraph.self, forKey: .graph)) ?? ConceptGraph()
-        states = (try? c.decode(StateMap.self, forKey: .states)) ?? [:]
+        states = c.lenientMap(.states)
         positions = (try? c.decode([String: Point].self, forKey: .positions)) ?? [:]
-        shakyReasons = (try? c.decode([String: ShakyReason].self, forKey: .shakyReasons)) ?? [:]
+        shakyReasons = c.lenientMap(.shakyReasons)
         // A phase this build has no screen for is dropped rather than decoded —
         // the same leniency `ConceptNode` reads `phase_plan` with, and for the
         // same reason: a client one release behind draws a shorter ladder
@@ -116,8 +116,8 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         feynmanProgress = (try? c.decode([String: JSONValue].self, forKey: .feynmanProgress)) ?? [:]
         connectProgress = (try? c.decode([String: JSONValue].self, forKey: .connectProgress)) ?? [:]
         phaseProgress = (try? c.decode([String: JSONValue].self, forKey: .phaseProgress)) ?? [:]
-        misconceptions = (try? c.decode([MisconceptionRecord].self, forKey: .misconceptions)) ?? []
-        cards = (try? c.decode([StoredCard].self, forKey: .cards)) ?? []
+        misconceptions = c.lenientList(.misconceptions)
+        cards = c.lenientList(.cards)
         continent = try? c.decodeIfPresent(Continent.self, forKey: .continent)
         // Positions are their own map because the browser draws from it and
         // never from a node's generated coordinates. Folding it onto the nodes
@@ -129,6 +129,10 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
             graph.nodes[index].y = at.y
         }
         self.graph = graph
+        // Folded, so emptied: the mirror re-encodes this run, and a stale map
+        // left here was folded back over the nodes on the next launch — which
+        // put a node the learner had dragged back where it started.
+        positions = [:]
     }
 }
 
@@ -316,5 +320,15 @@ enum ISODate {
 
     static func parse(_ text: String) -> Date? {
         (try? fractional.parse(text)) ?? (try? whole.parse(text))
+    }
+
+    static func now() -> String { Date.now.formatted(fractional) }
+
+    /// Whether `a` is older than `b`, as instants. The row's `updated_at` comes
+    /// back as Postgres writes it (`…09.123456+00:00`) and this client writes
+    /// `…09.123Z`, so comparing the strings compared their formats.
+    static func older(_ a: String, than b: String) -> Bool {
+        guard let first = parse(a), let second = parse(b) else { return a < b }
+        return first < second
     }
 }

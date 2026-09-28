@@ -57,7 +57,7 @@ public struct MapView: View {
             // is what the catalogue exists to stop, and the day a ladder starts
             // elsewhere this warms the phase the node actually opens on.
             for node in store.frontier {
-                guard let first = planGates(node.plan).first?.kind else { continue }
+                guard let first = planGates(node.plan).first else { continue }
                 store.warmUp(first, for: node)
             }
         }

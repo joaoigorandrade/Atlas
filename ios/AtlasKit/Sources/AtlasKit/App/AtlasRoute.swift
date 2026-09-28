@@ -5,13 +5,15 @@ import SwiftUI
 /// `Navigator` pushes and presents these, so a screen asks for a destination by
 /// name instead of owning the `sheet`/`fullScreenCover`/`NavigationLink` that
 /// gets there.
-public enum AtlasRoute: ModalRoute {
+public enum AtlasRoute: @preconcurrency ModalRoute {
     /// The node drawer — a bottom sheet on mobile. It sets its own detents:
     /// the spiral plus the chips is taller than a sheet at AX type sizes.
     case nodeDetail(ConceptNode)
     /// One pass through the spiral. Pushed rather than covered: the phase bar
     /// already draws its own way back, and a push gets the swipe for free.
-    case session(ConceptNode, phase: Phase?)
+    /// `resumed` is a cold launch reopening the pass it was killed in — not a
+    /// redo, so it must not ask for a fresh Crucible problem.
+    case session(ConceptNode, phase: Phase?, resumed: Bool = false)
     /// Pushed, and deliberately keeping the tab bar: both are side trips the
     /// learner steps back out of, not a mode the app enters.
     case settings
@@ -27,11 +29,13 @@ public enum AtlasRoute: ModalRoute {
         }
     }
 
-    @ViewBuilder
+    /// Main-actor: every destination is a view, built where views are built.
+    /// `Routable` predates that annotation, hence the `@preconcurrency`.
+    @MainActor @ViewBuilder
     public var destination: some View {
         switch self {
         case .nodeDetail(let node): NodeDetailView(node: node)
-        case .session(let node, let phase): SessionView(node: node, phase: phase)
+        case .session(let node, let phase, let resumed): SessionView(node: node, phase: phase, resumed: resumed)
         case .settings: SettingsView()
         case .calibration: CalibrationView()
         }

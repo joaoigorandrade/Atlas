@@ -19,8 +19,7 @@ struct VoiceSheet: View {
     /// Socratic's spend material the generation already wrote; Feynman's asks
     /// for the freeze nudge. All of them land *behind* the sheet, so the
     /// action closes it.
-    struct Escape: Identifiable {
-        let id = UUID()
+    struct Escape {
         let title: LocalizedStringKey
         let action: () -> Void
         init(_ title: LocalizedStringKey, action: @escaping () -> Void) {
@@ -46,6 +45,7 @@ struct VoiceSheet: View {
     let send: () -> Void
     /// The keyboard, asked for out loud rather than by dragging.
     let keyboard: () -> Void
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
     init(dictation: Dictation, tint: Color, text: Binding<String>,
          placeholder: LocalizedStringKey, sendTitle: LocalizedStringKey, busy: Bool,
@@ -58,62 +58,73 @@ struct VoiceSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 14) {
-            VoiceWave(level: dictation.level, active: dictation.listening, tint: tint)
-            Text(status)
-                .font(.atlas(.sans, 13))
-                .foregroundStyle(Palette.inkFaint)
-                .multilineTextAlignment(.center)
-            draft
-            if let trouble = dictation.trouble {
-                Text(verbatim: trouble.sentence)
-                    .font(.atlas(.sans, 12.5))
-                    .foregroundStyle(Palette.amberInk)
+        // Scrolls only when it has to: at accessibility sizes the status, the
+        // draft and the controls outgrow the fixed detent.
+        ScrollView {
+            VStack(spacing: 14) {
+                VoiceWave(level: dictation.level, active: dictation.listening, tint: tint)
+                Text(status)
+                    .font(.atlas(.sans, 13))
+                    .foregroundStyle(Palette.inkFaint)
                     .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if !escapes.isEmpty {
-                HStack(spacing: 8) {
-                    ForEach(escapes) { hatch in
-                        escapeChip(hatch.title) { dictation.flush(); hatch.action() }
+                draft
+                if let trouble = dictation.trouble {
+                    Text(verbatim: trouble.sentence)
+                        .font(.atlas(.sans, 12.5))
+                        .foregroundStyle(Palette.amberInk)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !escapes.isEmpty {
+                    HStack(spacing: 8) {
+                        // By position: the list is rebuilt every render, and a
+                        // fresh `UUID` per render gave each chip a new identity.
+                        ForEach(escapes.indices, id: \.self) { index in
+                            let hatch = escapes[index]
+                            escapeChip(hatch.title) { dictation.flush(); hatch.action() }
+                        }
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    .disabled(!escapesEnabled)
+                    .opacity(escapesEnabled ? 1 : 0.4)
+                    .animation(Motion.standard, value: escapesEnabled)
                 }
-                .disabled(!escapesEnabled)
-                .opacity(escapesEnabled ? 1 : 0.4)
-                .animation(Motion.standard, value: escapesEnabled)
+                // The mic, the send, and the way out to the keyboard: one row of
+                // controls under the draft, rather than a stack of three.
+                HStack(spacing: 10) {
+                    micButton
+                    CTAButton(sendTitle, tint: tint) {
+                        // Whatever is still being said goes in before it is read,
+                        // or the spoken half of the answer is lost.
+                        dictation.flush()
+                        send()
+                    }
+                    .disabled(!sendable)
+                    Button(action: keyboard) {
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 17))
+                            .foregroundStyle(Palette.inkMuted)
+                            .frame(width: Metrics.tap, height: Metrics.tap)
+                            .contentShape(.rect)
+                    }
+                    .pressable()
+                    .accessibilityLabel("Prefiro escrever")
+                }
             }
-            // The mic, the send, and the way out to the keyboard: one row of
-            // controls under the draft, rather than a stack of three.
-            HStack(spacing: 10) {
-                micButton
-                CTAButton(sendTitle, tint: tint) {
-                    // Whatever is still being said goes in before it is read,
-                    // or the spoken half of the answer is lost.
-                    dictation.flush()
-                    send()
-                }
-                .disabled(!sendable)
-                Button(action: keyboard) {
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 17))
-                        .foregroundStyle(Palette.inkMuted)
-                        .frame(width: Metrics.tap, height: Metrics.tap)
-                        .contentShape(.rect)
-                }
-                .pressable()
-                .accessibilityLabel("Prefiro escrever")
-            }
+            .padding(.horizontal, Metrics.gutter)
+            .padding(.top, 20)
+            .padding(.bottom, 8)
         }
-        .padding(.horizontal, Metrics.gutter)
-        .padding(.top, 20)
-        .padding(.bottom, 8)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .scrollBounceBehavior(.basedOnSize)
         .background(Palette.paper)
         // The mic is what this sheet is. Opening it opens the mic, so the
         // learner talks instead of hunting for a second button — and closing it
         // hands the audio session back, whichever way it was closed.
-        .onAppear { listen() }
+        //
+        // Not over a draft already there — a retry reopened the mic and the
+        // same answer was said onto the end of itself — and not under
+        // VoiceOver, which would dictate its own reading of the screen.
+        .onAppear { if text.isEmpty, !voiceOver { listen() } }
         .onDisappear { dictation.flush() }
     }
 

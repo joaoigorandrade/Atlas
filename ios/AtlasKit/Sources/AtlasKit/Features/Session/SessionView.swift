@@ -8,6 +8,7 @@ struct SessionView: View {
     let node: ConceptNode
     /// Non-nil when the map asked for one particular phase again — a redo.
     var phase: Phase?
+    var resumed = false
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
     /// Built once, in `task`: a pass marks its node Learning on the way in, so
@@ -43,7 +44,7 @@ struct SessionView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden()
-        .task { if session == nil { session = SessionViewModel(node: node, store: store, phase: phase) } }
+        .task { if session == nil { session = SessionViewModel(node: node, store: store, phase: phase, resumed: resumed) } }
         // The map has the screen again — by the back swipe, the phase bar, or a
         // finished pass. Whichever it was, there is no pass to reopen next
         // launch. Backgrounding does not come through here, which is the point.

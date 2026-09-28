@@ -8,7 +8,7 @@
 import type { Language } from "@/lib/i18n";
 import type { Domain } from "./domains";
 import type { NodeDifficulty, NodeImportance } from "./cells";
-import { phaseLabel, planGates, type NodeKind, type PhaseId } from "./phases";
+import { phaseLabel, proofGate, type NodeKind, type PhaseId } from "./phases";
 
 export type NodeState =
   "unknown" | "frontier" | "learning" | "shaky" | "mastered" | "gap";
@@ -185,14 +185,14 @@ const STATE_CONFIDENCE_PT: Record<NodeState, string> = {
 };
 
 /**
- * The phase a "go prove it" line points at: the node's last gate. That is the
- * Crucible on every plan that has one, and Connect on a plan that stops there
+ * The phase a "go prove it" line points at: the node's `proofGate`. That is the
+ * Crucible on every plan that has one, and the last gate on a plan without one
  * — the copy used to name the Crucible unconditionally, which promised a
  * phase a `fact` never runs. `phaseLabel` is English in both languages by
  * design (AGENTS.md §"Both languages, always").
  */
 function gate(plan?: readonly PhaseId[]): string {
-  return phaseLabel(planGates(plan ?? []).at(-1) ?? "crucible");
+  return phaseLabel(plan?.length ? proofGate(plan) : "crucible");
 }
 
 /** Language-aware state-confidence copy. `plan` names the gate the Shaky line

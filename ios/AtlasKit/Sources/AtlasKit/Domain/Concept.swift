@@ -55,6 +55,32 @@ public enum NodeState: String, Codable, Sendable, CaseIterable {
 /// from prerequisites by `displayStates`, exactly as on the web.
 public typealias StateMap = [String: NodeState]
 
+/// Decoding the row the way AGENTS.md means "lenient in both directions": the
+/// web ships a new enum value or card shape before this build knows it, and
+/// one unknown element must drop *itself* — not the map or the list it sits
+/// in, which `try?` around the whole collection did.
+extension KeyedDecodingContainer {
+    func lenient<T: Decodable>(_ key: Key, default fallback: T) -> T {
+        (try? decodeIfPresent(T.self, forKey: key)) ?? fallback
+    }
+
+    func lenientMap<E: RawRepresentable>(_ key: Key) -> [String: E] where E.RawValue == String {
+        lenient(key, default: [String: String]()).compactMapValues(E.init(rawValue:))
+    }
+
+    func lenientList<T: Decodable>(_ key: Key) -> [T] {
+        guard var items = try? nestedUnkeyedContainer(forKey: key) else { return [] }
+        var kept: [T] = []
+        while !items.isAtEnd {
+            if let item = try? items.decode(T.self) { kept.append(item) } else if (try? items.decode(Skip.self)) == nil { break }
+        }
+        return kept
+    }
+}
+
+/// Consumes one element of any shape, so a lossy list can step past it.
+private struct Skip: Decodable { init(from decoder: any Decoder) {} }
+
 /// How a node became Shaky. Stored per node so the drawer can say *why* rather
 /// than assuming the last thing that could have caused it. Mirrors
 /// `ShakyReason` in `lib/curriculum/types.ts`; the raw values are the row's.
@@ -71,10 +97,9 @@ public enum ShakyReason: String, Codable, Sendable {
     /// `shakyLine` on the web, minus the language switch — the app is drawn in
     /// one language at a time and `Localizable.xcstrings` is where that lives.
     ///
-    /// `gate` is the phase a "go prove it" line points at: the node's own last
-    /// gate. That is the Crucible on every plan that has one, and Connect on a
-    /// plan that stops there — these four sentences named the Crisol
-    /// unconditionally, which promised a phase a `fact` never runs.
+    /// `gate` is the phase a "go prove it" line points at: the node's
+    /// `proofGate` — the Crucible on every plan that has one, the last gate on a
+    /// plan without — never a phase the node doesn't run.
     public func line(gate: Phase) -> LocalizedStringKey {
         let gate = gate.label
         switch self {
@@ -140,7 +165,7 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
         id = try c.decode(String.self, forKey: .id)
         label = try c.decode(String.self, forKey: .label)
         summary = try c.decodeIfPresent(String.self, forKey: .summary)
-        state = try c.decodeIfPresent(NodeState.self, forKey: .state) ?? .unknown
+        state = c.lenient(.state, default: String?.none).flatMap(NodeState.init(rawValue:)) ?? .unknown
         g = try c.decodeIfPresent(Int.self, forKey: .g) ?? 0
         week = try c.decodeIfPresent(Int.self, forKey: .week) ?? 0
         x = try c.decodeIfPresent(Double.self, forKey: .x) ?? 0

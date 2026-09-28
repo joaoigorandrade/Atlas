@@ -68,6 +68,11 @@ final class SocraticViewModel {
     /// "Mostre-me esta" uses. Not read here — the outcome reads `resolutions` —
     /// but part of the saved pass the browser draws.
     private var tells = 0
+    /// The pass has been handed on — by the CTA, the phase bar or leaving.
+    private var settled = false
+    /// The judge in flight, cancelled on the way out: one landing after the
+    /// screen is gone could close the last step and clear the saved pass.
+    private var judgeCall: Task<SocraticJudgement, Error>?
 
     init(session: SessionViewModel, api: AtlasAPI) {
         self.session = session
@@ -280,13 +285,25 @@ final class SocraticViewModel {
     /// Both halves of the voice handed back at once — the way off this screen.
     /// A clip parked in its own sleep keeps speaking over the map, and a mic
     /// left open keeps the audio session on `.record` for whatever comes next.
+    ///
+    /// A finished pass left any other way than the CTA — a back swipe, a pop to
+    /// the root — still settles: `save()` already cleared the row, so skipping
+    /// this lost the rung and re-opened the pass at probe 1.
     func leave() {
         speaker.stop()
         dictation.flush()
+        judgeCall?.cancel()
+        guard done, !settled else { return }
+        advance()
+        // The session is closing, not moving on: the hand-off must not leave a
+        // marker that reopens it on the next launch.
+        SessionViewModel.forget()
     }
 
     /// The CTA. Where it goes is the outcome's call, not the button's.
     func advance() {
+        guard !settled else { return }
+        settled = true
         stopReadAloud()
         session.settleSocratic(outcome ?? .assisted)
     }
@@ -348,8 +365,12 @@ final class SocraticViewModel {
         judging = true
         defer { judging = false }
 
+        let context = judgeContext(current, text)
+        let call = Task { [api] () async throws -> SocraticJudgement in try await api.judge("socratic", context) }
+        judgeCall = call
         do {
-            let verdict: SocraticJudgement = try await api.judge("socratic", judgeContext(current, text))
+            let verdict = try await call.value
+            guard !call.isCancelled else { return }
             let named = verdict.misconception?.trimmed
             log.append(Turn(
                 learner: false, text: verdict.response, quality: verdict.quality,
@@ -374,6 +395,7 @@ final class SocraticViewModel {
             help = rung
             save()
         } catch {
+            guard !call.isCancelled else { return }
             log.removeAll { $0.id == turn.id }
             answer = text
             attempts -= 1
@@ -501,7 +523,7 @@ final class SocraticViewModel {
         }
     }
 
-    private func judgeContext(_ current: SocraticStep, _ text: String) -> [String: JSONValue] {
+    func judgeContext(_ current: SocraticStep, _ text: String) -> [String: JSONValue] {
         var context = session.context
         // The probe, not the last thing the tutor said: on a retry that was the
         // *critique* of the previous attempt, and the judge was grading a real
@@ -520,8 +542,12 @@ final class SocraticViewModel {
         if let bar = current.sufficient, !bar.isEmpty {
             context["sufficient"] = .array(bar.map { .string($0) })
         }
+        // Since *this* step opened, and without the answer just appended (it
+        // travels as `answer`): the whole pass graded probe 3 against what was
+        // said to probes 1 and 2. Mirrors `sinceStepOpen` in `useSpiral.ts`.
+        let opened = log.lastIndex { !$0.learner && $0.move != nil } ?? log.startIndex
         context["said"] = .array(
-            log.drop(while: { $0.move == nil }).filter(\.learner).map { .string($0.text) }
+            log[opened...].dropLast().filter(\.learner).map { .string($0.text) }
         )
         context["misconceptions"] = .array(current.replies.filter { $0.quality != "correct" }.map {
             .object(["label": .string($0.label), "quality": .string($0.quality)])

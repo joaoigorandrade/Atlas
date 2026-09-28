@@ -39,6 +39,13 @@ enum Defaults {
         get { UserDefaults.standard.string(forKey: "openSession") ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: "openSession") }
     }
+    /// The map the learner last had open. The library is ordered by when a
+    /// topic's *settings* last changed, so without this a relaunch opened
+    /// whichever map was edited last rather than the one being worked on.
+    static var lastTopic: String {
+        get { UserDefaults.standard.string(forKey: "lastTopic") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "lastTopic") }
+    }
     static var streak: Int {
         get { UserDefaults.standard.integer(forKey: "streak") }
         set { UserDefaults.standard.set(newValue, forKey: "streak") }

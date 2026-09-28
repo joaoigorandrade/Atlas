@@ -24,8 +24,9 @@ public final class SessionViewModel: Identifiable {
     /// Opens on the phase the node is actually owed. A locked node has no
     /// session at all, so the caller checks `phaseIndex` before making one.
     /// `phase` non-nil means the map asked for one particular phase again — a
-    /// redo, not the next step of a pass.
-    public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil) {
+    /// redo, not the next step of a pass — unless `resumed`, a cold launch
+    /// reopening the pass it was killed in.
+    public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil, resumed: Bool = false) {
         self.node = node
         self.store = store
         // Clamped to this node's own plan, not to a shared six-tuple. Retido
@@ -38,7 +39,7 @@ public final class SessionViewModel: Identifiable {
         // Before the first warm, so the warm and the click after it address the
         // same problem: a redo of the Crucible asks for a new one rather than
         // re-serving the transfer the learner has already carried through.
-        if phase != nil, self.phase == .crucible { store.bumpCrucibleRerun(node.id) }
+        if phase != nil, !resumed, self.phase == .crucible { store.bumpCrucibleRerun(node.id) }
         warmNext()
         noteReading()
         mark()
@@ -107,8 +108,8 @@ public final class SessionViewModel: Identifiable {
     ///
     /// The phase the hand-off will open, so the warm and the tap agree.
     private func warmNext() {
-        guard let kind = handOff?.kind else { return }
-        store.warmUp(kind, for: node)
+        guard let next = handOff else { return }
+        store.warmUp(next, for: node)
     }
 
     /// The rung still owed once this phase closes — `primaryPhase` over the

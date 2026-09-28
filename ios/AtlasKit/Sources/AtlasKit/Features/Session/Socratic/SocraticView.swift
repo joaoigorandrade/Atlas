@@ -46,7 +46,7 @@ struct SocraticView: View {
             PhaseBar(.socratic, title: model.node.label,
                      // A finished pass is already cleared from the row, so
                      // leaving it by the back button must still settle it.
-                     back: { if model.done { model.advance() }; model.leave(); navigator.pop() }) {
+                     back: { model.leave(); navigator.pop() }) {
                 HStack(spacing: 2) {
                     if store.readAloudOn { speaker(model) }
                     helpDial(model)

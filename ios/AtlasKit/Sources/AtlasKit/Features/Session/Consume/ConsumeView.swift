@@ -144,10 +144,10 @@ struct ConsumeView: View {
                 // cannot carry its own animation, and an overlay that tracks
                 // the end of reflowing markdown is a lot of machinery for a
                 // mark that lives two seconds. Give it `Caret` if it reads dead.
-                (Text(Markdown.rich(paragraph))
-                    + (chunk.settled || index < chunk.body.count - 1
-                        ? Text(verbatim: "")
-                        : Text(verbatim: "\u{258C}").foregroundColor(Palette.accent)))
+                let caret = chunk.settled || index < chunk.body.count - 1
+                    ? Text(verbatim: "")
+                    : Text(verbatim: "\u{258C}").foregroundStyle(Palette.accent)
+                Text("\(Text(Markdown.rich(paragraph)))\(caret)")
                     .font(.atlas(.serif, 17.5))
                     .lineSpacing(6)
                     .foregroundStyle(Palette.ink)

@@ -53,7 +53,20 @@ public actor AtlasAPI {
         streamer = NDJSONStreamer(baseURL: baseURL, session: session)
     }
 
-    public func setAccessToken(_ token: String?) { accessToken = token }
+    /// Where a fresh token comes from: `AtlasStore.bearer()`, which renews one
+    /// past its hour. Only the cached token was ever read here, so a judge sent
+    /// after an idle hour — no save, no warm in between — came back 401.
+    private var renew: (@Sendable () async -> String?)?
+
+    public func setAccessToken(_ token: String?, renew: (@Sendable () async -> String?)? = nil) {
+        accessToken = token
+        self.renew = renew
+    }
+
+    /// Bring the token up to date before a request that carries it.
+    private func refresh() async {
+        if let renew, let fresh = await renew() { accessToken = fresh }
+    }
 
     public func setTopic(_ id: String?) { topicId = id }
 
@@ -82,7 +95,7 @@ public actor AtlasAPI {
 
     /// Non-streamed generation. Returns the decoded payload for `kind`.
     public func generate<T: Decodable>(_ kind: String, _ context: [String: JSONValue] = [:]) async throws -> T {
-        try await decoded(kind, try await generated(kind, context))
+        try decoded(kind, try await generated(kind, context))
     }
 
     /// The payload as it arrived. Kept unread for the kinds that go into the
@@ -91,6 +104,7 @@ public actor AtlasAPI {
     /// model's own object and never this client's narrower re-encode of it.
     private func generated(_ kind: String, _ context: [String: JSONValue]) async throws -> JSONValue {
         let body = addressed(context, kind)
+        await refresh()
         let response = try await send(try AtlasEndpoint.generate(body, token: accessToken))
         return try decoded(kind, JSONValue.self, from: response.data)
     }
@@ -163,6 +177,7 @@ public actor AtlasAPI {
             let task = Task {
                 var nodes: [MapNode?] = []
                 var scopes: [ScopeOffer?] = []
+                await refresh()
                 do {
                     for try await frame in stream("curriculum", context) {
                         // A partial frame is a half-written concept: a redraw of
@@ -383,6 +398,7 @@ public actor AtlasAPI {
     public func judge<T: Decodable & Sendable>(_ mode: String, _ context: [String: JSONValue]) async throws -> T {
         var body = context
         body["mode"] = .string(mode)
+        await refresh()
         var verdict: T?
         // The verdict-prefix frame (`judgeStream`'s `firstShape` — `{"quality"}`,
         // `{"verdicts"}`, `{"outcome"}`) rides out as a *complete* frame, not a
@@ -424,6 +440,7 @@ public actor AtlasAPI {
     /// Delete the account and every row behind it. The server wipes the data;
     /// the caller signs out.
     public func deleteAccount() async throws {
+        await refresh()
         _ = try await send(AtlasEndpoint.deleteAccount(token: accessToken))
     }
 
@@ -434,6 +451,7 @@ public actor AtlasAPI {
     /// ponytail: no marks — add them when a screen highlights the spoken word.
     public func speech(_ text: String, language: String = AtlasAPI.language) async throws -> Data {
         struct Clip: Decodable { let audio: String }
+        await refresh()
         let response = try await send(
             try AtlasEndpoint.speech(text: text, language: language, token: accessToken)
         )

@@ -34,7 +34,9 @@ struct ProduceView: View {
                     text: $model.said,
                     placeholder: "Fale — de primeira, sem roteiro",
                     sendTitle: "Foi isso que eu disse",
-                    busy: model.judging || !model.canSend,
+                    // Not `canSend`: that needs words in `said`, and dictation
+                    // only delivers on stop — the sheet flushes before `send`.
+                    busy: model.judging || model.settled,
                     escapes: [],
                     listen: { model.listen() },
                     send: { speaking = false; model.submit() },

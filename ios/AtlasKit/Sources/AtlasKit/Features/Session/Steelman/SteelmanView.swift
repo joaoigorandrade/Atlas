@@ -27,7 +27,9 @@ struct SteelmanView: View {
         .onDisappear { model?.leave() }
         .sheet(item: Binding(
             get: { model?.editing.map(Editing.init) },
-            set: { if $0 == nil { model?.editing = nil } }
+            // Swiping the sheet away is how it is closed — so it keeps the case,
+            // the same as "Pronto". It used to drop a dictated argument.
+            set: { if $0 == nil { model?.commit() } }
         )) { _ in
             if let model {
                 @Bindable var model = model
@@ -37,7 +39,10 @@ struct SteelmanView: View {
                     text: $model.draft,
                     placeholder: "Escreva o argumento que eles mesmos fariam",
                     sendTitle: "Pronto",
-                    busy: model.draft.trimmed.count < 40,
+                    // Never busy: a short case is kept as a draft, and the
+                    // session's own `ready` is what holds the submit back. Busy
+                    // here also refused a case still being spoken.
+                    busy: false,
                     escapes: [],
                     listen: { model.listen() },
                     send: { model.commit() },
@@ -153,13 +158,13 @@ struct SteelmanView: View {
                 .padding(.top, 6)
             // Named by who actually held it: a position nobody held is a
             // strawman with better manners.
-            Text(verbatim: "Defendido por \(position.heldBy)")
+            Text("Defendido por \(position.heldBy)")
                 .font(.atlas(.sans, 13))
                 .foregroundStyle(Palette.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
             Button { model.open(position.id) } label: {
-                Text(written.isEmpty ? "Escrever…" : written)
+                (written.isEmpty ? Text("Escrever…") : Text(verbatim: written))
                     .font(.atlas(.sans, 14.5))
                     .lineSpacing(4)
                     .foregroundStyle(written.isEmpty ? Palette.inkFaint : Palette.inkSoft)

@@ -385,6 +385,28 @@ public struct FeynmanSnapshot: Codable, Sendable {
         self.previous = previous; self.reported = reported; self.fixing = fixing
         self.fixRuledOut = fixRuledOut; self.fixReaction = fixReaction
     }
+
+    /// Field by field, like `SocraticSnapshot`: a row an older build or the
+    /// browser saved without one of these keys is still the learner's pass.
+    /// The synthesized decoder refused it whole — the pass restarted blank and
+    /// the first keystroke overwrote the saved one.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        nodeId = c.lenient(.nodeId, default: "")
+        started = c.lenient(.started, default: true)
+        scaffolded = c.lenient(.scaffolded, default: false)
+        explanation = c.lenient(.explanation, default: "")
+        response = c.lenient(.response, default: "")
+        pending = c.lenient(.pending, default: false)
+        verdicts = c.lenientMap(.verdicts)
+        quotes = c.lenient(.quotes, default: [:])
+        jargon = c.lenient(.jargon, default: [])
+        previous = c.contains(.previous) ? c.lenientMap(.previous) : nil
+        reported = c.lenient(.reported, default: false)
+        fixing = c.lenient(.fixing, default: nil)
+        fixRuledOut = c.lenient(.fixRuledOut, default: [])
+        fixReaction = c.lenient(.fixReaction, default: nil)
+    }
 }
 
 /// How many rows a pass ended owing — the number the second-pass delta compares.
@@ -484,6 +506,18 @@ public struct ConnectSnapshot: Codable, Sendable {
         self.nodeId = nodeId; self.active = active; self.drafts = drafts
         self.linked = linked; self.mnemonicPick = mnemonicPick
         self.mnemonicDraft = mnemonicDraft; self.mnemonicAccepted = mnemonicAccepted
+    }
+
+    /// Lenient per field, for the reason `FeynmanSnapshot` spells out.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        nodeId = c.lenient(.nodeId, default: "")
+        active = c.lenient(.active, default: nil)
+        drafts = c.lenient(.drafts, default: [:])
+        linked = c.lenient(.linked, default: [:])
+        mnemonicPick = c.lenient(.mnemonicPick, default: nil)
+        mnemonicDraft = c.lenient(.mnemonicDraft, default: "")
+        mnemonicAccepted = c.lenient(.mnemonicAccepted, default: false)
     }
 }
 

@@ -117,17 +117,16 @@ public func stateFromPlan(
 /// The Shaky reason a node carries after closing `phase`. `shaky` is how the
 /// phase closed: `.some(reason)` on a failed gate, `.some(nil)` when it cleared
 /// one, `nil` for a plain pass — which leaves `held` standing, except on a clean
-/// close of the plan's last gate over a full ledger. That is the gate a Shaky
-/// node's CTA re-opens (`primaryPhase`), and a plan with no Crucible (every
-/// fact, every working/peripheral node) had no other way back to green.
+/// close of the plan's `proofGate` over a full ledger. That is the gate a Shaky
+/// node's CTA re-opens (`primaryPhase`). Not the last gate: a concept plan ends
+/// on Recall, and passing Recall must not clear a Crucible failure.
 /// Mirrors `reasonAfter` in `calibration.ts`.
 public func reasonAfter(
     _ plan: [Phase], _ done: [Phase], _ phase: Phase,
     shaky: ShakyReason??, held: ShakyReason?
 ) -> ShakyReason? {
     if let shaky { return shaky }
-    let gates = planGates(plan)
-    return phase == gates.last && gates.allSatisfy(done.contains) ? nil : held
+    return phase == proofGate(plan) && planGates(plan).allSatisfy(done.contains) ? nil : held
 }
 
 /// Which phase of its own plan a node is on — an index into `plan`, `-1` when
@@ -155,10 +154,10 @@ public func phaseIndex(
 ///
 /// `nil` means nothing is left to open and the CTA is the review queue. Shaky
 /// is the exception to "first unfinished phase": every shaky line says
-/// re-attempt the last gate, so a full ledger re-opens it.
+/// re-attempt the `proofGate`, so a full ledger re-opens it.
 public func primaryPhase(_ plan: [Phase], _ done: [Phase] = [], state: NodeState) -> Phase? {
     if let next = plan.first(where: { $0 != .retain && !done.contains($0) }) { return next }
-    return state == .shaky ? planGates(plan).last : nil
+    return state == .shaky ? proofGate(plan) : nil
 }
 
 // `readingPhaseIndex` is gone. It existed to correct a *state*-derived index

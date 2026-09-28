@@ -27,7 +27,7 @@ public struct ReviewView: View {
         // alone, so re-entering never restarts a pass.
         .task(id: tabs.selectedTab) {
             guard tabs.selectedTab == .review else { return }
-            let model = model.flatMap { $0.subject == store.subject ? $0 : nil } ?? ReviewViewModel(store: store)
+            let model = model.flatMap { $0.topicId == store.topicId ? $0 : nil } ?? ReviewViewModel(store: store)
             self.model = model
             await model.open()
         }
@@ -269,9 +269,8 @@ public struct ReviewView: View {
     /// card is turned.
     private func question(_ model: ReviewViewModel, _ card: ReviewCard) -> Text {
         guard let cloze = model.filled(card) else { return Text(verbatim: model.front(card)) }
-        return Text(verbatim: cloze.before)
-            + Text(verbatim: cloze.answer).foregroundColor(NodeState.mastered.color).underline()
-            + Text(verbatim: cloze.after)
+        let answer = Text(verbatim: cloze.answer).foregroundStyle(NodeState.mastered.color).underline()
+        return Text("\(Text(verbatim: cloze.before))\(answer)\(Text(verbatim: cloze.after))")
     }
 
     /// The alive-loop: a miss doesn't only reschedule. The node is Shaky on the
@@ -336,7 +335,7 @@ public struct ReviewView: View {
                     guard let node = model.failedNode else { return model.advance() }
                     // The other two entry points warm before they push; a
                     // session started from Review was always cold.
-                    if let kind = store.owedPhase(node).kind { store.warmUp(kind, for: node) }
+                    store.warmUp(store.owedPhase(node), for: node)
                     model.advance()
                     navigator.navigate(to: .session(node, phase: nil))
                 }

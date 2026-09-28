@@ -33,7 +33,7 @@ struct NodeDetailView: View {
             // Opening the drawer is the clearest statement of intent there is:
             // whatever phase this node is owed is about to be started, so it is
             // written now rather than after the tap.
-            if let kind = model?.action?.kind { store.warmUp(kind, for: node) }
+            if let phase = model?.action { store.warmUp(phase, for: node) }
         }
     }
 

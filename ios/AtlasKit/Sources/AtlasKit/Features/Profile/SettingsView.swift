@@ -124,7 +124,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 5) {
                 Text(title).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
-                (Text(verbatim: "— ") + Text(note)).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkGhost)
+                Text("— \(Text(note))").font(.atlas(.sans, 14)).foregroundStyle(Palette.inkGhost)
             }
             content()
         }

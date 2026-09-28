@@ -133,11 +133,8 @@ final class NodeDetailViewModel {
     /// honest answer is to say nothing rather than to guess at a moment.
     var shakyLine: LocalizedStringKey? {
         guard state == .shaky else { return nil }
-        // The gate the line sends them back to is this node's own last one —
-        // the Crucible on every plan that has one, Connect on a plan that stops
-        // there. All four sentences named the Crisol before.
-        guard let gate = planGates(plan).last else { return nil }
-        return store.shakyReasons[node.id]?.line(gate: gate)
+        // The gate the line sends them back to is the one its CTA opens.
+        return store.shakyReasons[node.id]?.line(gate: proofGate(plan))
     }
 
     var prerequisites: [(String, NodeState)] {

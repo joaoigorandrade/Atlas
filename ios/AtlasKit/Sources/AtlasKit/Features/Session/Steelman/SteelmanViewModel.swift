@@ -62,6 +62,8 @@ final class SteelmanViewModel {
 
     func commit() {
         guard let editing else { return }
+        // Whatever is still being said is part of the case.
+        dictation.flush()
         session.write(editing, draft.trimmed)
         self.editing = nil
         draft = ""

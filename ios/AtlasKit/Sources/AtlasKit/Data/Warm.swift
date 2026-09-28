@@ -144,6 +144,12 @@ public final class WarmCache {
         let task = Task<Error?, Never> {
             do {
                 let landed = try await once()
+                // The streamed kinds have a floor; this is the object kinds'.
+                // Zero cases, reps or claims drew a top bar and nothing else —
+                // no dock, no retry — where failing gives the screen its retry.
+                if let floored = landed.value as? Floored, !floored.usable {
+                    throw AtlasError(code: "upstream", message: "\(key) came back empty")
+                }
                 self.write(key, landed.value, era)
                 self.commit(key, landed.raw, era)
                 if era == self.generation { self.inflight[key] = nil }
@@ -524,9 +530,12 @@ public extension AtlasStore {
                                live: { await api.model(sent) })
     }
 
-    /// Have `kind` ready for `node` before it is asked for. Fire and forget: a
-    /// warm nobody is watching that fails is retried by the click that needed it.
-    func warmUp(_ kind: String, for node: ConceptNode) {
+    /// Have `phase`'s content ready for `node` before it is asked for. Fire and
+    /// forget: a warm nobody is watching that fails is retried by the click
+    /// that needed it. Keyed on `Phase`, exhaustively — dispatch on a string
+    /// with a `default:` silently skipped three phases the catalogue added.
+    func warmUp(_ phase: Phase, for node: ConceptNode) {
+        let topic = topicId
         Task {
             // A warm carries the same credential a click would. It is the first
             // thing that fires on a launch that painted from the mirror, which
@@ -534,22 +543,26 @@ public extension AtlasStore {
             // one — and a speculative 401 leaves the key cold and the learner
             // waiting for the generation at the tap.
             _ = await bearer()
-            switch kind {
-            case "consume": await consume(node)
-            case "socratic": await socratic(node)
-            case "feynman": await feynman(node)
-            case "connect": await connect(node)
-            case "crucible": await crucible(node)
-            case "discriminate": await discriminate(node)
-            case "predict": await predict(node)
-            case "trace": await trace(node)
-            case "drill": await drill(node)
-            case "recall": await recall(node)
-            case "perform": await perform(node)
-            case "provenance": await provenance(node)
-            case "steelman": await steelman(node)
-            case "produce": await produce(node)
-            default: break
+            // Built after that await, the context would describe whichever map
+            // is open *now* — a switch in between asked for this node under the
+            // other map's subject, and the server filed it there.
+            guard topicId == topic else { return }
+            switch phase {
+            case .consume: await consume(node)
+            case .socratic: await socratic(node)
+            case .feynman: await feynman(node)
+            case .connect: await connect(node)
+            case .crucible: await crucible(node)
+            case .discriminate: await discriminate(node)
+            case .predict: await predict(node)
+            case .trace: await trace(node)
+            case .drill: await drill(node)
+            case .recall: await recall(node)
+            case .perform: await perform(node)
+            case .provenance: await provenance(node)
+            case .steelman: await steelman(node)
+            case .produce: await produce(node)
+            case .retain: break
             }
         }
     }
@@ -658,34 +671,36 @@ public extension AtlasStore {
             // a newly mastered concept re-address Connect and Crucible, and so
             // regenerate content this topic already owned.
             let key = address(item.kind, item.nodeId, variant: item.variant)
-            switch item.kind {
+            // A walkthrough's address within its node is `<chunkId>:<lens>`;
+            // without one there is no way to tell two lenses apart.
+            if item.kind == "model" {
+                if !item.variant.isEmpty { seed(key, item.payload, as: [ConsumeModelBeat].self) }
+                continue
+            }
+            guard let phase = Phase(rawValue: item.kind) else { continue }
+            switch phase {
             // A short pass came from a stream that died before this floor
             // existed. Adopted as a prefix, so it shows the incomplete notice
             // and its retry instead of reading as a one-section concept.
-            case "consume":
+            case .consume:
                 seed(key, item.payload, as: [ConsumeChunk].self,
                      shortOf: ConsumeSectionBounds.min)
-            case "socratic": seed(key, item.payload, as: [SocraticStep].self)
-            case "feynman":
+            case .socratic: seed(key, item.payload, as: [SocraticStep].self)
+            case .feynman:
                 seed(key, item.payload, as: [FeynmanBeat].self,
                      shortOf: FeynmanBeatBounds.min)
-            case "connect": seed(key, item.payload, as: ElaborationContent.self)
-            case "crucible": seed(key, item.payload, as: CrucibleContent.self)
-            case "discriminate": seed(key, item.payload, as: DiscriminateContent.self)
-            case "predict": seed(key, item.payload, as: PredictContent.self)
-            case "trace": seed(key, item.payload, as: TraceContent.self)
-            case "drill": seed(key, item.payload, as: DrillContent.self)
-            case "recall": seed(key, item.payload, as: RecallContent.self)
-            case "perform": seed(key, item.payload, as: PerformContent.self)
-            case "provenance": seed(key, item.payload, as: ProvenanceContent.self)
-            case "steelman": seed(key, item.payload, as: SteelmanContent.self)
-            case "produce": seed(key, item.payload, as: ProduceContent.self)
-            // A walkthrough's address within its node is `<chunkId>:<lens>`;
-            // without one there is no way to tell two lenses apart.
-            case "model":
-                guard !item.variant.isEmpty else { continue }
-                seed(key, item.payload, as: [ConsumeModelBeat].self)
-            default: continue
+            case .connect: seed(key, item.payload, as: ElaborationContent.self)
+            case .crucible: seed(key, item.payload, as: CrucibleContent.self)
+            case .discriminate: seed(key, item.payload, as: DiscriminateContent.self)
+            case .predict: seed(key, item.payload, as: PredictContent.self)
+            case .trace: seed(key, item.payload, as: TraceContent.self)
+            case .drill: seed(key, item.payload, as: DrillContent.self)
+            case .recall: seed(key, item.payload, as: RecallContent.self)
+            case .perform: seed(key, item.payload, as: PerformContent.self)
+            case .provenance: seed(key, item.payload, as: ProvenanceContent.self)
+            case .steelman: seed(key, item.payload, as: SteelmanContent.self)
+            case .produce: seed(key, item.payload, as: ProduceContent.self)
+            case .retain: continue
             }
         }
     }
@@ -701,9 +716,28 @@ public extension AtlasStore {
         _ key: String, _ raw: JSONValue, as type: T.Type, shortOf floor: Int = 0
     ) {
         guard let value = try? raw.decode(T.self) else { return }
-        warm.seed(key, value, raw, incomplete: (raw.items?.count ?? Int.max) < floor)
+        // A stale row can hold an empty object; seeded incomplete, the screen
+        // offers the retry instead of serving it as a finished pass.
+        let empty = (value as? Floored).map { !$0.usable } ?? false
+        warm.seed(key, value, raw, incomplete: empty || (raw.items?.count ?? Int.max) < floor)
     }
 }
+
+/// A whole-object payload with nothing to draw below its floor.
+protocol Floored { var usable: Bool { get } }
+
+extension CrucibleContent: Floored { var usable: Bool { !problems.isEmpty } }
+extension DiscriminateContent: Floored { var usable: Bool { !cases.isEmpty } }
+extension PredictContent: Floored { var usable: Bool { !setups.isEmpty } }
+extension TraceContent: Floored { var usable: Bool { !stages.isEmpty } }
+extension DrillContent: Floored { var usable: Bool { !reps.isEmpty } }
+extension RecallContent: Floored { var usable: Bool { !rubric.isEmpty } }
+extension PerformContent: Floored { var usable: Bool { !steps.isEmpty } }
+extension ProvenanceContent: Floored { var usable: Bool { !claims.isEmpty } }
+extension SteelmanContent: Floored { var usable: Bool { positions.count >= 2 } }
+extension ProduceContent: Floored { var usable: Bool { !turns.isEmpty } }
+// ponytail: Connect is deliberately not floored — an empty web is a real
+// answer there, and the phase's own skip closes the rung.
 
 private extension Array where Element == ConceptNode {
     /// The pool as one string — part of a key, never shown.

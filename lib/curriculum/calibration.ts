@@ -203,9 +203,10 @@ export function stateFromPlan(
  * phase closed: a reason when it failed its gate, `null` when it cleared one,
  * absent for a plain pass — which leaves the old reason standing, so re-doing
  * an unrelated phase can't promote a node past a Crucible it is still failing.
- * The exception is a clean close of the plan's last gate on a full ledger:
- * that is the gate a Shaky node's CTA re-opens (`primaryPhase`), and a plan
- * with no Crucible (every fact, every use/recognise node) had no other way out.
+ * The exception is a clean close of the plan's `proofGate` on a full ledger:
+ * that is the gate a Shaky node's CTA re-opens (`primaryPhase`). Not the last
+ * gate — a concept plan ends on Recall, and passing Recall must not clear a
+ * Crucible failure. A plan with no Crucible proves itself on its last gate.
  */
 export function reasonAfter(
   plan: readonly PhaseId[],
@@ -215,8 +216,7 @@ export function reasonAfter(
   held: ShakyReason | undefined,
 ): ShakyReason | undefined {
   if (shaky !== undefined) return shaky ?? undefined;
-  const gates = planGates(plan);
-  return phase === gates.at(-1) && gates.every((p) => done.includes(p))
+  return phase === proofGate(plan) && planGates(plan).every((p) => done.includes(p))
     ? undefined
     : held;
 }
@@ -252,7 +252,7 @@ export function phaseIndex(
  *
  * `undefined` means nothing is left to open and the CTA is the review queue.
  * Shaky is the exception to "first unfinished phase": every shaky line says
- * re-attempt the Crucible, so a full ledger re-opens the plan's last gate.
+ * re-attempt the Crucible, so a full ledger re-opens the plan's `proofGate`.
  */
 export function primaryPhase(
   plan: readonly PhaseId[],
@@ -261,7 +261,7 @@ export function primaryPhase(
 ): PhaseId | undefined {
   const next = plan.find((p) => p !== "retain" && !done.includes(p));
   if (next) return next;
-  return state === "shaky" ? planGates(plan).at(-1) : undefined;
+  return state === "shaky" ? proofGate(plan) : undefined;
 }
 
 // `readingPhaseIndex` is gone. It existed to correct a *state*-derived index

@@ -59,12 +59,22 @@ public struct RootView: View {
         // resume a `Task.sleep`: without this, everything done in the last beat
         // before the learner swipes up is simply dropped. The background task is
         // the window the upsert lands in.
+        //
+        // `.background` only: going through `.inactive` on the way there fired
+        // it twice. The expiration handler ends the window if the write hangs
+        // past what the OS grants — a task left open is a process it kills.
         .onChange(of: scenePhase) { _, phase in
-            guard phase != .active else { return }
-            let window = UIApplication.shared.beginBackgroundTask(withName: "atlas.flush")
+            guard phase == .background else { return }
+            var window = UIBackgroundTaskIdentifier.invalid
+            let end = {
+                guard window != .invalid else { return }
+                UIApplication.shared.endBackgroundTask(window)
+                window = .invalid
+            }
+            window = UIApplication.shared.beginBackgroundTask(withName: "atlas.flush") { end() }
             Task {
                 await store.saveNow()
-                UIApplication.shared.endBackgroundTask(window)
+                end()
             }
         }
         .onOpenURL { url in Task { await launch.arrived(from: url, into: store) } }
@@ -119,7 +129,7 @@ public struct RootView: View {
         guard !resumed else { return }
         resumed = true
         guard let (node, phase) = SessionViewModel.resumable(in: store) else { return }
-        tabs.navigate(to: .session(node, phase: phase), inTab: .map)
+        tabs.navigate(to: .session(node, phase: phase, resumed: true), inTab: .map)
     }
 
     /// The library did not load. Said plainly, because the one thing the
