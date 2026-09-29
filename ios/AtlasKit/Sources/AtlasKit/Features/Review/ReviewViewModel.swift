@@ -212,6 +212,10 @@ public final class ReviewViewModel {
         if store.states[card.node] != .shaky, (store.states[card.node] ?? .unknown).isLearned,
            let node = store.graph.byId[card.node] {
             store.markShaky(node, .reviewMiss)
+            // The alive-loop said out loud, as `cardFlaggedShaky` is on the web:
+            // flagged silently, the node going amber happened off-screen.
+            store.lastChanged = node.id
+            store.say(String(localized: "“\(node.label)” marcado como Instável — a falha de memória o devolve ao ciclo."))
         }
         // A miss really does come back at the end of the deck — but only once,
         // or a card nobody can answer is a session with no end. This copy is

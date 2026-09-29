@@ -94,7 +94,7 @@ struct ProduceView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Kicker("A situação", tint: Palette.produceInk)
                         Text(verbatim: content.scene)
-                            .font(.atlas(.sans, 14.5))
+                            .font(.atlas(.serif, 16))
                             .lineSpacing(4)
                             .foregroundStyle(Palette.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
@@ -107,13 +107,13 @@ struct ProduceView: View {
                         Kicker("Diga isto", tint: Palette.produceInk)
                         Spacer()
                         Text(verbatim: "\(turn.seconds)s")
-                            .font(.atlas(.mono, 12))
+                            .font(.atlas(.caps, 13.5))
                             .foregroundStyle(Palette.inkFaint)
                     }
                     .padding(.top, 20)
 
                     Text(verbatim: turn.cue)
-                        .font(.atlas(.serif, 20))
+                        .font(.atlas(.display, 20))
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -123,7 +123,7 @@ struct ProduceView: View {
                     // tap on "Falar" simply did nothing visible.
                     if !model.message.isEmpty && !model.settled {
                         Text(verbatim: model.message)
-                            .font(.atlas(.sans, 13))
+                            .font(.atlas(.serif, 14.5))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 14)
@@ -134,17 +134,17 @@ struct ProduceView: View {
                             HStack(spacing: 8) {
                                 Circle().fill(verdict.tint).frame(width: 8, height: 8)
                                 Text(verdict.label)
-                                    .font(.atlas(.mono, 11))
+                                    .font(.atlas(.caps, 12.5))
                                     .textCase(.uppercase)
                                     .kerning(1.2)
                                     .foregroundStyle(verdict.tint)
                             }
                             Text(verbatim: model.session.saidBy[turn.id] ?? "")
-                                .font(.atlas(.sans, 14.5))
+                                .font(.atlas(.serif, 16))
                                 .foregroundStyle(Palette.inkMuted)
                                 .fixedSize(horizontal: false, vertical: true)
                             Text(verbatim: model.session.reads[turn.id] ?? "")
-                                .font(.atlas(.sans, 14.5))
+                                .font(.atlas(.serif, 16))
                                 .lineSpacing(4)
                                 .foregroundStyle(Palette.ink)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -187,12 +187,12 @@ struct ProduceView: View {
                     Text(model.passed
                          ? "Você produziu ao vivo. É isso que significa ter a língua."
                          : "Algumas não saíram.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                     Text("\(model.score) de \(model.total) falas saíram.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)
 
@@ -202,7 +202,7 @@ struct ProduceView: View {
                     // stalls a speaker for years.
                     if !model.avoided.isEmpty {
                         Text("Você contornou a forma em vez de atravessá-la — é esse o hábito que trava quem fala.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 12)
@@ -234,19 +234,19 @@ struct ProduceView: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: turn.cue)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 // In words as well as in colour: a dot is invisible to VoiceOver
                 // and indistinguishable to a colour-blind learner.
                 if let verdict {
                     Text(verdict.label)
-                        .font(.atlas(.sans, 12.5))
+                        .font(.atlas(.serif, 14))
                         .foregroundStyle(verdict == .good ? Palette.inkFaint : verdict.tint)
                 }
                 if verdict != .good, let read = model.session.reads[turn.id] {
                     Text(verbatim: read)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

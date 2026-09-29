@@ -89,7 +89,7 @@ struct SteelmanView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker("A questão", tint: Palette.steelmanInk)
                     Text(verbatim: content.question)
-                        .font(.atlas(.serif, 20))
+                        .font(.atlas(.display, 20))
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -113,7 +113,7 @@ struct SteelmanView: View {
                     Kicker("O que faria você mudar de ideia?", tint: Palette.steelmanInk)
                         .padding(.top, 24)
                     Text("Aponte algo que poderia de fato acontecer ou ser descoberto.")
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 6)
@@ -147,19 +147,19 @@ struct SteelmanView: View {
         return VStack(alignment: .leading, spacing: 0) {
             Kicker("O argumento mais forte a favor de", tint: Palette.steelmanInk)
             Text(verbatim: position.label)
-                .font(.atlas(.sans, 15).weight(.semibold))
+                .font(.atlas(.serif, 16.5).weight(.semibold))
                 .foregroundStyle(Palette.ink)
                 .padding(.top, 6)
             // Named by who actually held it: a position nobody held is a
             // strawman with better manners.
             Text("Defendido por \(position.heldBy)")
-                .font(.atlas(.sans, 13))
+                .font(.atlas(.serif, 14.5))
                 .foregroundStyle(Palette.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
             Button { model.open(position.id) } label: {
                 (written.isEmpty ? Text("Escrever…") : Text(verbatim: written))
-                    .font(.atlas(.sans, 14.5))
+                    .font(.atlas(.serif, 16))
                     .lineSpacing(4)
                     .foregroundStyle(written.isEmpty ? Palette.inkFaint : Palette.inkSoft)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -187,14 +187,14 @@ struct SteelmanView: View {
                          : model.missedForDisconfirmer
                            ? "Sem algo que faria você mudar de ideia, você escolheu em vez de julgar."
                            : "Um dos lados não recebeu seu melhor argumento.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
 
                     if let response = model.session.response {
                         Text(verbatim: response)
-                            .font(.atlas(.sans, 14.5))
+                            .font(.atlas(.serif, 16))
                             .lineSpacing(4)
                             .foregroundStyle(Palette.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
@@ -226,19 +226,19 @@ struct SteelmanView: View {
             HStack(spacing: 8) {
                 Circle().fill(verdict?.tint ?? Palette.inkFaint).frame(width: 7, height: 7)
                 Text(verbatim: position.label)
-                    .font(.atlas(.sans, 14).weight(.semibold))
+                    .font(.atlas(.serif, 15.5).weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 if let verdict {
                     Text(verdict.label)
-                        .font(.atlas(.mono, 11))
+                        .font(.atlas(.caps, 12.5))
                         .textCase(.uppercase)
                         .kerning(1.1)
                         .foregroundStyle(verdict.tint)
                 }
             }
             Text(verbatim: model.session.cases[position.id] ?? "")
-                .font(.atlas(.sans, 13.5))
+                .font(.atlas(.serif, 15))
                 .lineSpacing(4)
                 .foregroundStyle(Palette.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)

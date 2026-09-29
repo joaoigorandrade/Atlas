@@ -1,11 +1,13 @@
 import Navigation
 import SwiftUI
 
-/// "Mapa" — the trail, and the persistent sheet that says where the run stands.
-/// The map read as one walk down the screen, foundations at the top and the
-/// frontier somewhere below, rather than a graph the learner has to pan around
-/// to find themselves on. Selecting a step opens the node drawer through the
-/// navigator; starting a pass is pushed from there.
+/// "Mapa" — the trail, and a slim footer that says where the run stands. The
+/// map reads as one walk down the screen, foundations at the top and the
+/// frontier somewhere below: a level with more concepts than fit across wraps
+/// onto the next line rather than running off the side, so the page only ever
+/// scrolls one way. A pinch pulls back to see the whole territory. Selecting a
+/// step opens the node drawer through the navigator; starting a pass is pushed
+/// from there.
 public struct MapView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
@@ -16,24 +18,36 @@ public struct MapView: View {
     public var body: some View {
         VStack(spacing: 0) {
             TopBar {
-                Text(verbatim: "Atlas").font(.atlas(.serif, 19, weight: .semibold)).foregroundStyle(Palette.ink)
+                mapSwitcher
             } trailing: {
-                // A finished map has no frontier: an amber "0" would read as
-                // work left over.
-                if store.frontier.count > 0 {
-                    Chip(verbatim: "\(store.frontier.count)", dot: NodeState.frontier.color,
-                         tint: Palette.amberInk, background: Palette.amberBg)
-                        .contentTransition(.numericText())
-                        .accessibilityLabel(Text("\(store.frontier.count) conceitos na fronteira"))
+                HStack(spacing: 4) {
+                    // A finished map has no frontier: an amber "0" would read as
+                    // work left over.
+                    if store.frontier.count > 0 {
+                        Chip(verbatim: "\(store.frontier.count)", dot: NodeState.frontier.color,
+                             tint: Palette.amberInk, background: Palette.amberBg)
+                            .contentTransition(.numericText())
+                            .accessibilityLabel(Text("\(store.frontier.count) conceitos na fronteira"))
+                    }
+                    Button { withAnimation(Motion.standard) { model.legend.toggle() } } label: {
+                        Image(systemName: model.legend ? "info.circle.fill" : "info.circle")
+                            .font(.system(size: 17))
+                            .foregroundStyle(Palette.inkMuted)
+                            .frame(width: Metrics.tap, height: Metrics.tap)
+                    }
+                    .pressable()
+                    .accessibilityLabel(model.legend ? "Esconder a legenda" : "Mostrar a legenda")
                 }
             }
 
+            if model.legend { legend.transition(.opacity.combined(with: .move(edge: .top))) }
+
             trail
-            sheet
+            footer
         }
         .background(Palette.paper)
         // A pass ending changes the trail underneath this screen: the frontier
-        // count moves, a step's disc fills, the sheet's next node changes.
+        // count moves, a step's disc fills, the footer's next node changes.
         .animation(Motion.standard, value: store.frontier.count)
         // The drawer closing takes the highlight with it.
         .onChange(of: navigator.activeSheet) { _, sheet in
@@ -44,35 +58,93 @@ public struct MapView: View {
         // written while they are still looking at the map, and the day's cards
         // are drafted the same way — see `Warm.swift`.
         //
-        // The whole frontier, not the two at its head. That cap existed because
-        // every warm was a model call from this device; now a hit is a local
-        // read from the mirror, then a shared-cache read, and only a genuine
-        // miss reaches a model — and the server has usually already written the
-        // frontier's reading behind the build. The frontier is the root set of
-        // what the learner can start next, which is a handful of nodes, not a
-        // list that needs a cap of its own.
+        // The whole frontier: a hit is a local read from the mirror, then a
+        // shared-cache read, and only a genuine miss reaches a model.
         .task(id: store.frontier.map(\.id).joined()) {
-            // The head of each frontier node's *own* plan. Every plan starts at
-            // Consume today, so this is the same request — but a hardcoded kind
-            // is what the catalogue exists to stop, and the day a ladder starts
-            // elsewhere this warms the phase the node actually opens on.
+            // The head of each frontier node's *own* plan — the day a ladder
+            // starts elsewhere this warms the phase the node actually opens on.
             for node in store.frontier {
                 guard let first = planGates(node.plan).first else { continue }
                 store.warmUp(first, for: node)
             }
         }
         // Not keyed on the frontier: the day's deck is drawn from the nodes
-        // with no card yet, which has nothing to do with which two are at the
-        // head of the queue. Opening a node moves the frontier, and this used
-        // to re-fire — against a `uncovered` the first draft had already
-        // changed, so the two calls addressed different keys and the cache
-        // deduplicated neither. Two decks, two charges, one of them unread.
+        // with no card yet, which has nothing to do with the frontier's order.
         .task { store.warmRetain() }
     }
 
     private func open(_ node: ConceptNode) {
         model.select(node)
         navigator.openSheet(.nodeDetail(node))
+    }
+
+    // MARK: - The title: which map, and the way to another
+
+    /// The subject is the page's name, and the one control that changes it —
+    /// a map is switched from where it is read, not only from Início.
+    private var mapSwitcher: some View {
+        Menu {
+            ForEach(store.maps) { map in
+                Button {
+                    Task {
+                        model.switching = map.id
+                        await store.switchTo(map)
+                        model.switching = nil
+                    }
+                } label: {
+                    if map.id == store.topicId {
+                        Label { Text(verbatim: map.subject) } icon: { Image(systemName: "checkmark") }
+                    } else {
+                        Text(verbatim: map.subject)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 7) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Kicker("Mapa")
+                    Text(verbatim: store.subject.isEmpty ? "Atlas" : store.subject)
+                        .font(.atlas(.display, 19))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                }
+                if model.switching != nil {
+                    ProgressView().controlSize(.small)
+                } else if store.maps.count > 1 {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Palette.inkFaint)
+                }
+            }
+            .frame(minHeight: Metrics.tap)
+            .contentShape(.rect)
+        }
+        .disabled(store.maps.count < 2 || model.switching != nil)
+        .accessibilityLabel(Text("Trocar de mapa"))
+        .accessibilityValue(Text(verbatim: store.subject))
+    }
+
+    // MARK: - The legend
+
+    /// What the colours and the sizes mean — the web's rail carries this beside
+    /// the map; here it is a strip the learner opens when they wonder.
+    private var legend: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Flow(spacing: 7) {
+                ForEach([NodeState.frontier, .learning, .shaky, .mastered, .gap, .unknown], id: \.self) { state in
+                    Chip(state.legend, dot: state.color)
+                }
+            }
+            Text("O círculo que pulsa é por onde começar. Discos menores, com o nome em itálico, são conceitos para usar ou só reconhecer — não para dominar.")
+                .font(.atlas(.serif, 14.5))
+                .foregroundStyle(Palette.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, Metrics.gutter)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.cardAlt)
+        .overlay(alignment: .bottom) { Divider().overlay(Palette.hairline) }
     }
 
     // MARK: - The trail
@@ -82,57 +154,98 @@ public struct MapView: View {
         // GeometryReader per level would re-measure the same number for each.
         GeometryReader { geo in
             let map = model.trail(store.graph, width: geo.size.width)
+            let zoom = model.zoom
             ScrollViewReader { proxy in
-                ScrollView([.horizontal, .vertical]) {
+                ScrollView(zoom > 1 ? [.horizontal, .vertical] : .vertical) {
                     ZStack(alignment: .topLeading) {
                         // Every edge in one canvas, over the whole map: an edge
                         // reaching back three levels has to be drawn across the
                         // bands it crosses, and a canvas per band would clip it.
                         Canvas { context, _ in draw(map, into: &context) }
                             .frame(width: map.size.width, height: map.size.height)
-                        // The bands are real views, in order, so the frontier
-                        // can be scrolled to — a concept placed with `.position`
-                        // has the band's frame, not its own.
+                        // The bands are real views, in order, so a concept can
+                        // be scrolled to — one placed with `.position` has the
+                        // band's frame, not its own.
                         VStack(spacing: 0) {
-                            ForEach(Array(map.levels.enumerated()), id: \.offset) { level, row in
+                            ForEach(Array(map.levels.enumerated()), id: \.offset) { band, row in
                                 ZStack {
                                     ForEach(row) { placed in
                                         NodeMark(
                                             node: placed.node,
                                             state: store.display[placed.id] ?? .unknown,
-                                            selected: model.selection?.id == placed.id
+                                            selected: model.selection?.id == placed.id,
+                                            changed: model.landing == placed.id
                                         ) { open(placed.node) }
                                         .frame(width: TrailMap.slot - 12)
                                         .position(x: placed.at.x, y: TrailMap.band / 2)
                                     }
                                 }
                                 .frame(width: map.size.width, height: TrailMap.band)
-                                .id(level)
+                                .id(band)
                             }
                         }
                     }
+                    // The pinch scales the drawing, and the frame follows it so
+                    // the scroll view's content is the size it now looks.
+                    .scaleEffect(zoom, anchor: .topLeading)
+                    .frame(width: map.size.width * zoom, height: map.size.height * zoom, alignment: .topLeading)
+                    .padding(.bottom, 12)
                 }
                 .scrollIndicators(.hidden)
-                // Landing on the frontier is the whole point: the level the
-                // learner is working on, not the foundations they finished
-                // weeks ago. No animation — this is where the screen opens.
-                .onAppear { show(map, proxy) }
-                // Another map opened underneath this screen: "Seus mapas"
-                // switches the run without leaving the tab, and the scroll is
-                // still parked on a level the new map may not have.
-                .onChange(of: store.subject) { _, _ in show(map, proxy) }
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { model.pinch($0.magnification) }
+                        .onEnded { _ in model.settlePinch() }
+                )
+                // Landing on the work is the whole point: the concept a pass
+                // just changed, or the one to start next — not the foundations
+                // finished weeks ago. No animation: this is where the screen opens.
+                .onAppear { land(map, proxy, animated: false) }
+                // Another map opened underneath this screen, or a pass came
+                // back with something to show.
+                .onChange(of: store.subject) { _, _ in land(map, proxy, animated: false) }
+                .onChange(of: store.lastChanged) { _, _ in land(map, proxy, animated: true) }
+                .overlay(alignment: .bottomTrailing) {
+                    Button { recenter(map, proxy) } label: {
+                        Image(systemName: "scope")
+                            .font(.system(size: 17))
+                            .foregroundStyle(Palette.inkSoft)
+                            .frame(width: Metrics.tap, height: Metrics.tap)
+                            .background(Palette.card, in: .circle)
+                            .overlay { Circle().strokeBorder(Palette.rule, lineWidth: 1) }
+                            .shadow(color: Palette.shade(0.12), radius: 6, y: 2)
+                    }
+                    .pressable()
+                    .padding(14)
+                    .accessibilityLabel("Ir para o próximo conceito")
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func show(_ map: TrailMap, _ proxy: ScrollViewProxy) {
+    /// Scroll to the concept worth looking at, centred on its line. A pass that
+    /// just changed a node gets that node, with its new state landing a beat
+    /// after the scroll; otherwise the next step on the frontier.
+    private func land(_ map: TrailMap, _ proxy: ScrollViewProxy, animated: Bool) {
+        let target = store.lastChanged ?? store.frontier.first?.id
+        guard let target, let placed = map.placed.first(where: { $0.id == target }) else { return }
+        if animated {
+            withAnimation(Motion.enter) { proxy.scrollTo(placed.level, anchor: .center) }
+        } else {
+            proxy.scrollTo(placed.level, anchor: .center)
+        }
+        guard let changed = store.lastChanged else { return }
+        store.lastChanged = nil
+        model.land(changed)
+    }
+
+    /// Back to the next step, at the size the map was drawn for.
+    private func recenter(_ map: TrailMap, _ proxy: ScrollViewProxy) {
+        model.resetZoom()
         guard let target = store.frontier.first,
               let placed = map.placed.first(where: { $0.id == target.id }) else { return }
-        // The band is the full width of the map, so the anchor has to carry the
-        // horizontal position too: on a level wide enough to scroll, `.center`
-        // would centre the whole level and leave the frontier off to one side.
-        proxy.scrollTo(placed.level, anchor: UnitPoint(x: placed.at.x / map.size.width, y: 0.5))
+        withAnimation(Motion.enter) { proxy.scrollTo(placed.level, anchor: .center) }
     }
 
     /// The edges, drawn top to bottom. Direction is the layout's job — a
@@ -151,35 +264,31 @@ public struct MapView: View {
                           control1: CGPoint(x: from.x, y: from.y + reach),
                           control2: CGPoint(x: to.x, y: to.y - reach))
             // The last step into a frontier concept is the one the learner is
-            // about to take: it gets the colour, everything else stays hairline.
+            // about to take: it gets the gilt, everything else stays an ink road.
             let next = store.display[link.into] == .frontier
             context.stroke(
                 path,
                 with: .color(next
-                    ? NodeState.frontier.color.opacity(0.5)
-                    : Palette.ink.opacity(link.dashed ? 0.09 : 0.15)),
-                style: .init(lineWidth: next ? 2 : 1.4, lineCap: .round,
+                    ? Palette.gilt.opacity(0.7)
+                    : Palette.ink.opacity(link.dashed ? 0.16 : 0.32)),
+                style: .init(lineWidth: next ? 2 : 1.2, lineCap: .round,
                              dash: link.dashed ? [4, 5] : [])
             )
         }
     }
 
-    // MARK: - The persistent sheet
+    // MARK: - The footer
 
-    private var sheet: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Kicker("Assunto")
-                Text(verbatim: store.subject).font(.atlas(.serif, 21)).foregroundStyle(Palette.ink)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 7) {
+    /// Where the run stands and the next step — the subject moved up to the
+    /// title, so this is one reading and one button, not a second header.
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Território dominado").font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                    Text("Território dominado").font(.atlas(.serif, 15)).foregroundStyle(Palette.inkMuted)
                     Spacer()
                     Text(verbatim: store.mastered.formatted(.percent.precision(.fractionLength(0))))
-                        .font(.atlas(.serif, 21)).foregroundStyle(Palette.accent)
+                        .font(.atlas(.display, 20)).foregroundStyle(Palette.accent)
                         .contentTransition(.numericText())
                 }
                 ProgressView(value: store.mastered).tint(Palette.accent)
@@ -191,32 +300,28 @@ public struct MapView: View {
             .accessibilityValue(Text(verbatim: store.mastered.formatted(.percent.precision(.fractionLength(0)))))
 
             if let next = store.frontier.first {
-                VStack(alignment: .leading, spacing: 7) {
-                    Kicker("Próximo")
-                    Button { open(next) } label: {
-                        HStack(spacing: 10) {
-                            Circle().fill(NodeState.frontier.color).frame(width: 8, height: 8)
-                            Text(verbatim: next.label).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.ink).lineLimit(1)
-                            Spacer(minLength: 0)
-                            Text(verbatim: "+\(store.frontier.count)").font(.atlas(.mono, 10)).foregroundStyle(Palette.inkFaint)
-                        }
-                        .padding(.horizontal, 13)
-                        .frame(minHeight: 48)
-                        .background(Palette.card, in: .rect(cornerRadius: 11))
-                        .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                Button { open(next) } label: {
+                    HStack(spacing: 10) {
+                        Kicker("Próximo", tint: Palette.amberInk)
+                        Text(verbatim: next.label).font(.atlas(.serif, 16.5)).foregroundStyle(Palette.ink).lineLimit(1)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.inkFaint)
                     }
-                    .pressable()
+                    .padding(.horizontal, 13)
+                    .frame(minHeight: Metrics.tap)
+                    .background(Palette.card)
+                    .plate()
                 }
+                .pressable()
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .animation(Motion.reward, value: store.mastered)
         .padding(.horizontal, Metrics.gutter)
-        .padding(.top, 12)
-        .padding(.bottom, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
         .background(Palette.cardAlt)
-        .clipShape(.rect(topLeadingRadius: 18, topTrailingRadius: 18))
-        .overlay(alignment: .top) { Divider().overlay(Palette.hairline) }
+        .overlay(alignment: .top) { DoubleRule() }
     }
 }
 
@@ -229,10 +334,14 @@ private struct NodeMark: View {
     let node: ConceptNode
     let state: NodeState
     let selected: Bool
+    /// The concept a pass just changed: it lands with the reward spring, which
+    /// is what the design reserves for a concept going green.
+    let changed: Bool
     let open: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
+    @State private var landing = false
 
     /// The frontier is the biggest disc on the map and untouched territory the
     /// smallest — size carries "where am I" before colour does.
@@ -264,23 +373,29 @@ private struct NodeMark: View {
                 // whatever size its state gives it.
                 disc.frame(height: 52)
                 Text(verbatim: node.label)
-                    .font(.atlas(.serif, state == .frontier ? 14.5 : 13.5))
+                    .font(.atlas(.serif, state == .frontier ? 16 : 15))
                     .italic(town)
                     .foregroundStyle(state == .unknown ? Palette.inkMuted : Palette.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    // Fell's italic leans past the width it measures at, and
+                    // the neighbour's label covered the overhang ("Funçõe"):
+                    // a narrower measure makes it wrap before it spills.
+                    .frame(maxWidth: town ? TrailMap.slot - 34 : nil)
                     // A name is never printed over an edge, only in the paper
                     // around one: an edge from three levels up runs straight
                     // through the middle of this level on its way past.
                     .padding(.horizontal, 5)
-                    .background(Palette.paper.opacity(0.92), in: .rect(cornerRadius: 7))
+                    .background(Palette.paper.opacity(0.92), in: .rect(cornerRadius: 3))
                 // Untouched territory says nothing: the pale disc is the whole
                 // message, and a grid of "Desconhecido" under the half of the
-                // map nobody has reached is noise.
-                if state != .unknown {
-                    Text(state.headline)
-                        .font(.atlas(.sans, 10.5))
+                // map nobody has reached is noise. Nor does the frontier: its
+                // pulse says it, and sixteen "Fronteira · pronto" in a row was
+                // the loudest thing on the map. The legend names both.
+                if state != .unknown && state != .frontier {
+                    Text(state.legend)
+                        .font(.atlas(.serif, 12.5))
                         .foregroundStyle(state == .frontier ? Palette.amberInk : Palette.inkMuted)
                         .lineLimit(1)
                         .padding(.horizontal, 5)
@@ -290,6 +405,15 @@ private struct NodeMark: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .scaleEffect(landing ? 1.18 : 1)
+        .animation(reduceMotion ? nil : Motion.spring, value: landing)
+        .task(id: changed) {
+            guard changed else { return }
+            try? await Task.sleep(for: .seconds(0.45))
+            landing = true
+            try? await Task.sleep(for: .seconds(0.7))
+            landing = false
+        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityHint(Text("Abrir o conceito"))

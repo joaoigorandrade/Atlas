@@ -8,9 +8,21 @@ import SwiftUI
 @MainActor
 final class SettingsViewModel {
     private(set) var confirmingDelete = false
-    /// Set the moment the language changes — the interface is still drawn in
-    /// the old one until the process restarts.
-    private(set) var restarting = false
+    /// Set the moment the language changes: the content switches now, and the
+    /// alert says when the interface follows.
+    private(set) var languageChanged = false
+    /// The daily review reminder, and whether the system refused it.
+    private(set) var reminderOn = Defaults.reminderOn
+    private(set) var reminderDenied = false
+    var reminderTime: Date {
+        get { Calendar.current.date(bySettingHour: Defaults.reminderMinutes / 60,
+                                    minute: Defaults.reminderMinutes % 60, second: 0, of: .now) ?? .now }
+        set {
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+            Defaults.reminderMinutes = (parts.hour ?? 19) * 60 + (parts.minute ?? 0)
+            Task { await applyReminder() }
+        }
+    }
     private(set) var message = ""
     /// The two exports, produced once when the screen opens rather than every
     /// time `body` runs — `ShareLink` takes a value, and encoding the whole
@@ -32,28 +44,34 @@ final class SettingsViewModel {
     func askToDelete() { confirmingDelete = true }
     func cancelDelete() { confirmingDelete = false }
 
-    /// The interface language is read out of `AppleLanguages` once, at launch,
-    /// so a switch here is only half done until the app is started again.
+    /// The content language switches at once — it is what the model is asked
+    /// to write in. The interface is read out of `AppleLanguages` at launch, so
+    /// it follows on the next open, or straight away through the app's own
+    /// language in the iPhone's settings, which relaunches it the sanctioned
+    /// way. The app used to `exit(0)` here, which reads as a crash.
     /// Picking the language already on screen changes nothing and asks nothing.
     func choose(language: String) {
         guard language != store.language else { return }
         store.language = language
-        restarting = true
+        languageChanged = true
     }
 
-    var isRestarting: Binding<Bool> {
-        Binding(get: { self.restarting }, set: { self.restarting = $0 })
+    var isLanguageChanged: Binding<Bool> {
+        Binding(get: { self.languageChanged }, set: { self.languageChanged = $0 })
     }
 
-    /// Flush first: the run saves on a two-second debounce, and the language is
-    /// part of the row.
-    /// ponytail: `exit(0)` is the only way to end the process from inside the
-    /// app, and it looks like a crash to iOS. Fine for a deliberate tap behind
-    /// an alert; if this ever ships to the App Store, drop the button and let
-    /// the learner reopen the app themselves.
-    func restart() async {
-        await store.saveNow()
-        exit(0)
+    func toggleReminder(_ on: Bool) {
+        reminderOn = on
+        Defaults.reminderOn = on
+        Task { await applyReminder() }
+    }
+
+    private func applyReminder() async {
+        reminderDenied = !(await Reminders.apply())
+        if reminderDenied {
+            reminderOn = false
+            Defaults.reminderOn = false
+        }
     }
 
     var isConfirmingDelete: Binding<Bool> {

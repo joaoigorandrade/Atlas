@@ -60,7 +60,7 @@ struct PerformView: View {
                 // each step produced *here*, so the case stays on screen while
                 // the work is written.
                 Text(verbatim: content.task)
-                    .font(.atlas(.serif, 18))
+                    .font(.atlas(.serif, 19))
                     .lineSpacing(5)
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -68,7 +68,7 @@ struct PerformView: View {
 
                 if model.nudged {
                     Text(verbatim: content.scaffold)
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .lineSpacing(4)
                         .foregroundStyle(Palette.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
@@ -86,7 +86,7 @@ struct PerformView: View {
 
                 if !model.message.isEmpty {
                     Text(verbatim: model.message)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.amberInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
@@ -118,7 +118,7 @@ struct PerformView: View {
                     Text(model.passed
                          ? "Executado em condições reais — o procedimento é seu."
                          : "A execução não fecha neste caso.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
@@ -127,20 +127,20 @@ struct PerformView: View {
                     // is a run that never happened.
                     if !model.broken.isEmpty {
                         Text("A execução quebra num passo. Resultado errado é passo falhado.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     } else if !model.skipped.isEmpty {
                         Text("Um passo essencial não chegou a ser executado.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     }
                     if !model.response.isEmpty {
                         Text(verbatim: model.response)
-                            .font(.atlas(.serif, 15.5))
+                            .font(.atlas(.serif, 16.5))
                             .lineSpacing(5)
                             .foregroundStyle(Palette.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
@@ -175,25 +175,25 @@ struct PerformView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(verbatim: step.step)
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     // Which steps the gate actually leans on. A run can omit a
                     // sanity check and still be a run; it cannot omit this.
                     if step.loadBearing {
                         Text("essencial")
-                            .font(.atlas(.mono, 10))
+                            .font(.atlas(.caps, 11.5))
                             .tracking(1.6)
                             .textCase(.uppercase)
                             .foregroundStyle(Palette.performInk)
                     }
                 }
                 Text(verbatim: verdict.label)
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(verdict == .good ? Palette.inkFaint : Palette.amberInk)
                 if let quote = model.quote(step) {
                     Text(verbatim: "“\(quote)”")
-                        .font(.atlas(.serif, 13.5))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

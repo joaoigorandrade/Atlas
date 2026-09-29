@@ -16,6 +16,11 @@ final class ProfileViewModel {
     var masteredCount: String { "\(store.masteredCount)" }
     var cardCount: String { "\(store.cards.count)" }
     var goal: LocalizedStringKey { store.goal.label }
+    /// The figures below are the open map's, not the account's — said, since
+    /// they change the moment another map is opened.
+    var mapKicker: String? {
+        store.subject.isEmpty ? nil : String(localized: "Mapa aberto · \(store.subject)")
+    }
 
     /// The interests as the learner wrote them, split once rather than in `body`.
     var interests: [String] {

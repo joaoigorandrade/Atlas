@@ -11,6 +11,13 @@ struct NodeDetailView: View {
     @EnvironmentObject private var tabs: AtlasTabNavigator
     @State private var model: NodeDetailViewModel?
 
+    /// The tallest the scrolling part may be: the screen, less the sheet's top
+    /// inset, the handle strip and the dock with both of its buttons.
+    private static var scrollCap: CGFloat {
+        let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800
+        return max(240, screen - 290)
+    }
+
     var body: some View {
         Group {
             if let model { content(model) } else { Color.clear.frame(height: 1) }
@@ -55,13 +62,19 @@ struct NodeDetailView: View {
                         // A locked node's prerequisites are not trivia about it,
                         // they are the way in — the web names them as such.
                         Kicker(model.isLocked ? "Aprenda isso primeiro" : "Pré-requisitos").padding(.top, 20)
-                        FlowChips(prereqs).padding(.top, 10)
+                        FlowChips(prereqs, open: reopen).padding(.top, 10)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 20)
             }
+            // The navigator sizes every sheet to its content (`fixedSize`), and
+            // a scroll view's content size is all of it: a twelve-rung plan ran
+            // past the sheet at both ends — the title under the handle, the dock
+            // off the bottom. Capping the scroll's height to what the screen
+            // leaves around the dock is what makes it scroll instead.
+            .frame(maxHeight: Self.scrollCap)
 
             Dock {
                 CTAButton(model.actionTitle, tint: model.actionTint) { primary(model) }
@@ -84,32 +97,39 @@ struct NodeDetailView: View {
                 Kicker(model.headline, tint: model.state.color, size: 11)
             }
             Text(verbatim: node.label)
-                .font(.atlas(.serif, 26))
+                .font(.atlas(.display, 26))
                 .foregroundStyle(Palette.ink)
                 .padding(.top, 6)
             if let cost = model.cost {
                 Text(verbatim: cost)
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(Palette.inkFaint)
                     .padding(.top, 4)
             }
 
             if let summary = node.summary {
                 Text(verbatim: summary)
-                    .font(.atlas(.sans, 13.5))
+                    .font(.atlas(.serif, 15))
                     .foregroundStyle(Palette.inkSoft)
                     .padding(.horizontal, 15).padding(.vertical, 13)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Palette.card)
                     .overlay(alignment: .leading) { Rectangle().fill(model.state.color).frame(width: 3) }
-                    .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(Palette.hairline, lineWidth: 1) }
-                    .clipShape(.rect(cornerRadius: 9))
+                    .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
+                    .clipShape(.rect(cornerRadius: 3))
+                    .padding(.top, 14)
+            }
+
+            if let nextReview = model.nextReview {
+                Text(verbatim: nextReview)
+                    .font(.atlas(.serif, 14.5))
+                    .foregroundStyle(Palette.inkSoft)
                     .padding(.top, 14)
             }
 
             if let shakyLine = model.shakyLine {
                 Text(shakyLine)
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkSoft)
                     .padding(.top, 14)
             }
@@ -138,26 +158,31 @@ struct NodeDetailView: View {
         Kicker("Reparo direcionado").padding(.top, 22)
         HStack(spacing: 12) {
             Text(verbatim: "→")
-                .font(.atlas(.sans, 12))
+                .font(.atlas(.serif, 13.5))
                 .foregroundStyle(tint)
                 .frame(width: 22, height: 22)
                 .background(tint.opacity(0.14), in: .circle)
                 .overlay { Circle().strokeBorder(tint, lineWidth: 1) }
-            Text("Passagem socrática").font(.atlas(.serif, 15, weight: .semibold)).foregroundStyle(Palette.ink)
+            Text("Passagem socrática").font(.atlas(.serif, 16, weight: .semibold)).foregroundStyle(Palette.ink)
             Spacer(minLength: 0)
             Kicker("uma passagem · fecha esta lacuna", tint: Palette.inkMuted)
         }
         .padding(.horizontal, 15).padding(.vertical, 13)
         .frame(minHeight: Metrics.tap)
-        .background(Palette.card, in: .rect(cornerRadius: 10))
-        .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(tint.opacity(0.2), lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(tint.opacity(0.2), lineWidth: 1) }
         .padding(.top, 10)
 
         let parents = model.spawnedFrom
         if !parents.isEmpty {
             Kicker("Originado de").padding(.top, 20)
-            FlowChips(parents).padding(.top, 10)
+            FlowChips(parents, open: reopen).padding(.top, 10)
         }
+    }
+
+    /// A prerequisite chip: the drawer turns to that concept in place.
+    private func reopen(_ other: ConceptNode) {
+        navigator.openSheet(.nodeDetail(other))
     }
 
     /// The spiral is pushed from the map, never entered from a tab — a pass is
@@ -180,14 +205,22 @@ struct NodeDetailView: View {
     private func row(_ row: NodeDetailViewModel.PhaseRow, _ model: NodeDetailViewModel) -> some View {
         HStack(spacing: 12) {
             Text(verbatim: row.done ? "✓" : row.isCurrent ? "→" : "·")
-                .font(.atlas(.sans, 12))
+                .font(.atlas(.serif, 13.5))
                 .foregroundStyle(row.tint)
                 .frame(width: 24, height: 24)
                 .background(row.isCurrent ? model.state.color.opacity(0.14) : .clear, in: .circle)
                 .overlay { Circle().strokeBorder(row.done || row.isCurrent ? row.tint : Palette.hairlineStrong, lineWidth: 1) }
-            Text(verbatim: row.phase.label)
-                .font(.atlas(.serif, 15, weight: row.isCurrent ? .semibold : .regular))
-                .foregroundStyle(row.done || row.isCurrent ? Palette.ink : Palette.inkGhost)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: row.phase.label)
+                    .font(.atlas(.serif, 16.5, weight: row.isCurrent ? .semibold : .regular))
+                    .foregroundStyle(row.done || row.isCurrent ? Palette.ink : Palette.inkGhost)
+                // What the rung asks of the learner: twelve English names
+                // on their own said nothing about the work behind them.
+                Text(row.phase.blurb)
+                    .font(.atlas(.serif, 13.5))
+                    .foregroundStyle(row.done || row.isCurrent ? Palette.inkMuted : Palette.inkGhost)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer(minLength: 0)
             if row.isCurrent {
                 Kicker("próximo", tint: model.state.color)
@@ -227,22 +260,22 @@ struct NodeDetailView: View {
     private func nudge(skipping owed: Phase, to target: Phase, _ model: NodeDetailViewModel) -> some View {
         VStack(alignment: .leading, spacing: 11) {
             Text(owed.skipNudge)
-                .font(.atlas(.sans, 13.5))
+                .font(.atlas(.serif, 15))
                 .foregroundStyle(Palette.amberInk)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Button { open(owed, model) } label: {
                     Text("Fazer \(owed.label) primeiro")
-                        .font(.atlas(.sans, 13, weight: .semibold))
+                        .font(.atlas(.serif, 14.5, weight: .semibold))
                         .foregroundStyle(Palette.accentInk)
                         .padding(.horizontal, 13)
                         .frame(minHeight: Metrics.tap)
-                        .background(Palette.accent, in: .rect(cornerRadius: 9))
+                        .background(Palette.accent, in: .rect(cornerRadius: 3))
                 }
                 .pressable()
                 Button { open(target, model) } label: {
                     Text("Pular para \(target.label) →")
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.amberInk)
                         .underline()
                         .padding(.horizontal, 13)
@@ -254,8 +287,8 @@ struct NodeDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 15).padding(.vertical, 13)
-        .background(Palette.amberBg, in: .rect(cornerRadius: 10))
-        .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(Palette.amberInk.opacity(0.25), lineWidth: 1) }
+        .background(Palette.amberBg, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.amberInk.opacity(0.25), lineWidth: 1) }
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 }
@@ -264,12 +297,22 @@ struct NodeDetailView: View {
 /// A grid gives every chip the widest one's width; chips are the width of
 /// their own word, so this is the one place a `Layout` earns itself.
 struct FlowChips: View {
-    private let items: [(String, NodeState)]
-    init(_ items: [(String, NodeState)]) { self.items = items }
+    private let items: [(ConceptNode, NodeState)]
+    /// Each chip opens its concept: on a locked node they are the way in.
+    private let open: (ConceptNode) -> Void
+    init(_ items: [(ConceptNode, NodeState)], open: @escaping (ConceptNode) -> Void) {
+        self.items = items; self.open = open
+    }
     var body: some View {
         Flow(spacing: 7) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                Chip(verbatim: item.0, dot: item.1.color)
+                Button { open(item.0) } label: {
+                    Chip(verbatim: item.0.label, dot: item.1.color)
+                        .frame(minHeight: Metrics.tap)
+                        .contentShape(.rect)
+                }
+                .pressable()
+                .accessibilityHint(Text("Abrir o conceito"))
             }
         }
     }

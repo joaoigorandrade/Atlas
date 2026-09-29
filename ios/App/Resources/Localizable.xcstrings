@@ -107,17 +107,6 @@
         }
       }
     },
-    "%@ dominado" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ mastered"
-          }
-        }
-      }
-    },
     "%@ e tudo abaixo dele foi marcado como sabido." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -266,9 +255,39 @@
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld concepts on the frontier"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld concept on the frontier"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld concepts on the frontier"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld conceito na fronteira"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld conceitos na fronteira"
+                }
+              }
+            }
           }
         }
       }
@@ -277,9 +296,39 @@
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld new concepts to review"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld new concept to review"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld new concepts to review"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld conceito novo para revisar"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld conceitos novos para revisar"
+                }
+              }
+            }
           }
         }
       }
@@ -450,47 +499,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld min"
-          }
-        }
-      }
-    },
-    "%lld na fronteira" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld on the frontier"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld on the frontier"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld na fronteira"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld na fronteira"
-                }
-              }
-            }
           }
         }
       }
@@ -796,9 +804,39 @@
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today’s budget is spent. %lld due cards are still waiting — they keep until tomorrow, or raise your daily target."
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Today’s budget is spent. %lld due card is still waiting — it keeps until tomorrow, or raise your daily target."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Today’s budget is spent. %lld due cards are still waiting — they keep until tomorrow, or raise your daily target."
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A meta de hoje foi cumprida. Ainda há %lld cartão vencido — ele espera amanhã, ou aumente sua meta diária."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A meta de hoje foi cumprida. Ainda há %lld cartões vencidos — eles esperam amanhã, ou aumente sua meta diária."
+                }
+              }
+            }
           }
         }
       }
@@ -1085,17 +1123,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing on your map to wire this into yet. Come back when others are lit."
-          }
-        }
-      }
-    },
-    "Ainda sem leituras — cada toque de confiança antes de virar um cartão constrói essa curva." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No readings yet — every confidence tap before flipping a card builds this curve."
           }
         }
       }
@@ -1404,17 +1431,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Placing the foundations…"
-          }
-        }
-      }
-    },
-    "Assunto" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Subject"
           }
         }
       }
@@ -2548,17 +2564,6 @@
         }
       }
     },
-    "Dominar" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Master it"
-          }
-        }
-      }
-    },
     "Dominar tudo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3487,17 +3492,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close the gap · back to the map →"
-          }
-        }
-      }
-    },
-    "Fechar o Atlas" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close Atlas"
           }
         }
       }
@@ -4602,17 +4596,6 @@
         }
       }
     },
-    "O idioma da interface só muda quando o app abre de novo. Vamos fechá-lo — toque no Atlas para voltar." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The interface language only changes when the app opens again. We'll close it — tap Atlas to come back."
-          }
-        }
-      }
-    },
     "O mapa, seus estados de domínio, seus cartões e tudo que foi gerado para ele são apagados. Sua sequência permanece. Não dá para desfazer." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5570,17 +5553,6 @@
         }
       }
     },
-    "Reabra o Atlas" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reopen Atlas"
-          }
-        }
-      }
-    },
     "Recall · memória" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5599,17 +5571,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start over"
-          }
-        }
-      }
-    },
-    "Reconhecer" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recognise it"
           }
         }
       }
@@ -6712,17 +6673,6 @@
         }
       }
     },
-    "Usar" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use it"
-          }
-        }
-      }
-    },
     "Ver a sugestão do mapa" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7342,6 +7292,716 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voice"
+          }
+        }
+      }
+    },
+    "%@ dominado · %lld na fronteira" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ mastered · %lld on the frontier"
+          }
+        }
+      }
+    },
+    "%@ · ~%lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · ~%lld min"
+          }
+        }
+      }
+    },
+    "%lld cartões para revisar" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card to review"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards to review"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cartão para revisar"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cartões para revisar"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Abrindo…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opening…"
+          }
+        }
+      }
+    },
+    "Abrir os Ajustes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        }
+      }
+    },
+    "Acertou depois de errar — releia o trecho" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right after a miss — reread this part"
+          }
+        }
+      }
+    },
+    "Agora não" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not now"
+          }
+        }
+      }
+    },
+    "Ainda sem leituras — cada previsão no Predict e cada confiança marcada no Crucible constroem essa curva." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No readings yet — every forecast in Predict and every confidence you mark in the Crucible builds this curve."
+          }
+        }
+      }
+    },
+    "Alguns cartões estão prestes a esfriar — poucos minutos agora seguram o que você aprendeu." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some cards are about to fade — a few minutes now keeps what you learned."
+          }
+        }
+      }
+    },
+    "Aplicar num problema que nunca viu" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply it to a problem you've never seen"
+          }
+        }
+      }
+    },
+    "As notificações do Atlas estão desligadas nos Ajustes do iPhone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atlas notifications are turned off in the iPhone's Settings."
+          }
+        }
+      }
+    },
+    "Começar agora →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start now →"
+          }
+        }
+      }
+    },
+    "Continuar de onde parou" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick up where you left off"
+          }
+        }
+      }
+    },
+    "Continuar →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue →"
+          }
+        }
+      }
+    },
+    "Crie uma senha nova" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create a new password"
+          }
+        }
+      }
+    },
+    "Decidir rápido, até virar automático" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decide fast, until it's automatic"
+          }
+        }
+      }
+    },
+    "Defender os dois lados de uma disputa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argue both sides of a dispute"
+          }
+        }
+      }
+    },
+    "Digite o e-mail da sua conta e toque em “Esqueci minha senha” de novo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter your account email, then tap “Forgot my password” again."
+          }
+        }
+      }
+    },
+    "Dizer em voz alta, em tempo real" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Say it out loud, in real time"
+          }
+        }
+      }
+    },
+    "Enviamos um link para redefinir a senha de %@. Abra-o neste iPhone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We sent a password-reset link to %@. Open it on this iPhone."
+          }
+        }
+      }
+    },
+    "Esconder a legenda" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide the legend"
+          }
+        }
+      }
+    },
+    "Esqueci minha senha" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forgot my password"
+          }
+        }
+      }
+    },
+    "Executar num caso real" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carry it out on a real case"
+          }
+        }
+      }
+    },
+    "Explicar com suas palavras, sem apoio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explain it in your own words, unaided"
+          }
+        }
+      }
+    },
+    "Fronteira" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frontier"
+          }
+        }
+      }
+    },
+    "Hora da revisão" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time to review"
+          }
+        }
+      }
+    },
+    "Horário" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        }
+      }
+    },
+    "Idioma alterado" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language changed"
+          }
+        }
+      }
+    },
+    "Ir para o próximo conceito" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to the next concept"
+          }
+        }
+      }
+    },
+    "Lacuna fechada · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gap closed · %@"
+          }
+        }
+      }
+    },
+    "Lacunas fechadas: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gaps closed: %lld"
+          }
+        }
+      }
+    },
+    "Lacunas novas sob “%@”: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New gaps under “%@”: %lld"
+          }
+        }
+      }
+    },
+    "Lembrar sem olhar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remember it without looking"
+          }
+        }
+      }
+    },
+    "Lembrete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminder"
+          }
+        }
+      }
+    },
+    "Lembrete de revisão" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review reminder"
+          }
+        }
+      }
+    },
+    "Ler a explicação, seção por seção" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read the explanation, section by section"
+          }
+        }
+      }
+    },
+    "Ligar ao que você já sabe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link it to what you already know"
+          }
+        }
+      }
+    },
+    "Mapa aberto · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open map · %@"
+          }
+        }
+      }
+    },
+    "Meta: dominar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goal: master"
+          }
+        }
+      }
+    },
+    "Meta: reconhecer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goal: recognise"
+          }
+        }
+      }
+    },
+    "Meta: usar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goal: use"
+          }
+        }
+      }
+    },
+    "Mostrar a legenda" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the legend"
+          }
+        }
+      }
+    },
+    "Não conseguimos salvar a senha agora. Tente de novo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We couldn't save the password right now. Try again."
+          }
+        }
+      }
+    },
+    "O conteúdo novo já sai nesse idioma. A interface muda na próxima vez que o Atlas abrir — ou agora, pelo idioma do app nos Ajustes do iPhone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New content is already written in this language. The interface changes the next time Atlas opens — or right now, through the app's language in the iPhone's Settings."
+          }
+        }
+      }
+    },
+    "O círculo que pulsa é por onde começar. Discos menores, com o nome em itálico, são conceitos para usar ou só reconhecer — não para dominar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pulsing circle is where to start. Smaller discs with italic names are concepts to use or just recognise — not to master."
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Opções do mapa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Map options"
+          }
+        }
+      }
+    },
+    "Pesar de onde vem uma afirmação" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weigh where a claim comes from"
+          }
+        }
+      }
+    },
+    "Prever o resultado antes de vê-lo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predict the outcome before you see it"
+          }
+        }
+      }
+    },
+    "Próxima revisão %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next review %@."
+          }
+        }
+      }
+    },
+    "Próximo passo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next step"
+          }
+        }
+      }
+    },
+    "Refazer · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo · %@"
+          }
+        }
+      }
+    },
+    "Responder perguntas que constroem a ideia" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer questions that build the idea"
+          }
+        }
+      }
+    },
+    "Revisar no momento certo para não esquecer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review at the right moment so it sticks"
+          }
+        }
+      }
+    },
+    "Revisão de hoje · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's review · %@"
+          }
+        }
+      }
+    },
+    "Seguir o mecanismo passo a passo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow the mechanism step by step"
+          }
+        }
+      }
+    },
+    "Senha nova" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New password"
+          }
+        }
+      }
+    },
+    "Senha nova salva." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New password saved."
+          }
+        }
+      }
+    },
+    "Separar casos verdadeiros dos que só parecem" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tell real cases from ones that only look alike"
+          }
+        }
+      }
+    },
+    "Sua confiança contra o que você entrega" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your confidence against what you deliver"
+          }
+        }
+      }
+    },
+    "Trocar de mapa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch map"
+          }
+        }
+      }
+    },
+    "Você entrou pelo link de redefinição. Escolha a senha que vai usar daqui em diante." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You signed in with the reset link. Choose the password you'll use from now on."
+          }
+        }
+      }
+    },
+    "para voltar quando os cartões vencem" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "to come back when cards are due"
+          }
+        }
+      }
+    },
+    "uma notificação por dia" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "one notification a day"
+          }
+        }
+      }
+    },
+    "“%@” agora está Dominado — daqui em diante, a Revisão o mantém." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is now Mastered — from here on, Review keeps it."
+          }
+        }
+      }
+    },
+    "“%@” está em andamento." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is under way."
+          }
+        }
+      }
+    },
+    "“%@” ficou Instável — o mapa marca onde reforçar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” went Shaky — the map marks where to shore it up."
+          }
+        }
+      }
+    },
+    "“%@” marcado como Instável — a falha de memória o devolve ao ciclo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” flagged Shaky — the memory lapse sends it back into the loop."
           }
         }
       }

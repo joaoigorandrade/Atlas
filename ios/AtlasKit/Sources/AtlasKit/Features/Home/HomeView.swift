@@ -27,7 +27,7 @@ public struct HomeView: View {
     private func content(_ model: HomeViewModel) -> some View {
         VStack(spacing: 0) {
             TopBar {
-                Text(verbatim: "Atlas").font(.atlas(.serif, 19, weight: .semibold)).foregroundStyle(Palette.ink)
+                Text(verbatim: "Atlas").font(.atlas(.display, 19)).foregroundStyle(Palette.ink)
             } trailing: {
                 HStack(spacing: 12) {
                     if model.streak > 0 {
@@ -47,20 +47,22 @@ public struct HomeView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker(verbatim: model.today)
                     Text(model.greeting)
-                        .font(.atlas(.serif, 30))
+                        .font(.atlas(.display, 30))
                         .foregroundStyle(Palette.ink)
                         .padding(.top, 9)
                     Text(model.frontierLine)
-                        .font(.atlas(.sans, 14.5))
+                        .font(.atlas(.serif, 16))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 6)
 
-                    reviewCard(model).padding(.top, 26)
-                    frontierCard(model).padding(.top, 14)
+                    // The day's one decision first: the pass to open. Review is
+                    // the other half of the day, and sits under it.
+                    continueCard(model).padding(.top, 26)
                         .animation(Motion.standard, value: model.frontierHeadline)
+                    reviewCard(model).padding(.top, 14)
 
                     if model.hasRun {
-                        Text("Seus mapas").font(.atlas(.serif, 21)).foregroundStyle(Palette.ink)
+                        Text("Seus mapas").font(.atlas(.display, 21)).foregroundStyle(Palette.ink)
                             .padding(.top, 32)
                         ForEach(model.continents) { group in
                             continentSection(group, model).padding(.top, 18)
@@ -72,13 +74,6 @@ public struct HomeView: View {
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                         newMapButton(model).padding(.top, 14)
-                        if !model.message.isEmpty {
-                            Text(verbatim: model.message)
-                                .font(.atlas(.sans, 13))
-                                .foregroundStyle(Palette.dangerInk)
-                                .padding(.top, 12)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,7 +85,6 @@ public struct HomeView: View {
                 .animation(Motion.spring, value: model.streak)
                 .animation(Motion.standard, value: model.maps.map(\.subject))
                 .animation(Motion.standard, value: model.maps.map(\.continent))
-                .animation(Motion.standard, value: model.message)
             }
         }
         // Long-press a card to exclude it. The map, its mastery states, its
@@ -122,7 +116,7 @@ public struct HomeView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
                     Kicker("Continente", tint: Palette.amberInk)
-                    Text(verbatim: group.continent.name).font(.atlas(.serif, 19)).foregroundStyle(Palette.ink)
+                    Text(verbatim: group.continent.name).font(.atlas(.display, 19)).foregroundStyle(Palette.ink)
                 }
                 Spacer(minLength: 0)
                 Menu {
@@ -144,15 +138,15 @@ public struct HomeView: View {
                 Button { Task { await model.chart(scope, in: group.continent) } } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         Kicker("Terra inexplorada")
-                        Text(verbatim: scope.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
-                        Text(verbatim: scope.note).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
-                        Text("Mapear →").font(.atlas(.sans, 13.5, weight: .semibold))
+                        Text(verbatim: scope.label).font(.atlas(.serif, 17)).foregroundStyle(Palette.ink)
+                        Text(verbatim: scope.note).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.inkMuted)
+                        Text("Mapear →").font(.atlas(.serif, 15, weight: .semibold))
                             .foregroundStyle(Palette.amberInk).padding(.top, 4)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 11)
+                        RoundedRectangle(cornerRadius: 3)
                             .strokeBorder(Palette.hairlineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     }
                 }
@@ -166,8 +160,8 @@ public struct HomeView: View {
 
     private func reviewCard(_ model: HomeViewModel) -> some View {
         Button { tabs.switchTab(to: .review) } label: {
-            Card(border: Palette.accent.opacity(0.22)) {
-                summary(kicker: "Revisão de hoje", kickerTint: Palette.accent,
+            Card(border: Palette.accent.opacity(0.4)) {
+                summary(kicker: Kicker(verbatim: model.reviewKicker, tint: Palette.accent),
                         headline: model.reviewHeadline, note: model.reviewNote,
                         action: model.reviewAction, actionTint: Palette.accent)
             }
@@ -175,28 +169,45 @@ public struct HomeView: View {
         .buttonStyle(Pressable())
     }
 
-    private func frontierCard(_ model: HomeViewModel) -> some View {
-        Button { tabs.switchTab(to: .map) } label: {
-            Card(border: NodeState.frontier.color.opacity(0.28)) {
-                summary(kicker: "Sua fronteira", kickerTint: Palette.amberInk,
-                        headline: model.frontierHeadline, note: model.frontierNote,
-                        action: "Abrir o mapa →", actionTint: Palette.amberInk)
+    /// "Continuar de onde parou": the concept under way, the phase it opens on
+    /// and what it still costs — one tap into the pass, pushed over the map so
+    /// that finishing it lands where the change can be seen. With nothing to
+    /// continue it falls back to the map.
+    private func continueCard(_ model: HomeViewModel) -> some View {
+        Button {
+            if let node = model.next {
+                tabs.navigate(to: .session(node, phase: nil), inTab: .map)
+            } else {
+                tabs.switchTab(to: .map)
+            }
+        } label: {
+            Card(border: NodeState.frontier.color.opacity(0.6)) {
+                if let node = model.next {
+                    summary(kicker: Kicker(model.continueKicker, tint: Palette.amberInk),
+                            headline: node.label,
+                            note: [model.continueNote, node.summary].compactMap(\.self).joined(separator: "\n"),
+                            action: model.continueAction, actionTint: Palette.amberInk)
+                } else {
+                    summary(kicker: Kicker("Sua fronteira", tint: Palette.amberInk),
+                            headline: model.frontierHeadline, note: model.frontierNote,
+                            action: "Abrir o mapa →", actionTint: Palette.amberInk)
+                }
             }
         }
         .buttonStyle(Pressable())
     }
 
     /// Both cards are the same block — kicker, headline, one sentence, one link.
-    private func summary(kicker: LocalizedStringKey, kickerTint: Color, headline: String,
+    private func summary(kicker: Kicker, headline: String,
                          note: String, action: LocalizedStringKey, actionTint: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Kicker(kicker, tint: kickerTint)
+            kicker
             // Headline and note carry the frontier node's own label and summary
             // when it has one, so they are rendered as written.
-            Text(verbatim: headline).font(.atlas(.serif, 26)).foregroundStyle(Palette.ink)
-            Text(verbatim: note).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted)
+            Text(verbatim: headline).font(.atlas(.display, 26)).foregroundStyle(Palette.ink)
+            Text(verbatim: note).font(.atlas(.serif, 15)).foregroundStyle(Palette.inkMuted)
             Text(action)
-                .font(.atlas(.sans, 13.5, weight: .semibold))
+                .font(.atlas(.serif, 15, weight: .semibold))
                 .foregroundStyle(actionTint)
                 .padding(.top, 8)
         }
@@ -207,59 +218,85 @@ public struct HomeView: View {
 
     /// One saved run. Tapping the open one goes to its map; tapping any other
     /// switches the whole store onto it first, which is a round trip, so the
-    /// tab change waits for it.
+    /// card says it is opening and the tab change waits for it. Its actions sit
+    /// behind a visible "…" as well as the long-press, which nobody finds.
     private func mapCard(_ map: AtlasRun, _ model: HomeViewModel) -> some View {
         let open = model.isOpen(map)
-        return Button {
-            Task {
-                await model.open(map)
-                tabs.switchTab(to: .map)
-            }
-        } label: {
-            Card(border: NodeState.frontier.color.opacity(open ? 0.35 : 0.16)) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Kicker(map.goal.label)
-                        Spacer(minLength: 0)
-                        Chip(model.status(map),
-                             tint: open ? Palette.accent : Palette.inkFaint,
-                             background: open ? Palette.accentBg : Palette.chipBg)
-                    }
-                    Text(verbatim: map.subject).font(.atlas(.serif, 19)).foregroundStyle(Palette.ink)
-                    ProgressView(value: map.mastered).tint(Palette.accent)
-                        .animation(Motion.reward, value: map.mastered)
-                    HStack {
-                        Text("\(map.mastered.formatted(.percent.precision(.fractionLength(0)))) dominado")
-                        Spacer()
-                        Text("\(model.frontierCount(map)) na fronteira")
-                    }
-                    .font(.atlas(.sans, 12.5))
-                    .foregroundStyle(Palette.inkFaint)
+        let due = model.dueCount(map)
+        return ZStack(alignment: .bottomTrailing) {
+            Button {
+                Task {
+                    await model.open(map)
+                    tabs.switchTab(to: .map)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 18)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                Card(border: open ? NodeState.frontier.color.opacity(0.6) : Palette.rule) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Kicker(map.goal.label)
+                            Spacer(minLength: 0)
+                            if model.switching == map.id {
+                                HStack(spacing: 6) {
+                                    ProgressView().controlSize(.mini)
+                                    Text("Abrindo…").font(.atlas(.sans, 12.5)).foregroundStyle(Palette.inkFaint)
+                                }
+                            } else {
+                                Chip(model.status(map),
+                                     tint: open ? Palette.accent : Palette.inkFaint,
+                                     background: open ? Palette.accentBg : Palette.chipBg)
+                            }
+                        }
+                        Text(verbatim: map.subject).font(.atlas(.display, 19)).foregroundStyle(Palette.ink)
+                        ProgressView(value: map.mastered).tint(Palette.accent)
+                            .animation(Motion.reward, value: map.mastered)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(map.mastered.formatted(.percent.precision(.fractionLength(0)))) dominado · \(model.frontierCount(map)) na fronteira")
+                            if due > 0 {
+                                Text("\(due) cartões para revisar").foregroundStyle(Palette.accent)
+                            }
+                        }
+                        .font(.atlas(.serif, 14))
+                        .foregroundStyle(Palette.inkFaint)
+                        // Room for the "…" in the corner.
+                        .padding(.trailing, 40)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .buttonStyle(Pressable())
+            .disabled(model.switching != nil)
+            .contextMenu { mapActions(map, model) }
+
+            Menu { mapActions(map, model) } label: {
+                Image(systemName: "ellipsis")
+                    .foregroundStyle(Palette.inkMuted)
+                    .frame(width: Metrics.tap, height: Metrics.tap)
+            }
+            .padding(6)
+            .accessibilityLabel(Text("Opções do mapa"))
+        }
+    }
+
+    @ViewBuilder
+    private func mapActions(_ map: AtlasRun, _ model: HomeViewModel) -> some View {
+        if map.continent != nil {
+            Button("Sair do continente", systemImage: "arrow.up.forward.square") {
+                Task { await model.move(map, to: nil) }
+            }
+        } else {
+            Menu("Adicionar a um continente", systemImage: "square.stack.3d.up") {
+                ForEach(model.continents) { group in
+                    Button { Task { await model.move(map, to: group.continent) } } label: {
+                        Text(verbatim: group.continent.name)
+                    }
+                }
+                Button("Novo continente…", systemImage: "plus") { model.startContinent(with: map) }
             }
         }
-        .buttonStyle(Pressable())
-        .contextMenu {
-            if map.continent != nil {
-                Button("Sair do continente", systemImage: "arrow.up.forward.square") {
-                    Task { await model.move(map, to: nil) }
-                }
-            } else {
-                Menu("Adicionar a um continente", systemImage: "square.stack.3d.up") {
-                    ForEach(model.continents) { group in
-                        Button { Task { await model.move(map, to: group.continent) } } label: {
-                            Text(verbatim: group.continent.name)
-                        }
-                    }
-                    Button("Novo continente…", systemImage: "plus") { model.startContinent(with: map) }
-                }
-            }
-            Button("Excluir este tópico", systemImage: "trash", role: .destructive) {
-                model.askToDelete(map)
-            }
+        Button("Excluir este tópico", systemImage: "trash", role: .destructive) {
+            model.askToDelete(map)
         }
     }
 

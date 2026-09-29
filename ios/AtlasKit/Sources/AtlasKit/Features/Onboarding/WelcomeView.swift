@@ -15,7 +15,7 @@ struct WelcomeView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker("Atlas · aprenda qualquer coisa, a fundo", size: 11)
                     Text("O que você quer aprender?")
-                        .font(.atlas(.serif, 34, weight: .medium))
+                        .font(.atlas(.display, 34))
                         .foregroundStyle(Palette.ink)
                         .padding(.top, 16)
                         .padding(.bottom, 28)
@@ -40,7 +40,7 @@ struct WelcomeView: View {
 
                     field("Seus interesses", "opcional") {
                         TextField("ex.: xadrez, investimentos, culinária", text: $onboarding.form.interests)
-                            .font(.atlas(.sans, 15))
+                            .font(.atlas(.serif, 16.5))
                             // Same flag as the topic field: "Montar meu mapa"
                             // sets it false, and the keyboard has to come down
                             // whichever of the two was open.
@@ -74,7 +74,7 @@ struct WelcomeView: View {
                     onboarding.buildMap()
                 }
                 Text("~5 minutos para um mapa aceso com uma fronteira clara")
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(Palette.inkGhost)
             }
         }
@@ -90,15 +90,15 @@ struct WelcomeView: View {
 
     private var topicField: some View {
         TextField("Um tema, uma ementa colada…", text: $onboarding.form.topic, axis: .vertical)
-            .font(.atlas(.serif, 20))
+            .font(.atlas(.display, 20))
             .foregroundStyle(Palette.ink)
             .focused($editing)
             .submitLabel(.done)
             .padding(.horizontal, 14)
             .padding(.vertical, 16)
-            .background(Palette.card, in: .rect(cornerRadius: 14))
+            .background(Palette.card, in: .rect(cornerRadius: 3))
             .overlay {
-                RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
             }
             .shadow(color: Palette.shade(0.05), radius: 9, y: 4)
         // ponytail: no PDF/ementa upload — it needs a document picker and a
@@ -110,19 +110,19 @@ struct WelcomeView: View {
     private var scopeOffers: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("“\(onboarding.form.topic)” é um continente, não um mapa. Escolha um território para começar:")
-                .font(.atlas(.sans, 13.5))
+                .font(.atlas(.serif, 15))
                 .foregroundStyle(Palette.inkMuted)
             ForEach(onboarding.scopes, id: \.label) { scope in
                 Button { onboarding.pick(scope) } label: {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(verbatim: scope.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
-                        Text(verbatim: scope.note).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                        Text(verbatim: scope.label).font(.atlas(.serif, 17)).foregroundStyle(Palette.ink)
+                        Text(verbatim: scope.note).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.inkMuted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(Palette.card, in: .rect(cornerRadius: 11))
+                    .background(Palette.card, in: .rect(cornerRadius: 3))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
                     }
                 }
                 .pressable()
@@ -131,14 +131,14 @@ struct WelcomeView: View {
             // wait on "Seus mapas" as uncharted land.
             Button { onboarding.chartAll() } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Mapear o continente inteiro →").font(.atlas(.serif, 16)).foregroundStyle(Palette.amberInk)
+                    Text("Mapear o continente inteiro →").font(.atlas(.serif, 17)).foregroundStyle(Palette.amberInk)
                     Text("Construa o primeiro território agora; os outros esperam no continente, prontos para mapear.")
-                        .font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                        .font(.atlas(.serif, 14.5)).foregroundStyle(Palette.inkMuted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 11)
+                    RoundedRectangle(cornerRadius: 3)
                         .strokeBorder(Palette.amberInk, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                 }
             }
@@ -149,13 +149,13 @@ struct WelcomeView: View {
 
     private var notice: some View {
         Text(verbatim: onboarding.message)
-            .font(.atlas(.sans, 13.5))
+            .font(.atlas(.serif, 15))
             .foregroundStyle(Palette.amberInk)
             .padding(.horizontal, 14).padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Palette.amberBg, in: .rect(cornerRadius: 10))
+            .background(Palette.amberBg, in: .rect(cornerRadius: 3))
             .overlay {
-                RoundedRectangle(cornerRadius: 10).strokeBorder(Palette.amberInk.opacity(0.2), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.amberInk.opacity(0.2), lineWidth: 1)
             }
     }
 
@@ -164,7 +164,7 @@ struct WelcomeView: View {
     private var paretoRow: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("\(Text("Quanto do tema?").foregroundStyle(Palette.inkSoft)) — \(Text("a fatia de resultado real que você quer").foregroundStyle(Palette.inkGhost))")
-                .font(.atlas(.sans, 14))
+                .font(.atlas(.serif, 15.5))
             LazyVGrid(columns: columns(3), spacing: 9) {
                 ForEach(paretoLevels, id: \.self) { pct in
                     pill("top \(pct)%", on: onboarding.form.paretoPct == pct) {
@@ -195,7 +195,7 @@ struct WelcomeView: View {
                     .foregroundStyle(Palette.accent)
                     .frame(minHeight: Metrics.tap)
             }
-            .font(.atlas(.sans, 14))
+            .font(.atlas(.serif, 15.5))
             .foregroundStyle(Palette.inkSoft)
             .padding(.top, 14)
             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -211,11 +211,11 @@ struct WelcomeView: View {
                     displayedComponents: .date
                 )
                 Button("Limpar") { onboarding.form.examDate = "" }
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkMuted)
                     .frame(minHeight: Metrics.tap)
             }
-            .font(.atlas(.sans, 14))
+            .font(.atlas(.serif, 15.5))
             .foregroundStyle(Palette.inkSoft)
             .tint(Palette.accent)
             .padding(.top, 14)
@@ -237,7 +237,7 @@ struct WelcomeView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 11) {
             Text("\(Text(title).foregroundStyle(Palette.inkSoft)) — \(Text(hint).foregroundStyle(Palette.inkGhost))")
-                .font(.atlas(.sans, 14))
+                .font(.atlas(.serif, 15.5))
             content()
         }
         .padding(.top, 26)

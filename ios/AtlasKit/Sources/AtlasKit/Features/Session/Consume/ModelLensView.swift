@@ -16,19 +16,19 @@ struct ModelLensView: View {
                 // this sheet is opened by someone who is stuck, and a spinner
                 // under a bare title tells them nothing.
                 Text(request.lens.note)
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .lineSpacing(2)
                     .foregroundStyle(Palette.inkFaint)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 7)
                 if let model {
                     ForEach(Array(model.beats.enumerated()), id: \.offset) { _, beat in
-                        Text(verbatim: beat.label).font(.atlas(.mono, 10.5)).foregroundStyle(Palette.inkFaint).padding(.top, 20)
+                        Text(verbatim: beat.label).font(.atlas(.caps, 12)).foregroundStyle(Palette.inkFaint).padding(.top, 20)
                         // A beat is written label-first, so its prose arrives a
                         // moment after its heading — an empty paragraph here is
                         // a redraw in progress, not a beat with nothing in it.
                         if !beat.text.isEmpty {
-                            Text(verbatim: beat.text).font(.atlas(.serif, 16.5)).lineSpacing(5).foregroundStyle(Palette.ink).padding(.top, 7)
+                            Text(verbatim: beat.text).font(.atlas(.serif, 17.5)).lineSpacing(5).foregroundStyle(Palette.ink).padding(.top, 7)
                         }
                     }
                     if model.beats.isEmpty {

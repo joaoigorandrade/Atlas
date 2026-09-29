@@ -8,7 +8,7 @@ import SwiftUI
 @MainActor
 final class NodeDetailViewModel {
     let node: ConceptNode
-    private let store: AtlasStore
+    let store: AtlasStore
 
     /// Opening the drawer is the clearest statement of intent there is:
     /// whatever phase this node is owed is about to be started, so it is
@@ -66,7 +66,30 @@ final class NodeDetailViewModel {
 
     /// The phase the primary action opens. A gap's is the repair pass; every
     /// other state's is whatever it is owed.
-    var action: Phase? { isGap ? .socratic : owed }
+    var action: Phase? {
+        if isGap { return .socratic }
+        // A mastered node with nothing due has no review to open: the Review tab
+        // would say "nada vencendo" about everything but this concept. What it
+        // can do is prove it again, at the gate its plan ends on.
+        if state == .mastered, owed == .retain, !hasDueCard { return proofGate(plan) }
+        return owed
+    }
+
+    /// This node's own cards — what "Revisar agora" can honestly promise.
+    private var nodeCards: [StoredCard] { store.cards.filter { $0.nodeId == node.id } }
+    var hasDueCard: Bool { AtlasStore.due(nodeCards) > 0 }
+
+    /// When this concept next comes back for review, if it has a card scheduled.
+    var nextReview: String? {
+        guard state == .mastered, !hasDueCard else { return nil }
+        let dates = nodeCards.compactMap { card -> Date? in
+            guard case .string(let due)? = card.fsrs.fields?["due"] else { return nil }
+            return ISODate.parse(due)
+        }
+        guard let next = dates.min() else { return nil }
+        let when = next.formatted(.relative(presentation: .named))
+        return String(localized: "Próxima revisão \(when).")
+    }
 
     /// The web's five verbs, not one — a Shaky node whose last application
     /// *failed* is not being invited to "Começar" (`NodeDetail.tsx:54-60`).
@@ -85,12 +108,12 @@ final class NodeDetailViewModel {
         // Named after the gate this node's own plan ends on. A fixed "Crucible"
         // promised a phase a `fact` never runs.
         case .shaky: "Tentar de novo · \(action?.label ?? Phase.crucible.label)"
-        case .mastered: "Revisar agora"
+        case .mastered: action == .retain ? "Revisar agora" : "Refazer · \(action?.label ?? Phase.crucible.label)"
         case .gap: "Corrigir esta lacuna"
         case .unknown: "Bloqueado"
         }
     }
-    var actionTint: Color { isGap ? NodeState.gap.color : (owed?.tint ?? Palette.inkGhost) }
+    var actionTint: Color { isGap ? NodeState.gap.color : (action?.tint ?? Palette.inkGhost) }
 
     /// One row of the spiral, prepared here rather than mapped per redraw.
     struct PhaseRow: Identifiable {
@@ -145,25 +168,25 @@ final class NodeDetailViewModel {
         return store.shakyReasons[node.id]?.line(gate: proofGate(plan))
     }
 
-    var prerequisites: [(String, NodeState)] {
+    var prerequisites: [(ConceptNode, NodeState)] {
         let shown = store.display
-        return store.graph.prerequisites(of: node.id).map { ($0.label, shown[$0.id] ?? .unknown) }
+        return store.graph.prerequisites(of: node.id).map { ($0, shown[$0.id] ?? .unknown) }
     }
 
     /// The node this gap was split out of — a dashed edge pointing in. Empty
     /// for everything that isn't a gap, since nothing else has one.
-    var spawnedFrom: [(String, NodeState)] {
+    var spawnedFrom: [(ConceptNode, NodeState)] {
         let shown = store.display, index = store.graph.byId
         return store.graph.edges
             .compactMap { $0.to == node.id && $0.dashed ? index[$0.from] : nil }
-            .map { ($0.label, shown[$0.id] ?? .unknown) }
+            .map { ($0, shown[$0.id] ?? .unknown) }
     }
 
     var headline: LocalizedStringKey { state.headline }
 
-    /// "Dominar · Difícil · ~38 min restantes" — the bar the node is held to, its
-    /// difficulty and
-    /// the work it still owes (`settlementLine` / `minutesLine` on the web).
+    /// "Meta: dominar · Difícil · ~38 min restantes" — the bar the node is held
+    /// to, named as a goal rather than a bare verb, its difficulty and the work
+    /// it still owes (`settlementLine` / `minutesLine` on the web).
     /// Nil on a gap: a sub-point of its parent has no rank or relief of its own.
     var cost: String? {
         guard !isGap else { return nil }
@@ -174,9 +197,9 @@ final class NodeDetailViewModel {
         case .hard: String(localized: "Difícil")
         }
         let bar = switch node.importance ?? .core {
-        case .core: String(localized: "Dominar")
-        case .working: String(localized: "Usar")
-        case .peripheral: String(localized: "Reconhecer")
+        case .core: String(localized: "Meta: dominar")
+        case .working: String(localized: "Meta: usar")
+        case .peripheral: String(localized: "Meta: reconhecer")
         }
         return [
             bar,

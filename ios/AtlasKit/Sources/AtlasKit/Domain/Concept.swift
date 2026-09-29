@@ -13,12 +13,12 @@ public enum NodeState: String, Codable, Sendable, CaseIterable {
     /// glowing.
     public var color: Color {
         switch self {
-        case .unknown: adaptive(0xB3ADA2, 0x6A655C)
-        case .frontier: adaptive(0xC99A2E, 0xE3BC5F)
-        case .learning: adaptive(0x5B7FBF, 0x8AA8E0)
-        case .shaky: adaptive(0xBD7038, 0xDE9A61)
-        case .mastered: adaptive(0x4C8B63, 0x74C08F)
-        case .gap: adaptive(0xC1574A, 0xE0887A)
+        case .unknown: adaptive(0xA99F8C, 0x6A655C)
+        case .frontier: adaptive(0xB0852C, 0xE3BC5F)
+        case .learning: adaptive(0x3F5F86, 0x8AA8E0)
+        case .shaky: adaptive(0xA9602E, 0xDE9A61)
+        case .mastered: adaptive(0x4A7552, 0x74C08F)
+        case .gap: adaptive(0xA8412F, 0xE0887A)
         }
     }
 
@@ -48,6 +48,10 @@ public enum NodeState: String, Codable, Sendable, CaseIterable {
         // "Bloqueado", which is the *consequence* of it.
         case .unknown: "Desconhecido"
         }
+    }
+    /// The state's name on its own — the map's legend and the line under a disc.
+    public var legend: LocalizedStringKey {
+        self == .frontier ? "Fronteira" : headline
     }
 }
 

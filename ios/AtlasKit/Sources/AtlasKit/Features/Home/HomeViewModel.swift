@@ -56,6 +56,36 @@ final class HomeViewModel {
     var reviewAction: LocalizedStringKey { queueIsEmpty ? "Abrir a revisão →" : "Iniciar revisão →" }
 
     var frontier: [ConceptNode] { store.frontier }
+
+    // MARK: - Continuar
+
+    /// What "continue where you left off" opens: a concept already under way —
+    /// Learning first, then one that went Shaky — and otherwise the next step
+    /// on the frontier. The card opens the pass itself; it used to only switch
+    /// to the map, and resuming was four taps and a search.
+    var next: ConceptNode? {
+        let shown = store.display
+        let nodes = store.graph.nodes.filter { $0.gap != true }
+        return nodes.first { shown[$0.id] == .learning }
+            ?? nodes.first { shown[$0.id] == .shaky }
+            ?? store.frontier.first
+    }
+
+    var nextStarted: Bool { next.map { store.display[$0.id] != .frontier } ?? false }
+
+    var continueKicker: LocalizedStringKey { nextStarted ? "Continuar de onde parou" : "Próximo passo" }
+    var continueAction: LocalizedStringKey { nextStarted ? "Continuar →" : "Começar agora →" }
+
+    /// "Socratic · ~12 min" — the phase the pass opens on and what the node
+    /// still costs, so the tap is a decision and not a surprise.
+    var continueNote: String? {
+        guard let node = next else { return nil }
+        let phase = store.owedPhase(node)
+        let minutes = node.minutesLeft(store.phasesDone[node.id] ?? [])
+        return minutes > 0
+            ? String(localized: "\(phase.label) · ~\(minutes) min")
+            : phase.label
+    }
     /// The node's own label when there is one, so this is a String the view
     /// renders verbatim — the fallbacks are the only half that is copy.
     ///
@@ -84,6 +114,12 @@ final class HomeViewModel {
     }
 
     var hasRun: Bool { !store.subject.isEmpty }
+
+    /// Today's review, named for the map it belongs to — the queue is per map,
+    /// and a count on its own read as the whole account's.
+    var reviewKicker: String {
+        hasRun ? String(localized: "Revisão de hoje · \(store.subject)") : String(localized: "Revisão de hoje")
+    }
     var subject: String { store.subject }
     var goal: LocalizedStringKey { store.goal.label }
     var mastered: Double { store.mastered }
@@ -106,9 +142,21 @@ final class HomeViewModel {
         isOpen(map) ? frontier.count : map.frontierCount
     }
 
+    /// Cards due on this map, by the same rule the open map's count uses.
+    func dueCount(_ map: AtlasRun) -> Int {
+        isOpen(map) ? store.dueCount : AtlasStore.due(map.cards)
+    }
+
+    /// The map a tap is opening. Switching is a round trip, and a card that
+    /// did nothing for two seconds read as a dropped tap.
+    private(set) var switching: String?
+
     /// Tapping a card. The open map is already on screen, so this only has work
     /// to do for the others — the view decides where to go afterwards.
     func open(_ map: AtlasRun) async {
+        guard switching == nil else { return }
+        switching = map.id
+        defer { switching = nil }
         await store.switchTo(map)
     }
 
@@ -217,17 +265,16 @@ final class HomeViewModel {
         }
     }
 
+    /// A failure is said where the learner is looking, not at the foot of a
+    /// long list where it used to land off-screen.
     private func continentWrite(_ doing: String, _ op: () async throws -> Void) async {
-        message = ""
-        do { try await op() } catch { message = ErrorCopy.sentence(for: error, doing: doing) }
+        do { try await op() } catch { store.say(ErrorCopy.sentence(for: error, doing: doing)) }
     }
 
     // MARK: - Excluir um mapa
 
-    /// The card the learner is being asked about, and the failure if the delete
-    /// did not land. Nothing else on this screen can fail.
+    /// The card the learner is being asked about.
     private(set) var pendingDelete: AtlasRun?
-    private(set) var message = ""
     /// The same subject again, held where the alert cannot take it back:
     /// dismissing clears `pendingDelete` through the binding, and SwiftUI does
     /// that *before* the confirmed button's task gets to run — which is exactly
@@ -267,7 +314,7 @@ final class HomeViewModel {
         do {
             try await store.deleteMap(id)
         } catch {
-            message = ErrorCopy.sentence(for: error, doing: String(localized: "excluir esse mapa"))
+            store.say(ErrorCopy.sentence(for: error, doing: String(localized: "excluir esse mapa")))
         }
     }
 

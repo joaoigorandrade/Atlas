@@ -128,6 +128,28 @@ public extension Phase {
         }
     }
 
+    /// What the phase asks the learner to do, in one line — the drawer lists the
+    /// names, and twelve English product names say nothing on their own.
+    var blurb: LocalizedStringKey {
+        switch self {
+        case .consume: "Ler a explicação, seção por seção"
+        case .discriminate: "Separar casos verdadeiros dos que só parecem"
+        case .provenance: "Pesar de onde vem uma afirmação"
+        case .socratic: "Responder perguntas que constroem a ideia"
+        case .steelman: "Defender os dois lados de uma disputa"
+        case .predict: "Prever o resultado antes de vê-lo"
+        case .trace: "Seguir o mecanismo passo a passo"
+        case .feynman: "Explicar com suas palavras, sem apoio"
+        case .perform: "Executar num caso real"
+        case .drill: "Decidir rápido, até virar automático"
+        case .produce: "Dizer em voz alta, em tempo real"
+        case .connect: "Ligar ao que você já sabe"
+        case .crucible: "Aplicar num problema que nunca viu"
+        case .recall: "Lembrar sem olhar"
+        case .retain: "Revisar no momento certo para não esquecer"
+        }
+    }
+
     /// The header kicker the design writes above the node's name.
     var kicker: LocalizedStringKey {
         switch self {

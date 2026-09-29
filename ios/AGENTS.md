@@ -111,11 +111,13 @@ and a kind that matters more than a laptop build should stay there.
 
 ```
 App/Resources/     Localizable.xcstrings (every line of copy, pt-BR → en),
-                   InfoPlist.xcstrings, the Newsreader face
+                   InfoPlist.xcstrings, the atlas faces (IM Fell English,
+                   IM Fell English SC, EB Garamond, Instrument Sans)
 Sources/AtlasKit/
   App/        the shell — RootView, AtlasTab (the four tabs), AtlasRoute
               (everything that is pushed or presented), LaunchViewModel
-  Core/       Theme, Components, Speech, Support (ErrorCopy and two one-liners)
+  Core/       Theme, Components, Speech, Reminders, Support (ErrorCopy and
+              two one-liners)
   Domain/     the vocabulary and the pure functions — Concept, Phases, Diagnostic,
               Calibration, Retain, PhaseContent, and one file per phase the
               catalogue added (Discriminate, Predict, Trace, Drill, Recall,

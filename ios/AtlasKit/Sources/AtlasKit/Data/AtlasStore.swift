@@ -188,6 +188,24 @@ public final class AtlasStore {
     public private(set) var streak: Int = Defaults.streak
     var lastActiveDay: String = Defaults.lastActiveDay
 
+    /// A sentence the app says once and lets go of — what a pass changed on the
+    /// map, a card that sent a concept back, a write that failed. The web's
+    /// `showToast`; `RootView` draws it over whatever is on screen.
+    public private(set) var toast: String?
+    @ObservationIgnored private var toastClear: Task<Void, Never>?
+    /// The concept a pass just changed. The map scrolls to it and lets its new
+    /// state land, so the learner sees what the work did rather than being told.
+    public var lastChanged: String?
+
+    func say(_ sentence: String) {
+        toast = sentence
+        toastClear?.cancel()
+        toastClear = Task {
+            try? await Task.sleep(for: .seconds(4.5))
+            if !Task.isCancelled { toast = nil }
+        }
+    }
+
     public let api: AtlasAPI
     public let auth: AtlasAuth
     public let runs: RunStore
@@ -1140,7 +1158,11 @@ public extension AtlasStore {
     /// Read from the stored due date rather than from a local scheduler: the
     /// scheduling itself is the server's, and this only asks whether a date has
     /// passed. `deck` is the ordered, budgeted answer, and Review asks for it.
-    var dueCount: Int {
+    var dueCount: Int { Self.due(cards) }
+
+    /// The due rule on its own, so a saved map that is not open can be counted
+    /// by exactly the same test — Início shows a count on every map card.
+    static func due(_ cards: [StoredCard]) -> Int {
         let now = Date.now
         return cards.count { card in
             // A card the client has just drafted carries no scheduler state at

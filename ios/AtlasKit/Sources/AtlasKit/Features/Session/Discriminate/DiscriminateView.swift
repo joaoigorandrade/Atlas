@@ -72,7 +72,7 @@ struct DiscriminateView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker("O caso", tint: Palette.discriminateInk)
                     Text(verbatim: item.candidate)
-                        .font(.atlas(.serif, 19))
+                        .font(.atlas(.display, 19))
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -81,7 +81,7 @@ struct DiscriminateView: View {
                     // Asked once rather than per case: the cases vary, the
                     // question does not.
                     Text(verbatim: content.ask)
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 16)
@@ -102,7 +102,7 @@ struct DiscriminateView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Kicker("O que decide", tint: Palette.discriminateInk)
                             Text(verbatim: item.decidedBy)
-                                .font(.atlas(.sans, 14.5))
+                                .font(.atlas(.serif, 16))
                                 .lineSpacing(4)
                                 .foregroundStyle(Palette.inkSoft)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -136,18 +136,18 @@ struct DiscriminateView: View {
                     Text(model.passed
                          ? "Você distingue isso dos vizinhos. É isso que significa ter o conceito."
                          : "A fronteira ainda está solta em alguns pontos.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                     if model.early {
                         Text("Encerrado mais cedo — um começo limpo já é prova suficiente.")
-                            .font(.atlas(.sans, 14))
+                            .font(.atlas(.serif, 15.5))
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, 8)
                     }
                     Text("\(model.score) de \(model.answered) casos lidos corretamente.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)
 
@@ -157,7 +157,7 @@ struct DiscriminateView: View {
                     // luck rather than the boundary.
                     if !model.overIncluded.isEmpty {
                         Text("Você deixou passar casos que só parecem. É aí que está a fronteira, não na definição.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 12)
@@ -188,17 +188,17 @@ struct DiscriminateView: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: item.candidate)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 // The verdict in words as well as in colour: a dot is invisible
                 // to VoiceOver and indistinguishable to a colour-blind learner.
                 Text(right ? "Lido corretamente" : "Lido errado")
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(right ? Palette.inkFaint : Palette.amberInk)
                 if !right {
                     Text(verbatim: item.decidedBy)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

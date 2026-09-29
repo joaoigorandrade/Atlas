@@ -22,7 +22,7 @@ struct BuildingView: View {
             VStack(spacing: 0) {
                 Kicker("Gerando seu mapa", size: 11)
                 Text(verbatim: lines[line])
-                    .font(.atlas(.serif, 24))
+                    .font(.atlas(.display, 24))
                     .foregroundStyle(Palette.ink)
                     .multilineTextAlignment(.center)
                     .padding(.top, 10)
@@ -32,7 +32,7 @@ struct BuildingView: View {
                 AtlasProgressBar()
                     .frame(maxWidth: 260)
                 Text(verbatim: count)
-                    .font(.atlas(.mono, 11))
+                    .font(.atlas(.caps, 12.5))
                     .tracking(0.9)
                     .foregroundStyle(Palette.inkGhost)
                     .padding(.top, 14)

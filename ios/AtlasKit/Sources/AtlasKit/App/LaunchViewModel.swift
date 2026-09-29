@@ -14,6 +14,11 @@ final class LaunchViewModel {
     /// Screen 4 — the sentence the app was opened with, if it was opened by a
     /// confirmation link that had already been spent.
     private(set) var notice = ""
+    /// A password-reset link signed the learner in; the shell asks for the new
+    /// password over whatever it is showing.
+    var recovering = false
+    var newPassword = ""
+    private(set) var passwordMessage = ""
 
     /// `restoring` and not just `restored`: the flag below is only set at the
     /// end, and two overlapping restores would send the same refresh token
@@ -48,10 +53,35 @@ final class LaunchViewModel {
             // The link *was* the sign-in: there is nothing left to tell them.
             notice = ""
             await store.signIn(with: session)
+        case .recovery(let session):
+            notice = ""
+            await store.signIn(with: session)
+            newPassword = ""
+            recovering = true
         case .failed(let code):
             notice = Self.notice(for: code)
         case .ignored:
             break
+        }
+    }
+
+    /// The recovery alert's "Salvar". A refusal re-opens the alert with the
+    /// reason, since the learner is signed in but still has no password they know.
+    func savePassword(_ store: AtlasStore) async {
+        let password = newPassword
+        newPassword = ""
+        guard password.count >= 6 else {
+            passwordMessage = String(localized: "A senha precisa ter pelo menos 6 caracteres.")
+            recovering = true
+            return
+        }
+        do {
+            try await store.updatePassword(password)
+            passwordMessage = ""
+            store.say(String(localized: "Senha nova salva."))
+        } catch {
+            passwordMessage = String(localized: "Não conseguimos salvar a senha agora. Tente de novo.")
+            recovering = true
         }
     }
 

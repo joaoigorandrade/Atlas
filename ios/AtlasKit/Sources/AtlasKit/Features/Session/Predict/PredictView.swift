@@ -70,7 +70,7 @@ struct PredictView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Kicker("A situação", tint: Palette.predictInk)
                     Text(verbatim: setup.situation)
-                        .font(.atlas(.serif, 19))
+                        .font(.atlas(.display, 19))
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -84,7 +84,7 @@ struct PredictView: View {
 
                     if model.canForecast {
                         Text("O que acontece?")
-                            .font(.atlas(.sans, 14))
+                            .font(.atlas(.serif, 15.5))
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, 20)
                         VStack(spacing: 8) {
@@ -102,7 +102,7 @@ struct PredictView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Kicker("Por que tinha de ser assim", tint: Palette.predictInk)
                             Text(verbatim: setup.because)
-                                .font(.atlas(.sans, 14.5))
+                                .font(.atlas(.serif, 16))
                                 .lineSpacing(4)
                                 .foregroundStyle(Palette.inkSoft)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -135,7 +135,7 @@ struct PredictView: View {
                 Button { model.sure(level) } label: {
                     HStack(spacing: 12) {
                         Text(PredictViewModel.levelLabel(level))
-                            .font(.atlas(.sans, 15))
+                            .font(.atlas(.serif, 16.5))
                             .foregroundStyle(Palette.ink)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         HStack(spacing: 3) {
@@ -151,9 +151,9 @@ struct PredictView: View {
                     .padding(.vertical, 12)
                     .frame(minHeight: Metrics.tap, alignment: .leading)
                     .background(model.sureness == level ? Palette.predictBg : Palette.card,
-                                in: .rect(cornerRadius: 12))
+                                in: .rect(cornerRadius: 3))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 3)
                             .strokeBorder(model.sureness == level ? Palette.predictInk : Palette.hairlineStrong,
                                           lineWidth: model.sureness == level ? 1.5 : 1)
                     }
@@ -179,18 +179,18 @@ struct PredictView: View {
                     Text(model.passed
                          ? "O mecanismo prevê por você. É para isso que serve ter um."
                          : "Alguns foram para o outro lado.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                     if model.early {
                         Text("Encerrado mais cedo — um começo limpo já é prova suficiente.")
-                            .font(.atlas(.sans, 14))
+                            .font(.atlas(.serif, 15.5))
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, 8)
                     }
                     Text("\(model.score) de \(model.answered) previsões confirmadas.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)
 
@@ -198,7 +198,7 @@ struct PredictView: View {
                     // confidently and still wrong is worse than one held loosely.
                     if !model.overconfident.isEmpty {
                         Text("Os que você tinha certeza e errou são os que valem revisitar.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 12)
@@ -229,7 +229,7 @@ struct PredictView: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: setup.situation)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
@@ -237,17 +237,17 @@ struct PredictView: View {
                     // what they claimed before they saw the outcome — the two
                     // halves of a calibration reading, on one line.
                     Text(right ? "Confirmou" : "Não confirmou")
-                        .font(.atlas(.sans, 12.5))
+                        .font(.atlas(.serif, 14))
                         .foregroundStyle(right ? Palette.inkFaint : Palette.amberInk)
                     if let sure {
                         Text(PredictViewModel.levelLabel(sure))
-                            .font(.atlas(.sans, 12.5))
+                            .font(.atlas(.serif, 14))
                             .foregroundStyle(Palette.inkFaint)
                     }
                 }
                 if !right {
                     Text(verbatim: setup.because)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

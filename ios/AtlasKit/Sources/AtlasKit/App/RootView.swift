@@ -78,6 +78,20 @@ public struct RootView: View {
             }
         }
         .onOpenURL { url in Task { await launch.arrived(from: url, into: store) } }
+        // A password-reset link has signed the learner in; this asks what the
+        // password is now, over whatever screen that landed them on.
+        .alert("Crie uma senha nova", isPresented: Bindable(launch).recovering) {
+            SecureField("Senha nova", text: Bindable(launch).newPassword)
+                .textContentType(.newPassword)
+            Button("Salvar") { Task { await launch.savePassword(store) } }
+            Button("Agora não", role: .cancel) {}
+        } message: {
+            if launch.passwordMessage.isEmpty {
+                Text("Você entrou pelo link de redefinição. Escolha a senha que vai usar daqui em diante.")
+            } else {
+                Text(verbatim: launch.passwordMessage)
+            }
+        }
         // Signing out takes the map with it; the stacks that were drawn over it
         // must not survive into the next learner's session.
         .onChange(of: store.signedIn) { _, signedIn in
@@ -111,7 +125,7 @@ public struct RootView: View {
     private var splash: some View {
         VStack(spacing: 18) {
             Text(verbatim: "Atlas")
-                .font(.atlas(.serif, 34, weight: .semibold))
+                .font(.atlas(.display, 34))
                 .foregroundStyle(Palette.ink)
             AtlasPulse(tint: Palette.inkGhost, size: 16)
         }
@@ -137,11 +151,11 @@ public struct RootView: View {
     private var unreachable: some View {
         VStack(spacing: 16) {
             Text("Não foi possível carregar seus mapas")
-                .font(.atlas(.serif, 24, weight: .semibold))
+                .font(.atlas(.display, 24))
                 .foregroundStyle(Palette.ink)
                 .multilineTextAlignment(.center)
             Text("Eles estão salvos — foi a conexão que falhou. Tente de novo.")
-                .font(.atlas(.sans, 14.5))
+                .font(.atlas(.serif, 16))
                 .foregroundStyle(Palette.inkMuted)
                 .multilineTextAlignment(.center)
             CTAButton("Tentar de novo") { Task { await store.loadLibrary() } }
@@ -202,5 +216,30 @@ public struct RootView: View {
                 }
             }
             .animation(Motion.enter, value: store.saveFailed)
+            // What a pass or a card just did to the map, said once. Over the
+            // content rather than an inset: it is gone in a few seconds, and a
+            // layout that jumps for a sentence is worse than one line covered.
+            .overlay(alignment: .bottom) {
+                if let toast = store.toast {
+                    Text(verbatim: toast)
+                        .font(.atlas(.serif, 16))
+                        .foregroundStyle(Palette.ink)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Palette.card)
+                        .plate()
+                        .shadow(color: Palette.shade(0.12), radius: 10, y: 4)
+                        .padding(.horizontal, Metrics.gutter)
+                        // Above the floating tab bar.
+                        .padding(.bottom, 92)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .onAppear { AccessibilityNotification.Announcement(toast).post() }
+                        .id(toast)
+                }
+            }
+            .animation(Motion.enter, value: store.toast)
     }
 }

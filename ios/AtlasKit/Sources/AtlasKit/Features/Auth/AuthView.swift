@@ -30,11 +30,11 @@ public struct AuthView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Kicker("Atlas · aprenda qualquer coisa, a fundo", size: 11)
                 Text(model.title)
-                    .font(.atlas(.serif, 34, weight: .medium))
+                    .font(.atlas(.display, 34))
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 16)
                 Text(model.blurb)
-                    .font(.atlas(.sans, 14.5))
+                    .font(.atlas(.serif, 16))
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.top, 12)
 
@@ -46,7 +46,7 @@ public struct AuthView: View {
 
                 if model.showsMessage {
                     Text(verbatim: model.message)
-                        .font(.atlas(.sans, 13.5))
+                        .font(.atlas(.serif, 15))
                         .foregroundStyle(Palette.amberInk)
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -109,9 +109,16 @@ public struct AuthView: View {
             CTAButton(model.actionTitle, hero: true) { Task { await model.submit() } }
                 .opacity(model.isWorking ? 0.7 : 1)
 
+            if model.mode == .signIn {
+                Button("Esqueci minha senha") { Task { await model.forgot() } }
+                    .font(.atlas(.display, 16).italic())
+                    .foregroundStyle(Palette.inkMuted)
+                    .frame(maxWidth: .infinity, minHeight: Metrics.tap)
+            }
+
             Button { model.toggleMode() } label: {
                 switchLine(model)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .frame(maxWidth: .infinity, minHeight: Metrics.tap)
             }
             .pressable()
@@ -137,19 +144,19 @@ public struct AuthView: View {
     private func confirmation(_ model: AuthViewModel) -> some View {
         VStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Confirme seu e-mail").font(.atlas(.sans, 15, weight: .semibold))
+                Text("Confirme seu e-mail").font(.atlas(.serif, 16.5, weight: .semibold))
                 // One catalogue sentence with the address interpolated into it;
                 // the address itself is set in the serif so it reads as the
                 // datum it is and a typo in it is visible.
-                Text("Enviamos um link de confirmação para \(Text(verbatim: model.confirmingAddress).font(.atlas(.serif, 16))). Abra-o para ativar sua conta e depois volte para entrar.")
-                    .font(.atlas(.sans, 15))
+                Text("Enviamos um link de confirmação para \(Text(verbatim: model.confirmingAddress).font(.atlas(.serif, 17))). Abra-o para ativar sua conta e depois volte para entrar.")
+                    .font(.atlas(.serif, 16.5))
             }
             .foregroundStyle(Palette.accent)
             .padding(.horizontal, 20).padding(.vertical, 22)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Palette.successBg, in: .rect(cornerRadius: 13))
+            .background(Palette.successBg, in: .rect(cornerRadius: 3))
             .overlay {
-                RoundedRectangle(cornerRadius: 13).strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
             }
 
             // Without these two the screen is a trap: the form is not drawn, so
@@ -180,16 +187,16 @@ private struct AuthField<Accessory: View>: View {
                     TextField(placeholder, text: $text)
                 }
             }
-            .font(.atlas(.serif, 20))
+            .font(.atlas(.display, 20))
             .foregroundStyle(Palette.ink)
             .frame(minHeight: Metrics.cta)
             accessory()
         }
         .padding(.horizontal, 16)
         .padding(6)
-        .background(Palette.card, in: .rect(cornerRadius: 14))
+        .background(Palette.card, in: .rect(cornerRadius: 3))
         .overlay {
-            RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
         }
         .shadow(color: Palette.shade(0.05), radius: 9, y: 4)
     }

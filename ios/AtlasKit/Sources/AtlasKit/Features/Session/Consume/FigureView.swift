@@ -71,15 +71,15 @@ struct FigureView: View {
 
             if let caption, !caption.isEmpty {
                 Text(verbatim: caption)
-                    .font(.atlas(.mono, 10.5))
+                    .font(.atlas(.caps, 12))
                     .foregroundStyle(Palette.inkFaint)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 12)
             }
         }
         .padding(14)
-        .background(Palette.card, in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairline, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
         // Without this the figure is a loose pile of words to VoiceOver. The
         // model's own caption is the description it wrote for the drawing.
         .accessibilityElement(children: .ignore)
@@ -89,12 +89,12 @@ struct FigureView: View {
 
     private func box(_ node: ConsumeFigure.Node) -> some View {
         Text(verbatim: node.label)
-            .font(.atlas(.sans, 12.5))
+            .font(.atlas(.serif, 14))
             .foregroundStyle(Palette.inkSoft)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 11).padding(.vertical, 9)
-            .background(Palette.cardAlt, in: .rect(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+            .background(Palette.cardAlt, in: .rect(cornerRadius: 3))
+            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
             .anchorPreference(key: FigureBoxes.self, value: .bounds) { [node.id: $0] }
     }
 
@@ -131,7 +131,7 @@ struct FigureView: View {
         // across a box — "Coordenação" was printed over with "não aproveita" —
         // and two labels from the same row overlapped each other.
         let text = context.resolve(
-            Text(verbatim: label).font(.atlas(.mono, 9)).foregroundStyle(Palette.inkFaint)
+            Text(verbatim: label).font(.atlas(.caps, 11)).foregroundStyle(Palette.inkFaint)
         )
         let size = text.measure(in: CGSize(width: 140, height: 40))
         var at = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)

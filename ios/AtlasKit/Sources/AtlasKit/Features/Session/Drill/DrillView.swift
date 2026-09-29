@@ -74,7 +74,7 @@ struct DrillView: View {
                     // nothing else. Anything above it is something to read
                     // instead of something to know.
                     Text(verbatim: rep.prompt)
-                        .font(.atlas(.serif, 24))
+                        .font(.atlas(.display, 24))
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -93,7 +93,7 @@ struct DrillView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Kicker("A regra que dispara", tint: Palette.drillInk)
                             Text(verbatim: rep.rule)
-                                .font(.atlas(.sans, 14.5))
+                                .font(.atlas(.serif, 16))
                                 .lineSpacing(4)
                                 .foregroundStyle(Palette.inkSoft)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -133,30 +133,30 @@ struct DrillView: View {
                          : model.automatic
                            ? "Sai sem esforço. É isso que significa estar automático."
                            : "Certo, e ainda não automático.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                     if model.early {
                         Text("Encerrado mais cedo — um começo limpo já é prova suficiente.")
-                            .font(.atlas(.sans, 14))
+                            .font(.atlas(.serif, 15.5))
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, 8)
                     }
                     Text("\(model.score) de \(model.answered) certas.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)
                     // The pace, which no other rung can report, and the reps
                     // that were right and slow — the finding Drill alone
                     // produces.
                     Text("\(model.pace)s por decisão, em geral.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(model.automatic ? Palette.inkMuted : Palette.amberInk)
                         .padding(.top, 4)
                     if !model.labored.isEmpty {
                         Text("Certo, mas devagar — esses ainda estão sendo deduzidos.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 12)
@@ -190,21 +190,21 @@ struct DrillView: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: rep.prompt)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
                     Text(right ? (slow ? "Certo, devagar" : "Certo") : "Errado")
-                        .font(.atlas(.sans, 12.5))
+                        .font(.atlas(.serif, 14))
                         .foregroundStyle(right && !slow ? Palette.inkFaint : Palette.amberInk)
                     Text(verbatim: "\(DrillViewModel.seconds(took))s")
-                        .font(.atlas(.mono, 12))
+                        .font(.atlas(.caps, 13.5))
                         .foregroundStyle(Palette.inkFaint)
                         .monospacedDigit()
                 }
                 if !right {
                     Text(verbatim: rep.rule)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -222,7 +222,7 @@ private struct DrillClock: View {
 
     var body: some View {
         Text(verbatim: "\(model.clock)s")
-            .font(.atlas(.mono, 15))
+            .font(.atlas(.caps, 16.5))
             .foregroundStyle(model.clockTint)
             .monospacedDigit()
             .accessibilityLabel("Tempo nesta repetição")

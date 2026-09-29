@@ -19,20 +19,23 @@ struct ProfileView: View {
 
     private func content(_ model: ProfileViewModel) -> some View {
         VStack(spacing: 0) {
-            TopBar { Kicker("Perfil", tint: Palette.accent, size: 10.5) }
+            TopBar { Text("Perfil").font(.atlas(.display, 21)).foregroundStyle(Palette.ink) }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 18) {
                         Avatar(model.email, size: 66)
                         Text(verbatim: model.email)
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.inkMuted)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
 
-                    stats(model).padding(.top, 28)
+                    if let mapKicker = model.mapKicker {
+                        Kicker(verbatim: mapKicker).padding(.top, 28)
+                    }
+                    stats(model).padding(.top, 10)
                         .animation(Motion.reward, value: model.masteredShare)
                     profile(model).padding(.top, 28)
                     rows(model).padding(.top, 14)
@@ -58,15 +61,15 @@ struct ProfileView: View {
 
     private func stat(_ value: String, _ label: LocalizedStringKey, tint: Color = Palette.ink) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(verbatim: value).font(.atlas(.serif, 26)).foregroundStyle(tint)
+            Text(verbatim: value).font(.atlas(.display, 26)).foregroundStyle(tint)
                 .contentTransition(.numericText())
-            Text(label).font(.atlas(.sans, 12.5)).foregroundStyle(Palette.inkFaint)
+            Text(label).font(.atlas(.serif, 14)).foregroundStyle(Palette.inkFaint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
-        .background(Palette.card, in: .rect(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 
     // MARK: - What the run is for
@@ -74,13 +77,13 @@ struct ProfileView: View {
     private func profile(_ model: ProfileViewModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Kicker("Perfil de aprendizado")
-            Text("Aprendendo atualmente para").font(.atlas(.sans, 13.5))
+            Text("Aprendendo atualmente para").font(.atlas(.serif, 15))
                 .foregroundStyle(Palette.inkMuted).padding(.top, 14)
-            Text(model.goal).font(.atlas(.serif, 19)).foregroundStyle(Palette.ink).padding(.top, 5)
+            Text(model.goal).font(.atlas(.display, 19)).foregroundStyle(Palette.ink).padding(.top, 5)
 
             let interests = model.interests
             if !interests.isEmpty {
-                Text("Interesses — usados para analogias").font(.atlas(.sans, 13.5))
+                Text("Interesses — usados para analogias").font(.atlas(.serif, 15))
                     .foregroundStyle(Palette.inkMuted).padding(.top, 18)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8, alignment: .leading)],
                           alignment: .leading, spacing: 8) {
@@ -111,6 +114,10 @@ struct ProfileView: View {
                 row("Cronograma de revisão", model.queueLine)
             }
             Divider().overlay(Palette.hairline)
+            Button { navigator.navigate(to: .calibration) } label: {
+                row("Calibração", "Sua confiança contra o que você entrega")
+            }
+            Divider().overlay(Palette.hairline)
             Button { model.confirmingSignOut = true } label: {
                 row("Sair", nil, tint: NodeState.gap.color)
             }
@@ -129,9 +136,9 @@ struct ProfileView: View {
     private func row(_ title: LocalizedStringKey, _ note: LocalizedStringKey?, tint: Color = Palette.ink) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.atlas(.sans, 15)).foregroundStyle(tint)
+                Text(title).font(.atlas(.serif, 16.5)).foregroundStyle(tint)
                 if let note {
-                    Text(note).font(.atlas(.sans, 12.5)).foregroundStyle(Palette.inkFaint)
+                    Text(note).font(.atlas(.serif, 14)).foregroundStyle(Palette.inkFaint)
                 }
             }
             Spacer(minLength: 0)

@@ -116,7 +116,7 @@ struct FeynmanView: View {
                 .padding(.top, 18)
 
             Text("Me ensine isso como se eu nunca tivesse ouvido falar.")
-                .font(.atlas(.serif, 21))
+                .font(.atlas(.display, 21))
                 .foregroundStyle(Palette.ink)
                 .padding(.top, 10)
 
@@ -125,7 +125,7 @@ struct FeynmanView: View {
             // below the fold on entry.
             if !typeSize.isAccessibilitySize {
                 Text("Com suas próprias palavras, de ponta a ponta. O que você não consegue explicar é exatamente o que ainda não domina.")
-                    .font(.atlas(.sans, 13.5))
+                    .font(.atlas(.serif, 15))
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.top, 6)
             }
@@ -135,7 +135,7 @@ struct FeynmanView: View {
             if model.truncated { truncated(model).padding(.top, 14) }
             if !model.message.isEmpty && !model.truncated {
                 Text(verbatim: model.message)
-                    .font(.atlas(.sans, 13.5))
+                    .font(.atlas(.serif, 15))
                     .foregroundStyle(Palette.amberInk)
                     .padding(.top, 14)
             }
@@ -161,7 +161,7 @@ struct FeynmanView: View {
         if !model.scaffolded {
             Button { model.scaffold() } label: {
                 Text("Estou travado")
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkMuted)
                     .lineLimit(2)
                     .padding(.horizontal, 13)
@@ -200,7 +200,7 @@ struct FeynmanView: View {
     /// unasked gives away a piece of the diagnostic for free.
     private var scaffold: some View {
         Text("Sem pânico de tela em branco. Comece pelo mais simples: que problema esse conceito realmente resolve? Ensine-me isso primeiro — o resto sai sozinho.")
-            .font(.atlas(.sans, 13))
+            .font(.atlas(.serif, 14.5))
             .foregroundStyle(Palette.amberInk)
             .padding(.horizontal, 13).padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,13 +219,13 @@ struct FeynmanView: View {
             ForEach(model.stillOwed, id: \.self) { point in
                 HStack(alignment: .top, spacing: 9) {
                     Circle().fill(NodeState.gap.color).frame(width: 6, height: 6).padding(.top, 6)
-                    Text(verbatim: point).font(.atlas(.serif, 15)).foregroundStyle(Palette.ink)
+                    Text(verbatim: point).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
-        .background(Palette.cardAlt, in: .rect(cornerRadius: 12))
+        .background(Palette.cardAlt, in: .rect(cornerRadius: 3))
     }
 
     /// The rubric came back short. The learner is about to be graded against a
@@ -234,16 +234,16 @@ struct FeynmanView: View {
     private func truncated(_ model: FeynmanViewModel) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("A lista de tópicos veio incompleta — seu aluno vai avaliar menos partes do que deveria.")
-                .font(.atlas(.sans, 13))
+                .font(.atlas(.serif, 14.5))
                 .foregroundStyle(Palette.amberInk)
             Button("Escrever os tópicos de novo") { Task { await model.load() } }
-                .font(.atlas(.sans, 13, weight: .semibold))
+                .font(.atlas(.serif, 14.5, weight: .semibold))
                 .foregroundStyle(Phase.feynman.tint)
                 .frame(minHeight: Metrics.tap, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 13).padding(.vertical, 4)
-        .background(Palette.amberBg, in: .rect(cornerRadius: 8))
+        .background(Palette.amberBg, in: .rect(cornerRadius: 3))
     }
 
     // MARK: - The Gap Report
@@ -259,7 +259,7 @@ struct FeynmanView: View {
                     // that cannot be won is a phase learners stop taking
                     // seriously.
                     Text(model.headline)
-                        .font(.atlas(.serif, 21))
+                        .font(.atlas(.display, 21))
                         .foregroundStyle(model.clean ? NodeState.mastered.color : Palette.ink)
                         .padding(.top, 10)
 
@@ -277,7 +277,7 @@ struct FeynmanView: View {
                         // verdict marked — "what I actually said" is the object
                         // of study, not an abstract list of rubric rows.
                         Text(model.markedExplanation)
-                            .font(.atlas(.serif, 15.5))
+                            .font(.atlas(.serif, 16.5))
                             .lineSpacing(4)
                             .foregroundStyle(Palette.inkSoft)
                             .padding(.top, 10)
@@ -325,14 +325,14 @@ struct FeynmanView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Kicker("Aluno confuso", tint: Phase.feynman.tint)
                 Text(verbatim: text)
-                    .font(.atlas(.serif, 17))
+                    .font(.atlas(.serif, 18))
                     .lineSpacing(4)
                     .foregroundStyle(Palette.ink)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(Palette.card, in: .rect(cornerRadius: 12))
-            .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+            .background(Palette.card, in: .rect(cornerRadius: 3))
+            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
         }
         .accessibilityElement(children: .combine)
     }
@@ -344,25 +344,25 @@ struct FeynmanView: View {
                 Circle().fill(row.verdict.color).frame(width: 8, height: 8).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(verbatim: row.beat.subPoint)
-                        .font(.atlas(.serif, 15.5))
+                        .font(.atlas(.serif, 16.5))
                         .foregroundStyle(Palette.ink)
                     HStack(spacing: 8) {
                         // The verdict was carried by dot colour alone — green,
                         // grey and red, which is nothing to a colour-blind
                         // learner and nothing to VoiceOver.
                         Text(verbatim: row.verdict.label)
-                            .font(.atlas(.mono, 10.5))
+                            .font(.atlas(.caps, 12))
                             .tracking(0.8)
                             .foregroundStyle(row.verdict.color)
                         if row.wasGap && row.verdict == .good {
                             Text("era lacuna")
-                                .font(.atlas(.mono, 10.5))
+                                .font(.atlas(.caps, 12))
                                 .tracking(0.8)
                                 .foregroundStyle(Palette.inkFaint)
                         }
                     }
                     if let quote = row.quote {
-                        Text(verbatim: "“\(quote)”").font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted)
+                        Text(verbatim: "“\(quote)”").font(.atlas(.serif, 14.5)).foregroundStyle(Palette.inkMuted)
                     }
                 }
             }
@@ -371,7 +371,7 @@ struct FeynmanView: View {
 
             if row.verdict.isGap, row.beat.fix != nil, model.fixing != row.beat.id {
                 Button("Corrigir agora →") { model.openFix(row.beat) }
-                    .font(.atlas(.sans, 13, weight: .semibold))
+                    .font(.atlas(.serif, 14.5, weight: .semibold))
                     .foregroundStyle(Phase.feynman.tint)
                     .frame(minHeight: Metrics.tap, alignment: .leading)
                     .padding(.leading, 19)
@@ -391,7 +391,7 @@ struct FeynmanView: View {
         VStack(alignment: .leading, spacing: 10) {
             Kicker("Passagem socrática focada", tint: Phase.feynman.tint)
             Text(verbatim: fix.probe)
-                .font(.atlas(.serif, 16))
+                .font(.atlas(.serif, 17))
                 .foregroundStyle(Palette.ink)
             ForEach(fix.replies) { reply in
                 ChoiceRow(reply.label,
@@ -403,19 +403,19 @@ struct FeynmanView: View {
             }
             if let reaction = model.fixReaction {
                 Text(verbatim: reaction)
-                    .font(.atlas(.sans, 13.5))
+                    .font(.atlas(.serif, 15))
                     .foregroundStyle(Palette.amberInk)
                     .transition(.opacity)
             }
             Button("Fechar") { model.closeFix() }
-                .font(.atlas(.sans, 13))
+                .font(.atlas(.serif, 14.5))
                 .foregroundStyle(Palette.inkMuted)
                 .frame(minHeight: Metrics.tap, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Palette.cardAlt, in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.cardAlt, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 
     /// An empty jargon list is a real result — *you explained every term you
@@ -428,7 +428,7 @@ struct FeynmanView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Kicker("Jargão", tint: NodeState.mastered.color)
                 Text("Você abriu todos os termos que usou. Nenhuma palavra ficou como se eu já a conhecesse.")
-                    .font(.atlas(.sans, 13.5))
+                    .font(.atlas(.serif, 15))
                     .foregroundStyle(Palette.inkSoft)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -436,9 +436,11 @@ struct FeynmanView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Kicker("Jargão que você usou sem abrir")
                 Text("Você usou estes termos como se eu já os conhecesse — nomear não é explicar.")
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkMuted)
-                FlowChips(model.jargon.map { ($0, NodeState.shaky) })
+                Flow(spacing: 7) {
+                    ForEach(model.jargon, id: \.self) { Chip(verbatim: $0, dot: NodeState.shaky.color) }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

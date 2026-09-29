@@ -22,7 +22,7 @@ struct ComputeAnswer: View {
     var body: some View {
         VStack(spacing: 12) {
             TextField("A resposta — um número, uma fração, uma porcentagem…", text: $value)
-                .font(.atlas(.mono, 15))
+                .font(.atlas(.caps, 16.5))
                 .keyboardType(.numbersAndPunctuation)
                 .submitLabel(.done)
                 .onSubmit(send)
@@ -77,28 +77,28 @@ struct OrderAnswer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Toque na ordem certa, do mais antigo para o mais recente.")
-                .font(.atlas(.sans, 13))
+                .font(.atlas(.serif, 14.5))
                 .foregroundStyle(Palette.inkMuted)
 
             ForEach(Array(order.enumerated()), id: \.element) { position, label in
                 HStack(spacing: 8) {
                     Text(verbatim: "\(position + 1).")
-                        .font(.atlas(.mono, 13))
+                        .font(.atlas(.caps, 14.5))
                         .foregroundStyle(Palette.inkGhost)
                     Text(verbatim: label)
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Palette.chipBg, in: .rect(cornerRadius: 11))
+                .background(Palette.chipBg, in: .rect(cornerRadius: 3))
             }
 
             ForEach(remaining, id: \.label) { option in
                 Button { withAnimation(Motion.snap) { order.append(option.label) } } label: {
                     Text(verbatim: option.label)
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.ink)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -110,7 +110,7 @@ struct OrderAnswer: View {
 
             if !order.isEmpty {
                 Button("Recomeçar") { withAnimation(Motion.snap) { order = [] } }
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkMuted)
                     .frame(minHeight: Metrics.tap)
             }

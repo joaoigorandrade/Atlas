@@ -86,6 +86,23 @@ final class AuthViewModel {
         }
     }
 
+    /// "Esqueci minha senha": the link comes back into the app signed in, and
+    /// the shell asks for the new password.
+    func forgot() async {
+        let address = email.trimmed
+        guard address.contains("@") else {
+            return fail(String(localized: "Digite o e-mail da sua conta e toque em “Esqueci minha senha” de novo."))
+        }
+        status = .working
+        defer { if status == .working { status = .idle } }
+        do {
+            try await store.recoverPassword(email: address)
+            message = String(localized: "Enviamos um link para redefinir a senha de \(address). Abra-o neste iPhone.")
+        } catch {
+            fail(sentence(for: error))
+        }
+    }
+
     func toggleMode() {
         mode = mode == .signIn ? .signUp : .signIn
         // Switching modes clears the arrival notice on purpose.

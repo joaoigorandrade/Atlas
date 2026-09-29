@@ -57,7 +57,7 @@ struct ConnectView: View {
                             .padding(.top, 10)
                             .animation(Motion.standard, value: model.linked)
                         Text(verbatim: content.detectNote)
-                            .font(.atlas(.sans, 13))
+                            .font(.atlas(.serif, 14.5))
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, 10)
                         prompt(content, model).padding(.top, 20)
@@ -78,7 +78,7 @@ struct ConnectView: View {
                             // The node becomes Shaky on the way out, as if the
                             // elaboration happened. Something has to have.
                             Text("Faltam \(model.required - model.linked.count) vínculos para seguir.")
-                                .font(.atlas(.sans, 12.5))
+                                .font(.atlas(.serif, 14))
                                 .foregroundStyle(Palette.inkMuted)
                         }
                         CTAButton(model.handOffLabel, tint: model.handOffTint) { model.advance() }
@@ -108,7 +108,7 @@ struct ConnectView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Kicker("Faça o vínculo", tint: Palette.connectInk)
                 Text("Como \(content.centerLabel) se relaciona com \(candidate.label)?")
-                    .font(.atlas(.serif, 17))
+                    .font(.atlas(.serif, 18))
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 9)
                 AnswerEditor(text: model.draft(candidate),
@@ -121,7 +121,7 @@ struct ConnectView: View {
                 // to overwrite.
                 if model.canSuggest(candidate) {
                     Button("Ver a sugestão do mapa") { model.suggest(candidate) }
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.connectInk)
                         .frame(minHeight: Metrics.tap)
                         .contentShape(.rect)
@@ -137,8 +137,8 @@ struct ConnectView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Palette.connectBg, in: .rect(cornerRadius: 14))
-            .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.connectBorder, lineWidth: 1) }
+            .background(Palette.connectBg, in: .rect(cornerRadius: 3))
+            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.connectBorder, lineWidth: 1) }
         }
     }
 
@@ -155,7 +155,7 @@ struct ConnectView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Kicker("Ancorar a sequência", tint: Palette.connectInk)
                 Text("Isto é uma ordem para reproduzir, não só uma ideia para conectar. Escolha um apoio e ajuste com suas palavras.")
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.top, 8)
                 if !model.items.isEmpty {
@@ -163,19 +163,19 @@ struct ConnectView: View {
                         ForEach(Array(model.items.enumerated()), id: \.offset) { index, item in
                             HStack(alignment: .firstTextBaseline, spacing: 9) {
                                 Text(verbatim: "\(index + 1)")
-                                    .font(.atlas(.mono, 12))
+                                    .font(.atlas(.caps, 13.5))
                                     .foregroundStyle(Palette.connectInk)
                                     .frame(width: 18, alignment: .trailing)
                                 Text(verbatim: item)
-                                    .font(.atlas(.serif, 14.5))
+                                    .font(.atlas(.serif, 15.5))
                                     .foregroundStyle(Palette.ink)
                             }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(Palette.card, in: .rect(cornerRadius: 12))
-                    .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                    .background(Palette.card, in: .rect(cornerRadius: 3))
+                    .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                     .padding(.top, 12)
                 }
                 ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
@@ -189,14 +189,14 @@ struct ConnectView: View {
                                        tint: picked ? Palette.connectInk : Palette.inkFaint)
                             }
                             Text(verbatim: option.title)
-                                .font(.atlas(.serif, 15.5))
+                                .font(.atlas(.serif, 16.5))
                                 .foregroundStyle(Palette.ink)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
-                        .background(picked ? Palette.connectBg : Palette.card, in: .rect(cornerRadius: 12))
+                        .background(picked ? Palette.connectBg : Palette.card, in: .rect(cornerRadius: 3))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 12).strokeBorder(
+                            RoundedRectangle(cornerRadius: 3).strokeBorder(
                                 picked ? Palette.connectInk : Palette.hairlineStrong,
                                 lineWidth: picked ? 2 : 1)
                         }
@@ -233,7 +233,7 @@ struct ConnectView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Kicker("Matéria-prima")
                     Text("\(count) cartões rascunhados")
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                 }
                 ForEach(confirmed) { candidate in
@@ -254,16 +254,16 @@ struct ConnectView: View {
     private func draftedCard(front: String, back: String) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(verbatim: front)
-                .font(.atlas(.sans, 12.5))
+                .font(.atlas(.serif, 14))
                 .foregroundStyle(Palette.inkMuted)
             Text(verbatim: back)
-                .font(.atlas(.serif, 14.5))
+                .font(.atlas(.serif, 15.5))
                 .foregroundStyle(Palette.ink)
         }
         .padding(.horizontal, 15).padding(.vertical, 13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.card, in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 }
@@ -281,7 +281,7 @@ private struct WebNode: View {
 
     var body: some View {
         Text(verbatim: label)
-            .font(.atlas(.serif, centre ? 13 : 12))
+            .font(.atlas(.serif, centre ? 14.5 : 13.5))
             .lineLimit(2)
             .multilineTextAlignment(.center)
             .minimumScaleFactor(0.75)
@@ -368,7 +368,7 @@ private struct ConceptWeb: View {
         }
         .aspectRatio(560.0 / 440.0, contentMode: .fit)
         .padding(8)
-        .background(Palette.card, in: .rect(cornerRadius: 16))
-        .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 }

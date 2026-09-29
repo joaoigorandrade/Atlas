@@ -31,7 +31,7 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
-                    Text("Ajuste a jornada").font(.atlas(.serif, 30)).foregroundStyle(Palette.ink)
+                    Text("Ajuste a jornada").font(.atlas(.display, 30)).foregroundStyle(Palette.ink)
 
                     field("Objetivo", "orienta o que priorizamos") {
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
@@ -65,9 +65,45 @@ struct SettingsView: View {
                             Divider().overlay(Palette.hairline)
                             toggle("Leitura em voz alta", "as seções do Consume podem ser ouvidas", $store.readAloudOn)
                         }
-                        .background(Palette.card, in: .rect(cornerRadius: 14))
-                        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                        .background(Palette.card, in: .rect(cornerRadius: 3))
+                        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                     }
+
+                    field("Lembrete", "para voltar quando os cartões vencem") {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Toggle(isOn: Binding(get: { model.reminderOn }, set: { model.toggleReminder($0) })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Lembrete de revisão").font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+                                    Text("uma notificação por dia").font(.atlas(.serif, 14)).foregroundStyle(Palette.inkFaint)
+                                }
+                            }
+                            .tint(Palette.accent)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 60)
+                            if model.reminderOn {
+                                Divider().overlay(Palette.hairline)
+                                DatePicker("Horário", selection: Bindable(model).reminderTime,
+                                           displayedComponents: .hourAndMinute)
+                                    .font(.atlas(.serif, 16))
+                                    .foregroundStyle(Palette.ink)
+                                    .tint(Palette.accent)
+                                    .padding(.horizontal, 16)
+                                    .frame(minHeight: 56)
+                            }
+                        }
+                        .background(Palette.card)
+                        .plate()
+                        if model.reminderDenied {
+                            Text("As notificações do Atlas estão desligadas nos Ajustes do iPhone.")
+                                .font(.atlas(.serif, 14.5))
+                                .foregroundStyle(Palette.amberInk)
+                            Button("Abrir os Ajustes") { openSettings() }
+                                .font(.atlas(.serif, 15))
+                                .foregroundStyle(Palette.accent)
+                                .frame(minHeight: Metrics.tap)
+                        }
+                    }
+                    .animation(Motion.standard, value: model.reminderOn)
 
                     data(model)
                 }
@@ -76,12 +112,12 @@ struct SettingsView: View {
                 .padding(.bottom, 30)
             }
         }
-        // One button, no cancel: the copy on screen is still in the old
-        // language, and every screen behind it would be too.
-        .alert("Reabra o Atlas", isPresented: model.isRestarting) {
-            Button("Fechar o Atlas") { Task { await model.restart() } }
+        // Said in the old language, since the interface has not switched yet.
+        .alert("Idioma alterado", isPresented: model.isLanguageChanged) {
+            Button("Abrir os Ajustes") { openSettings() }
+            Button("OK", role: .cancel) {}
         } message: {
-            Text("O idioma da interface só muda quando o app abre de novo. Vamos fechá-lo — toque no Atlas para voltar.")
+            Text("O conteúdo novo já sai nesse idioma. A interface muda na próxima vez que o Atlas abrir — ou agora, pelo idioma do app nos Ajustes do iPhone.")
         }
         .alert("Apagar minha conta?", isPresented: model.isConfirmingDelete) {
             Button("Cancelar", role: .cancel) { model.cancelDelete() }
@@ -89,6 +125,12 @@ struct SettingsView: View {
         } message: {
             Text("Seu mapa, seu progresso e seus cartões são apagados do servidor. Não dá para desfazer.")
         }
+    }
+
+    /// The app's own page in the iPhone's settings — its language and its
+    /// notifications both live there.
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
     }
 
     // MARK: - Your data
@@ -100,15 +142,15 @@ struct SettingsView: View {
             ShareLink(item: model.exportedCards) { ghostLabel("Exportar cartões (CSV)") }
             Button { model.askToDelete() } label: {
                 Text("Apagar minha conta")
-                    .font(.atlas(.sans, 13.5, weight: .semibold))
+                    .font(.atlas(.serif, 15, weight: .semibold))
                     .foregroundStyle(Palette.dangerInk)
                     .frame(maxWidth: .infinity, minHeight: 48)
-                    .background(Palette.dangerBg, in: .rect(cornerRadius: 12))
-                    .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.dangerInk.opacity(0.3), lineWidth: 1) }
+                    .background(Palette.dangerBg, in: .rect(cornerRadius: 3))
+                    .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.dangerInk.opacity(0.3), lineWidth: 1) }
             }
             .pressable()
             if !model.message.isEmpty {
-                Text(verbatim: model.message).font(.atlas(.sans, 13)).foregroundStyle(Palette.dangerInk)
+                Text(verbatim: model.message).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.dangerInk)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -123,8 +165,8 @@ struct SettingsView: View {
                                       @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 5) {
-                Text(title).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
-                Text("— \(Text(note))").font(.atlas(.sans, 14)).foregroundStyle(Palette.inkGhost)
+                Text(title).font(.atlas(.serif, 15.5)).foregroundStyle(Palette.inkSoft)
+                Text("— \(Text(note))").font(.atlas(.serif, 15.5)).foregroundStyle(Palette.inkGhost)
             }
             content()
         }
@@ -145,8 +187,8 @@ struct SettingsView: View {
     private func toggle(_ title: LocalizedStringKey, _ note: LocalizedStringKey, _ value: Binding<Bool>) -> some View {
         Toggle(isOn: value) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.atlas(.sans, 14.5)).foregroundStyle(Palette.ink)
-                Text(note).font(.atlas(.sans, 12.5)).foregroundStyle(Palette.inkFaint)
+                Text(title).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+                Text(note).font(.atlas(.serif, 14)).foregroundStyle(Palette.inkFaint)
             }
         }
         .tint(Palette.accent)
@@ -156,9 +198,9 @@ struct SettingsView: View {
 
     private func ghostLabel(_ title: LocalizedStringKey) -> some View {
         Text(title)
-            .font(.atlas(.sans, 13.5))
+            .font(.atlas(.serif, 15))
             .foregroundStyle(Palette.inkSoft)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 }

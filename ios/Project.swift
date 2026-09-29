@@ -58,14 +58,17 @@ let project = Project(
                 // is what points a simulator build at a fixture-mode dev
                 // server, so a walk through the phases costs no model calls.
                 "ATLAS_BASE_URL": .string(devBaseURL ?? "https://atlas-tan-two.vercel.app"),
-                // The three faces in `Face`. Variable files: CoreText exposes
-                // their named instances (Medium, SemiBold, …), so
+                // The four faces in `Face` — the web's atlas type. The variable
+                // files expose their named instances (Medium, SemiBold, …), so
                 // `Font.custom(face.rawValue, …).weight(…)` picks a real cut
                 // instead of a synthetic one.
                 "UIAppFonts": [
-                    "Newsreader.ttf",
+                    "IMFellEnglish.ttf",
+                    "IMFellEnglish-Italic.ttf",
+                    "IMFellEnglishSC.ttf",
+                    "EBGaramond.ttf",
+                    "EBGaramond-Italic.ttf",
                     "InstrumentSans.ttf",
-                    "SplineSansMono.ttf",
                 ],
             ].merging(localNetworkingATS) { a, _ in a }),
             sources: ["App/Sources/**"],

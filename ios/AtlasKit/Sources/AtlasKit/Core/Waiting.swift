@@ -361,7 +361,7 @@ struct Waiting: View {
     }
 
     private func sentence(_ alignment: TextAlignment) -> some View {
-        text.font(.atlas(.sans, 13.5))
+        text.font(.atlas(.serif, 15))
             .foregroundStyle(Palette.inkMuted)
             .multilineTextAlignment(alignment)
     }

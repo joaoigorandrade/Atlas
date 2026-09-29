@@ -26,14 +26,14 @@ struct CalibrationView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Kicker("Calibração", tint: NodeState.shaky.color, size: 9.5)
                         Text("Confiança vs. desempenho")
-                            .font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+                            .font(.atlas(.serif, 17)).foregroundStyle(Palette.ink)
                     }
                 }
                 .padding(.leading, -12)
             }
 
             if model.isEmpty {
-                Waiting("Ainda sem leituras — cada toque de confiança antes de virar um cartão constrói essa curva.",
+                Waiting("Ainda sem leituras — cada previsão no Predict e cada confiança marcada no Crucible constroem essa curva.",
                         spinning: false)
             } else {
                 ScrollView {
@@ -59,7 +59,7 @@ struct CalibrationView: View {
         VStack(alignment: .leading, spacing: 0) {
             Kicker("Curva de calibração")
             Text("Onde sua confiança passa do que você entrega")
-                .font(.atlas(.serif, 18)).foregroundStyle(Palette.ink).padding(.top, 4)
+                .font(.atlas(.serif, 19)).foregroundStyle(Palette.ink).padding(.top, 4)
             Canvas { context, size in plot(&context, size, model) }
                 .frame(height: 260)
                 .padding(.top, 14)
@@ -68,8 +68,8 @@ struct CalibrationView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.card, in: .rect(cornerRadius: 18))
-        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(Palette.hairline, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
     }
 
     /// Stated confidence runs left to right, delivery bottom to top, so the
@@ -99,9 +99,9 @@ struct CalibrationView: View {
         context.stroke(diagonal, with: .color(Palette.ink.opacity(0.4)),
                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
 
-        context.draw(Text("SUBESTIMA").font(.atlas(.mono, 9.5)).foregroundStyle(NodeState.learning.color),
+        context.draw(Text("SUBESTIMA").font(.atlas(.caps, 11)).foregroundStyle(NodeState.learning.color),
                      at: CGPoint(x: plot.minX + 46, y: plot.minY + 14))
-        context.draw(Text("SUPERESTIMA").font(.atlas(.mono, 9.5)).foregroundStyle(NodeState.shaky.color),
+        context.draw(Text("SUPERESTIMA").font(.atlas(.caps, 11)).foregroundStyle(NodeState.shaky.color),
                      at: CGPoint(x: plot.maxX - 46, y: plot.maxY - 14))
 
         for item in model.items {
@@ -114,7 +114,7 @@ struct CalibrationView: View {
         }
         if let worst = model.worst {
             let at = point(worst.felt, worst.real)
-            context.draw(Text(verbatim: worst.label).font(.atlas(.serif, 10.5)).foregroundStyle(Palette.inkMuted),
+            context.draw(Text(verbatim: worst.label).font(.atlas(.serif, 11.5)).foregroundStyle(Palette.inkMuted),
                          at: CGPoint(x: at.x, y: min(at.y + 18, plot.maxY)))
         }
     }
@@ -124,16 +124,16 @@ struct CalibrationView: View {
     private func row(_ item: CalibItem, _ model: CalibrationViewModel) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Kicker(item.verdict.label, tint: item.verdict.tint, size: 10)
-            Text(verbatim: item.label).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
+            Text(verbatim: item.label).font(.atlas(.serif, 17)).foregroundStyle(Palette.ink)
             Text(model.reading(item))
-                .font(.atlas(.sans, 13)).foregroundStyle(Palette.inkMuted).lineSpacing(3)
+                .font(.atlas(.serif, 14.5)).foregroundStyle(Palette.inkMuted).lineSpacing(3)
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.card)
         .overlay(alignment: .leading) { Rectangle().fill(item.verdict.tint).frame(width: 3) }
-        .clipShape(.rect(cornerRadius: 10))
-        .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .clipShape(.rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 }

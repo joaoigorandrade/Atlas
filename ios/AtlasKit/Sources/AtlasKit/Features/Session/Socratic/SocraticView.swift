@@ -8,10 +8,10 @@ struct SocraticView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
     @State private var model: SocraticViewModel?
-    /// The learner asked for the keyboard. Socratic opens on the mic — this is
-    /// a conversation, and talking is how a learner reaches for words they have
-    /// not rehearsed — and the choice sticks for the rest of the pass.
-    @State private var typing = false
+    /// The learner is typing. Socratic opens on the keyboard unless they chose
+    /// the voice once before (`Defaults.prefersVoice`): a mic that switched
+    /// itself on asked for two permissions mid-lesson and recorded the room.
+    @State private var typing = !Defaults.prefersVoice
     /// The voice sheet. It opens itself whenever the turn comes back to the
     /// learner, and pulling it down is how they ask for the keyboard.
     @State private var speaking = false
@@ -98,7 +98,10 @@ struct SocraticView: View {
             guard !open else { return }
             // Dragged down rather than closed by a send: the learner is asking
             // for the keyboard, which is the only other way to answer.
-            if closedByApp { closedByApp = false } else { typing = true }
+            if closedByApp { closedByApp = false } else {
+                typing = true
+                Defaults.prefersVoice = false
+            }
         }
         .sheet(isPresented: $speaking) {
             @Bindable var model = model
@@ -116,7 +119,7 @@ struct SocraticView: View {
                 escapesEnabled: model.canEscape,
                 listen: { model.listen() },
                 send: { close(); Task { await model.send() } },
-                keyboard: { close(); typing = true }
+                keyboard: { close(); typing = true; Defaults.prefersVoice = false }
             )
                 .presentationDetents([.height(VoiceSheet.height), .large])
                 .presentationDragIndicator(.visible)
@@ -172,7 +175,7 @@ struct SocraticView: View {
             }
         } label: {
             HStack(spacing: 7) {
-                Text("Apoio").font(.atlas(.mono, 11.5)).foregroundStyle(Palette.inkMuted)
+                Text("Apoio").font(.atlas(.caps, 13)).foregroundStyle(Palette.inkMuted)
                 HStack(alignment: .bottom, spacing: 2) {
                     ForEach(1...3, id: \.self) { level in
                         Capsule()
@@ -184,6 +187,9 @@ struct SocraticView: View {
             .padding(.horizontal, 11)
             .frame(minHeight: 36)
             .background(Palette.chipBg, in: .capsule)
+            // The pill is the drawing; the tap target is the design's minimum.
+            .frame(minHeight: Metrics.tap)
+            .contentShape(.rect)
         }
         .pressable()
         // The dial is the learner asking for more or less: the bars grow into
@@ -220,11 +226,11 @@ struct SocraticView: View {
                         working("Atlas está lendo sua resposta…").transition(.opacity)
                     }
                     if !model.message.isEmpty {
-                        Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
+                        Text(verbatim: model.message).font(.atlas(.serif, 15)).foregroundStyle(Palette.amberInk)
                     }
                     if !model.speaker.message.isEmpty {
                         Text(verbatim: model.speaker.message)
-                            .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk)
+                            .font(.atlas(.serif, 15)).foregroundStyle(Palette.amberInk)
                     }
                     // The voice sheet *is* the dock while it is up, and the dock
                     // is where the ledger lives — so in the default composer the
@@ -265,7 +271,7 @@ struct SocraticView: View {
     private func working(_ text: LocalizedStringKey) -> some View {
         HStack(spacing: 8) {
             AtlasPulse(size: 15)
-            Text(text).font(.atlas(.sans, 13)).foregroundStyle(Palette.inkFaint)
+            Text(text).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.inkFaint)
         }
     }
 
@@ -273,7 +279,7 @@ struct SocraticView: View {
     private func bubble(_ turn: SocraticViewModel.Turn) -> some View {
         if turn.learner {
             Text(verbatim: turn.text)
-                .font(.atlas(.sans, 14.5))
+                .font(.atlas(.serif, 16))
                 .foregroundStyle(Palette.inkSoft)
                 .padding(.horizontal, 15).padding(.vertical, 13)
                 .background(Palette.card, in: .rect(topLeadingRadius: 14, bottomLeadingRadius: 14, bottomTrailingRadius: 4, topTrailingRadius: 14))
@@ -288,13 +294,13 @@ struct SocraticView: View {
                 // speaking. Without the move, a hint and a fresh question are
                 // the same serif under the same word.
                 Kicker(verbatim: turn.move ?? "Atlas", tint: tone(turn.tone), size: 9.5)
-                Text(verbatim: turn.text).font(.atlas(.serif, 17)).lineSpacing(4).foregroundStyle(Palette.ink)
+                Text(verbatim: turn.text).font(.atlas(.serif, 18)).lineSpacing(4).foregroundStyle(Palette.ink)
                 // The judge names the wrong idea behind a caught answer. It
                 // used to be collected and never shown — so the learner read a
                 // colour where there was a sentence.
                 if let misconception = turn.misconception {
                     Text(verbatim: String(localized: "A ideia por trás: \(misconception)"))
-                        .font(.atlas(.sans, 12.5))
+                        .font(.atlas(.serif, 14))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 1)
                 }
@@ -327,7 +333,7 @@ struct SocraticView: View {
                 HStack(spacing: 9) {
                     Circle().fill(model.doneTint).frame(width: 8, height: 8)
                     Text(model.doneLine)
-                        .font(.atlas(.sans, 13.5))
+                        .font(.atlas(.serif, 15))
                         .foregroundStyle(model.doneTint)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -362,7 +368,7 @@ struct SocraticView: View {
                         // whole bar up front hands over the outline of the answer
                         // before the question is asked.
                         Text(has ? piece : "—")
-                            .font(.atlas(.sans, 12.5))
+                            .font(.atlas(.serif, 14))
                             .foregroundStyle(has ? Palette.ink : Palette.inkFaint)
                     }
                 }
@@ -398,7 +404,7 @@ struct SocraticView: View {
                 // off is not offered it back one screen at a time.
                 if store.dictationOn { modeButton(model, toVoice: true) }
                 TextField("Responda com suas palavras…", text: $model.answer, axis: .vertical)
-                    .font(.atlas(.serif, 15))
+                    .font(.atlas(.serif, 16))
                     .lineLimit(1...5)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -440,7 +446,7 @@ struct SocraticView: View {
     private func escape(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.atlas(.sans, 13))
+                .font(.atlas(.serif, 14.5))
                 .foregroundStyle(Palette.inkMuted)
                 .lineLimit(2)
                 .padding(.horizontal, 13)
@@ -461,6 +467,7 @@ struct SocraticView: View {
         Button {
             model.dictation.flush()
             withAnimation(Motion.snap) { typing = !toVoice }
+            Defaults.prefersVoice = toVoice
             if toVoice { speak(model) }
         } label: {
             Image(systemName: toVoice ? "mic" : "keyboard")

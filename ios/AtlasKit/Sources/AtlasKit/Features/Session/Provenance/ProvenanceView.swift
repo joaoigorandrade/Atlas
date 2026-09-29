@@ -80,7 +80,7 @@ struct ProvenanceView: View {
 
                     Kicker("A afirmação", tint: Palette.provenanceInk).padding(.top, 20)
                     Text(verbatim: item.claim)
-                        .font(.atlas(.serif, 19))
+                        .font(.atlas(.display, 19))
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -101,7 +101,7 @@ struct ProvenanceView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Kicker("Por quê", tint: Palette.provenanceInk)
                             Text(verbatim: item.because)
-                                .font(.atlas(.sans, 14.5))
+                                .font(.atlas(.serif, 16))
                                 .lineSpacing(4)
                                 .foregroundStyle(Palette.inkSoft)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -137,16 +137,16 @@ struct ProvenanceView: View {
         VStack(alignment: .leading, spacing: 0) {
             Kicker("A fonte", tint: Palette.provenanceInk)
             Text(verbatim: source.title)
-                .font(.atlas(.sans, 15).weight(.semibold))
+                .font(.atlas(.serif, 16.5).weight(.semibold))
                 .foregroundStyle(Palette.ink)
                 .padding(.top, 8)
             Text(verbatim: "\(source.attribution) · \(source.date)")
-                .font(.atlas(.sans, 13))
+                .font(.atlas(.serif, 14.5))
                 .foregroundStyle(Palette.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
             Text(verbatim: source.excerpt)
-                .font(.atlas(.serif, 16).italic())
+                .font(.atlas(.serif, 17).italic())
                 .lineSpacing(5)
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -167,12 +167,12 @@ struct ProvenanceView: View {
                     Text(model.passed
                          ? "Você a leu como documento, não como registro. É esse o ofício."
                          : "Algumas coisas a fonte apenas afirma.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                     Text("\(model.score) de \(model.total) afirmações julgadas corretamente.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)
 
@@ -181,7 +181,7 @@ struct ProvenanceView: View {
                     // thing the phase exists to catch.
                     if !model.overtrusted.isEmpty {
                         Text("Você acreditou na fonte — ter sido dito não é ter sido assim.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 12)
@@ -193,7 +193,7 @@ struct ProvenanceView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Kicker("O que ela não diz", tint: Palette.provenanceInk)
                         Text(verbatim: content.silence)
-                            .font(.atlas(.sans, 14.5))
+                            .font(.atlas(.serif, 16))
                             .lineSpacing(4)
                             .foregroundStyle(Palette.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
@@ -229,17 +229,17 @@ struct ProvenanceView: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: item.claim)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 // The verdict in words as well as in colour: a dot is invisible
                 // to VoiceOver and indistinguishable to a colour-blind learner.
                 Text(right ? "Julgada corretamente" : "Julgada errado")
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(right ? Palette.inkFaint : Palette.amberInk)
                 if !right {
                     Text(verbatim: item.because)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

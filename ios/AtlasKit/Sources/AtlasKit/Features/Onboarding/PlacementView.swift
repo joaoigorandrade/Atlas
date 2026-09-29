@@ -13,7 +13,7 @@ struct PlacementView: View {
             } trailing: {
                 if onboarding.takingPlacement && !onboarding.placementDone {
                     Button("Pular") { onboarding.finish() }
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkFaint)
                         .frame(minHeight: Metrics.tap)
                 }
@@ -45,10 +45,10 @@ struct PlacementView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Seu mapa está pronto.")
-                    .font(.atlas(.serif, 26))
+                    .font(.atlas(.display, 26))
                     .foregroundStyle(Palette.ink)
                 Text(onboarding.forkBody)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.inkMuted)
                 notice.padding(.top, 6)
             }
@@ -86,7 +86,7 @@ struct PlacementView: View {
     @ViewBuilder private var notice: some View {
         if !onboarding.message.isEmpty {
             Text(verbatim: onboarding.message)
-                .font(.atlas(.sans, 13.5))
+                .font(.atlas(.serif, 15))
                 .foregroundStyle(Palette.amberInk)
         }
     }
@@ -111,7 +111,7 @@ struct PlacementView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         header(question)
                         Text(verbatim: question.q)
-                            .font(.atlas(.serif, 23))
+                            .font(.atlas(.display, 23))
                             .foregroundStyle(Palette.ink)
                             .padding(.vertical, 14)
                         answerSurface(question)
@@ -124,7 +124,7 @@ struct PlacementView: View {
                         // gates it on `picked` for exactly this reason.
                         if onboarding.verdict != nil, !question.note.isEmpty {
                             Text(verbatim: question.note)
-                                .font(.atlas(.sans, 13))
+                                .font(.atlas(.serif, 14.5))
                                 .foregroundStyle(Palette.inkFaint)
                                 .padding(.top, 12)
                         }
@@ -161,16 +161,16 @@ struct PlacementView: View {
     private func header(_ question: DiagnosticQuestion) -> some View {
         HStack(spacing: 10) {
             Text(verbatim: question.tag)
-                .font(.atlas(.mono, 12))
+                .font(.atlas(.caps, 13.5))
                 .foregroundStyle(Palette.amberInk)
             Spacer(minLength: 0)
             Text(question.difficulty.label)
                 .textCase(.uppercase)
-                .font(.atlas(.mono, 10.5))
+                .font(.atlas(.caps, 12))
                 .tracking(0.6)
                 .foregroundStyle(Palette.inkGhost)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.hairline, lineWidth: 1) }
+                .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
         }
     }
 
@@ -230,7 +230,7 @@ struct PlacementView: View {
         VStack(alignment: .leading, spacing: 6) {
             Kicker(kicker, tint: onboarding.verdictTint, size: 12)
             Text(body)
-                .font(.atlas(.sans, 14))
+                .font(.atlas(.serif, 15.5))
                 .foregroundStyle(Palette.inkMuted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

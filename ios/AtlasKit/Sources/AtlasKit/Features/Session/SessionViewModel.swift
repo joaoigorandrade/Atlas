@@ -29,6 +29,8 @@ public final class SessionViewModel: Identifiable {
     public init(node: ConceptNode, store: AtlasStore, phase: Phase? = nil, resumed: Bool = false) {
         self.node = node
         self.store = store
+        startState = store.display[node.id] ?? .unknown
+        startGaps = Self.gaps(under: node.id, in: store.graph)
         // Clamped to this node's own plan, not to a shared six-tuple. Retido
         // belongs to the Review tab — this shell has no screen for it and no bar
         // to leave one by — so a redo that asks for it, or for a phase the node
@@ -52,6 +54,50 @@ public final class SessionViewModel: Identifiable {
     /// screen back (`SessionView`).
     private func mark() {
         Defaults.openSession = [store.topicId ?? "", node.id, phase.rawValue].joined(separator: "|")
+    }
+
+    /// What the node was when the pass opened — what `summarize` compares against.
+    private let startState: NodeState
+    private let startGaps: Set<String>
+    private var summarized = false
+
+    private static func gaps(under id: String, in graph: ConceptGraph) -> Set<String> {
+        Set(graph.edges.filter { $0.from == id && $0.dashed }.map(\.to))
+    }
+
+    /// Say what the pass did to the map, once, as the map takes the screen back
+    /// — by a finished pass or by the back arrow, which can leave a Shaky node
+    /// and a new gap behind just the same. The web toasts each of these as it
+    /// happens; here the pass is its own screen, so they are said on the way out,
+    /// and the map scrolls to the node so the learner sees it change.
+    func summarize() {
+        guard !summarized else { return }
+        summarized = true
+        var lines: [String] = []
+        let label = node.label
+        if node.gap == true {
+            if !store.graph.nodes.contains(where: { $0.id == node.id }) {
+                lines.append(String(localized: "Lacuna fechada · \(label)"))
+            }
+        } else {
+            let now = store.display[node.id] ?? .unknown
+            if now != startState {
+                switch now {
+                case .mastered: lines.append(String(localized: "“\(label)” agora está Dominado — daqui em diante, a Revisão o mantém."))
+                case .shaky: lines.append(String(localized: "“\(label)” ficou Instável — o mapa marca onde reforçar."))
+                case .learning: lines.append(String(localized: "“\(label)” está em andamento."))
+                default: break
+                }
+            }
+            let gaps = Self.gaps(under: node.id, in: store.graph)
+            let added = gaps.subtracting(startGaps).count
+            let closed = startGaps.subtracting(gaps).count
+            if added > 0 { lines.append(String(localized: "Lacunas novas sob “\(label)”: \(added)")) }
+            if closed > 0 { lines.append(String(localized: "Lacunas fechadas: \(closed)")) }
+        }
+        guard !lines.isEmpty else { return }
+        store.lastChanged = node.id
+        store.say(lines.joined(separator: "\n"))
     }
 
     /// No pass is open. Static so the view can call it as it goes away, when

@@ -40,13 +40,15 @@ import Testing
     #expect(TrailMap(graph, width: 390).placed.count == 2)
 }
 
-/// A level wider than the phone widens the map rather than crushing the names
-/// into it — that is what the horizontal scroll is for.
-@Test func aWideLevelMakesTheMapWiderThanTheScreen() {
+/// A level wider than the phone wraps onto the next band rather than running
+/// off the side — the map only ever scrolls one way at its own size.
+@Test func aWideLevelWrapsOntoMoreBands() {
     let graph = ConceptGraph(nodes: (0..<6).map { ConceptNode(id: "n\($0)", label: "N", x: Double($0)) })
     let map = TrailMap(graph, width: 390)
-    #expect(map.levels.count == 1)
-    #expect(map.size.width == TrailMap.slot * 6)
+    #expect(map.levels.count == 2)
+    #expect(map.levels.allSatisfy { $0.count <= Int(390 / TrailMap.slot) })
+    #expect(map.size.width == 390)
+    #expect(map.placed.count == 6)
     #expect(map.placed.allSatisfy { $0.at.x > 0 && $0.at.x < map.size.width })
 }
 

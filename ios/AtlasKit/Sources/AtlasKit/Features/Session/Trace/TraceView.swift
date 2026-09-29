@@ -73,29 +73,29 @@ struct TraceView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Kicker("O caso", tint: Palette.traceInk)
                         Text(verbatim: content.scenario)
-                            .font(.atlas(.sans, 14.5))
+                            .font(.atlas(.serif, 16))
                             .lineSpacing(4)
                             .foregroundStyle(Palette.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.cardAlt, in: .rect(cornerRadius: 12))
+                    .background(Palette.cardAlt, in: .rect(cornerRadius: 3))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairline, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1)
                     }
 
                     if !model.soFar.isEmpty { chain(model).padding(.top, 18) }
 
                     Kicker("Onde chegou", tint: Palette.traceInk).padding(.top, 18)
                     Text(verbatim: stage.reached)
-                        .font(.atlas(.serif, 19))
+                        .font(.atlas(.display, 19))
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
                     Text("O que este estágio entrega ao próximo?")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 14)
 
@@ -112,7 +112,7 @@ struct TraceView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Kicker("O que este estágio entrega", tint: Palette.traceInk)
                             Text(verbatim: stage.handsOn)
-                                .font(.atlas(.sans, 14.5))
+                                .font(.atlas(.serif, 16))
                                 .lineSpacing(4)
                                 .foregroundStyle(Palette.inkSoft)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -152,7 +152,7 @@ struct TraceView: View {
                         }
                         .padding(.top, 5)
                         Text(verbatim: stage.handsOn)
-                            .font(.atlas(.sans, 13))
+                            .font(.atlas(.serif, 14.5))
                             .foregroundStyle(Palette.inkMuted)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -174,7 +174,7 @@ struct TraceView: View {
                     Text(model.passed
                          ? "Você percorre de ponta a ponta. A cadeia é sua, não só as pontas."
                          : "A cadeia se rompeu no meio do caminho.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
@@ -182,7 +182,7 @@ struct TraceView: View {
                     // the first wrong link was carried forward from there.
                     if let brokeAt = model.brokeAt {
                         Text("A cadeia quebra no estágio \(brokeAt). Tudo depois disso partiu dali.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
@@ -220,15 +220,15 @@ struct TraceView: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: stage.reached)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(after ? "Depois da quebra" : (right ? "Entregue corretamente" : "Aqui a cadeia quebrou"))
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(after ? Palette.inkFaint : (right ? Palette.inkFaint : Palette.amberInk))
                 if !right {
                     Text(verbatim: stage.handsOn)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

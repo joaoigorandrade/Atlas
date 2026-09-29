@@ -40,15 +40,25 @@ import Testing
 }
 
 @MainActor
-@Test func aFinishedNodeIsSentToTheReviewNotTheCrucible() {
+@Test func aFinishedNodeIsSentToTheReviewWhenItHasACardDue() {
     let full = planGates(phasePlans[.concept]!)
     for reviewed in [false, true] {
         let model = drawer(.mastered, reviewed: reviewed, done: full)
-        // The action is what the CTA opens: Retido routes to the Review tab,
-        // and nothing may clamp it back onto the Crucible.
+        // A card with no scheduler state yet is brand new, which is due now.
+        model.store.cards = [StoredCard(id: "c1", nodeId: "cadeia", type: .recall, source: "", back: "b")]
+        // The action is what the CTA opens: Retido routes to the Review tab.
         #expect(model.action == .retain)
         #expect(!model.isLocked)
     }
+}
+
+@MainActor
+@Test func aFinishedNodeWithNothingDueOffersItsProofGate() {
+    // The Review tab would open on everything but this concept, so the drawer
+    // offers to prove it again instead.
+    let model = drawer(.mastered, reviewed: true, done: planGates(phasePlans[.concept]!))
+    #expect(model.action == proofGate(model.plan))
+    #expect(model.action != .retain)
 }
 
 @MainActor
@@ -60,7 +70,7 @@ import Testing
     #expect(!model.isLocked)
     #expect(model.action == .socratic)
     // And it names the node it was split out of.
-    #expect(model.spawnedFrom.map(\.0) == ["Regra da cadeia"])
+    #expect(model.spawnedFrom.map(\.0.label) == ["Regra da cadeia"])
 }
 
 @MainActor

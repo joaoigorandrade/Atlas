@@ -31,6 +31,22 @@ enum Defaults {
         get { UserDefaults.standard.object(forKey: "readAloud") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "readAloud") }
     }
+    /// Socratic answers by voice. Off until the learner asks for it: opening on
+    /// a live mic set off two permission prompts mid-lesson and recorded
+    /// whoever was nearby. Once chosen, it sticks.
+    static var prefersVoice: Bool {
+        get { UserDefaults.standard.bool(forKey: "prefersVoice") }
+        set { UserDefaults.standard.set(newValue, forKey: "prefersVoice") }
+    }
+    /// Review reminders: on, and the time of day (minutes after midnight).
+    static var reminderOn: Bool {
+        get { UserDefaults.standard.bool(forKey: "reminderOn") }
+        set { UserDefaults.standard.set(newValue, forKey: "reminderOn") }
+    }
+    static var reminderMinutes: Int {
+        get { UserDefaults.standard.object(forKey: "reminderMinutes") as? Int ?? 19 * 60 }
+        set { UserDefaults.standard.set(newValue, forKey: "reminderMinutes") }
+    }
     /// The pass that was on screen when the app last went away, as
     /// `topic|node|phase`. Everything *inside* a pass is already on the server —
     /// the reading's place, the transcript, the mastery — so all a relaunch is

@@ -69,8 +69,10 @@ struct TrailMap: Equatable {
 
         let ranked = Dictionary(grouping: graph.nodes) { level($0.id) }
         let count = (ranked.keys.max() ?? 0) + 1
-        let widest = ranked.values.map(\.count).max() ?? 1
-        let content = max(width, CGFloat(widest) * Self.slot)
+        // A level wider than the screen wraps onto the next band rather than
+        // running off the side: the page scrolls one way only.
+        let content = max(width, Self.slot)
+        let perBand = max(1, Int(content / Self.slot))
 
         // Top down, each level ordered under its own prerequisites rather than
         // by the browser's `x`: spreading a level evenly and then sorting it by
@@ -90,18 +92,22 @@ struct TrailMap: Equatable {
             let row = (ranked[depth] ?? []).sorted { left, right in
                 (anchor(left, settled), left.x, left.id) < (anchor(right, settled), right.x, right.id)
             }
-            let placed = row.enumerated().map { position, node in
-                Placed(
-                    node: node,
-                    level: depth,
-                    at: CGPoint(
-                        x: content * CGFloat(position + 1) / CGFloat(row.count + 1),
-                        y: Self.band * (CGFloat(depth) + 0.5)
+            for start in stride(from: 0, to: row.count, by: perBand) {
+                let line = Array(row[start..<min(start + perBand, row.count)])
+                let band = rows.count
+                let placed = line.enumerated().map { position, node in
+                    Placed(
+                        node: node,
+                        level: band,
+                        at: CGPoint(
+                            x: content * CGFloat(position + 1) / CGFloat(line.count + 1),
+                            y: Self.band * (CGFloat(band) + 0.5)
+                        )
                     )
-                )
+                }
+                for one in placed { settled[one.id] = one.at.x }
+                rows.append(placed)
             }
-            for one in placed { settled[one.id] = one.at.x }
-            rows.append(placed)
         }
         levels = rows
 
@@ -111,7 +117,7 @@ struct TrailMap: Equatable {
             return above.reduce(0, +) / CGFloat(above.count)
         }
 
-        size = CGSize(width: content, height: Self.band * CGFloat(count))
+        size = CGSize(width: content, height: Self.band * CGFloat(rows.count))
 
         let index = Dictionary(levels.flatMap { $0 }.map { ($0.id, $0.at) }, uniquingKeysWith: { first, _ in first })
         links = graph.edges.compactMap { edge in
@@ -142,4 +148,31 @@ final class MapViewModel {
     }
 
     func select(_ node: ConceptNode?) { selection = node }
+
+    /// The legend strip under the title.
+    var legend = false
+    /// The map being switched to from the title menu.
+    var switching: String?
+    /// The concept whose new state is landing.
+    private(set) var landing: String?
+
+    func land(_ id: String) {
+        landing = id
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if landing == id { landing = nil }
+        }
+    }
+
+    /// The drawing's scale: what the last pinch settled on, and the pinch in
+    /// progress on top of it.
+    @ObservationIgnored private var settledZoom: CGFloat = 1
+    private(set) var zoom: CGFloat = 1
+
+    func pinch(_ magnification: CGFloat) { zoom = min(1.8, max(0.45, settledZoom * magnification)) }
+    func settlePinch() { settledZoom = zoom }
+    func resetZoom() {
+        settledZoom = 1
+        withAnimation(Motion.standard) { zoom = 1 }
+    }
 }

@@ -56,6 +56,26 @@ public actor AtlasAuth {
         )
     }
 
+    /// "Esqueci minha senha": GoTrue emails a link that comes back to the same
+    /// callback carrying a session marked `type=recovery`.
+    public func recover(email: String) async throws {
+        _ = try await post("auth/v1/recover", redirect: Self.callbackURL, ["email": email])
+    }
+
+    /// The password a recovery session is asked for.
+    public func updatePassword(_ password: String, token: String) async throws {
+        let request = try GoTrueEndpoint.password(password, token: token, apiKey: apiKey)
+        let response: NetworkResponse
+        do {
+            response = try await client.execute(request)
+        } catch {
+            throw AtlasError.transport(error)
+        }
+        guard (200..<300).contains(response.statusCode) else {
+            throw Self.authError(response.data, status: response.statusCode)
+        }
+    }
+
     public func refresh(_ refreshToken: String) async throws -> AuthSession {
         try await token("auth/v1/token", grant: "refresh_token", ["refresh_token": refreshToken])
     }
@@ -95,6 +115,8 @@ public actor AtlasAuth {
     /// parser covers a link that came back either way.
     public enum Callback: Sendable, Equatable {
         case session(AuthSession)
+        /// A password-reset link: signed in, and owed a new password.
+        case recovery(AuthSession)
         case failed(String)
         case ignored
     }
@@ -110,12 +132,13 @@ public actor AtlasAuth {
             items.first { $0.name == name }?.value.flatMap { $0.isEmpty ? nil : $0 }
         }
         if let access = value("access_token"), let refresh = value("refresh_token") {
-            return .session(AuthSession(
+            let session = AuthSession(
                 accessToken: access,
                 refreshToken: refresh,
                 expiresAt: Date(timeIntervalSinceNow: Double(value("expires_in") ?? "") ?? 3600),
                 email: nil
-            ))
+            )
+            return value("type") == "recovery" ? .recovery(session) : .session(session)
         }
         if let error = value("error_code") ?? value("error") { return .failed(error) }
         return .ignored

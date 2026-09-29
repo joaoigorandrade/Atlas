@@ -18,13 +18,17 @@ public enum AtlasTab: String, TabRoute, CaseIterable {
     var symbol: String {
         switch self {
         case .home: "house"
-        case .map: "point.3.connected.trianglepath.dotted"
-        case .review: "rectangle.on.rectangle"
+        case .map: "map"
+        case .review: "rectangle.stack"
         case .profile: "person"
         }
     }
 
-    public var tabLabel: some View { Label(title, systemImage: symbol) }
+    /// Outlined, not the heavy filled glyphs the tab bar would pick: engraved
+    /// line work belongs on this paper, solid black blocks do not.
+    public var tabLabel: some View {
+        Label(title, systemImage: symbol).environment(\.symbolVariants, .none)
+    }
 
     @ViewBuilder
     public var tabContent: some View {

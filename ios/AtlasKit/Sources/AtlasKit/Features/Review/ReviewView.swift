@@ -41,7 +41,7 @@ public struct ReviewView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Kicker("Revisão · retenção", tint: Palette.accent, size: 9.5)
                     Text(verbatim: store.subject.isEmpty ? "Atlas" : store.subject)
-                        .font(.atlas(.serif, 16)).foregroundStyle(Palette.ink).lineLimit(1)
+                        .font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).lineLimit(1)
                 }
             } trailing: {
                 Button { navigator.navigate(to: .calibration) } label: {
@@ -82,7 +82,7 @@ public struct ReviewView: View {
                 Kicker(model.gradedCount > 0 ? "Terminado por hoje" : "Revisão",
                        tint: model.gradedCount > 0 ? Palette.accent : Palette.inkFaint, size: 10)
                 Text(verbatim: model.waitingCopy)
-                    .font(.atlas(.serif, 24))
+                    .font(.atlas(.display, 24))
                     .foregroundStyle(Palette.ink)
                     .lineSpacing(4)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,7 +90,7 @@ public struct ReviewView: View {
 
                 if let next = model.nextDueCopy {
                     Text(verbatim: next)
-                        .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted)
+                        .font(.atlas(.serif, 15)).foregroundStyle(Palette.inkMuted)
                         .padding(.top, 10)
                 }
 
@@ -131,20 +131,20 @@ public struct ReviewView: View {
             }
             if let verdict = model.passVerdict {
                 Text(verbatim: verdict)
-                    .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkMuted).lineSpacing(3)
+                    .font(.atlas(.serif, 15)).foregroundStyle(Palette.inkMuted).lineSpacing(3)
             }
         }
     }
 
     private func figure(_ value: String, _ label: LocalizedStringKey, _ tint: Color) -> some View {
         VStack(spacing: 3) {
-            Text(verbatim: value).font(.atlas(.serif, 26)).foregroundStyle(tint)
+            Text(verbatim: value).font(.atlas(.display, 26)).foregroundStyle(tint)
             Kicker(label, size: 9.5)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(Palette.card, in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 
     /// The FSRS forecast the deck endpoint already answers with, and which this
@@ -157,12 +157,12 @@ public struct ReviewView: View {
                     RoundedRectangle(cornerRadius: 4).fill(row.tint).frame(width: 8)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text(verbatim: row.label).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.ink)
+                            Text(verbatim: row.label).font(.atlas(.serif, 15)).foregroundStyle(Palette.ink)
                             Spacer()
-                            Text(verbatim: row.count).font(.atlas(.serif, 15)).foregroundStyle(Palette.ink)
+                            Text(verbatim: row.count).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink)
                         }
                         Text(verbatim: row.sub)
-                            .font(.atlas(.sans, 12)).foregroundStyle(Palette.inkFaint).lineSpacing(2)
+                            .font(.atlas(.serif, 13.5)).foregroundStyle(Palette.inkFaint).lineSpacing(2)
                     }
                 }
                 .frame(minHeight: 34)
@@ -170,8 +170,8 @@ public struct ReviewView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.cardAlt, in: .rect(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline, lineWidth: 1) }
+        .background(Palette.cardAlt, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
     }
 
     // MARK: - The deck
@@ -191,7 +191,7 @@ public struct ReviewView: View {
                     Chip(card.type.label, tint: card.type.tint,
                          background: card.type.tint.opacity(0.08))
                     Spacer()
-                    Text(verbatim: card.source).font(.atlas(.mono, 11)).foregroundStyle(Palette.inkGhost)
+                    Text(verbatim: card.source).font(.atlas(.caps, 12.5)).foregroundStyle(Palette.inkGhost)
                         .lineLimit(1)
                 }
                 .padding(.top, 18)
@@ -215,16 +215,16 @@ public struct ReviewView: View {
     private func face(_ model: ReviewViewModel, _ card: ReviewCard) -> some View {
         ZStack(alignment: .top) {
             ForEach(Array([(18.0, 0.956, 0.5), (9.0, 0.978, 0.75)].enumerated()), id: \.offset) { _, back in
-                RoundedRectangle(cornerRadius: 18)
+                RoundedRectangle(cornerRadius: 3)
                     .fill(Palette.cardAlt)
-                    .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(Palette.hairline, lineWidth: 1) }
+                    .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
                     .opacity(model.deck.count > model.index + 1 ? back.2 : 0)
                     .scaleEffect(back.1)
                     .offset(y: back.0)
             }
             VStack(alignment: .leading, spacing: 0) {
                 question(model, card)
-                    .font(.atlas(.serif, 22))
+                    .font(.atlas(.display, 22))
                     .foregroundStyle(Palette.ink)
                     .lineSpacing(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -233,11 +233,11 @@ public struct ReviewView: View {
                 case .question:
                     Button { model.flip() } label: {
                         Text("Mostrar resposta")
-                            .font(.atlas(.serif, 16))
+                            .font(.atlas(.serif, 17))
                             .foregroundStyle(Palette.accent)
                             .frame(maxWidth: .infinity, minHeight: Metrics.cta)
-                            .background(Palette.accentBg, in: .rect(cornerRadius: 11))
-                            .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.accent.opacity(0.28), lineWidth: 1) }
+                            .background(Palette.accentBg, in: .rect(cornerRadius: 3))
+                            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.accent.opacity(0.28), lineWidth: 1) }
                     }
                     .pressable()
                     .padding(.top, 24)
@@ -245,7 +245,7 @@ public struct ReviewView: View {
                     if let back = model.back(card) {
                         Divider().overlay(Palette.hairline).padding(.vertical, 18)
                         Text(verbatim: back)
-                            .font(.atlas(.serif, 17))
+                            .font(.atlas(.serif, 18))
                             .foregroundStyle(Palette.inkSoft)
                             .lineSpacing(5)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -259,8 +259,8 @@ public struct ReviewView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 26)
             .frame(maxWidth: .infinity, minHeight: 230, alignment: .top)
-            .background(Palette.card, in: .rect(cornerRadius: 18))
-            .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+            .background(Palette.card, in: .rect(cornerRadius: 3))
+            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
             .shadow(color: Palette.shade(0.07), radius: 15, y: 10)
         }
         .animation(Motion.standard, value: model.stage)
@@ -281,14 +281,14 @@ public struct ReviewView: View {
             Kicker("De volta ao ciclo", tint: NodeState.gap.color, size: 10)
             if let back = model.back(card) {
                 Text(verbatim: back)
-                    .font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).lineSpacing(5)
+                    .font(.atlas(.serif, 18)).foregroundStyle(Palette.ink).lineSpacing(5)
             }
             if let reExplain = card.reExplain {
                 Text(verbatim: reExplain)
-                    .font(.atlas(.sans, 13.5)).foregroundStyle(Palette.inkSoft).lineSpacing(3)
+                    .font(.atlas(.serif, 15)).foregroundStyle(Palette.inkSoft).lineSpacing(3)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.dangerBg, in: .rect(cornerRadius: 10))
+                    .background(Palette.dangerBg, in: .rect(cornerRadius: 3))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -302,7 +302,7 @@ public struct ReviewView: View {
             switch model.stage {
             case .question:
                 Text("Responda de cabeça primeiro — depois vire o cartão.")
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(Palette.inkFaint)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -316,13 +316,13 @@ public struct ReviewView: View {
                         ForEach(ReviewGrade.allCases) { grade in
                             Button { model.grade(grade) } label: {
                                 VStack(spacing: 2) {
-                                    Text(grade.label).font(.atlas(.sans, 13, weight: .semibold))
+                                    Text(grade.label).font(.atlas(.serif, 14.5, weight: .semibold))
                                     // The real interval, written by the same
                                     // scheduler that will apply it. A card that
                                     // arrived without one shows the grade alone
                                     // rather than a made-up number.
                                     if let interval = card.label(for: grade) {
-                                        Text(verbatim: interval).font(.atlas(.mono, 9.5))
+                                        Text(verbatim: interval).font(.atlas(.caps, 11))
                                     }
                                 }
                                 .foregroundStyle(grade.tint)

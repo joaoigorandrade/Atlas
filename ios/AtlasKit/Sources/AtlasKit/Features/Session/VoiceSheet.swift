@@ -64,13 +64,13 @@ struct VoiceSheet: View {
             VStack(spacing: 14) {
                 VoiceWave(level: dictation.level, active: dictation.listening, tint: tint)
                 Text(status)
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkFaint)
                     .multilineTextAlignment(.center)
                 draft
                 if let trouble = dictation.trouble {
                     Text(verbatim: trouble.sentence)
-                        .font(.atlas(.sans, 12.5))
+                        .font(.atlas(.serif, 14))
                         .foregroundStyle(Palette.amberInk)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -133,7 +133,7 @@ struct VoiceSheet: View {
     private func escapeChip(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.atlas(.sans, 13))
+                .font(.atlas(.serif, 14.5))
                 .foregroundStyle(Palette.inkMuted)
                 .lineLimit(2)
                 .padding(.horizontal, 13)
@@ -152,14 +152,14 @@ struct VoiceSheet: View {
         ZStack(alignment: .topLeading) {
             if said.isEmpty {
                 Text(placeholder)
-                    .font(.atlas(.serif, 16))
+                    .font(.atlas(.serif, 17))
                     .foregroundStyle(Palette.inkGhost)
                     .padding(.horizontal, 19)
                     .padding(.vertical, 19)
                     .allowsHitTesting(false)
             }
             TextEditor(text: Binding(get: { said }, set: { text = $0 }))
-                .font(.atlas(.serif, 16))
+                .font(.atlas(.serif, 17))
                 .lineSpacing(3)
                 .foregroundStyle(dictation.listening ? Palette.inkMuted : Palette.ink)
                 .scrollContentBackground(.hidden)
@@ -168,8 +168,8 @@ struct VoiceSheet: View {
                 .disabled(dictation.listening)
         }
         .frame(minHeight: 96, maxHeight: .infinity)
-        .background(Palette.card, in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
     }
 
     /// Stop, or start again and say more. The one control whose state has to

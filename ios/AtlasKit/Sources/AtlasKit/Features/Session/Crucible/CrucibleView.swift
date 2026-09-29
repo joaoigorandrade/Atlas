@@ -38,14 +38,14 @@ struct CrucibleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Antes de ver o problema")
-                    .font(.atlas(.serif, 26))
+                    .font(.atlas(.display, 26))
                     .foregroundStyle(Palette.ink)
                 Text("Quanto você confia que consegue usar \(model.node.label) em um contexto novo?")
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.top, 8)
                 Text("Responda antes de ver o problema — depois dele a resposta já não mede nada. O \(Phase.crucible.label) compara o que você sentiu com o que aconteceu.")
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkFaint)
                     .padding(.top, 10)
 
@@ -69,10 +69,10 @@ struct CrucibleView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(level.label)
-                    .font(.atlas(.serif, 16.5, weight: .semibold))
+                    .font(.atlas(.serif, 17.5, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                 Text(level.note)
-                    .font(.atlas(.sans, 13))
+                    .font(.atlas(.serif, 14.5))
                     .foregroundStyle(Palette.inkMuted)
                     .multilineTextAlignment(.leading)
             }
@@ -89,8 +89,8 @@ struct CrucibleView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 15)
         .frame(minHeight: Metrics.tap, alignment: .leading)
-        .background(Palette.card, in: .rect(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.crucibleBorder, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.crucibleBorder, lineWidth: 1) }
         .contentShape(.rect)
     }
 
@@ -144,13 +144,13 @@ struct CrucibleView: View {
                     }
 
                     Text(model.rung == 0 ? "Um problema que você nunca viu" : "Mais uma vez, com apoio")
-                        .font(.atlas(.serif, 26))
+                        .font(.atlas(.display, 26))
                         .foregroundStyle(Palette.ink)
                         .padding(.top, 12)
                     Text(model.rung == 0
                          ? "Contexto novo, de propósito. Se você só decorou o padrão, é aqui que aparece."
                          : "Mesmo conceito, um degrau abaixo — agora com o que faltou já nomeado.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)
 
@@ -161,30 +161,30 @@ struct CrucibleView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Kicker("O que faltou", tint: NodeState.gap.color)
                             Text(verbatim: missing.label)
-                                .font(.atlas(.serif, 15.5, weight: .semibold))
+                                .font(.atlas(.serif, 16.5, weight: .semibold))
                                 .foregroundStyle(Palette.ink)
                             if !missing.reExplain.isEmpty {
                                 Text(verbatim: missing.reExplain)
-                                    .font(.atlas(.sans, 13.5))
+                                    .font(.atlas(.serif, 15))
                                     .lineSpacing(3)
                                     .foregroundStyle(Palette.inkSoft)
                             }
                         }
                         .padding(.horizontal, 15).padding(.vertical, 13)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.card, in: .rect(cornerRadius: 12))
-                        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                        .background(Palette.card, in: .rect(cornerRadius: 3))
+                        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
                         .padding(.top, 18)
                     }
 
                     VStack(alignment: .leading, spacing: 9) {
                         Kicker(verbatim: problem.tag, tint: Palette.crucibleInk)
-                        Text(verbatim: problem.q).font(.atlas(.serif, 16.5)).lineSpacing(4).foregroundStyle(Palette.ink)
+                        Text(verbatim: problem.q).font(.atlas(.serif, 17.5)).lineSpacing(4).foregroundStyle(Palette.ink)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 18)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.crucibleBg, in: .rect(cornerRadius: 14))
-                    .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.crucibleBorder, lineWidth: 1) }
+                    .background(Palette.crucibleBg, in: .rect(cornerRadius: 3))
+                    .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.crucibleBorder, lineWidth: 1) }
                     .padding(.top, 22)
 
                     // Beside the problem, not beside Submit: the hint reframes
@@ -197,11 +197,11 @@ struct CrucibleView: View {
 
                     if model.hinted {
                         Text(verbatim: problem.hint)
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .padding(.horizontal, 13).padding(.vertical, 11)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Palette.amberBg, in: .rect(cornerRadius: 10))
+                            .background(Palette.amberBg, in: .rect(cornerRadius: 3))
                             .padding(.top, 10)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
@@ -212,7 +212,7 @@ struct CrucibleView: View {
                         .padding(.top, 9)
 
                     if !model.message.isEmpty {
-                        Text(verbatim: model.message).font(.atlas(.sans, 13.5)).foregroundStyle(Palette.amberInk).padding(.top, 14)
+                        Text(verbatim: model.message).font(.atlas(.serif, 15)).foregroundStyle(Palette.amberInk).padding(.top, 14)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -230,7 +230,7 @@ struct CrucibleView: View {
                     HStack(spacing: 9) {
                         AtlasPulse(size: 15)
                         Text("Lendo sua tentativa — isso leva alguns segundos.")
-                            .font(.atlas(.sans, 13))
+                            .font(.atlas(.serif, 14.5))
                             .foregroundStyle(Palette.inkMuted)
                         Spacer(minLength: 0)
                     }
@@ -260,7 +260,7 @@ struct CrucibleView: View {
                     // was walked into, so a pass on it is not "a framing you
                     // have never seen".
                     Text(verbatim: model.verdictHeadline)
-                        .font(.atlas(.serif, 19))
+                        .font(.atlas(.display, 19))
                         .lineSpacing(4)
                         .foregroundStyle(Palette.ink)
                         .padding(.top, 12)
@@ -272,11 +272,11 @@ struct CrucibleView: View {
                                 .frame(width: 8, height: 8)
                                 .padding(.top, 6)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(verbatim: row.text).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
+                                Text(verbatim: row.text).font(.atlas(.serif, 15.5)).foregroundStyle(Palette.inkSoft)
                                 // The dot's colour was the only thing saying
                                 // whether this one carried over.
                                 Text(verbatim: CrucibleViewModel.transferLabel(row.verdict))
-                                    .font(.atlas(.mono, 10.5))
+                                    .font(.atlas(.caps, 12))
                                     .tracking(0.8)
                                     .foregroundStyle(row.verdict == "good" ? NodeState.mastered.color : NodeState.gap.color)
                             }
@@ -288,19 +288,19 @@ struct CrucibleView: View {
 
                     if !model.hintNote.isEmpty {
                         Text(verbatim: model.hintNote)
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .lineSpacing(3)
                             .foregroundStyle(Palette.amberInk)
                             .padding(.horizontal, 13).padding(.vertical, 11)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Palette.amberBg, in: .rect(cornerRadius: 10))
+                            .background(Palette.amberBg, in: .rect(cornerRadius: 3))
                             .padding(.top, 20)
                     }
 
                     if !model.calibration.isEmpty {
                         Kicker("Confiança × resultado").padding(.top, 24)
                         Text(verbatim: model.calibration)
-                            .font(.atlas(.sans, 14))
+                            .font(.atlas(.serif, 15.5))
                             .lineSpacing(3)
                             .foregroundStyle(Palette.inkSoft)
                             .padding(.top, 10)
@@ -309,7 +309,7 @@ struct CrucibleView: View {
                     if !judgement.passed {
                         Kicker("Em trinta segundos").padding(.top, 24)
                         Text(verbatim: model.reExplanation)
-                            .font(.atlas(.serif, 16.5))
+                            .font(.atlas(.serif, 17.5))
                             .lineSpacing(4)
                             .foregroundStyle(Palette.ink)
                             .padding(.top, 10)

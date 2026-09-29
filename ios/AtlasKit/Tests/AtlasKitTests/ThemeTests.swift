@@ -15,7 +15,7 @@ struct ThemeTests {
             .deletingLastPathComponent()
         let fontsDir = repoRoot.appendingPathComponent("App/Resources/Fonts")
         
-        for fontName in ["Newsreader.ttf", "InstrumentSans.ttf", "SplineSansMono.ttf"] {
+        for fontName in ["EBGaramond.ttf", "InstrumentSans.ttf", "IMFellEnglish.ttf", "IMFellEnglishSC.ttf"] {
             let fontURL = fontsDir.appendingPathComponent(fontName)
             var error: Unmanaged<CFError>?
             CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, &error)
@@ -29,7 +29,13 @@ struct ThemeTests {
     @Test func allFacesResolveToVariableFamilyWithDistinctWeights() {
         #expect(Self.registered)
 
-        for face in [Face.serif, Face.sans, Face.mono] {
+        // The two variable faces carry real weight cuts; the two Fell faces are
+        // single engraved cuts and only have to resolve to themselves.
+        for face in [Face.display, Face.caps] {
+            let font = UIFont(descriptor: UIFontDescriptor().withFamily(face.rawValue), size: 14)
+            #expect(font.familyName == face.rawValue, "\(face.rawValue) should resolve to itself")
+        }
+        for face in [Face.serif, Face.sans] {
             let desc = UIFontDescriptor().withFamily(face.rawValue)
             let regularFont = UIFont(descriptor: desc, size: 14)
             #expect(!regularFont.fontName.isEmpty)

@@ -60,7 +60,7 @@ struct RecallView: View {
                 // of what to cover: what the learner never thinks to write is
                 // the whole finding here.
                 Text(verbatim: content.brief)
-                    .font(.atlas(.serif, 20))
+                    .font(.atlas(.display, 20))
                     .lineSpacing(5)
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -68,7 +68,7 @@ struct RecallView: View {
 
                 if model.cued {
                     Text(verbatim: content.scaffold)
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .lineSpacing(4)
                         .foregroundStyle(Palette.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
@@ -86,7 +86,7 @@ struct RecallView: View {
 
                 if !model.message.isEmpty {
                     Text(verbatim: model.message)
-                        .font(.atlas(.sans, 13))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.amberInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
@@ -121,26 +121,26 @@ struct RecallView: View {
                     Text(model.passed
                          ? "Recuperado do zero — é esse o sinal em que a revisão se apoia."
                          : "Parte disso não voltou sozinha. Essa é a descoberta.")
-                        .font(.atlas(.serif, 22))
+                        .font(.atlas(.display, 22))
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                     Text("\(model.score) de \(model.rubric.count) pontos recuperados.")
-                        .font(.atlas(.sans, 14))
+                        .font(.atlas(.serif, 15.5))
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, 8)
                     // A cued retrieval is a different reading, and the report
                     // says so rather than congratulating an unaided one.
                     if model.cued {
                         Text("Recuperado depois de uma dica — vale repetir do zero mais tarde.")
-                            .font(.atlas(.sans, 13.5))
+                            .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     }
                     if !model.response.isEmpty {
                         Text(verbatim: model.response)
-                            .font(.atlas(.serif, 15.5))
+                            .font(.atlas(.serif, 16.5))
                             .lineSpacing(5)
                             .foregroundStyle(Palette.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
@@ -174,15 +174,15 @@ struct RecallView: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: owed.point)
-                    .font(.atlas(.sans, 14))
+                    .font(.atlas(.serif, 15.5))
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(verbatim: verdict.label)
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(verdict == .good ? Palette.inkFaint : Palette.amberInk)
                 if let quote = model.quote(owed) {
                     Text(verbatim: "“\(quote)”")
-                        .font(.atlas(.serif, 13.5))
+                        .font(.atlas(.serif, 14.5))
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

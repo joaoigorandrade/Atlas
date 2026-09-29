@@ -32,24 +32,25 @@ public extension View {
     }
 }
 
-/// `.kick` — the monospace uppercase kicker above almost every block.
+/// `.kick` — the engraved small-caps kicker above almost every block (`kicker()`
+/// in lib/theme.ts).
 public struct Kicker: View {
     private let text: Text
     private let tint: Color
-    /// 10pt everywhere except the auth screens, which the design sets at 11.
+    /// Never under 11pt: small caps set any smaller stop reading as words.
     private let size: CGFloat
     public init(_ key: LocalizedStringKey, tint: Color = Palette.inkFaint, size: CGFloat = 10) {
-        text = Text(key); self.tint = tint; self.size = size
+        text = Text(key); self.tint = tint; self.size = max(size + 1, 11)
     }
     /// A kicker over generated material — a section's own heading, a problem's
     /// tag, a formatted date. Never copy: nothing here goes in the catalogue.
     public init(verbatim: String, tint: Color = Palette.inkFaint, size: CGFloat = 10) {
-        text = Text(verbatim: verbatim); self.tint = tint; self.size = size
+        text = Text(verbatim: verbatim); self.tint = tint; self.size = max(size + 1, 11)
     }
     public var body: some View {
         text
-            .font(.atlas(.mono, size))
-            .tracking(size * 0.16)
+            .font(.atlas(.caps, size))
+            .tracking(size * 0.1)
             .foregroundStyle(tint)
             .textCase(.uppercase)
     }
@@ -74,24 +75,50 @@ public struct TopBar<Leading: View, Trailing: View>: View {
         // kicker over the concept) grew past a fixed 52 and was sheared off
         // against the divider. Every screen with a bar had it.
         .frame(minHeight: Metrics.bar)
-        .background(Palette.card.opacity(0.92))
-        .overlay(alignment: .bottom) { Divider().overlay(Palette.hairline) }
+        .background(Palette.card)
+        // The masthead's double engraved rule (`mastheadBar` on the web).
+        .overlay(alignment: .bottom) { DoubleRule() }
     }
 }
 
-/// `.card` — paper card, hairline border, 16pt radius.
+/// Two hairlines of the engraved rule, two points apart — `3px double` on the web.
+public struct DoubleRule: View {
+    public init() {}
+    public var body: some View {
+        VStack(spacing: 2) {
+            Rectangle().fill(Palette.rule).frame(height: 0.75)
+            Rectangle().fill(Palette.rule).frame(height: 0.75)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// `.card` — a plate pasted onto the page: vellum inside an engraved double
+/// rule (`Plate` on the web). `border` tints the outer rule for a card that
+/// carries a state.
 public struct Card<Content: View>: View {
     private let border: Color
     private let content: Content
-    public init(border: Color = Palette.hairlineStrong, @ViewBuilder content: () -> Content) {
+    public init(border: Color = Palette.rule, @ViewBuilder content: () -> Content) {
         self.border = border; self.content = content()
     }
     public var body: some View {
         content
             .background(Palette.card)
-            .clipShape(.rect(cornerRadius: Metrics.cardRadius))
+            .plate(border)
+    }
+}
+
+public extension View {
+    /// The plate's frame on its own, for a surface that can't be a `Card`.
+    func plate(_ border: Color = Palette.rule) -> some View {
+        clipShape(.rect(cornerRadius: Metrics.cardRadius))
             .overlay {
                 RoundedRectangle(cornerRadius: Metrics.cardRadius).strokeBorder(border, lineWidth: 1)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 1).strokeBorder(Palette.hairlineStrong, lineWidth: 0.75)
+                    .padding(3)
             }
     }
 }
@@ -126,12 +153,22 @@ public struct CTAButton: View {
         // Fill and shadow live inside the label so the whole pill answers a
         // press, not just the words on it.
         Button(action: action) {
+            // A plate of solid ink with an engraved rule set inside it — the
+            // web's `Button variant="primary"`.
             Text(title)
-                .font(.atlas(.sans, hero ? 16 : 15, weight: .semibold))
+                .font(.atlas(.caps, hero ? 17.5 : 16.5))
+                .tracking(0.9)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(Palette.accentInk)
+                .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity, minHeight: hero ? Metrics.ctaHero : Metrics.cta)
-                .background(tint, in: .rect(cornerRadius: hero ? 13 : 12))
-                .shadow(color: tint.opacity(0.26), radius: 11, y: 8)
+                .background(tint, in: .rect(cornerRadius: 3))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .strokeBorder(Palette.accentInk.opacity(0.34), lineWidth: 1)
+                        .padding(3)
+                }
+                .shadow(color: Palette.shade(0.25), radius: 0, y: 1)
         }
         .pressable()
         .opacity(enabled ? 1 : 0.5)
@@ -152,9 +189,11 @@ public struct GhostButton: View {
     @Environment(\.isEnabled) private var enabled
     public var body: some View {
         Button(action: action) {
+            // The rule alone — the web's `secondary`.
             Text(title)
-                .font(.atlas(.sans, 13.5))
-                .foregroundStyle(Palette.inkMuted)
+                .font(.atlas(.caps, 15))
+                .tracking(0.6)
+                .foregroundStyle(Palette.inkSoft)
                 // A dock's two buttons sit side by side, and at the
                 // accessibility sizes the label is what decides how wide each
                 // needs to be. Never a fixed width at the call site: that is
@@ -162,7 +201,11 @@ public struct GhostButton: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.rule, lineWidth: 1) }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 1.5).strokeBorder(Palette.hairline, lineWidth: 1).padding(2.5)
+                }
+                .contentShape(.rect)
         }
         .pressable()
         .opacity(enabled ? 1 : 0.4)
@@ -274,7 +317,7 @@ public struct ChoiceRow: View {
             HStack(alignment: .top, spacing: 12) {
                 disc
                 Text(verbatim: label)
-                    .font(.atlas(.sans, 15))
+                    .font(.atlas(.serif, 16.5))
                     .lineSpacing(3)
                     .foregroundStyle(Palette.ink)
                     .multilineTextAlignment(.leading)
@@ -287,9 +330,9 @@ public struct ChoiceRow: View {
             .padding(.horizontal, 15)
             .padding(.vertical, 13)
             .frame(maxWidth: .infinity, minHeight: Metrics.tap, alignment: .leading)
-            .background(mark.fill, in: .rect(cornerRadius: 12))
+            .background(mark.fill, in: .rect(cornerRadius: 3))
             .overlay {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 3)
                     .strokeBorder(mark.tint ?? Palette.hairlineStrong,
                                   lineWidth: mark == .unmarked ? 1 : 1.5)
             }
@@ -392,7 +435,7 @@ public struct PhaseBar<Trailing: View>: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Kicker(phase.kicker, tint: phase.tint, size: 9.5)
                     Text(title)
-                        .font(.atlas(.serif, 16))
+                        .font(.atlas(.serif, 17))
                         .foregroundStyle(Palette.ink)
                         // Two lines, not one: `TopBar`'s height is a floor, and
                         // a concept whose name is four words truncated to
@@ -447,14 +490,14 @@ public struct AnswerEditor: View {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(verbatim: placeholder)
-                        .font(.atlas(.serif, 15.5))
+                        .font(.atlas(.serif, 16.5))
                         .foregroundStyle(Palette.inkGhost)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 8)
                         .allowsHitTesting(false)
                 }
                 TextEditor(text: $text)
-                    .font(.atlas(.serif, 15.5))
+                    .font(.atlas(.serif, 16.5))
                     .foregroundStyle(Palette.ink)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: minHeight, maxHeight: fills ? .infinity : nil)
@@ -464,7 +507,7 @@ public struct AnswerEditor: View {
                 HStack(alignment: .center, spacing: 8) {
                     if let trouble = dictation.trouble {
                         Text(verbatim: trouble.sentence)
-                            .font(.atlas(.sans, 12.5))
+                            .font(.atlas(.serif, 14))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -479,8 +522,8 @@ public struct AnswerEditor: View {
         .animation(Motion.snap, value: store.dictationOn)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Palette.card, in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card, in: .rect(cornerRadius: 3))
+        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
         // Whatever was being said when the learner walked off the screen is
         // still delivered — the transcript only exists inside the recogniser
         // until something asks for it.
@@ -549,7 +592,7 @@ public struct Avatar: View {
 
     public var body: some View {
         Text(initials)
-            .font(.atlas(.mono, size * 0.38, weight: .semibold))
+            .font(.atlas(.caps, size * 0.46))
             // The disc is a fixed size; at accessibility type the letters
             // shrink into it rather than clipping at its edge.
             .lineLimit(1)

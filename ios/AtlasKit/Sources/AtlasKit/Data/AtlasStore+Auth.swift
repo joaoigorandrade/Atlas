@@ -27,6 +27,17 @@ extension AtlasStore {
         await loadLibrary()
     }
 
+    /// Send the password-reset link.
+    func recoverPassword(email: String) async throws {
+        try await auth.recover(email: email)
+    }
+
+    /// Set the password a recovery link signed the learner in to replace.
+    func updatePassword(_ password: String) async throws {
+        guard let token = await bearer() else { throw AtlasError(code: "auth", message: "no session", status: 401) }
+        try await auth.updatePassword(password, token: token)
+    }
+
     /// Screen 3's "reenviar link". Throws so the screen can speak the failure.
     func resendConfirmation(email: String) async throws {
         try await auth.resend(email: email)
@@ -56,6 +67,12 @@ extension AtlasStore {
         // that is true of the mirror on disk too. The next person to hold this
         // phone must not open somebody else's map.
         local.clear()
+        // A reminder is about this learner's cards; the next one to hold the
+        // phone has not asked for it.
+        if Defaults.reminderOn {
+            Defaults.reminderOn = false
+            Task { await Reminders.apply() }
+        }
         clearRun()
         SessionStore.save(nil)
         // Awaited, not fired: a warm still in flight must not be able to send

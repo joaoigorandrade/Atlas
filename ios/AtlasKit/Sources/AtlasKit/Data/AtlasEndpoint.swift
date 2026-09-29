@@ -156,6 +156,17 @@ enum GoTrueEndpoint {
     }
 }
 
+extension GoTrueEndpoint {
+    /// A new password for the signed-in user — the second half of a recovery
+    /// link, which signs the learner in before asking what the password is now.
+    static func password(_ password: String, token: String, apiKey: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "auth/v1/user", method: .put)
+            .jsonBody(["password": password])
+            .header("apikey", apiKey)
+            .bearer(token)
+    }
+}
+
 extension HTTPRequestData {
     /// The Supabase access token, when there is one. `/api/generate` requires a
     /// signed-in learner; native clients send it as a bearer.

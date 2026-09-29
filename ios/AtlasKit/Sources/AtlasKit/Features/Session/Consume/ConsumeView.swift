@@ -58,7 +58,7 @@ struct ConsumeView: View {
             // A read-aloud that fails in silence reads as a dead button.
             if !model.speaker.message.isEmpty {
                 Text(verbatim: model.speaker.message)
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(Palette.amberInk)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Metrics.gutter)
@@ -148,7 +148,7 @@ struct ConsumeView: View {
                     ? Text(verbatim: "")
                     : Text(verbatim: "\u{258C}").foregroundStyle(Palette.accent)
                 Text("\(Text(Markdown.rich(paragraph)))\(caret)")
-                    .font(.atlas(.serif, 17.5))
+                    .font(.atlas(.serif, 18.5))
                     .lineSpacing(6)
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 14)
@@ -161,11 +161,11 @@ struct ConsumeView: View {
 
             if let example = chunk.example {
                 Kicker("Exemplo").padding(.top, 22)
-                Text(Markdown.rich(example.title)).font(.atlas(.serif, 16)).foregroundStyle(Palette.ink).padding(.top, 8)
+                Text(Markdown.rich(example.title)).font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).padding(.top, 8)
                 ForEach(Array(example.steps.enumerated()), id: \.offset) { step, text in
                     HStack(alignment: .top, spacing: 10) {
-                        Text(verbatim: "\(step + 1)").font(.atlas(.mono, 11)).foregroundStyle(Palette.inkFaint)
-                        Text(Markdown.rich(text)).font(.atlas(.sans, 14)).foregroundStyle(Palette.inkSoft)
+                        Text(verbatim: "\(step + 1)").font(.atlas(.caps, 12.5)).foregroundStyle(Palette.inkFaint)
+                        Text(Markdown.rich(text)).font(.atlas(.serif, 15.5)).foregroundStyle(Palette.inkSoft)
                     }
                     .padding(.top, 8)
                 }
@@ -175,11 +175,11 @@ struct ConsumeView: View {
             // the takeaway is the sentence the model writes after it.
             if chunk.settled {
                 Text(Markdown.rich(chunk.takeaway))
-                    .font(.atlas(.serif, 16))
+                    .font(.atlas(.serif, 17))
                     .foregroundStyle(Palette.ink)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.accentBg, in: .rect(cornerRadius: 10))
+                    .background(Palette.accentBg, in: .rect(cornerRadius: 3))
                     .padding(.top, 20)
                 // The check appears once the end of the section has been on
                 // screen — a gate answerable without scrolling past the prose
@@ -207,12 +207,12 @@ struct ConsumeView: View {
                         let preferred = model.preferredLens == key
                         Button { model.open(key) } label: {
                             Text(key.label)
-                                .font(.atlas(.mono, 12))
+                                .font(.atlas(.caps, 13.5))
                                 .foregroundStyle(preferred ? Palette.accent : Palette.inkMuted)
-                                .frame(maxWidth: .infinity, minHeight: 40)
-                                .background(preferred ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 8))
+                                .frame(maxWidth: .infinity, minHeight: Metrics.tap)
+                                .background(preferred ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 3))
                                 .overlay {
-                                    RoundedRectangle(cornerRadius: 8)
+                                    RoundedRectangle(cornerRadius: 3)
                                         .strokeBorder(preferred ? Palette.accent.opacity(0.4) : Palette.hairlineStrong,
                                                       lineWidth: 1)
                                 }
@@ -231,7 +231,7 @@ struct ConsumeView: View {
             }
             if let cite = chunk.cite {
                 Text("Leitura complementar · \(cite)")
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .foregroundStyle(Palette.inkFaint)
                     .padding(.top, 22)
             }
@@ -248,7 +248,7 @@ struct ConsumeView: View {
     private func incomplete(_ model: ConsumeViewModel) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(verbatim: model.message)
-                .font(.atlas(.sans, 13.5))
+                .font(.atlas(.serif, 15))
                 .lineSpacing(3)
                 .foregroundStyle(Palette.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
@@ -271,16 +271,21 @@ struct ConsumeView: View {
             HStack(spacing: 6) {
                 Kicker("Checagem", tint: model.passed ? Palette.accent : Palette.inkMuted)
                 Spacer(minLength: 0)
-                if model.passed {
+                // "Entendido" only for a first-try answer. Tapping through the
+                // options until one turns green unlocks the next section too,
+                // but it is not the same evidence and it does not say so.
+                if model.passed && model.missed.isEmpty {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(Palette.accent)
                     Kicker("Entendido", tint: Palette.accent)
+                } else if model.passed {
+                    Kicker("Acertou depois de errar — releia o trecho", tint: Palette.amberInk)
                 }
             }
 
             Text(Markdown.rich(check.q))
-                .font(.atlas(.serif, 17.5))
+                .font(.atlas(.serif, 18.5))
                 .lineSpacing(4)
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -290,7 +295,7 @@ struct ConsumeView: View {
             // answered — by then the band under the options is the thing to read.
             if model.grade == nil {
                 Text("Responda com o que você acabou de ler — isso libera a próxima seção.")
-                    .font(.atlas(.sans, 12.5))
+                    .font(.atlas(.serif, 14))
                     .lineSpacing(2)
                     .foregroundStyle(Palette.inkFaint)
                     .fixedSize(horizontal: false, vertical: true)
@@ -331,7 +336,7 @@ struct ConsumeView: View {
         return VStack(alignment: .leading, spacing: 5) {
             Kicker(correct ? "Correto" : "Tente outra", tint: tint)
             Text(Markdown.rich(correct ? check.right : check.wrong))
-                .font(.atlas(.sans, 13.5))
+                .font(.atlas(.serif, 15))
                 .lineSpacing(3)
                 .foregroundStyle(Palette.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)

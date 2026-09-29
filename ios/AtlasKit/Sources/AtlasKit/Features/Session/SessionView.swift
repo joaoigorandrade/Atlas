@@ -50,6 +50,7 @@ struct SessionView: View {
         // launch. Backgrounding does not come through here, which is the point.
         .onDisappear {
             SessionViewModel.forget()
+            session?.summarize()
             if let shown = session?.phase { stopClock(shown) }
         }
         // The phase clock: foreground time only, reported per phase as it
