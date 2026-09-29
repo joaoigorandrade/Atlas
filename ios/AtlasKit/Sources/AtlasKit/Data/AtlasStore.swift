@@ -759,7 +759,12 @@ public extension AtlasStore {
         local.replace(topics: topics)
         adopt(profile)
         guard let wanted = topics.first(where: { $0.id == (topicId ?? Defaults.lastTopic) }) ?? topics.first
-        else { return }
+        else {
+            // Every map is gone from the server, the one on screen included:
+            // nothing is left to stay on, and saving it would make it again.
+            if topicId != nil { closeRun() }
+            return
+        }
         // Re-open when nothing was drawn, or when the server's copy of the open
         // map is newer than the one on disk — another device having moved it
         // on. Never over work this phone has not written yet: that would throw
@@ -767,7 +772,11 @@ public extension AtlasStore {
         // the learner is looking at this one.
         let drawn = mirrored.first { $0.id == wanted.id }
         let stale = drawn.map { ISODate.older($0.updatedAt, than: wanted.updatedAt) } ?? true
-        if graph.nodes.isEmpty || (stale && wanted.id == topicId && !unsaved) {
+        // The map drawn from disk is gone from the server — deleted on another
+        // device. Staying on it meant its first save 404'd and the retry made
+        // the deleted map again, whole. The library is the server's answer.
+        let deleted = topicId.map { open in !topics.contains { $0.id == open } } ?? false
+        if graph.nodes.isEmpty || deleted || (stale && wanted.id == topicId && !unsaved) {
             open(wanted)
         }
         // Outside the branch on purpose. Content is refreshed on every load,

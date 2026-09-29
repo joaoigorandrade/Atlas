@@ -97,3 +97,56 @@ private final class Stub: URLProtocol, @unchecked Sendable {
     #expect(store.maps.map(\.subject) == ["Cálculo I"])
     #expect(!store.saveFailed)
 }
+
+// MARK: - A map deleted on another device
+
+private let deletedId = "22222222-2222-4222-8222-222222222222"
+private let keptId = "33333333-3333-4333-8333-333333333333"
+
+private func row(_ id: String, _ subject: String) -> String {
+    """
+    {"id":"\(id)","subject":"\(subject)","goal":"exam","interests":"","paretoPct":20,
+     "examDate":"","updatedAt":"2026-09-01T10:00:00.000Z","calibSamples":[],"litToday":[],
+     "graph":{"nodes":[{"id":"a","label":"A"}],"edges":[]},"states":{},"positions":{},
+     "shakyReasons":{},"reviewedNodes":[],"consumeProgress":{},"cards":[]}
+    """
+}
+
+/// The server's library no longer has the map this phone drew from disk.
+private final class Pruned: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let path = request.url?.path ?? ""
+        let body = path.hasSuffix("/api/v1/bootstrap")
+            ? #"{"profile":\#(profileJSON),"topics":[\#(row(keptId, "Estoicismo"))]}"#
+            : path.contains("/api/v1/") ? #"{"ok":true}"# : sessionJSON
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+/// It used to stay open: its first save 404'd, and the retry re-created the
+/// map the learner had deleted — every node of it. Found testing on production.
+@MainActor
+@Test func aMapDeletedElsewhereIsNotKeptOpenOrMadeAgain() async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [Pruned.self]
+    let session = URLSession(configuration: config)
+    let host = URL(string: "https://atlas-pruned.test")!
+    let local = LocalStore(inMemory: true)
+    local.save(try JSONDecoder().decode(AtlasRun.self, from: Data(row(deletedId, "História Antiga").utf8)))
+    let store = AtlasStore(
+        api: AtlasAPI(baseURL: host, session: session),
+        auth: AtlasAuth(baseURL: host, session: session),
+        runs: RunStore(baseURL: host, session: session),
+        local: local
+    )
+    try await store.signIn(email: "a@b.c", password: "secret")
+    #expect(store.topicId == keptId)
+    #expect(store.subject == "Estoicismo")
+}
