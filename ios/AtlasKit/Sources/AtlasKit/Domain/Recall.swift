@@ -62,6 +62,6 @@ public struct RecallSession: Sendable {
     /// failed run.
     public func passed(_ content: RecallContent) -> Bool {
         guard !content.rubric.isEmpty else { return reported }
-        return score(content) >= Int((Double(content.rubric.count) * 2 / 3).rounded(.up))
+        return score(content) >= twoThirds(content.rubric.count)
     }
 }

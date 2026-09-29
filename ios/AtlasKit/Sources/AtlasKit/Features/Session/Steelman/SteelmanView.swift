@@ -117,19 +117,13 @@ struct SteelmanView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 6)
-                    TextField("Um achado, um documento, um fato…",
-                              text: Binding(get: { model.disconfirmer },
-                                            set: { model.disconfirmer = $0 }),
-                              axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .font(.atlas(.sans, 15))
-                        .lineLimit(2...5)
-                        .padding(13)
-                        .background(Palette.card, in: .rect(cornerRadius: 11))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 11)
-                                .strokeBorder(Palette.hairlineStrong, lineWidth: 1)
-                        }
+                    // The shared editor, mic included: every free-text answer in
+                    // the spiral can be said as well as typed.
+                    AnswerEditor(text: Binding(get: { model.disconfirmer },
+                                               set: { model.disconfirmer = $0 }),
+                                 placeholder: String(localized: "Um achado, um documento, um fato…"),
+                                 dictation: model.dictation,
+                                 minHeight: 88, tint: Palette.steelmanInk)
                         .padding(.top, 10)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -171,22 +165,14 @@ struct SteelmanView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(13)
-                    .background(Palette.card, in: .rect(cornerRadius: 11))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 11)
-                            .strokeBorder(Palette.hairlineStrong, lineWidth: 1)
-                    }
+                    .boxed(Palette.card, border: Palette.hairlineStrong)
             }
             .buttonStyle(.plain)
             .padding(.top, 10)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.steelmanBg, in: .rect(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Palette.steelmanBorder, lineWidth: 1)
-        }
+        .boxed(Palette.steelmanBg, border: Palette.steelmanBorder, radius: Metrics.panelRadius)
     }
 
     // MARK: - The report
@@ -259,10 +245,6 @@ struct SteelmanView: View {
         }
         .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.card, in: .rect(cornerRadius: 11))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
-        }
+        .boxed(Palette.card, border: Palette.hairline)
     }
 }

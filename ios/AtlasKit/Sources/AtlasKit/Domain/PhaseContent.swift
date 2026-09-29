@@ -93,12 +93,11 @@ public struct ConsumePrediction: Decodable, Sendable {
 
     /// A check the learner can actually get right, or nil.
     ///
-    /// The server refuses to write anything else (`validatePrediction`), but
-    /// `consume` is generated on the device, where no validator runs: a check
-    /// with no correct option is a gate that never opens, on a screen whose
-    /// only exit is the back arrow. An unusable check leaves the section
-    /// ungated, exactly like the pre-check content the model type already
-    /// tolerates.
+    /// The server refuses to write anything else (`validatePrediction`), but a
+    /// row cached before that validator existed is still served: a check with
+    /// no correct option is a gate that never opens, on a screen whose only
+    /// exit is the back arrow. An unusable check leaves the section ungated,
+    /// exactly like the pre-check content the model type already tolerates.
     var usable: ConsumePrediction? {
         opts.count >= 2 && opts.filter(\.correct).count == 1 ? self : nil
     }
@@ -107,8 +106,7 @@ public struct ConsumePrediction: Decodable, Sendable {
 /// How many sections a reading pass may run to — the mirror of
 /// `CONSUME_SECTION_BOUNDS` (`lib/curriculum/consume.ts`).
 ///
-/// The prompts were ported to the device; this bound was not, and it is the
-/// half that says when a pass is *finished*. Without it a stream that died
+/// It is the half that says when a pass is *finished*. Without it a stream that died
 /// after one section was indistinguishable from a concept that only needed
 /// one, so a truncated reading was cached, uploaded and re-served as a whole
 /// pass — see `WarmCache.fill(_:atLeast:live:)`.
@@ -220,11 +218,15 @@ public struct SocraticStep: Decodable, Sendable, Identifiable {
 }
 
 /// How many probes a written pass *plans* to run — its core steps, spares held
-/// back. Mirrors `socraticPlan` in `lib/curriculum/feynman.ts`.
+/// back. Mirrors `socraticPlan` in `lib/curriculum/feynman.ts`, down to the
+/// empty case: nothing written yet plans the default four, not one.
 public func socraticPlan(_ steps: [SocraticStep]) -> Int {
     let core = steps.filter { $0.spare != true }.count
-    return core > 0 ? core : max(steps.count, 1)
+    return core > 0 ? core : (steps.isEmpty ? socraticSteps : steps.count)
 }
+
+/// `SOCRATIC_STEPS` — the pass length a script with nothing in it yet plans.
+public let socraticSteps = 4
 
 public struct SocraticJudgement: Decodable, Sendable {
     public let quality: String

@@ -99,7 +99,7 @@ public struct ProduceSession: Sendable {
     /// speaker for years.
     public func passed(_ content: ProduceContent) -> Bool {
         guard !content.turns.isEmpty else { return done }
-        let bar = Int((Double(content.turns.count) * 2 / 3).rounded(.up))
+        let bar = twoThirds(content.turns.count)
         return score(content) >= bar && avoided(content).count <= 1
     }
 }

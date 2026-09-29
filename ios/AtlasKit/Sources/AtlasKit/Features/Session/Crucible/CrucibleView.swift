@@ -44,7 +44,7 @@ struct CrucibleView: View {
                     .font(.atlas(.sans, 14))
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.top, 8)
-                Text("Responda antes de ver o problema — depois dele a resposta já não mede nada. O Crisol compara o que você sentiu com o que aconteceu.")
+                Text("Responda antes de ver o problema — depois dele a resposta já não mede nada. O \(Phase.crucible.label) compara o que você sentiu com o que aconteceu.")
                     .font(.atlas(.sans, 13))
                     .foregroundStyle(Palette.inkFaint)
                     .padding(.top, 10)
@@ -113,7 +113,7 @@ struct CrucibleView: View {
             } else {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
                 if model.failed {
-                    Dock { CTAButton("Tentar de novo", tint: Palette.crucibleInk) { Task { await model.retryLoad() } } }
+                    Dock { CTAButton("Tentar de novo", tint: Palette.crucibleInk) { Task { await model.load() } } }
                 }
             }
         }
@@ -324,7 +324,7 @@ struct CrucibleView: View {
                 if judgement.passed {
                     // The plan decides what opens past the Crucible — a
                     // `concept` still owes Recall. Mirrors `advanceFromCrucible`.
-                    CTAButton(session.handOffLabel, tint: session.handOffTint) { session.advance() }
+                    CTAButton(session.handOffLabel, tint: session.handOffTint) { model.advance() }
                 } else if model.isSettled {
                     CTAButton("Voltar ao mapa", tint: Palette.crucibleInk) { navigator.pop() }
                 } else {

@@ -187,7 +187,6 @@ public final class SessionViewModel: Identifiable {
                 graph.edges.removeAll { $0.from == node.id || $0.to == node.id }
                 store.graph = graph
                 store.states[node.id] = nil
-                store.clearPass(node.id)
             }
             // Either way the pass is over: a gap node has no teach-back to
             // hand off to, so the map takes the screen back.
@@ -219,7 +218,7 @@ public final class SessionViewModel: Identifiable {
         // is a weakness to record, not a phase to hold open. The gap and the
         // Shaky reason carry it, and `stateFromPlan` keeps the node short of
         // Mastered while the gap stands.
-        store.completePhase(node, .socratic, shaky: .socraticTold)
+        store.completePhase(node, .socratic, closed: .failed(.socraticTold))
         // The flag on its own would be passive. A pass that had to be told
         // through is a reading that didn't land, so the hand-off runs backwards
         // — into the reading, reopened at the top with nothing collapsed.
@@ -229,7 +228,7 @@ public final class SessionViewModel: Identifiable {
         // second flag says the reading is not what is missing, so the pass ends
         // on the map with the foundations gap under the concept — the node the
         // learner can actually open and close.
-        guard !handedBackBefore else { return finished = true }
+        guard !handedBackBefore, node.plan.contains(.consume) else { return finished = true }
         store.reopen(reading: node.id)
         phase = .consume
     }
@@ -295,7 +294,7 @@ public final class SessionViewModel: Identifiable {
         // carried is cleared. What that makes the node is `stateFromPlan`'s
         // call, not a literal written here — which is the whole point: this used
         // to be the only path to green in the app.
-        store.completePhase(node, .crucible, shaky: .some(nil))
+        store.completePhase(node, .crucible, closed: .cleared)
     }
 
     /// A teach-back leaves its unresolved sub-points on the map: a beat the

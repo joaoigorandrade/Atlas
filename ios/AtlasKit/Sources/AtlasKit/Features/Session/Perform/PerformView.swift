@@ -74,11 +74,7 @@ struct PerformView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.performBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.performBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.performBg, border: Palette.performBorder, radius: Metrics.panelRadius)
                         .padding(.top, 14)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }

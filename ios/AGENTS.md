@@ -162,7 +162,9 @@ Sources/AtlasKit/
 own navigation is not an alternative here: a screen that reaches for
 `NavigationStack`, `NavigationLink`, `sheet(item:)` or `@Environment(\.dismiss)`
 has taken a stack the shell can no longer reset — which is what signing out
-needs, and what a session pushed from two tabs needs.
+needs, and what a session pushed from two tabs needs. The one exception is a
+phase's own input sheet (`VoiceSheet`, the Consume lens): it is bound to the
+live view model a route cannot carry, and it lives and dies with the phase.
 
 - `AtlasTab` is the tab bar (Início · Mapa · Revisão · Perfil). `NavigationTabView`
   renders it from `AtlasTabNavigator` and gives each tab its own `Navigator`, so

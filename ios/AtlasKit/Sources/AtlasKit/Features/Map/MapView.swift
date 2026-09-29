@@ -291,6 +291,7 @@ private struct NodeMark: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityHint(Text("Abrir o conceito"))
     }
 

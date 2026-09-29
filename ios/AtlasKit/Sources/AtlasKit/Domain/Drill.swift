@@ -43,6 +43,21 @@ public struct DrillContent: Decodable, Sendable {
     public let reps: [DrillRep]
 }
 
+extension DrillContent {
+    private enum CodingKeys: String, CodingKey { case nodeId, nodeLabel, reps }
+
+    /// A rep whose key points past its own answers can't be answered right —
+    /// it scored every learner wrong and failed the run on the model's slip.
+    /// Dropped here, so the gate counts only reps that can be won.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        nodeId = try c.decode(String.self, forKey: .nodeId)
+        nodeLabel = try c.decode(String.self, forKey: .nodeLabel)
+        reps = try c.decode([DrillRep].self, forKey: .reps)
+            .filter { $0.answers.indices.contains($0.answerIndex) }
+    }
+}
+
 public struct DrillSession: Sendable {
     public let nodeId: String
     public var index = 0
@@ -133,6 +148,6 @@ public struct DrillSession: Sendable {
     public func passed(_ content: DrillContent) -> Bool {
         guard !content.reps.isEmpty else { return done }
         if early(content) { return true }
-        return score(content) >= Int((Double(content.reps.count) * 2 / 3).rounded(.up))
+        return score(content) >= twoThirds(content.reps.count)
     }
 }

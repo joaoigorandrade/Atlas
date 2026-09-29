@@ -35,7 +35,9 @@ describe("reasonAfter", () => {
     expect(reasonAfter(concept, full, "recall", undefined, "crucible-fail")).toBe(
       "crucible-fail",
     );
-    expect(reasonAfter(concept, full, "crucible", undefined, "crucible-fail")).toBeUndefined();
+    expect(
+      reasonAfter(concept, full, "crucible", undefined, "crucible-fail"),
+    ).toBeUndefined();
     expect(primaryPhase(concept, full, "shaky")).toBe("crucible");
   });
 

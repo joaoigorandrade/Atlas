@@ -50,11 +50,7 @@ public struct AuthView: View {
                         .foregroundStyle(Palette.amberInk)
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.amberBg, in: .rect(cornerRadius: 10))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10)
-                                .strokeBorder(Palette.amberInk.opacity(0.2), lineWidth: 1)
-                        }
+                        .boxed(Palette.amberBg, border: Palette.amberInk.opacity(0.2), radius: 10)
                         .padding(.top, 16)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }

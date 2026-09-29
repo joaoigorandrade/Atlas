@@ -13,21 +13,6 @@ import SwiftUI
 // model: this sits on the onboarding path, where a round trip per answer would
 // be the whole experience.
 
-/// The shared field styling — the same box Steelman and the settings screen
-/// draw, kept in one place so three probes cannot drift apart.
-private struct ProbeField: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .textFieldStyle(.plain)
-            .padding(13)
-            .background(Palette.card, in: .rect(cornerRadius: 11))
-            .overlay {
-                RoundedRectangle(cornerRadius: 11)
-                    .strokeBorder(Palette.hairlineStrong, lineWidth: 1)
-            }
-    }
-}
-
 /// `formal`: the learner works it out. Checked arithmetically, so a comma
 /// decimal, a fraction and a percentage are all the same answer.
 struct ComputeAnswer: View {
@@ -41,7 +26,9 @@ struct ComputeAnswer: View {
                 .keyboardType(.numbersAndPunctuation)
                 .submitLabel(.done)
                 .onSubmit(send)
-                .modifier(ProbeField())
+                .textFieldStyle(.plain)
+                .padding(13)
+                .boxed(Palette.card, border: Palette.hairlineStrong)
             SubmitAnswer(disabled: value.trimmed.isEmpty, action: send)
         }
     }
@@ -66,7 +53,12 @@ struct SpeakAnswer: View {
                 text: $said, placeholder: String(localized: "Diga em voz alta…"),
                 dictation: dictation, minHeight: 92
             )
-            SubmitAnswer(disabled: said.trimmed.isEmpty) { onAnswer(.text(said)) }
+            // Sendable on words still being spoken, and those words go in
+            // first: the answer used to be sent without the second utterance.
+            SubmitAnswer(disabled: said.trimmed.isEmpty && dictation.heard.trimmed.isEmpty) {
+                dictation.flush()
+                onAnswer(.text(said))
+            }
         }
     }
 }
@@ -111,11 +103,7 @@ struct OrderAnswer: View {
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 14).padding(.vertical, 11)
-                        .background(Palette.card, in: .rect(cornerRadius: 11))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 11)
-                                .strokeBorder(Palette.hairlineStrong, lineWidth: 1)
-                        }
+                        .boxed(Palette.card, border: Palette.hairlineStrong)
                 }
                 .pressable()
             }

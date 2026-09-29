@@ -49,11 +49,13 @@ final class SteelmanViewModel {
     /// Both cases written, a side held, and a disconfirmer worth the name.
     var canSubmit: Bool {
         ready && session.holds != nil
-            && disconfirmer.trimmed.count >= 15 && !judging
+            && !missedForDisconfirmer && !judging
     }
     /// The close has to say which of the two happened: a thin side, or no real
     /// disconfirmer at all.
-    var missedForDisconfirmer: Bool { disconfirmer.trimmed.count < 15 }
+    var missedForDisconfirmer: Bool {
+        !SteelmanSession.written(disconfirmer, atLeast: SteelmanSession.disconfirmerFloor)
+    }
 
     func open(_ positionId: String) {
         editing = positionId

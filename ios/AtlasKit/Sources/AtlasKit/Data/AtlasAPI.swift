@@ -481,8 +481,9 @@ public actor AtlasAPI {
 }
 
 /// Request and response bodies are the learner's own material. The package
-/// redacts credentials, but the prose is theirs — it only ever goes to a debug
-/// console, never to a shipped build's log.
+/// redacts credential *headers*, not bodies — which is why `AtlasAuth`, whose
+/// bodies are the credentials, passes no logger at all — and the prose is
+/// theirs, so it only ever goes to a debug console, never to a shipped build's log.
 enum AtlasLog {
     /// For the handful of places that report a state rather than a request —
     /// an `?error=` the web started sending that this build does not know.

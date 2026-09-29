@@ -80,8 +80,7 @@ struct MapBackdrop: View {
         let prepared = PreparedGraph(graph)
         GeometryReader { geo in
             Canvas { context, size in
-                drawGraph(&context, prepared, shown, .fitting(graph, in: size, inset: 60),
-                          viewport: size, labels: false)
+                drawGraph(&context, prepared, shown, .fitting(graph, in: size, inset: 60), viewport: size)
             }
             .opacity(opacity)
             .animation(Motion.enter, value: graph.nodes.count)

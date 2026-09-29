@@ -108,11 +108,7 @@ struct ProvenanceView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.provenanceBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.provenanceBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.provenanceBg, border: Palette.provenanceBorder, radius: Metrics.panelRadius)
                         .padding(.top, 16)
                         .id(whyPanel)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -158,11 +154,7 @@ struct ProvenanceView: View {
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.provenanceBg, in: .rect(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Palette.provenanceBorder, lineWidth: 1)
-        }
+        .boxed(Palette.provenanceBg, border: Palette.provenanceBorder, radius: Metrics.panelRadius)
     }
 
     // MARK: - The report
@@ -208,11 +200,7 @@ struct ProvenanceView: View {
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.provenanceBg, in: .rect(cornerRadius: 12))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Palette.provenanceBorder, lineWidth: 1)
-                    }
+                    .boxed(Palette.provenanceBg, border: Palette.provenanceBorder, radius: Metrics.panelRadius)
                     .padding(.top, 18)
 
                     VStack(spacing: 2) {

@@ -112,6 +112,16 @@ public final class ReviewViewModel {
         return String(localized: "Você errou \(missed). Eles voltam cedo, e os nós deles reentraram no ciclo.")
     }
 
+    /// "Reensinar agora": move past the card and hand back the concept to open,
+    /// warmed — the other two entry points warm before they push, and a
+    /// session started from Review was always cold.
+    func reteach() -> ConceptNode? {
+        let node = failedNode
+        if let node { store.warmUp(store.owedPhase(node), for: node) }
+        advance()
+        return node
+    }
+
     /// The concept a missed card belongs to — what "reensinar agora" opens.
     public var failedNode: ConceptNode? {
         guard let card else { return nil }

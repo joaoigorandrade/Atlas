@@ -10,6 +10,13 @@ final class NodeDetailViewModel {
     let node: ConceptNode
     private let store: AtlasStore
 
+    /// Opening the drawer is the clearest statement of intent there is:
+    /// whatever phase this node is owed is about to be started, so it is
+    /// written now rather than after the tap.
+    func warm() {
+        if let action { store.warmUp(action, for: node) }
+    }
+
     init(node: ConceptNode, store: AtlasStore) {
         self.node = node
         self.store = store
@@ -68,7 +75,8 @@ final class NodeDetailViewModel {
         // not to start something new.
         if state == .learning, store.reading(node.id)?.finished == false { return "Retomar a leitura" }
         return switch state {
-        case .frontier: "Começar · Consume"
+        // The phase the plan opens on, as `action` opens it — not a name.
+        case .frontier: "Começar · \(action?.label ?? Phase.consume.label)"
         // Named after the phase the button actually opens. A fixed "Feynman"
         // here was a label for one of the three phases `.learning` can owe:
         // a node whose reading is done but never handed off is owed Socratic,

@@ -95,7 +95,7 @@ public struct ProvenanceSession: Sendable {
     /// survives a two-thirds score untouched.
     public func passed(_ content: ProvenanceContent) -> Bool {
         guard !content.claims.isEmpty else { return done }
-        let bar = Int((Double(content.claims.count) * 2 / 3).rounded(.up))
+        let bar = twoThirds(content.claims.count)
         return score(content) >= bar && overtrusted(content).count <= 1
     }
 }

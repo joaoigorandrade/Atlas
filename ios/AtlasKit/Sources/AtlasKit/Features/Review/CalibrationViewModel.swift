@@ -30,7 +30,7 @@ final class CalibrationViewModel {
     func reading(_ item: CalibItem) -> LocalizedStringKey {
         switch item.verdict {
         case .over:
-            "Você se dá \(item.felt)% e entrega \(item.real)%. Isso é fluência, não domínio — vale um novo Crisol aqui."
+            "Você se dá \(item.felt)% e entrega \(item.real)%. Isso é fluência, não domínio — vale um novo \(Phase.crucible.label) aqui."
         case .under:
             "Você se avalia em \(item.felt)% e entrega \(item.real)%. Sabe mais do que acha; pode acelerar aqui."
         case .ok:

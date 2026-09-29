@@ -34,5 +34,8 @@ final class ProfileViewModel {
             : "\(due) pendentes · ~\(Int((Double(due) * cardMinutes).rounded())) min hoje"
     }
 
+    /// The sign-out dialog is up.
+    var confirmingSignOut = false
+
     func signOut() async { await store.signOut() }
 }

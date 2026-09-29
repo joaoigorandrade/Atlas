@@ -20,11 +20,7 @@ public struct HomeView: View {
         .background(Palette.paper)
         .task {
             if model == nil { model = HomeViewModel(store: store) }
-            // Home is the other door into Review, and it used to be the cold
-            // one: only the map warmed the card draft, so opening Review from
-            // here meant watching it be written. A run whose nodes are all
-            // covered returns from this immediately.
-            store.warmRetain()
+            model?.warm()
         }
     }
 

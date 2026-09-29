@@ -77,7 +77,10 @@ private let misconceptionCap = 24
 public func recordMisconception(
     _ list: [MisconceptionRecord], _ label: String, node: String
 ) -> [MisconceptionRecord] {
-    let text = String(label.trimmed.prefix(120))
+    // 120 UTF-16 units, as the web's `slice(0, 120)` — the stored label is
+    // shared, and graphemes cut emoji-bearing text somewhere else.
+    let trimmed = label.trimmed
+    let text = String(trimmed.utf16.prefix(120)) ?? String(trimmed.prefix(120))
     guard !text.isEmpty else { return list }
     var next = list
     if let at = next.firstIndex(where: { $0.label.lowercased() == text.lowercased() }) {

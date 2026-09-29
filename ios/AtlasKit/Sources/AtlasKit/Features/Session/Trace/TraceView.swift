@@ -119,11 +119,7 @@ struct TraceView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.traceBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.traceBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.traceBg, border: Palette.traceBorder, radius: Metrics.panelRadius)
                         .padding(.top, 18)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }

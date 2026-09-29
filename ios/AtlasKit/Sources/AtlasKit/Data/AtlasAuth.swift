@@ -26,7 +26,9 @@ public actor AtlasAuth {
             baseURL: baseURL,
             session: session,
             successStatusCodes: 0..<600,
-            logger: AtlasLog.logger
+            // Never logged, not even in DEBUG: the package redacts headers, not
+            // bodies, and these bodies are the password and both tokens.
+            logger: nil
         )
     }
 

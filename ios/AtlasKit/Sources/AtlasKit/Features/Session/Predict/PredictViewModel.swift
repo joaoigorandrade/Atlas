@@ -48,6 +48,14 @@ final class PredictViewModel {
     var early: Bool { content.map(session.early) ?? false }
     var answered: Int { session.forecasts.count }
 
+    /// The report's rows: the forecasts actually made — see
+    /// `DiscriminateViewModel.report` for why the unreached are left out.
+    var report: [(setup: PredictSetup, right: Bool, sure: Int?)] {
+        (content?.setups ?? []).compactMap { setup in
+            session.forecasts[setup.id].map { (setup, $0 == setup.answerIndex, session.sureness[setup.id]) }
+        }
+    }
+
     var rail: [Color?] {
         guard let content else { return [] }
         return content.setups.map { setup in

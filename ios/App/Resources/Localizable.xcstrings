@@ -1,6 +1,46 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "%@%@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@%@%@"
+          }
+        }
+      }
+    },
+    "%@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@%@"
+          }
+        }
+      }
+    },
+    "— %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— %@"
+          }
+        }
+      }
+    },
+    "%@ — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — %@"
+          }
+        }
+      }
+    },
     "“%@” é um continente, não um mapa. Escolha um território para começar:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -85,6 +125,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ and everything under it was marked as known."
+          }
+        }
+      }
+    },
+    "carregar sua revisão" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "load your review"
+          }
+        }
+      }
+    },
+    "Defendido por %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Held by %@"
+          }
+        }
+      }
+    },
+    "Escrever…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write…"
+          }
+        }
+      }
+    },
+    "Ouvindo o que você disse…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening to what you said…"
           }
         }
       }
@@ -1658,13 +1738,12 @@
         }
       }
     },
-    "Começar · Consume" : {
-      "extractionState" : "stale",
+    "Começar · %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Begin · Consume"
+            "value" : "Begin · %@"
           }
         }
       }
@@ -2542,17 +2621,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In progress"
-          }
-        }
-      }
-    },
-    "Em construção" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Under construction"
           }
         }
       }
@@ -5656,13 +5724,12 @@
         }
       }
     },
-    "Reler isto primeiro · Consume →" : {
-      "extractionState" : "stale",
+    "Reler isto primeiro · %@ →" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Re-read this first · Consume →"
+            "value" : "Re-read this first · %@ →"
           }
         }
       }
@@ -5711,13 +5778,12 @@
         }
       }
     },
-    "Responda antes de ver o problema — depois dele a resposta já não mede nada. O Crisol compara o que você sentiu com o que aconteceu." : {
-      "extractionState" : "stale",
+    "Responda antes de ver o problema — depois dele a resposta já não mede nada. O %@ compara o que você sentiu com o que aconteceu." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Answer before you see the problem — afterwards the answer measures nothing. The Crucible holds what you felt against what happened."
+            "value" : "Answer before you see the problem — afterwards the answer measures nothing. The %@ holds what you felt against what happened."
           }
         }
       }
@@ -7160,13 +7226,12 @@
         }
       }
     },
-    "Você se dá %lld%% e entrega %lld%%. Isso é fluência, não domínio — vale um novo Crisol aqui." : {
-      "extractionState" : "stale",
+    "Você se dá %lld%% e entrega %lld%%. Isso é fluência, não domínio — vale um novo %@ aqui." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You give yourself %lld%% and deliver %lld%%. That's fluency, not mastery — worth another Crucible here."
+            "value" : "You give yourself %lld%% and deliver %lld%%. That's fluency, not mastery — worth another %@ here."
           }
         }
       }

@@ -26,6 +26,9 @@ final class SettingsViewModel {
         exportedCards = makeExportedCards()
     }
 
+    func choose(goal: GoalKind) { store.goal = goal }
+    func choose(dailyTarget minutes: Int) { store.dailyTarget = minutes }
+
     func askToDelete() { confirmingDelete = true }
     func cancelDelete() { confirmingDelete = false }
 

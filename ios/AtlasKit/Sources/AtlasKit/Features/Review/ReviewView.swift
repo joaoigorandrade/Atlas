@@ -7,6 +7,7 @@ public struct ReviewView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
     @EnvironmentObject private var tabs: AtlasTabNavigator
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var model: ReviewViewModel?
 
     public init() {}
@@ -308,7 +309,10 @@ public struct ReviewView: View {
             case .reveal:
                 VStack(alignment: .leading, spacing: 9) {
                     Kicker("Como foi?", size: 10)
-                    HStack(spacing: 7) {
+                    // Four in a row overflow at accessibility sizes; they stack.
+                    let row = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(spacing: 7)) : AnyLayout(HStackLayout(spacing: 7))
+                    row {
                         ForEach(ReviewGrade.allCases) { grade in
                             Button { model.grade(grade) } label: {
                                 VStack(spacing: 2) {
@@ -323,8 +327,7 @@ public struct ReviewView: View {
                                 }
                                 .foregroundStyle(grade.tint)
                                 .frame(maxWidth: .infinity, minHeight: Metrics.cta)
-                                .background(Palette.card, in: .rect(cornerRadius: 11))
-                                .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(grade.tint, lineWidth: 1) }
+                                .boxed(Palette.card, border: grade.tint)
                             }
                             .pressable()
                         }
@@ -332,12 +335,7 @@ public struct ReviewView: View {
                 }
             case .failed:
                 CTAButton("Reensinar agora", tint: NodeState.shaky.color) {
-                    guard let node = model.failedNode else { return model.advance() }
-                    // The other two entry points warm before they push; a
-                    // session started from Review was always cold.
-                    store.warmUp(store.owedPhase(node), for: node)
-                    model.advance()
-                    navigator.navigate(to: .session(node, phase: nil))
+                    if let node = model.reteach() { navigator.navigate(to: .session(node, phase: nil)) }
                 }
                 GhostButton("Agendar e continuar") { model.advance() }
             }

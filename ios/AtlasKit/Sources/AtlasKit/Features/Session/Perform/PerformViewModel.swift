@@ -67,15 +67,6 @@ final class PerformViewModel {
         withAnimation(Motion.standard) { session.nudged = true }
     }
 
-    func listen() {
-        guard !dictation.listening else { return }
-        dictation.toggle { [weak self] in self?.dictated($0) }
-    }
-
-    func dictated(_ text: String) {
-        work += work.isEmpty ? text : " \(text)"
-    }
-
     /// A re-run keeps the case and clears the work: running it again is the
     /// point, and the case is the same case.
     func rerun() {

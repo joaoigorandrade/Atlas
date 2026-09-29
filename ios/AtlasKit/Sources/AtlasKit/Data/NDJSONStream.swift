@@ -57,7 +57,8 @@ struct NDJSONStreamer: Sendable {
                     }
                     try emit(line)
                     continuation.finish()
-                } catch let error as URLError where error.code == .notConnectedToInternet {
+                } catch let error as URLError
+                    where [.notConnectedToInternet, .networkConnectionLost, .dataNotAllowed].contains(error.code) {
                     // The unary path says "offline" (`AtlasError.transport`); a
                     // raw `URLError` here fell through to the generic sentence.
                     continuation.finish(throwing: AtlasError(code: "offline", message: "no connection"))

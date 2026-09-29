@@ -67,15 +67,6 @@ final class RecallViewModel {
         withAnimation(Motion.standard) { session.cued = true }
     }
 
-    func listen() {
-        guard !dictation.listening else { return }
-        dictation.toggle { [weak self] in self?.dictated($0) }
-    }
-
-    func dictated(_ text: String) {
-        written += written.isEmpty ? text : " \(text)"
-    }
-
     /// A second attempt starts from a blank page. Leaving the first answer in
     /// the box turns retrieval into an edit of a report they have now read.
     func again() {

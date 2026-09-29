@@ -109,11 +109,7 @@ struct PredictView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.predictBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.predictBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.predictBg, border: Palette.predictBorder, radius: Metrics.panelRadius)
                         .padding(.top, 18)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
@@ -209,7 +205,7 @@ struct PredictView: View {
                     }
 
                     VStack(spacing: 2) {
-                        ForEach(content.setups) { setup in row(setup, model) }
+                        ForEach(model.report, id: \.setup.id) { row($0.setup, right: $0.right, sure: $0.sure) }
                     }
                     .padding(.top, 20)
                 }
@@ -225,10 +221,8 @@ struct PredictView: View {
         .sensoryFeedback(model.passed ? .success : .warning, trigger: model.reported)
     }
 
-    private func row(_ setup: PredictSetup, _ model: PredictViewModel) -> some View {
-        let right = model.session.forecasts[setup.id] == setup.answerIndex
-        let sure = model.session.sureness[setup.id]
-        return HStack(alignment: .top, spacing: 11) {
+    private func row(_ setup: PredictSetup, right: Bool, sure: Int?) -> some View {
+        HStack(alignment: .top, spacing: 11) {
             Circle()
                 .fill(right ? NodeState.mastered.color : NodeState.shaky.color)
                 .frame(width: 7, height: 7)

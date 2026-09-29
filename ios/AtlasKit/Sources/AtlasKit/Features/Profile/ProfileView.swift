@@ -8,7 +8,6 @@ struct ProfileView: View {
     @EnvironmentObject private var navigator: AtlasNavigator
     @EnvironmentObject private var tabs: AtlasTabNavigator
     @State private var model: ProfileViewModel?
-    @State private var confirmingSignOut = false
 
     var body: some View {
         Group {
@@ -102,7 +101,8 @@ struct ProfileView: View {
     // MARK: - The way out
 
     private func rows(_ model: ProfileViewModel) -> some View {
-        VStack(spacing: 0) {
+        @Bindable var model = model
+        return VStack(spacing: 0) {
             Button { navigator.navigate(to: .settings) } label: {
                 row("Preferências e notificações", "Meta diária, idioma, voz")
             }
@@ -111,12 +111,12 @@ struct ProfileView: View {
                 row("Cronograma de revisão", model.queueLine)
             }
             Divider().overlay(Palette.hairline)
-            Button { confirmingSignOut = true } label: {
+            Button { model.confirmingSignOut = true } label: {
                 row("Sair", nil, tint: NodeState.gap.color)
             }
             // It sits directly under two navigation rows in the same card, and
             // the tap is not undoable.
-            .confirmationDialog("Sair da sua conta?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
+            .confirmationDialog("Sair da sua conta?", isPresented: $model.confirmingSignOut, titleVisibility: .visible) {
                 Button("Sair", role: .destructive) { Task { await model.signOut() } }
                 Button("Cancelar", role: .cancel) {}
             }

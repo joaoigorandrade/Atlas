@@ -157,6 +157,10 @@ public enum Metrics {
     public static let ctaHero: CGFloat = 58
     public static let cardRadius: CGFloat = 16
     public static let sheetRadius: CGFloat = 20
+    /// An answer field, or a choice drawn as one.
+    public static let fieldRadius: CGFloat = 11
+    /// A phase's tinted panel — the case, the claim, the rep.
+    public static let panelRadius: CGFloat = 12
 }
 
 public extension Color {

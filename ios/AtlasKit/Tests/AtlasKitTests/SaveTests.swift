@@ -69,8 +69,12 @@ private final class Stub: URLProtocol, @unchecked Sendable {
     // Keyed by host because the tests below run in parallel against the same
     // static: each one gets its own hostname and only sees its own requests.
     static func saw(_ method: String, _ path: String, host: String) -> Bool {
+        count(method, path, host: host) > 0
+    }
+
+    static func count(_ method: String, _ path: String, host: String) -> Int {
         lock.withLock {
-            requests.contains { $0.host == host && $0.method == method && $0.path.contains(path) }
+            requests.count { $0.host == host && $0.method == method && $0.path.contains(path) }
         }
     }
 
@@ -100,10 +104,20 @@ extension URLProtocol {
     }
 }
 
+/// Poll rather than sleep through the real debounce: the store is paced in
+/// milliseconds here (`pacing`), and this waits only as long as it takes.
+@MainActor
+private func eventually(within limit: Duration = .seconds(5), _ met: () -> Bool) async {
+    let clock = ContinuousClock()
+    let end = clock.now + limit
+    while !met(), clock.now < end { try? await Task.sleep(for: .milliseconds(20)) }
+}
+
 /// A signed-in store with a topic open — what every case below starts from.
 @MainActor
 private func opened(_ host: URL, _ session: URLSession) async throws -> AtlasStore {
     let store = store(host: host, session: session)
+    store.pacing = (.milliseconds(50), .milliseconds(150))
     // Nothing is saved until the store knows it is being written by a learner
     // rather than filled in — `restore` is what ends that quiet.
     await store.restore()
@@ -126,7 +140,7 @@ private func opened(_ host: URL, _ session: URLSession) async throws -> AtlasSto
     store.graph = ConceptGraph(nodes: [ConceptNode(id: "lat", label: "Limites laterais")])
 
     // Nobody calls `saveNow` here on purpose: the debounce is the whole subject.
-    try await Task.sleep(for: .seconds(3))
+    await eventually { Stub.saw("PATCH", "/api/v1/topics/\(topicId)/nodes", host: host.host()!) }
     #expect(Stub.saw("PATCH", "/api/v1/topics/\(topicId)/nodes", host: host.host()!))
     #expect(store.maps.contains { $0.subject == "Cálculo I" })
 }
@@ -274,7 +288,26 @@ private final class Expired: URLProtocol, @unchecked Sendable {
     // arms lands the work — rather than it sitting on the phone all afternoon.
     #expect(Expired.counts.refreshes >= 1)
     #expect(store.session?.accessToken == "fresh")
-    try await Task.sleep(for: .seconds(16))
+    await eventually { Expired.counts.writes >= 2 && !store.saveFailed }
     #expect(Expired.counts.writes >= 2)
     #expect(!store.saveFailed)
+}
+
+/// Two writes started together used to run together: both diffed against the
+/// same baseline and sent the same node twice — and could land out of order.
+/// Now the second waits for the first, finds nothing left, and sends nothing.
+@MainActor
+@Test func twoSavesAtOnceSendEachChangeOnce() async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [Stub.self]
+    let session = URLSession(configuration: config)
+    let host = URL(string: "https://atlas-serial.test")!
+
+    let store = try await opened(host, session)
+    await store.saveNow()
+    store.graph = ConceptGraph(nodes: [ConceptNode(id: "lat", label: "Limites laterais")])
+    async let first: Void = store.saveNow()
+    async let second: Void = store.saveNow()
+    _ = await (first, second)
+    #expect(Stub.count("PATCH", "/api/v1/topics/\(topicId)/nodes", host: host.host()!) == 1)
 }

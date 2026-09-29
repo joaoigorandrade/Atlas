@@ -100,11 +100,7 @@ struct DrillView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.drillBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.drillBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.drillBg, border: Palette.drillBorder, radius: Metrics.panelRadius)
                         .padding(.top, 18)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }

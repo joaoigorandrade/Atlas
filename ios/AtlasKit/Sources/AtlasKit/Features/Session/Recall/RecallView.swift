@@ -74,11 +74,7 @@ struct RecallView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.recallBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.recallBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.recallBg, border: Palette.recallBorder, radius: Metrics.panelRadius)
                         .padding(.top, 14)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }

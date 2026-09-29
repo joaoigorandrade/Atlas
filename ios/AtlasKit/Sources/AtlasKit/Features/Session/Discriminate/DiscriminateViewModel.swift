@@ -45,6 +45,16 @@ final class DiscriminateViewModel {
     var early: Bool { content.map(session.early) ?? false }
     var answered: Int { session.calls.count }
 
+    /// The report's rows: the cases actually called, and whether each was
+    /// read right. An early exit used to list the unreached ones in amber as
+    /// "Lido errado" — under a verdict that said the run ended early — and
+    /// spoiled what decides each one.
+    var report: [(item: DiscriminateCase, right: Bool)] {
+        (content?.cases ?? []).compactMap { item in
+            session.calls[item.id].map { (item, $0 == item.answerIndex) }
+        }
+    }
+
     /// One capsule per case: green for a case read correctly, amber for a miss,
     /// hollow for one not reached. The rail is the only progress this screen has.
     var rail: [Color?] {

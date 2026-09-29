@@ -109,11 +109,7 @@ struct DiscriminateView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.discriminateBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.discriminateBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.discriminateBg, border: Palette.discriminateBorder, radius: Metrics.panelRadius)
                         .padding(.top, 16)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
@@ -168,7 +164,7 @@ struct DiscriminateView: View {
                     }
 
                     VStack(spacing: 2) {
-                        ForEach(content.cases) { item in row(item, model) }
+                        ForEach(model.report, id: \.item.id) { row($0.item, right: $0.right) }
                     }
                     .padding(.top, 20)
                 }
@@ -184,9 +180,8 @@ struct DiscriminateView: View {
         .sensoryFeedback(model.passed ? .success : .warning, trigger: model.reported)
     }
 
-    private func row(_ item: DiscriminateCase, _ model: DiscriminateViewModel) -> some View {
-        let right = model.session.calls[item.id] == item.answerIndex
-        return HStack(alignment: .top, spacing: 11) {
+    private func row(_ item: DiscriminateCase, right: Bool) -> some View {
+        HStack(alignment: .top, spacing: 11) {
             Circle()
                 .fill(right ? NodeState.mastered.color : NodeState.shaky.color)
                 .frame(width: 7, height: 7)

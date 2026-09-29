@@ -114,18 +114,33 @@ public func stateFromPlan(
     return !done.isEmpty || started ? .learning : .unknown
 }
 
-/// The Shaky reason a node carries after closing `phase`. `shaky` is how the
-/// phase closed: `.some(reason)` on a failed gate, `.some(nil)` when it cleared
-/// one, `nil` for a plain pass — which leaves `held` standing, except on a clean
+/// How a phase closed, as far as a Shaky reason goes. Three cases rather than a
+/// `ShakyReason??`: passing a `ShakyReason?` *variable* there silently became
+/// `.some(x)`, so a nil one cleared the reason instead of leaving it.
+public enum Closing: Sendable, Equatable {
+    /// A plain pass — the held reason stands (see `reasonAfter`).
+    case passed
+    /// A failed gate, and why.
+    case failed(ShakyReason)
+    /// A gate that proved the node, clearing whatever it held.
+    case cleared
+}
+
+/// The Shaky reason a node carries after closing `phase` the way `closed`
+/// says. A plain pass leaves `held` standing, except on a clean
 /// close of the plan's `proofGate` over a full ledger. That is the gate a Shaky
 /// node's CTA re-opens (`primaryPhase`). Not the last gate: a concept plan ends
 /// on Recall, and passing Recall must not clear a Crucible failure.
 /// Mirrors `reasonAfter` in `calibration.ts`.
 public func reasonAfter(
     _ plan: [Phase], _ done: [Phase], _ phase: Phase,
-    shaky: ShakyReason??, held: ShakyReason?
+    closed: Closing = .passed, held: ShakyReason?
 ) -> ShakyReason? {
-    if let shaky { return shaky }
+    switch closed {
+    case .failed(let reason): return reason
+    case .cleared: return nil
+    case .passed: break
+    }
     return phase == proofGate(plan) && planGates(plan).allSatisfy(done.contains) ? nil : held
 }
 

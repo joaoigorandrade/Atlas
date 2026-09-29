@@ -9,12 +9,30 @@ import SwiftUI
 @Observable
 @MainActor
 final class SocraticViewModel {
+    /// The browser's bubble vocabulary, and what the row stores — so a pass
+    /// reopens reading the way it was left, on either client. The judge's
+    /// `quality` maps onto it once, here: `REPLY_TONE` in `socratic.ts`. (It
+    /// was a string both ways, and `partial` mapped to nothing.)
+    enum Tone: String {
+        case affirm, neutral, `catch`, teach
+
+        init?(quality: String) {
+            switch quality {
+            case "correct", "partial": self = .affirm
+            case "near": self = .neutral
+            case "wrong": self = .catch
+            case "lost": self = .teach
+            default: return nil
+            }
+        }
+    }
+
     struct Turn: Identifiable {
         let id = UUID()
         let learner: Bool
         let text: String
         /// A caught error, an affirmation or direct teaching — the bubble's tone.
-        var quality: String?
+        var tone: Tone?
         /// Which classic Socratic move a probe is making. Written on the
         /// opening probe of a step and nothing else, which is also what tells
         /// a restored transcript a probe from a verdict.
@@ -70,6 +88,7 @@ final class SocraticViewModel {
     private var tells = 0
     /// The pass has been handed on — by the CTA, the phase bar or leaving.
     private var settled = false
+    private var watching = false
     /// The judge in flight, cancelled on the way out: one landing after the
     /// screen is gone could close the last step and clear the saved pass.
     private var judgeCall: Task<SocraticJudgement, Error>?
@@ -142,7 +161,7 @@ final class SocraticViewModel {
         switch (outcome, gapPass) {
         case (.flagged, true): "Voltar ao mapa →"
         case (.flagged, false):
-            handedBackBefore ? "Abrir a lacuna no mapa →" : "Reler isto primeiro · Consume →"
+            handedBackBefore ? "Abrir a lacuna no mapa →" : "Reler isto primeiro · \(Phase.consume.label) →"
         case (_, true): "Fechar a lacuna · voltar ao mapa →"
         default: session.handOffLabel
         }
@@ -211,11 +230,13 @@ final class SocraticViewModel {
         landed()
     }
 
-    func retry() async { await load() }
-
+    /// One watch at a time: each retry armed another, and they piled up.
     private func watchSteps() {
+        guard !watching else { return }
+        watching = true
         withObservationTracking { _ = steps.count } onChange: {
             Task { @MainActor in
+                self.watching = false
                 self.landed()
                 if self.writing { self.watchSteps() }
             }
@@ -320,7 +341,7 @@ final class SocraticViewModel {
         // more nudge nobody can act on.
         if help + 1 >= 3 { return teach() }
         help += 1
-        log.append(Turn(learner: false, text: current.hint, quality: "near"))
+        log.append(Turn(learner: false, text: current.hint, tone: .neutral))
         save()
     }
 
@@ -345,7 +366,7 @@ final class SocraticViewModel {
     private func teach() {
         guard let current = steps[safe: step] else { return }
         help = 3
-        log.append(Turn(learner: false, text: current.tell, quality: "lost"))
+        log.append(Turn(learner: false, text: current.tell, tone: .teach))
         close(.told)
     }
 
@@ -373,7 +394,7 @@ final class SocraticViewModel {
             guard !call.isCancelled else { return }
             let named = verdict.misconception?.trimmed
             log.append(Turn(
-                learner: false, text: verdict.response, quality: verdict.quality,
+                learner: false, text: verdict.response, tone: Tone(quality: verdict.quality),
                 misconception: verdict.quality == "correct" ? nil : (named?.isEmpty == false ? named : nil)
             ))
             // Filed run-wide before it scrolls out of the transcript: this pass
@@ -455,7 +476,7 @@ final class SocraticViewModel {
             log: log.map {
                 SocraticSnapshot.Turn(
                     role: $0.learner ? "learner" : "ai", text: $0.text,
-                    move: $0.move, tone: Self.tone(for: $0)
+                    move: $0.move, tone: $0.learner || $0.move != nil ? nil : $0.tone?.rawValue
                 )
             },
             ruledOut: [], tells: tells, resolutions: resolutions,
@@ -464,29 +485,6 @@ final class SocraticViewModel {
         )
     }
 
-    /// The browser colours a bubble by `tone`; this client keeps the judge's
-    /// own `quality`. One mapping, both directions, so a saved pass reopens
-    /// reading the way it read when it was left.
-    private static func tone(for turn: Turn) -> String? {
-        guard !turn.learner, turn.move == nil else { return nil }
-        switch turn.quality {
-        case "correct": return "affirm"
-        case "near": return "neutral"
-        case "wrong": return "catch"
-        case "lost": return "teach"
-        default: return nil
-        }
-    }
-
-    private static func quality(for tone: String?) -> String? {
-        switch tone {
-        case "affirm": "correct"
-        case "neutral": "near"
-        case "catch": "wrong"
-        case "teach": "lost"
-        default: nil
-        }
-    }
 
     private func save() {
         // A finished pass is not resumable — the row has to say so, or the next
@@ -518,7 +516,7 @@ final class SocraticViewModel {
         log = saved.log.map {
             Turn(
                 learner: $0.role == "learner", text: $0.text,
-                quality: Self.quality(for: $0.tone), move: $0.move
+                tone: $0.tone.flatMap(Tone.init(rawValue:)), move: $0.move
             )
         }
     }

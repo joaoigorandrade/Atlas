@@ -31,6 +31,8 @@ public final class OnboardingViewModel {
 
     /// The placement is opt-in: nothing is asked until the fork is answered.
     public private(set) var takingPlacement = false
+    /// A continent is being created — see `chartAll`.
+    public private(set) var charting = false
     /// The first question never arrived. The fork keeps the map and drops the
     /// offer rather than sending the learner into a test that cannot be asked.
     public private(set) var placementUnavailable = false
@@ -267,9 +269,12 @@ public final class OnboardingViewModel {
     /// Every offer as one continent: build the first now, and leave the rest
     /// as uncharted land to chart from "Seus mapas" (`chartAll` on the web).
     public func chartAll() {
-        guard let first = scopes.first else { return }
+        // A double tap made two continents: `scopes` only clears after the await.
+        guard !charting, let first = scopes.first else { return }
+        charting = true
         let offers = scopes
         Task {
+            defer { charting = false }
             do {
                 let continent = try await store.createContinent(name: form.topic, scopes: offers)
                 pick(first, into: continent.id)
@@ -339,9 +344,8 @@ public final class OnboardingViewModel {
         guard verdict == nil, let question = questions[safe: answered] else { return }
         let correct = gradeDiagnostic(question, given)
         let effect = diagnosticEffect(question.difficulty, correct: correct, maxCorrect: maxCorrect)
-        let ladder = DiagnosticDifficulty.allCases
-        if correct,
-           maxCorrect == nil || ladder.firstIndex(of: question.difficulty)! > ladder.firstIndex(of: maxCorrect!)! {
+        let rank = { (level: DiagnosticDifficulty) in DiagnosticDifficulty.allCases.firstIndex(of: level) ?? 0 }
+        if correct, maxCorrect.map({ rank(question.difficulty) > rank($0) }) ?? true {
             maxCorrect = question.difficulty
         }
         states = applyDiagnosticEffect(states, effect, nodeId: question.nodeId, edges: graph.edges)

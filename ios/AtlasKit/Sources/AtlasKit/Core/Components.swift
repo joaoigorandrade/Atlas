@@ -96,6 +96,15 @@ public struct Card<Content: View>: View {
     }
 }
 
+public extension View {
+    /// A filled box with a one-point border — the answer field and a phase's
+    /// tinted panel, which twenty call sites used to write out by hand.
+    func boxed(_ fill: Color, border: Color, radius: CGFloat = Metrics.fieldRadius) -> some View {
+        background(fill, in: .rect(cornerRadius: radius))
+            .overlay { RoundedRectangle(cornerRadius: radius).strokeBorder(border, lineWidth: 1) }
+    }
+}
+
 /// `.cta` — the one primary action on a screen. Tint carries the phase colour.
 public struct CTAButton: View {
     private let title: LocalizedStringKey
@@ -541,6 +550,10 @@ public struct Avatar: View {
     public var body: some View {
         Text(initials)
             .font(.atlas(.mono, size * 0.38, weight: .semibold))
+            // The disc is a fixed size; at accessibility type the letters
+            // shrink into it rather than clipping at its edge.
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
             .foregroundStyle(Palette.accentInk)
             .frame(width: size, height: size)
             .background(Palette.ink, in: .circle)
@@ -552,20 +565,5 @@ public struct Avatar: View {
         let parts = name.split(whereSeparator: { ".-_+".contains($0) }).prefix(2)
         let letters = parts.compactMap(\.first).map { String($0) }.joined()
         return letters.isEmpty ? "A" : letters.uppercased()
-    }
-}
-
-/// A screen that has a slot in the shell but no implementation yet.
-/// Delete each one as ios/PLAN.md's screen table is worked through.
-struct Pending: View {
-    let name: LocalizedStringKey
-    init(_ name: LocalizedStringKey) { self.name = name }
-    var body: some View {
-        VStack(spacing: 8) {
-            Kicker("Em construção")
-            Text(name).font(.atlas(.serif, 26)).foregroundStyle(Palette.ink)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Palette.paper)
     }
 }

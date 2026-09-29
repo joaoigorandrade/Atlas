@@ -36,7 +36,7 @@ struct SettingsView: View {
                     field("Objetivo", "orienta o que priorizamos") {
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
                             ForEach(GoalKind.allCases, id: \.self) { goal in
-                                choice(goal.label, on: store.goal == goal) { store.goal = goal }
+                                choice(goal.label, on: store.goal == goal) { model.choose(goal: goal) }
                             }
                         }
                     }
@@ -44,7 +44,7 @@ struct SettingsView: View {
                     field("Meta diária", "unidade de sequência") {
                         HStack(spacing: 9) {
                             ForEach(dailyTargets, id: \.self) { minutes in
-                                choice("\(minutes) min", on: store.dailyTarget == minutes) { store.dailyTarget = minutes }
+                                choice("\(minutes) min", on: store.dailyTarget == minutes) { model.choose(dailyTarget: minutes) }
                             }
                         }
                     }
@@ -136,11 +136,7 @@ struct SettingsView: View {
                 .font(.atlas(.sans, 14, weight: on ? .semibold : .regular))
                 .foregroundStyle(on ? Palette.accent : Palette.inkSoft)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .background(on ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 11))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 11)
-                        .strokeBorder(on ? Palette.accent : Palette.hairlineStrong, lineWidth: 1)
-                }
+                .boxed(on ? Palette.accentBg : Palette.card, border: on ? Palette.accent : Palette.hairlineStrong)
         }
         .pressable()
         .animation(Motion.snap, value: on)

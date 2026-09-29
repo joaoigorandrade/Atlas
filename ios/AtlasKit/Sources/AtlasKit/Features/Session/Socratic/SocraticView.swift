@@ -73,7 +73,7 @@ struct SocraticView: View {
             if model.failed {
                 // A generation that came back with nothing leaves a sentence
                 // ending in "tente de novo" over a screen with nothing to tap.
-                Dock { CTAButton("Tentar de novo", tint: Phase.socratic.tint) { Task { await model.retry() } } }
+                Dock { CTAButton("Tentar de novo", tint: Phase.socratic.tint) { Task { await model.load() } } }
             } else if model.done {
                 doneDock(model)
             } else if !model.log.isEmpty && !model.awaiting && !speaking {
@@ -287,7 +287,7 @@ struct SocraticView: View {
                 // A probe says which move it is making; a verdict says who is
                 // speaking. Without the move, a hint and a fresh question are
                 // the same serif under the same word.
-                Kicker(verbatim: turn.move ?? "Atlas", tint: tone(turn.quality), size: 9.5)
+                Kicker(verbatim: turn.move ?? "Atlas", tint: tone(turn.tone), size: 9.5)
                 Text(verbatim: turn.text).font(.atlas(.serif, 17)).lineSpacing(4).foregroundStyle(Palette.ink)
                 // The judge names the wrong idea behind a caught answer. It
                 // used to be collected and never shown — so the learner read a
@@ -303,7 +303,7 @@ struct SocraticView: View {
             // as a catch from across the bubble.
             .padding(.leading, 11)
             .overlay(alignment: .leading) {
-                Capsule().fill(tone(turn.quality).opacity(0.55)).frame(width: 2.5)
+                Capsule().fill(tone(turn.tone).opacity(0.55)).frame(width: 2.5)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -311,11 +311,11 @@ struct SocraticView: View {
 
     /// The tutor's colour says what kind of turn it is: a catch is amber, an
     /// affirmation green, direct teaching and ordinary probes the phase blue.
-    private func tone(_ quality: String?) -> Color {
-        switch quality {
-        case "correct": Palette.accent
-        case "near", "wrong": Palette.amberInk
-        default: Phase.socratic.tint
+    private func tone(_ tone: SocraticViewModel.Tone?) -> Color {
+        switch tone {
+        case .affirm: Palette.accent
+        case .neutral, .catch: Palette.amberInk
+        case .teach, nil: Phase.socratic.tint
         }
     }
 

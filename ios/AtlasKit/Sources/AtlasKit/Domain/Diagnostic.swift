@@ -38,8 +38,9 @@ public struct OnboardingForm: Sendable {
 public let paretoLevels = [20, 50, 80]
 
 /// How `examDate` is written and read: a bare local day, the same string the
-/// browser's `<input type="date">` produces.
-public let isoDay = Date.ISO8601FormatStyle(timeZone: .current).year().month().day()
+/// browser's `<input type="date">` produces. Computed, so a time-zone change
+/// while the app runs is read rather than frozen at first use.
+public var isoDay: Date.ISO8601FormatStyle { .init(timeZone: .current).year().month().day() }
 
 /// The topic as it may become `subject` — half the run row's primary key, and
 /// matched against `form.topic.trim()` written by the browser. A vertical

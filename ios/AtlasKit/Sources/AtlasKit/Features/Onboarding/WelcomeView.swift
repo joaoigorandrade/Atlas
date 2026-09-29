@@ -47,11 +47,7 @@ struct WelcomeView: View {
                             .focused($editing)
                             .padding(.horizontal, 16)
                             .frame(minHeight: 50)
-                            .background(Palette.card, in: .rect(cornerRadius: 11))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 11)
-                                    .strokeBorder(Palette.hairlineStrong, lineWidth: 1)
-                            }
+                            .boxed(Palette.card, border: Palette.hairlineStrong)
                     }
 
                     field("Meta diária", "sua unidade de sequência") {
@@ -147,6 +143,7 @@ struct WelcomeView: View {
                 }
             }
             .pressable()
+            .disabled(onboarding.charting)
         }
     }
 
@@ -266,11 +263,7 @@ struct WelcomeView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .background(on ? Palette.accentBg : Palette.card, in: .rect(cornerRadius: 11))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 11)
-                        .strokeBorder(on ? Palette.accent : Palette.hairlineStrong, lineWidth: 1)
-                }
+                .boxed(on ? Palette.accentBg : Palette.card, border: on ? Palette.accent : Palette.hairlineStrong)
         }
         .pressable()
         // Colour and weight are the only visual carriers of "chosen"; this is

@@ -129,12 +129,12 @@ public final class AtlasStore {
     /// shell shows onboarding for an empty library, and doing that because a GET
     /// failed puts the learner in front of the map builder — where rebuilding
     /// the same subject upserts an empty snapshot over the row they still have.
-    public private(set) var libraryFailed = false
+    public internal(set) var libraryFailed = false
 
     /// The last save did not land. The web app draws a permanent chip for this;
     /// so does the shell now, because a session's whole work sitting unsaved
     /// looks exactly like a saved one until the next launch.
-    public private(set) var saveFailed = false
+    public internal(set) var saveFailed = false
 
     /// True from the moment a session is adopted until the library it owns has
     /// landed. `session` is what flips the shell, and `loadLibrary` suspends —
@@ -186,7 +186,7 @@ public final class AtlasStore {
     /// freeze and the minutes-met rule live in `lib/curriculum/adherence.ts`
     /// and are a phase of their own.
     public private(set) var streak: Int = Defaults.streak
-    private var lastActiveDay: String = Defaults.lastActiveDay
+    var lastActiveDay: String = Defaults.lastActiveDay
 
     public let api: AtlasAPI
     public let auth: AtlasAuth
@@ -215,30 +215,34 @@ public final class AtlasStore {
         }
     }
     /// The open run as it was last loaded, for the fields no screen edits.
-    private var loaded: AtlasRun?
+    var loaded: AtlasRun?
     /// What the server last acknowledged, per node and per card: the baseline
     /// every debounced write diffs against. A write sends what differs from
     /// this, which is what makes a node drag one node's coordinates rather than
     /// the whole run.
-    private var savedNodes: [String: String] = [:]
-    private var savedCards: [String: String] = [:]
-    private var savedTopic = ""
-    private var savedProfile = ""
+    var savedNodes: [String: String] = [:]
+    var savedCards: [String: String] = [:]
+    var savedTopic = ""
+    var savedProfile = ""
     /// True while the store is being written *to* rather than *by* the learner
     /// — a restore, a map switch, a sign-out. Without it the clear in `signOut`
     /// would upsert an empty map over the row it had just read.
-    private var quiet = true
+    var quiet = true
     /// Whether the open topic's row was created by this build rather than
     /// adopted from a subject the learner already had. Only the first kind may
     /// be deleted again — see `abandonTopic`.
     private var topicWasCreatedHere = false
-    private var pendingSave: Task<Void, Never>?
+    var pendingSave: Task<Void, Never>?
+    /// How long a change and a failure wait before they are written — two
+    /// seconds and fifteen. A value so the suite can pace it in milliseconds
+    /// instead of sleeping through the real thing.
+    @ObservationIgnored var pacing: (change: Duration, retry: Duration) = (.seconds(2), .seconds(15))
     /// The write on the wire, if any — see `saveNow`.
-    @ObservationIgnored private var saving: Task<Void, Never>?
+    @ObservationIgnored var saving: Task<Void, Never>?
     /// Bumped whenever the live run is swapped (`open`, `clearRun`). A write in
     /// flight across a swap must not diff the new run against the old one's
     /// shots — that put one map's cards and settings into the other's row.
-    @ObservationIgnored private var runEpoch = 0
+    @ObservationIgnored var runEpoch = 0
     /// The token renewal in flight, if there is one.
     ///
     /// GoTrue *rotates* refresh tokens: a second renewal started with the same
@@ -246,10 +250,10 @@ public final class AtlasStore {
     /// signed out for it. The launch renewal and the first screen's warms
     /// overlap now that the mirror paints before the credential is renewed, so
     /// they join this instead of racing. See `renewOnce`.
-    private var renewal: Task<Result<AuthSession, any Error>, Never>?
+    var renewal: Task<Result<AuthSession, any Error>, Never>?
     /// The signed-in learner, or nil for the auth screens. Writing it is the one
     /// way the bearer token reaches `AtlasAPI` and the keychain.
-    public private(set) var session: AuthSession?
+    public internal(set) var session: AuthSession?
 
     public init(
         api: AtlasAPI, auth: AtlasAuth, runs: RunStore? = nil, local: LocalStore? = nil,
@@ -402,16 +406,16 @@ public extension AtlasStore {
     /// ran the same six rungs, and why a plan without a Crucible in it could
     /// never go green.
     ///
-    /// `shaky` is passed when the phase closed on a failed gate, and
-    /// `.some(nil)` to clear a reason this phase has now cleared. Left off, the
-    /// node's existing reason stands — so re-doing an unrelated phase can't
-    /// silently promote a node past a Crucible it is still failing.
-    func completePhase(_ node: ConceptNode, _ phase: Phase, shaky: ShakyReason?? = nil) {
+    /// `closed` says how the phase ended — `.failed` on a failed gate,
+    /// `.cleared` when it proved the node. Left `.passed`, the node's existing
+    /// reason stands — so re-doing an unrelated phase can't silently promote a
+    /// node past a Crucible it is still failing.
+    func completePhase(_ node: ConceptNode, _ phase: Phase, closed: Closing = .passed) {
         let challenged = challenge == node.id
         if challenged { challenge = nil } // one attempt, one verdict
         let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged)
         phasesDone[node.id] = done
-        let reason = reasonAfter(node.plan, done, phase, shaky: shaky, held: shakyReasons[node.id])
+        let reason = reasonAfter(node.plan, done, phase, closed: closed, held: shakyReasons[node.id])
         shakyReasons[node.id] = reason
         states[node.id] = stateFromPlan(node.plan, done, shaky: reason)
     }
@@ -794,7 +798,7 @@ public extension AtlasStore {
 
     /// Take the learner's own row: the streak, the daily target, the reminders.
     /// One copy, rather than one per topic and a third in `UserDefaults`.
-    private func adopt(_ profile: AtlasProfile) {
+    func adopt(_ profile: AtlasProfile) {
         let wasQuiet = quiet
         quiet = true
         defer { quiet = wasQuiet }
@@ -957,7 +961,7 @@ public extension AtlasStore {
     ///
     /// Safe to ask twice: the upsert is on `(user_id, subject)`, so a create
     /// whose *answer* was lost returns that same row rather than a second one.
-    private func ensureTopic(token: String) async -> String? {
+    func ensureTopic(token: String) async -> String? {
         if let topicId { return topicId }
         guard !subject.isEmpty else { return nil }
         await adoptTopic(.object([
@@ -1007,7 +1011,7 @@ public extension AtlasStore {
     /// learner's actual work, and they are untouched, so the next `saveNow`
     /// makes a fresh row through `ensureTopic` and `adoptTopic` clears the
     /// saved shots, which re-sends every node and card to it.
-    private func forgetTopicRow() {
+    func forgetTopicRow() {
         guard let stale = topicId else { return }
         topicId = nil
         // Whatever it was, it is not a row this client may delete any more.
@@ -1175,467 +1179,5 @@ public extension AtlasStore {
             else { return nil }
             return date
         }.min()
-    }
-
-    // MARK: - What a write compares against
-    //
-    // A node, a card, the topic's own fields and the profile, each reduced to
-    // the JSON of exactly what is persisted about it. Comparing strings is what
-    // makes the diff one line per row rather than a field-by-field equality
-    // function that has to be updated every time a column is added — and a
-    // string that differs is, by construction, a row that has to be written.
-
-    private func nodeShots() -> [String: String] {
-        var shots: [String: String] = [:]
-        for node in graph.nodes {
-            let fields: [String: JSONValue] = [
-                "label": .string(node.label),
-                "summary": node.summary.map(JSONValue.string) ?? .null,
-                "g": .number(Double(node.g)),
-                "week": .number(Double(node.week)),
-                "x": .number(node.x),
-                "y": .number(node.y),
-                "isGap": .bool(node.gap == true),
-                // `frontier` is derived from the prerequisites on every read, in
-                // both clients, and never lands in `StateMap` — so this is a
-                // straight copy with the node's generated seed as the fallback.
-                "state": .string((states[node.id] ?? node.state).rawValue),
-                "shakyReason": shakyReasons[node.id].map { .string($0.rawValue) } ?? .null,
-                // The ledger is in the projection because it is a *stored*
-                // field and state is derived from it: a save that carried the
-                // state and not the record it came from would re-derive a
-                // different state the next time the run was opened.
-                "phasesDone": .array((phasesDone[node.id] ?? []).map { .string($0.rawValue) }),
-                "reviewed": .bool(reviewed.contains(node.id)),
-                "consumeProgress": consumeProgress[node.id] ?? .null,
-                "socraticProgress": socraticProgress[node.id] ?? .null,
-                "feynmanProgress": feynmanProgress[node.id] ?? .null,
-                "connectProgress": connectProgress[node.id] ?? .null,
-                "phaseProgress": phaseProgress[node.id] ?? .null,
-            ]
-            shots[node.id] = JSONValue.object(fields).compact
-        }
-        return shots
-    }
-
-    private func cardShots() -> [String: String] {
-        var shots: [String: String] = [:]
-        for card in cards { shots[card.id] = (try? JSONValue(encoding: card))?.compact ?? card.id }
-        return shots
-    }
-
-    /// The topic's own fields, as the PATCH sends them — and, compacted, the
-    /// shot a save diffs against. One body, so the two can't drift.
-    private func topicBody() -> JSONValue {
-        .object([
-            "goal": .string(goal.rawValue),
-            "interests": .string(interests),
-            "paretoPct": .number(Double(paretoPct)),
-            "examDate": .string(examDate),
-            "language": .string(language),
-            "calibSamples": (try? JSONValue(encoding: calib)) ?? .array([]),
-            "misconceptions": (try? JSONValue(encoding: misconceptions)) ?? .array([]),
-        ])
-    }
-
-    private func topicShot() -> String { topicBody().compact }
-
-    /// Something the learner did that the server has not acknowledged yet.
-    private var unsaved: Bool {
-        pendingSave != nil || saving != nil
-            || savedNodes != nodeShots() || savedCards != cardShots() || savedTopic != topicShot()
-    }
-
-    /// The live run as a row — every persisted field, in one place. The mirror
-    /// copy written after a save listed them by hand and had dropped five, so
-    /// an offline relaunch reopened with the old goal and content language.
-    private func currentRun(over base: AtlasRun) -> AtlasRun {
-        var run = base
-        run.subject = subject
-        run.goal = goal
-        run.interests = interests
-        run.paretoPct = paretoPct
-        run.examDate = examDate
-        run.language = language
-        run.calibSamples = calib
-        run.graph = graph
-        run.states = states
-        run.shakyReasons = shakyReasons
-        run.phasesDone = phasesDone
-        run.reviewedNodes = reviewed.sorted()
-        run.consumeProgress = consumeProgress
-        run.socraticProgress = socraticProgress
-        run.feynmanProgress = feynmanProgress
-        run.connectProgress = connectProgress
-        run.phaseProgress = phaseProgress
-        run.misconceptions = misconceptions
-        run.cards = cards
-        return run
-    }
-
-    private static func profileShot(target: Int, streak: Int, day: String) -> String {
-        JSONValue.object([
-            "dailyTarget": .number(Double(target)),
-            "streak": .number(Double(streak)),
-            "lastDay": .string(day),
-        ]).compact
-    }
-
-    /// Persist the open run a beat after the last change. Every write the
-    /// learner makes lands here — a graded card, a spawned gap, a settings tap
-    /// — so the debounce is what keeps a session from being one request per tap.
-    private func saveSoon() {
-        guard !quiet, signedIn else { return }
-        saveIn(2)
-    }
-
-    /// Arm the one pending write. Two seconds behind a change, fifteen behind a
-    /// failure — a phone in a tunnel must not retry every two seconds all
-    /// afternoon, and any change the learner makes supersedes the retry anyway.
-    private func saveIn(_ seconds: Int) {
-        pendingSave?.cancel()
-        pendingSave = Task {
-            try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled else { return }
-            // Let go of the handle before flushing: `saveNow` cancels whatever
-            // is pending, and that used to be *this* task — which cancelled the
-            // write it had just started and dropped it on the floor.
-            pendingSave = nil
-            await saveNow()
-        }
-    }
-
-    /// Write what changed.
-    ///
-    /// The whole run used to go up on every tick, which is why the generated
-    /// content had to be split into a second column on a longer debounce so a
-    /// node drag would stop re-uploading every section the learner had read.
-    /// Neither is needed now: content is never uploaded at all, and this sends
-    /// a payload the size of what actually moved.
-    ///
-    /// A failure is kept — `saveFailed` draws the chip and a retry is armed, so
-    /// a session worked through offline lands as soon as there is signal.
-    ///
-    /// One at a time. `saveIn` lets go of its handle before it gets here, so a
-    /// second debounce, a map switch or a sign-out could start a write while
-    /// one was still on the wire: both diffed against the same baseline, sent
-    /// the same changes, and could land out of order — the server keeping the
-    /// older node while the baseline said the newer one was saved. A caller
-    /// arriving mid-write waits for it, then writes whatever is left.
-    func saveNow() async {
-        pendingSave?.cancel()
-        pendingSave = nil
-        while let running = saving { await running.value }
-        let write = Task { await self.write() }
-        saving = write
-        await write.value
-        saving = nil
-    }
-
-    private func write() async {
-        guard signedIn else { return }
-        // A session that is present but dead — the access token expired and the
-        // refresh was refused — leaves `signedIn` true forever, because it is
-        // `session != nil`. This used to return silently, having just cancelled
-        // the queued save: the profile screen still showed the email and "Sair"
-        // while every write went nowhere. Say so and keep trying, the way every
-        // other failure in this function does.
-        guard var token = await bearer() else {
-            saveFailed = true
-            saveIn(15)
-            return
-        }
-
-        let profile = Self.profileShot(target: dailyTarget, streak: streak, day: lastActiveDay)
-        let nodes = nodeShots()
-        let cardsNow = cardShots()
-        let topic = topicShot()
-        let epoch = runEpoch
-        // The PATCH moves the row's `updated_at`; the mirror has to follow, or
-        // the next launch reads its own write as another device's and re-opens.
-        var touched = false
-
-        do {
-            if profile != savedProfile {
-                try await runs.patchProfile(.object([
-                    "dailyTarget": .number(Double(dailyTarget)),
-                    "language": .string(language),
-                    "adherence": .object([
-                        "streak": .number(Double(streak)),
-                        "lastDay": .string(lastActiveDay),
-                    ]),
-                ]), token: token)
-                savedProfile = profile
-            }
-            // A run whose row never landed is not a run with nothing to save —
-            // it is the one that most needs saving. `ensureTopic` makes it, and
-            // a failure arms the retry instead of dropping the map on the floor.
-            guard let topicId = await ensureTopic(token: token) else {
-                if !subject.isEmpty {
-                    saveFailed = true
-                    saveIn(15)
-                }
-                return
-            }
-            guard epoch == runEpoch else { return }
-
-            var deltas: [NodeDelta] = []
-            for node in graph.nodes where savedNodes[node.id] != nodes[node.id] {
-                var delta = NodeDelta(id: node.id)
-                delta.label = node.label
-                delta.summary = node.summary
-                delta.g = node.g
-                delta.week = node.week
-                delta.x = node.x
-                delta.y = node.y
-                delta.isGap = node.gap == true
-                delta.state = states[node.id] ?? node.state
-                delta.shakyReason = .some(shakyReasons[node.id])
-                delta.phasesDone = phasesDone[node.id] ?? []
-                delta.reviewed = reviewed.contains(node.id)
-                delta.consumeProgress = consumeProgress[node.id]
-                delta.socraticProgress = socraticProgress[node.id]
-                delta.feynmanProgress = feynmanProgress[node.id]
-                delta.connectProgress = connectProgress[node.id]
-                delta.phaseProgress = phaseProgress[node.id]
-                // Only a node the server has never seen needs its edges; an
-                // existing one's prerequisites are already rows, and re-sending
-                // them on every drag would be the write amplification this
-                // whole change replaced.
-                if savedNodes[node.id] == nil {
-                    delta.prereqs = graph.edges.filter { $0.to == node.id }.map(\.from)
-                    // Both columns are NOT NULL with a default, and a delta that
-                    // names neither lets the default stand — which is what a
-                    // spawned gap wants. A node that carries them says so once,
-                    // on the write that creates the row, and never again.
-                    delta.kind = node.kind
-                    delta.domain = node.domain
-                    delta.importance = node.importance
-                    delta.difficulty = node.difficulty
-                    delta.phasePlan = node.phasePlan
-                }
-                deltas.append(delta)
-            }
-            let removed = savedNodes.keys.filter { nodes[$0] == nil }
-            if !deltas.isEmpty || !removed.isEmpty {
-                try await runs.patchNodes(topicId, deltas: deltas, remove: Array(removed), token: token)
-                guard epoch == runEpoch else { return }
-                savedNodes = nodes
-            }
-
-            let changed = cards.filter { savedCards[$0.id] != cardsNow[$0.id] }
-            if !changed.isEmpty {
-                try await runs.putCards(topicId, cards: changed, token: token)
-                guard epoch == runEpoch else { return }
-                savedCards = cardsNow
-            }
-
-            if topic != savedTopic {
-                try await runs.patchTopic(topicId, body: topicBody(), token: token)
-                guard epoch == runEpoch else { return }
-                savedTopic = topic
-                touched = true
-            }
-        } catch {
-            // A 401 means the token died between the check above and the write.
-            // Renewing and arming a retry is the difference between a save that
-            // lands and an afternoon of work nobody knows is unsaved.
-            if (error as? AtlasError)?.code == "auth", let renewed = await bearer(renew: true) {
-                token = renewed
-            }
-            // A 404 means the row this run is addressed to is gone — deleted
-            // from another device, or a create that never landed. The id is the
-            // thing that is wrong, and `ensureTopic` returns a cached one
-            // unconditionally, so the armed retry re-addressed the same dead id
-            // every fifteen seconds forever and nothing the learner did was
-            // ever saved. Dropping it makes the retry create a fresh row and
-            // re-send the whole run to it.
-            if (error as? AtlasError)?.status == 404, epoch == runEpoch { forgetTopicRow() }
-            saveFailed = true
-            saveIn(15)
-            return
-        }
-        saveFailed = false
-        // The learner can have signed out — or signed in as somebody else —
-        // while those writes were in flight.
-        guard session?.accessToken == token else { return }
-        guard epoch == runEpoch else { return }
-        if let index = library.firstIndex(where: { $0.id == topicId }) {
-            library[index] = currentRun(over: library[index])
-            if touched { library[index].updatedAt = ISODate.now() }
-            // The mirror holds what the server acknowledged, never what the
-            // screen hopes it did — so it is written here, after the write
-            // landed, and not beside the state change that caused it.
-            local.save(library[index])
-        }
-    }
-
-    func signIn(email: String, password: String) async throws {
-        await adopt(try await auth.signIn(email: email, password: password))
-        // Signing in on a second device is the other half of "my maps are in the
-        // database": the run has to arrive with the session, not on the next launch.
-        await loadLibrary()
-    }
-
-    /// `false` means Supabase sent a confirmation email — screen 3, not a session.
-    func signUp(email: String, password: String) async throws -> Bool {
-        guard let session = try await auth.signUp(email: email, password: password) else { return false }
-        await adopt(session)
-        await loadLibrary()
-        return true
-    }
-
-    /// A confirmation link came back into the app carrying its own session —
-    /// the learner is signed in by the tap on the link, not by the form.
-    func signIn(with session: AuthSession) async {
-        await adopt(session)
-        await loadLibrary()
-    }
-
-    /// Screen 3's "reenviar link". Throws so the screen can speak the failure.
-    func resendConfirmation(email: String) async throws {
-        try await auth.resend(email: email)
-    }
-
-    /// `flush: false` is for the two sign-outs with nowhere to write to — the
-    /// account has just been deleted, or the stored session was rejected.
-    func signOut(flush: Bool = true) async {
-        // Flush before anything else, the way `switchTo` and `newMap` do: the
-        // card graded two seconds ago is still sitting in the debounce, and
-        // cancelling it here is what used to drop it on the floor.
-        if flush { await saveNow() }
-        // Quiet next: the clear below is nine writes, and every one of them
-        // would otherwise queue a save that upserts an empty map over the row
-        // this learner just spent a week filling in.
-        quiet = true
-        defer { quiet = false }
-        pendingSave?.cancel()
-        opening = false
-        libraryFailed = false
-        saveFailed = false
-        session = nil
-        loaded = nil
-        topicId = nil
-        library = []
-        // The map belongs to the learner who signed in, not to the device — and
-        // that is true of the mirror on disk too. The next person to hold this
-        // phone must not open somebody else's map.
-        local.clear()
-        clearRun()
-        SessionStore.save(nil)
-        // Awaited, not fired: a warm still in flight must not be able to send
-        // one more request bearing the token of someone who has signed out.
-        await api.setAccessToken(nil)
-    }
-
-    /// Put the live run back to nothing. Shared by signing out and by starting
-    /// a second map — both leave the shell with no map, which is what routes it
-    /// to onboarding. Callers hold `quiet` for the duration.
-    private func clearRun() {
-        runEpoch += 1
-        challenge = nil
-        warm.clear()
-        deck = []
-        forecast = []
-        deckRemaining = 0
-        graph = ConceptGraph()
-        states = [:]
-        shakyReasons = [:]
-        phasesDone = [:]
-        subject = ""
-        interests = ""
-        paretoPct = paretoLevels[0]
-        examDate = ""
-        cards = []
-        calib = []
-        reviewed = []
-        consumeProgress = [:]
-        socraticProgress = [:]
-        feynmanProgress = [:]
-        connectProgress = [:]
-        phaseProgress = [:]
-        misconceptions = []
-    }
-
-    /// `ATLAS_FIXTURES=1` boots straight into a demo run: the map and the node
-    /// sheet are buildable before onboarding exists to produce a real graph.
-    private func adoptFixtures() {
-        // `quiet` stays set: a fixture run is a demo, and upserting it would put
-        // it on the dashboard of whichever account the build is signed into.
-        session = Fixtures.session
-        graph = Fixtures.graph
-        states = Fixtures.states
-        phasesDone = Fixtures.phasesDone
-        shakyReasons = ["lat": .connectComplete]
-        subject = Fixtures.subject
-        calib = Fixtures.calib
-        // The deck directly, not the card store: fixture mode makes no request,
-        // and the deck is normally the server's answer.
-        deck = Fixtures.cards
-        cards = Fixtures.cards.map {
-            StoredCard(
-                id: $0.id, nodeId: $0.node, type: $0.type, source: $0.source,
-                cloze: $0.cloze, answer: $0.answer, front: $0.front,
-                back: $0.back, reExplain: $0.reExplain
-            )
-        }
-    }
-
-    /// The bearer for a run request, renewed when it has aged out. Every read
-    /// and write of `run_states` asks here rather than reading `session`
-    /// directly: an access token is good for an hour and a run is not.
-    ///
-    /// Nil means there is no usable credential — offline, or a refresh token
-    /// GoTrue has rejected. The caller treats that as the request failing;
-    /// signing the learner out on it would do it for a flight-mode phone too.
-    ///
-    /// GoTrue *refusing* the refresh token is different: it will never work
-    /// again, and every save and warm used to ask again with it, forever.
-    func bearer(renew: Bool = false) async -> String? {
-        guard let session else { return nil }
-        guard renew || session.isExpired else { return session.accessToken }
-        switch await renewOnce(session.refreshToken) {
-        case .success(let renewed): return renewed.accessToken
-        case .failure(let error):
-            if Self.rejected(error) { await signOut(flush: false) }
-            return nil
-        }
-    }
-
-    /// GoTrue answered and said no. A transport failure — a phone on a plane —
-    /// keeps the refresh token for next time, and so does a rate limit.
-    private static func rejected(_ error: any Error) -> Bool {
-        guard let status = (error as? AtlasError)?.status else { return false }
-        return (400..<500).contains(status) && status != 429
-    }
-
-    /// Renew the session, once — see `renewal`.
-    private func renewOnce(_ refreshToken: String) async -> Result<AuthSession, any Error> {
-        if let renewal { return await renewal.value }
-        let task = Task<Result<AuthSession, any Error>, Never> { [auth] in
-            do { return .success(try await auth.refresh(refreshToken)) }
-            catch { return .failure(error) }
-        }
-        renewal = task
-        let outcome = await task.value
-        renewal = nil
-        // A sign-out while the refresh was in flight must stay signed out — and
-        // a different learner signed in meanwhile must not get this one's.
-        if case .success(let renewed) = outcome, session?.refreshToken == refreshToken {
-            await adopt(renewed, opening: false)
-        }
-        return outcome
-    }
-
-    /// `opening: false` for a mid-session renewal: the shell reads `opening` to
-    /// hold onboarding back until a library lands, and a refresh has no library
-    /// coming after it.
-    private func adopt(_ session: AuthSession, opening: Bool = true) async {
-        // Set before `session`, cleared by `loadLibrary` — every adopt is
-        // followed by one.
-        if opening { self.opening = true }
-        self.session = session
-        SessionStore.save(session)
-        await api.setAccessToken(session.accessToken) { [weak self] in await self?.bearer() }
     }
 }

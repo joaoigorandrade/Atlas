@@ -30,10 +30,7 @@ struct NodeDetailView: View {
         // previous node's spiral against this one's name.
         .task(id: node.id) {
             model = NodeDetailViewModel(node: node, store: store)
-            // Opening the drawer is the clearest statement of intent there is:
-            // whatever phase this node is owed is about to be started, so it is
-            // written now rather than after the tap.
-            if let phase = model?.action { store.warmUp(phase, for: node) }
+            model?.warm()
         }
     }
 
@@ -201,6 +198,10 @@ struct NodeDetailView: View {
         .frame(minHeight: 46)
         .padding(.horizontal, 4)
         .contentShape(.rect)
+        // One element, read as a button: VoiceOver read the glyph, the name and
+        // the kicker as three things, none of them saying it could be opened.
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
         .onTapGesture {
             guard model.current >= 0 else { return }
             if row.isAhead { model.pendingSkip = row.phase } else { open(row.phase, model) }

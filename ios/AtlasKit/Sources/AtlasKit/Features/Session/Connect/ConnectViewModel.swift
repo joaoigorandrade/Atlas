@@ -173,7 +173,11 @@ final class ConnectViewModel {
     /// Two real connections is the design's gate — but a web that only ever
     /// offered one candidate cannot produce two, and a gate nobody can pass is
     /// a dead end. Mirrors `connectReady`.
-    var ready: Bool { linked.count >= required }
+    ///
+    /// Counted on `confirmed`, the links into *this* web: a parked pass is
+    /// restored before the web loads, and a regenerated web can carry other
+    /// candidate ids — two stale ones read 2/2 and closed the rung unwired.
+    var ready: Bool { confirmed.count >= required }
 
     /// Nothing landed and nothing is coming.
     var failed: Bool { !writing && content == nil }
@@ -251,6 +255,7 @@ final class ConnectViewModel {
     /// does, or a map's first node could never lift. Mirrors the web's
     /// nothing-to-wire skip through `completeConnect`.
     func skip() {
+        session.store.clearConnect(node.id)
         session.finishConnect()
         session.advance()
     }
@@ -282,6 +287,4 @@ final class ConnectViewModel {
         }
         writing = false
     }
-
-    func retry() async { await load() }
 }

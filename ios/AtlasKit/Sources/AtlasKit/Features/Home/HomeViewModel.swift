@@ -11,6 +11,12 @@ final class HomeViewModel {
 
     init(store: AtlasStore) { self.store = store }
 
+    /// Home is the other door into Review, and it used to be the cold one:
+    /// only the map warmed the card draft, so opening Review from here meant
+    /// watching it be written. A run whose nodes are all covered returns from
+    /// this immediately.
+    func warm() { store.warmRetain() }
+
     var greeting: LocalizedStringKey {
         switch Calendar.current.component(.hour, from: .now) {
         case ..<12: "Bom dia"

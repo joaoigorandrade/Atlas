@@ -94,7 +94,7 @@ public struct DiscriminateSession: Sendable {
     public func passed(_ content: DiscriminateContent) -> Bool {
         guard !content.cases.isEmpty else { return done }
         if early(content) { return true }
-        let bar = Int((Double(content.cases.count) * 2 / 3).rounded(.up))
+        let bar = twoThirds(content.cases.count)
         return score(content) >= bar && falsePositives(content).count <= 1
     }
 }

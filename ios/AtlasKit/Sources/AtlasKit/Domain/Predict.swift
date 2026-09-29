@@ -102,6 +102,6 @@ public struct PredictSession: Sendable {
     public func passed(_ content: PredictContent) -> Bool {
         guard !content.setups.isEmpty else { return done }
         if early(content) { return true }
-        return score(content) >= Int((Double(content.setups.count) * 2 / 3).rounded(.up))
+        return score(content) >= twoThirds(content.setups.count)
     }
 }

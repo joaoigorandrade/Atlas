@@ -180,7 +180,10 @@ final class CrucibleViewModel {
         writing = false
     }
 
-    func retryLoad() async { await load() }
+    /// Past a passed transfer, into whatever the plan owes next. The rung was
+    /// closed by `settleCrucible` when the verdict landed, so this only walks
+    /// on — `advance()` wrote the same completion a second time.
+    func advance() { session.advance(passed: false) }
 
     /// Leaving abandons the attempt. The verdict that lands after the learner
     /// has gone would rewrite the map behind their back.

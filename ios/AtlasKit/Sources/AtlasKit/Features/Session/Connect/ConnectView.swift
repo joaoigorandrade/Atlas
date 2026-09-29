@@ -90,7 +90,7 @@ struct ConnectView: View {
                 // bars promised a screen this phase never becomes.
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty, shape: .web)
                 if model.failed {
-                    Dock { CTAButton("Tentar de novo", tint: Palette.connectInk) { Task { await model.retry() } } }
+                    Dock { CTAButton("Tentar de novo", tint: Palette.connectInk) { Task { await model.load() } } }
                 }
             }
         }
@@ -123,7 +123,9 @@ struct ConnectView: View {
                     Button("Ver a sugestão do mapa") { model.suggest(candidate) }
                         .font(.atlas(.sans, 13))
                         .foregroundStyle(Palette.connectInk)
-                        .padding(.top, 10)
+                        .frame(minHeight: Metrics.tap)
+                        .contentShape(.rect)
+                        .padding(.top, 2)
                 }
                 CTAButton(model.linked.contains(candidate.id) ? "Reescrever o vínculo" : "Confirmar vínculo",
                           tint: Palette.connectInk) {
@@ -345,6 +347,9 @@ private struct ConceptWeb: View {
                     Button { select(candidate) } label: {
                         WebNode(label: candidate.label, on: linked.contains(candidate.id),
                                 focused: candidate.id == active, centre: false, cap: cap)
+                            // A capsule this size is ~29pt tall; the target
+                            // grows to the tap floor without moving the drawing.
+                            .contentShape(.rect.inset(by: -8))
                     }
                     .buttonStyle(.plain)
                     .position(place(candidate.x, candidate.y, in: geo.size))

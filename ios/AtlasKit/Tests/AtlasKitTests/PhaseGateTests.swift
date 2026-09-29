@@ -306,10 +306,10 @@ private func setups(_ count: Int) -> PredictContent {
 @Test func aCleanCloseOfTheLastGateClearsAHeldReason() {
     let plan = phasePlans[.fact]!
     let full = planGates(plan)
-    #expect(reasonAfter(plan, full, .recall, shaky: nil, held: .reviewMiss) == nil)
-    #expect(reasonAfter(plan, full, .drill, shaky: nil, held: .reviewMiss) == .reviewMiss)
-    #expect(reasonAfter(plan, [.consume, .recall], .recall, shaky: nil, held: .reviewMiss) == .reviewMiss)
-    #expect(reasonAfter(plan, full, .recall, shaky: .some(.crucibleFail), held: nil) == .crucibleFail)
+    #expect(reasonAfter(plan, full, .recall, held: .reviewMiss) == nil)
+    #expect(reasonAfter(plan, full, .drill, held: .reviewMiss) == .reviewMiss)
+    #expect(reasonAfter(plan, [.consume, .recall], .recall, held: .reviewMiss) == .reviewMiss)
+    #expect(reasonAfter(plan, full, .recall, closed: .failed(.crucibleFail), held: nil) == .crucibleFail)
 }
 
 /// A concept ends on Recall, but its proof is the Crucible: passing Recall
@@ -317,7 +317,103 @@ private func setups(_ count: Int) -> PredictContent {
 @Test func onAConceptOnlyTheCrucibleClearsAHeldReason() {
     let plan = phasePlans[.concept]!
     let full = planGates(plan)
-    #expect(reasonAfter(plan, full, .recall, shaky: nil, held: .crucibleFail) == .crucibleFail)
-    #expect(reasonAfter(plan, full, .crucible, shaky: nil, held: .crucibleFail) == nil)
+    #expect(reasonAfter(plan, full, .recall, held: .crucibleFail) == .crucibleFail)
+    #expect(reasonAfter(plan, full, .crucible, held: .crucibleFail) == nil)
     #expect(primaryPhase(plan, full, state: .shaky) == .crucible)
+}
+
+// MARK: - Produce · speaking, not routing around the form
+
+private func scene(_ count: Int) -> ProduceContent {
+    let turns = (1...count).map {
+        #"{"id":"t\#($0)","cue":"c","targetForms":["f"],"seconds":20}"#
+    }.joined(separator: ",")
+    let json = #"{"nodeId":"n","nodeLabel":"N","scene":"s","turns":[\#(turns)]}"#
+    return try! JSONDecoder().decode(ProduceContent.self, from: Data(json.utf8))
+}
+
+@Test func produceFailsARunThatUnderstoodButAvoidedTheForm() {
+    let content = scene(6)
+    func run(_ verdicts: [ProduceVerdict]) -> ProduceSession {
+        var session = ProduceSession(nodeId: "n")
+        for verdict in verdicts {
+            session.said("x", content)
+            session.judged(verdict, read: "", content)
+            session.next(content)
+        }
+        return session
+    }
+    // Four good, two thin: two thirds landed, but two were routed around.
+    #expect(!run([.good, .good, .good, .good, .thin, .thin]).passed(content))
+    // Four good, one thin, one wrong: the one dodge the gate allows.
+    #expect(run([.good, .good, .good, .good, .thin, .wrong]).passed(content))
+    #expect(!run([.good, .good, .good, .wrong, .wrong, .wrong]).passed(content))
+}
+
+// MARK: - Provenance · the source is an act, not a record
+
+private func claims(_ rulings: [ProvenanceRuling]) -> ProvenanceContent {
+    let items = rulings.enumerated().map {
+        #"{"id":"c\#($0.offset)","claim":"x","ruling":"\#($0.element.rawValue)","because":"b"}"#
+    }.joined(separator: ",")
+    let json = #"""
+    {"nodeId":"n","nodeLabel":"N","source":{"title":"t","attribution":"a","date":"d","excerpt":"e"},
+     "claims":[\#(items)],"silence":"s"}
+    """#
+    return try! JSONDecoder().decode(ProvenanceContent.self, from: Data(json.utf8))
+}
+
+@Test func provenanceFailsARunThatTookTheSourceAtItsWord() {
+    let content = claims([.asserts, .asserts, .proves, .proves, .neither, .neither])
+    func run(_ given: [ProvenanceRuling]) -> ProvenanceSession {
+        var session = ProvenanceSession(nodeId: "n")
+        for ruling in given { session.rule(ruling, content); session.next(content) }
+        return session
+    }
+    // Four of six right — two thirds — but both assertions read as proof.
+    let credulous = run([.proves, .proves, .proves, .proves, .neither, .neither])
+    #expect(credulous.score(content) == 4)
+    #expect(!credulous.passed(content))
+    #expect(run([.asserts, .proves, .proves, .proves, .neither, .neither]).passed(content))
+    // One ruling per claim: cycling the options is recognition, not judgement.
+    var session = ProvenanceSession(nodeId: "n")
+    session.rule(.proves, content)
+    session.rule(.asserts, content)
+    #expect(session.rulings["c0"] == .proves)
+}
+
+// MARK: - Steelman · both sides, judged on their own terms
+
+private let dispute: SteelmanContent = try! JSONDecoder().decode(SteelmanContent.self, from: Data(#"""
+{"nodeId":"n","nodeLabel":"N","question":"q","positions":[
+ {"id":"a","label":"A","heldBy":"x","mustCover":[]},
+ {"id":"b","label":"B","heldBy":"y","mustCover":[]}]}
+"""#.utf8))
+
+@Test func steelmanFailsAStrawmanWhateverTheOtherSideScored() {
+    var session = SteelmanSession(nodeId: "n")
+    session.write("a", String(repeating: "a", count: 40))
+    #expect(!session.ready(dispute))
+    session.write("b", String(repeating: "b", count: 40))
+    #expect(session.ready(dispute))
+    session.hold("a", disconfirmer: "um documento novo")
+    session.judged(["a": .strong, "b": .strawman], response: "")
+    #expect(!session.passed(dispute))
+    session.judged(["a": .strong, "b": .thin], response: "")
+    #expect(session.passed(dispute))
+    // A disconfirmer is something that could actually turn up, not a shrug.
+    session.hold("a", disconfirmer: "nada")
+    #expect(!session.passed(dispute))
+}
+
+/// Counted as the web counts `.length`: an emoji is two UTF-16 units, so twenty
+/// of them are a forty-unit case on both clients.
+@Test func steelmanCountsACaseTheWayTheWebDoes() {
+    #expect(SteelmanSession.written(String(repeating: "🙂", count: 20), atLeast: 40))
+    #expect(!SteelmanSession.written(String(repeating: "🙂", count: 19), atLeast: 40))
+}
+
+/// The two-thirds bar, in integers, against the web's `Math.ceil(n * 2/3)`.
+@Test func twoThirdsRoundsUpLikeTheWeb() {
+    #expect((0...12).map(twoThirds) == [0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8])
 }

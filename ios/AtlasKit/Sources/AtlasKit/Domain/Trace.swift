@@ -77,6 +77,6 @@ public struct TraceSession: Sendable {
     public func passed(_ content: TraceContent) -> Bool {
         guard !content.stages.isEmpty else { return done }
         let unbroken = brokeAt(content) ?? content.stages.count
-        return unbroken >= Int((Double(content.stages.count) * 2 / 3).rounded(.up))
+        return unbroken >= twoThirds(content.stages.count)
     }
 }

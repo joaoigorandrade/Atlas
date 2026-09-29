@@ -164,8 +164,6 @@ final class FeynmanViewModel {
         writing = false
     }
 
-    func retry() async { await load() }
-
     /// Open the mic, writing what it hears onto the end of the explanation.
     /// Idempotent — the voice sheet opens on it, and its own control toggles.
     func listen() {
@@ -185,8 +183,10 @@ final class FeynmanViewModel {
         save()
     }
 
+    /// `explanation` goes last: its `didSet` saves, and first it saved a pass
+    /// with every other field still at its default — a kill right after
+    /// reopening a Gap Report lost the report.
     private func adopt(_ saved: FeynmanSnapshot) {
-        explanation = saved.explanation
         scaffolded = saved.scaffolded
         verdicts = saved.verdicts
         quotes = saved.quotes
@@ -197,6 +197,7 @@ final class FeynmanViewModel {
         fixing = saved.fixing
         fixRuledOut = saved.fixRuledOut
         fixReaction = saved.fixReaction
+        explanation = saved.explanation
     }
 
     private var snapshot: FeynmanSnapshot {

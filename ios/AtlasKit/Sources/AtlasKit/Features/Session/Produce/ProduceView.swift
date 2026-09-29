@@ -101,11 +101,7 @@ struct ProduceView: View {
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.produceBg, in: .rect(cornerRadius: 12))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Palette.produceBorder, lineWidth: 1)
-                    }
+                    .boxed(Palette.produceBg, border: Palette.produceBorder, radius: Metrics.panelRadius)
 
                     HStack {
                         Kicker("Diga isto", tint: Palette.produceInk)
@@ -155,11 +151,7 @@ struct ProduceView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.produceBg, in: .rect(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Palette.produceBorder, lineWidth: 1)
-                        }
+                        .boxed(Palette.produceBg, border: Palette.produceBorder, radius: Metrics.panelRadius)
                         .padding(.top, 18)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
@@ -175,7 +167,10 @@ struct ProduceView: View {
                 } else {
                     // The microphone is the phase, not a convenience beside a
                     // text box: this is the one rung that measures speaking.
-                    CTAButton("Falar", tint: Palette.produceInk) { speaking = true }
+                    // Relabelled while it is judged, as the other judged
+                    // phases do — a dimmed "Falar" for twenty seconds read as
+                    // a button that had simply stopped working.
+                    CTAButton(model.judging ? "Ouvindo o que você disse…" : "Falar", tint: Palette.produceInk) { speaking = true }
                         .disabled(model.judging)
                 }
             }

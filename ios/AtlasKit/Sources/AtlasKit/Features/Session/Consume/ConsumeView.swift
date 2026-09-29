@@ -181,10 +181,15 @@ struct ConsumeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Palette.accentBg, in: .rect(cornerRadius: 10))
                     .padding(.top, 20)
-                    // The check appears once the end of the section has been on
-                    // screen — a gate answerable without scrolling past the prose
-                    // no longer implies reading. Mirrors `SectionCheck`'s observer.
-                    .onScrollVisibilityChange(threshold: 0.6) { shown in
+                // The check appears once the end of the section has been on
+                // screen — a gate answerable without scrolling past the prose
+                // no longer implies reading. Mirrors `SectionCheck`'s observer.
+                // Watched on a mark after the takeaway, not on the takeaway: at
+                // accessibility sizes a takeaway taller than the screen never
+                // had 60% of itself on it at once, and the check never came.
+                Color.clear
+                    .frame(height: 1)
+                    .onScrollVisibilityChange { shown in
                         if shown { model.reachEnd() }
                     }
             }

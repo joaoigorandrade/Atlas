@@ -71,11 +71,18 @@ public struct SteelmanSession: Sendable {
     }
 
     /// Both cases written, with enough in each to be worth judging. Below this
-    /// the judge is being asked to rule on a blank page.
+    /// the judge is being asked to rule on a blank page. Counted in UTF-16
+    /// units, as the web's `.length` counts — graphemes let an emoji-heavy case
+    /// pass on one client and not the other.
     public func ready(_ content: SteelmanContent) -> Bool {
-        content.positions.allSatisfy {
-            (cases[$0.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).count >= 40
-        }
+        content.positions.allSatisfy { Self.written(cases[$0.id] ?? "", atLeast: Self.caseFloor) }
+    }
+
+    public static let caseFloor = 40
+    public static let disconfirmerFloor = 15
+
+    public static func written(_ text: String, atLeast floor: Int) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count >= floor
     }
 
     /// Steelman's gate: neither side came out a strawman, at most one came out
@@ -90,6 +97,6 @@ public struct SteelmanSession: Sendable {
         guard rulings.allSatisfy({ $0 != nil }) else { return false }
         guard !rulings.contains(where: { $0 == .strawman }) else { return false }
         guard rulings.filter({ $0 == .thin }).count <= 1 else { return false }
-        return disconfirmer.trimmingCharacters(in: .whitespacesAndNewlines).count >= 15
+        return Self.written(disconfirmer, atLeast: Self.disconfirmerFloor)
     }
 }

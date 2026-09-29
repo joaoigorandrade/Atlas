@@ -41,7 +41,7 @@ struct FeynmanView: View {
                 report(model).transition(.opacity.combined(with: .move(edge: .bottom)))
             } else if model.failed {
                 Waiting(verbatim: model.waitingCopy, spinning: model.message.isEmpty)
-                Dock { CTAButton("Tentar de novo", tint: Phase.feynman.tint) { Task { await model.retry() } } }
+                Dock { CTAButton("Tentar de novo", tint: Phase.feynman.tint) { Task { await model.load() } } }
             } else {
                 teach(model)
             }
@@ -146,6 +146,9 @@ struct FeynmanView: View {
                          fills: !typeSize.isAccessibilitySize,
                          voice: false,
                          tint: Phase.feynman.tint)
+                // Held while it is judged: the verdict and its quotes are about
+                // the text that was sent, not one edited after.
+                .disabled(model.judging)
                 .padding(.top, 16)
                 .padding(.bottom, 20)
         }
@@ -233,7 +236,7 @@ struct FeynmanView: View {
             Text("A lista de tópicos veio incompleta — seu aluno vai avaliar menos partes do que deveria.")
                 .font(.atlas(.sans, 13))
                 .foregroundStyle(Palette.amberInk)
-            Button("Escrever os tópicos de novo") { Task { await model.retry() } }
+            Button("Escrever os tópicos de novo") { Task { await model.load() } }
                 .font(.atlas(.sans, 13, weight: .semibold))
                 .foregroundStyle(Phase.feynman.tint)
                 .frame(minHeight: Metrics.tap, alignment: .leading)

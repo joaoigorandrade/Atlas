@@ -202,6 +202,10 @@ public let legacyPhasePlan: [Phase] = [
 
 /// The phases of a plan that actually gate mastery — everything but Retain,
 /// which is closed by weeks of review history rather than by a session.
+/// The two-thirds bar five phases pass on — ⌈2n/3⌉ in integers, the same
+/// count `Math.ceil(n * (2 / 3))` gives on the web for every n that matters.
+public func twoThirds(_ count: Int) -> Int { (2 * count + 2) / 3 }
+
 public func planGates(_ plan: [Phase]) -> [Phase] {
     plan.filter { $0 != .retain }
 }
