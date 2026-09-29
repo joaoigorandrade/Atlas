@@ -38,6 +38,40 @@ private func isInteger(_ raw: String) -> Bool {
     return !s.isEmpty && s.allSatisfy(isASCIIDigit)
 }
 
+/// `-?\d+(\.\d+)?` — the only shape the web reads either side of a slash or in
+/// front of `x10^`: no leading point, no exponent.
+private func isPlain(_ raw: String) -> Bool {
+    var s = raw
+    if s.hasPrefix("-") { s.removeFirst() }
+    return s.first.map(isASCIIDigit) == true && isDecimal(s)
+}
+
+/// Digits in groups of three — `1,000`, `1.000`, `1.000,5`, `1,000.5` — as a
+/// plain decimal, or nil when `s` isn't grouped. The grouping mark repeats; a
+/// decimal mark after the groups must be the other one. `ungroup` in
+/// `answerCheck.ts`.
+private func ungrouped(_ s: String) -> String? {
+    var body = Substring(s)
+    let sign = body.hasPrefix("-") ? "-" : ""
+    if !sign.isEmpty { body.removeFirst() }
+    let lead = body.prefix(while: isASCIIDigit)
+    var rest = body.dropFirst(lead.count)
+    guard (1...3).contains(lead.count), let mark = rest.first, mark == "," || mark == "." else { return nil }
+    var digits = String(lead)
+    // One or more `<mark>ddd`, each ending where the digits do.
+    while rest.first == mark, rest.dropFirst().prefix(3).count == 3,
+          rest.dropFirst().prefix(3).allSatisfy(isASCIIDigit),
+          rest.dropFirst(4).first.map(isASCIIDigit) != true {
+        digits += rest.dropFirst().prefix(3)
+        rest = rest.dropFirst(4)
+    }
+    guard digits.count > lead.count else { return nil }
+    if rest.isEmpty { return sign + digits }
+    guard let point = rest.first, point != mark, point == "," || point == ".",
+          rest.count > 1, rest.dropFirst().allSatisfy(isASCIIDigit) else { return nil }
+    return sign + digits + "." + rest.dropFirst()
+}
+
 /// A bare decimal, with or without an exponent.
 private func decimal(_ s: String) -> Double? {
     var body = s
@@ -55,7 +89,10 @@ private func decimal(_ s: String) -> Double? {
 }
 
 /// The number a learner's answer denotes, or nil when it denotes none.
-public func parseNumber(_ raw: String) -> Double? {
+/// `grouped` reads separators as thousands instead: "1,000" is 1.0 as a comma
+/// decimal and 1000 grouped, and only the question knows which — so
+/// `checkNumeric` accepts either reading.
+public func parseNumber(_ raw: String, grouped: Bool = false) -> Double? {
     var s = raw.lowercased().filter { !$0.isWhitespace }
     guard !s.isEmpty else { return nil }
 
@@ -68,12 +105,17 @@ public func parseNumber(_ raw: String) -> Double? {
     // so a right answer is not marked wrong for being labelled. A bare percent
     // stays: it scales the value rather than naming it.
     var tail = ""
-    while let last = s.last, last.isLetter || last == "°" || last == "%" {
+    // ASCII letters only, as the web's `[a-z°%]*$`.
+    while let last = s.last, (last.isASCII && last.isLetter) || last == "°" || last == "%" {
         tail.insert(last, at: tail.startIndex)
         s.removeLast()
     }
     let percent = tail == "%"
     guard !s.isEmpty else { return nil }
+    if grouped {
+        guard let plain = ungrouped(s) else { return nil }
+        s = plain
+    }
 
     // Comma decimals are not a typo — they are how half the app's users write a
     // number, and pt-BR is one of the two shipped languages.
@@ -87,8 +129,8 @@ public func parseNumber(_ raw: String) -> Double? {
 
     // A fraction is an answer, not a division the learner failed to finish.
     if s.filter({ $0 == "/" }).count == 1, let slash = s.firstIndex(of: "/") {
-        guard let top = decimal(String(s[s.startIndex..<slash])),
-              let bottom = decimal(String(s[s.index(after: slash)...])),
+        let (over, under) = (String(s[s.startIndex..<slash]), String(s[s.index(after: slash)...]))
+        guard isPlain(over), isPlain(under), let top = Double(over), let bottom = Double(under),
               bottom != 0
         else { return nil }
         return percent ? top / bottom / 100 : top / bottom
@@ -97,11 +139,11 @@ public func parseNumber(_ raw: String) -> Double? {
     // 3x10^2 and 3e2 are the same answer written two ways.
     for marker in ["x10^", "*10^", "x10", "*10"] where s.contains(marker) {
         let parts = s.components(separatedBy: marker)
-        guard parts.count == 2, let base = decimal(parts[0]), isInteger(parts[1]),
+        guard parts.count == 2, isPlain(parts[0]), let base = Double(parts[0]), isInteger(parts[1]),
               let power = Int(parts[1])
         else { return nil }
-        let v = base * pow(10, Double(power))
-        return percent ? v / 100 : v
+        // Not scaled by a percent sign: the web's `sci` branch returns first.
+        return base * pow(10, Double(power))
     }
 
     guard let v = decimal(s) else { return nil }
@@ -112,10 +154,16 @@ public func parseNumber(_ raw: String) -> Double? {
 public func checkNumeric(
     _ given: String, _ expected: String, tolerance: Double = numericTolerance
 ) -> Bool {
-    guard let a = parseNumber(given), let b = parseNumber(expected) else { return false }
     // Relative everywhere except around zero, where relative error is undefined
     // and the tolerance has to be absolute.
-    return abs(a - b) <= (b == 0 ? tolerance : abs(b) * tolerance)
+    func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) <= (b == 0 ? tolerance : abs(b) * tolerance) }
+    let wanted = parseNumbers(expected)
+    return parseNumbers(given).contains { a in wanted.contains { near(a, $0) } }
+}
+
+/// Every value the answer can denote: the plain reading and the grouped one.
+public func parseNumbers(_ raw: String) -> [Double] {
+    [parseNumber(raw), parseNumber(raw, grouped: true)].compactMap { $0 }
 }
 
 /// What two utterances have to share to count as the same answer.

@@ -16,6 +16,16 @@
  *  number, and pt-BR is one of the two shipped languages. */
 const DECIMAL_COMMA = /^(-?\d+),(\d+)$/;
 
+/** Digits in groups of three — `1,000`, `1.000`, `1.000,5`, `1,000.5`. The
+ *  grouping mark repeats (`\2`); a decimal mark after it must be the other. */
+const GROUPED = /^(-?\d{1,3}([.,])\d{3}(?:\2\d{3})*)(?:([.,])(\d+))?$/;
+
+function ungroup(s: string): string | null {
+  const g = GROUPED.exec(s);
+  if (!g || g[3] === g[2]) return null;
+  return g[1].replaceAll(g[2], "") + (g[4] ? `.${g[4]}` : "");
+}
+
 /**
  * Relative tolerance. 0.5% accepts 0.333 for 1/3 and rejects 0.33, which is
  * roughly where a human grader draws the line on a placement question.
@@ -26,8 +36,13 @@ const DECIMAL_COMMA = /^(-?\d+),(\d+)$/;
  */
 export const NUMERIC_TOLERANCE = 5e-3;
 
-/** The number a learner's answer denotes, or null when it denotes none. */
-export function parseNumber(raw: string): number | null {
+/**
+ * The number a learner's answer denotes, or null when it denotes none.
+ * `grouped` reads separators as thousands instead: "1,000" is 1.0 as a comma
+ * decimal and 1000 grouped, and only the question knows which — so
+ * `checkNumeric` accepts either reading.
+ */
+export function parseNumber(raw: string, grouped = false): number | null {
   let s = raw.trim().toLowerCase().replace(/\s+/g, "");
   if (!s) return null;
   // Strip a trailing unit or currency the question already fixed — "12cm",
@@ -40,6 +55,11 @@ export function parseNumber(raw: string): number | null {
   s = s.replace(/^(?:r\$|[$€£])/, "").replace(/[a-z°%]*$/, (m) => (m === "%" ? "%" : ""));
   const percent = s.endsWith("%");
   if (percent) s = s.slice(0, -1);
+  if (grouped) {
+    const plain = ungroup(s);
+    if (plain === null) return null;
+    s = plain;
+  }
   const comma = DECIMAL_COMMA.exec(s);
   if (comma) s = `${comma[1]}.${comma[2]}`;
   const frac = /^(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/.exec(s);
@@ -58,18 +78,25 @@ export function parseNumber(raw: string): number | null {
   return percent ? v / 100 : v;
 }
 
+/** Every value the answer can denote: the plain reading and the grouped one. */
+export function parseNumbers(raw: string): number[] {
+  return [parseNumber(raw), parseNumber(raw, true)].filter(
+    (v): v is number => v !== null,
+  );
+}
+
 /** Does the learner's answer denote the expected value? */
 export function checkNumeric(
   given: string,
   expected: string,
   tolerance = NUMERIC_TOLERANCE,
 ): boolean {
-  const a = parseNumber(given);
-  const b = parseNumber(expected);
-  if (a === null || b === null) return false;
   // Relative everywhere except around zero, where relative error is undefined
   // and the tolerance has to be absolute.
-  return Math.abs(a - b) <= (b === 0 ? tolerance : Math.abs(b) * tolerance);
+  const near = (a: number, b: number) =>
+    Math.abs(a - b) <= (b === 0 ? tolerance : Math.abs(b) * tolerance);
+  const wanted = parseNumbers(expected);
+  return parseNumbers(given).some((a) => wanted.some((b) => near(a, b)));
 }
 
 /**

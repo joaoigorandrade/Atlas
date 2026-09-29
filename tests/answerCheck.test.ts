@@ -52,6 +52,21 @@ describe("parseNumber", () => {
 });
 
 describe("checkNumeric", () => {
+  it("reads thousands separators in either language", () => {
+    // "1,000" and "1.000" both read as 1.0 before — a right answer of 1000
+    // marked wrong, the node Shaky, and a gap hung under it.
+    expect(checkNumeric("1,000", "1000")).toBe(true);
+    expect(checkNumeric("1.000", "1000")).toBe(true);
+    expect(checkNumeric("1.000.000", "1000000")).toBe(true);
+    expect(checkNumeric("1.234,5", "1234.5")).toBe(true);
+    expect(checkNumeric("1,234.5", "1234.5")).toBe(true);
+    // The decimal reading still stands where the question means it.
+    expect(checkNumeric("1,5", "1.5")).toBe(true);
+    expect(checkNumeric("1,000", "1")).toBe(true);
+    // A repeated mark after the groups is neither reading.
+    expect(checkNumeric("1,000,5", "1000.5")).toBe(false);
+  });
+
   it("accepts the same value written differently", () => {
     expect(checkNumeric("0.75", "3/4")).toBe(true);
     expect(checkNumeric("0,75", "3/4")).toBe(true);

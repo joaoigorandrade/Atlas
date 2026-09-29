@@ -28,6 +28,29 @@ import Testing
     #expect(checkNumeric("3e2", "300"))
 }
 
+/// "1,000" and "1.000" read as 1.0 before — a right answer of 1000 marked
+/// wrong. Mirrors the same case in `answerCheck.test.ts`.
+@Test func thousandsSeparatorsReadInEitherLanguage() {
+    #expect(checkNumeric("1,000", "1000"))
+    #expect(checkNumeric("1.000", "1000"))
+    #expect(checkNumeric("1.000.000", "1000000"))
+    #expect(checkNumeric("1.234,5", "1234.5"))
+    #expect(checkNumeric("1,234.5", "1234.5"))
+    #expect(checkNumeric("1,5", "1.5"))
+    #expect(checkNumeric("1,000", "1"))
+    #expect(!checkNumeric("1,000,5", "1000.5"))
+    #expect(!checkNumeric("1,0000", "10000"))
+}
+
+/// The shapes the web does not read, this client does not read either.
+@Test func theParserReadsWhatTheWebReads() {
+    #expect(parseNumber(".5/2") == nil)
+    #expect(parseNumber("1e2/4") == nil)
+    #expect(parseNumber("3x10^2%") == 300)
+    #expect(parseNumber("30º") == nil)
+    #expect(parseNumber("-3/4") == -0.75)
+}
+
 @Test func theToleranceIsTightEnoughToBeWorthSomething() {
     // 0.5% relative: 0.333 is 1/3, 0.33 is a learner who rounded too early.
     #expect(checkNumeric("0.333", "1/3"))
