@@ -126,6 +126,26 @@ final class HomeViewModel {
     /// Every saved map, freshest first. The open one is in here, answered from
     /// live state — see `AtlasStore.maps`.
     var maps: [AtlasRun] { store.maps }
+
+    /// Today across every map (W4.6) — only worth a list once there are two.
+    var dayPlan: [DayItem] { maps.count > 1 ? dailyPlan(maps, targetMinutes: store.dailyTarget) : [] }
+
+    /// One day item as a line: what is due, what opens next, how near the date is.
+    func line(_ item: DayItem) -> String {
+        var parts: [String] = []
+        if item.due > 0 {
+            parts.append(item.due == 1 ? String(localized: "1 cartão vencido")
+                                       : String(localized: "\(item.due) cartões vencidos"))
+        }
+        if let phase = item.nextPhase, let label = item.nextLabel {
+            parts.append(String(localized: "\(phase.label) em \(label)"))
+        }
+        if let days = item.daysLeft {
+            parts.append(days == 1 ? String(localized: "1 dia até sua data")
+                                   : String(localized: "\(days) dias até sua data"))
+        }
+        return parts.joined(separator: " · ")
+    }
     func isOpen(_ map: AtlasRun) -> Bool { map.subject == store.subject }
 
     func frontierCount(_ map: AtlasRun) -> Int {

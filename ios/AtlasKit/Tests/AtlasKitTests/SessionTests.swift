@@ -381,3 +381,26 @@ private func upToCrucible() -> [Phase] {
     // Never reviewed: nothing to fade.
     #expect(nodeRetention([card("b", "m", daysAgo: 40, reps: 0)], now: now)["m"] == nil)
 }
+
+@MainActor
+@Test func theDayIsPlannedAcrossEveryMap() throws {
+    // W4.6: the map with a near date and due cards leads; a map with nothing
+    // open today is left out; the day's minutes cut the list.
+    func map(_ id: String, date: String = "", cards: Int = 0) throws -> AtlasRun {
+        let deck = (0..<cards).map { #"{"id":"\#(id)-\#($0)","nodeId":"a","type":"recall","source":"t","back":"b","fsrs":{}}"# }
+        let json = #"""
+        {"id":"\#(id)","subject":"\#(id)","goal":"mastery","examDate":"\#(date)",
+         "graph":{"nodes":[{"id":"a","label":"A","state":"unknown","g":1,"week":0,"x":0,"y":0}],"edges":[]},
+         "states":{},"cards":[\#(deck.joined(separator: ","))]}
+        """#
+        return try JSONDecoder().decode(AtlasRun.self, from: Data(json.utf8))
+    }
+    let soon = Calendar.current.date(byAdding: .day, value: 4, to: .now)!.formatted(isoDay)
+    let hobby = try map("Hobby", cards: 1)
+    let trip = try map("Trip", date: soon, cards: 2)
+    let plan = dailyPlan([hobby, trip], targetMinutes: 60)
+    #expect(plan.map(\.subject) == ["Trip", "Hobby"])
+    #expect(plan.first?.daysLeft == 4)
+    #expect(plan.first?.nextPhase == .consume)
+    #expect(dailyPlan([hobby, trip], targetMinutes: 1).count == 1)
+}

@@ -139,6 +139,21 @@ export function orderedFrontier(
   return entries;
 }
 
+/** Where "Start here →" points: the top of the goal-ordered frontier, else
+ *  the leftmost node already in flight, else nothing. */
+export function frontierTarget(
+  display: Record<string, NodeState>,
+  graph: ConceptGraph,
+  goal: GoalKind,
+): string | null {
+  const plan = orderedFrontier(display, graph, goal);
+  if (plan[0]) return plan[0].node.id;
+  const inFlight = graph.nodes.filter((n) =>
+    ["learning", "shaky", "gap"].includes(display[n.id] ?? "unknown"),
+  );
+  return inFlight.sort((a, b) => a.x - b.x)[0]?.id ?? null;
+}
+
 /** Rough minutes of focused work per phase, read off the item counts each
  *  generator enforces (`*_BOUNDS` in `lib/server/generate/`). Retain is the
  *  shared review queue, budgeted on its own.

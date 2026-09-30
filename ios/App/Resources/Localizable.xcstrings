@@ -1,6 +1,61 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "%@ em %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ on %2$@"
+          }
+        }
+      }
+    },
+    "%lld cartões vencidos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld cards due"
+          }
+        }
+      }
+    },
+    "%lld dias até sua data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days to your date"
+          }
+        }
+      }
+    },
+    "1 cartão vencido" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 card due"
+          }
+        }
+      }
+    },
+    "1 dia até sua data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 day to your date"
+          }
+        }
+      }
+    },
     "A recordação abre em %lld h — lembrar a frio precisa de uma noite." : {
       "localizations" : {
         "en" : {
@@ -141,6 +196,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Spoken as %@"
+          }
+        }
+      }
+    },
+    "Hoje, em todos os seus mapas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today, across your maps"
           }
         }
       }

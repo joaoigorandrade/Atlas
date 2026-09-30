@@ -10,13 +10,14 @@ import {
   markTodayMet,
   crucibleMasters,
   phasePlan,
-  orderedFrontier,
+  frontierTarget,
   reviewCard,
   rolloverAdherence,
   toggleReminder,
   type GapSpec,
   type NodeState,
 } from "@/lib/curriculum";
+import { dailyPlan } from "@/lib/dailyPlan";
 import { createWarmQueue } from "@/lib/warm";
 import { type Language, languageAction, useLanguage } from "@/lib/i18n";
 import AppGate from "@/components/AppGate";
@@ -329,14 +330,10 @@ export default function AtlasApp({
     if (term && hit) centerOn(hit.id);
   };
 
-  const frontierTargetId = useCallback(() => {
-    const plan = orderedFrontier(displayRef.current, graphRef.current, form.goal);
-    if (plan[0]) return plan[0].node.id;
-    const inFlight = graphRef.current.nodes.filter((n) =>
-      ["learning", "shaky", "gap"].includes(displayRef.current[n.id] ?? "unknown"),
-    );
-    return inFlight.sort((a, b) => a.x - b.x)[0]?.id ?? null;
-  }, [form.goal, graphRef, displayRef]);
+  const frontierTargetId = useCallback(
+    () => frontierTarget(displayRef.current, graphRef.current, form.goal),
+    [form.goal, graphRef, displayRef],
+  );
 
   // Onboarding: topic in, map out, placement answered.
   const {
@@ -765,6 +762,7 @@ export default function AtlasApp({
           frontierConcept={frontierConcept}
           frontierTotal={frontierTotal}
           maps={mapCards}
+          today={dailyPlan(run.maps, form.target)}
           onOpenMap={openMap}
           onSelectMap={switchMap}
           onReview={enterReview}

@@ -4,13 +4,15 @@ import { useState } from "react";
 import { STATE_COLOR, type DailyQueue } from "@/lib/curriculum";
 import Masthead from "@/components/ui/Masthead";
 import { pressable } from "@/components/ui/Button";
-import { plateStyle } from "@/components/ui/Plate";
 import { CompassRose } from "@/components/ui/Ornaments";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { InlineError } from "@/components/ErrorState";
 import { STRINGS } from "@/components/dashboardScreenCopy";
 import ContinentShelf from "@/components/ContinentShelf";
+import { HeroCard } from "@/components/dashboard/HeroCard";
+import { TodayPlan } from "@/components/dashboard/TodayPlan";
+import type { DayItem } from "@/lib/dailyPlan";
 import type { Continents } from "@/components/atlas/useContinents";
 
 /** One card's worth of a saved map — the "Your maps" grid. */
@@ -46,6 +48,8 @@ interface DashboardScreenProps {
   frontierTotal: number;
   /** Every saved map, active one included — the "Your maps" grid. */
   maps: MapCardSummary[];
+  /** Today's plan across every map (W4.6) — shown once there is more than one. */
+  today: readonly DayItem[];
   /** Opens the live map — the "Your frontier" hero card only ever means that one. */
   onOpenMap: () => void;
   /** Opens (or switches to) the given map from the grid. */
@@ -63,8 +67,6 @@ interface DashboardScreenProps {
   mapsFailed?: { onRetry: () => void };
   continents: Continents;
 }
-
-const cardBase = { ...plateStyle, padding: "24px 26px", cursor: "pointer" } as const;
 
 /** The quiet "×" that opens the exclude confirmation on a map card. */
 const excludeButtonStyle = {
@@ -106,6 +108,7 @@ export default function DashboardScreen({
   frontierConcept,
   frontierTotal,
   maps,
+  today,
   onOpenMap,
   onSelectMap,
   onReview,
@@ -203,130 +206,47 @@ export default function DashboardScreen({
               marginBottom: 44,
             }}
           >
-            <div
-              className="at-lift"
-              {...pressable(onReview)}
-              style={{
-                ...cardBase,
-                border: `3px double ${color.accent}`,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  ...kicker(10.5, "0.12em"),
-                  color: color.accent,
-                  marginBottom: 14,
-                }}
-              >
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: color.accent,
-                  }}
-                />
-                {t.todaysReview}
-              </div>
-              <div
-                style={{
-                  fontFamily: font.serif,
-                  fontSize: 28,
-                  lineHeight: 1.1,
-                  marginBottom: 6,
-                }}
-              >
-                {queue.cards > 0
+            <HeroCard
+              onOpen={onReview}
+              frame={color.accent}
+              ink={color.accent}
+              dot={{ background: color.accent }}
+              label={t.todaysReview}
+              title={
+                queue.cards > 0
                   ? t.cardsDue(queue.cards)
                   : metToday
                     ? t.queueClear
-                    : t.nothingDueYet}
-              </div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  color: color.inkMuted,
-                  marginBottom: 16,
-                  lineHeight: 1.5,
-                }}
-              >
-                {metToday && queue.cards > 0
+                    : t.nothingDueYet
+              }
+              body={
+                metToday && queue.cards > 0
                   ? t.metTodayWaiting(queue.cards)
                   : metToday
                     ? t.metTodayBody
                     : queue.cards > 0
                       ? t.cardsDueBody(queue.minutes)
-                      : t.nothingDueBody(queue.fresh)}
-              </div>
-              <div style={{ fontSize: 13.5, color: color.accent, fontWeight: 600 }}>
-                {t.startReview}
-              </div>
-            </div>
-
-            <div
-              className="at-lift"
-              {...pressable(onOpenMap)}
-              style={{
-                ...cardBase,
-                border: `3px double ${color.gilt}`,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  ...kicker(10.5, "0.12em"),
-                  color: color.amberInk,
-                  marginBottom: 14,
-                }}
-              >
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "#b0852c",
-                    boxShadow: "0 0 8px rgba(176,133,44,0.6)",
-                  }}
-                />
-                {t.yourFrontier}
-              </div>
-              <div
-                style={{
-                  fontFamily: font.serif,
-                  fontSize: 28,
-                  lineHeight: 1.1,
-                  marginBottom: 6,
-                }}
-              >
-                {frontierConcept ?? t.allCaughtUp}
-              </div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  color: color.inkMuted,
-                  marginBottom: 16,
-                  lineHeight: 1.5,
-                }}
-              >
-                {frontierConcept ? t.frontierBody(subject) : t.frontierDoneBody(subject)}
-              </div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  color: color.amberInk,
-                  fontWeight: 600,
-                }}
-              >
-                {t.openMap}
-              </div>
-            </div>
+                      : t.nothingDueBody(queue.fresh)
+              }
+              cta={t.startReview}
+            />
+            <HeroCard
+              onOpen={onOpenMap}
+              frame={color.gilt}
+              ink={color.amberInk}
+              dot={{ background: "#b0852c", boxShadow: "0 0 8px rgba(176,133,44,0.6)" }}
+              label={t.yourFrontier}
+              title={frontierConcept ?? t.allCaughtUp}
+              body={
+                frontierConcept ? t.frontierBody(subject) : t.frontierDoneBody(subject)
+              }
+              cta={t.openMap}
+            />
           </div>
 
+          {maps.length > 1 && today.length > 0 && (
+            <TodayPlan items={today} onOpen={onSelectMap} />
+          )}
           <ContinentShelf continents={continents} />
           <div
             style={{
