@@ -153,6 +153,25 @@ Bruno (finance) through the flow eval and one dogfood session each, and record
 which of their exit points from `RESEARCH-LEARNER-FLOWS.md` still exist. A
 stage is done when its targeted exits are gone, not when its PRs are merged.
 
+## Progress
+
+Branch `claude/learning-plan` (PR #58). Each item landed on both clients with
+its own tests, unless noted.
+
+| Item            | Status (2026-09-30)                                                                                                                                                                                                                                                         |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W0.1–W0.4       | Done. Stage I gate numbers are under "Baselines".                                                                                                                                                                                                                           |
+| W1.0–W1.6       | Done. W1.1 also filed as its own task; landed here with the map header.                                                                                                                                                                                                     |
+| W2.1–W2.8       | Done. W2.2 decided by data: one model serves every domain, so no per-domain routing. W2.8's reviewer is still open decision 6.                                                                                                                                              |
+| W2.9            | Deferred, as planned — only if formal topics stay above the key target.                                                                                                                                                                                                     |
+| W3.1–W3.4, W3.6 | Done. W3.3 pretest; W3.4 prove-it from a clean pretest (placement already credits known nodes, so it needed nothing new); W3.6 core nodes priced at their rungs, with `scripts/budgets.sql` to tune from data.                                                              |
+| W3.5            | Done by W1.6 (Trace, Provenance early exits). Recall's "skip the report on a perfect first draft" skipped: it saves seconds and removes the learner's confirmation.                                                                                                         |
+| W4.1            | Done. Generalises an earlier Recall-only hold (`spacing.ts`) to every plan's last gate; prove-it is exempt.                                                                                                                                                                 |
+| W4.2–W4.6       | Done. W4.3 reuses the Recall judge (no new mode). W4.6 is planning only — each row opens its map; a cross-map review deck is the upgrade if earned.                                                                                                                         |
+| W4.7            | Open. Parking audit: Consume, Socratic, Feynman, Connect, Crucible, Perform resume; Discriminate, Predict, Trace, Provenance, Steelman and Produce do not (web), and iOS parks only the first four. The iOS widget needs an App Group and signing decisions from the owner. |
+| Stage II gate   | Not yet run: the flow review (M.3) re-runs the four learners through the eval panel, which spends model credits.                                                                                                                                                            |
+| W5–W11          | Not started. The `target` and `shape` topic axes are already stamped by the server (W0.4), ready for W5.1 and W9.1.                                                                                                                                                         |
+
 ---
 
 # Stage I — Trustworthy
