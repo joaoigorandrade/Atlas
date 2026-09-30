@@ -7,6 +7,7 @@
 // everything after it depends on must actually have been carried out, while a
 // sanity check the learner skipped makes the run thinner rather than wrong.
 
+import { ownMethod } from "./verify";
 import { cellNote } from "./cellNote";
 import type { Cell } from "@/lib/curriculum";
 import {
@@ -82,9 +83,20 @@ export interface PerformParams extends Boundary {
   domain?: Domain;
   /** The node's cell — `cellNote`; server-stamped, never from a client. */
   cell?: Cell;
+  /** How many runs this node has had — server-stamped from the attempts log. */
+  rerun?: number;
 }
 
 export async function generatePerform(params: PerformParams): Promise<PerformContent> {
+  // W2.4: a case a prerequisite's method cracks is written again, once.
+  return ownMethod(
+    params,
+    (c) => c.task,
+    () => writePerform(params),
+  );
+}
+
+async function writePerform(params: PerformParams): Promise<PerformContent> {
   const { topic, nodeLabel, interests, language = "en" } = params;
   return generateJson(
     user(
@@ -93,6 +105,11 @@ ${interestNote(interests)}
 ${boundaryNote(params)}${kindNote(params.nodeKind, "perform")}${domainNote(params.domain, "perform")}${cellNote(params.cell, "perform")}
 
 The case must be self-contained and specific — real values, real units, or a real situation — and must NOT say which steps to use or in what order. Working it out is the test.
+Its method is the one "${nodeLabel}" names and nothing lighter: the case must be UNSOLVABLE without this procedure as its own summary states it. A case a prerequisite's method already cracks (two unknowns solved by substitution when the node is row reduction) is the wrong case — size it until only this method works (three unknowns, a free variable, an inconsistency).${
+        params.rerun
+          ? `\nThe learner has already run this procedure on a case like this ${params.rerun} time(s) and seen the report. Same procedure, different values and a different surface — nothing from an earlier case may carry over as an answer.`
+          : ""
+      }
 
 The learner never sees the steps below. A step is a thing their WORK has to show on this case, not a thing they should understand.
 

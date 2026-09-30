@@ -4,6 +4,10 @@
 // words first (the judge maps them onto the options), answered once. A second
 // pick after a wrong one was elimination, not comprehension — so a miss shows
 // the right answer, is kept for the recap to name, and the reading goes on.
+//
+// The same card is also the pretest (W3.3): the check asked *before* its
+// section, on screen at once, and never revealing the answer — a right guess
+// passes the check, a miss opens the reading and the check waits at its end.
 
 import { BLUE, RIGHT, STRINGS, WRONG } from "./shared";
 import { ConsumePrediction } from "@/lib/curriculum";
@@ -19,18 +23,24 @@ export function SectionCheck({
   check,
   answer,
   onAnswer,
+  pretest = false,
+  guessMissed = false,
 }: {
   topic: string;
   nodeLabel: string;
   check: ConsumePrediction;
   answer?: { oi: number; correct: boolean };
   onAnswer: (oi: number, correct: boolean) => void;
+  /** Asked before the section is read: shown at once, answer never revealed. */
+  pretest?: boolean;
+  /** The pretest guess on this section missed — the hint says so. */
+  guessMissed?: boolean;
 }) {
   const [mode, setMode] = useState<AnswerMode>("open");
   const t = useT(STRINGS);
   const slot = useRef<HTMLDivElement>(null);
   // Answered before this mounted (re-render after a scroll away) → already in.
-  const [revealed, setRevealed] = useState(!!answer);
+  const [revealed, setRevealed] = useState(!!answer || pretest);
   useEffect(() => {
     if (revealed || !slot.current) return;
     const io = new IntersectionObserver(
@@ -86,7 +96,13 @@ export function SectionCheck({
                 color: passed ? RIGHT : BLUE,
               }}
             >
-              {passed ? t.checkPassed : missed ? t.checkMissed : t.checkKicker}
+              {passed
+                ? t.checkPassed
+                : missed
+                  ? t.checkMissed
+                  : pretest
+                    ? t.pretestKicker
+                    : t.checkKicker}
             </span>
           </div>
           <div
@@ -101,7 +117,7 @@ export function SectionCheck({
           </div>
           {!answer && (
             <div style={{ fontSize: 13, color: color.inkFaint, marginBottom: 14 }}>
-              {t.checkHint}
+              {pretest ? t.pretestHint : guessMissed ? t.pretestAgain : t.checkHint}
               <div style={{ marginTop: 10 }}>
                 <AnswerModeToggle mode={mode} onMode={setMode} accent={BLUE} />
               </div>

@@ -19,6 +19,8 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 
 import Rich from "@/components/Rich";
 import TurnOver from "@/components/session/retain/TurnOver";
+import { FLIP_MS, Question } from "@/components/session/retain/Question";
+import { CardAnswer, Suggestion } from "@/components/session/retain/CardAnswer";
 import { STRINGS } from "@/components/session/retainCopy";
 
 // The micro-Socratic aside borrows Connect's violet; the fail re-explanation
@@ -26,63 +28,9 @@ import { STRINGS } from "@/components/session/retainCopy";
 // the same here as it does on the map.
 const ASIDE_ACCENT = CONNECT_COLOR.accent;
 
-/** How long the card takes to turn over. The faces swap `visibility` at the
- *  half-way point so the hidden face can never be clicked mid-turn. */
-const FLIP_MS = motion.duration.deliberate;
-
 /** The grade is inked onto the card, then the card is tossed onto the pile. */
 const STAMP_MS = 260;
 const TOSS_MS = 220;
-
-/** The question, filled or blank — shared by both faces of the card so the
- *  answer lands *in* the sentence it belongs to rather than beside it. */
-function Question({
-  card,
-  filled,
-  size,
-  ink = color.ink,
-}: {
-  card: ReviewCard;
-  filled: boolean;
-  size: number;
-  ink?: string;
-}) {
-  const text = { fontFamily: font.serif, fontSize: size, lineHeight: 1.4, color: ink };
-  if (!card.cloze)
-    return (
-      <div style={text}>
-        <Rich text={card.front} />
-      </div>
-    );
-  return (
-    <div style={text}>
-      <Rich text={card.cloze[0]} />
-      <span
-        style={{
-          display: "inline-block",
-          minWidth: 96,
-          borderBottom: `2px solid ${filled ? STATE_COLOR.mastered : "rgba(43,33,24,0.28)"}`,
-          textAlign: "center",
-        }}
-      >
-        {filled ? (
-          <span
-            style={{
-              color: STATE_COLOR.mastered,
-              display: "inline-block",
-              animation: `clozeReveal .34s ${motion.ease.spring} both ${FLIP_MS / 2}ms`,
-            }}
-          >
-            {card.answer}
-          </span>
-        ) : (
-          " "
-        )}
-      </span>
-      <Rich text={card.cloze[1]} />
-    </div>
-  );
-}
 
 const keycap: CSSProperties = {
   fontFamily: font.caps,
@@ -115,8 +63,9 @@ export default function ActiveCard({
   session: RetainSession;
   content: RetainContent;
   nodeLabel: string;
-  /** Turn the card over — with the confidence tap that turned it, if any. */
-  onFlip: (sure?: number) => void;
+  /** Turn the card over — with the confidence tap that turned it, if any, and
+   *  the answer written before it (W4.3). */
+  onFlip: (sure?: number, said?: string) => void;
   onGrade: (grade: ReviewGrade) => void;
   onToggleAside: () => void;
   onReteach: () => void;
@@ -131,6 +80,9 @@ export default function ActiveCard({
   const revealed = session.stage === "reveal" || session.stage === "aside";
   const failed = session.stage === "failed";
   const flipped = revealed || failed;
+  // The answer written before turning — one per dealt card.
+  const [said, setSaid] = useState("");
+  useEffect(() => setSaid(""), [card.id, session.idx]);
 
   // The toss: a graded card is stamped, then leaves before the next one is
   // dealt. "Again" keeps the card on screen — the fail panel opens underneath
@@ -160,10 +112,10 @@ export default function ActiveCard({
       if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
       if (isQuestion && (e.key === " " || e.key === "Enter")) {
         e.preventDefault();
-        onFlip();
+        onFlip(undefined, said);
       } else if (isQuestion && "123".includes(e.key)) {
         e.preventDefault();
-        onFlip(Number(e.key) - 1);
+        onFlip(Number(e.key) - 1, said);
       } else if (revealed && "1234".includes(e.key)) {
         e.preventDefault();
         grade(grades[Number(e.key) - 1].key);
@@ -177,7 +129,17 @@ export default function ActiveCard({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isQuestion, revealed, failed, grades, grade, onFlip, onToggleAside, onContinue]);
+  }, [
+    isQuestion,
+    revealed,
+    failed,
+    grades,
+    grade,
+    onFlip,
+    onToggleAside,
+    onContinue,
+    said,
+  ]);
 
   const deck = retainDeck(session, content).length;
   const remaining = deck - session.idx - 1;
@@ -285,6 +247,7 @@ export default function ActiveCard({
             <div style={{ margin: "auto 0", padding: "30px 34px 10px" }}>
               <Question card={card} filled={false} size={27} />
             </div>
+            {card.type !== "why" && <CardAnswer value={said} onChange={setSaid} />}
             <div style={{ textAlign: "center", padding: "6px 34px 18px" }}>
               <div
                 style={{
@@ -297,7 +260,7 @@ export default function ActiveCard({
               >
                 {t.flipHint}
               </div>
-              <TurnOver onFlip={onFlip} keycap={keycap} />
+              <TurnOver onFlip={(sure) => onFlip(sure, said)} keycap={keycap} />
             </div>
             <div
               style={{
@@ -407,8 +370,10 @@ export default function ActiveCard({
               </div>
             </div>
 
+            <Suggestion session={session} />
             {/* Grade — tabs fused to the card's foot, where Anki puts them.
-                Each carries the interval FSRS would hand it. */}
+                Each carries the interval FSRS would hand it; the judged
+                answer's suggestion is ringed (W4.3), never pressed for them. */}
             <div
               style={{
                 ...inkIn(2),
@@ -435,6 +400,10 @@ export default function ActiveCard({
                       cursor: "pointer",
                       border: "none",
                       borderLeft: i ? `1px solid ${color.hairline}` : "none",
+                      boxShadow:
+                        session.suggest?.grade === g.key
+                          ? `inset 0 0 0 2px ${g.color}`
+                          : undefined,
                     } as CSSProperties
                   }
                 >

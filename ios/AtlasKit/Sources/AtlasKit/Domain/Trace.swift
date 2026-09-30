@@ -50,7 +50,13 @@ public struct TraceSession: Sendable {
     public mutating func next(_ content: TraceContent) {
         guard let item = content.stages[safe: index], walked[item.id] != nil else { return }
         index += 1
-        done = index >= content.stages.count
+        done = index >= content.stages.count || early(content)
+    }
+
+    /// Early exit: the opening three stages all held. The walk otherwise
+    /// continues past a break. Mirrors `traceEarly`.
+    public func early(_ content: TraceContent) -> Bool {
+        content.stages.count > 3 && content.stages.prefix(3).allSatisfy { walked[$0.id] == $0.answerIndex }
     }
 
     public func score(_ content: TraceContent) -> Int {
@@ -76,6 +82,7 @@ public struct TraceSession: Sendable {
     /// guessed the rest, which is the opposite of following a mechanism.
     public func passed(_ content: TraceContent) -> Bool {
         guard !content.stages.isEmpty else { return done }
+        if early(content) { return true }
         let unbroken = brokeAt(content) ?? content.stages.count
         return unbroken >= twoThirds(content.stages.count)
     }

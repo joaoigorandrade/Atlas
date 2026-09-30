@@ -141,6 +141,13 @@ final class DrillViewModel {
     /// it is not the gate. See `DrillSession.passed`.
     func advance() {
         stopClock()
+        // The calls not yet automatic go to review, where automaticity forms.
+        for card in content.map(session.cards) ?? [] where !pass.store.cards.contains(where: { $0.id == card.id }) {
+            pass.store.cards.append(StoredCard(
+                id: card.id, nodeId: node.id, type: .recall, source: "Drill",
+                front: card.front, back: card.back
+            ))
+        }
         pass.advance(passed: passed)
     }
 

@@ -35,7 +35,7 @@ export interface MapParams {
    *  the escape hatch is spent — offering it again is the app re-asking a
    *  question it has already been answered. See `mapContext`. */
   scoped?: boolean;
-  /** The other maps of this map's continent (`withNeighbours`) — each owns its
+  /** The other maps of this map's continent (`withTopicAxes`) — each owns its
    *  own concepts, so this map must not carry them. */
   neighbours?: string[];
   language?: Language;
@@ -98,11 +98,34 @@ ${grounding}${continent}
 ${escape}`;
 }
 
+/**
+ * The map as a whole, written once before any concept: what the server stamps
+ * onto the topic (`stampTopicMeta`) and every later generation reads back
+ * through `withTopicAxes`. One object rather than per-node fields, because
+ * none of these is a property of a concept.
+ */
+export const ABOUT_SHAPE = `{"about": {"domain": "formal|executable|empirical|interpretive|performative|craft|general", "targetLanguage": "es-ES", "jurisdictional": false, "lenses": [], "shape": "hierarchy|timeline|scenarios|plan"}}`;
+
+export const ABOUT_RULE = `The "about" object describes the map as a whole:
+- "domain": the TOPIC's domain (see the domain rule), once.
+- "targetLanguage": ONLY when the topic is learning to speak, hear or read a language — its BCP-47 tag WITH region, the variant the learner most plausibly wants ("es-ES" for Spain, "es-MX", "pt-PT", "en-GB", "fr-FR", "it-IT"). null for every other topic, including one merely written in a language.
+- "jurisdictional": true when what is correct depends on the learner's country — personal finance, law, tax, medicine and prescribing, driving, employment. false for mathematics, science, history, languages, programming.
+- "lenses": [] — except for a confessional or genuinely contested subject (religious history, a scripture, a political ideology), where it names TWO short readings a learner could study it through (e.g. "Academic historiography", "The Church's own reading, with its documents"). Never more than two.
+- "shape": how the topic is best walked. "timeline" for history and anything whose spine is chronology; "scenarios" for a language learned for real situations (a trip, a job), where each concept is a situation; "plan" for a life domain learned to act on (money, health habits, a career move), where concepts are decisions in the order life presents them; "hierarchy" for everything else.`;
+
+/** W3.1: the evidence that decides which HEAVY phases a node runs. Honest
+ *  booleans, not a quota — most nodes are none of the three special cases. */
+export const EVIDENCE_RULE = `Three booleans per concept decide which demanding exercises it gets, so answer them honestly:
+  "contested" — true only when informed people genuinely disagree about it today (a live scholarly, political or practical dispute), so that arguing both sides teaches something. Settled material is false.
+  "transferable" — true when applying it to a situation it was never taught in is meaningful (a principle, a method, a pattern); false for a label, a date, a one-off event or a convention.
+  "individual" — true when the concept IS one named person, event, document or place, rather than a class of things with members and non-members.`;
+
 /** One node as the model writes it — shared by the single-shot and streamed
  *  prompts so the two can't ask for different fields. */
-export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard"}`;
+export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "domainWhy": "only when the domain differs from the topic's", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard", "contested": false, "transferable": true, "individual": false}`;
 
 export const graphShape = (ask: [number, number]) => `{
+  "about": ${ABOUT_SHAPE.slice(10, -1)},
   "nodes": [${NODE_SHAPE}, ...],   // ${ask[0]} to ${ask[1]} concepts, foundations through capstone
   "edges": [["prereq-id", "dependent-id"], ...]                        // direction is prerequisite -> dependent; must form a DAG; every non-root node needs at least one prerequisite
 }`;
@@ -139,7 +162,7 @@ export const DOMAIN_RULE = `"domain" is what SETTLES a claim in this corner of t
   "performative" — settled by producing it live, in real time, where fluency is the point. Languages, performance, rhetoric.
   "craft" — settled by a physical artifact no screen can inspect. Woodwork, cooking, welding, repair, gardening.
   "general" — none of those genuinely fits. Choose it rather than forcing one.
-Decide the TOPIC'"'"'s domain first and build the whole map by its row below. Then tag each node with its OWN domain: most match the topic'"'"'s, but a machine-learning map has "formal" nodes (the gradient) and "executable" ones (implement the layer).`;
+Decide the TOPIC'"'"'s domain ONCE, first, in the map's "about" object, and build the whole map by its row below. Every node INHERITS it. A node may carry a different "domain" only together with "domainWhy": one sentence on why what settles a claim about THIS node differs from the topic (a machine-learning map's gradient is "formal" because it is derived; implementing the layer is "executable" because it runs). Without "domainWhy" the node takes the topic'"'"'s domain — a budget is not code because it has steps.`;
 
 /**
  * Layer 1: what the domain does to the MAP, as opposed to what it does to a
@@ -195,6 +218,8 @@ export const mapRules = (ask: [number, number], goal: GoalKind) =>
   `Rules: labels are 1-3 words, capitalized the way the output language capitalizes a heading — English title case, but sentence case in languages that do not title-case (pt-BR: "Reações dependentes da luz", never "Reações Dependentes Da Luz"). ${SUMMARY_RULE}
 ${KIND_RULE}
 ${DOMAIN_RULE}
+${ABOUT_RULE}
+${EVIDENCE_RULE}
 ${axesRule(goal)}
 ${sizeRule({
   unit: "concepts",
@@ -204,6 +229,7 @@ ${sizeRule({
     "a topic that is one technique or one mechanism, where a handful of concepts genuinely is the whole of it",
   atMax: "a broad field with several separate branches a learner must cross",
 })}
+A prerequisite edge means "B cannot be UNDERSTOOD without A" — never "A came earlier" or "A is usually taught first". Concepts that do not need each other are siblings, not a chain.
 The map must read left-to-right from true foundations to the topic's capstone ideas. Every node is a CONCEPT the learner can be taught and then tested on — never a chapter heading or a container: no "Introduction", "Overview", "Fundamentals", "Advanced Topics", "Applications", "Conclusion". Each concept appears ONCE: never write it again under a reworded label or a synonym ("Ministério Galileu" and "Ministério na Galileia" are one node) — when the distinct concepts run out, stop. Ids are plain ASCII kebab-case, accents dropped ("joao-batista").
 
 ${DOMAIN_MAP_RULE}`;

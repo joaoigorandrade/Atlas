@@ -2,6 +2,12 @@
 // Everything else on a ladder can run back to back in one sitting. Three
 // things cannot, because what they measure is what survives time:
 //
+// - **The last gate** of every plan (W4.1) — Recall on a concept, the
+//   Crucible on a procedure or principle, Perform on a craft — opens a night
+//   after the last thing studied on the node, so no node goes green on the
+//   day it was learned. A "prove it" challenge is exempt: it claims the
+//   material was known before this sitting, and a miss costs the attempt.
+//
 // - **Recall** is retrieval *without a cue*. Run minutes after the Crucible,
 //   it reads short-term memory of the session the learner just finished — so
 //   it opens a night after the node's last exposure, and a failed attempt
@@ -16,7 +22,7 @@
 // they cost no column and survive the iOS client, which carries that object
 // whole. Recall's slot is otherwise unused — it is never parked.
 
-import type { PhaseId, PhasesDoneMap } from "./phases";
+import { planGates, type PhaseId, type PhasesDoneMap } from "./phases";
 
 /** "Tomorrow", as a duration: long enough to sleep on, short enough that a
  *  learner who studies at the same hour each day is not locked out by minutes. */
@@ -39,16 +45,18 @@ export function holdFrom(now = Date.now()): SpacingHold {
 }
 
 /**
- * Does closing `phase` push Recall a night out? Any exposure to the material
- * does, on a node that still owes Recall — Recall is always the last gate, so
+ * Which gate closing `phase` pushes a night out, if any (W4.1): the plan's
+ * last gate — Recall where the plan has one, otherwise whatever proves the
+ * node last — while it is still owed. Any exposure to the material counts, so
  * this is "a night after the last thing studied".
  */
-export function holdsRecall(
+export function heldGate(
   plan: readonly PhaseId[],
   done: PhasesDoneMap[string] | undefined,
   phase: PhaseId,
-): boolean {
-  return phase !== "recall" && plan.includes("recall") && !done?.includes("recall");
+): PhaseId | null {
+  const last = planGates(plan).at(-1);
+  return last && phase !== last && !done?.includes(last) ? last : null;
 }
 
 /** Hours left on a hold, rounded up — what the toast names. */

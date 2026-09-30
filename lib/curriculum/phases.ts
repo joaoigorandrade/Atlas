@@ -18,6 +18,7 @@ import {
   type NodeImportance,
 } from "./cells";
 import { DOMAIN_PLAN, asDomain, type Domain } from "./domains";
+import { GATE_CAP, gateRank, type PlanEvidence } from "./rationing";
 
 import type { Language } from "@/lib/i18n";
 
@@ -234,10 +235,16 @@ export type PhaseProgress = Partial<Record<PhaseId, unknown>>;
 export function nodeAxes(raw: Record<string, unknown>, goal?: GoalKind) {
   const importance = asImportance(raw.importance);
   const difficulty = asDifficulty(raw.difficulty);
+  const flag = (v: unknown) => (typeof v === "boolean" ? v : undefined);
   return {
     kind: asNodeKind(raw.kind),
     domain: asDomain(raw.domain),
     ...(goal ? clampCell(goal, importance, difficulty) : { importance, difficulty }),
+    // W3.1's evidence — absent (undefined) on every map before it, which
+    // rations nothing.
+    contested: flag(raw.contested),
+    transferable: flag(raw.transferable),
+    individual: flag(raw.individual),
   };
 }
 
@@ -263,6 +270,7 @@ export function resolvePlan(
   domain: Domain,
   importance: NodeImportance = "core",
   difficulty: NodeDifficulty = "medium",
+  evidence: PlanEvidence = {},
 ): readonly PhaseId[] {
   const base = PHASE_PLAN[kind];
   const rule = DOMAIN_PLAN[domain];
@@ -275,7 +283,20 @@ export function resolvePlan(
     return PHASE_ORDER.filter((p) => p === "consume" || p === "retain" || p === rung);
   }
   if (difficulty === "easy") want.delete("socratic");
-  return PHASE_ORDER.filter((p) => want.has(p));
+  // W3.1, in this order: a heavy phase runs only where the map found what it
+  // needs, then the cell caps what is left.
+  if (evidence.contested === false) want.delete("steelman");
+  if (evidence.transferable === false) want.delete("crucible");
+  if (evidence.individual === true) want.delete("discriminate");
+  if (evidence.neighbours !== undefined && evidence.neighbours < 2)
+    want.delete("connect");
+  const gates = PHASE_ORDER.filter((p) => want.has(p) && p !== "retain");
+  const keep = new Set(
+    [...gates]
+      .sort((a, b) => gateRank(kind, a) - gateRank(kind, b))
+      .slice(0, GATE_CAP[difficulty]),
+  );
+  return PHASE_ORDER.filter((p) => (p === "retain" ? want.has(p) : keep.has(p)));
 }
 
 /** The plan a node runs: its stored one, else the one its axes resolve to. A

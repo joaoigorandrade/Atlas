@@ -1,6 +1,7 @@
 // ---- kind: curriculum map --------------------------------------------------
 import { arr, fail, languageNote, obj, slug, str, user } from "./common";
 import {
+  ABOUT_SHAPE,
   NODE_SHAPE,
   graphShape,
   mapContext,
@@ -12,16 +13,18 @@ import {
   ConceptEdge,
   ConceptNode,
   MapNode,
-  asDiagnosticKind,
   nodeAxes,
   resolvePlan,
-  type DiagnosticKind,
   type GoalKind,
   PARETO_DEFAULT,
+  asMapMeta,
   graphFromMapNodes,
+  type MapMeta,
 } from "@/lib/curriculum";
+import { noteChain, withSyllabus } from "./mapSyllabus";
 import {
   claim,
+  inherit,
   restartGuard,
   validateMapConcept,
   type RawConcept,
@@ -36,6 +39,8 @@ import { StreamFrame } from "@/lib/server/stream";
  *  it back into a `ConceptGraph` on both sides. */
 export interface CurriculumMapPayload {
   nodes: MapNode[];
+  /** The map as a whole — absent on maps cached before the header existed. */
+  meta?: MapMeta;
 }
 
 /** A scoped sub-map offer returned instead of a map when the topic is too
@@ -44,6 +49,13 @@ export interface ScopeOffer {
   label: string;
   note: string;
 }
+
+/** W3.1's evidence as the model wrote it on a concept. */
+const evidence = (n: RawConcept) => ({
+  contested: n.contested,
+  transferable: n.transferable,
+  individual: n.individual,
+});
 
 /** Column layout from topological depth — deterministic, draggable afterwards. */
 function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[] {
@@ -73,6 +85,7 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
   }
   const byCol: Record<number, string[]> = {};
   for (const n of rawNodes) (byCol[depth[n.id]] = byCol[depth[n.id]] ?? []).push(n.id);
+  const degree = (id: string) => edges.filter(([a, b]) => a === id || b === id).length;
   const nodes: ConceptNode[] = rawNodes.map((n) => {
     const d = depth[n.id];
     const col = byCol[d];
@@ -82,7 +95,10 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
       // Resolved here, once, and stored on the node. Recomputing it on every
       // read would mean shipping a new catalogue silently re-cut the ladder
       // under a run already in progress.
-      phasePlan: resolvePlan(n.kind, n.domain, n.importance, n.difficulty),
+      phasePlan: resolvePlan(n.kind, n.domain, n.importance, n.difficulty, {
+        ...evidence(n),
+        neighbours: degree(n.id),
+      }),
       state: "unknown" as const,
       g: d + 1,
       week: 0,
@@ -91,20 +107,6 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
     };
   });
   return nodes;
-}
-
-/** One placement question, before `tag` and `difficulty` are attached. */
-export interface RawDiagnostic {
-  nodeId: string;
-  q: string;
-  note: string;
-  type: DiagnosticKind;
-  opts: Array<{ label: string }>;
-  correctIndex: number;
-  /** The answer key, shaped by `type` — see `DiagnosticQuestion.expected`. */
-  expected?: string[];
-  gapLabel?: string;
-  gapReason?: string;
 }
 
 /** The 2-3 scoped sub-map offers a too-broad topic comes back with instead of
@@ -127,11 +129,15 @@ export function validateGraphPart(
   raw: unknown,
   bounds: { min: number; max: number } = mapNodeBounds(),
   goal?: GoalKind,
-): { nodes: RawConcept[]; edges: ConceptEdge[] } {
+): { nodes: RawConcept[]; edges: ConceptEdge[]; meta?: MapMeta } {
   const root = obj(raw, "payload");
+  // Only a header the model wrote: a defaulted one would stamp `general` over
+  // a topic the map never classified, and the streamed and single-shot maps
+  // must assemble to the same payload whether or not it came.
+  const meta = root.about ? asMapMeta(root.about) : undefined;
   const seen: SeenConcepts = new Map();
   const nodes = arr(root.nodes, "nodes", bounds.min, bounds.max).flatMap((v, i) => {
-    const n = obj(v, `nodes[${i}]`);
+    const n = inherit(obj(v, `nodes[${i}]`), meta?.domain);
     const id = slug(n.id, `nodes[${i}].id`);
     const label = str(n.label, `nodes[${i}].label`);
     if (claim(seen, id, label)) return []; // a restatement — its edges fold onto the kept node
@@ -179,68 +185,7 @@ export function validateGraphPart(
     if (visited < nodes.length)
       fail("edges contain a prerequisite cycle — the map must be a DAG");
   }
-  return { nodes, edges };
-}
-
-/** One objective placement question, checked against the offered node
- *  candidates and the model's own option count. */
-export function validateDiagnosticQuestion(
-  raw: unknown,
-  nodeIds: Set<string>,
-): RawDiagnostic {
-  const d = obj(raw, "payload");
-  const nodeId = slug(d.nodeId, "nodeId");
-  if (!nodeIds.has(nodeId))
-    fail(`nodeId "${nodeId}" is not one of the offered candidates`);
-  const type = asDiagnosticKind(d.type);
-  // Each kind carries exactly what `gradeDiagnostic` needs to rule on it, and
-  // nothing else. A kind whose answer key is missing is unmarkable, so it
-  // fails here rather than passing every learner silently.
-  const opts =
-    type === "mcq" || type === "order"
-      ? arr(d.opts, "opts", type === "mcq" ? 4 : 3, type === "mcq" ? 4 : 6).map(
-          (o, j) => ({ label: str(o, `opts[${j}]`) }),
-        )
-      : [];
-  let expected: string[] | undefined;
-  if (type === "compute") expected = [str(d.expected, "expected")];
-  else if (type === "speak")
-    expected = arr(d.accept, "accept", 1, 6).map((a, j) => str(a, `accept[${j}]`));
-  else if (type === "order") {
-    expected = arr(d.correctOrder, "correctOrder", opts.length, opts.length).map((o, j) =>
-      str(o, `correctOrder[${j}]`),
-    );
-    const labels = new Set(opts.map((o) => o.label));
-    for (const label of expected)
-      if (!labels.has(label))
-        fail(`correctOrder names "${label}", which is not one of the options`);
-    // Membership alone let `["A","A","B"]` through, which `checkOrder` compares
-    // element-wise — an unpassable probe that then spawns a gap off the answer.
-    if (new Set(expected).size !== expected.length)
-      fail("correctOrder must use each option exactly once");
-  }
-  if (type === "mcq") {
-    if (
-      typeof d.correctIndex !== "number" ||
-      !Number.isInteger(d.correctIndex) ||
-      d.correctIndex < 0 ||
-      d.correctIndex > 3
-    )
-      fail("correctIndex must be an integer 0-3");
-  }
-  return {
-    nodeId,
-    q: str(d.q, "q"),
-    note: str(d.note, "note"),
-    type,
-    opts,
-    // -1 is the honest value where there is nothing to pick, and is what
-    // `gradeDiagnostic` will never match against.
-    correctIndex: type === "mcq" ? (d.correctIndex as number) : -1,
-    expected,
-    gapLabel: d.gapLabel ? str(d.gapLabel, "gapLabel") : undefined,
-    gapReason: d.gapReason ? str(d.gapReason, "gapReason") : undefined,
-  };
+  return { nodes, edges, meta };
 }
 
 function withPrereqs(nodes: ConceptNode[], edges: ConceptEdge[]): MapNode[] {
@@ -281,12 +226,14 @@ function layoutMapNodes(mapNodes: MapNode[]): MapNode[] {
 export async function generateMap(
   params: MapParams,
 ): Promise<CurriculumMapPayload | { scopes: ScopeOffer[] }> {
+  params = await withSyllabus(params);
   const { language = "en" } = params;
   const bounds = mapNodeBounds(
     params.goal === "pareto" ? (params.paretoPct ?? PARETO_DEFAULT) : undefined,
   );
   const raw = await generateJson<
-    { scopes: ScopeOffer[] } | { nodes: RawConcept[]; edges: ConceptEdge[] }
+    | { scopes: ScopeOffer[] }
+    | { nodes: RawConcept[]; edges: ConceptEdge[]; meta?: MapMeta }
   >(
     user(
       `${mapContext(params)}
@@ -303,7 +250,9 @@ ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
     { label: "curriculum-map" },
   );
   if ("scopes" in raw) return { scopes: raw.scopes };
-  return { nodes: withPrereqs(layoutGraph(raw.nodes, raw.edges), raw.edges) };
+  const nodes = withPrereqs(layoutGraph(raw.nodes, raw.edges), raw.edges);
+  noteChain(nodes, params.topic);
+  return raw.meta ? { nodes, meta: raw.meta } : { nodes };
 }
 
 /**
@@ -325,6 +274,7 @@ ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
  * layout, which `framesToPayload` folds over the provisional one.
  */
 export async function* generateMapStream(params: MapParams): AsyncGenerator<StreamFrame> {
+  params = await withSyllabus(params);
   const { language = "en" } = params;
   const bounds = mapNodeBounds(
     params.goal === "pareto" ? (params.paretoPct ?? PARETO_DEFAULT) : undefined,
@@ -335,20 +285,28 @@ export async function* generateMapStream(params: MapParams): AsyncGenerator<Stre
     const depth: Record<string, number> = {};
     const column: Record<number, number> = {};
     const accepted: MapNode[] = [];
+    // Set by the "about" object, which comes first: every concept after it
+    // inherits the topic's domain unless it says why not (W2.3).
+    let topicDomain: MapMeta["domain"] | undefined;
 
-    const guard = restartGuard((raw, i) => validateMapConcept(raw, i, seen, params.goal));
+    const guard = restartGuard((raw, i) =>
+      validateMapConcept(raw, i, seen, params.goal, topicDomain),
+    );
     const stream = streamJsonObjects<
       | { scopes: ScopeOffer[] }
+      | { about: MapMeta }
       | { restarted: true }
       | (RawConcept & { prereqs: string[] })
     >(
       user(
         `${mapContext(params)}
 
-Otherwise write the concepts as SEPARATE top-level JSON objects, one after
-another — NOT wrapped in an array or a {"nodes": [...]} object, no markdown
-fences, no numbering, no commentary before/after/between them. Write them in
-prerequisite order: every concept another one depends on must already have been
+Otherwise write SEPARATE top-level JSON objects, one after another — NOT
+wrapped in an array or a {"nodes": [...]} object, no markdown fences, no
+numbering, no commentary before/after/between them. The FIRST object is the
+map as a whole:
+${ABOUT_SHAPE}
+Then the concepts, in prerequisite order: every concept another one depends on must already have been
 written above it. Each object has this shape:
 ${NODE_SHAPE.slice(0, -1)}, "prereqs": ["ids of concepts already written above"]}
 
@@ -356,10 +314,12 @@ ${NODE_SHAPE.slice(0, -1)}, "prereqs": ["ids of concepts already written above"]
 least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
       ),
       (raw, index) => {
-        // The too-broad answer is a single object and always the first one, so
-        // it comes down this same wire untouched (#30).
-        const offers = index === 0 ? validateScopeOffer(raw) : null;
+        // The too-broad answer is a single object and comes before any
+        // concept, so it comes down this same wire untouched (#30).
+        const offers = accepted.length === 0 ? validateScopeOffer(raw) : null;
         if (offers) return { scopes: offers };
+        const about = (raw as { about?: unknown } | null)?.about;
+        if (about && accepted.length === 0) return { about: asMapMeta(about) };
         return guard(raw, index);
       },
       { label: "curriculum-map-stream" },
@@ -367,6 +327,11 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
 
     for await (const item of stream) {
       if ("restarted" in item) break;
+      if ("about" in item) {
+        topicDomain = item.about.domain;
+        yield { p: "meta", v: item.about };
+        continue;
+      }
       // The too-broad answer is the whole reply, and always arrives first (the
       // validator only accepts it at index 0), so there is nothing to reconcile.
       if ("scopes" in item) {
@@ -384,7 +349,15 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
       // re-space and never cross.
       const node: MapNode = {
         ...item,
-        phasePlan: resolvePlan(item.kind, item.domain, item.importance, item.difficulty),
+        // Provisional: the neighbour count Connect is rationed on is only known
+        // once the map is whole, so the settling pass resolves it again.
+        phasePlan: resolvePlan(
+          item.kind,
+          item.domain,
+          item.importance,
+          item.difficulty,
+          evidence(item),
+        ),
         state: "unknown",
         g: d + 1,
         week: 0,
@@ -404,6 +377,7 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
     if (settled.reduce((n, node) => n + node.prereqs.length, 0) < settled.length - 4)
       fail("too few prerequisites — every concept past the foundations needs one");
     for (const [i, v] of settled.entries()) yield { p: "nodes", i, v };
+    noteChain(settled, params.topic);
   } catch (err) {
     if (yielded > 0) throw err;
     console.error(
@@ -417,6 +391,7 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
       for (const [i, v] of result.scopes.entries()) yield { p: "scopes", i, v };
       return;
     }
+    if (result.meta) yield { p: "meta", v: result.meta };
     for (const [i, v] of result.nodes.entries()) yield { p: "nodes", i, v };
   }
 }
@@ -432,3 +407,5 @@ export {
   mapNodeBounds,
   type MapParams,
 } from "./mapPrompt";
+
+export { validateDiagnosticQuestion, type RawDiagnostic } from "./diagnosticQuestion";

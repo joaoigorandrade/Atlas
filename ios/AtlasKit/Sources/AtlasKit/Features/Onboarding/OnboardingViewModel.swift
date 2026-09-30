@@ -234,6 +234,10 @@ public final class OnboardingViewModel {
                 await store.abandonTopic()
                 return
             }
+            // What the server stamped from the map's header, before placement
+            // asks a `speak` question in the language it names.
+            await store.reloadAxes()
+            dictation.language = store.axes?.targetLanguage
             // Short map, or a stream that ended before the overlap fired.
             let question = first ?? ask()
             // The fork opens on its own — a learner who wants the map should not

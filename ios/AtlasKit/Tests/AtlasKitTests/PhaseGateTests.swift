@@ -220,6 +220,22 @@ private func reps(_ count: Int) -> DrillContent {
     #expect(session.took["d1"] == 3)
 }
 
+@Test func drillSendsEveryCallNotYetAutomaticToReview() {
+    // W4.4: a miss and a right-but-slow rep become cards; a fast right one
+    // is already automatic and does not.
+    let content = reps(3)
+    let start = Date(timeIntervalSince1970: 0)
+    var session = DrillSession(nodeId: "n", now: start)
+    let beats: [(pick: Int, at: Double)] = [(0, 2), (1, 4), (0, 20)]
+    for beat in beats {
+        session.answer(beat.pick, content, now: start.addingTimeInterval(beat.at))
+        session.next(content, now: start.addingTimeInterval(beat.at))
+    }
+    let cards = session.cards(content)
+    #expect(cards.map(\.id) == ["n-drill-d1", "n-drill-d2"])
+    #expect(cards.first?.back == "a — r")
+}
+
 // MARK: - Predict · confidence is read, not required
 
 private func setups(_ count: Int) -> PredictContent {
@@ -416,4 +432,39 @@ private let dispute: SteelmanContent = try! JSONDecoder().decode(SteelmanContent
 /// The two-thirds bar, in integers, against the web's `Math.ceil(n * 2/3)`.
 @Test func twoThirdsRoundsUpLikeTheWeb() {
     #expect((0...12).map(twoThirds) == [0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8])
+}
+
+// MARK: - W3.1: rationing the heavy phases
+
+@Test func noPlanExceedsItsCellCap() {
+    for kind in NodeKind.allCases {
+        for domain in Domain.allCases {
+            for difficulty in [NodeDifficulty.easy, .medium, .hard] {
+                let gates = planGates(resolvePlan(kind, domain, .core, difficulty)).count
+                #expect(gates <= gateCap(difficulty), "\(kind)/\(domain)/\(difficulty)")
+            }
+        }
+    }
+}
+
+@Test func theHeavyPhasesRunWhereTheMapFoundWhatTheyNeed() {
+    let plan = resolvePlan(.concept, .interpretive, .core, .hard,
+                           PlanEvidence(contested: false, transferable: false, individual: true, neighbours: 1))
+    for phase in [Phase.steelman, .crucible, .discriminate, .connect] { #expect(!plan.contains(phase)) }
+    // Absent evidence rations nothing.
+    #expect(resolvePlan(.concept, .interpretive, .core, .hard).contains(.steelman))
+    // The same easy ladder as the web: five gates, Connect trimmed first.
+    #expect(resolvePlan(.concept, .general, .core, .easy)
+        == [.consume, .discriminate, .feynman, .crucible, .recall, .retain])
+}
+
+@Test func aCleanFirstTryEarnsTheEasierGateBeforeIt() {
+    // W3.2: Feynman clean credits Socratic; Perform clean credits Trace.
+    let concept = phasePlans[.concept]!
+    #expect(ledgerAfter(concept, [.consume], .feynman, challenged: false, clean: true)
+        .contains(.socratic))
+    #expect(!ledgerAfter(concept, [.consume], .feynman, challenged: false).contains(.socratic))
+    let procedure = phasePlans[.procedure]!
+    #expect(ledgerAfter(procedure, [.consume], .perform, challenged: false, clean: true)
+        .contains(.trace))
 }

@@ -7,14 +7,17 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades one case, carried out for real, and it exits to the map.
 
+import { postAttempt, recordAttempt } from "@/lib/attempts";
 import { useCallback, useRef } from "react";
 import {
   phaseLabel,
+  performBroken,
   performPassed,
   performReducer,
   performStart,
   type ConceptNode,
   type PerformAction,
+  type PerformContent,
   type PerformSession,
   type TeachVerdict,
 } from "@/lib/curriculum";
@@ -57,6 +60,7 @@ export function usePerform(deps: {
     setJudging,
   } = deps;
   const { graphRef, formRef, performCacheRef, setPhaseProgress, phaseProgressRef } = run;
+  const { setPerformCache } = run;
   const { setPerform, performRef } = sessions;
   const { generate, warmKey, loadPerform } = gen;
   const { tc, showToast, showError } = toast;
@@ -169,8 +173,12 @@ export function usePerform(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = performCacheRef.current[cur.nodeId];
-    if (node && content && performPassed(cur, content)) {
-      completePhase(node, "perform");
+    const passed = !!(node && content && performPassed(cur, content));
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "perform", passed: false });
+    if (node && passed) {
+      // Right on the first run, before any re-run, earns Trace (W3.2).
+      completePhase(node, "perform", undefined, undefined, !cur.previous);
       // Only a run that actually closed the rung is forgotten. A failed one is
       // still the learner's work on a case they will be handed again, and
       // `exitPerform` keeps it for the same reason — a rung that did not close
@@ -180,6 +188,36 @@ export function usePerform(deps: {
     leaveTo(cur.nodeId);
   };
 
+  /**
+   * Run it again — on a new case (W1.4). Re-running the case whose report
+   * just showed what was wrong tests reading the report, not the procedure.
+   * The failed run is logged first, which is what bumps the server's `rerun`,
+   * so the case that arrives is one this learner has not seen; the report
+   * quotes where the last run broke.
+   */
+  const performRerun = () => {
+    const cur = performRef.current;
+    const node = cur && graphRef.current.nodes.find((n) => n.id === cur.nodeId);
+    const content = cur && performCacheRef.current[cur.nodeId];
+    if (!cur || !node || !content) return;
+    const previous = performBroken(cur, content).map((s) => s.step);
+    // The loader keeps a node's first case; this one replaces it.
+    const open = (fresh: PerformContent) => {
+      setPerformCache((p) => ({ ...p, [node.id]: fresh }));
+      setPerform({ ...performStart(node.id), previous });
+    };
+    void postAttempt({ nodeId: node.id, phase: "perform", passed: false }).then(() =>
+      generate(
+        warmKey("perform", node.id),
+        phaseLabel("perform"),
+        tc().settingCase(node.label),
+        () => loadPerform(node),
+        open,
+        true,
+      ),
+    );
+  };
+
   const exitPerform = () => leaveTo(performRef.current?.nodeId);
 
   return {
@@ -187,6 +225,7 @@ export function usePerform(deps: {
     dispatchPerform,
     performSubmit,
     advanceFromPerform,
+    performRerun,
     exitPerform,
   };
 }

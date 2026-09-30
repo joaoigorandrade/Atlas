@@ -174,6 +174,11 @@ export interface ConsumeProgress {
    *  resuming would re-gate sections they demonstrably read. A wrong pick is
    *  kept too, so the miss can still be named. */
   checks: Record<string, { oi: number; correct: boolean }>;
+  /** The same check, asked once *before* its section (W3.3), keyed by chunk
+   *  id: `true` when the learner already had it — the check is then passed and
+   *  the section collapses to its takeaway — `false` when the guess missed,
+   *  and the section is read in full and asked again at its end. */
+  pretest: Record<string, boolean>;
   /** `chunkId:term` keys the learner expanded — the recap lists them back. */
   termsSeen: string[];
   /** Sections in the pass as last seen. With `idx`, the honest "3 of 5" — a
@@ -193,11 +198,74 @@ export const emptyConsumeProgress = (): ConsumeProgress => ({
   variant: {},
   collapsed: {},
   checks: {},
+  pretest: {},
   termsSeen: [],
   total: 0,
   finished: false,
   handedOff: false,
 });
+
+/**
+ * A saved reading, whole. Rows written before a field existed lack it, and the
+ * phone writes a passed check as a bare `true` rather than `{ oi, correct }` —
+ * read here as a pass with no pick to mark.
+ */
+export function normaliseConsumeProgress(
+  saved: Partial<ConsumeProgress> | undefined,
+): ConsumeProgress {
+  const checks: ConsumeProgress["checks"] = {};
+  for (const [id, v] of Object.entries(saved?.checks ?? {}))
+    checks[id] = (v as unknown) === true ? { oi: -1, correct: true } : v;
+  return { ...emptyConsumeProgress(), ...saved, checks };
+}
+
+/** Is this section's check still to be asked before the section is read? Only
+ *  a section with a check, never answered either way. */
+export function needsPretest(
+  p: ConsumeProgress,
+  chunk: { id: string; check?: unknown },
+): boolean {
+  return !!chunk.check && p.pretest?.[chunk.id] === undefined && !p.checks[chunk.id];
+}
+
+/**
+ * The pretest's one answer. Right: the check is passed on the spot and the
+ * section collapses — the learner had it, and re-reading it is the time this
+ * exists to save. Wrong: only the miss is recorded, never the answer, so the
+ * section is read in full and its check at the end is still a real question.
+ */
+export function afterPretest<P extends ConsumeProgress>(
+  p: P,
+  chunkId: string,
+  oi: number,
+  correct: boolean,
+): P {
+  if (p.pretest?.[chunkId] !== undefined || p.checks[chunkId]) return p;
+  const pretest = { ...p.pretest, [chunkId]: correct };
+  return correct
+    ? {
+        ...p,
+        pretest,
+        checks: { ...p.checks, [chunkId]: { oi, correct: true } },
+        collapsed: { ...p.collapsed, [chunkId]: true },
+      }
+    : { ...p, pretest };
+}
+
+/**
+ * Every section was already known before it was read (W3.4): each one's check
+ * answered right as a pretest, over a finished pass of at least two sections.
+ * A section with no check leaves no guess, so a pass that had one is never
+ * clean — the evidence has to cover the whole reading.
+ */
+export function pretestClean(
+  p: ConsumeProgress | undefined,
+  sections = p?.total ?? 0,
+): boolean {
+  if (!p?.finished) return false;
+  const guesses = Object.values(p.pretest ?? {});
+  return guesses.length >= Math.max(2, sections) && guesses.every(Boolean);
+}
 
 /** Sections read out of sections there are — never claiming past what exists,
  *  and never short-changing a finished pass whose `total` arrived late. */

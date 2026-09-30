@@ -393,14 +393,14 @@ struct FeynmanView: View {
             Text(verbatim: fix.probe)
                 .font(.atlas(.serif, 17))
                 .foregroundStyle(Palette.ink)
-            ForEach(fix.replies) { reply in
-                ChoiceRow(reply.label,
-                          mark: model.ruledOut(reply) ? .wrong : .unmarked,
-                          chosen: model.ruledOut(reply),
-                          enabled: !model.ruledOut(reply)) {
-                    model.answerFix(reply)
-                }
-            }
+            AnswerEditor(text: Bindable(model).fixText,
+                         placeholder: String(localized: "Explique só esta parte, com suas palavras…"),
+                         dictation: model.fixDictation, minHeight: 90, tint: Phase.feynman.tint)
+            Button(model.fixJudging ? "Lendo…" : "Conferir →") { model.submitFix() }
+                .font(.atlas(.serif, 15, weight: .semibold))
+                .foregroundStyle(Phase.feynman.tint)
+                .disabled(model.fixJudging || model.fixText.trimmed.isEmpty)
+                .frame(minHeight: Metrics.tap, alignment: .leading)
             if let reaction = model.fixReaction {
                 Text(verbatim: reaction)
                     .font(.atlas(.serif, 15))

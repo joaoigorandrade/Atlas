@@ -24,6 +24,7 @@ import {
   rejectEcho,
   str,
   user,
+  lensNote,
 } from "./common";
 import {
   JUDGE_SYSTEM,
@@ -91,7 +92,7 @@ export async function generateRecall(params: RecallParams): Promise<RecallConten
     user(
       `Write an UNAIDED RETRIEVAL pass for the concept "${nodeLabel}" within "${topic}": the learner has nothing in front of them and writes down everything they can still produce about it.
 ${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "recall")}${domainNote(params.domain, "recall")}${cellNote(params.cell, "recall")}
+${boundaryNote(params)}${lensNote(params)}${kindNote(params.nodeKind, "recall")}${domainNote(params.domain, "recall")}${cellNote(params.cell, "recall")}
 
 The learner NEVER sees the rubric before answering — they work from the brief alone. So a row is a thing a cold retrieval has to BRING BACK, not a thing to explain: a definition, a value, a condition, a consequence.
 

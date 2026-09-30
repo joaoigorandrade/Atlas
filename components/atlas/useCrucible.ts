@@ -24,10 +24,12 @@ import {
   hoursLeft,
   type ConceptNode,
   type CrucibleAction,
+  type CrucibleContent,
   type CrucibleSession,
   type GapSpec,
 } from "@/lib/curriculum";
 import { fetchJudgeCrucible } from "@/lib/api";
+import { recordAttempt } from "@/lib/attempts";
 import { dropParked, parkedSession } from "@/components/atlas/phaseParking";
 import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
@@ -58,6 +60,7 @@ export function useCrucible(deps: {
   const { run, sessions, gen, toast, ledger, setSelectedId, setScreen } = deps;
   const { languageRef, judgingRef, setJudging, leaveTo, enterOwed, litUp } = deps;
   const { graphRef, formRef, crucibleCacheRef, setCrucibleCache } = run;
+  const { phasesDoneRef, shakyReasonsRef } = run;
   const { phaseProgressRef, setPhaseProgress, setStates, setShakyReason } = run;
   const { recordCalib, attachGap, removeGapNode } = run;
   const { setCrucible, crucibleRef } = sessions;
@@ -87,14 +90,22 @@ export function useCrucible(deps: {
         showToast(tc().crucibleHeld(node.label, hoursLeft(until)));
         return;
       }
-      const open = () => {
+      // A redo, or the cold re-attempt after a guided pass, is owed a problem
+      // the learner has not solved: the server keys it to a bumped `rerun`
+      // (W1.2), so the one in memory is not the one to open.
+      const solved =
+        phasesDoneRef.current[node.id]?.includes("crucible") ||
+        shakyReasonsRef.current[node.id] === "crucible-scaffolded";
+      const open = (fresh?: CrucibleContent) => {
+        // The loader keeps a node's first problem; a solved one is replaced.
+        if (fresh && solved) setCrucibleCache((p) => ({ ...p, [node.id]: fresh }));
         // A parked attempt is the learner's own writing — reopen it rather
         // than handing them a blank workspace for a problem they started.
         setCrucible(parked ? { ...parked, opensAt: undefined } : crucibleStart(node.id));
         setSelectedId(node.id);
         setScreen("crucible");
       };
-      if (crucibleCacheRef.current[node.id]) {
+      if (crucibleCacheRef.current[node.id] && !solved) {
         open();
         return;
       }
@@ -104,6 +115,7 @@ export function useCrucible(deps: {
         tc().forgingProblem(node.label),
         () => loadCrucible(node),
         open,
+        solved,
       );
     },
     [
@@ -112,6 +124,9 @@ export function useCrucible(deps: {
       loadCrucible,
       setCrucible,
       crucibleCacheRef,
+      setCrucibleCache,
+      phasesDoneRef,
+      shakyReasonsRef,
       phaseProgressRef,
       warmKey,
       setScreen,
@@ -186,6 +201,12 @@ export function useCrucible(deps: {
             crucibleReal(j.outcome, j.transfer),
           );
         if (j.outcome !== "partial") return;
+        recordAttempt({
+          nodeId: cur.nodeId,
+          phase: "crucible",
+          passed: false,
+          detail: { rung: cur.rung },
+        });
         disarmChallenge(); // a scaffolded re-attempt is not a cold pass
         // The judged gap replaces the pre-generated one when the judge named
         // a different missing sub-concept.
@@ -232,8 +253,11 @@ export function useCrucible(deps: {
     setCrucible(null);
     if (!node) return leaveTo(undefined);
     if (crucibleScaffolded(cur)) {
-      // Closed with help. The node stays Shaky on its `crucible-fail` reason,
-      // and the cold problem waits out the night in the rung's own slot.
+      // Closed with help (W1.2). The node stays Shaky, now on its own reason,
+      // and the cold problem waits out the night in the rung's own slot. The
+      // pass below bumps the server's `rerun`, so the next entry asks for — and
+      // is keyed to — a fresh problem (`enterCrucible`).
+      setShakyReason(node.id, "crucible-scaffolded");
       setPhaseProgress((p) => ({
         ...p,
         [node.id]: {
@@ -241,6 +265,12 @@ export function useCrucible(deps: {
           crucible: { ...crucibleStart(node.id), ...holdFrom() },
         },
       }));
+      recordAttempt({
+        nodeId: node.id,
+        phase: "crucible",
+        passed: true,
+        detail: { scaffolded: true },
+      });
       leaveTo(node.id);
       showToast(tc().guidedPass(node.label));
       return;

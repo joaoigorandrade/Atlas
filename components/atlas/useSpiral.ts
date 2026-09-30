@@ -22,24 +22,17 @@ import {
   primaryPhase,
   SOCRATIC_STEPS,
   connectCards,
+  connectDraftReady,
   connectReducer,
   connectStart,
-  CONFIDENCE_FELT,
-  earnsRetained,
-  emptyConsumeProgress,
-  feynmanGaps,
-  feynmanReducer,
-  feynmanStart,
+  afterPretest,
+  normaliseConsumeProgress,
   gapParentOf,
   markTodayMet,
   openGapIds,
   preferredModality,
   recordMisconception,
   recurringMisconceptions,
-  RETAIN_DRAFT_NODES,
-  retainReducer,
-  retainStart,
-  reviewCard,
   socraticOutcome,
   socraticPlan,
   socraticReducer,
@@ -51,32 +44,20 @@ import {
   type ConsumeChunk,
   type ConsumeModelBeat,
   type ConsumeProgress,
-  type FeynmanAction,
-  type FeynmanBeat,
   type GapSpec,
   type NodeState,
-  type ReviewGrade,
   type SocraticAction,
   type SocraticStep,
-  type TeachVerdict,
+  heldUntil,
+  hoursLeft,
 } from "@/lib/curriculum";
-import {
-  dueCards,
-  gradeStoredCard,
-  newStoredCard,
-  retainContentFromStore,
-  type StoredCard,
-} from "@/lib/fsrs";
+import { newStoredCard } from "@/lib/fsrs";
 import {
   fetchConsumeModelStream,
   fetchConsumeStream,
-  fetchFeynmanStream,
-  fetchJudgeFeynman,
   fetchJudgeSocratic,
-  fetchPassageStream,
-  fetchRetain,
   fetchSocraticStream,
-  type FeynmanJudgement,
+  fetchJudgeConnect,
 } from "@/lib/api";
 import { usePhaseLedger } from "@/components/atlas/phaseLedger";
 import { useDiscriminate } from "@/components/atlas/useDiscriminate";
@@ -88,10 +69,12 @@ import { omitKey } from "@/components/atlas/phaseParking";
 import { usePerform } from "@/components/atlas/usePerform";
 import { useDomainPhases } from "@/components/atlas/useDomainPhases";
 import { useCrucible } from "@/components/atlas/useCrucible";
+import { useFeynman } from "@/components/atlas/useFeynman";
+import { usePassage } from "@/components/atlas/usePassage";
+import { useRetain } from "@/components/atlas/useRetain";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
 import type { Screen } from "@/components/atlas/screen";
-import type { PassageAsk } from "@/components/session/ConsumeView";
 import type { ToastChannel } from "@/components/atlas/useToast";
 import type { RunState } from "@/components/atlas/useRunState";
 import type { SessionState } from "@/components/atlas/useSessionState";
@@ -159,12 +142,10 @@ export function useSpiral(deps: {
     graphRef,
     formRef,
     statesRef,
-    cardsRef,
     setStates,
     setCards,
     setAdherence,
     setLitToday,
-    setReviewedNodes,
     reviewedNodes,
     setPhasesDone,
     phasesDoneRef,
@@ -179,21 +160,15 @@ export function useSpiral(deps: {
     modelCacheRef,
     setSocraticCache,
     socraticCacheRef,
-    setFeynmanCache,
-    feynmanCacheRef,
     connectCacheRef,
-    setRetainContent,
-    retainContentRef,
     setConsumeProgress,
     consumeProgressRef,
     socraticProgressRef,
-    setFeynmanProgress,
-    feynmanProgressRef,
     setConnectProgress,
     connectProgressRef,
     setPhaseProgress,
+    phaseProgressRef,
     setShakyReason,
-    recordCalib,
     attachGap,
     removeGapNode,
   } = run;
@@ -209,15 +184,8 @@ export function useSpiral(deps: {
     socraticRef,
     setLiveSocratic,
     liveSocraticRef,
-    feynman,
-    setFeynman,
-    feynmanRef,
-    setLiveFeynman,
-    liveFeynmanRef,
     connect,
     setConnect,
-    setRetain,
-    retainRef,
     consumeChunksRef,
   } = sessions;
   const {
@@ -228,13 +196,11 @@ export function useSpiral(deps: {
     modelParams,
     modelKey,
     socraticParams,
-    feynmanParams,
     connectParams,
     prereqNodesOf,
     loadConsume,
     loadModel,
     loadSocratic,
-    loadFeynman,
     loadConnect,
   } = gen;
 
@@ -249,6 +215,7 @@ export function useSpiral(deps: {
     setShakyReason,
     setStates,
     setPhaseProgress,
+    phaseProgressRef,
     warmOne,
   });
   const { completePhase, settle, markStarted, warmNext, armChallenge, disarmChallenge } =
@@ -325,7 +292,7 @@ export function useSpiral(deps: {
         const saved = consumeProgressRef.current[node.id];
         setConsume({
           nodeId: node.id,
-          ...(saved ?? emptyConsumeProgress()),
+          ...normaliseConsumeProgress(saved),
           term: null,
           // A resumed session never reopens the lens the learner left open —
           // they came back for the reading, not for the view over it.
@@ -440,6 +407,12 @@ export function useSpiral(deps: {
         ? { ...prev, checks: { ...prev.checks, [chunkId]: { oi, correct } } }
         : prev,
     );
+  };
+
+  /** The same check, asked before its section (W3.3): a right answer passes
+   *  it and collapses the section; a miss only opens the reading in full. */
+  const consumePretest = (chunkId: string, oi: number, correct: boolean) => {
+    setConsume((prev) => (prev ? afterPretest(prev, chunkId, oi, correct) : prev));
   };
 
   const consumeContinue = (chunkIndex: number) => {
@@ -561,93 +534,12 @@ export function useSpiral(deps: {
     );
   };
 
-  // ---- ask about this (the passage aside) --------------------------------
-
-  /** Open the ask panel on a section. `selection` is the highlighted text, or
-   *  "" when asked from the keyboard path (the question is the whole section). */
-  const consumeOpenPassage = (chunkId: string, selection: string) => {
-    setConsume((prev) =>
-      prev
-        ? {
-            ...prev,
-            passage: {
-              chunkId,
-              selection,
-              question: "",
-              parts: [],
-              status: "composing",
-            },
-          }
-        : prev,
-    );
-  };
-
-  const consumeClosePassage = () => {
-    setConsume((prev) => (prev ? { ...prev, passage: null } : prev));
-  };
-
-  /**
-   * Ask it — the learner's own question about the passage they highlighted,
-   * answered against the section they're reading and streamed back a paragraph
-   * at a time.
-   *
-   * The section prose stands in for the selection on the keyboard path: the
-   * generator needs something to be *about*, and "this whole section" is the
-   * truthful answer there rather than an arbitrary sentence from it.
-   */
-  const consumeAskPassage = (question: string) => {
-    const live = consumeRef.current;
-    const ask = live?.passage;
-    if (!live || !ask || ask.status !== "composing") return;
-    const node = graphRef.current.nodes.find((n) => n.id === live.nodeId);
-    const chunks =
-      consumeCacheRef.current[live.nodeId] ??
-      (liveConsumeRef.current?.nodeId === live.nodeId
-        ? liveConsumeRef.current.chunks
-        : []);
-    const chunk = chunks.find((c) => c.id === ask.chunkId);
-    if (!node || !chunk) return;
-    const section = chunk.body.join("\n\n");
-
-    /** Fold an update into the ask, but only while it's still the open one —
-     *  a learner who closed the panel or moved node mid-stream must not have
-     *  a late frame reopen it. */
-    const patch = (fn: (a: PassageAsk) => PassageAsk) =>
-      setConsume((prev) =>
-        prev &&
-        prev.nodeId === live.nodeId &&
-        prev.passage?.chunkId === ask.chunkId &&
-        prev.passage.status !== "composing"
-          ? { ...prev, passage: fn(prev.passage) }
-          : prev,
-      );
-
-    setConsume((prev) =>
-      prev && prev.passage?.chunkId === ask.chunkId
-        ? { ...prev, passage: { ...prev.passage, question, status: "asking" } }
-        : prev,
-    );
-
-    fetchPassageStream(
-      {
-        topic: formRef.current.topic,
-        nodeLabel: node.label,
-        kicker: chunk.kicker,
-        section,
-        selection: ask.selection || section,
-        question,
-        language: languageRef.current,
-      },
-      (part, index) =>
-        patch((a) => {
-          const parts = [...a.parts];
-          parts[index] = part;
-          return { ...a, parts: parts.filter((p) => p !== undefined) };
-        }),
-    )
-      .then((parts) => patch((a) => ({ ...a, parts, status: "done" })))
-      .catch(() => patch((a) => ({ ...a, status: "error" })));
-  };
+  // ---- ask about this (the passage aside) — see `usePassage` --------------
+  const { consumeOpenPassage, consumeClosePassage, consumeAskPassage } = usePassage({
+    run,
+    sessions,
+    languageRef,
+  });
 
   /** "Skip — I know this" on one section — collapses it to its takeaway,
    *  short of bailing on the whole node the way header's "I know this" does. */
@@ -688,6 +580,7 @@ export function useSpiral(deps: {
         variant: s.variant,
         collapsed: s.collapsed,
         checks: s.checks,
+        pretest: s.pretest,
         termsSeen: s.termsSeen,
         // A pass still streaming has fewer sections in hand than it will end
         // up with; never let a mid-stream count shrink a known total.
@@ -713,6 +606,7 @@ export function useSpiral(deps: {
     consume?.idx,
     consume?.variant,
     consume?.collapsed,
+    consume?.pretest,
     consume?.checks,
     consume?.termsSeen,
     consume?.finished,
@@ -1061,258 +955,28 @@ export function useSpiral(deps: {
     setSocratic(null);
   };
 
-  // ---- Feynman (Phase 3b) ----------------------------------------------
-
-  /**
-   * Open the Feynman teach-back on a node, generating its beats first if
-   * needed. The node moves Unknown/Frontier → Learning and the naive-student
-   * session begins on its opening prompt.
-   */
-  const enterFeynman = useCallback(
-    (node: ConceptNode) => {
-      const open = () => {
-        setStates((prev) =>
-          prev[node.id] === "unknown" || prev[node.id] === undefined
-            ? { ...prev, [node.id]: "learning" }
-            : prev,
-        );
-        // A pass left on its Gap Report resumes there — the gaps it found are
-        // not something to re-earn by teaching the whole thing again.
-        setFeynman(feynmanProgressRef.current[node.id] ?? feynmanStart(node.id));
-        setSelectedId(node.id);
-        setScreen("feynman");
-        // Feynman hands straight off to Connect — and the pool Connect keys on
-        // doesn't move during a teach-back, so warming it here always lands.
-        warmNext(node, "feynman");
-      };
-      if (feynmanCacheRef.current[node.id]) {
-        open();
-        return;
-      }
-      const key = warmKey("feynman", node.id);
-      // A background warm is already writing this — join it rather than
-      // starting a second, duplicate request.
-      if (warm.has(key)) {
-        generate(
-          key,
-          tc().kickerFeynman,
-          tc().wakingStudent(node.label),
-          () => loadFeynman(node),
-          open,
-        );
-        return;
-      }
-      if (loadingRef.current) return;
-      // Nothing cached and nothing warming: open on the first beat and let the
-      // rest arrive while the learner is still teaching it.
-      setLiveFeynman({ nodeId: node.id, beats: [] });
-      open();
-      let receivedAny = false;
-      const arrived: FeynmanBeat[] = [];
-      fetchFeynmanStream(feynmanParams(node), (beat, index) => {
-        receivedAny = true;
-        arrived[index] = beat;
-        setLiveFeynman((prev) =>
-          prev?.nodeId === node.id ? { nodeId: node.id, beats: [...arrived] } : prev,
-        );
-      })
-        .then((beats) => {
-          setFeynmanCache((prev) =>
-            prev[node.id] ? prev : { ...prev, [node.id]: beats },
-          );
-          setLiveFeynman((prev) => (prev?.nodeId === node.id ? null : prev));
-        })
-        .catch((err: Error) => {
-          if (receivedAny) {
-            // Commit what arrived: without this the rubric never reaches the
-            // cache, so the diff has nothing to grade against and the gaps
-            // never write back to the map — silently, while the toast claims
-            // the opposite.
-            const partial = arrived.filter(Boolean);
-            setFeynmanCache((prev) =>
-              prev[node.id] ? prev : { ...prev, [node.id]: partial },
-            );
-            setLiveFeynman((prev) => (prev?.nodeId === node.id ? null : prev));
-            showError(err, { context: "content" });
-            return;
-          }
-          setScreen("map");
-          setFeynman(null);
-          setLiveFeynman(null);
-          showError(err, {
-            context: "content",
-            retry: () => enterFeynmanRef.current?.(node),
-          });
-        });
-    },
-    [
-      warmNext,
-      tc,
-      feynmanParams,
-      generate,
-      loadFeynman,
-      showError,
-      warm,
-      setFeynman,
-      setLiveFeynman,
-      feynmanCacheRef,
-      feynmanProgressRef,
-      setFeynmanCache,
-      setStates,
-      warmKey,
-      loadingRef,
-      setScreen,
-      setSelectedId,
-    ],
-  );
-  const enterFeynmanRef = useRef(enterFeynman);
-  enterFeynmanRef.current = enterFeynman;
-
-  /** The rubric for a node: the committed one, else whatever has streamed in
-   *  so far — the same fallback `feynmanBeats` renders from. Without it every
-   *  dispatch is a no-op on the cold path, and the learner's first click after
-   *  the opening prompt does nothing until the last row lands. */
-  const feynmanBeatsFor = useCallback(
-    (nodeId: string): FeynmanBeat[] | undefined => {
-      const cached = feynmanCacheRef.current[nodeId];
-      if (cached?.length) return cached;
-      const live = liveFeynmanRef.current;
-      return live?.nodeId === nodeId ? live.beats : undefined;
-    },
-    [liveFeynmanRef, feynmanCacheRef],
-  );
-
-  const dispatchFeynman = (action: FeynmanAction) => {
-    setFeynman((prev) => {
-      if (!prev) return prev;
-      const beats = feynmanBeatsFor(prev.nodeId);
-      if (!beats?.length && !["begin", "scaffold"].includes(action.type)) return prev;
-      return feynmanReducer(prev, action, beats ?? []);
-    });
-  };
-
-  /**
-   * Real teach-back diffing (#26): the learner's whole explanation is diffed
-   * server-side against a rubric they never saw — every verdict is detected
-   * from their words, and a sub-point they never mentioned is a finding, not
-   * an unanswered prompt.
-   */
-  const feynmanTeach = (text: string) => {
-    const session = feynmanRef.current;
-    if (!session || judgingRef.current) return;
-    const beats = feynmanBeatsFor(session.nodeId);
-    const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
-    if (!beats?.length || !node) return;
-    setJudging(true);
-    // Verdicts-first, as in Socratic: the diff lands early and the Gap
-    // Report opens; the student's actual words fill in behind it.
-    let applied = false;
-    const apply = (action: FeynmanAction) =>
-      setFeynman((prev) =>
-        prev?.nodeId === session.nodeId ? feynmanReducer(prev, action, beats) : prev,
-      );
-    /** Rows come back by rubric index; the session keys verdicts by beat id. */
-    const byBeat = (rows: FeynmanJudgement["verdicts"]) => {
-      const verdicts: Record<string, TeachVerdict> = {};
-      const quotes: Record<string, string> = {};
-      for (const row of rows) {
-        const beat = beats[row.i];
-        if (!beat) continue;
-        verdicts[beat.id] = row.verdict;
-        if (row.quote) quotes[beat.id] = row.quote;
-      }
-      return { verdicts, quotes };
-    };
-    // A confusion caught here is the richest one the app sees — the learner
-    // said it unprompted, in their own words. Filed once per judgement, on
-    // whichever frame carried the verdicts first.
-    let filed = false;
-    const fileCaught = (rows: FeynmanJudgement["verdicts"]) => {
-      if (filed) return;
-      filed = true;
-      for (const row of rows)
-        if (row.verdict === "confused" && row.quote)
-          fileMisconception(row.quote, node.label);
-    };
-    fetchJudgeFeynman(
-      {
-        topic: formRef.current.topic,
-        nodeLabel: node.label,
-        rubric: beats.map((b) => ({
-          subPoint: b.subPoint,
-          mustConvey: b.mustConvey,
-        })),
-        answer: text,
-        language: languageRef.current,
-      },
-      (partial) => {
-        if (!partial.verdicts?.length) return;
-        applied = true;
-        fileCaught(partial.verdicts);
-        apply({
-          type: "taught",
-          text,
-          ...byBeat(partial.verdicts),
-          response: "",
-          pending: true,
-        });
-      },
-      // …and the student's reaction types itself in as it is written.
-      (draft) => {
-        if (draft.response)
-          apply({ type: "stream", text: draft.response, pending: true });
-      },
-    )
-      .then((j) => {
-        fileCaught(j.verdicts);
-        apply(
-          applied
-            ? { type: "stream", text: j.response }
-            : {
-                type: "taught",
-                text,
-                ...byBeat(j.verdicts),
-                jargon: j.jargon,
-                response: j.response,
-              },
-        );
-        // The jargon list only arrives with the full judgement, so a session
-        // that opened on the verdict frame picks it up here.
-        if (applied && j.jargon.length)
-          setFeynman((prev) =>
-            prev?.nodeId === session.nodeId ? { ...prev, jargon: j.jargon } : prev,
-          );
-      })
-      .catch((err: unknown) => {
-        // Settle the session before surfacing the failure. `pending` is what
-        // the mirror effect below waits on, so a reaction that stopped
-        // mid-write used to leave the pass permanently unsaveable: the Gap
-        // Report was on screen, the verdicts were real, and stepping back to
-        // the map threw away a teach-back the learner had already given.
-        setFeynman((prev) =>
-          prev?.nodeId === session.nodeId && prev.pending
-            ? { ...prev, pending: false }
-            : prev,
-        );
-        showError(err, {
-          context: "judge",
-          retry: () => feynmanTeachRef.current?.(text),
-        });
-      })
-      .finally(() => setJudging(false));
-  };
-  const feynmanTeachRef = useRef(feynmanTeach);
-  feynmanTeachRef.current = feynmanTeach;
-
-  const exitFeynman = () => {
-    leaveTo(feynman?.nodeId);
-    setFeynman(null);
-  };
-
   // ---- Connect (Phase 4 · Elaboration) ---------------------------------
 
   // Connect hands off to the owed phase, resolved below — out of a forward reference.
   const enterOwedRef = useRef<(node: ConceptNode) => void>(() => {});
+
+  // Feynman's handlers live in `useFeynman`, on the `useCrucible` precedent.
+  const {
+    enterFeynman,
+    feynmanBeatsFor,
+    dispatchFeynman,
+    feynmanTeach,
+    exitFeynman,
+    advanceFromFeynman,
+  } = useFeynman({
+    ...phaseDeps,
+    ...judgeDeps,
+    warm,
+    loadingRef,
+    leaveTo,
+    enterOwed: (node) => enterOwedRef.current(node),
+    fileMisconception,
+  });
 
   /**
    * Closing the Connect rung, from either exit — the finished pass and the
@@ -1401,36 +1065,45 @@ export function useSpiral(deps: {
     });
   };
 
+  /**
+   * Confirm a link — checked first (W1.5). The judge rules the learner's own
+   * sentence `true | vague | false`; a false one is not confirmed, and the
+   * line that says why stays under the box. These sentences become cards.
+   */
+  const connectConfirm = (id: string) => {
+    const cur = connect;
+    const content = cur && connectCacheRef.current[cur.nodeId];
+    const cand = content?.cands.find((c) => c.id === id);
+    const draft = cur?.drafts[id] ?? "";
+    if (!cur || !content || !cand || judgingRef.current) return;
+    if (!connectDraftReady(draft, cand.rel)) return;
+    setJudging(true);
+    fetchJudgeConnect({
+      topic: formRef.current.topic,
+      nodeLabel: content.centerLabel,
+      question: cand.label,
+      reference: cand.rel,
+      answer: draft,
+      language: languageRef.current,
+    })
+      .then((j) =>
+        dispatchConnect({
+          type: "confirm",
+          id,
+          ruling: { verdict: j.verdict, line: j.response },
+        }),
+      )
+      // An unreachable judge must not wedge the phase: the link confirms on
+      // the learner's own words, as it did before there was a check.
+      .catch(() => dispatchConnect({ type: "confirm", id }))
+      .finally(() => setJudging(false));
+  };
+
   const exitConnect = () => {
     // Park the pass, don't discard it: ← Map is "come back to this later".
     if (connect) setConnectProgress((prev) => ({ ...prev, [connect.nodeId]: connect }));
     leaveTo(connect?.nodeId);
     setConnect(null);
-  };
-
-  /**
-   * The write-back — Feynman's connective tissue. Every unresolved gap becomes
-   * a red Gap sub-node hung under the parent (via `attachGap`, idempotent),
-   * then the phase hands off to whatever the plan owes next — Perform on a
-   * procedure, Connect on a concept. The node stays Learning.
-   */
-  const advanceFromFeynman = () => {
-    if (!feynman) return;
-    const node = graphRef.current.nodes.find((n) => n.id === feynman.nodeId);
-    const beats = feynmanBeatsFor(feynman.nodeId) ?? [];
-    const specs = feynmanGaps(feynman, beats);
-    if (node) specs.forEach((spec) => attachGap(node.id, spec));
-    setFeynman(null);
-    // The gaps are on the map now — the pass has nothing left to come back to.
-    setFeynmanProgress(omitKey(feynman.nodeId));
-    if (node) {
-      completePhase(node, "feynman");
-      enterOwedPhase(node);
-      if (specs.length)
-        showToast(tc().gapsAttached(specs.length, node.label), tc().mapUpdated);
-    } else {
-      setScreen("map");
-    }
   };
 
   /**
@@ -1509,208 +1182,28 @@ export function useSpiral(deps: {
     litUp,
   });
 
-  // ---- Retain (Phase 6 · Review queue / FSRS) --------------------------
-
-  /**
-   * What the Review queue would generate right now: the card factory only runs
-   * for touched nodes that have no cards yet. Derived in one place so a warm
-   * and the real entry address the same cache row. */
-  const retainPlan = useCallback(() => {
-    const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
-    const touched = graphRef.current.nodes.filter(
-      (n) =>
-        !n.gap &&
-        ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
-    );
-    // One draft covers one draft's worth of nodes. Sending every uncovered node
-    // asked for more cards than the factory will ever return, so the surplus
-    // nodes were silently dropped by whichever ones the model chose to write.
-    const uncovered = touched
-      .filter((n) => !cardsRef.current.some((c) => c.nodeId === n.id))
-      .slice(0, RETAIN_DRAFT_NODES);
-    return {
-      budgetMin,
-      touched,
-      uncovered,
-      key: `retain:${uncovered.map((n) => n.id).join(",")}`,
-      params: {
-        topic: formRef.current.topic,
-        budgetMin,
-        nodes: uncovered.map((n) => ({
-          id: n.id,
-          label: n.label,
-          state: statesRef.current[n.id]!,
-        })),
-        interests: formRef.current.interests,
-        language: languageRef.current,
-      },
-    };
-  }, [cardsRef, formRef, graphRef, statesRef, languageRef]);
-
-  /** Draft the day's new cards ahead of the click. The result is discarded —
-   *  its point is filling the shared cache so opening Review is a lookup. */
-  const warmRetain = useCallback(() => {
-    const plan = retainPlan();
-    if (plan.uncovered.length === 0) return;
-    warm.warm(plan.key, () => fetchRetain(plan.params, { prefetch: true }));
-  }, [retainPlan, warm]);
-
-  /**
-   * Open the daily Review queue — a global surface. The day's cards are
-   * generated once from the nodes the learner has actually touched; there is
-   * nothing to review until at least one concept has been learned.
-   */
-  const enterReview = useCallback(() => {
-    const { budgetMin, touched, uncovered, key, params } = retainPlan();
-    // The queue reads from the real card store (#21): due cards, real
-    // intervals on the grade buttons, forecast from actual due dates.
-    const openFrom = (store: StoredCard[]) => {
-      if (dueCards(store).length === 0) {
-        showToast(tc().queueClear);
-        return;
-      }
-      setRetainContent(
-        retainContentFromStore(store, budgetMin, new Date(), languageRef.current),
-      );
-      setRetain(retainStart());
-      setScreen("review");
-    };
-    if (touched.length === 0) {
-      showToast(tc().nothingToReview);
-      return;
-    }
-    // First review of a node: generate its atomic cards once, then they live
-    // in the store forever (the generation is a card FACTORY, not the queue).
-    if (uncovered.length === 0) {
-      openFrom(cardsRef.current);
-      return;
-    }
-    generate(
-      key,
-      tc().kickerRetain,
-      tc().draftingCards,
-      () => fetchRetain(params),
-      (content) => {
-        const now = new Date();
-        const stamp = Date.now();
-        const seeded = content.cards.map((c, i) =>
-          newStoredCard(
-            {
-              id: `${c.node}-retain-${stamp}-${i}`,
-              nodeId: c.node,
-              type: c.type,
-              source: c.source,
-              cloze: c.cloze,
-              answer: c.answer,
-              front: c.front,
-              back: c.back,
-              reExplain: c.reExplain,
-            },
-            now,
-          ),
-        );
-        const all = [...cardsRef.current, ...seeded];
-        setCards(all);
-        openFrom(all);
-      },
-    );
-  }, [
-    languageRef,
-    tc,
-    generate,
+  // ---- Retain (Phase 6 · Review queue / FSRS) — see `useRetain` -----------
+  const {
     retainPlan,
-    showToast,
-    setRetain,
-    cardsRef,
-    setCards,
-    setRetainContent,
+    warmRetain,
+    enterReview,
+    retainFlip,
+    retainToggleAside,
+    retainContinue,
+    retainGrade,
+    retainReteach,
+    exitReview,
+  } = useRetain({
+    run,
+    sessions,
+    gen,
+    toast,
+    warm,
+    languageRef,
     setScreen,
-  ]);
-
-  const retainFlip = (sure?: number) => {
-    setRetain((prev) => {
-      if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "flip", sure }, retainContentRef.current);
-    });
-  };
-
-  const retainToggleAside = () => {
-    setRetain((prev) => {
-      if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "toggleAside" }, retainContentRef.current);
-    });
-  };
-
-  const retainContinue = () => {
-    setRetain((prev) => {
-      if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "continue" }, retainContentRef.current);
-    });
-  };
-
-  /**
-   * Grade a card — feeds FSRS and advances. "Again" is the alive-loop: the
-   * fail stage opens and the card's node is flagged Shaky, so retention
-   * failure re-enters Phase 1.
-   */
-  const retainGrade = (grade: ReviewGrade) => {
-    const cur = retainRef.current;
-    const content = retainContentRef.current;
-    if (!cur || !content) return;
-    const card = reviewCard(cur, content);
-    // A card on its second trip through today's deck was already graded and
-    // rescheduled; grading it again would schedule off a state this pass no
-    // longer knows. The second answer only moves what the screen says about it.
-    const firstTrip = cur.idx < content.cards.length;
-    setRetain(retainReducer(cur, { type: "grade", grade }, content));
-    // Real FSRS (#21): the scheduler computes the card's next due date.
-    if (firstTrip)
-      setCards((prev) =>
-        prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
-      );
-    // The flip's confidence tap, against whether it came back at all.
-    if (firstTrip && cur.sure !== undefined)
-      recordCalib(card.node, CONFIDENCE_FELT[cur.sure], grade === "again" ? 0 : 100);
-    // Real review history — what finally earns "Retained ✓" (#13) — and only
-    // across a real interval: read off the card *before* this grade moved it.
-    const held = cardsRef.current.find((c) => c.id === card.id)?.fsrs;
-    if (firstTrip && held && earnsRetained(grade, held))
-      setReviewedNodes((prev) =>
-        prev.includes(card.node) ? prev : [...prev, card.node],
-      );
-    if (grade === "again" && card.fails) {
-      setStates((prev) =>
-        prev[card.node] === "shaky" ? prev : { ...prev, [card.node]: "shaky" },
-      );
-      setShakyReason(card.node, "review-miss");
-      showToast(
-        tc().cardFlaggedShaky(
-          graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? tc().thisNode,
-        ),
-        tc().mapUpdated,
-      );
-    }
-  };
-
-  const retainReteach = () => {
-    const cur = retainRef.current;
-    const content = retainContentRef.current;
-    if (!cur || !content) return;
-    const card = reviewCard(cur, content);
-    const node = graphRef.current.nodes.find((n) => n.id === card.node);
-    setRetain(null);
-    if (node) {
-      enterSession(node);
-      later(() => showToast(tc().reEnteringLoop(node.label)), 420);
-    } else {
-      setScreen("map");
-    }
-  };
-
-  const exitReview = () => {
-    setScreen("map");
-    setRetain(null);
-  };
+    later,
+    enterSession,
+  });
 
   // ---- Calibration (§12 · Metacognition) -------------------------------
 
@@ -1846,6 +1339,17 @@ export function useSpiral(deps: {
    * Provenance once domains added it) and Socratic jumped to Feynman (past
    * Steelman). Being IN the plan is not enough. `exhausted` takes a finished one.
    */
+  /** A last gate on its night's hold (W4.1) says so from the map instead of
+   *  opening. Recall and the Crucible check their own slots, in their words. */
+  const heldOnMap = (node: ConceptNode, phase: PhaseId) => {
+    const until = heldUntil(phaseProgressRef.current[node.id]?.[phase]);
+    if (!until || phase === "recall" || phase === "crucible") return false;
+    setScreen("map");
+    setSelectedId(node.id);
+    showToast(tc().gateHeld(phaseLabel(phase), node.label, hoursLeft(until)));
+    return true;
+  };
+
   const enterOwedPhase = (
     node: ConceptNode,
     exhausted: () => void = () => setScreen("map"),
@@ -1853,13 +1357,16 @@ export function useSpiral(deps: {
   ) => {
     disarmChallenge();
     const next = primaryPhase(phasePlan(node), phasesDoneRef.current[node.id], state);
-    if (next) enterPhase[next](node);
-    else exhausted();
+    if (!next) exhausted();
+    else if (!heldOnMap(node, next)) enterPhase[next](node);
   };
   enterOwedRef.current = (node) => enterOwedPhase(node, () => leaveTo(node.id));
 
   /** The recap's primary CTA: forward into whatever the plan says is next. */
   const beginNextFromConsume = () => leaveConsume(enterOwedPhase);
+  /** The recap's "you knew every section": straight to the proof gate, under
+   *  the challenge that credits the ladder on a cold pass (W3.4). */
+  const proveFromConsume = () => leaveConsume((node) => skipKnown(node));
   /** "I know this — test me" is a deliberate jump, not a hand-off, so it keeps
    *  its target; a plan with no Crucible falls back to the owed rung. */
   const consumeSkipCrucible = () =>
@@ -1982,6 +1489,7 @@ export function useSpiral(deps: {
     // Every phase opens from its own row, done or not: re-reading and re-doing
     // are first-class actions. Only the jump-ahead needs saying out loud, and
     // the nudge has already said it.
+    if (heldOnMap(node, phase)) return;
     if (idx > current) {
       markStarted(node);
       showToast(tc().jumpingAhead(phaseLabel(phase), node.label));
@@ -2036,6 +1544,7 @@ export function useSpiral(deps: {
   return {
     enterSession,
     consumeCheck,
+    consumePretest,
     consumeContinue,
     consumeOpenModel,
     consumeCloseModel,
@@ -2057,6 +1566,7 @@ export function useSpiral(deps: {
     exitFeynman,
     enterConnect,
     dispatchConnect,
+    connectConfirm,
     exitConnect,
     advanceFromFeynman,
     advanceFromConnect,
@@ -2098,6 +1608,7 @@ export function useSpiral(deps: {
     advanceFromSocratic,
     finishConsume,
     beginNextFromConsume,
+    proveFromConsume,
     consumeSkipCrucible,
     consumeRoutePrereq,
     onNodeDoubleClick,

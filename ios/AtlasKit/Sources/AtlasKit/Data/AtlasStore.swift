@@ -11,7 +11,7 @@ public final class AtlasStore {
     // Every stored property below is the run, and every one of them saves on
     // change — see `saveSoon`. `subject` is half the row's primary key, so
     // changing it is what starts a second map rather than overwriting the first.
-    public var graph: ConceptGraph { didSet { rederive(); saveSoon() } }
+    public var graph: ConceptGraph { didSet { settleGaps(oldValue); rederive(); saveSoon() } }
     public var states: StateMap { didSet { rederive(); saveSoon() } }
     public var subject: String { didSet { saveSoon() } }
     /// What the learner said they care about, from onboarding. Every generated
@@ -53,14 +53,11 @@ public final class AtlasStore {
     /// Nodes with a real review behind them — what earns Retido, since being
     /// Mastered alone doesn't (`phaseIndex`).
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
-
-    /// Which time through each node's Crucible the learner is on, keyed by node
-    /// id. Deliberately **not** persisted and deliberately without `saveSoon`:
-    /// it is part of a cache key, not part of the run, and a column for it
-    /// would need a migration on both clients to buy a counter that only has to
-    /// survive the app being open. A relaunch resets it, which costs at worst
-    /// one repeated problem. See `Warm.crucible`.
-    var crucibleRerun: [String: Int] = [:]
+    /// The open topic's axes (W1.1 …): read by the surfaces that need one, never
+    /// sent in a generation body — the server stamps those itself.
+    public internal(set) var axes: TopicAxes?
+    /// ISO 3166 (W2.5), from the profile or the device.
+    public internal(set) var country: String?
 
     /// The web's `consumeProgress`, held as JSON and keyed by node id. This
     /// client reads four of its fields (whether the pass finished, and where the
@@ -359,13 +356,18 @@ public extension AtlasStore {
         guard let record = consumeProgress[id]?.fields else { return nil }
         func flag(_ key: String) -> Bool { if case .bool(true)? = record[key] { true } else { false } }
         func count(_ key: String) -> Int { if case .number(let n)? = record[key] { Int(n) } else { 0 } }
-        // The browser writes `checks` as `{ chunkId: true }`, one key per
-        // section answered.
+        // The browser writes a check as `{ oi, correct }`; this client used to
+        // write a bare `true`. Either is a pass when it says so.
         let passed = (record["checks"]?.fields ?? [:]).compactMap { id, value -> String? in
-            if case .bool(true) = value { id } else { nil }
+            if case .bool(true) = value { return id }
+            if case .bool(true)? = value.fields?["correct"] { return id }
+            return nil
+        }
+        let pretest = (record["pretest"]?.fields ?? [:]).compactMapValues { value -> Bool? in
+            if case .bool(let right) = value { right } else { nil }
         }
         return ReadingProgress(
-            idx: count("idx"), total: count("total"), checks: Set(passed),
+            idx: count("idx"), total: count("total"), checks: Set(passed), pretest: pretest,
             finished: flag("finished"), handedOff: flag("handedOff")
         )
     }
@@ -386,7 +388,8 @@ public extension AtlasStore {
     /// field means "no news", not "false".
     func note(
         reading id: String, idx: Int? = nil, total: Int? = nil,
-        finished: Bool? = nil, handedOff: Bool? = nil, passed chunk: String? = nil
+        finished: Bool? = nil, handedOff: Bool? = nil, passed chunk: String? = nil,
+        option: Int = -1, guess: (section: String, right: Bool)? = nil
     ) {
         var record = consumeProgress[id]?.fields ?? [:]
         if let idx { record["idx"] = .number(Double(idx)) }
@@ -397,9 +400,15 @@ public extension AtlasStore {
             record["total"] = .number(Double(max(total, held)))
         }
         if let chunk {
+            // The web's shape, so a section passed here reads as passed there.
             var checks = record["checks"]?.fields ?? [:]
-            checks[chunk] = .bool(true)
+            checks[chunk] = .object(["oi": .number(Double(option)), "correct": .bool(true)])
             record["checks"] = .object(checks)
+        }
+        if let guess {
+            var guesses = record["pretest"]?.fields ?? [:]
+            guesses[guess.section] = .bool(guess.right)
+            record["pretest"] = .object(guesses)
         }
         if let finished { record["finished"] = .bool(finished) }
         if let handedOff { record["handedOff"] = .bool(handedOff) }
@@ -407,7 +416,8 @@ public extension AtlasStore {
         // creates has to be a whole `ConsumeProgress`.
         for (key, fallback): (String, JSONValue) in [
             ("idx", .number(0)), ("variant", .object([:])), ("collapsed", .object([:])),
-            ("checks", .object([:])), ("termsSeen", .array([])), ("total", .number(0)),
+            ("checks", .object([:])), ("pretest", .object([:])), ("termsSeen", .array([])),
+            ("total", .number(0)),
             ("finished", .bool(false)), ("handedOff", .bool(false)),
         ] {
             record[key] = record[key] ?? fallback
@@ -428,14 +438,39 @@ public extension AtlasStore {
     /// `.cleared` when it proved the node. Left `.passed`, the node's existing
     /// reason stands — so re-doing an unrelated phase can't silently promote a
     /// node past a Crucible it is still failing.
-    func completePhase(_ node: ConceptNode, _ phase: Phase, closed: Closing = .passed) {
+    func completePhase(_ node: ConceptNode, _ phase: Phase, closed: Closing = .passed, clean: Bool = false) {
         let challenged = challenge == node.id
         if challenged { challenge = nil } // one attempt, one verdict
-        let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged)
+        recordAttempt(node, phase, passed: true, detail: challenged ? ["challenged": .bool(true)] : [:])
+        let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged, clean: clean)
         phasesDone[node.id] = done
+        // Anything studied on a node pushes its last gate a night out (W4.1),
+        // merged into the slot so a session parked there survives the wait.
+        if let gate = heldGate(node.plan, done, phase) {
+            hold(node.id, gate, slot: phaseProgress[node.id]?.fields?[gate.rawValue]?.fields ?? [:])
+        }
         let reason = reasonAfter(node.plan, done, phase, closed: closed, held: shakyReasons[node.id])
         shakyReasons[node.id] = reason
-        states[node.id] = stateFromPlan(node.plan, done, shaky: reason)
+        states[node.id] = stateFromPlan(
+            node.plan, done, shaky: reason, gaps: openGapIds(graph, node.id).count)
+    }
+
+    /// The gaps under a node changed with no phase closing — the last one was
+    /// just closed, or one was hung. Only a node that has finished its gates
+    /// moves; anywhere earlier the next `completePhase` settles it anyway.
+    /// Mirrors `phaseLedger.settle`.
+    private func settleGaps(_ old: ConceptGraph) {
+        let was = Set(old.nodes.filter { $0.gap == true }.map(\.id))
+        let now = Set(graph.nodes.filter { $0.gap == true }.map(\.id))
+        guard was != now else { return }
+        for node in graph.nodes where node.gap != true {
+            let done = phasesDone[node.id] ?? []
+            guard planGates(node.plan).allSatisfy(done.contains) else { continue }
+            let next = stateFromPlan(
+                node.plan, done, shaky: shakyReasons[node.id],
+                gaps: openGapIds(graph, node.id).count)
+            if states[node.id] != next { states[node.id] = next }
+        }
     }
 
     /// A gate failed, or a review slipped: record why the node is Shaky and
@@ -446,7 +481,9 @@ public extension AtlasStore {
     func markShaky(_ node: ConceptNode, _ reason: ShakyReason) {
         if challenge == node.id { challenge = nil } // a failed proof credits nothing
         shakyReasons[node.id] = reason
-        states[node.id] = stateFromPlan(node.plan, phasesDone[node.id] ?? [], shaky: reason)
+        states[node.id] = stateFromPlan(
+            node.plan, phasesDone[node.id] ?? [], shaky: reason,
+            gaps: openGapIds(graph, node.id).count)
     }
 
     /// Work begun on a node that has finished no phase yet — a part-read reading
@@ -463,7 +500,11 @@ public extension AtlasStore {
     func armChallenge(_ node: ConceptNode) -> Phase {
         markStarted(node)
         challenge = node.id
-        return proofGate(node.plan)
+        // The claim is that it was known before this sitting: the night a
+        // studied gate waits does not apply to it (W4.1).
+        let gate = proofGate(node.plan)
+        release(node.id, gate)
+        return gate
     }
 
     /// Put the reading back to the top, unread. What a flagged Socratic pass
@@ -622,6 +663,58 @@ public extension AtlasStore {
                 topicId, nodeId: node.id, phase: phase, seconds: seconds, token: token
             )
         }
+    }
+
+    /// One row in the attempts log (W0.2): every phase close, and every failed
+    /// gate that closes nothing. Best-effort, like the phase clock.
+    func recordAttempt(
+        _ node: ConceptNode, _ phase: Phase, passed: Bool, detail: [String: JSONValue] = [:]
+    ) {
+        guard let topicId else { return }
+        Task {
+            guard let token = await bearer() else { return }
+            try? await runs.attempt(
+                topicId, nodeId: node.id, phase: phase, passed: passed,
+                detail: detail, token: token
+            )
+        }
+    }
+
+    /// The same write, awaited — for the re-run, whose next case is keyed on it.
+    func postAttempt(_ node: ConceptNode, _ phase: Phase, passed: Bool) async {
+        guard let topicId, let token = await bearer() else { return }
+        try? await runs.attempt(topicId, nodeId: node.id, phase: phase, passed: passed,
+                                detail: [:], token: token)
+    }
+
+    /// When a phase held on this node opens, if it is still held (`spacing.ts`):
+    /// the `opensAt` in the phase's own `phase_progress` slot, in epoch ms.
+    func heldUntil(_ nodeId: String, _ phase: Phase, now: Date = .now) -> Date? {
+        guard case .number(let ms)? = phaseProgress[nodeId]?.fields?[phase.rawValue]?.fields?["opensAt"]
+        else { return nil }
+        let at = Date(timeIntervalSince1970: ms / 1000)
+        return at > now ? at : nil
+    }
+
+    /// End a hold early, keeping whatever else the slot holds.
+    func release(_ nodeId: String, _ phase: Phase) {
+        guard heldUntil(nodeId, phase) != nil,
+              var slot = phaseProgress[nodeId]?.fields?[phase.rawValue]?.fields else { return }
+        slot["opensAt"] = .number(0)
+        var forNode = phaseProgress[nodeId]?.fields ?? [:]
+        forNode[phase.rawValue] = .object(slot)
+        phaseProgress[nodeId] = .object(forNode)
+    }
+
+    /// Hold `phase` a night (~20 h) in its own slot. `slot` is what the web
+    /// reads there when the hold is over — a fresh Crucible session for the
+    /// cold re-attempt, nothing but the hold for Recall.
+    func hold(_ nodeId: String, _ phase: Phase, slot: [String: JSONValue] = [:], now: Date = .now) {
+        var slot = slot
+        slot["opensAt"] = .number((now.timeIntervalSince1970 + spacingSeconds) * 1000)
+        var forNode = phaseProgress[nodeId]?.fields ?? [:]
+        forNode[phase.rawValue] = .object(slot)
+        phaseProgress[nodeId] = .object(forNode)
     }
 
     /// Grade a card.
@@ -830,6 +923,9 @@ public extension AtlasStore {
         quiet = true
         defer { quiet = wasQuiet }
         dailyTarget = profile.dailyTarget
+        // W2.5: the device's region until the learner says otherwise.
+        country = profile.country ?? Locale.current.region?.identifier
+        if profile.country == nil, let country { setCountry(country) }
         streak = profile.adherence.streak
         lastActiveDay = profile.adherence.lastDay
         savedProfile = Self.profileShot(target: profile.dailyTarget, streak: profile.adherence.streak, day: profile.adherence.lastDay)
@@ -891,6 +987,7 @@ public extension AtlasStore {
         connectProgress = run.connectProgress
         phaseProgress = run.phaseProgress
         misconceptions = run.misconceptions
+        axes = run.axes
         // Only when the topic records one: a run built before the field existed
         // has a genuinely unknown content language, and the device preference is
         // the honest fallback.
@@ -901,6 +998,38 @@ public extension AtlasStore {
         savedNodes = nodeShots()
         savedCards = cardShots()
         savedTopic = topicShot()
+    }
+
+    /// Read back what the server stamped from a fresh map's header (its
+    /// language, lenses, shape) — it lands before the build stream closes.
+    func reloadAxes() async {
+        guard let topicId, let token = await bearer(),
+              let run = try? await runs.topic(topicId, token: token), run.id == self.topicId
+        else { return }
+        axes = run.axes
+    }
+
+    /// Whose rules a jurisdictional topic teaches — the learner's, not a topic's.
+    func setCountry(_ code: String) {
+        country = code
+        Task {
+            guard let token = await bearer() else { return }
+            try? await runs.patchProfile(.object(["country": .string(code)]), token: token)
+        }
+    }
+
+    /// Set a learner-chosen axis on the open topic (W1.1 variant, W2.6 lens).
+    func setAxis(targetLanguage: String? = nil, lens: String? = nil) {
+        guard var next = axes else { return }
+        var body: [String: JSONValue] = [:]
+        if let targetLanguage { next.targetLanguage = targetLanguage; body["targetLanguage"] = .string(targetLanguage) }
+        if let lens { next.lens = lens; body["lens"] = .string(lens) }
+        axes = next
+        guard let topicId else { return }
+        Task {
+            guard let token = await bearer() else { return }
+            try? await runs.patchTopic(topicId, body: .object(body), token: token)
+        }
     }
 
     /// Create the topic a build is about to fill.

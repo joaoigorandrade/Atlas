@@ -74,15 +74,15 @@ private func store() -> AtlasStore {
 }
 
 @MainActor
-@Test func aRedoOfTheCrucibleIsItsOwnRow_notAnOverwrite() {
+@Test func aSolvedProblemIsForgotten_soARedoAsksAgain() {
     // A redo asks for a problem in a different domain: re-serving the one the
-    // learner solved measures recall, which is what this phase exists not to
-    // measure. So it is content in its own right, at its own variant.
+    // learner solved measures recall. The server keys the redo to a bumped
+    // `rerun` from the attempts log; the phone only has to stop holding the
+    // old one.
     let store = store()
-    #expect(store.crucibleVariant(node) == "")
-    store.bumpCrucibleRerun(node.id)
-    #expect(store.crucibleVariant(node) == "r1")
-    #expect(store.address("crucible", node, variant: "r1") == "lat|crucible|r1")
+    store.seedWarm([item("crucible", payload: .object([:]))])
+    store.forgetContent("crucible", node)
+    #expect(store.problems(node) == nil)
 }
 
 @MainActor

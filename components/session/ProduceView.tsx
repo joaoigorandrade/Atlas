@@ -22,6 +22,7 @@ import {
   type ProduceSession,
 } from "@/lib/curriculum";
 import { MicButton } from "@/components/VoiceInput";
+import { useTopicAxes } from "@/lib/topicAxesStore";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
@@ -62,9 +63,13 @@ function SayIt({
   judging: boolean;
   placeholder: string;
   submitLabel: string;
-  onSubmit: (said: string) => void;
+  onSubmit: (said: string, confidence?: number) => void;
 }) {
   const [draft, setDraft] = useState("");
+  // Spoken in the language being learned, not the interface's (W1.1), and the
+  // recognizer's weakest span goes to the judge with the transcript.
+  const speech = useTopicAxes()?.targetLanguage ?? undefined;
+  const [sure, setSure] = useState<number | undefined>(undefined);
   const blocked = judging || !draft.trim();
   return (
     <div style={{ marginTop: 16 }}>
@@ -91,14 +96,23 @@ function SayIt({
         />
         {/* The microphone is the point here, not a convenience. */}
         <div style={{ position: "absolute", right: 10, top: 10 }}>
-          <MicButton value={draft} onChange={setDraft} accent={accent} />
+          <MicButton
+            value={draft}
+            onChange={setDraft}
+            accent={accent}
+            speech={speech}
+            onConfidence={(c) => setSure((s) => Math.min(s ?? 1, c))}
+          />
         </div>
       </div>
       <button
         className="at-press"
         data-testid="action-submit"
         disabled={blocked}
-        onClick={() => onSubmit(draft)}
+        onClick={() => {
+          onSubmit(draft, sure);
+          setSure(undefined);
+        }}
         style={{
           marginTop: 14,
           width: "100%",
@@ -136,7 +150,7 @@ export default function ProduceView({
   session: ProduceSession;
   judging: boolean;
   onExit: () => void;
-  onSubmit: (said: string) => void;
+  onSubmit: (said: string, confidence?: number) => void;
   onNext: () => void;
   onAdvance: () => void;
 }) {

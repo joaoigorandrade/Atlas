@@ -128,6 +128,12 @@ enum RunEndpoint {
             .jsonBody(body).bearer(token)
     }
 
+    /// One phase close, pass or fail (W0.2). Rows are only ever added.
+    static func attempt(_ id: String, body: JSONValue, token: String) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/v1/topics/\(id)/attempts", method: .post)
+            .jsonBody(body).bearer(token)
+    }
+
     /// Cards the phases mint themselves — Connect's one card per confirmed
     /// link, and the deck Retain drafts. Scheduler state is the server's; these
     /// arrive new.

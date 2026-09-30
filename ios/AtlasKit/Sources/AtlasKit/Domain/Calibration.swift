@@ -100,16 +100,39 @@ public func calibItems(_ samples: [CalibSample], _ graph: ConceptGraph) -> [Cali
 ///   - started: work that has begun but finished no phase — a part-read Consume
 ///     pass. Without it a learner who read two sections and left would drop back
 ///     to displaying as frontier, and that progress is real.
+///   - gaps: gap sub-nodes still open under the node (`openGapIds`). A finished
+///     ladder with a diagnosed hole in it waits at Learning until they close.
+/// Every section was known before it was read (W3.4): each one's check right
+/// as a pretest, over a finished pass of at least two sections. Mirrors
+/// `pretestClean` in `consume.ts`.
+public func pretestClean(_ reading: ReadingProgress?, sections: Int? = nil) -> Bool {
+    guard let reading, reading.finished else { return false }
+    let guesses = Array(reading.pretest.values)
+    return guesses.count >= max(2, sections ?? reading.total) && guesses.allSatisfy { $0 }
+}
+
+/// Should the node lead with "prove it" rather than its next rung (W3.4)? A
+/// reading known end to end, a proof gate never tried, nothing marking it
+/// Shaky. Mirrors `provesOnSight` in `calibration.ts`.
+public func provesOnSight(
+    _ plan: [Phase], _ done: [Phase], state: NodeState,
+    reading: ReadingProgress?, shaky: ShakyReason?
+) -> Bool {
+    state == .learning && shaky == nil && !done.contains(proofGate(plan)) && pretestClean(reading)
+}
+
 public func stateFromPlan(
     _ plan: [Phase], _ done: [Phase] = [],
-    shaky: ShakyReason? = nil, started: Bool = false
+    shaky: ShakyReason? = nil, started: Bool = false, gaps: Int = 0
 ) -> NodeState {
     // Retain is the one rung mastery does not wait on. It is not something the
     // learner *does* in a session — it is weeks of review history — so a node
     // goes green when the last real gate closes and only then starts earning
     // Retido ✓. Requiring it here would mean no node was ever mastered until it
     // had been reviewed, which is not what green has meant.
-    if planGates(plan).allSatisfy(done.contains) { return shaky != nil ? .shaky : .mastered }
+    if planGates(plan).allSatisfy(done.contains) {
+        return shaky != nil ? .shaky : gaps > 0 ? .learning : .mastered
+    }
     if shaky != nil { return .shaky }
     return !done.isEmpty || started ? .learning : .unknown
 }

@@ -130,6 +130,20 @@ public struct DrillSession: Sendable {
         content.reps.filter { hits[$0.id] == $0.answerIndex && (took[$0.id] ?? 0) > drillTarget }
     }
 
+    /// The reps that become review cards (W4.4): every one answered and not
+    /// yet automatic — missed, or right but slow. Automaticity forms across
+    /// days. Keyed on the rep, so a redo can't stack a copy. Mirrors
+    /// `drillCards` in `drill.ts`.
+    public func cards(_ content: DrillContent) -> [(id: String, front: String, back: String)] {
+        content.reps.compactMap { rep in
+            guard let hit = hits[rep.id] else { return nil }
+            let automatic = hit == rep.answerIndex && (took[rep.id] ?? .infinity) <= drillTarget
+            guard !automatic else { return nil }
+            let answer = rep.answers[safe: rep.answerIndex] ?? ""
+            return ("\(nodeId)-drill-\(rep.id)", rep.prompt, "\(answer) — \(rep.rule)")
+        }
+    }
+
     /// Is the run automatic, as opposed to merely correct? Reported on the
     /// closing panel; deliberately not the gate.
     public func automatic(_ content: DrillContent) -> Bool {

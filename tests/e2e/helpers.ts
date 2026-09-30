@@ -182,6 +182,8 @@ export async function readNodeRows(
 export async function openRun(
   page: Page,
   states: Record<string, NodePatch> = {},
+  /** Columns to force on the topic row — the server-stamped axes, say. */
+  topic: Record<string, unknown> = {},
 ): Promise<Run> {
   if (!cached()) {
     // A run left behind by an earlier spec would open on the map, and
@@ -197,7 +199,9 @@ export async function openRun(
     mkdirSync(path.dirname(CACHE), { recursive: true });
     writeFileSync(CACHE, JSON.stringify(captured));
   }
-  await writeTables(page.request, withStates(captured!, states));
+  const tables = withStates(captured!, states);
+  tables.topics = (tables.topics ?? []).map((t) => ({ ...t, ...topic }));
+  await writeTables(page.request, tables);
   await page.goto("/");
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
   await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
@@ -230,10 +234,12 @@ export async function openPhase(
 /**
  * Answer the newest unanswered Consume section check.
  *
- * A check only mounts once the end of its section is properly on screen (an
- * IntersectionObserver in `SectionCheck.tsx`), so the reading is scrolled until
- * it appears. It opens on "Own words" and is answered once — this switches it
- * to Choices and picks `option` (1 is right in the fixture pass).
+ * Each section opens on its pretest (W3.3), so on a fresh section this answers
+ * that: option 1 is right in the fixture pass, which passes the check and folds
+ * the section. An end-of-section check only mounts once the end of its section
+ * is properly on screen (an IntersectionObserver in `SectionCheck.tsx`), so the
+ * reading is scrolled until a check appears. Either one opens on "Own words" and
+ * is answered once — this switches it to Choices and picks `option`.
  */
 export async function answerCheck(page: Page, option = 1): Promise<void> {
   const sheet = page.getByTestId("phase-consume");

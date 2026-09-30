@@ -16,13 +16,16 @@
 // green.
 
 import { useCallback, useRef } from "react";
+import { recordAttempt } from "@/lib/attempts";
 import {
+  heldGate,
+  heldUntil,
   holdFrom,
-  holdsRecall,
   ledgerAfter,
   openGapIds,
   phasePlan,
   planGates,
+  proofGate,
   reasonAfter,
   stateFromPlan,
   type ConceptGraph,
@@ -47,6 +50,8 @@ export function usePhaseLedger(deps: {
   setStates: React.Dispatch<React.SetStateAction<StateMap>>;
   /** Where a spacing hold is written — the held phase's own slot. */
   setPhaseProgress: React.Dispatch<React.SetStateAction<Record<string, PhaseProgress>>>;
+  /** Written through as well as set: a hand-off reads a hold in the same tick. */
+  phaseProgressRef: React.MutableRefObject<Record<string, PhaseProgress>>;
   /** Pull the next phase's material forward while the learner is in this one.
    *  Retain is excluded because it has no per-node generation to pull: it is
    *  the shared review queue, warmed on its own schedule by `retainPlan`. */
@@ -60,17 +65,39 @@ export function usePhaseLedger(deps: {
     setShakyReason,
     setStates,
     setPhaseProgress,
+    phaseProgressRef,
     warmOne,
   } = deps;
   /** The node under a "prove it" challenge, if any. Session-only on purpose:
    *  a reload drops it, which fails safe — the attempt just credits itself. */
   const challengeRef = useRef<string | null>(null);
 
-  /** Hold `phase` on this node for a night (`spacing.ts`). */
+  /** Merge `fields` into one phase slot — through the ref as well as the
+   *  state, because the hand-off after a phase closes reads it in this tick. */
+  const patchSlot = useCallback(
+    (id: string, phase: PhaseId, fields: object) => {
+      const patch = (p: Record<string, PhaseProgress>) => ({
+        ...p,
+        [id]: { ...p[id], [phase]: { ...(p[id]?.[phase] as object), ...fields } },
+      });
+      phaseProgressRef.current = patch(phaseProgressRef.current);
+      setPhaseProgress(patch);
+    },
+    [phaseProgressRef, setPhaseProgress],
+  );
+  /** Hold `phase` on this node for a night (`spacing.ts`). Merged into the
+   *  slot, so a session parked there survives the wait. */
   const hold = useCallback(
-    (id: string, phase: PhaseId) =>
-      setPhaseProgress((p) => ({ ...p, [id]: { ...p[id], [phase]: holdFrom() } })),
-    [setPhaseProgress],
+    (id: string, phase: PhaseId) => patchSlot(id, phase, holdFrom()),
+    [patchSlot],
+  );
+  /** End a hold early — a "prove it" challenge is exempt from the night. */
+  const release = useCallback(
+    (id: string, phase: PhaseId) => {
+      if (heldUntil(phaseProgressRef.current[id]?.[phase]))
+        patchSlot(id, phase, { opensAt: 0 });
+    },
+    [phaseProgressRef, patchSlot],
   );
 
   const gapsOf = useCallback(
@@ -86,21 +113,44 @@ export function usePhaseLedger(deps: {
    * `shaky` is passed when the phase closed on a failed gate, and `null` to
    * clear a reason the phase has now cleared. Left off, the node's existing
    * reason stands — see `reasonAfter` for the one clean close that clears it.
+   *
+   * Every close lands one row in the attempts log (W0.2), with the phase's own
+   * `score` where it has one. A failed gate that closes nothing logs itself,
+   * where it fails.
    */
   const completePhase = useCallback(
-    (node: ConceptNode, phase: PhaseId, shaky?: ShakyReason | null): ProgressState => {
+    (
+      node: ConceptNode,
+      phase: PhaseId,
+      shaky?: ShakyReason | null,
+      score?: number,
+      /** A clean first try, which earns skips (`CREDITS`, W3.2). */
+      clean = false,
+    ): ProgressState => {
       const prev = phasesDoneRef.current[node.id] ?? [];
       const challenged = challengeRef.current === node.id;
       if (challenged) challengeRef.current = null; // one attempt, one verdict
+      recordAttempt({
+        nodeId: node.id,
+        phase,
+        passed: true,
+        score,
+        detail: {
+          ...(shaky ? { shaky } : null),
+          ...(challenged ? { challenged } : null),
+          ...(clean ? { clean } : null),
+        },
+      });
       const plan = phasePlan(node);
-      const done = ledgerAfter(plan, prev, phase, challenged);
+      const done = ledgerAfter(plan, prev, phase, challenged, clean);
       // Written through the ref as well as the setter: the handlers below run
       // several of these in one tick, and each needs to see the last.
       phasesDoneRef.current = { ...phasesDoneRef.current, [node.id]: done };
       setPhasesDone((p) => ({ ...p, [node.id]: done }));
-      // Anything studied on a node that still owes Recall pushes Recall a
-      // night out: a cold retrieval has to be cold.
-      if (holdsRecall(plan, done, phase)) hold(node.id, "recall");
+      // Anything studied on a node pushes its last gate a night out (W4.1):
+      // the proof has to outlast the sitting it was learned in.
+      const gate = heldGate(plan, done, phase);
+      if (gate) hold(node.id, gate);
       const held = shakyReasonsRef.current[node.id];
       const reason = reasonAfter(plan, done, phase, shaky, held);
       if (held && !reason) setShakyReason(node.id, null);
@@ -177,9 +227,16 @@ export function usePhaseLedger(deps: {
   /** "I already know this": the next close of this node's proof gate credits
    *  the whole plan (`ledgerAfter`). Any ordinary entry disarms it, and so does
    *  a failed first attempt — only a cold pass is proof. */
-  const armChallenge = useCallback((id: string) => {
-    challengeRef.current = id;
-  }, []);
+  const armChallenge = useCallback(
+    (id: string) => {
+      challengeRef.current = id;
+      // The claim is that it was known before this sitting: the night a
+      // studied gate waits does not apply to it (W4.1).
+      const node = graphRef.current.nodes.find((n) => n.id === id);
+      if (node) release(id, proofGate(phasePlan(node)));
+    },
+    [graphRef, release],
+  );
   const disarmChallenge = useCallback(() => {
     challengeRef.current = null;
   }, []);

@@ -77,13 +77,22 @@ struct NodeDetailView: View {
             .frame(maxHeight: Self.scrollCap)
 
             Dock {
-                CTAButton(model.actionTitle, tint: model.actionTint) { primary(model) }
-                    .disabled(model.isLocked)
-                // The faster lever, proven rather than claimed: straight to the
-                // proof gate. Frontier only, so a failed proof can't be re-armed
-                // for a second try at the same problem (`NodeDetail.tsx:634`).
-                if model.state == .frontier {
-                    GhostButton("Eu já sei isso — provar") { start(model.prove()) }
+                if model.proving {
+                    // Every section known before it was read: the ladder is
+                    // re-teaching, so proving it leads (W3.4).
+                    CTAButton("Você já sabia tudo — prove no \(model.proofLabel)", tint: model.actionTint) {
+                        start(model.prove())
+                    }
+                    GhostButton(model.actionTitle) { primary(model) }
+                } else {
+                    CTAButton(model.actionTitle, tint: model.actionTint) { primary(model) }
+                        .disabled(model.isLocked)
+                    // The faster lever, proven rather than claimed: straight to
+                    // the proof gate. Frontier only, so a failed proof can't be
+                    // re-armed for a second try at the same problem.
+                    if model.state == .frontier {
+                        GhostButton("Eu já sei isso — provar") { start(model.prove()) }
+                    }
                 }
             }
         }

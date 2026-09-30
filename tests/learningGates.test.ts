@@ -5,12 +5,14 @@
 import { describe, expect, it } from "vitest";
 import {
   CONFIDENCE_FELT,
-  CONNECT_MIN_DRAFT,
+  CONNECT_MIN_WORDS,
   RETAINED_MIN_DAYS,
   SPACING_MS,
   connectDraftReady,
   connectReducer,
+  connectCards,
   connectStart,
+  type ConnectSession,
   crucibleReal,
   crucibleScaffolded,
   crucibleStart,
@@ -22,7 +24,7 @@ import {
   gapParentOf,
   heldUntil,
   holdFrom,
-  holdsRecall,
+  heldGate,
   hoursLeft,
   mergeCalib,
   neighboursOf,
@@ -103,12 +105,18 @@ describe("spacing", () => {
     expect(hoursLeft(now + SPACING_MS, now)).toBe(20);
   });
 
-  it("pushes Recall out after anything studied, but not after Recall itself", () => {
+  it("pushes the last gate out after anything studied, but not after itself (W4.1)", () => {
     const plan = ["consume", "connect", "recall", "retain"] as const;
-    expect(holdsRecall(plan, ["consume"], "consume")).toBe(true);
-    expect(holdsRecall(plan, ["consume", "recall"], "connect")).toBe(false);
-    expect(holdsRecall(plan, ["consume"], "recall")).toBe(false);
-    expect(holdsRecall(["consume", "crucible", "retain"], [], "consume")).toBe(false);
+    expect(heldGate(plan, ["consume"], "consume")).toBe("recall");
+    expect(heldGate(plan, ["consume", "recall"], "connect")).toBeNull();
+    expect(heldGate(plan, ["consume"], "recall")).toBeNull();
+    // A plan without Recall holds whatever proves it last — no node goes
+    // green on the day it was learned.
+    expect(heldGate(["consume", "trace", "crucible", "retain"], [], "trace")).toBe(
+      "crucible",
+    );
+    // A plan whose only gate is the one being closed holds nothing.
+    expect(heldGate(["consume", "retain"], [], "consume")).toBeNull();
   });
 
   it("earns Retained ✓ only across a real interval", () => {
@@ -150,7 +158,8 @@ describe("Connect confirms only the learner's own words", () => {
 
   it("needs a real draft, and not the suggestion pasted back", () => {
     expect(connectDraftReady("", content.cands[0].rel)).toBe(false);
-    expect(connectDraftReady("x".repeat(CONNECT_MIN_DRAFT - 1), "")).toBe(false);
+    expect(connectDraftReady("they are ".repeat(2).trim(), "")).toBe(false);
+    expect(CONNECT_MIN_WORDS).toBe(6);
     expect(
       connectDraftReady("  c GENERALISES p to any basis ", content.cands[0].rel),
     ).toBe(false);
@@ -174,6 +183,30 @@ describe("Connect confirms only the learner's own words", () => {
         p: true,
       },
     );
+  });
+
+  it("does not confirm a link the judge rules false, and never cards the map's sentence", () => {
+    const drafted = connectReducer(
+      connectStart("c"),
+      { type: "draft", id: "p", value: "P is the opposite of C in every case." },
+      content,
+    );
+    const ruled = connectReducer(
+      drafted,
+      {
+        type: "confirm",
+        id: "p",
+        ruling: { verdict: "false", line: "They are not opposites." },
+      },
+      content,
+    );
+    expect(ruled.linked.p).toBe(false);
+    expect(ruled.rulings?.p.verdict).toBe("false");
+    expect(connectCards(ruled, content)).toEqual([]);
+    // A saved session from before rulings reads as none ruled, and a confirmed
+    // link with no words of its own drafts no card on the suggestion.
+    const legacy = { ...connectStart("c"), linked: { p: true } } as ConnectSession;
+    expect(connectCards(legacy, content)).toEqual([]);
   });
 });
 
@@ -272,5 +305,117 @@ describe("calibration readings", () => {
     expect(flipped.sure).toBe(2);
     const next = retainReducer(flipped, { type: "grade", grade: "good" }, content);
     expect(next.sure).toBeUndefined();
+  });
+});
+
+describe("W1.6: early exits and a disconfirmer that can be met", () => {
+  it("Trace ends early on a clean opening, and only on one", async () => {
+    const { traceEarly, tracePassed, traceStart } = await import("@/lib/curriculum");
+    const content = {
+      nodeId: "n",
+      nodeLabel: "N",
+      scenario: "",
+      stages: ["a", "b", "c", "d", "e"].map((id) => ({
+        id,
+        reached: "",
+        nexts: ["x", "y"],
+        answerIndex: 0,
+        handsOn: "",
+      })),
+    };
+    const walked = (...v: number[]) => ({
+      ...traceStart("n"),
+      walked: Object.fromEntries(v.map((x, i) => [content.stages[i].id, x])),
+    });
+    expect(traceEarly(walked(0, 0, 0), content)).toBe(true);
+    expect(tracePassed(walked(0, 0, 0), content)).toBe(true);
+    expect(traceEarly(walked(0, 1, 0), content)).toBe(false);
+  });
+
+  it("Provenance ends early only when an `asserts` claim was not taken as proof", async () => {
+    const { provenanceEarly, provenanceStart } = await import("@/lib/curriculum");
+    const claim = (id: string, ruling: "asserts" | "proves" | "neither") => ({
+      id,
+      claim: "",
+      ruling,
+      because: "",
+    });
+    const content = {
+      nodeId: "n",
+      nodeLabel: "N",
+      source: { title: "", attribution: "", date: "", excerpt: "" },
+      silence: "",
+      claims: [
+        claim("a", "proves"),
+        claim("b", "asserts"),
+        claim("c", "neither"),
+        claim("d", "proves"),
+      ],
+    };
+    const ruled = (r: Record<string, "asserts" | "proves" | "neither">) => ({
+      ...provenanceStart("n"),
+      rulings: r,
+    });
+    expect(
+      provenanceEarly(ruled({ a: "proves", b: "asserts", c: "neither" }), content),
+    ).toBe(true);
+    expect(
+      provenanceEarly(ruled({ a: "proves", b: "proves", c: "neither" }), content),
+    ).toBe(false);
+    const noAsserts = {
+      ...content,
+      claims: [
+        claim("a", "proves"),
+        claim("b", "proves"),
+        claim("c", "neither"),
+        claim("d", "asserts"),
+      ],
+    };
+    expect(
+      provenanceEarly(ruled({ a: "proves", b: "proves", c: "neither" }), noAsserts),
+    ).toBe(false);
+  });
+
+  it("Steelman's gate reads the judge's ruling on the disconfirmer, not its length", async () => {
+    const { steelmanPassed, steelmanStart } = await import("@/lib/curriculum");
+    const content = {
+      nodeId: "n",
+      nodeLabel: "N",
+      question: "",
+      positions: [
+        { id: "p", label: "", heldBy: "", mustCover: [] },
+        { id: "q", label: "", heldBy: "", mustCover: [] },
+      ],
+    } as never;
+    const base = {
+      ...steelmanStart("n"),
+      verdicts: { p: "strong", q: "strong" } as const,
+      disconfirmer: "If new evidence ever emerged that proved me wrong about all of it.",
+    };
+    expect(steelmanPassed({ ...base, disconfirmerRuling: "vacuous" }, content)).toBe(
+      false,
+    );
+    expect(steelmanPassed({ ...base, disconfirmerRuling: "real" }, content)).toBe(true);
+    // A session judged before the ruling existed keeps the old length test.
+    expect(steelmanPassed(base, content)).toBe(true);
+  });
+});
+
+describe("W3.2: earned skips", () => {
+  it("a clean first try credits the easier gate before it, and only then", async () => {
+    const { ledgerAfter, PHASE_PLAN } = await import("@/lib/curriculum");
+    expect(
+      ledgerAfter(PHASE_PLAN.concept, ["consume"], "feynman", false, true),
+    ).toContain("socratic");
+    expect(ledgerAfter(PHASE_PLAN.concept, ["consume"], "feynman", false)).not.toContain(
+      "socratic",
+    );
+    expect(
+      ledgerAfter(PHASE_PLAN.procedure, ["consume"], "perform", false, true),
+    ).toContain("trace");
+    // A credit never reaches past the phase that earned it.
+    expect(
+      ledgerAfter(PHASE_PLAN.principle, ["consume"], "feynman", false, true),
+    ).not.toContain("crucible");
   });
 });

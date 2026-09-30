@@ -56,12 +56,18 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     /// draw a phase must still hand its parked session back untouched rather
     /// than drop it.
     public var phaseProgress: [String: JSONValue]
+    /// When each phase first closed, per node — stamped by the server, never
+    /// written by a client. The later-day rule reads it.
+    public var phaseClosedAt: [String: [String: String]]
     /// What the learner keeps getting wrong, run-wide. A topic field, not a
     /// node one: the whole point of it is that it crosses concepts.
     public var misconceptions: [MisconceptionRecord]
     public var cards: [StoredCard]
     /// The continent this map belongs to, if any — see `Continent`.
     public var continent: Continent?
+    /// The topic-level axes the server stamped from the map's header, or the
+    /// learner chose (W1.1, W2.5, W2.6, W5.1, W9.1). Nil from an older server.
+    public var axes: TopicAxes?
 
     public struct Point: Codable, Sendable {
         public let x: Double
@@ -85,7 +91,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         case calibSamples, litToday, updatedAt, graph, states, positions
         case shakyReasons, phasesDone, reviewedNodes, consumeProgress, socraticProgress
         case feynmanProgress, connectProgress, phaseProgress, misconceptions, cards
-        case continent
+        case continent, phaseClosedAt, axes
     }
 
     public init(from decoder: Decoder) throws {
@@ -116,9 +122,11 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         feynmanProgress = (try? c.decode([String: JSONValue].self, forKey: .feynmanProgress)) ?? [:]
         connectProgress = (try? c.decode([String: JSONValue].self, forKey: .connectProgress)) ?? [:]
         phaseProgress = (try? c.decode([String: JSONValue].self, forKey: .phaseProgress)) ?? [:]
+        phaseClosedAt = (try? c.decode([String: [String: String]].self, forKey: .phaseClosedAt)) ?? [:]
         misconceptions = c.lenientList(.misconceptions)
         cards = c.lenientList(.cards)
         continent = try? c.decodeIfPresent(Continent.self, forKey: .continent)
+        axes = try? c.decodeIfPresent(TopicAxes.self, forKey: .axes)
         // Positions are their own map because the browser draws from it and
         // never from a node's generated coordinates. Folding it onto the nodes
         // here is what makes the two clients draw the same map, and leaves this
@@ -133,6 +141,38 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         // left here was folded back over the nodes on the next launch — which
         // put a node the learner had dragged back where it started.
         positions = [:]
+    }
+}
+
+/// The topic-level axes, as bootstrap returns them. Mirrors `TopicAxes` in
+/// `lib/curriculum/topicMeta.ts`; every field lenient, so a new one is ignored.
+public struct TopicAxes: Codable, Sendable, Equatable {
+    public var targetLanguage: String?
+    public var jurisdictional: Bool
+    public var locale: String?
+    public var lenses: [String]
+    public var lens: String?
+    public var shape: String
+    public var target: Target?
+    /// Built on a map a person reviewed (W2.8).
+    public var verified: Bool
+
+    public struct Target: Codable, Sendable, Equatable {
+        public var kind: String
+        public var text: String
+        public var date: String?
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        targetLanguage = try? c.decodeIfPresent(String.self, forKey: .targetLanguage)
+        jurisdictional = (try? c.decode(Bool.self, forKey: .jurisdictional)) ?? false
+        locale = try? c.decodeIfPresent(String.self, forKey: .locale)
+        lenses = (try? c.decode([String].self, forKey: .lenses)) ?? []
+        lens = try? c.decodeIfPresent(String.self, forKey: .lens)
+        shape = (try? c.decode(String.self, forKey: .shape)) ?? "hierarchy"
+        target = try? c.decodeIfPresent(Target.self, forKey: .target)
+        verified = (try? c.decode(Bool.self, forKey: .verified)) ?? false
     }
 }
 
@@ -162,6 +202,8 @@ public struct Continent: Codable, Sendable, Hashable, Identifiable {
 public struct AtlasProfile: Codable, Sendable {
     public var dailyTarget: Int
     public var language: String?
+    /// ISO 3166 — whose rules a jurisdictional topic teaches (W2.5).
+    public var country: String?
     public var adherence: Adherence
 
     public struct Adherence: Codable, Sendable {
@@ -210,6 +252,20 @@ public struct StoredCard: Codable, Sendable, Identifiable {
         self.back = back
         self.reExplain = reExplain
         self.fsrs = fsrs
+    }
+}
+
+public extension StoredCard {
+    /// When the card was last seen: its last review, or — never reviewed —
+    /// the moment it was drafted (an unreviewed card's `due`).
+    var lastSeen: Date? {
+        let f = fsrs.fields ?? [:]
+        let reps: Double = if case .number(let n)? = f["reps"] { n } else { 0 }
+        let key = f["last_review"] != nil ? "last_review" : (reps == 0 ? "due" : "")
+        guard case .string(let iso)? = f[key] else { return nil }
+        let parse = ISO8601DateFormatter()
+        parse.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return parse.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
     }
 }
 

@@ -51,6 +51,8 @@ public struct SteelmanSession: Sendable {
     public var disconfirmer = ""
     public var verdicts: [String: SteelmanVerdict] = [:]
     public var response: String?
+    /// The judge's ruling on the disconfirmer: "real" or "vacuous" (W1.6).
+    public var disconfirmerRuling: String?
     public var done = false
 
     public init(nodeId: String) { self.nodeId = nodeId }
@@ -64,9 +66,12 @@ public struct SteelmanSession: Sendable {
         self.disconfirmer = disconfirmer
     }
 
-    public mutating func judged(_ verdicts: [String: SteelmanVerdict], response: String) {
+    public mutating func judged(
+        _ verdicts: [String: SteelmanVerdict], response: String, disconfirmer: String? = nil
+    ) {
         self.verdicts = verdicts
         self.response = response
+        disconfirmerRuling = disconfirmer
         done = true
     }
 
@@ -97,6 +102,8 @@ public struct SteelmanSession: Sendable {
         guard rulings.allSatisfy({ $0 != nil }) else { return false }
         guard !rulings.contains(where: { $0 == .strawman }) else { return false }
         guard rulings.filter({ $0 == .thin }).count <= 1 else { return false }
+        // A disconfirmer that could never be met is not one — the judge rules it.
+        if let disconfirmerRuling { return disconfirmerRuling == "real" }
         return Self.written(disconfirmer, atLeast: Self.disconfirmerFloor)
     }
 }

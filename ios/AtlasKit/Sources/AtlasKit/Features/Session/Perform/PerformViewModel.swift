@@ -67,11 +67,22 @@ final class PerformViewModel {
         withAnimation(Motion.standard) { session.nudged = true }
     }
 
-    /// A re-run keeps the case and clears the work: running it again is the
-    /// point, and the case is the same case.
+    /// Where the last run broke, quoted on the re-run (W1.4).
+    private(set) var previous: [String] = []
+
+    /// Run it again — on a new case. Re-running the case whose report just
+    /// named the wrong step tests reading the report, not the procedure. The
+    /// failed run is logged first, which bumps the server's `rerun`, so the
+    /// case that arrives is one this learner has not seen.
     func rerun() {
+        previous = broken.map(\.step)
         work = ""
         withAnimation(Motion.enter) { session = PerformSession(nodeId: node.id) }
+        Task {
+            await pass.store.postAttempt(node, .perform, passed: false)
+            pass.store.forgetContent("perform", node)
+            await load()
+        }
     }
 
     func leave() {
@@ -127,7 +138,8 @@ final class PerformViewModel {
 
     func advance() {
         leave()
-        pass.advance(passed: passed)
+        // Right on the first run, before any re-run, earns Trace (W3.2).
+        pass.advance(passed: passed, clean: previous.isEmpty)
     }
 
     var handOffLabel: LocalizedStringKey { pass.handOffLabel }

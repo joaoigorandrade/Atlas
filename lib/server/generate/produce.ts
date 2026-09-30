@@ -125,6 +125,10 @@ interface JudgeProduceParams {
   targetForms: string[];
   said: string;
   language?: Language;
+  /** The recognizer's language and its confidence in the weakest span of
+   *  this turn (W1.1), when the answer was dictated. */
+  heardIn?: string;
+  confidence?: number;
 }
 
 export function validateProduceJudgement(raw: unknown): ProduceJudgement {
@@ -147,7 +151,15 @@ What they were asked to get across: """${cue}"""
 What this turn exists to elicit: ${targetForms.join("; ")}
 
 What they said, as transcribed: """${said}"""
-
+${
+  params.heardIn
+    ? `\nThe transcript came from a ${params.heardIn} speech recognizer${
+        params.confidence !== undefined
+          ? `, whose confidence in the weakest stretch of it was ${Math.round(params.confidence * 100)}%`
+          : ""
+      }. A recognizer tuned to the target language fills a half-said word in with the correct form, so do NOT credit a target form that sits in a low-confidence stretch (under ~60%) — rule that turn on what was clearly said.\n`
+    : ""
+}
 Rule it exactly one of:
 - "good": a listener would understand them, AND they used what the turn exists to elicit. Natural variation, a different word order, a synonym a native speaker would use — all still "good". You are grading whether they produced it, not whether it matches a model answer.
 - "thin": a listener would understand them, but they went AROUND the target form — said it another way, simplified past it, or used a form they were already sure of. This is the important call. Getting the meaning across while avoiding the structure is the habit that stalls a speaker for years, and it looks like success from the outside.

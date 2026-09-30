@@ -241,12 +241,26 @@ public func proofGate(_ plan: [Phase]) -> Phase {
 /// The ledger after `phase` closes. Under a "prove it" challenge, passing the
 /// proof gate credits every gate before it; otherwise the phase is appended.
 /// Retain never enters the ledger. Mirrors `ledgerAfter` in `calibration.ts`.
-public func ledgerAfter(_ plan: [Phase], _ prev: [Phase], _ phase: Phase, challenged: Bool) -> [Phase] {
+public func ledgerAfter(
+    _ plan: [Phase], _ prev: [Phase], _ phase: Phase, challenged: Bool, clean: Bool = false
+) -> [Phase] {
+    let gates = planGates(plan)
     if challenged && phase == proofGate(plan) {
-        return prev + planGates(plan).filter { !prev.contains($0) }
+        return prev + gates.filter { !prev.contains($0) }
     }
-    return prev.contains(phase) ? prev : prev + [phase]
+    let next = prev.contains(phase) ? prev : prev + [phase]
+    guard clean, let at = gates.firstIndex(of: phase) else { return next }
+    // Earned skips (W3.2): a harder phase passed clean on the first try is the
+    // proof an easier unfinished gate before it exists to build.
+    let before = gates.prefix(at)
+    return next + (credits[phase] ?? []).filter { before.contains($0) && !next.contains($0) }
 }
+
+/// Which easier gates a clean first-try pass credits. Mirrors `CREDITS`.
+public let credits: [Phase: [Phase]] = [
+    .feynman: [.socratic],
+    .perform: [.trace],
+]
 
 /// Which phases each node has finished, in completion order — the record
 /// mastery state is *derived* from. A parallel map rather than a field on the
@@ -271,7 +285,17 @@ public extension ConceptNode {
         guard whole > 0 else { return 0 }
         let owed = gates.filter { !done.contains($0) }.reduce(0) { $0 + $1.minutes }
         let budget = cellBudget(importance ?? .core, difficulty ?? .medium)
-        return Int((Double(budget * owed) / Double(whole)).rounded())
+        let share = Double(budget * owed) / Double(whole)
+        // A core node never promises less than its phases take (W3.6);
+        // working and peripheral phases are cut to their budget already.
+        // Mirrors `DIFFICULTY_PACE` in `replan.ts`.
+        let pace: Double = switch difficulty ?? .medium {
+        case .easy: 0.75
+        case .medium: 1
+        case .hard: 1.25
+        }
+        let floor = (importance ?? .core) == .core ? Double(owed) * pace : 0
+        return Int(max(share, floor).rounded())
     }
 }
 

@@ -148,6 +148,29 @@ export function drillLabored(session: DrillSession, content: DrillContent): Dril
   );
 }
 
+/**
+ * The reps that become review cards (W4.4): every one answered and not yet
+ * automatic — missed, or right but slow. Automaticity forms across days,
+ * which is where review lives; one timed sitting can only find which calls
+ * still need it. Keyed on the rep, so a redo can't stack a second copy.
+ */
+export function drillCards(
+  session: DrillSession,
+  content: DrillContent,
+): Array<{ key: string; front: string; back: string }> {
+  return content.reps
+    .filter((r) => {
+      const hit = session.hits[r.id];
+      if (hit === undefined) return false;
+      return hit !== r.answerIndex || (session.took[r.id] ?? Infinity) > DRILL_TARGET_MS;
+    })
+    .map((r) => ({
+      key: `${session.nodeId}-drill-${r.id}`,
+      front: r.prompt,
+      back: `${r.answers[r.answerIndex]} — ${r.rule}`,
+    }));
+}
+
 /** Is the run automatic, as opposed to merely correct? Reported on the closing
  *  panel; deliberately not the gate. */
 export function drillAutomatic(session: DrillSession, content: DrillContent): boolean {

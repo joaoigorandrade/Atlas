@@ -151,6 +151,17 @@ struct ProvenanceView: View {
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
+            if let link = source.url.flatMap(URL.init(string:)) {
+                if source.verified == false {
+                    Text("O trecho não foi encontrado na página — leia-o como paráfrase.")
+                        .font(.atlas(.serif, 14))
+                        .foregroundStyle(Palette.amberInk)
+                        .padding(.top, 8)
+                }
+                Link("Ler a fonte completa →", destination: link)
+                    .font(.atlas(.serif, 14.5, weight: .semibold))
+                    .frame(minHeight: Metrics.tap, alignment: .leading)
+            }
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)

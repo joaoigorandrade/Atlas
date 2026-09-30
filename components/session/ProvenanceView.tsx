@@ -16,6 +16,7 @@ import {
   PROVENANCE_RULINGS,
   provenanceCopy,
   provenanceOvertrusted,
+  provenanceEarly,
   provenancePassed,
   provenanceScore,
   type PhaseId,
@@ -151,6 +152,21 @@ export default function ProvenanceView({
         >
           <Rich text={content.source.excerpt} />
         </div>
+        {content.source.url && (
+          <div data-testid="provenance-source" style={{ marginTop: 10, fontSize: 13 }}>
+            {content.source.verified === false && (
+              <span style={{ color: color.amberInk }}>{copy.paraphrase} </span>
+            )}
+            <a
+              href={content.source.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: color.accent }}
+            >
+              {copy.readSource}
+            </a>
+          </div>
+        )}
       </div>
 
       {item && !session.done && (
@@ -292,7 +308,11 @@ export default function ProvenanceView({
               color: passed ? color.inkMuted : color.amberInk,
             }}
           >
-            {passed ? copy.passed : copy.missed}
+            {provenanceEarly(session, content)
+              ? copy.early
+              : passed
+                ? copy.passed
+                : copy.missed}
           </div>
 
           {/* Whose voice is missing is not a claim that can be ruled, so it is

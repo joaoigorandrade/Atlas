@@ -27,6 +27,9 @@ export const STRINGS = {
     doFirst: (phase: string) => `Do ${phase} first`,
     skipTo: (phase: string) => `Skip to ${phase} →`,
     skipKnown: "I already know this — prove it",
+    proveNow: (phase: string) => `You knew all of it — prove it in ${phase} →`,
+    walkLadder: (phase: string) =>
+      phase ? `Walk the ladder · ${phase}` : "Walk the ladder",
     openGaps: "Open gaps · spawned from failures",
     repair: "Targeted repair",
     repairStep: "Socratic pass",
@@ -58,6 +61,9 @@ export const STRINGS = {
     doFirst: (phase: string) => `Fazer ${phase} primeiro`,
     skipTo: (phase: string) => `Pular para ${phase} →`,
     skipKnown: "Eu já sei isso — provar",
+    proveNow: (phase: string) => `Você já sabia tudo — prove no ${phase} →`,
+    walkLadder: (phase: string) =>
+      phase ? `Seguir a escada · ${phase}` : "Seguir a escada",
     openGaps: "Lacunas abertas · geradas por falhas",
     repair: "Reparo direcionado",
     repairStep: "Passagem socrática",

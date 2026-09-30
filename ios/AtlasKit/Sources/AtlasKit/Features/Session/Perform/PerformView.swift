@@ -66,6 +66,13 @@ struct PerformView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 10)
 
+                if !model.previous.isEmpty {
+                    Text("Um caso novo. A última execução quebrou em: \(model.previous.joined(separator: " · ")).")
+                        .font(.atlas(.serif, 14.5))
+                        .foregroundStyle(Palette.inkSoft)
+                        .padding(.top, 8)
+                }
+
                 if model.nudged {
                     Text(verbatim: content.scaffold)
                         .font(.atlas(.serif, 15.5))

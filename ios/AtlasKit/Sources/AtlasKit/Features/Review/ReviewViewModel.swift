@@ -33,6 +33,13 @@ public final class ReviewViewModel {
     let topicId: String?
     /// Cards already sent back to the end of the deck once.
     private var requeued: Set<String> = []
+    /// What the learner answered before turning the card (W4.3). Bound by the
+    /// screen; cleared with the card.
+    public var said = ""
+    /// The judge's read of `said`: did it come back? A suggestion ringed on the
+    /// grade buttons — the grade stays the learner's. Mirrors `RetainSession`.
+    public private(set) var suggest: (grade: ReviewGrade, read: String)?
+    private var judge: Task<Void, Never>?
 
     public init(store: AtlasStore, deck: [ReviewCard] = []) {
         self.store = store
@@ -185,8 +192,29 @@ public final class ReviewViewModel {
 
     /// Turn the card over.
     public func flip() {
-        guard stage == .question else { return }
+        guard stage == .question, let card else { return }
         stage = .reveal
+        // An answer written or spoken first is checked as a one-row retrieval
+        // against the back (the Recall judge) — "why" cards keep the plain flip.
+        let answer = said.trimmed
+        guard !answer.isEmpty, card.type != .why, let node = store.graph.byId[card.node] else { return }
+        var context = store.context(for: node)
+        context["mode"] = .string("recall")
+        context["brief"] = .string(card.cloze.map { $0.joined(separator: " ___ ") } ?? card.front ?? "")
+        context["cued"] = .bool(false)
+        context["rubric"] = .array([.object([
+            "subPoint": .string("the answer"),
+            "mustConvey": .array([.string(card.answer ?? card.back)]),
+        ])])
+        context["answer"] = .string(answer)
+        let sent = context, at = index
+        judge?.cancel()
+        judge = Task {
+            guard let verdict: FeynmanJudgement = try? await store.api.judge("recall", sent),
+                  !Task.isCancelled, at == index else { return }
+            let came = verdict.verdicts.first { $0.i == 0 }?.verdict == "good"
+            suggest = (came ? .good : .again, verdict.response)
+        }
     }
 
     /// Grade the card on screen: the scheduler moves it, and a miss flags its
@@ -203,8 +231,12 @@ public final class ReviewViewModel {
         if !requeued.contains(card.id) { store.grade(card, grade) }
         results[index] = grade
         store.markActiveToday()
-        // Real review history is what earns "Retido ✓" — mastered alone doesn't.
-        if grade == .good || grade == .easy { store.reviewed.insert(card.node) }
+        // Real review history is what earns "Retido ✓" — mastered alone doesn't,
+        // and neither does a Good on a card seen this week: it has to survive
+        // `retainedMinDays` unseen.
+        if earnsRetained(grade, lastSeen: store.cards.first(where: { $0.id == card.id })?.lastSeen) {
+            store.reviewed.insert(card.node)
+        }
         guard grade == .again else { return advance() }
         // Any node a card keeps alive goes Shaky on a miss, not only a mastered
         // one — `useSpiral` has always flagged every node, and a Learning node
@@ -227,6 +259,9 @@ public final class ReviewViewModel {
 
     /// Leave the fail stage, or the revealed card, for the next one.
     public func advance() {
+        judge?.cancel()
+        said = ""
+        suggest = nil
         guard index + 1 < deck.count else { return finished = true }
         index += 1
         stage = .question

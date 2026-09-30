@@ -7,6 +7,7 @@
 // surface exists to catch, because that gap is fluency masquerading as mastery.
 // The curve → per-node breakdown → "jump to its Crucible" loop reads it.
 import { CONNECT_COLOR } from "./connect";
+import { pretestClean, type ConsumeProgress } from "./consume";
 import { planGates, proofGate, type PhaseId } from "./phases";
 import { ConceptEdge, NodeState, ProgressState, STATE_COLOR, ShakyReason } from "./types";
 import { Language } from "@/lib/i18n";
@@ -271,6 +272,28 @@ export function primaryPhase(
   return state === "shaky" ? proofGate(plan) : undefined;
 }
 
+/**
+ * Should the node's main action be "prove it" rather than the next rung
+ * (W3.4)? When the learner knew every section before reading it, the ladder
+ * behind the reading is mostly re-teaching: offer the proof gate cold, under
+ * the challenge that credits every rung on a pass (`ledgerAfter`). Only once —
+ * a proof gate already attempted, or a node marked Shaky, walks the ladder.
+ */
+export function provesOnSight(
+  plan: readonly PhaseId[],
+  done: readonly PhaseId[] = [],
+  state: NodeState | undefined,
+  reading: ConsumeProgress | undefined,
+  shaky?: ShakyReason,
+): boolean {
+  return (
+    state === "learning" &&
+    !shaky &&
+    !done.includes(proofGate(plan)) &&
+    pretestClean(reading)
+  );
+}
+
 // `readingPhaseIndex` is gone. It existed to correct a *state*-derived index
 // with the reading record — state alone said Feynman on the strength of two
 // sections read, so the reading pass had to argue its way back to Consume.
@@ -313,8 +336,9 @@ export interface OnboardingForm {
   goal: GoalKind;
   interests: string;
   target: number;
-  /** ISO date (YYYY-MM-DD) of the exam when goal is "exam"; "" = not set —
-   *  pace then shows no countdown instead of a fabricated one (#23). */
+  /** ISO date (YYYY-MM-DD) of the goal's date — the exam, the trip, the
+   *  deadline; any goal may set one (W4.5). The name predates that and is kept
+   *  for the wire. "" = not set: no countdown instead of a fabricated one. */
   examDate: string;
   /** Coverage share when goal is "pareto"; absent = PARETO_DEFAULT (also what
    *  every pre-Pareto saved run has). */
@@ -369,24 +393,4 @@ export function descendantsOf(id: string, edges: ConceptEdge[]): Set<string> {
   return seen;
 }
 
-/**
- * The ledger after `phase` closes on a node.
- *
- * Normally that phase is appended. Under a "prove it" challenge — the learner
- * said they already know this and was sent straight to the plan's `proofGate`
- * — passing that gate credits every gate before it, in plan order after what was
- * already done. Passing the hardest test cold is the proof the skipped rungs
- * exist to build; failing it spawns the gap as any attempt does and credits
- * nothing. Retain never enters the ledger — review history closes it.
- */
-export function ledgerAfter(
-  plan: readonly PhaseId[],
-  prev: readonly PhaseId[],
-  phase: PhaseId,
-  challenged: boolean,
-): PhaseId[] {
-  const gates = planGates(plan);
-  if (challenged && phase === proofGate(plan))
-    return [...prev, ...gates.filter((p) => !prev.includes(p))];
-  return prev.includes(phase) ? [...prev] : [...prev, phase];
-}
+// `ledgerAfter` and the earned-skip `CREDITS` live in `./ledger`.

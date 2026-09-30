@@ -10,7 +10,7 @@ import {
   NodeState,
   ProgressState,
 } from "./types";
-import { CELL_BUDGET, cellOf } from "./cells";
+import { CELL_BUDGET, cellOf, type NodeDifficulty } from "./cells";
 import { phasePlan, planGates, type PhaseId, type PhasesDoneMap } from "./phases";
 import { Language } from "@/lib/i18n";
 
@@ -139,6 +139,21 @@ export function orderedFrontier(
   return entries;
 }
 
+/** Where "Start here →" points: the top of the goal-ordered frontier, else
+ *  the leftmost node already in flight, else nothing. */
+export function frontierTarget(
+  display: Record<string, NodeState>,
+  graph: ConceptGraph,
+  goal: GoalKind,
+): string | null {
+  const plan = orderedFrontier(display, graph, goal);
+  if (plan[0]) return plan[0].node.id;
+  const inFlight = graph.nodes.filter((n) =>
+    ["learning", "shaky", "gap"].includes(display[n.id] ?? "unknown"),
+  );
+  return inFlight.sort((a, b) => a.x - b.x)[0]?.id ?? null;
+}
+
 /** Rough minutes of focused work per phase, read off the item counts each
  *  generator enforces (`*_BOUNDS` in `lib/server/generate/`). Retain is the
  *  shared review queue, budgeted on its own.
@@ -170,10 +185,25 @@ export function minutesLeft(node: ConceptNode, done: readonly PhaseId[] = []): n
   const whole = weight(gates);
   if (!whole) return 0;
   const owed = weight(gates.filter((p) => !done.includes(p)));
-  return Math.round(
-    (CELL_BUDGET[cellOf(node.importance, node.difficulty)] * owed) / whole,
-  );
+  const share = (CELL_BUDGET[cellOf(node.importance, node.difficulty)] * owed) / whole;
+  // A core node never promises less than its phases take (W3.6): its cell
+  // budget spread over a long ladder promised 50–70% less than the rungs add
+  // up to. Working and peripheral phases are cut to their budget already.
+  const floor =
+    (node.importance ?? "core") === "core"
+      ? owed * DIFFICULTY_PACE[node.difficulty ?? "medium"]
+      : 0;
+  return Math.round(Math.max(share, floor));
 }
+
+/** How much faster or slower a node's phases run than `PHASE_MINUTES`, by
+ *  difficulty — the generators write fewer, simpler items for an easy node.
+ *  ponytail: starting estimates; `scripts/budgets.sql` reads the real ones. */
+export const DIFFICULTY_PACE: Record<NodeDifficulty, number> = {
+  easy: 0.75,
+  medium: 1,
+  hard: 1.25,
+};
 
 /** Whole days from now until an ISO date (YYYY-MM-DD), floor 0; NaN-safe. */
 export function daysUntil(dateISO: string, now: Date = new Date()): number {

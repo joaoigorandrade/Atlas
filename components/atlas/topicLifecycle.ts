@@ -3,7 +3,8 @@
 // Creating the topic a build is about to fill, and undoing it when the build
 // produces nothing.
 
-import { createTopic, deleteTopic, type NewTopic } from "@/lib/persistence";
+import { createTopic, deleteTopic, loadTopic, type NewTopic } from "@/lib/persistence";
+import { setTopicAxes } from "@/lib/topicAxesStore";
 import { logWarning } from "@/lib/log";
 import type { Language } from "@/lib/i18n";
 import type { OnboardingForm } from "@/lib/curriculum";
@@ -31,7 +32,11 @@ export async function openTopic(
   form: OnboardingForm & { continentId?: string | null },
   language: Language | undefined,
   setTopicId: (id: string | null) => void,
-): Promise<{ id: string | null; abandon: () => void }> {
+): Promise<{
+  id: string | null;
+  abandon: () => void;
+  adoptAxes: (live: () => boolean) => void;
+}> {
   let id: string | null = null;
   let mine = false;
   try {
@@ -53,6 +58,14 @@ export async function openTopic(
   }
   return {
     id,
+    // The server stamped what the map says about itself (its language, lenses,
+    // shape) onto the topic before the build stream closed; read it back.
+    adoptAxes: (live) => {
+      if (id)
+        loadTopic(id)
+          .then((t) => live() && setTopicAxes(t.axes))
+          .catch(() => {});
+    },
     abandon: () => {
       if (!id) return;
       const doomed = id;

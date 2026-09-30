@@ -185,6 +185,22 @@ export interface RetainSession {
   /** How sure the learner said they were as they turned the card on screen
    *  (an index into `CONFIDENCE_FELT`); cleared when the next card is dealt. */
   sure?: number;
+  /** What they answered before turning it (W4.3), typed or spoken — absent
+   *  when they answered in their head. Cleared with the card. */
+  said?: string;
+  /** The judge's read of `said` against the back: did it come back? The grade
+   *  it suggests is the learner's to take or override; it is what calibration
+   *  reads instead of their own grade, which was given after seeing the answer. */
+  suggest?: { grade: CardSuggestion; read: string };
+}
+
+/** What a judged answer suggests: it came back, or it did not. Hard and Easy
+ *  are nuances only the learner can give. */
+export type CardSuggestion = "good" | "again";
+
+/** A retrieval ruling, as a suggested grade. */
+export function suggestGrade(verdict: "good" | "skipped" | "confused"): CardSuggestion {
+  return verdict === "good" ? "good" : "again";
 }
 
 export function retainStart(): RetainSession {
@@ -199,7 +215,10 @@ export function retainStart(): RetainSession {
 }
 
 export type RetainAction =
-  | { type: "flip"; sure?: number }
+  | { type: "flip"; sure?: number; said?: string }
+  /** The judge's read of the answer on the card at `idx` — ignored once the
+   *  learner has moved past it, so a late verdict can't land on the next card. */
+  | { type: "suggest"; idx: number; grade: CardSuggestion; read: string }
   | { type: "grade"; grade: ReviewGrade }
   | { type: "toggleAside" }
   | { type: "continue" };
@@ -216,6 +235,9 @@ export function retainDeck(session: RetainSession, content: RetainContent): Revi
 }
 
 /** Move to the next card, or finish the queue when it's the last. */
+/** What a card leaves behind when the next one is dealt: nothing. */
+const CLEARED = { sure: undefined, said: undefined, suggest: undefined };
+
 function retainAdvance(
   session: RetainSession,
   done: Record<number, ReviewGrade>,
@@ -223,8 +245,8 @@ function retainAdvance(
 ): RetainSession {
   const next = session.idx + 1;
   if (next >= retainDeck(session, content).length)
-    return { ...session, done, finished: true, sure: undefined };
-  return { ...session, idx: next, stage: "question", done, sure: undefined };
+    return { ...session, done, finished: true, ...CLEARED };
+  return { ...session, idx: next, stage: "question", done, ...CLEARED };
 }
 
 /**
@@ -242,7 +264,16 @@ export function retainReducer(
   switch (action.type) {
     case "flip":
       if (session.stage !== "question") return session;
-      return { ...session, stage: "reveal", sure: action.sure };
+      return {
+        ...session,
+        stage: "reveal",
+        sure: action.sure,
+        said: action.said?.trim() || undefined,
+        suggest: undefined,
+      };
+    case "suggest":
+      if (action.idx !== session.idx || session.stage === "question") return session;
+      return { ...session, suggest: { grade: action.grade, read: action.read } };
     case "toggleAside":
       if (session.stage !== "reveal" && session.stage !== "aside") return session;
       return {

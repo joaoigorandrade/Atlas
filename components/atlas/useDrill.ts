@@ -7,11 +7,14 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades the same call, timed, and it exits to the map.
 
+import { recordAttempt } from "@/lib/attempts";
+import { newStoredCard } from "@/lib/fsrs";
 import { useCallback } from "react";
 import {
   drillScore,
   phaseLabel,
   runReading,
+  drillCards,
   drillPassed,
   drillReducer,
   drillStart,
@@ -38,10 +41,10 @@ export function useDrill(deps: {
 }) {
   const { run, sessions, gen, toast, ledger, setSelectedId, setScreen, centerOn, later } =
     deps;
-  const { graphRef, drillCacheRef, recordCalib } = run;
+  const { graphRef, drillCacheRef, recordCalib, setCards } = run;
   const { setDrill, drillRef } = sessions;
   const { generate, warmKey, loadDrill } = gen;
-  const { tc } = toast;
+  const { tc, showToast } = toast;
   const { completePhase, markStarted, warmNext } = ledger;
 
   const enterDrill = useCallback(
@@ -113,7 +116,41 @@ export function useDrill(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = drillCacheRef.current[cur.nodeId];
-    if (node && content && drillPassed(cur, content)) completePhase(node, "drill");
+    const passed = !!(node && content && drillPassed(cur, content));
+    const score = content
+      ? drillScore(cur, content) / Math.max(1, content.reps.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "drill", passed: false, score });
+    if (node && passed) completePhase(node, "drill", undefined, score);
+    // The calls not yet automatic go to review, where automaticity forms (W4.4).
+    const drafted = content ? drillCards(cur, content) : [];
+    if (drafted.length) {
+      const now = new Date();
+      setCards((prev) => {
+        const have = new Set(prev.map((c) => c.id));
+        const fresh = drafted.filter((c) => !have.has(c.key));
+        return fresh.length
+          ? [
+              ...prev,
+              ...fresh.map((c) =>
+                newStoredCard(
+                  {
+                    id: c.key,
+                    nodeId: cur.nodeId,
+                    type: "recall",
+                    source: "Drill",
+                    front: c.front,
+                    back: c.back,
+                  },
+                  now,
+                ),
+              ),
+            ]
+          : prev;
+      });
+      showToast(tc().drillCarded(drafted.length));
+    }
     leaveTo(cur.nodeId);
   };
 

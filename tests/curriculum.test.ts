@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  GATE_CAP,
   applyDiagnosticEffect,
   applyDiagnosticLedger,
   crucibleReducer,
@@ -57,6 +58,7 @@ import {
   discriminateStart,
   drillLabored,
   drillMedianMs,
+  drillCards,
   drillPassed,
   drillReducer,
   drillStart,
@@ -1346,12 +1348,10 @@ describe("primaryPhase — what the CTA opens is what the CTA says", () => {
     expect(primaryPhase(interpretive, ["consume", "discriminate"], "learning")).toBe(
       "provenance",
     );
+    // W3.1's cap keeps the domain's own rungs and trims Socratic and Connect.
+    expect(interpretive).not.toContain("socratic");
     expect(
-      primaryPhase(
-        interpretive,
-        ["consume", "discriminate", "provenance", "socratic"],
-        "learning",
-      ),
+      primaryPhase(interpretive, ["consume", "discriminate", "provenance"], "learning"),
     ).toBe("steelman");
   });
 });
@@ -1595,6 +1595,18 @@ describe("drill early exit", () => {
     }
     return s;
   };
+
+  it("sends every call not yet automatic to review — missed or slow (W4.4)", () => {
+    const s = run([
+      [0, 2000],
+      [1, 2000],
+      [0, 12000],
+      [0, 2000],
+    ]);
+    const cards = drillCards(s, content);
+    expect(cards.map((c) => c.key)).toEqual(["n-drill-r1", "n-drill-r2"]);
+    expect(cards[0]).toMatchObject({ front: "rep 1", back: "a — the rule" });
+  });
 
   it("ends after four fast, right reps from the start", () => {
     const s = run([
@@ -1874,8 +1886,9 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10);
     expect(pace.remaining).toBe(1);
     expect(pace.daysLeft).toBe(10);
-    // One plan-less node is a core/medium concept: its 35-minute budget over 10 days.
-    expect(pace.neededPerDay).toBe(4);
+    // One plan-less node is a core/medium concept: its ladder's 50 phase-minutes
+    // (more than its 35-minute cell budget, W3.6) over 10 days.
+    expect(pace.neededPerDay).toBe(5);
     expect(pace.onTrack).toBe(true);
   });
 
@@ -1884,8 +1897,9 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10, {
       b: [...done.b],
     });
-    // 28 of the ladder's 50 phase-minutes are owed: 35 × 28/50 ≈ 20 min → 2/day.
-    expect(pace.neededPerDay).toBe(2);
+    // 28 of the ladder's 50 phase-minutes are owed — more than 35 × 28/50 ≈ 20
+    // of budget, so the 28 stand: 3/day.
+    expect(pace.neededPerDay).toBe(3);
   });
 });
 
@@ -1900,21 +1914,27 @@ describe("minutesLeft", () => {
     y: 0,
   } as const;
 
-  it("charges the cell's budget, spread over the unfinished gates", () => {
-    expect(minutesLeft(node)).toBe(CELL_BUDGET["12"]);
-    expect(minutesLeft(node, [...planGates(PHASE_PLAN.concept)])).toBe(0);
-    const gates = planGates(PHASE_PLAN.concept);
-    const whole = gates.reduce((m, p) => m + PHASE_MINUTES[p], 0);
-    expect(minutesLeft(node, ["consume"])).toBe(
-      Math.round((CELL_BUDGET["12"] * (whole - PHASE_MINUTES.consume)) / whole),
-    );
+  const gates = planGates(PHASE_PLAN.concept);
+  const whole = gates.reduce((m, p) => m + PHASE_MINUTES[p], 0);
+
+  it("never promises less than the unfinished phases take (W3.6)", () => {
+    // The concept ladder's rungs add up to more than its cell's budget.
+    expect(whole).toBeGreaterThan(CELL_BUDGET["12"]);
+    expect(minutesLeft(node)).toBe(whole);
+    expect(minutesLeft(node, [...gates])).toBe(0);
+    expect(minutesLeft(node, ["consume"])).toBe(whole - PHASE_MINUTES.consume);
   });
 
   it("an easier or less important cell costs less", () => {
-    expect(minutesLeft({ ...node, difficulty: "hard" })).toBe(CELL_BUDGET["13"]);
-    expect(minutesLeft({ ...node, difficulty: "easy" })).toBe(CELL_BUDGET["11"]);
-    expect(minutesLeft({ ...node, importance: "working" })).toBe(CELL_BUDGET["22"]);
-    expect(minutesLeft({ ...node, importance: "peripheral" })).toBe(CELL_BUDGET["32"]);
+    expect(minutesLeft({ ...node, difficulty: "hard" })).toBe(
+      Math.round(Math.max(CELL_BUDGET["13"], whole * 1.25)),
+    );
+    expect(minutesLeft({ ...node, difficulty: "easy" })).toBeLessThan(minutesLeft(node));
+    const working = { ...node, importance: "working" as const };
+    expect(minutesLeft(working)).toBeLessThan(minutesLeft(node));
+    expect(minutesLeft({ ...node, importance: "peripheral" as const })).toBeLessThan(
+      minutesLeft(working),
+    );
   });
 });
 
@@ -1957,8 +1977,9 @@ describe("importance × difficulty", () => {
   it("draws each bar from the plan", () => {
     const row = (i: NodeImportance, d: NodeDifficulty) =>
       resolvePlan("concept", "general", i, d).join(" ");
+    // W3.1: an easy node is capped at five gates, and Connect trails.
     expect(row("core", "easy")).toBe(
-      "consume discriminate feynman connect crucible recall retain",
+      "consume discriminate feynman crucible recall retain",
     );
     expect(row("core", "hard")).toBe(PHASE_PLAN.concept.join(" "));
     // use: Consume, the applied rung the kind wants, Retain — at any difficulty.
@@ -2081,8 +2102,10 @@ describe("DOMAIN_PLAN invariants", () => {
     // learner ever running anything.
     for (const phase of ["trace", "perform", "drill"] as const) {
       expect(PHASE_PLAN.concept).not.toContain(phase);
-      expect(resolvePlan("concept", "formal")).toContain(phase);
+      expect(resolvePlan("concept", "formal", "core", "hard")).toContain(phase);
     }
+    // Under W3.1's cap a medium one keeps the rung it computes on.
+    expect(resolvePlan("concept", "formal")).toContain("perform");
   });
 
   it("performative takes the prose rungs off, whatever the kind says", () => {
@@ -2185,5 +2208,31 @@ describe("applyDiagnosticLedger — a placement writes the ledger, not just stat
     const done = applyDiagnosticLedger({}, "shaky", "b", g);
     expect(done.b).toEqual(planGates(PHASE_PLAN.fact).slice(0, -1));
     expect(done.a).toBeUndefined();
+  });
+});
+
+describe("W3.1: the heavy phases run where the map found what they need", () => {
+  it("drops Steelman, Crucible, Discriminate and Connect on the evidence", () => {
+    const plan = resolvePlan("concept", "interpretive", "core", "hard", {
+      contested: false,
+      transferable: false,
+      individual: true,
+      neighbours: 1,
+    });
+    for (const p of ["steelman", "crucible", "discriminate", "connect"] as const)
+      expect(plan).not.toContain(p);
+    // Absent evidence rations nothing: every map before the flags keeps its ladder.
+    expect(resolvePlan("concept", "interpretive", "core", "hard")).toContain("steelman");
+  });
+
+  it("no plan exceeds its cell cap", () => {
+    for (const kind of NODE_KINDS)
+      for (const domain of DOMAINS)
+        for (const difficulty of ["easy", "medium", "hard"] as const) {
+          const gates = planGates(resolvePlan(kind, domain, "core", difficulty)).length;
+          expect(gates, `${kind}/${domain}/${difficulty}`).toBeLessThanOrEqual(
+            GATE_CAP[difficulty],
+          );
+        }
   });
 });

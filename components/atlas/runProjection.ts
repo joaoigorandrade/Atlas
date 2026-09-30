@@ -23,6 +23,7 @@ import type {
   PhaseProgress,
   OnboardingForm,
   PhasesDoneMap,
+  ProgressState,
   ShakyReason,
   SocraticSession,
   StateMap,
@@ -32,12 +33,14 @@ import type { Language } from "@/lib/i18n";
 import {
   deleteCards,
   patchNodes,
+  patchProfile,
   patchTopic,
   putCards,
   type NodeDelta,
   type Profile,
 } from "@/lib/persistence";
 import { withRetry } from "@/lib/retry";
+import { setCountry } from "@/lib/topicAxesStore";
 
 /** The persisted projection of every node on the map, keyed by id. */
 export function projectNodes(run: {
@@ -140,6 +143,11 @@ export function adoptProfile(
   baseline: React.MutableRefObject<string>,
 ): void {
   setForm((f) => ({ ...f, target: profile.dailyTarget }));
+  // W2.5: whose rules a jurisdictional topic teaches — the device's region
+  // until the learner says otherwise in Settings.
+  const region = /-([A-Za-z]{2})$/.exec(navigator.language)?.[1]?.toUpperCase();
+  setCountry(profile.country ?? region);
+  if (!profile.country && region) patchProfile({ country: region }).catch(() => {});
   baseline.current = JSON.stringify({
     dailyTarget: profile.dailyTarget,
     adherence: profile.adherence,
@@ -170,6 +178,8 @@ export async function pushRun(run: {
   topicShot: string;
   edges: ConceptGraph["edges"];
   saved: Baselines;
+  /** Where the server's re-derived states land when they differ (W0.1). */
+  adopt?: (states: Record<string, ProgressState>) => void;
 }): Promise<boolean> {
   const { topicId, nodes, cards, cardShots, topicShot, edges, saved } = run;
   const writes: Array<Promise<unknown>> = [];
@@ -192,8 +202,9 @@ export async function pushRun(run: {
   const removed = Object.keys(saved.nodes.current).filter((id) => !(id in nodes));
   if (deltas.length || removed.length)
     writes.push(
-      withRetry(() => patchNodes(topicId, deltas, removed)).then(() => {
+      withRetry(() => patchNodes(topicId, deltas, removed)).then((res) => {
         saved.nodes.current = nodes;
+        if (res?.states && Object.keys(res.states).length) run.adopt?.(res.states);
       }),
     );
 

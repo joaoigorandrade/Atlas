@@ -30,6 +30,10 @@ public struct ProvenanceSource: Decodable, Sendable {
     public let attribution: String
     public let date: String
     public let excerpt: String
+    /// The page it is on, on an allow-listed public-domain corpus (W2.7).
+    public let url: String?
+    /// The excerpt was found on that page; false is a paraphrase.
+    public let verified: Bool?
 }
 
 public struct ProvenanceClaim: Decodable, Sendable, Identifiable {
@@ -72,7 +76,17 @@ public struct ProvenanceSession: Sendable {
     public mutating func next(_ content: ProvenanceContent) {
         guard let item = content.claims[safe: index], rulings[item.id] != nil else { return }
         index += 1
-        done = index >= content.claims.count
+        done = index >= content.claims.count || early(content)
+    }
+
+    /// Early exit: the opening three claims all ruled right, one of them a
+    /// claim the source only `asserts` that was not taken as proof. Mirrors
+    /// `provenanceEarly`.
+    public func early(_ content: ProvenanceContent) -> Bool {
+        let opening = content.claims.prefix(3)
+        return content.claims.count > 3
+            && opening.allSatisfy { rulings[$0.id] == $0.ruling }
+            && opening.contains { $0.ruling == .asserts }
     }
 
     public func score(_ content: ProvenanceContent) -> Int {
@@ -95,6 +109,7 @@ public struct ProvenanceSession: Sendable {
     /// survives a two-thirds score untouched.
     public func passed(_ content: ProvenanceContent) -> Bool {
         guard !content.claims.isEmpty else { return done }
+        if early(content) { return true }
         let bar = twoThirds(content.claims.count)
         return score(content) >= bar && overtrusted(content).count <= 1
     }

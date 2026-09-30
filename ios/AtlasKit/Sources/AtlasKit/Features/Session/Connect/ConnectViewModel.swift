@@ -30,9 +30,19 @@ final class ConnectViewModel {
     let dictation = Dictation()
 
     private let session: SessionViewModel
+    private let api: AtlasAPI
 
-    init(session: SessionViewModel) {
+    /// The judge's read of each link it was asked to confirm (W1.5), and
+    /// whether it is reading one now.
+    private(set) var rulings: [String: ConnectRuling] = [:]
+    private(set) var judging = false
+    /// The map's own sentence for the link just confirmed — shown afterwards,
+    /// as a comparison, never before as an answer to copy.
+    private(set) var compare: (label: String, rel: String)?
+
+    init(session: SessionViewModel, api: AtlasAPI) {
         self.session = session
+        self.api = api
     }
 
     var node: ConceptNode { session.node }
@@ -60,12 +70,9 @@ final class ConnectViewModel {
     /// sentence, confirm, and encode almost nothing (`connect.ts`).
     func text(for candidate: ElaborationLink) -> String { drafts[candidate.id] ?? "" }
 
-    /// The back of the card this link drafts: their sentence, or the map's when
-    /// they never wrote one.
-    func back(for candidate: ElaborationLink) -> String {
-        let written = text(for: candidate).trimmed
-        return written.isEmpty ? candidate.rel : written
-    }
+    /// The back of the card this link drafts: their sentence and nothing else.
+    /// The map's suggestion is never a card back (W1.5).
+    func back(for candidate: ElaborationLink) -> String { text(for: candidate).trimmed }
 
     /// The question that back answers — the front of the card, shown with it so
     /// the drafted card reads as a card rather than as their sentence again.
@@ -79,15 +86,34 @@ final class ConnectViewModel {
         Binding(get: { self.text(for: candidate) }, set: { self.drafts[candidate.id] = $0; self.park() })
     }
 
-    /// "Ver a sugestão do mapa" — offered, never imposed, and gone once there
-    /// is anything of theirs to overwrite.
-    func suggest(_ candidate: ElaborationLink) { drafts[candidate.id] = candidate.rel; park() }
-    func canSuggest(_ candidate: ElaborationLink) -> Bool { text(for: candidate).trimmed.isEmpty }
+    /// Six words of their own, and not the map's suggestion pasted back —
+    /// `connectDraftReady` on the web.
+    func canConfirm(_ candidate: ElaborationLink) -> Bool {
+        !judging && connectDraftReady(text(for: candidate), candidate.rel)
+    }
 
-    func canConfirm(_ candidate: ElaborationLink) -> Bool { !text(for: candidate).trimmed.isEmpty }
-
-    func confirm(_ candidate: ElaborationLink) {
+    /// Confirm a link — checked first (W1.5). These sentences become cards
+    /// rehearsed for months, so one the judge rules false is not confirmed and
+    /// the line saying why stays under the box. An unreachable judge confirms
+    /// on the learner's own words, as it did before the check.
+    func confirm(_ candidate: ElaborationLink) async {
+        guard canConfirm(candidate) else { return }
+        judging = true
+        var context = session.context
+        context["nodeLabel"] = .string(content?.centerLabel ?? node.label)
+        context["question"] = .string(candidate.label)
+        context["reference"] = .string(candidate.rel)
+        context["answer"] = .string(text(for: candidate).trimmed)
+        defer { judging = false }
+        let ruling: ConnectRuling? = try? await api.judge("connect", context)
+        if let ruling { rulings[candidate.id] = ruling }
+        guard ruling?.verdict != "false" else {
+            linked.remove(candidate.id)
+            park()
+            return
+        }
         linked.insert(candidate.id)
+        compare = (candidate.label, candidate.rel)
         active = content?.cands.first { !linked.contains($0.id) }?.id
         park()
     }
@@ -205,7 +231,7 @@ final class ConnectViewModel {
     private func draftCards() {
         guard let content else { return }
         var drafted: [(id: String, type: ReviewCardType, front: String, back: String)] =
-            confirmed.map {
+            confirmed.filter { !back(for: $0).isEmpty }.map {
                 ("\(content.centerId)-connect-\($0.id)", .why, front(for: $0), back(for: $0))
             }
         // A mnemonic is order-recall, not a "why" — grading it as one would

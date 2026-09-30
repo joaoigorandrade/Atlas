@@ -187,7 +187,7 @@ export function frontierWarmBody(
     importance: node.importance,
     nodeDifficulty: node.difficulty,
     ...(kind === "consume" ? { prereqLabels } : null),
-    // Already stamped by the route (`withNeighbours`) for this same topic.
+    // Already stamped by the route (`withTopicAxes`) for this same topic.
     ...(body.neighbours ? { neighbours: body.neighbours } : null),
   };
 }

@@ -121,21 +121,34 @@ export async function deleteNodes(
 
 // ------------------------------------------------------------------ cells --
 
-type CellRows = Map<string, { importance?: NodeImportance; difficulty?: NodeDifficulty }>;
+type CellRows = Map<
+  string,
+  {
+    importance?: NodeImportance;
+    difficulty?: NodeDifficulty;
+    rerun?: Record<string, number>;
+  }
+>;
 
 /**
  * Stamp a per-node generation with the node's stored importance and
- * difficulty, *on the server* — the same move as `withNeighbours`, for the
+ * difficulty, *on the server* — the same move as `withTopicAxes`, for the
  * same reason: every path that hashes a job calls it first, so the browser,
  * the phone and the frontier warm address the same row without either client
  * carrying the cell. Whatever a client sends is dropped.
+ *
+ * `rerun` rides the same read (W1.2, W1.4). Which time through a node's
+ * Crucible or Perform this is comes from the attempts log — a Crucible pass
+ * (cold or guided) and every Perform run bump it — so a redo, the cold
+ * re-attempt after a guided pass, and a re-run after a report all get a case
+ * the learner has not already solved, and neither client keeps a counter.
  */
 export async function withNodeCell<T extends GenerateBody>(
   db: SupabaseClient,
   body: T,
   memo?: Map<string, Promise<CellRows>>,
 ): Promise<T> {
-  const { importance: _i, nodeDifficulty: _d, ...rest } = body;
+  const { importance: _i, nodeDifficulty: _d, rerun: _r, ...rest } = body;
   if (!body.topicId || !body.nodeId) return rest as T;
   let pending = memo?.get(body.topicId);
   if (!pending) {
@@ -143,21 +156,47 @@ export async function withNodeCell<T extends GenerateBody>(
     memo?.set(body.topicId, pending);
   }
   const row = (await pending).get(body.nodeId);
-  return (
-    row ? { ...rest, importance: row.importance, nodeDifficulty: row.difficulty } : rest
-  ) as T;
+  if (!row) return rest as T;
+  const rerun = row.rerun?.[body.kind] ?? 0;
+  return {
+    ...rest,
+    importance: row.importance,
+    nodeDifficulty: row.difficulty,
+    ...(rerun ? { rerun } : null),
+  } as T;
 }
 
+/** What bumps a node's `rerun` for each kind that has one. */
+const RERUN: Record<string, (passed: boolean) => boolean> = {
+  crucible: (passed) => passed,
+  perform: () => true,
+};
+
 async function cellRows(db: SupabaseClient, topicId: string): Promise<CellRows> {
-  const { data, error } = await db
-    .from("nodes")
-    .select("id, importance, difficulty")
-    .eq("topic_id", topicId);
+  const [{ data, error }, { data: tries, error: triesError }] = await Promise.all([
+    db.from("nodes").select("id, importance, difficulty").eq("topic_id", topicId),
+    db
+      .from("phase_attempts")
+      .select("node_id, phase, passed")
+      .eq("topic_id", topicId)
+      .in("phase", Object.keys(RERUN)),
+  ]);
   if (error) fail("read node cells", error);
-  return new Map(
+  if (triesError) fail("read node attempts", triesError);
+  const rows: CellRows = new Map(
     (data ?? []).map((r) => [
       r.id,
       { importance: r.importance, difficulty: r.difficulty },
     ]),
   );
+  for (const t of (tries ?? []) as {
+    node_id: string;
+    phase: string;
+    passed: boolean;
+  }[]) {
+    const row = rows.get(t.node_id);
+    if (!row || !RERUN[t.phase]?.(t.passed)) continue;
+    row.rerun = { ...row.rerun, [t.phase]: (row.rerun?.[t.phase] ?? 0) + 1 };
+  }
+  return rows;
 }

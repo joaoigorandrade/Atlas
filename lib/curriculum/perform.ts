@@ -55,6 +55,9 @@ export interface PerformSession {
   /** Their own work that earned each finding. */
   quotes: Record<string, string>;
   reported: boolean;
+  /** The steps the previous run broke at, quoted on the re-run's report
+   *  (W1.4). Absent on a first run, and on every session saved before it. */
+  previous?: string[];
 }
 
 export function performStart(nodeId: string): PerformSession {
@@ -148,6 +151,7 @@ const PERFORM_COPY = {
     brokeAt: "The run breaks at a step. A wrong result is a failed run of it.",
     thin: "A load-bearing step was never carried out.",
     rerun: "Run it again →",
+    lastBroke: (steps: string) => `A new case. Last run broke at: ${steps}.`,
   },
   "pt-BR": {
     kicker: "Perform",
@@ -159,6 +163,7 @@ const PERFORM_COPY = {
     brokeAt: "A execução quebra num passo. Resultado errado é passo falhado.",
     thin: "Um passo essencial não chegou a ser executado.",
     rerun: "Executar de novo →",
+    lastBroke: (steps: string) => `Um caso novo. A última execução quebrou em: ${steps}.`,
   },
 } as const;
 

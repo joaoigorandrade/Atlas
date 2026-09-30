@@ -10,6 +10,9 @@ import {
   type AltKey,
   type ConsumeChunk,
   type ConsumeModelBeat,
+  needsPretest,
+  pretestClean,
+  proofGate,
 } from "@/lib/curriculum";
 import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker, motion, transition } from "@/lib/theme";
@@ -25,6 +28,7 @@ import { SpeakerButton, sectionName } from "./consume/SpeakerButton";
 import { WorkedExample } from "./consume/WorkedExample";
 import { PassagePanel } from "./consume/PassagePanel";
 import { SectionCheck } from "./consume/SectionCheck";
+import { TermPills } from "./consume/TermPills";
 import { ModelView } from "./consume/ModelView";
 export type { ConsumeSession, PassageAsk } from "./consume/shared";
 import type { ConsumeSession } from "./consume/shared";
@@ -49,11 +53,16 @@ interface ConsumeViewProps {
   topic: string;
   /** The end-of-section check was answered — right or wrong. */
   onCheck: (chunkId: string, oi: number, correct: boolean) => void;
+  /** The same check, answered before its section was read (W3.3). */
+  onPretest: (chunkId: string, oi: number, correct: boolean) => void;
   onContinue: (chunkIndex: number) => void;
   /** The last section is done — show the recap. */
   onFinish: () => void;
   /** The recap's CTA: hand off to Socratic. */
   onBeginNext: () => void;
+  /** Every section was known before it was read — go straight to the proof
+   *  gate under the challenge that credits the ladder on a pass (W3.4). */
+  onProve: () => void;
   /** Open a lens over a section. The whole chunk travels up because the model
    *  view is written for this section's exact prose — the caller keys its
    *  request on it. */
@@ -84,9 +93,11 @@ export default function ConsumeView({
   modelStreaming = false,
   onExit,
   onCheck,
+  onPretest,
   onContinue,
   onFinish,
   onBeginNext,
+  onProve,
   onOpenModel,
   onCloseModel,
   onToggleTerm,
@@ -143,6 +154,11 @@ export default function ConsumeView({
   // Only sections up to the deepest revealed one are on screen — the pass
   // unfolds in segments, never as a wall.
   const visible = chunks.slice(0, session.idx + 1);
+  // A section whose prose was on screen while it was still being written (no
+  // check yet) is never pretested: the check landing would hide what the
+  // learner is already reading.
+  const readBare = useRef(new Set<string>());
+  for (const c of visible) if (!c.check) readBare.current.add(c.id);
 
   // The section the open lens belongs to, looked up rather than carried in
   // session state: while the pass is still streaming a section can be replaced
@@ -176,6 +192,8 @@ export default function ConsumeView({
   // The rung owed next, per kind — none on a recognise-only (Consume, Retain) plan.
   const next = plan.find((p) => p !== "consume" && p !== "retain");
   const nextLabel = next && phaseLabel(next);
+  // Every section known before it was read: proving it beats re-learning it.
+  const knewAll = pretestClean(session, chunks.length);
 
   // Honest time-left estimate: word count of what's left, at ~200wpm.
   // ponytail: while still streaming we don't yet know the pass's true length
@@ -391,21 +409,28 @@ export default function ConsumeView({
               flexWrap: "wrap",
             }}
           >
+            {knewAll && (
+              <Button data-testid="action-prove-known" onClick={onProve}>
+                {t.recapProve(phaseLabel(proofGate(plan)))}
+              </Button>
+            )}
             <button
               className="at-press"
               data-testid="action-begin-next"
               onClick={onBeginNext}
               style={{
                 padding: "14px 24px",
-                background: color.accent,
-                color: color.accentInk,
-                border: "none",
+                background: knewAll ? "none" : color.accent,
+                color: knewAll ? color.ink : color.accentInk,
+                border: knewAll ? `1px solid ${color.hairlineStrong}` : "none",
                 borderRadius: 3,
                 fontSize: 15,
                 fontFamily: font.caps,
                 letterSpacing: "0.06em",
                 cursor: "pointer",
-                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+                boxShadow: knewAll
+                  ? "none"
+                  : `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
               }}
             >
               {t.recapBegin(nextLabel)}
@@ -609,6 +634,8 @@ export default function ConsumeView({
             // should disappear when they ask for help with it.
             const paragraphs = c.body;
             const checkDone = !c.check || !!session.checks[c.id];
+            // Asked before the section, then gone: answered either way (W3.3).
+            const pretesting = needsPretest(session, c) && !readBare.current.has(c.id);
 
             return (
               <div
@@ -681,6 +708,16 @@ export default function ConsumeView({
                   </button>
                 </div>
 
+                {pretesting && c.check && (
+                  <SectionCheck
+                    pretest
+                    topic={topic}
+                    nodeLabel={title}
+                    check={c.check}
+                    onAnswer={(oi, correct) => onPretest(c.id, oi, correct)}
+                  />
+                )}
+
                 {collapsed && (
                   <div
                     style={{
@@ -691,86 +728,26 @@ export default function ConsumeView({
                       borderLeft: `3px solid ${color.hairlineStrong}`,
                     }}
                   >
+                    {session.pretest[c.id] && (
+                      <div
+                        style={{ ...kicker(9.5, "0.1em"), color: BLUE, marginBottom: 6 }}
+                      >
+                        {t.pretestKnown}
+                      </div>
+                    )}
                     <Rich text={c.takeaway} />
                   </div>
                 )}
 
                 {/* Pre-taught terms */}
-                {!collapsed && (
+                {!collapsed && !pretesting && (
                   <>
-                    {c.terms.length > 0 && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 10,
-                          marginBottom: 18,
-                        }}
-                      >
-                        {c.terms.map((term) => {
-                          const key = `${c.id}:${term.t}`;
-                          const open = session.term === key;
-                          return (
-                            <div
-                              key={key}
-                              style={{
-                                display: "flex",
-                                flexDirection: "column",
-                              }}
-                            >
-                              <button
-                                className="at-press"
-                                onClick={() => onToggleTerm(key)}
-                                aria-expanded={open}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 7,
-                                  padding: "5px 11px",
-                                  background: color.chipBg,
-                                  border: `1px solid ${color.hairlineStrong}`,
-                                  borderRadius: 20,
-                                  fontSize: 12.5,
-                                  color: color.inkSoft,
-                                  cursor: "pointer",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    fontFamily: font.mono,
-                                    fontSize: 9,
-                                    letterSpacing: "0.08em",
-                                    textTransform: "uppercase",
-                                    color: color.amberInk,
-                                  }}
-                                >
-                                  {t.term}
-                                </span>
-                                <Rich text={term.t} />
-                              </button>
-                              {open && (
-                                <div
-                                  style={{
-                                    marginTop: 7,
-                                    maxWidth: 340,
-                                    fontSize: 13,
-                                    lineHeight: 1.5,
-                                    color: color.inkSoft,
-                                    background: color.amberBg,
-                                    border: "1px solid rgba(160,106,48,0.2)",
-                                    borderRadius: 3,
-                                    padding: "9px 12px",
-                                    animation: "fadeUp .25s both",
-                                  }}
-                                >
-                                  <Rich text={term.d} />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <TermPills
+                      chunkId={c.id}
+                      terms={c.terms}
+                      openKey={session.term}
+                      onToggle={onToggleTerm}
+                    />
 
                     {/* The material — dual-coded, and on screen from the start. */}
                     <div
@@ -1027,11 +1004,12 @@ export default function ConsumeView({
                 )}
 
                 {/* The section's receipt: once answered, the way onward appears. */}
-                {c.check && (
+                {c.check && !pretesting && (
                   <SectionCheck
                     topic={topic}
                     nodeLabel={title}
                     check={c.check}
+                    guessMissed={session.pretest[c.id] === false}
                     answer={session.checks[c.id]}
                     onAnswer={(oi, correct) => onCheck(c.id, oi, correct)}
                   />

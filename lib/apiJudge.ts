@@ -102,6 +102,8 @@ export interface SteelmanJudgement {
     quote?: string;
   }>;
   response: string;
+  /** Whether the disconfirmer could actually be met (W1.6). */
+  disconfirmer?: "real" | "vacuous";
 }
 
 /** One spoken turn's ruling. `thin` is the important one: understood, and the
@@ -224,6 +226,8 @@ export function fetchJudgeProduce(
     targetForms: string[];
     answer: string;
     language?: Language;
+    /** The recognizer's confidence in the weakest span, when dictated (W1.1). */
+    confidence?: number;
   },
   onVerdict?: (partial: Partial<ProduceJudgement>) => void,
 ): Promise<ProduceJudgement> {
@@ -235,6 +239,24 @@ export function fetchJudgeProduce(
 export interface ChoiceJudgement {
   index: number;
   response: string;
+}
+
+export interface ConnectJudgement {
+  verdict: "true" | "vague" | "false";
+  response: string;
+}
+
+/** A Connect link checked before it is confirmed (W1.5). */
+export function fetchJudgeConnect(params: {
+  topic: string;
+  nodeLabel: string;
+  /** The concept on the other end of the link. */
+  question: string;
+  reference: string;
+  answer: string;
+  language?: Language;
+}): Promise<ConnectJudgement> {
+  return judge({ kind: "judge", mode: "connect", ...params });
 }
 
 export function fetchJudgeChoice(

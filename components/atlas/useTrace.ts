@@ -7,10 +7,12 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades one chain, walked a stage at a time, and it exits to the map.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback } from "react";
 import {
   phaseLabel,
   tracePassed,
+  traceScore,
   traceReducer,
   traceStart,
   type ConceptNode,
@@ -99,7 +101,13 @@ export function useTrace(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = traceCacheRef.current[cur.nodeId];
-    if (node && content && tracePassed(cur, content)) completePhase(node, "trace");
+    const passed = !!(node && content && tracePassed(cur, content));
+    const score = content
+      ? traceScore(cur, content) / Math.max(1, content.stages.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "trace", passed: false, score });
+    if (node && passed) completePhase(node, "trace", undefined, score);
     leaveTo(cur.nodeId);
   };
 

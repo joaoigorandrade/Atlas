@@ -231,6 +231,16 @@ public struct ReviewView: View {
 
                 switch model.stage {
                 case .question:
+                    if card.type != .why {
+                        TextField("Responda aqui primeiro — ou de cabeça, e só vire",
+                                  text: Bindable(model).said, axis: .vertical)
+                            .font(.atlas(.serif, 16))
+                            .lineLimit(1...4)
+                            .padding(12)
+                            .background(Palette.paper, in: .rect(cornerRadius: 3))
+                            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                            .padding(.top, 20)
+                    }
                     Button { model.flip() } label: {
                         Text("Mostrar resposta")
                             .font(.atlas(.serif, 17))
@@ -251,6 +261,7 @@ public struct ReviewView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
+                    if !model.said.trimmed.isEmpty { suggestion(model).padding(.top, 16) }
                 case .failed:
                     failed(model, card).padding(.top, 18)
                         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -264,6 +275,24 @@ public struct ReviewView: View {
             .shadow(color: Palette.shade(0.07), radius: 15, y: 10)
         }
         .animation(Motion.standard, value: model.stage)
+    }
+
+    /// What the answer written before the flip came to (W4.3).
+    private func suggestion(_ model: ReviewViewModel) -> some View {
+        let tint = model.suggest.map { $0.grade == .good ? NodeState.mastered.color : NodeState.gap.color }
+            ?? Palette.inkFaint
+        return VStack(alignment: .leading, spacing: 4) {
+            Kicker(model.suggest == nil ? "Lendo sua resposta…"
+                   : model.suggest?.grade == .good ? "Voltou" : "Não voltou", tint: tint, size: 10)
+            Text(verbatim: "“\(model.said.trimmed)”").font(.atlas(.serif, 15)).italic()
+                .foregroundStyle(Palette.inkSoft)
+            if let read = model.suggest?.read, !read.isEmpty {
+                Text(verbatim: read).font(.atlas(.serif, 14.5)).foregroundStyle(Palette.inkSoft)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 12)
+        .overlay(alignment: .leading) { Capsule().fill(tint).frame(width: 3) }
     }
 
     /// The question, its cloze blank answered in the mastered colour once the
@@ -328,6 +357,12 @@ public struct ReviewView: View {
                                 .foregroundStyle(grade.tint)
                                 .frame(maxWidth: .infinity, minHeight: Metrics.cta)
                                 .boxed(Palette.card, border: grade.tint)
+                                // The judged answer's suggestion, ringed — never pressed.
+                                .overlay {
+                                    if model.suggest?.grade == grade {
+                                        RoundedRectangle(cornerRadius: 3).strokeBorder(grade.tint, lineWidth: 2)
+                                    }
+                                }
                             }
                             .pressable()
                         }

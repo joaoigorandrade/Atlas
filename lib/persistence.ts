@@ -29,22 +29,10 @@ import type {
   ConsumeChunk,
   ConsumeModelBeat,
   ConsumeProgress,
-  CrucibleContent,
-  DiscriminateContent,
-  DrillContent,
-  ElaborationContent,
-  FeynmanBeat,
   FeynmanSession,
   MisconceptionRecord,
   ModalityTally,
-  PerformContent,
-  ProduceContent,
-  ProvenanceContent,
-  SteelmanContent,
-  PredictContent,
   ProgressState,
-  RecallContent,
-  TraceContent,
   RetainContent,
   ReviewGrade,
   PhaseProgress,
@@ -52,8 +40,9 @@ import type {
   PhaseId,
   ShakyReason,
   SocraticSession,
-  SocraticStep,
   StateMap,
+  TopicAxes,
+  TopicTarget,
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
 import type { Continent } from "@/lib/continents";
@@ -66,6 +55,7 @@ import type { Language } from "@/lib/i18n";
 export interface Profile {
   dailyTarget: number;
   language: Language | null;
+  country?: string | null; // ISO 3166, whose rules jurisdictional topics teach
   adherence: AdherenceState;
 }
 
@@ -97,6 +87,8 @@ export interface Topic {
    *  maps above are the pre-catalogue columns and keep their own shape; a
    *  later phase lands here, so adding one is a key rather than a migration. */
   phaseProgress: Record<string, PhaseProgress>;
+  phaseClosedAt?: Record<string, Record<string, string>>; // server-stamped, per node
+  axes?: TopicAxes; // stamped from the map's header, or set by the learner
   cards: StoredCard[];
   continent: Continent | null;
 }
@@ -146,11 +138,16 @@ export interface TopicPatch {
   modalityTally?: ModalityTally;
   litToday?: string[];
   continentId?: string | null;
+  /** A variant of the language the map teaches (W1.1), the lens (W2.6), the target (W5.1). */
+  targetLanguage?: string | null;
+  lens?: string | null;
+  target?: TopicTarget | null;
 }
 
 export interface ProfilePatch {
   dailyTarget?: number;
   language?: Language;
+  country?: string | null;
   adherence?: Partial<AdherenceState>;
 }
 
@@ -158,54 +155,9 @@ export interface NewTopic extends TopicPatch {
   subject: string;
 }
 
-/**
- * Per-node generated content, as the screens hold it.
- *
- * Still the shape the app has always rendered from — but it is now assembled
- * from `node_content` rows on the way in and never written back. The server
- * records content the moment it generates it, which is what retired the
- * `caches` column and the four-second upload behind it.
- */
-export interface RunCaches {
-  consume: Record<string, ConsumeChunk[]>;
-  /** Lens views already opened, keyed `model:<nodeId>:<chunkId>:<lens>`. */
-  models: Record<string, ConsumeModelBeat[]>;
-  socratic: Record<string, SocraticStep[]>;
-  feynman: Record<string, FeynmanBeat[]>;
-  connect: Record<string, ElaborationContent>;
-  crucible: Record<string, CrucibleContent>;
-  // The six phases of the catalogue's growth to twelve. Each keyed by node
-  // id, exactly like the eight before them.
-  discriminate: Record<string, DiscriminateContent>;
-  predict: Record<string, PredictContent>;
-  trace: Record<string, TraceContent>;
-  drill: Record<string, DrillContent>;
-  recall: Record<string, RecallContent>;
-  perform: Record<string, PerformContent>;
-  provenance: Record<string, ProvenanceContent>;
-  steelman: Record<string, SteelmanContent>;
-  produce: Record<string, ProduceContent>;
-  retain: RetainContent | null;
-}
-
-export const emptyCaches = (): RunCaches => ({
-  consume: {},
-  models: {},
-  socratic: {},
-  feynman: {},
-  connect: {},
-  crucible: {},
-  discriminate: {},
-  predict: {},
-  trace: {},
-  drill: {},
-  recall: {},
-  perform: {},
-  provenance: {},
-  steelman: {},
-  produce: {},
-  retain: null,
-});
+// The per-node content shape the screens hold lives in `./runCaches`.
+export * from "./runCaches";
+import { emptyCaches, type RunCaches } from "./runCaches";
 
 // ------------------------------------------------------------- the client --
 
@@ -286,16 +238,15 @@ export function deleteTopic(id: string): Promise<void> {
 }
 
 /** The map's only write path: what changed, and what left the map. */
-export function patchNodes(
-  id: string,
-  deltas: NodeDelta[],
-  remove: string[] = [],
-): Promise<void> {
-  return call("patchNodes", `/topics/${id}/nodes`, {
-    method: "PATCH",
-    body: { deltas, remove },
-  });
-}
+export const patchNodes = (id: string, deltas: NodeDelta[], remove: string[] = []) =>
+  call<{ states?: Record<string, ProgressState> } | null>(
+    "patchNodes",
+    `/topics/${id}/nodes`,
+    {
+      method: "PATCH",
+      body: { deltas, remove },
+    },
+  );
 
 export function putCards(id: string, cards: StoredCard[]): Promise<void> {
   return call("putCards", `/topics/${id}/cards`, { method: "PUT", body: { cards } });

@@ -56,6 +56,14 @@ public final class WarmCache {
     /// What landed at `key`, if anything has.
     public func content<T: Sendable>(_ key: String) -> T? { content[key] as? T }
 
+    /// Drop a finished pass so the next fill asks again — a solved problem the
+    /// server now keys to a new `rerun`. A pass still being written is left.
+    public func forget(_ key: String) {
+        guard inflight[key] == nil else { return }
+        content[key] = nil
+        incomplete.remove(key)
+    }
+
     /// True while `key` holds a prefix rather than a whole pass — what a screen
     /// draws its "this reading is incomplete" row from.
     public func isIncomplete(_ key: String) -> Bool { incomplete.contains(key) }
@@ -358,7 +366,7 @@ public extension AtlasStore {
         warm.content(address("connect", node))
     }
     func problems(_ node: ConceptNode) -> CrucibleContent? {
-        warm.content(address("crucible", node, variant: crucibleVariant(node)))
+        warm.content(address("crucible", node))
     }
 
     // The six the catalogue's growth to twelve added. One reader and one filler
@@ -383,21 +391,12 @@ public extension AtlasStore {
         warm.content(address("produce", node))
     }
 
-    /// Which time through this concept's transfer test this is, as the row's
-    /// own address. The first pass is the node's plain Crucible; a redo is
-    /// content in its own right — the learner should be able to reach the
-    /// problem they solved — so it gets a variant instead of upserting over it.
-    func crucibleVariant(_ node: ConceptNode) -> String {
-        let rerun = crucibleRerun[node.id] ?? 0
-        return rerun == 0 ? "" : "r\(rerun)"
-    }
-
-    /// Opening the Crucible again on a concept the learner has already carried
-    /// through it asks for a *new* problem. Re-serving the one they solved
-    /// measures recall, which is the one thing this phase exists not to
-    /// measure. Called once per redo entry, before the first warm.
-    func bumpCrucibleRerun(_ nodeId: String) {
-        crucibleRerun[nodeId] = (crucibleRerun[nodeId] ?? 0) + 1
+    /// Forget a node's cached problem so the next entry fetches the one the
+    /// server now keys to it. `rerun` is stamped by the server from the
+    /// attempts log (a pass bumps it), so a redo — or the cold re-attempt after
+    /// a guided pass — gets a problem the learner has not already solved.
+    func forgetContent(_ kind: String, _ node: ConceptNode) {
+        warm.forget(address(kind, node))
     }
 
     @discardableResult
@@ -439,20 +438,12 @@ public extension AtlasStore {
 
     @discardableResult
     func crucible(_ node: ConceptNode) async -> Error? {
-        let rerun = crucibleRerun[node.id] ?? 0
-        let variant = crucibleVariant(node)
         var context = context(for: node)
         context["masteredLabels"] = .array(masteredLabels.map { .string($0) })
-        // Omitted when 0, exactly as the server omits it from the cache key —
-        // a first pass keys where it always did.
-        if rerun > 0 { context["rerun"] = .number(Double(rerun)) }
-        // The address the server files the problem under. Without it a redo
-        // upserts over the row holding the problem the learner already solved.
-        if !variant.isEmpty { context["variant"] = .string(variant) }
         let (api, sent) = (api, context)
-        return await warm.fill(address("crucible", node, variant: variant),
-                               once: { try await api.crucible(sent) })
+        return await warm.fill(address("crucible", node), once: { try await api.crucible(sent) })
     }
+
 
     @discardableResult
     func discriminate(_ node: ConceptNode) async -> Error? {

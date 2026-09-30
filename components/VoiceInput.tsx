@@ -64,11 +64,17 @@ export function MicButton({
   onChange,
   disabled = false,
   accent = color.accent,
+  speech,
+  onConfidence,
 }: {
   value: string;
   onChange: (next: string) => void;
   disabled?: boolean;
   accent?: string;
+  /** Dictate in this BCP-47 language instead of the interface one (W1.1). */
+  speech?: string;
+  /** Each finalized segment's recognizer confidence, where it reports one. */
+  onConfidence?: (confidence: number) => void;
 }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -84,7 +90,11 @@ export function MicButton({
 
   const { supported, listening, starting, interim, error, toggle, stop } = useDictation({
     language,
-    onFinal: (text) => onChange(appendTranscript(valueRef.current, text)),
+    speech,
+    onFinal: (text, confidence) => {
+      onChange(appendTranscript(valueRef.current, text));
+      if (confidence !== undefined) onConfidence?.(confidence);
+    },
   });
 
   // The box going busy (judging, submitted) closes the mic with it.

@@ -5,6 +5,7 @@
 //   OPENROUTER_API_KEY        — required
 //   OPENROUTER_MODEL          — content model slug (default below)
 //   OPENROUTER_JUDGE_MODEL    — stronger model for answer judging (defaults to OPENROUTER_MODEL)
+//   OPENROUTER_VERIFY_MODEL   — blind-solves closed items before caching (defaults to the judge model)
 //   OPENROUTER_FALLBACK_MODEL — comma-separated chain tried after retries exhaust (#11)
 //   OPENROUTER_BASE_URL       — override for tests/self-hosted gateways
 
@@ -42,8 +43,9 @@ export interface ChatMessage {
   content: string;
 }
 
-/** Which model role a call wants: bulk content, or the stricter judge (#28). */
-export type ModelRole = "content" | "judge";
+/** Which model role a call wants: bulk content, the stricter judge (#28), or
+ *  the blind solver that checks a closed item's key before it is cached. */
+export type ModelRole = "content" | "judge" | "verify";
 
 /**
  * Content is writing; judging is classification.
@@ -56,7 +58,7 @@ export type ModelRole = "content" | "judge";
  * quality bar.
  */
 function temperatureFor(role: ModelRole): number {
-  return role === "judge" ? 0 : 0.6;
+  return role === "content" ? 0.6 : 0;
 }
 
 class OpenRouterError extends Error {
@@ -69,17 +71,14 @@ class OpenRouterError extends Error {
 }
 
 function modelChain(role: ModelRole): string[] {
-  const primary =
-    role === "judge"
-      ? process.env.OPENROUTER_JUDGE_MODEL ||
-        process.env.OPENROUTER_MODEL ||
-        DEFAULT_MODEL
-      : process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
-  const fallbacks = (process.env.OPENROUTER_FALLBACK_MODEL ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return [primary, ...fallbacks.filter((m) => m !== primary)];
+  const { OPENROUTER_MODEL, OPENROUTER_JUDGE_MODEL, OPENROUTER_VERIFY_MODEL } =
+    process.env;
+  const content = OPENROUTER_MODEL || DEFAULT_MODEL;
+  const judge = OPENROUTER_JUDGE_MODEL || content;
+  const primary = { content, judge, verify: OPENROUTER_VERIFY_MODEL || judge }[role];
+  const fallbacks = (process.env.OPENROUTER_FALLBACK_MODEL ?? "").split(",");
+  const chain = fallbacks.map((s) => s.trim()).filter((m) => m && m !== primary);
+  return [primary, ...chain];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

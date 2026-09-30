@@ -54,6 +54,9 @@ import {
   mapNodeBounds,
   continentLinksParams,
   linksPayload,
+  verifiedRun,
+  judgeConnect,
+  judgeConnectStream,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import {
@@ -61,6 +64,7 @@ import {
   badRequest,
   boundary,
   neighboursAxis,
+  topicAxes,
   labels,
   nodeAxes,
   poolOf,
@@ -164,7 +168,33 @@ function buildJob(body: GenerateBody): Job {
     kind: CacheableKind,
     params: P,
     run: (p: P) => Promise<Record<string, unknown>>,
-  ): Job => ({ kind, key: contentKey(kind, params), run: () => run(params) });
+  ): Job => ({
+    kind,
+    key: contentKey(kind, params),
+    // Closed items are blind-solved before they are cached (W2.1).
+    run: () => verifiedRun(kind, params as never, run as never),
+  });
+
+  /** The params every per-node item phase keys on — one builder, so a new axis
+   *  cannot reach five of them and miss the sixth. */
+  const itemParams = () => {
+    if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+    return {
+      topic,
+      nodeId,
+      nodeLabel,
+      interests,
+      language,
+      ...boundary(body),
+      ...nodeAxes(body),
+    };
+  };
+
+  // Which time through a node's Crucible or Perform this is — server-stamped
+  // from the attempts log (`withNodeCell`). Omitted when 0, so every row
+  // written before it keeps its address.
+  const rerun =
+    typeof body.rerun === "number" ? Math.max(0, Math.min(9, Math.round(body.rerun))) : 0;
 
   switch (body.kind) {
     case "curriculum": {
@@ -193,8 +223,15 @@ function buildJob(body: GenerateBody): Job {
         // earns its own row rather than forking the common one.
         ...(body.scoped === true ? { scoped: true } : {}),
         ...neighboursAxis(body),
+        // The learner's target shapes the map (W5.1); the axes the map writes
+        // about itself (language, shape) are its outputs, never its key.
+        ...(topicAxes(body).target ? { target: topicAxes(body).target } : {}),
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
+        // The map prompt gained its "about" header (W1.1, W2.3): a map cached
+        // before it has no topic axes to stamp, so the kind gets its own
+        // version rather than every kind re-billing through `VERSION`.
+        mapV: 2,
       };
       return {
         kind: "curriculum",
@@ -205,7 +242,13 @@ function buildJob(body: GenerateBody): Job {
         // asks for — a Pareto map is deliberately smaller. The scopes variant
         // is the too-broad answer (#30) — a complete, cacheable payload with
         // no map in it at all.
-        shape: [{ nodes: mapNodeBounds(paretoPct) }, { scopes: { min: 2, max: 3 } }],
+        // The header-carrying map first; a map cached before the header still
+        // assembles through the second shape.
+        shape: [
+          { nodes: mapNodeBounds(paretoPct), meta: "one" },
+          { nodes: mapNodeBounds(paretoPct) },
+          { scopes: { min: 2, max: 3 } },
+        ],
       };
     }
 
@@ -400,10 +443,6 @@ function buildJob(body: GenerateBody): Job {
       // just solved — a transfer test you have seen before tests recall, not
       // transfer. Omitted when 0 so every row written before this keeps its
       // address, exactly like `boundary`.
-      const rerun =
-        typeof body.rerun === "number"
-          ? Math.max(0, Math.min(9, Math.round(body.rerun)))
-          : 0;
       return cacheable(
         "crucible",
         {
@@ -425,20 +464,9 @@ function buildJob(body: GenerateBody): Job {
     // stages, reps — so each gets its own case here rather than one arm with a
     // phase field: the payloads are genuinely different, not one table renamed.
     case "discriminate": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "discriminate",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateDiscriminate(p) }),
-      );
+      return cacheable("discriminate", itemParams(), async (p) => ({
+        content: await generateDiscriminate(p),
+      }));
     }
 
     // The three phases the domain axis adds. Each is its own case for the same
@@ -480,87 +508,36 @@ function buildJob(body: GenerateBody): Job {
     }
 
     case "predict": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "predict",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generatePredict(p) }),
-      );
+      return cacheable("predict", itemParams(), async (p) => ({
+        content: await generatePredict(p),
+      }));
     }
 
     case "trace": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "trace",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateTrace(p) }),
-      );
+      return cacheable("trace", itemParams(), async (p) => ({
+        content: await generateTrace(p),
+      }));
     }
 
     case "drill": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "drill",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateDrill(p) }),
-      );
+      return cacheable("drill", itemParams(), async (p) => ({
+        content: await generateDrill(p),
+      }));
     }
 
     case "recall": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "recall",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateRecall(p) }),
-      );
+      return cacheable("recall", itemParams(), async (p) => ({
+        content: await generateRecall(p),
+      }));
     }
 
     case "perform": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
       return cacheable(
         "perform",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generatePerform(p) }),
+        { ...itemParams(), ...(rerun ? { rerun } : {}) },
+        async (p) => ({
+          content: await generatePerform(p),
+        }),
       );
     }
 
@@ -681,6 +658,20 @@ function buildJob(body: GenerateBody): Job {
           () => judgeSocraticStream(p),
         );
       }
+      if (body.mode === "connect") {
+        const p = {
+          topic,
+          nodeLabel,
+          question: s(body.question).slice(0, CAPS.nodeLabel),
+          reference: s(body.reference).slice(0, CAPS.freeText),
+          answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgeConnect(p) }),
+          () => judgeConnectStream(p),
+        );
+      }
       if (body.mode === "feynman") {
         const rubric = rubricRows(body);
         if (!rubric.length) throw badRequest("rubric is required");
@@ -784,6 +775,11 @@ function buildJob(body: GenerateBody): Job {
           targetForms: labels(body.targetForms, 3),
           said: answer,
           language,
+          // Stamped from the topic, not taken from the client (W1.1).
+          ...(body.targetLanguage ? { heardIn: s(body.targetLanguage) } : {}),
+          ...(typeof body.confidence === "number"
+            ? { confidence: Math.max(0, Math.min(1, body.confidence)) }
+            : {}),
         };
         return uncached(
           async () => ({ judgement: await judgeProduce(p) }),

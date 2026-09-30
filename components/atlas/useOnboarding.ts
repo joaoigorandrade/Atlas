@@ -209,12 +209,12 @@ export function useOnboarding(deps: {
     nextDifficultyRef.current = "medium";
     maxCorrectDifficultyRef.current = null;
     // Before the generation, not after — see `openTopic`.
-    const { id: created, abandon } = await openTopic(
+    const topicRow = await openTopic(
       { ...formRef.current, topic, continentId: scoped?.continentId },
       languageRef.current,
       (id) => current() && setTopicId(id), // a superseded build must not re-address the run
     );
-    if (!current()) return abandon(); // don't bill a stream nobody will see
+    if (!current()) return topicRow.abandon(); // don't bill a stream nobody will see
     // The clock starts after it, not before: `BUILD_MS` is the floor the
     // *build* is held to, and the learner is watching concepts land, not a
     // topic row being created. Timing it from before the round trip took that
@@ -225,7 +225,7 @@ export function useOnboarding(deps: {
 
     const params = {
       topic,
-      topicId: created ?? undefined,
+      topicId: topicRow.id ?? undefined,
       goal: formRef.current.goal,
       paretoPct: formRef.current.paretoPct,
       outline: outline ?? undefined,
@@ -282,9 +282,10 @@ export function useOnboarding(deps: {
         if ("scopes" in result) {
           setScreen("welcome");
           setScopes(result.scopes);
-          abandon();
+          topicRow.abandon();
           return;
         }
+        topicRow.adoptAxes(current);
         setBuildNote(`placement question 1 of ${DIAGNOSTIC_COUNT}`);
         // Short map (or a stream that ended early): the overlap never fired, so
         // ask now against everything that landed.
@@ -300,9 +301,7 @@ export function useOnboarding(deps: {
           setAnswered(0);
         }, openAt());
         return pending
-          .then((question) => {
-            if (current()) setDiagnostic([question]);
-          })
+          .then((question) => current() && setDiagnostic([question]))
           .catch((err: Error) => {
             // Placement is a nice-to-have; the map is the product, so open it
             // rather than failing a build the learner already watched
@@ -316,7 +315,7 @@ export function useOnboarding(deps: {
       .catch((err: Error) => {
         if (!current()) return;
         setScreen("welcome");
-        abandon();
+        topicRow.abandon();
         showError(err, { context: "build", retry: () => buildRef.current?.() });
       });
   }, [

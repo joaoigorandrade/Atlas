@@ -178,3 +178,17 @@ private func decoded() throws -> AtlasRun {
     #expect(mirrored.continent == run.continent)
     #expect(try decoded().continent == nil)
 }
+
+@Test func theTopicsAxesArriveWithIt() throws {
+    // W1.1 / W2.6: what the server stamped from the map's header travels with
+    // the topic, and a field this build does not know is ignored.
+    var json = topicJSON()
+    json.removeLast()
+    json += #", "axes": {"targetLanguage": "es-ES", "jurisdictional": false, "lenses": ["A", "B"], "lens": null, "shape": "scenarios", "target": null, "future": 1}}"#
+    let run = try JSONDecoder().decode(AtlasRun.self, from: Data(json.utf8))
+    #expect(run.axes?.targetLanguage == "es-ES")
+    #expect(run.axes?.lenses == ["A", "B"])
+    #expect(run.axes?.shape == "scenarios")
+    // An older server sends none, and nothing breaks.
+    #expect(try JSONDecoder().decode(AtlasRun.self, from: Data(topicJSON().utf8)).axes == nil)
+}

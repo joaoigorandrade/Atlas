@@ -15,10 +15,15 @@ const shared = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getClaims: async () => ({ data: { claims: { sub: "u1" } }, error: null }) },
-    // `withNeighbours` asks which continent the topic is in: none.
+    // `withTopicAxes` asks which continent the topic is in (none), and
+    // `withNodeCell` reads the node rows and their attempts (none).
     from: () => ({
       select: () => ({
-        eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+        eq: () => ({
+          maybeSingle: async () => ({ data: null, error: null }),
+          in: async () => ({ data: [], error: null }),
+          then: (r: (v: unknown) => unknown) => r({ data: [], error: null }),
+        }),
       }),
     }),
   }),

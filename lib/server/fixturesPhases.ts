@@ -271,6 +271,11 @@ export const performContent = (v: Vars): PerformContent => ({
  *  when the mode is one `fixtures.ts` answers itself. */
 export function domainPhaseJudgement(body: GenerateBody): Record<string, unknown> | null {
   switch (body.mode) {
+    case "connect":
+      return {
+        verdict: "true",
+        response: "That is a real relationship, stated plainly.",
+      };
     case "steelman":
       // One side stood up, one did not — the shape that exercises the gate's
       // own clause rather than a clean pass.
@@ -282,6 +287,7 @@ export function domainPhaseJudgement(body: GenerateBody): Record<string, unknown
         })),
         response:
           "The first case is one its holders would recognise. The second states the position in terms they would reject.",
+        disconfirmer: "real",
       };
     case "produce":
       return {

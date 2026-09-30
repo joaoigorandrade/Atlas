@@ -153,10 +153,11 @@ describe("connect cards", () => {
     expect(cards[0].back).toBe("they move vectors around, my own words");
   });
 
-  it("still gives a link confirmed before drafts were required a real back", () => {
+  it("never cards the map's suggestion for a link confirmed without words (W1.5)", () => {
     // A parked session from before the rule: linked, with no draft written.
+    // Its card would have rehearsed the map's sentence, not the learner's.
     const legacy = { ...connectStart(content.centerId), linked: { vectors: true } };
-    expect(connectCards(legacy, content)[0].back).toBe("maps vectors");
+    expect(connectCards(legacy, content)).toEqual([]);
   });
 
   it("re-running the phase produces the same keys, so Review cannot double up", () => {

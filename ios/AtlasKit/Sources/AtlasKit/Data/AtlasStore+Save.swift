@@ -251,9 +251,12 @@ extension AtlasStore {
             }
             let removed = savedNodes.keys.filter { nodes[$0] == nil }
             if !deltas.isEmpty || !removed.isEmpty {
-                try await runs.patchNodes(topicId, deltas: deltas, remove: Array(removed), token: token)
+                let corrected = try await runs.patchNodes(
+                    topicId, deltas: deltas, remove: Array(removed), token: token)
                 guard epoch == runEpoch else { return }
                 savedNodes = nodes
+                // The server re-derived these from the ledger and disagreed.
+                for (id, state) in corrected { states[id] = state }
             }
 
             let changed = cards.filter { savedCards[$0.id] != cardsNow[$0.id] }

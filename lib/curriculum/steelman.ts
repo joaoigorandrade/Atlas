@@ -55,6 +55,9 @@ export interface SteelmanSession {
   disconfirmer?: string;
   /** The judge's ruling per position id, and its written read. */
   verdicts: Record<string, SteelmanVerdict>;
+  /** The judge's ruling on the disconfirmer (W1.6). Absent on sessions judged
+   *  before it, which fall back to the old length test. */
+  disconfirmerRuling?: "real" | "vacuous";
   response?: string;
   done: boolean;
 }
@@ -70,6 +73,7 @@ export type SteelmanAction =
       type: "judged";
       verdicts: Record<string, SteelmanVerdict>;
       response: string;
+      disconfirmer?: "real" | "vacuous";
     };
 
 export function steelmanReducer(
@@ -93,6 +97,7 @@ export function steelmanReducer(
         ...session,
         verdicts: action.verdicts,
         response: action.response,
+        disconfirmerRuling: action.disconfirmer,
         done: true,
       };
     default:
@@ -126,6 +131,8 @@ export function steelmanPassed(
   if (rulings.some((v) => v === undefined)) return false;
   if (rulings.some((v) => v === "strawman")) return false;
   if (rulings.filter((v) => v === "thin").length > 1) return false;
+  // A disconfirmer that could never be met is not one — the judge rules it.
+  if (session.disconfirmerRuling) return session.disconfirmerRuling === "real";
   return (session.disconfirmer ?? "").trim().length >= 15;
 }
 

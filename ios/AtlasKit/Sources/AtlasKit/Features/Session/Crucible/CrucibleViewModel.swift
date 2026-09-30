@@ -172,6 +172,12 @@ final class CrucibleViewModel {
     func toggleHint() { withAnimation(Motion.standard) { hinted.toggle() } }
 
     func load() async {
+        // The cold re-attempt after a guided pass waits out its night.
+        if let opens = session.store.heldUntil(node.id, .crucible) {
+            let hours = max(1, Int((opens.timeIntervalSinceNow / 3600).rounded(.up)))
+            message = String(localized: "O problema a frio abre em \(hours) h — a prova de transferência precisa de uma noite.")
+            return
+        }
         writing = true
         message = ""
         if let error = await session.store.crucible(node) {
@@ -216,7 +222,7 @@ final class CrucibleViewModel {
             do {
                 let verdict: CrucibleJudgement = try await api.judge("crucible", sent)
                 try Task.checkCancellation()
-                session.settleCrucible(verdict, gap: content.gap)
+                session.settleCrucible(verdict, gap: content.gap, guided: !first)
                 // Stated confidence against *first-try* performance — the
                 // reading screen 20 plots. `recordCalib` averages into the
                 // sample it already holds, so recording the scaffolded rung too

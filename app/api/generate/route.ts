@@ -22,7 +22,7 @@ import {
   newRequestId,
   withRequestId,
 } from "@/lib/server/apiError";
-import { readContent, writeContent } from "@/lib/server/contentCache";
+import { isVerified, readContent, writeContent } from "@/lib/server/contentCache";
 import {
   logGenerationCalls,
   recordContent,
@@ -35,7 +35,13 @@ import {
   ndjsonStream,
   payloadToFrames,
 } from "@/lib/server/stream";
-import { withNeighbours, withNodeCell } from "@/lib/server/store";
+import {
+  ownsTopic,
+  stampTopicMeta,
+  withNodeCell,
+  withTopicAxes,
+} from "@/lib/server/store";
+import { asMapMeta } from "@/lib/curriculum";
 import { createClient } from "@/lib/supabase/server";
 
 // Content generation is a real LLM round-trip — allow it time. It has to fit
@@ -84,10 +90,11 @@ export async function POST(request: Request) {
 
   let job;
   try {
-    // The continent's other maps are a key input only the server may supply.
+    // Topic-level axes (the continent's other maps, the target language, …)
+    // are key inputs only the server may supply.
     body = await withNodeCell(
       supabase as never,
-      await withNeighbours(supabase as never, body),
+      await withTopicAxes(supabase as never, body),
     );
     job = resolveJob(body);
   } catch (err) {
@@ -104,6 +111,25 @@ export async function POST(request: Request) {
   // warm, so it stays on the simple await-the-whole-thing path.
   const streaming = !prefetch && !!job.stream && !!job.shape;
 
+  /** What the map says about itself lands on its topic (`stampTopicMeta`),
+   *  before the response closes — the client reloads the topic after it.
+   *  Best-effort: an unstamped topic keys every generation as it always did. */
+  const stampMap = async (payload: Record<string, unknown>) => {
+    if (job.kind !== "curriculum" || !payload.meta || !body.topicId) return;
+    try {
+      if (await ownsTopic(supabase as never, body.topicId))
+        await stampTopicMeta(
+          supabase as never,
+          userId,
+          body.topicId,
+          asMapMeta(payload.meta),
+          !!job.key && (await isVerified(job.key)),
+        );
+    } catch (err) {
+      logError("stamp_topic_failed", err, { req: requestId });
+    }
+  };
+
   // ---- the fast path: someone has already generated exactly this ----------
   if (job.key) {
     const hit = await readContent<Record<string, unknown>>(job.key);
@@ -116,6 +142,7 @@ export async function POST(request: Request) {
       // A hit is content the learner now has, even though nothing was
       // generated for it — record it against their topic exactly as a miss is.
       recordContent(supabase, body, job, userId, hit);
+      await stampMap(hit);
       // A hit is replayed in whichever format the caller asked for, so the
       // client reads one wire shape whether the content is seconds or weeks old.
       if (streaming)
@@ -159,9 +186,10 @@ export async function POST(request: Request) {
   /** Everything that happens when a complete payload lands, whichever path
    *  produced it. The streaming path assembles its payload from frames, so
    *  this is the only place both paths meet. */
-  const onLanded = (payload: Record<string, unknown>) => {
+  const onLanded = async (payload: Record<string, unknown>) => {
     recordContent(supabase, body, job, userId, payload);
     onPayload(payload);
+    await stampMap(payload);
   };
 
   if (streaming) return streamGeneration(job, userId, prefetch, onLanded, requestId);
@@ -176,6 +204,7 @@ export async function POST(request: Request) {
     if (job.key) after(() => writeContent(job.key!, job.kind, payload));
     recordContent(supabase, body, job, userId, payload);
     onPayload(payload);
+    await stampMap(payload);
     return withRequestId(
       NextResponse.json(payload, { headers: { "x-atlas-cache": "miss" } }),
       requestId,
@@ -204,7 +233,7 @@ function streamGeneration(
   job: Job,
   userId: string,
   prefetch: boolean,
-  onPayload: (payload: Record<string, unknown>) => void,
+  onPayload: (payload: Record<string, unknown>) => void | Promise<void>,
   requestId: string,
 ): Promise<Response> {
   return ndjsonStream(job.stream!(), {
@@ -229,7 +258,7 @@ function streamGeneration(
       // after it is one that may never land — which is exactly what happened
       // to a lens the learner opened, generated and was billed for twice.
       if (job.key) await writeContent(job.key, job.kind, payload);
-      onPayload(payload);
+      await onPayload(payload);
     },
     onError: (err, phase) => {
       // Mid-stream, bytes are already flowing as a 200 — the status can't

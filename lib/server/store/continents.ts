@@ -8,7 +8,6 @@
 
 import type { ScopeOffer } from "@/lib/api";
 import type { Continent } from "@/lib/continents";
-import type { GenerateBody } from "@/lib/server/jobInput";
 import { fail, type Db } from "@/lib/server/store/shared";
 
 export async function createContinent(
@@ -128,30 +127,4 @@ export function neighbourLines(
     if (!same(s.label, subject) && !members.some((m) => same(m.subject, s.label)))
       lines.push(`${s.label} (not charted yet): ${s.note}`);
   return lines.sort();
-}
-
-/**
- * Stamp a generation request with its continent's neighbours, *on the server*.
- *
- * Never trusted from a client, and never needed from one: every path that
- * hashes a job — `/api/generate`, the `/api/content` batch read, the
- * server-side frontier warm — calls this first, so the browser, the phone and
- * the warm all address the same row without either client knowing continents
- * exist. That sidesteps the four places a per-node key axis otherwise has to
- * be threaded through by hand.
- */
-export async function withNeighbours<T extends GenerateBody>(
-  db: Db,
-  body: T,
-  memo?: Map<string, Promise<string[]>>,
-): Promise<T> {
-  const { neighbours: _ignored, ...rest } = body;
-  if (!body.topicId) return rest as T;
-  let pending = memo?.get(body.topicId);
-  if (!pending) {
-    pending = neighboursOf(db, body.topicId);
-    memo?.set(body.topicId, pending);
-  }
-  const neighbours = await pending;
-  return (neighbours.length ? { ...rest, neighbours } : rest) as T;
 }

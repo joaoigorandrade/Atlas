@@ -58,6 +58,8 @@ public struct HomeView: View {
                     }
                     .animation(Motion.standard, value: model.next?.id)
 
+                    if !model.dayPlan.isEmpty { todayPlan(model).padding(.top, 24) }
+
                     if model.hasRun {
                         Kicker("Seus mapas").padding(.top, 24)
                         ForEach(model.continents) { group in
@@ -225,6 +227,39 @@ public struct HomeView: View {
         }
         .buttonStyle(Pressable())
         .disabled(model.switching != nil)
+    }
+
+    /// Today across every map (W4.6): each row opens its map.
+    private func todayPlan(_ model: HomeViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Kicker("Hoje, em todos os seus mapas", tint: Palette.accent)
+            ForEach(model.dayPlan) { item in
+                Button {
+                    Task {
+                        if let map = model.maps.first(where: { $0.subject == item.subject }) {
+                            await model.open(map)
+                            tabs.switchTab(to: .map)
+                        }
+                    }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(verbatim: item.subject).font(.atlas(.display, 16)).foregroundStyle(Palette.ink)
+                            Text(verbatim: model.line(item)).font(.atlas(.serif, 14))
+                                .foregroundStyle(Palette.inkMuted)
+                        }
+                        Spacer(minLength: 8)
+                        Text(verbatim: "~\(item.minutes) min").font(.atlas(.caps, 12)).foregroundStyle(Palette.inkFaint)
+                    }
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(Pressable())
+                .disabled(model.switching != nil)
+                Divider().overlay(Palette.hairline)
+            }
+        }
     }
 
     /// Both tiles are the same block: a kicker, a title, one line.

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { FIRST_NODE, openPhase, openRun, SECOND_NODE } from "./helpers";
+import { FIRST_NODE, openPhase, openRun, readNodeRows, SECOND_NODE } from "./helpers";
 
 test("crucible: a novel transfer problem is posed", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
@@ -50,4 +50,56 @@ test("crucible: an attempt survives a refresh", async ({ page }) => {
   await expect(
     page.getByTestId("phase-crucible").getByTestId("field-answer"),
   ).toHaveValue(attempt);
+});
+
+test("crucible: a pass on the guided rung leaves the node Shaky and the cold problem waits a night", async ({
+  page,
+}) => {
+  // W1.2: the re-attempt straight after the re-explanation closes the gap it
+  // was aimed at — not the rung. The fixture judge answers `partial`; the
+  // second attempt is rewritten to a pass.
+  let judged = 0;
+  await page.route("**/api/generate", async (route) => {
+    const body = route.request().postDataJSON() as { kind?: string; mode?: string };
+    if (body?.kind !== "judge" || body.mode !== "crucible" || ++judged < 2)
+      return route.continue();
+    const res = await route.fetch();
+    await route.fulfill({
+      response: res,
+      body: (await res.text()).replaceAll('"partial"', '"pass"'),
+    });
+  });
+  await openRun(page, {
+    "worked-cases": {
+      state: "shaky",
+      shaky_reason: "connect-complete",
+      phases_done: ["consume", "socratic", "feynman", "connect"],
+    },
+    "core-rule": "mastered",
+    foundations: "mastered",
+    notation: "mastered",
+  });
+  await openPhase(page, "worked-cases", "crucible");
+  const sheet = page.getByTestId("phase-crucible");
+  await sheet.getByTestId("action-confidence-1").click();
+  await sheet
+    .getByTestId("field-answer")
+    .fill("The requirement is met; only the framing changed.");
+  await sheet.getByTestId("action-submit").click();
+  await sheet.getByTestId("action-retry").click();
+  await sheet.getByTestId("action-confidence-1").click();
+  await sheet
+    .getByTestId("field-answer")
+    .fill("Checked the requirement first, then applied it.");
+  await sheet.getByTestId("action-submit").click();
+  await sheet.getByTestId("action-finish").click();
+
+  await expect(async () => {
+    const row = (await readNodeRows(page.request)).find((r) => r.id === "worked-cases")!;
+    expect(row.state).toBe("shaky");
+    expect(row.shaky_reason).toBe("crucible-scaffolded");
+    expect(row.phases_done).not.toContain("crucible");
+    const held = (row.phase_progress as { crucible?: { opensAt?: number } }).crucible;
+    expect(held?.opensAt ?? 0).toBeGreaterThan(Date.now());
+  }).toPass({ timeout: 20_000 });
 });

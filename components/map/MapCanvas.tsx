@@ -14,6 +14,7 @@ import { color, layout } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import NodeHoverCard, { useDwell, usePeek } from "@/components/map/NodeHoverCard";
 import MapNode from "@/components/map/MapNode";
+import { nodeRetention, type StoredCard } from "@/lib/fsrs";
 import MapEdges from "@/components/map/MapEdges";
 import { regionsOf, seedOf } from "@/components/map/atlasTerrain";
 import { Fog, Land, StageLabels, Terrain } from "@/components/map/MapTerrain";
@@ -64,6 +65,8 @@ interface MapCanvasProps {
   staggered?: boolean;
   /** Display state per node id — frontier/locking already derived. */
   display: Record<string, NodeState>;
+  /** The run's review deck — mastered cities fade as it comes due (W4.2). */
+  cards?: readonly StoredCard[];
   /** Unlearned prerequisite chain of a selected locked node ("learn these first"). */
   lockedPath: Set<string> | null;
   /** Nodes whose mastery state the learner just earned, marked for as long as
@@ -121,6 +124,7 @@ function MapCanvas({
   spawnedIds,
   staggered = false,
   display,
+  cards,
   lockedPath,
   earned: won = {},
   positions,
@@ -202,6 +206,7 @@ function MapCanvas({
 
   const q = query.trim().toLowerCase();
   const ids = useMemo(() => nodes.map((n) => n.id), [nodes]);
+  const retention = useMemo(() => nodeRetention(cards ?? []), [cards]);
   const regions = useMemo(() => regionsOf(nodes, edges), [nodes, edges]);
   const seed = useMemo(() => seedOf(ids), [ids]);
   const bounds = useMemo(() => mapBounds(positions, ids), [positions, ids]);
@@ -307,6 +312,7 @@ function MapCanvas({
             matches={!q || node.label.toLowerCase().includes(q)}
             earned={won[node.id]}
             gapLabel={t.gap}
+            fade={retention[node.id]}
             onSelect={() => on.current.onNodeSelect(node.id)}
             onDown={(e) => {
               // A node's press stops propagating (it starts a drag, not a
@@ -321,7 +327,7 @@ function MapCanvas({
       </>
     ),
     // prettier-ignore
-    [bounds, stages, building, ids, edges, positions, display, regions, seed, dragging, highlighted, lockedPath, hover, screen, clear, nodes, staggered, spawnedIds, selectedId, q, won, t.gap, land.territory],
+    [bounds, stages, building, ids, edges, positions, display, regions, seed, dragging, highlighted, lockedPath, hover, screen, clear, nodes, staggered, spawnedIds, selectedId, q, won, t.gap, land.territory, retention],
   );
 
   return (

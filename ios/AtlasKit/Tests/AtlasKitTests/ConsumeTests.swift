@@ -307,3 +307,115 @@ struct MarkdownTests {
     // Nor read aloud: half a section stops mid-sentence and cannot resume.
     #expect(model.spoken.isEmpty)
 }
+
+// W3.3 — the section's check, asked once before the section is read.
+
+@MainActor
+@Test func aRightGuessBeforeReadingPassesTheSectionAndIsKept() {
+    let store = store()
+    reading(store, [section("c1", check: check(correct: [false, true, false])), section("c2")])
+    let model = consume(store)
+    #expect(model.pretesting)
+
+    model.guess(1)
+    #expect(model.passed)
+    #expect(model.knewIt)
+    #expect(model.pretesting == false)
+    // Written in the web's shape, so the browser reads the section as passed.
+    #expect(store.reading("lat")?.pretest["c1"] == true)
+    #expect(store.reading("lat")?.checks.contains("c1") == true)
+    // A re-entry does not ask again.
+    #expect(consume(store).pretesting == false)
+}
+
+@MainActor
+@Test func aMissedGuessRevealsNothingAndTheCheckWaitsAtTheEnd() {
+    let store = store()
+    reading(store, [section("c1", check: check(correct: [false, true, false]))])
+    let model = consume(store)
+
+    model.guess(0)
+    // Nothing is marked: the check at the end of the section is still a question.
+    #expect(model.passed == false)
+    #expect(model.grade == nil)
+    #expect(model.missed.isEmpty)
+    #expect(model.pretesting == false)
+    #expect(model.guessMissed)
+    #expect(store.reading("lat")?.pretest["c1"] == false)
+    // A second guess would be elimination.
+    model.guess(1)
+    #expect(model.passed == false)
+
+    model.pick(1)
+    #expect(model.passed)
+    #expect(model.guessMissed == false)
+}
+
+@MainActor
+@Test func proseReadWhileItWasBeingWrittenIsNeverPretested() {
+    let store = store()
+    reading(store, [section("c1", check: check(correct: [true, false, false]))])
+    let model = consume(store)
+    model.sawWriting("c1")
+    #expect(model.pretesting == false)
+}
+
+@MainActor
+@Test func aCheckPassedInTheBrowserReadsAsPassedHere() {
+    let store = store()
+    // The browser writes `{ oi, correct }`; a bare `true` is what this client
+    // used to write. Both are a pass; a recorded miss is not.
+    store.consumeProgress["lat"] = .object([
+        "checks": .object([
+            "c1": .object(["oi": .number(1), "correct": .bool(true)]),
+            "c2": .bool(true),
+            "c3": .object(["oi": .number(0), "correct": .bool(false)]),
+        ]),
+        "pretest": .object(["c1": .bool(true), "c3": .bool(false)]),
+    ])
+    let progress = store.reading("lat")
+    #expect(progress?.checks == ["c1", "c2"])
+    #expect(progress?.pretest == ["c1": true, "c3": false])
+}
+
+// W3.4 — a reading known end to end leads with proving it.
+
+@Test func aCleanPretestNeedsEverySectionGuessedRight() {
+    let clean = ReadingProgress(total: 3, pretest: ["a": true, "b": true, "c": true], finished: true, handedOff: false)
+    #expect(pretestClean(clean))
+    #expect(pretestClean(clean, sections: 4) == false)
+    var missed = clean
+    missed.pretest["b"] = false
+    #expect(pretestClean(missed) == false)
+    var unfinished = clean
+    unfinished.finished = false
+    #expect(pretestClean(unfinished) == false)
+    let one = ReadingProgress(total: 1, pretest: ["a": true], finished: true, handedOff: false)
+    #expect(pretestClean(one) == false)
+
+    let plan: [Phase] = [.consume, .discriminate, .socratic, .crucible, .recall, .retain]
+    #expect(provesOnSight(plan, [.consume], state: .learning, reading: clean, shaky: nil))
+    #expect(provesOnSight(plan, [.consume, .crucible], state: .learning, reading: clean, shaky: nil) == false)
+    #expect(provesOnSight(plan, [.consume], state: .learning, reading: clean, shaky: .crucibleFail) == false)
+}
+
+@MainActor
+@Test func provingFromTheReadingClosesItAndOpensTheProofGateUnderAChallenge() async {
+    let store = store()
+    reading(store, [
+        section("c1", check: check(correct: [true, false, false])),
+        section("c2", check: check(correct: [true, false, false])),
+    ])
+    let session = SessionViewModel(node: store.graph.nodes[0], store: store)
+    let model = ConsumeViewModel(session: session, api: store.api)
+    await model.load()
+    model.guess(0)
+    model.advance()
+    model.guess(0)
+    #expect(model.knewAll)
+
+    model.prove()
+    #expect(store.phasesDone["lat"]?.contains(.consume) == true)
+    #expect(session.phase == proofGate(store.graph.nodes[0].plan))
+    #expect(store.challenge == "lat")
+}

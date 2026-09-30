@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   ALT_CONTROLS,
   MODALITY_PREFERENCE_MIN,
+  afterPretest,
   altControls,
   emptyConsumeProgress,
+  needsPretest,
+  normaliseConsumeProgress,
+  pretestClean,
+  provesOnSight,
   phaseIndex,
   preferredModality,
   planGates,
@@ -211,5 +216,89 @@ describe("validatePassage", () => {
 
   it("rejects a non-string paragraph", () => {
     expect(() => validatePassage({ answer: [{ p: "wrong shape" }] })).toThrow();
+  });
+});
+
+// W3.3 — the section's check, asked once before the section is read.
+describe("Consume pretest", () => {
+  const withCheck = { id: "c1", check: { q: "?" } };
+
+  it("asks only a section that has a check and no answer either way", () => {
+    const p = emptyConsumeProgress();
+    expect(needsPretest(p, withCheck)).toBe(true);
+    expect(needsPretest(p, { id: "c1" })).toBe(false);
+    expect(
+      needsPretest({ ...p, checks: { c1: { oi: 0, correct: false } } }, withCheck),
+    ).toBe(false);
+    expect(needsPretest({ ...p, pretest: { c1: false } }, withCheck)).toBe(false);
+  });
+
+  it("a right guess passes the check and folds the section", () => {
+    const p = afterPretest(emptyConsumeProgress(), "c1", 2, true);
+    expect(p.pretest).toEqual({ c1: true });
+    expect(p.checks.c1).toEqual({ oi: 2, correct: true });
+    expect(p.collapsed.c1).toBe(true);
+  });
+
+  it("a miss records only the miss — the check at the end is still a real question", () => {
+    const p = afterPretest(emptyConsumeProgress(), "c1", 0, false);
+    expect(p.pretest).toEqual({ c1: false });
+    expect(p.checks.c1).toBeUndefined();
+    expect(p.collapsed.c1).toBeUndefined();
+  });
+
+  it("answers once — a second guess is elimination", () => {
+    const missed = afterPretest(emptyConsumeProgress(), "c1", 0, false);
+    expect(afterPretest(missed, "c1", 1, true)).toBe(missed);
+  });
+
+  it("reads a row saved before pretests existed, and the phone's bare `true` check", () => {
+    const old = { idx: 2, checks: { c1: true } } as unknown as Partial<ConsumeProgress>;
+    const p = normaliseConsumeProgress(old);
+    expect(p.pretest).toEqual({});
+    expect(p.idx).toBe(2);
+    expect(p.checks.c1).toEqual({ oi: -1, correct: true });
+    expect(normaliseConsumeProgress(undefined)).toEqual(emptyConsumeProgress());
+  });
+});
+
+// W3.4 — a reading known end to end offers the proof gate instead of the ladder.
+describe("prove it on sight", () => {
+  const clean = {
+    ...emptyConsumeProgress(),
+    finished: true,
+    total: 3,
+    pretest: { a: true, b: true, c: true },
+  };
+  const plan = [
+    "consume",
+    "discriminate",
+    "socratic",
+    "crucible",
+    "recall",
+    "retain",
+  ] as const;
+
+  it("needs every section guessed right, over a finished pass of two or more", () => {
+    expect(pretestClean(clean)).toBe(true);
+    expect(pretestClean({ ...clean, finished: false })).toBe(false);
+    expect(pretestClean({ ...clean, pretest: { a: true, b: false, c: true } })).toBe(
+      false,
+    );
+    // A section read while it was being written left no guess: not clean.
+    expect(pretestClean({ ...clean, pretest: { a: true, b: true } })).toBe(false);
+    expect(pretestClean(clean, 4)).toBe(false);
+    expect(pretestClean({ ...clean, total: 1, pretest: { a: true } })).toBe(false);
+    expect(pretestClean(undefined)).toBe(false);
+  });
+
+  it("offers the proof gate once — not after it was tried, nor on a Shaky node", () => {
+    expect(provesOnSight(plan, ["consume"], "learning", clean)).toBe(true);
+    expect(provesOnSight(plan, ["consume", "crucible"], "learning", clean)).toBe(false);
+    expect(provesOnSight(plan, ["consume"], "shaky", clean, "crucible-fail")).toBe(false);
+    expect(provesOnSight(plan, ["consume"], "learning", clean, "crucible-fail")).toBe(
+      false,
+    );
+    expect(provesOnSight(plan, ["consume"], "frontier", clean)).toBe(false);
   });
 });

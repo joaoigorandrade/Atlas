@@ -97,6 +97,30 @@ function fromStored(state: StoredFsrsState): FsrsCard {
   };
 }
 
+/**
+ * How much of each node's review deck is likely still recalled right now: the
+ * mean FSRS retrievability of its reviewed cards (W4.2). A node whose cards
+ * were never reviewed is absent — nothing has had time to fade yet.
+ */
+export function nodeRetention(
+  cards: readonly StoredCard[],
+  now: Date = new Date(),
+): Record<string, number> {
+  const sums: Record<string, [number, number]> = {};
+  for (const c of cards) {
+    if (!c.fsrs.reps || !c.fsrs.last_review) continue;
+    const r = scheduler.get_retrievability(fromStored(c.fsrs), now, false);
+    if (!Number.isFinite(r)) continue;
+    const s = (sums[c.nodeId] ??= [0, 0]);
+    s[0] += r;
+    s[1] += 1;
+  }
+  return Object.fromEntries(Object.entries(sums).map(([id, [t, n]]) => [id, t / n]));
+}
+
+/** The retention FSRS schedules toward: a node below it is fading. */
+export const RETENTION_TARGET = 0.9;
+
 /** A brand-new card, due immediately. */
 export function newStoredCard(
   fields: Omit<StoredCard, "fsrs">,

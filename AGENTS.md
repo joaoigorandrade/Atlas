@@ -4,9 +4,10 @@ Atlas is a learning platform built around a living concept map (see `docs/SPEC.m
 for the full product spec, `README.md` for the overview). The onboarding flow
 (welcome → building → diagnostic → map), Phase 1 (Plan — the map's
 re-planning behavior: gap spawning, goal-conditioned ordering, pace warnings,
-skip pruning), and the session phases (all twelve: Consume, Discriminate,
-Socratic, Predict, Trace, Feynman, Perform, Drill, Connect, Crucible, Recall,
-Retain) are implemented; all content is AI-generated per topic via
+skip pruning), and the session phases (all fifteen: Consume, Discriminate, Provenance,
+Socratic, Steelman, Predict, Trace, Feynman, Perform, Drill, Produce, Connect,
+Crucible, Recall, Retain — Provenance, Steelman and Produce are the three the
+domain axis added, for interpretive and performative nodes) are implemented; all content is AI-generated per topic via
 OpenRouter (see "AI content generation" below).
 
 ## Stack
@@ -87,8 +88,8 @@ with a Portuguese string and no English one is unfinished, on either client.
 - Never concatenate a sentence out of a stem and a clause: the two languages
   don't put the pieces in the same order. Write both sentences whole, and let
   an interpolation carry only a value.
-- Phase names (Consume, Discriminate, Socratic, Predict, Trace, Feynman,
-  Perform, Drill, Connect, Crucible, Recall, Retained) are
+- Phase names (Consume, Discriminate, Provenance, Socratic, Steelman, Predict,
+  Trace, Feynman, Perform, Drill, Produce, Connect, Crucible, Recall, Retained) are
   product vocabulary and stay English in both languages. Everything a learner
   reads around them is translated. They live in `PHASE_DEFS`
   (`lib/curriculum/phases.ts`); a new phase adds its label there and to
@@ -131,7 +132,7 @@ Every phase is **purpose-built**: its own reducer in `lib/curriculum/<phase>.ts`
 its own generator and validator in `lib/server/generate/<phase>.ts`, its own
 grader, its own palette and its own screen. Not a prompt profile over another
 phase's engine — a phase that is another phase with a new prompt extracts no
-new signal, so it is a setting, not a phase. What the twelve _do_ share is
+new signal, so it is a setting, not a phase. What the fifteen _do_ share is
 plumbing: `generate()`, the warm queue, `phaseLedger`, and `PhaseShell` (the
 `Masthead` and the ladder along the bottom). The line is that layout and
 transport are shared; reducers, content shapes and gates are not.
@@ -143,7 +144,7 @@ _unbroken_ prefix rather than a fraction, since a run that broke at the first
 link and guessed the rest followed nothing; Discriminate adds a cap on
 over-inclusion, because calling every case an instance scores by luck rather
 than by the boundary. A gate that quietly became a shared two-thirds threshold
-is the twelve collapsing back into a few with extra files.
+is the fifteen collapsing back into a few with extra files.
 
 Four rules sit around the gates, and `tests/learningGates.test.ts` pins them:
 
@@ -154,11 +155,21 @@ Four rules sit around the gates, and `tests/learningGates.test.ts` pins them:
   gaps, and `attachGap`/`removeGapNode` write `graphRef` through in the same
   tick so the ledger counts them.
 - **Some proofs wait a night** (`lib/curriculum/spacing.ts`). Every completed
-  phase on a node that owes Recall holds Recall ~20h (`{ opensAt }` in its
-  `phase_progress` slot), and a failed Recall re-holds it. A Crucible passed on
+  phase on a node holds the plan's **last gate** ~20h (`heldGate` — Recall on a
+  concept, the Crucible on a procedure or principle; `{ opensAt }` merged into
+  its `phase_progress` slot, written through the ref because the hand-off reads
+  it in the same tick), so no node goes green on the day it was learned. A
+  failed Recall re-holds it. A "prove it" challenge releases the hold on its
+  proof gate (`armChallenge`), and `heldOnMap` in `useSpiral` (the iOS session
+  shell) turns a held gate back to the map for every phase that doesn't say so
+  on its own screen, as Recall and the Crucible do. A Crucible passed on
   the guided rung closes its gap but not the rung: the node stays Shaky and the
   cold problem is parked to open the next day (`useCrucible`). Retained ✓ needs
-  a Good/Easy on a card that went `RETAINED_MIN_DAYS` unseen.
+  a Good/Easy on a card that went `RETAINED_MIN_DAYS` unseen. A mastered city
+  fades on the map as its deck's FSRS retrievability drops below 90%
+  (`nodeRetention` — a display property like `frontier`, never stored; the
+  Swift mirror computes the FSRS-6 curve itself, since the phone runs no
+  scheduler).
 - **No gate is passed by clicking.** A Connect link is confirmed only with the
   learner's own words (`connectDraftReady`); a Consume check is open-answer
   first and answered once; Feynman's Fix-this is written and judged against

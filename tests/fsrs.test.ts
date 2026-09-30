@@ -5,6 +5,7 @@ import {
   retainDeck,
   retainQueueLabel,
   retainReducer,
+  suggestGrade,
   retainStart,
   reviewCard,
   type RetainAction,
@@ -18,6 +19,8 @@ import {
   gradeStoredCard,
   intervalLabels,
   newStoredCard,
+  nodeRetention,
+  RETENTION_TARGET,
   retainContentFromStore,
   withSchedule,
 } from "@/lib/fsrs";
@@ -137,6 +140,25 @@ describe("retain: a miss comes back once", () => {
   };
   const step = (s: RetainSession, a: RetainAction) => retainReducer(s, a, content);
 
+  it("keeps the answer written before the flip, and the judge's read of it (W4.3)", () => {
+    let s = step(retainStart(), { type: "flip", sure: 1, said: "  A a  " });
+    expect(s.said).toBe("A a");
+    // A verdict for a card the learner has already left is dropped.
+    expect(
+      step(s, { type: "suggest", idx: 1, grade: "good", read: "x" }).suggest,
+    ).toBeUndefined();
+    s = step(s, { type: "suggest", idx: 0, grade: "good", read: "It came back." });
+    expect(s.suggest).toEqual({ grade: "good", read: "It came back." });
+    // Dealing the next card clears both.
+    s = step(s, { type: "grade", grade: "good" });
+    expect(s.said).toBeUndefined();
+    expect(s.suggest).toBeUndefined();
+    // An answer given only in the head leaves nothing to judge.
+    expect(step(retainStart(), { type: "flip" }).said).toBeUndefined();
+    expect(suggestGrade("good")).toBe("good");
+    expect(suggestGrade("skipped")).toBe("again");
+  });
+
   it("sends the missed card to the back of the deck, and only once", () => {
     let s = retainStart();
     expect(retainDeck(s, content).length).toBe(2);
@@ -193,5 +215,23 @@ describe("retain: the queue chip counts in whole cards", () => {
     expect(retainQueueLabel(retainStart(), only, "pt-BR")).toContain("1 cartão");
     expect(retainQueueLabel(retainStart(), only, "en")).toContain("1 card");
     expect(retainQueueLabel(retainStart(), only, "pt-BR")).not.toContain("cartões");
+  });
+});
+
+// W4.2 — mastered cities fade as their review deck comes due.
+describe("nodeRetention", () => {
+  const day = 86_400_000;
+  const t0 = new Date("2026-10-01T12:00:00Z");
+  const card = (id: string, nodeId: string) =>
+    newStoredCard({ id, nodeId, type: "recall", source: "t", front: "f", back: "b" }, t0);
+
+  it("is the mean retrievability of a node's reviewed cards, falling with time", () => {
+    const reviewed = gradeStoredCard(card("a", "n"), "good", t0);
+    const fresh = card("b", "m"); // never reviewed: nothing to fade yet
+    const soon = nodeRetention([reviewed, fresh], new Date(t0.getTime() + day));
+    const later = nodeRetention([reviewed, fresh], new Date(t0.getTime() + 60 * day));
+    expect(Object.keys(soon)).toEqual(["n"]);
+    expect(soon.n).toBeGreaterThan(later.n);
+    expect(later.n).toBeLessThan(RETENTION_TARGET);
   });
 });

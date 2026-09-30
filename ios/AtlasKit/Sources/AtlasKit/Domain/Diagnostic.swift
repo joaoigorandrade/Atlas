@@ -17,6 +17,17 @@ public enum GoalKind: String, Codable, Sendable, CaseIterable {
         case .project: "Construir um projeto"
         }
     }
+
+    /// What this goal's date is called (W4.5): every goal can have one — a
+    /// trip, a class, a talk. Mirrors `goalDateLabel` in `goalDate.ts`.
+    var dateLabel: LocalizedStringKey {
+        switch self {
+        case .exam: "Data da prova"
+        case .project: "Prazo"
+        case .mastery: "Data-alvo"
+        case .pareto: "Quando você precisa"
+        }
+    }
 }
 
 /// What the welcome screen collects. `paretoPct` is only sent for the Pareto
@@ -27,8 +38,9 @@ public struct OnboardingForm: Sendable {
     public var interests = ""
     public var target = 15
     public var paretoPct = paretoLevels[0]
-    /// ISO `YYYY-MM-DD` of the exam when the goal is `.exam`; "" = not set, so
-    /// the pace surface shows no countdown instead of a fabricated one.
+    /// ISO `YYYY-MM-DD` of the goal's date — any goal may set one (W4.5); the
+    /// name predates that and is kept for the wire. "" = not set, so the pace
+    /// surface shows no countdown instead of a fabricated one.
     public var examDate = ""
 
     public init() {}
