@@ -12,10 +12,9 @@ import {
   type PhaseId,
   type ConnectSession,
   type ElaborationContent,
-  type ElaborationLink,
 } from "@/lib/curriculum";
 import { MicButton } from "@/components/VoiceInput";
-import LinkConfirm from "@/components/session/connect/LinkConfirm";
+import LinkingPrompt from "@/components/session/connect/LinkingPrompt";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
@@ -50,11 +49,6 @@ const STRINGS = {
       "Understood and connected — but not Mastered until the Crucible proves transfer.",
     notReadyNote: (linked: number, total: number) =>
       `${linked} of ${total} links made · two real connections is plenty to move on.`,
-    linkingPrompt: "Linking prompt",
-    howDoes: (center: string, cand: string) => `How does ${center} relate to ${cand}?`,
-    describeRelationship:
-      "Describe the real relationship in your own words — writing it yourself is what makes it stick.",
-    connectionPlaceholder: "Your connection…",
     pickConcept: "Pick a concept to link",
     idleBody:
       "Tap any node in the web on the left. Each real link you confirm becomes a card in the Retain phase — the tedious step, done for you.",
@@ -89,11 +83,6 @@ const STRINGS = {
       "Compreendido e conectado — mas não Dominado até o Crucible provar a transferência.",
     notReadyNote: (linked: number, total: number) =>
       `${linked} de ${total} vínculos feitos · duas conexões reais já bastam para seguir em frente.`,
-    linkingPrompt: "Prompt de vínculo",
-    howDoes: (center: string, cand: string) => `Como ${center} se relaciona com ${cand}?`,
-    describeRelationship:
-      "Descreva a relação real com suas próprias palavras — escrever você mesmo é o que fixa.",
-    connectionPlaceholder: "Sua conexão…",
     pickConcept: "Escolha um conceito para vincular",
     idleBody:
       "Toque em qualquer nó da rede à esquerda. Cada vínculo real que você confirmar vira um card na fase Retain — a parte chata, já feita para você.",
@@ -129,6 +118,8 @@ interface ConnectViewProps {
   onAcceptMnemonic: () => void;
   /** Advance to the Crucible — understood and connected, not yet Mastered. */
   onFinish: () => void;
+  /** A link is being checked before it is confirmed. */
+  judging: boolean;
 }
 
 export default function ConnectView({
@@ -143,6 +134,7 @@ export default function ConnectView({
   onDraftMnemonic,
   onAcceptMnemonic,
   onFinish,
+  judging,
 }: ConnectViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -236,6 +228,8 @@ export default function ConnectView({
                   cand={activeCand}
                   draft={session.drafts[activeCand.id] ?? ""}
                   linked={!!session.linked[activeCand.id]}
+                  ruling={session.rulings?.[activeCand.id]}
+                  judging={judging}
                   onDraft={onDraft}
                   onConfirm={onConfirm}
                 />
@@ -529,105 +523,6 @@ function ConceptWeb({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-/** The open linking prompt for one candidate — the editable relationship draft. */
-function LinkingPrompt({
-  center,
-  cand,
-  draft,
-  linked,
-  onDraft,
-  onConfirm,
-}: {
-  center: string;
-  cand: ElaborationLink;
-  draft: string;
-  linked: boolean;
-  onDraft: (id: string, value: string) => void;
-  onConfirm: (id: string) => void;
-}) {
-  const t = useT(STRINGS);
-  return (
-    <div
-      style={{
-        background: color.card,
-        border: `1px solid ${CONNECT_COLOR.border}`,
-        borderRadius: 3,
-        padding: "22px 22px 20px",
-        animation: "fadeUp .3s both",
-      }}
-    >
-      <div
-        style={{
-          fontFamily: font.mono,
-          fontSize: 10,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: VIOLET,
-          marginBottom: 12,
-        }}
-      >
-        {t.linkingPrompt}
-      </div>
-      <div
-        style={{
-          fontFamily: font.serif,
-          fontSize: 22,
-          lineHeight: 1.28,
-          marginBottom: 8,
-        }}
-      >
-        {t.howDoes(center, cand.label)}
-      </div>
-      <div
-        style={{
-          fontSize: 13,
-          color: color.inkFaint,
-          lineHeight: 1.5,
-          marginBottom: 16,
-        }}
-      >
-        {t.describeRelationship}
-      </div>
-      <div
-        style={{
-          background: color.cardAlt,
-          border: `1px solid ${color.hairlineStrong}`,
-          borderRadius: 3,
-          padding: 5,
-        }}
-      >
-        <textarea
-          value={draft}
-          data-testid="field-connection"
-          onChange={(e) => onDraft(cand.id, e.target.value)}
-          placeholder={t.connectionPlaceholder}
-          style={{
-            width: "100%",
-            // The seeded draft is a full sentence or two; a fixed box clipped it
-            // mid-word, so the learner accepted words they couldn't read.
-            fieldSizing: "content",
-            minHeight: 120,
-            resize: "vertical",
-            border: "none",
-            background: "transparent",
-            fontFamily: font.serif,
-            fontSize: 16,
-            lineHeight: 1.55,
-            color: color.ink,
-            padding: "12px 13px",
-          }}
-        />
-      </div>
-      <MicButton
-        value={draft}
-        onChange={(next) => onDraft(cand.id, next)}
-        accent={VIOLET}
-      />
-      <LinkConfirm cand={cand} draft={draft} linked={linked} onConfirm={onConfirm} />
     </div>
   );
 }

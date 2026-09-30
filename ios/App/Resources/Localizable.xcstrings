@@ -31,12 +31,42 @@
         }
       }
     },
+    "Compare com a versão do mapa para %@: “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare with the map’s version for %1$@: “%2$@”"
+          }
+        }
+      }
+    },
+    "Conferindo o vínculo…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the link…"
+          }
+        }
+      }
+    },
     "Conferir →" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Check it →"
+          }
+        }
+      }
+    },
+    "Confirmado, mas raso — " : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmed, but thin — "
           }
         }
       }
@@ -57,6 +87,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reading it…"
+          }
+        }
+      }
+    },
+    "Não confirmado — " : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not confirmed — "
           }
         }
       }
@@ -7420,17 +7460,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "streak unit"
-          }
-        }
-      }
-    },
-    "Ver a sugestão do mapa" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "See the map's suggestion"
           }
         }
       }

@@ -237,6 +237,24 @@ export interface ChoiceJudgement {
   response: string;
 }
 
+export interface ConnectJudgement {
+  verdict: "true" | "vague" | "false";
+  response: string;
+}
+
+/** A Connect link checked before it is confirmed (W1.5). */
+export function fetchJudgeConnect(params: {
+  topic: string;
+  nodeLabel: string;
+  /** The concept on the other end of the link. */
+  question: string;
+  reference: string;
+  answer: string;
+  language?: Language;
+}): Promise<ConnectJudgement> {
+  return judge({ kind: "judge", mode: "connect", ...params });
+}
+
 export function fetchJudgeChoice(
   params: {
     topic: string;

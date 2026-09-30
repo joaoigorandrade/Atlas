@@ -1057,13 +1057,13 @@ Model `openai/gpt-5.6-luna` for content and verify; two core nodes per map;
   executable 0/67, empirical 2/49 (predict 1/20, discriminate 1/10),
   **interpretive 7/31 (23%)** (discriminate 3/11, provenance 4/15),
   performative 0/60, craft 0/24, general 0/27.
-- **Tags:** no map spanned more than two domains; *Finanças pessoais* came
+- **Tags:** no map spanned more than two domains; _Finanças pessoais_ came
   back `general` with no jurisdiction.
-- **Shape:** one chain — *The French Revolution*, 23 nodes of width 1, all
-  `concept`. *Igreja Antiga* returned the scope offer instead of a map.
+- **Shape:** one chain — _The French Revolution_, 23 nodes of width 1, all
+  `concept`. _Igreja Antiga_ returned the scope offer instead of a map.
 - **Phase-minute hours vs. pace model:** linear algebra 9.1 / 6.5,
   probabilidade 13.2 / 8.0, git 9.4 / 5.2, python 8.6 / 6.5, cardio 9.1 / 7.2,
   clima 10.4 / 6.5, French Revolution 20.8 / 13.0, espanhol 3.8 / 4.0,
   italiano 3.8 / 4.0, finanças 4.2 / 2.8, sourdough 3.9 / 3.3.
-- **Locale and notation:** 0 Brazilian instruments in *Finanças pessoais*
+- **Locale and notation:** 0 Brazilian instruments in _Finanças pessoais_
   Consume; no LaTeX on either formal map.

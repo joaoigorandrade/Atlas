@@ -35,7 +35,6 @@ import SettingsScreen from "@/components/SettingsScreen";
 import ConsumeView from "@/components/session/ConsumeView";
 import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
-import ConnectView from "@/components/session/ConnectView";
 import CrucibleView from "@/components/session/CrucibleView";
 import { phaseSheets } from "@/components/session/PhaseSheets";
 import RetainView from "@/components/session/RetainView";
@@ -92,15 +91,7 @@ export default function AtlasApp({
   const warm = useMemo(() => createWarmQueue(), []);
   // The live phase sessions and the streams feeding them.
   const sessions = useSessionState();
-  const {
-    consume,
-    socratic,
-    feynman,
-    connect,
-    crucible,
-    retain,
-    reset: resetSessions,
-  } = sessions;
+  const { consume, socratic, feynman, crucible, retain, reset: resetSessions } = sessions;
   const [screen, setScreenNow] = useState<Screen>("welcome");
   const setScreen = usePageTurn(screen, setScreenNow);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -458,10 +449,7 @@ export default function AtlasApp({
     dispatchFeynman,
     feynmanTeach,
     exitFeynman,
-    dispatchConnect,
-    exitConnect,
     advanceFromFeynman,
-    advanceFromConnect,
     dispatchCrucible,
     crucibleSubmit,
     advanceFromCrucible,
@@ -527,7 +515,6 @@ export default function AtlasApp({
     modelStreaming,
     socraticSteps,
     feynmanBeats,
-    connectContent,
     crucibleContent,
     displayName,
     initials,
@@ -898,25 +885,6 @@ export default function AtlasApp({
             onFix={(judged) => dispatchFeynman({ type: "fixJudged", ...judged })}
             onTeachAgain={() => dispatchFeynman({ type: "teachAgain" })}
             onAdvance={advanceFromFeynman}
-          />,
-        )}
-
-      {openSheet === "connect" &&
-        connect &&
-        connectContent &&
-        sheetBoundary(
-          <ConnectView
-            content={connectContent}
-            session={connect}
-            plan={planOf(connect.nodeId)}
-            onExit={exitConnect}
-            onSelect={(id) => dispatchConnect({ type: "select", id })}
-            onDraft={(id, value) => dispatchConnect({ type: "draft", id, value })}
-            onConfirm={(id) => dispatchConnect({ type: "confirm", id })}
-            onPickMnemonic={(index) => dispatchConnect({ type: "pickMnemonic", index })}
-            onDraftMnemonic={(value) => dispatchConnect({ type: "draftMnemonic", value })}
-            onAcceptMnemonic={() => dispatchConnect({ type: "acceptMnemonic" })}
-            onFinish={advanceFromConnect}
           />,
         )}
 

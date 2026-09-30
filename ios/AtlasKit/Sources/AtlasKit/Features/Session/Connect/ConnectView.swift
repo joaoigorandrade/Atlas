@@ -21,7 +21,7 @@ struct ConnectView: View {
         .animation(Motion.enter, value: model == nil)
         .dismissesKeyboardOnTap()
         .task {
-            let model = model ?? ConnectViewModel(session: session)
+            let model = model ?? ConnectViewModel(session: session, api: store.api)
             self.model = model
             await model.load()
         }
@@ -116,21 +116,27 @@ struct ConnectView: View {
                              dictation: model.dictation,
                              minHeight: 88, tint: Palette.connectInk)
                     .padding(.top, 14)
-                // Offered, not imposed: the box opens blank, and the map's own
-                // sentence is one tap away until there is something of theirs
-                // to overwrite.
-                if model.canSuggest(candidate) {
-                    Button("Ver a sugestão do mapa") { model.suggest(candidate) }
+                // The box opens blank and the map's own sentence is shown only
+                // after a link is confirmed, as a comparison (W1.5).
+                if let ruling = model.rulings[candidate.id], ruling.verdict != "true" {
+                    Text(verbatim: (ruling.verdict == "false"
+                        ? String(localized: "Não confirmado — ")
+                        : String(localized: "Confirmado, mas raso — ")) + ruling.response)
                         .font(.atlas(.serif, 14.5))
-                        .foregroundStyle(Palette.connectInk)
-                        .frame(minHeight: Metrics.tap)
-                        .contentShape(.rect)
-                        .padding(.top, 2)
+                        .foregroundStyle(Palette.amberInk)
+                        .padding(.top, 8)
                 }
-                CTAButton(model.linked.contains(candidate.id) ? "Reescrever o vínculo" : "Confirmar vínculo",
+                if let compare = model.compare {
+                    Text("Compare com a versão do mapa para \(compare.label): “\(compare.rel)”")
+                        .font(.atlas(.serif, 14))
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.top, 8)
+                }
+                CTAButton(model.judging ? "Conferindo o vínculo…"
+                          : model.linked.contains(candidate.id) ? "Reescrever o vínculo" : "Confirmar vínculo",
                           tint: Palette.connectInk) {
                     model.dictation.flush()
-                    model.confirm(candidate)
+                    Task { await model.confirm(candidate) }
                 }
                     .padding(.top, 12)
                     .disabled(!model.canConfirm(candidate))

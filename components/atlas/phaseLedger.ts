@@ -107,7 +107,10 @@ export function usePhaseLedger(deps: {
         phase,
         passed: true,
         score,
-        detail: { ...(shaky ? { shaky } : null), ...(challenged ? { challenged } : null) },
+        detail: {
+          ...(shaky ? { shaky } : null),
+          ...(challenged ? { challenged } : null),
+        },
       });
       const plan = phasePlan(node);
       const done = ledgerAfter(plan, prev, phase, challenged);

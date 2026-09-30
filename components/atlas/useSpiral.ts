@@ -22,6 +22,7 @@ import {
   primaryPhase,
   SOCRATIC_STEPS,
   connectCards,
+  connectDraftReady,
   connectReducer,
   connectStart,
   CONFIDENCE_FELT,
@@ -68,6 +69,7 @@ import {
   fetchPassageStream,
   fetchRetain,
   fetchSocraticStream,
+  fetchJudgeConnect,
 } from "@/lib/api";
 import { usePhaseLedger } from "@/components/atlas/phaseLedger";
 import { useDiscriminate } from "@/components/atlas/useDiscriminate";
@@ -1152,6 +1154,40 @@ export function useSpiral(deps: {
     });
   };
 
+  /**
+   * Confirm a link — checked first (W1.5). The judge rules the learner's own
+   * sentence `true | vague | false`; a false one is not confirmed, and the
+   * line that says why stays under the box. These sentences become cards.
+   */
+  const connectConfirm = (id: string) => {
+    const cur = connect;
+    const content = cur && connectCacheRef.current[cur.nodeId];
+    const cand = content?.cands.find((c) => c.id === id);
+    const draft = cur?.drafts[id] ?? "";
+    if (!cur || !content || !cand || judgingRef.current) return;
+    if (!connectDraftReady(draft, cand.rel)) return;
+    setJudging(true);
+    fetchJudgeConnect({
+      topic: formRef.current.topic,
+      nodeLabel: content.centerLabel,
+      question: cand.label,
+      reference: cand.rel,
+      answer: draft,
+      language: languageRef.current,
+    })
+      .then((j) =>
+        dispatchConnect({
+          type: "confirm",
+          id,
+          ruling: { verdict: j.verdict, line: j.response },
+        }),
+      )
+      // An unreachable judge must not wedge the phase: the link confirms on
+      // the learner's own words, as it did before there was a check.
+      .catch(() => dispatchConnect({ type: "confirm", id }))
+      .finally(() => setJudging(false));
+  };
+
   const exitConnect = () => {
     // Park the pass, don't discard it: ← Map is "come back to this later".
     if (connect) setConnectProgress((prev) => ({ ...prev, [connect.nodeId]: connect }));
@@ -1783,6 +1819,7 @@ export function useSpiral(deps: {
     exitFeynman,
     enterConnect,
     dispatchConnect,
+    connectConfirm,
     exitConnect,
     advanceFromFeynman,
     advanceFromConnect,

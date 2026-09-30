@@ -12,6 +12,7 @@
 // point: a phase added here costs one block, not another dozen names threaded
 // through the shell.
 
+import ConnectView from "@/components/session/ConnectView";
 import ProduceView from "@/components/session/ProduceView";
 import ProvenanceView from "@/components/session/ProvenanceView";
 import SteelmanView from "@/components/session/SteelmanView";
@@ -89,7 +90,13 @@ export function phaseSheets(p: {
     advanceFromPerform,
     exitPerform,
     domainPhases,
+    dispatchConnect,
+    connectConfirm,
+    advanceFromConnect,
+    exitConnect,
   } = spiral;
+  const { connect } = sessions;
+  const { connectContent } = derived;
   const {
     dispatchProvenance,
     advanceFromProvenance,
@@ -181,6 +188,26 @@ export function phaseSheets(p: {
             onAnswer={(index) => dispatchDrill({ type: "answer", index })}
             onNext={() => dispatchDrill({ type: "next" })}
             onAdvance={advanceFromDrill}
+          />,
+        )}
+
+      {openSheet === "connect" &&
+        connect &&
+        connectContent &&
+        sheetBoundary(
+          <ConnectView
+            content={connectContent}
+            session={connect}
+            plan={planOf(connect.nodeId)}
+            onExit={exitConnect}
+            onSelect={(id) => dispatchConnect({ type: "select", id })}
+            onDraft={(id, value) => dispatchConnect({ type: "draft", id, value })}
+            onConfirm={connectConfirm}
+            onPickMnemonic={(index) => dispatchConnect({ type: "pickMnemonic", index })}
+            onDraftMnemonic={(value) => dispatchConnect({ type: "draftMnemonic", value })}
+            onAcceptMnemonic={() => dispatchConnect({ type: "acceptMnemonic" })}
+            onFinish={advanceFromConnect}
+            judging={judging}
           />,
         )}
 

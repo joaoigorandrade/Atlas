@@ -487,6 +487,22 @@ public struct ElaborationContent: Decodable, Sendable {
 /// Screen 17's pass, parked. Field for field the browser's `ConnectSession`,
 /// because the two clients resume the same elaboration off the same column —
 /// including the two mnemonic fields, which only list-like content ever fills.
+/// The judge's read of one Connect link (W1.5): `false` is never confirmed.
+public struct ConnectRuling: Codable, Sendable {
+    public let verdict: String
+    public let response: String
+}
+
+/// Is this draft the learner's own link? Six words, and not the map's
+/// suggestion pasted back. Mirrors `connectDraftReady`.
+public func connectDraftReady(_ draft: String, _ suggestion: String) -> Bool {
+    func said(_ t: String) -> [Substring] {
+        t.lowercased().split { !$0.isLetter && !$0.isNumber }
+    }
+    let own = said(draft)
+    return own.count >= 6 && own != said(suggestion)
+}
+
 public struct ConnectSnapshot: Codable, Sendable {
     public var nodeId: String
     /// The candidate whose linking prompt is open, or nil.

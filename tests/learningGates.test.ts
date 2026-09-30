@@ -5,12 +5,14 @@
 import { describe, expect, it } from "vitest";
 import {
   CONFIDENCE_FELT,
-  CONNECT_MIN_DRAFT,
+  CONNECT_MIN_WORDS,
   RETAINED_MIN_DAYS,
   SPACING_MS,
   connectDraftReady,
   connectReducer,
+  connectCards,
   connectStart,
+  type ConnectSession,
   crucibleReal,
   crucibleScaffolded,
   crucibleStart,
@@ -150,7 +152,8 @@ describe("Connect confirms only the learner's own words", () => {
 
   it("needs a real draft, and not the suggestion pasted back", () => {
     expect(connectDraftReady("", content.cands[0].rel)).toBe(false);
-    expect(connectDraftReady("x".repeat(CONNECT_MIN_DRAFT - 1), "")).toBe(false);
+    expect(connectDraftReady("they are ".repeat(2).trim(), "")).toBe(false);
+    expect(CONNECT_MIN_WORDS).toBe(6);
     expect(
       connectDraftReady("  c GENERALISES p to any basis ", content.cands[0].rel),
     ).toBe(false);
@@ -174,6 +177,30 @@ describe("Connect confirms only the learner's own words", () => {
         p: true,
       },
     );
+  });
+
+  it("does not confirm a link the judge rules false, and never cards the map's sentence", () => {
+    const drafted = connectReducer(
+      connectStart("c"),
+      { type: "draft", id: "p", value: "P is the opposite of C in every case." },
+      content,
+    );
+    const ruled = connectReducer(
+      drafted,
+      {
+        type: "confirm",
+        id: "p",
+        ruling: { verdict: "false", line: "They are not opposites." },
+      },
+      content,
+    );
+    expect(ruled.linked.p).toBe(false);
+    expect(ruled.rulings?.p.verdict).toBe("false");
+    expect(connectCards(ruled, content)).toEqual([]);
+    // A saved session from before rulings reads as none ruled, and a confirmed
+    // link with no words of its own drafts no card on the suggestion.
+    const legacy = { ...connectStart("c"), linked: { p: true } } as ConnectSession;
+    expect(connectCards(legacy, content)).toEqual([]);
   });
 });
 

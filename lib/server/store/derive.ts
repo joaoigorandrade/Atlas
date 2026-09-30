@@ -11,7 +11,12 @@
 // It also stamps `phase_closed_at` — when each phase first entered the ledger —
 // which only the server can do honestly, since a client clock can be anything.
 
-import { phasePlan, stateFromPlan, type PhaseId, type ProgressState } from "@/lib/curriculum";
+import {
+  phasePlan,
+  stateFromPlan,
+  type PhaseId,
+  type ProgressState,
+} from "@/lib/curriculum";
 import { fail, type Db } from "@/lib/server/store/shared";
 
 export interface LedgerRow {
@@ -37,13 +42,17 @@ export function deriveRow(
   const closedAt = { ...(row.phase_closed_at ?? {}) };
   for (const p of done) closedAt[p] ??= now;
   if (row.is_gap) return { state: row.state, closedAt };
-  const state = stateFromPlan(phasePlan({ phasePlan: row.phase_plan ?? undefined }), done, {
-    shaky: (row.shaky_reason ?? undefined) as never,
-    gaps,
-    // Work begun with nothing finished — a part-read reading pass. A client
-    // saying "learning" is not a mastery claim, so it is believed.
-    started: row.consume_progress != null || row.state !== "unknown",
-  });
+  const state = stateFromPlan(
+    phasePlan({ phasePlan: row.phase_plan ?? undefined }),
+    done,
+    {
+      shaky: (row.shaky_reason ?? undefined) as never,
+      gaps,
+      // Work begun with nothing finished — a part-read reading pass. A client
+      // saying "learning" is not a mastery claim, so it is believed.
+      started: row.consume_progress != null || row.state !== "unknown",
+    },
+  );
   return { state, closedAt };
 }
 
@@ -76,8 +85,9 @@ export async function settleNodes(
   const out: Record<string, ProgressState> = {};
   for (const row of all) {
     if (!want.has(row.id)) continue;
-    const gaps = (edges ?? []).filter((e) => e.from_id === row.id && gapIds.has(e.to_id))
-      .length;
+    const gaps = (edges ?? []).filter(
+      (e) => e.from_id === row.id && gapIds.has(e.to_id),
+    ).length;
     const { state, closedAt } = deriveRow(row, gaps, now);
     out[row.id] = state;
     const stamped =

@@ -16,7 +16,10 @@ import { fail, type Db } from "@/lib/server/store/shared";
 /** `topics` column → body field, for every stamped axis but the neighbours
  *  (which are read off sibling maps, not a column). A wave that adds an axis
  *  adds its column here and to `topicAxes` in `jobInput.ts`. */
-export const TOPIC_AXIS_COLUMNS = {} as const satisfies Record<string, keyof GenerateBody>;
+export const TOPIC_AXIS_COLUMNS = {} as const satisfies Record<
+  string,
+  keyof GenerateBody
+>;
 
 type Axes = Partial<Pick<GenerateBody, "neighbours">> & Record<string, unknown>;
 
@@ -37,7 +40,10 @@ async function axesOf(db: Db, topicId: string): Promise<Axes> {
       : Promise.resolve({} as Record<string, unknown>),
   ]);
   const out: Axes = neighbours.length ? { neighbours } : {};
-  for (const [column, field] of Object.entries(TOPIC_AXIS_COLUMNS) as [string, string][]) {
+  for (const [column, field] of Object.entries(TOPIC_AXIS_COLUMNS) as [
+    string,
+    string,
+  ][]) {
     const v = row[column];
     if (v != null && v !== "") out[field] = v;
   }

@@ -123,7 +123,11 @@ export async function deleteNodes(
 
 type CellRows = Map<
   string,
-  { importance?: NodeImportance; difficulty?: NodeDifficulty; rerun?: Record<string, number> }
+  {
+    importance?: NodeImportance;
+    difficulty?: NodeDifficulty;
+    rerun?: Record<string, number>;
+  }
 >;
 
 /**
@@ -180,9 +184,16 @@ async function cellRows(db: SupabaseClient, topicId: string): Promise<CellRows> 
   if (error) fail("read node cells", error);
   if (triesError) fail("read node attempts", triesError);
   const rows: CellRows = new Map(
-    (data ?? []).map((r) => [r.id, { importance: r.importance, difficulty: r.difficulty }]),
+    (data ?? []).map((r) => [
+      r.id,
+      { importance: r.importance, difficulty: r.difficulty },
+    ]),
   );
-  for (const t of (tries ?? []) as { node_id: string; phase: string; passed: boolean }[]) {
+  for (const t of (tries ?? []) as {
+    node_id: string;
+    phase: string;
+    passed: boolean;
+  }[]) {
     const row = rows.get(t.node_id);
     if (!row || !RERUN[t.phase]?.(t.passed)) continue;
     row.rerun = { ...row.rerun, [t.phase]: (row.rerun?.[t.phase] ?? 0) + 1 };

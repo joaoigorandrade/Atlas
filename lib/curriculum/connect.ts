@@ -111,6 +111,16 @@ export interface ConnectSession {
   mnemonicDraft: string;
   /** True once the learner accepts the aid — it then drafts its own card. */
   mnemonicAccepted: boolean;
+  /** The judge's read of each link it was asked to confirm (W1.5). Absent on
+   *  every session saved before it, which reads as none ruled. */
+  rulings?: Record<string, ConnectRuling>;
+}
+
+/** How a link held up: `false` is never confirmed; `vague` is, with the line
+ *  saying what it lacks. These sentences become cards rehearsed for months. */
+export interface ConnectRuling {
+  verdict: "true" | "vague" | "false";
+  line: string;
 }
 
 export function connectStart(nodeId: string): ConnectSession {
@@ -128,14 +138,14 @@ export function connectStart(nodeId: string): ConnectSession {
 export type ConnectAction =
   | { type: "select"; id: string }
   | { type: "draft"; id: string; value: string }
-  | { type: "confirm"; id: string }
+  | { type: "confirm"; id: string; ruling?: ConnectRuling }
   | { type: "pickMnemonic"; index: number }
   | { type: "draftMnemonic"; value: string }
   | { type: "acceptMnemonic" };
 
-/** The fewest characters a link has to say before confirming it means
- *  anything — about one short clause. */
-export const CONNECT_MIN_DRAFT = 20;
+/** The fewest words a link has to say before confirming it means anything —
+ *  one real clause, not "they are related". */
+export const CONNECT_MIN_WORDS = 6;
 
 const said = (text: string) =>
   text
@@ -153,7 +163,10 @@ export function connectDraftReady(
   suggestion: string,
 ): boolean {
   const own = (draft ?? "").trim();
-  return own.length >= CONNECT_MIN_DRAFT && said(own) !== said(suggestion);
+  return (
+    said(own).split(" ").filter(Boolean).length >= CONNECT_MIN_WORDS &&
+    said(own) !== said(suggestion)
+  );
 }
 
 /**
@@ -185,7 +198,17 @@ export function connectReducer(
       const cand = content.cands.find((c) => c.id === action.id);
       if (!cand || !connectDraftReady(session.drafts[action.id], cand.rel))
         return session;
-      return { ...session, linked: { ...session.linked, [action.id]: true } };
+      const rulings = action.ruling
+        ? { ...session.rulings, [action.id]: action.ruling }
+        : session.rulings;
+      // A link the judge ruled false is not confirmed — and a confirmed one
+      // re-worded into something false comes back off.
+      const holds = action.ruling?.verdict !== "false";
+      return {
+        ...session,
+        rulings,
+        linked: { ...session.linked, [action.id]: holds },
+      };
     }
     case "pickMnemonic": {
       const opt = content.mnemonics?.[action.index];
@@ -287,13 +310,13 @@ export function connectCards(
 ): ConnectCard[] {
   const copy = CONNECT_CARD_COPY[lang];
   const cards: ConnectCard[] = content.cands
-    .filter((c) => session.linked[c.id])
-    // An empty draft falls back to the map's suggested relationship, so a
-    // confirmed link never becomes a card with a blank back.
+    // The learner's own sentence and nothing else: the map's suggestion is
+    // never a card back (W1.5). A link confirmed without words drafts nothing.
+    .filter((c) => session.linked[c.id] && session.drafts[c.id]?.trim())
     .map((c) => ({
       key: `${content.centerId}-connect-${c.id}`,
       front: copy.link(content.centerLabel, c.label),
-      back: (session.drafts[c.id]?.trim() || c.rel).trim(),
+      back: session.drafts[c.id].trim(),
       kind: "link" as const,
     }));
   if (

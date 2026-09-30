@@ -128,4 +128,3 @@ export function neighbourLines(
       lines.push(`${s.label} (not charted yet): ${s.note}`);
   return lines.sort();
 }
-

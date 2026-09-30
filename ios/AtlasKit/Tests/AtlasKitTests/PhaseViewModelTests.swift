@@ -181,15 +181,19 @@ private let web = #"""
 @MainActor
 @Test func connectAsksForTwoLinksIntoTheWebOnScreen() async throws {
     let (_, session) = try pass(.connect, web, withLearned: true)
-    let model = ConnectViewModel(session: session)
+    let model = ConnectViewModel(session: session, api: session.store.api)
     await model.load()
     let candidates = try #require(model.content?.cands)
     #expect(model.required == 2)
-    model.suggest(candidates[0])
-    model.confirm(candidates[0])
+    // The map's own sentence pasted back is not the learner's link (W1.5),
+    // and neither is anything under six words.
+    model.draft(candidates[0]).wrappedValue = candidates[0].rel
+    #expect(!model.canConfirm(candidates[0]))
+    model.draft(candidates[0]).wrappedValue = "a derivada é o limite da razão incremental"
+    await model.confirm(candidates[0])
     #expect(!model.ready)
-    model.suggest(candidates[1])
-    model.confirm(candidates[1])
+    model.draft(candidates[1]).wrappedValue = "sem o limite existir não há como falar em continuidade"
+    await model.confirm(candidates[1])
     #expect(model.ready)
 }
 
@@ -198,7 +202,7 @@ private let web = #"""
 @MainActor
 @Test func connectWithNothingToWireClosesTheRung() async throws {
     let (store, session) = try pass(.connect, web)
-    let model = ConnectViewModel(session: session)
+    let model = ConnectViewModel(session: session, api: session.store.api)
     await model.load()
     #expect(model.nothingToWire)
     model.skip()

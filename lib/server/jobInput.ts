@@ -104,7 +104,8 @@ export interface GenerateBody {
     | "recall"
     | "perform"
     | "steelman"
-    | "produce";
+    | "produce"
+    | "connect";
   question?: string;
   options?: string[];
   reference?: string;

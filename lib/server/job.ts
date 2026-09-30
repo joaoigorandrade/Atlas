@@ -55,6 +55,8 @@ import {
   continentLinksParams,
   linksPayload,
   verifiedRun,
+  judgeConnect,
+  judgeConnectStream,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import {
@@ -640,6 +642,20 @@ function buildJob(body: GenerateBody): Job {
         return uncached(
           async () => ({ judgement: await judgeSocratic(p) }),
           () => judgeSocraticStream(p),
+        );
+      }
+      if (body.mode === "connect") {
+        const p = {
+          topic,
+          nodeLabel,
+          question: s(body.question).slice(0, CAPS.nodeLabel),
+          reference: s(body.reference).slice(0, CAPS.freeText),
+          answer,
+          language,
+        };
+        return uncached(
+          async () => ({ judgement: await judgeConnect(p) }),
+          () => judgeConnectStream(p),
         );
       }
       if (body.mode === "feynman") {
