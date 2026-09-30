@@ -23,6 +23,7 @@ import type {
   PhaseProgress,
   OnboardingForm,
   PhasesDoneMap,
+  ProgressState,
   ShakyReason,
   SocraticSession,
   StateMap,
@@ -170,6 +171,8 @@ export async function pushRun(run: {
   topicShot: string;
   edges: ConceptGraph["edges"];
   saved: Baselines;
+  /** Where the server's re-derived states land when they differ (W0.1). */
+  adopt?: (states: Record<string, ProgressState>) => void;
 }): Promise<boolean> {
   const { topicId, nodes, cards, cardShots, topicShot, edges, saved } = run;
   const writes: Array<Promise<unknown>> = [];
@@ -192,8 +195,9 @@ export async function pushRun(run: {
   const removed = Object.keys(saved.nodes.current).filter((id) => !(id in nodes));
   if (deltas.length || removed.length)
     writes.push(
-      withRetry(() => patchNodes(topicId, deltas, removed)).then(() => {
+      withRetry(() => patchNodes(topicId, deltas, removed)).then((res) => {
         saved.nodes.current = nodes;
+        if (res?.states && Object.keys(res.states).length) run.adopt?.(res.states);
       }),
     );
 

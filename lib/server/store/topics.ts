@@ -96,6 +96,7 @@ type NodeRow = {
   feynman_progress: FeynmanSession | null;
   connect_progress: ConnectSession | null;
   phase_progress: PhaseProgress | null;
+  phase_closed_at: Record<string, string> | null;
 };
 
 type EdgeRow = { topic_id: string; from_id: string; to_id: string; dashed: boolean };
@@ -113,7 +114,7 @@ export type CardRow = {
 const TOPIC_COLUMNS =
   "id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at, continent:continents(id, name, scopes)";
 const NODE_COLUMNS =
-  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, importance, difficulty, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress";
+  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, importance, difficulty, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress, phase_closed_at";
 export const CARD_COLUMNS = "topic_id, id, node_id, type, source, content, fsrs";
 
 /** A card row as the screens hold it. The content fields travel as one object
@@ -160,6 +161,7 @@ function assemble(
     feynmanProgress: {},
     connectProgress: {},
     phaseProgress: {},
+    phaseClosedAt: {},
     cards: [],
     continent: (topic.continent as Topic["continent"]) ?? null,
   };
@@ -205,6 +207,8 @@ function assemble(
     // One key per parked post-catalogue phase; `{}` from the column default.
     if (n.phase_progress && Object.keys(n.phase_progress).length)
       out.phaseProgress[n.id] = n.phase_progress;
+    if (n.phase_closed_at && Object.keys(n.phase_closed_at).length)
+      out.phaseClosedAt![n.id] = n.phase_closed_at;
   }
   for (const e of edges)
     out.graph.edges.push([e.from_id, e.to_id, e.dashed] as ConceptEdge);

@@ -10,7 +10,9 @@ import { apiError, apiErrorFrom, withRequestId } from "@/lib/server/apiError";
 import {
   applyNodeDeltas,
   deleteNodes,
+  gapParents,
   ownsTopic,
+  settleNodes,
   type NodeDelta,
 } from "@/lib/server/store";
 import { caller, isResponse, jsonBody } from "@/lib/server/v1";
@@ -40,10 +42,21 @@ export async function PATCH(request: Request, { params }: Params) {
     if (!(await ownsTopic(who.db, id)))
       return apiError("notfound", { requestId: who.requestId });
     await applyNodeDeltas(who.db, who.userId, id, deltas);
+    const parents = await gapParents(who.db, id, remove);
     // After the upserts, so a re-plan that replaces a gap with a real node in
     // one batch lands the replacement before the old row goes.
     await deleteNodes(who.db, id, remove);
-    return withRequestId(NextResponse.json({ ok: true }), who.requestId);
+    // The server, not the client, says what the ledger makes each node
+    // (`derive.ts`). Only disagreements travel back; both clients adopt them.
+    const settled = await settleNodes(who.db, id, [
+      ...deltas.map((d) => d.id),
+      ...parents.filter((p) => !remove.includes(p)),
+    ]);
+    const sent = new Map(deltas.map((d) => [d.id, d.state]));
+    const states = Object.fromEntries(
+      Object.entries(settled).filter(([n, s]) => sent.get(n) !== s),
+    );
+    return withRequestId(NextResponse.json({ ok: true, states }), who.requestId);
   } catch (err) {
     logError("nodes_patch_failed", err, { req: who.requestId });
     return apiErrorFrom(err, { requestId: who.requestId });

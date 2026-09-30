@@ -68,15 +68,22 @@ public actor RunStore {
 
     /// Apply a batch of node deltas, and remove the nodes that left the map.
     /// The map's only write path.
+    ///
+    /// Returns the states the server re-derived differently from what was sent
+    /// (W0.1): the server is the authority on what a ledger makes a node.
+    @discardableResult
     public func patchNodes(
         _ id: String, deltas: [NodeDelta], remove: [String], token: String
-    ) async throws {
-        guard !deltas.isEmpty || !remove.isEmpty else { return }
+    ) async throws -> [String: NodeState] {
+        guard !deltas.isEmpty || !remove.isEmpty else { return [:] }
         let body = JSONValue.object([
             "deltas": try JSONValue(encoding: deltas),
             "remove": .array(remove.map(JSONValue.string)),
         ])
-        _ = try await send(try RunEndpoint.nodes(id, body: body, token: token))
+        let response = try await send(try RunEndpoint.nodes(id, body: body, token: token))
+        struct Corrections: Decodable { let states: [String: String]? }
+        let raw = (try? JSONDecoder().decode(Corrections.self, from: response.data))?.states ?? [:]
+        return raw.compactMapValues(NodeState.init(rawValue:))
     }
 
     public func patchTopic(_ id: String, body: JSONValue, token: String) async throws {

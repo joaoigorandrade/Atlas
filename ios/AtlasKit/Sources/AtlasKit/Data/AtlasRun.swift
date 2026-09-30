@@ -56,6 +56,9 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     /// draw a phase must still hand its parked session back untouched rather
     /// than drop it.
     public var phaseProgress: [String: JSONValue]
+    /// When each phase first closed, per node — stamped by the server, never
+    /// written by a client. The later-day rule reads it.
+    public var phaseClosedAt: [String: [String: String]]
     /// What the learner keeps getting wrong, run-wide. A topic field, not a
     /// node one: the whole point of it is that it crosses concepts.
     public var misconceptions: [MisconceptionRecord]
@@ -85,7 +88,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         case calibSamples, litToday, updatedAt, graph, states, positions
         case shakyReasons, phasesDone, reviewedNodes, consumeProgress, socraticProgress
         case feynmanProgress, connectProgress, phaseProgress, misconceptions, cards
-        case continent
+        case continent, phaseClosedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -116,6 +119,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         feynmanProgress = (try? c.decode([String: JSONValue].self, forKey: .feynmanProgress)) ?? [:]
         connectProgress = (try? c.decode([String: JSONValue].self, forKey: .connectProgress)) ?? [:]
         phaseProgress = (try? c.decode([String: JSONValue].self, forKey: .phaseProgress)) ?? [:]
+        phaseClosedAt = (try? c.decode([String: [String: String]].self, forKey: .phaseClosedAt)) ?? [:]
         misconceptions = c.lenientList(.misconceptions)
         cards = c.lenientList(.cards)
         continent = try? c.decodeIfPresent(Continent.self, forKey: .continent)

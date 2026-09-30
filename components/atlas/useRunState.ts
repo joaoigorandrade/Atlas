@@ -629,6 +629,7 @@ export function useRunState(opts: {
         topicShot,
         edges: graph.edges,
         saved: { nodes: savedNodesRef, cards: savedCardsRef, topic: savedTopicRef },
+        adopt: (s) => setStates((p) => ({ ...p, ...s })),
       })
         .then((wrote) => {
           if (wrote) setSaveFailed(false);
