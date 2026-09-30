@@ -23,7 +23,7 @@ import {
   loadLibrary,
   neighbourLines,
   patchTopic,
-  withNeighbours,
+  withTopicAxes,
 } from "@/lib/server/store";
 import { continentAtlas, ownerOf } from "@/components/map/continentLayout";
 import { mapBounds } from "@/components/map/mapGeometry";
@@ -152,7 +152,7 @@ describe("continents in the store", () => {
     });
     const calc = await makeTopic("Calculus", c.id);
     await makeTopic("Probability", c.id);
-    const stamped = await withNeighbours(db(), {
+    const stamped = await withTopicAxes(db(), {
       ...consume,
       topicId: calc.id,
       neighbours: ["forged"],
@@ -164,11 +164,11 @@ describe("continents in the store", () => {
 
     // Leaving the continent takes the axis away entirely.
     await patchTopic(db(), calc.id, { continentId: null });
-    const alone = await withNeighbours(db(), { ...consume, topicId: calc.id });
+    const alone = await withTopicAxes(db(), { ...consume, topicId: calc.id });
     expect(alone).not.toHaveProperty("neighbours");
     // And no topic at all means nothing to look up — and nothing forged kept.
     expect(
-      await withNeighbours(db(), { ...consume, neighbours: ["x"] }),
+      await withTopicAxes(db(), { ...consume, neighbours: ["x"] }),
     ).not.toHaveProperty("neighbours");
   });
 });

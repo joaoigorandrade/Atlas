@@ -125,7 +125,7 @@ type CellRows = Map<string, { importance?: NodeImportance; difficulty?: NodeDiff
 
 /**
  * Stamp a per-node generation with the node's stored importance and
- * difficulty, *on the server* — the same move as `withNeighbours`, for the
+ * difficulty, *on the server* — the same move as `withTopicAxes`, for the
  * same reason: every path that hashes a job calls it first, so the browser,
  * the phone and the frontier warm address the same row without either client
  * carrying the cell. Whatever a client sends is dropped.

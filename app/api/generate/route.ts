@@ -35,7 +35,7 @@ import {
   ndjsonStream,
   payloadToFrames,
 } from "@/lib/server/stream";
-import { withNeighbours, withNodeCell } from "@/lib/server/store";
+import { withNodeCell, withTopicAxes } from "@/lib/server/store";
 import { createClient } from "@/lib/supabase/server";
 
 // Content generation is a real LLM round-trip — allow it time. It has to fit
@@ -84,10 +84,11 @@ export async function POST(request: Request) {
 
   let job;
   try {
-    // The continent's other maps are a key input only the server may supply.
+    // Topic-level axes (the continent's other maps, the target language, …)
+    // are key inputs only the server may supply.
     body = await withNodeCell(
       supabase as never,
-      await withNeighbours(supabase as never, body),
+      await withTopicAxes(supabase as never, body),
     );
     job = resolveJob(body);
   } catch (err) {

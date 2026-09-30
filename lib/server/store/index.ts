@@ -21,3 +21,4 @@ export * from "./cards";
 export * from "./content";
 export * from "./continents";
 export * from "./derive";
+export * from "./topicAxes";

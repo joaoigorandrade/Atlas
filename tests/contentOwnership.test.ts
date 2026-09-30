@@ -15,7 +15,7 @@ const shared = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getClaims: async () => ({ data: { claims: { sub: "u1" } }, error: null }) },
-    // `withNeighbours` asks which continent the topic is in: none.
+    // `withTopicAxes` asks which continent the topic is in: none.
     from: () => ({
       select: () => ({
         eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),

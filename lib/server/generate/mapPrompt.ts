@@ -35,7 +35,7 @@ export interface MapParams {
    *  the escape hatch is spent — offering it again is the app re-asking a
    *  question it has already been answered. See `mapContext`. */
   scoped?: boolean;
-  /** The other maps of this map's continent (`withNeighbours`) — each owns its
+  /** The other maps of this map's continent (`withTopicAxes`) — each owns its
    *  own concepts, so this map must not carry them. */
   neighbours?: string[];
   language?: Language;

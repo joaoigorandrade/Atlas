@@ -18,7 +18,7 @@ import {
 import { recordContent } from "@/lib/server/afterBuild";
 import { readManyContent } from "@/lib/server/contentCache";
 import { BadRequest, resolveJob, type GenerateBody } from "@/lib/server/job";
-import { withNeighbours, withNodeCell } from "@/lib/server/store";
+import { withNodeCell, withTopicAxes } from "@/lib/server/store";
 import { createClient } from "@/lib/supabase/server";
 
 /** A pure cache read — bounded so one request can't sweep the table.
@@ -58,11 +58,11 @@ export async function POST(request: Request) {
   const raw = Array.isArray(body.items) ? body.items.slice(0, MAX_ITEMS) : [];
   // Stamped exactly as /api/generate stamps them, or a warm and the click after
   // it hash different rows. One read per topic, however many items share it.
-  const memo = new Map<string, Promise<string[]>>();
+  const memo: Parameters<typeof withTopicAxes>[2] = new Map();
   const cells: Parameters<typeof withNodeCell>[2] = new Map();
   const items = await Promise.all(
     raw.map((item) =>
-      withNeighbours(supabase as never, item, memo)
+      withTopicAxes(supabase as never, item, memo)
         .then((b) => withNodeCell(supabase as never, b, cells))
         .catch((err: unknown) => {
           logError("content_neighbours_failed", err, { req: requestId });

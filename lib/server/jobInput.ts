@@ -65,7 +65,7 @@ export interface GenerateBody {
   priorLabels?: string[];
   laterLabels?: string[];
   /** What the other maps of this topic's continent teach. Set by the server
-   *  alone (`withNeighbours`) — whatever a client sends is dropped. */
+   *  alone (`withTopicAxes`) — whatever a client sends is dropped. */
   neighbours?: string[];
   /** continentLinks: the continent's maps, each with its concept labels. */
   maps?: Array<{ subject?: unknown; labels?: unknown }>;
@@ -203,7 +203,7 @@ export const boundary = (
   };
 };
 
-/** The continent's other maps (`withNeighbours`), or nothing outside one —
+/** The continent's other maps (`withTopicAxes`), or nothing outside one —
  *  omitted rather than empty, so a map on its own keys to the row it always
  *  did and no VERSION bump is owed. Each line is a whole map's worth of
  *  labels, so it is capped as free text rather than as a label. */
