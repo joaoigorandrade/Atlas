@@ -83,9 +83,29 @@ private func card(_ id: String = "c1", node: String = "lat") -> ReviewCard {
     #expect(review.deck.count == 2)
 }
 
+/// A stored card last reviewed `days` ago — what `earnsRetained` measures.
+private func seen(_ days: Double, id: String = "c1") -> StoredCard {
+    let at = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-days * 86_400))
+    return StoredCard(id: id, nodeId: "lat", type: .recall, source: "de Connect", back: "",
+                      fsrs: .object(["last_review": .string(at), "reps": .number(1)]))
+}
+
+@MainActor
+@Test func aGoodOnACardSeenThisWeekEarnsNothing() {
+    // Retido ✓ is durability: a Good on a card that has not survived
+    // `retainedMinDays` unseen says nothing about weeks.
+    let owner = store()
+    owner.cards = [seen(2)]
+    let review = ReviewViewModel(store: owner, deck: [card()])
+    review.flip()
+    review.grade(.good)
+    #expect(!owner.reviewed.contains("lat"))
+}
+
 @MainActor
 @Test func onlyARealReviewEarnsRetained() {
     let owner = store()
+    owner.cards = [seen(8)]
     let review = ReviewViewModel(store: owner, deck: [card()])
     review.flip()
     review.grade(.good)

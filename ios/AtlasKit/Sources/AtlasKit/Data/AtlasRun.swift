@@ -217,6 +217,20 @@ public struct StoredCard: Codable, Sendable, Identifiable {
     }
 }
 
+public extension StoredCard {
+    /// When the card was last seen: its last review, or — never reviewed —
+    /// the moment it was drafted (an unreviewed card's `due`).
+    var lastSeen: Date? {
+        let f = fsrs.fields ?? [:]
+        let reps: Double = if case .number(let n)? = f["reps"] { n } else { 0 }
+        let key = f["last_review"] != nil ? "last_review" : (reps == 0 ? "due" : "")
+        guard case .string(let iso)? = f[key] else { return nil }
+        let parse = ISO8601DateFormatter()
+        parse.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return parse.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+    }
+}
+
 /// One node's changed fields — the unit every map write is made of.
 ///
 /// Only what changed travels. The whole run used to go up on a two-second

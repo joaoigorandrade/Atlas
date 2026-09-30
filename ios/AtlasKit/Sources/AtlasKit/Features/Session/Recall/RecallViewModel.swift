@@ -52,6 +52,13 @@ final class RecallViewModel {
     func quote(_ row: RecallRow) -> String? { session.quotes[row.id] }
 
     func load() async {
+        // Cold retrieval has to be cold: Recall opens a night after the last
+        // thing studied on this node, and after a failed attempt.
+        if let opens = pass.store.heldUntil(node.id, .recall) {
+            let hours = max(1, Int((opens.timeIntervalSinceNow / 3600).rounded(.up)))
+            message = String(localized: "A recordação abre em \(hours) h — lembrar a frio precisa de uma noite.")
+            return
+        }
         writing = true
         message = ""
         if let error = await pass.store.recall(node) {

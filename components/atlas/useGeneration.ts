@@ -210,8 +210,11 @@ export function useGeneration(opts_: {
       message: string,
       fetcher: () => Promise<T>,
       onReady: (content: T) => void,
+      /** Ask again rather than join a landed warm — a solved problem. */
+      fresh = false,
     ) => {
       if (loadingRef.current) return;
+      if (fresh) warm.drop(key);
       const ticket = ++ticketRef.current; // `cancelGenerate` moves it on
       const live = () => ticket === ticketRef.current;
       setLoading({ phase, message });
@@ -419,17 +422,6 @@ export function useGeneration(opts_: {
     [learnedLabels, nodeParams],
   );
 
-  // These six ask for exactly the shared fields, so they ARE the shared
-  // builder. Kept as named bindings so every call site still reads as the
-  // phase it belongs to.
-  const discriminateParams = nodeParams;
-  const predictParams = nodeParams;
-  const traceParams = nodeParams;
-  const drillParams = nodeParams;
-  const recallParams = nodeParams;
-  const performParams = nodeParams;
-  const produceParams = nodeParams;
-
   // The six phases the catalogue added in its growth to twelve. Each takes
   // the same inputs and returns its own shape, so each gets its own params
   // builder and loader — one shared pair would be the seam two of them
@@ -437,19 +429,19 @@ export function useGeneration(opts_: {
 
   const loadDiscriminate = useNodeLoader(
     fetchDiscriminate,
-    discriminateParams,
+    nodeParams,
     setDiscriminateCache,
   );
 
-  const loadPredict = useNodeLoader(fetchPredict, predictParams, setPredictCache);
+  const loadPredict = useNodeLoader(fetchPredict, nodeParams, setPredictCache);
 
-  const loadTrace = useNodeLoader(fetchTrace, traceParams, setTraceCache);
+  const loadTrace = useNodeLoader(fetchTrace, nodeParams, setTraceCache);
 
-  const loadDrill = useNodeLoader(fetchDrill, drillParams, setDrillCache);
+  const loadDrill = useNodeLoader(fetchDrill, nodeParams, setDrillCache);
 
-  const loadRecall = useNodeLoader(fetchRecall, recallParams, setRecallCache);
+  const loadRecall = useNodeLoader(fetchRecall, nodeParams, setRecallCache);
 
-  const loadPerform = useNodeLoader(fetchPerform, performParams, setPerformCache);
+  const loadPerform = useNodeLoader(fetchPerform, nodeParams, setPerformCache);
 
   // The three phases the domain axis adds. Provenance and Steelman take no
   // interests: an analogy drawn from the learner's hobbies has no business in
@@ -488,7 +480,7 @@ export function useGeneration(opts_: {
 
   const loadSteelman = useNodeLoader(fetchSteelman, steelmanParams, setSteelmanCache);
 
-  const loadProduce = useNodeLoader(fetchProduce, produceParams, setProduceCache);
+  const loadProduce = useNodeLoader(fetchProduce, nodeParams, setProduceCache);
 
   /** Warm-queue / in-memory cache address for one node's surface. */
   const warmKey = (kind: WarmKind, nodeId: string) => `${kind}:${nodeId}`;
@@ -649,23 +641,23 @@ export function useGeneration(opts_: {
         case "crucible":
           return crucibleRequest(crucibleParams(node));
         case "discriminate":
-          return discriminateRequest(discriminateParams(node));
+          return discriminateRequest(nodeParams(node));
         case "predict":
-          return predictRequest(predictParams(node));
+          return predictRequest(nodeParams(node));
         case "trace":
-          return traceRequest(traceParams(node));
+          return traceRequest(nodeParams(node));
         case "drill":
-          return drillRequest(drillParams(node));
+          return drillRequest(nodeParams(node));
         case "recall":
-          return recallRequest(recallParams(node));
+          return recallRequest(nodeParams(node));
         case "perform":
-          return performRequest(performParams(node));
+          return performRequest(nodeParams(node));
         case "provenance":
           return provenanceRequest(provenanceParams(node));
         case "steelman":
           return steelmanRequest(steelmanParams(node));
         case "produce":
-          return produceRequest(produceParams(node));
+          return produceRequest(nodeParams(node));
       }
     },
     [
@@ -675,15 +667,15 @@ export function useGeneration(opts_: {
       feynmanParams,
       connectParams,
       crucibleParams,
-      discriminateParams,
-      predictParams,
-      traceParams,
-      drillParams,
-      recallParams,
-      performParams,
+      nodeParams,
+      nodeParams,
+      nodeParams,
+      nodeParams,
+      nodeParams,
+      nodeParams,
       provenanceParams,
       steelmanParams,
-      produceParams,
+      nodeParams,
     ],
   );
 
@@ -809,12 +801,7 @@ export function useGeneration(opts_: {
     feynmanParams,
     connectParams,
     crucibleParams,
-    discriminateParams,
-    predictParams,
-    traceParams,
-    drillParams,
-    recallParams,
-    performParams,
+    nodeParams,
     warmKey,
     opts,
     applySummary,

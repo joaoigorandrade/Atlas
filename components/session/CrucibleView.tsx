@@ -547,6 +547,7 @@ function Diagnostic({
             </button>
             <button
               className="at-press"
+              data-testid="action-retry"
               onClick={onRetry}
               style={{
                 padding: "13px 22px",

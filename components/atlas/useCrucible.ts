@@ -95,7 +95,13 @@ export function useCrucible(deps: {
         setSelectedId(node.id);
         setScreen("crucible");
       };
-      if (crucibleCacheRef.current[node.id]) {
+      // A redo, or the cold re-attempt after a guided pass, is owed a problem
+      // the learner has not solved: the server keys it to a bumped `rerun`
+      // (W1.2), so the one in memory is not the one to open.
+      const solved =
+        run.phasesDoneRef.current[node.id]?.includes("crucible") ||
+        run.shakyReasonsRef.current[node.id] === "crucible-scaffolded";
+      if (crucibleCacheRef.current[node.id] && !solved) {
         open();
         return;
       }
@@ -105,6 +111,7 @@ export function useCrucible(deps: {
         tc().forgingProblem(node.label),
         () => loadCrucible(node),
         open,
+        solved,
       );
     },
     [
@@ -239,8 +246,11 @@ export function useCrucible(deps: {
     setCrucible(null);
     if (!node) return leaveTo(undefined);
     if (crucibleScaffolded(cur)) {
-      // Closed with help. The node stays Shaky on its `crucible-fail` reason,
-      // and the cold problem waits out the night in the rung's own slot.
+      // Closed with help (W1.2). The node stays Shaky, now on its own reason,
+      // and the cold problem waits out the night in the rung's own slot. The
+      // pass below bumps the server's `rerun`, so the next entry asks for — and
+      // is keyed to — a fresh problem (`enterCrucible`).
+      setShakyReason(node.id, "crucible-scaffolded");
       setPhaseProgress((p) => ({
         ...p,
         [node.id]: {

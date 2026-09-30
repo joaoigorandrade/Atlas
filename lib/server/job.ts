@@ -187,6 +187,12 @@ function buildJob(body: GenerateBody): Job {
     };
   };
 
+  // Which time through a node's Crucible or Perform this is — server-stamped
+  // from the attempts log (`withNodeCell`). Omitted when 0, so every row
+  // written before it keeps its address.
+  const rerun =
+    typeof body.rerun === "number" ? Math.max(0, Math.min(9, Math.round(body.rerun))) : 0;
+
   switch (body.kind) {
     case "curriculum": {
       const goal: GoalKind = ["exam", "project", "mastery", "pareto"].includes(
@@ -421,10 +427,6 @@ function buildJob(body: GenerateBody): Job {
       // just solved — a transfer test you have seen before tests recall, not
       // transfer. Omitted when 0 so every row written before this keeps its
       // address, exactly like `boundary`.
-      const rerun =
-        typeof body.rerun === "number"
-          ? Math.max(0, Math.min(9, Math.round(body.rerun)))
-          : 0;
       return cacheable(
         "crucible",
         {
@@ -514,9 +516,13 @@ function buildJob(body: GenerateBody): Job {
     }
 
     case "perform": {
-      return cacheable("perform", itemParams(), async (p) => ({
-        content: await generatePerform(p),
-      }));
+      return cacheable(
+        "perform",
+        { ...itemParams(), ...(rerun ? { rerun } : {}) },
+        async (p) => ({
+          content: await generatePerform(p),
+        }),
+      );
     }
 
     case "retain": {

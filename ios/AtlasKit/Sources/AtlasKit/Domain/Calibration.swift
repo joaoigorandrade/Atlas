@@ -100,16 +100,20 @@ public func calibItems(_ samples: [CalibSample], _ graph: ConceptGraph) -> [Cali
 ///   - started: work that has begun but finished no phase — a part-read Consume
 ///     pass. Without it a learner who read two sections and left would drop back
 ///     to displaying as frontier, and that progress is real.
+///   - gaps: gap sub-nodes still open under the node (`openGapIds`). A finished
+///     ladder with a diagnosed hole in it waits at Learning until they close.
 public func stateFromPlan(
     _ plan: [Phase], _ done: [Phase] = [],
-    shaky: ShakyReason? = nil, started: Bool = false
+    shaky: ShakyReason? = nil, started: Bool = false, gaps: Int = 0
 ) -> NodeState {
     // Retain is the one rung mastery does not wait on. It is not something the
     // learner *does* in a session — it is weeks of review history — so a node
     // goes green when the last real gate closes and only then starts earning
     // Retido ✓. Requiring it here would mean no node was ever mastered until it
     // had been reviewed, which is not what green has meant.
-    if planGates(plan).allSatisfy(done.contains) { return shaky != nil ? .shaky : .mastered }
+    if planGates(plan).allSatisfy(done.contains) {
+        return shaky != nil ? .shaky : gaps > 0 ? .learning : .mastered
+    }
     if shaky != nil { return .shaky }
     return !done.isEmpty || started ? .learning : .unknown
 }

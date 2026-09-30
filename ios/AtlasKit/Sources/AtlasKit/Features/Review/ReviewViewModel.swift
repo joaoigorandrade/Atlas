@@ -203,8 +203,12 @@ public final class ReviewViewModel {
         if !requeued.contains(card.id) { store.grade(card, grade) }
         results[index] = grade
         store.markActiveToday()
-        // Real review history is what earns "Retido ✓" — mastered alone doesn't.
-        if grade == .good || grade == .easy { store.reviewed.insert(card.node) }
+        // Real review history is what earns "Retido ✓" — mastered alone doesn't,
+        // and neither does a Good on a card seen this week: it has to survive
+        // `retainedMinDays` unseen.
+        if earnsRetained(grade, lastSeen: store.cards.first(where: { $0.id == card.id })?.lastSeen) {
+            store.reviewed.insert(card.node)
+        }
         guard grade == .again else { return advance() }
         // Any node a card keeps alive goes Shaky on a miss, not only a mastered
         // one — `useSpiral` has always flagged every node, and a Learning node

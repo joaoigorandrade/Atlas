@@ -214,10 +214,15 @@ export type ShakyReason =
   | "connect-complete"
   | "diagnostic-hesitation"
   | "crucible-fail"
+  /** Passed on the guided rung, right after the re-explanation (W1.2): the gap
+   *  closed, the cold problem is still owed. */
+  | "crucible-scaffolded"
   | "review-miss"
   | "socratic-told";
 
 export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
+  "crucible-scaffolded":
+    "It carried over with help — the gap is closed. The proof is the cold problem in {gate}, which opens tomorrow.",
   "connect-complete": "Understood and connected — now prove it transfers in {gate}.",
   "diagnostic-hesitation":
     "You hesitated on this in the placement diagnostic — it's probably fragile. A {gate} attempt shows whether it holds.",
@@ -230,6 +235,8 @@ export const SHAKY_REASON_COPY: Record<ShakyReason, string> = {
 };
 
 const SHAKY_REASON_COPY_PT: Record<ShakyReason, string> = {
+  "crucible-scaffolded":
+    "Atravessou com apoio — a lacuna fechou. A prova é o problema a frio em {gate}, que abre amanhã.",
   "connect-complete":
     "Compreendido e conectado — agora prove que isso se transfere em {gate}.",
   "diagnostic-hesitation":

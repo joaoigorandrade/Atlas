@@ -90,7 +90,10 @@ Reply with JSON: {"answers": [{"id": "<the id in brackets>", "pick": 0, "confide
 }
 
 /** The items the solver confidently answered differently. */
-export function disputedIds(items: ClosedItem[], solved: Record<string, Solved>): string[] {
+export function disputedIds(
+  items: ClosedItem[],
+  solved: Record<string, Solved>,
+): string[] {
   return items
     .filter((it) => {
       const s = solved[it.id];
@@ -233,7 +236,9 @@ export function checkItem(chunk: ConsumeChunk): ClosedItem | null {
   const c = chunk.check;
   if (!c || c.opts.length < 2) return null;
   const key = c.opts.findIndex((o) => o.correct);
-  return key < 0 ? null : { id: chunk.id, stem: c.q, options: c.opts.map((o) => o.label), key };
+  return key < 0
+    ? null
+    : { id: chunk.id, stem: c.q, options: c.opts.map((o) => o.label), key };
 }
 
 /** A section with a disputed check loses it; undisputed ones pass through. */
@@ -244,7 +249,11 @@ export async function verifyChunkCheck(
   const item = checkItem(chunk);
   if (!item) return chunk;
   try {
-    const solved = await blindSolve({ ...meta, context: chunk.body.join("\n"), items: [item] });
+    const solved = await blindSolve({
+      ...meta,
+      context: chunk.body.join("\n"),
+      items: [item],
+    });
     if (!disputedIds([item], solved).length) return chunk;
   } catch {
     return chunk;
@@ -261,6 +270,54 @@ export async function verifiedRun<P extends { topic: string; nodeLabel: string }
   run: (p: P) => Promise<Record<string, unknown>>,
 ): Promise<Record<string, unknown>> {
   if (!isVerifiable(kind)) return run(params);
-  const content = await verified(kind, params, async () => (await run(params)).content as never);
+  const content = await verified(
+    kind,
+    params,
+    async () => (await run(params)).content as never,
+  );
   return { content };
+}
+
+/**
+ * W2.4: does this case need the node's own method? The verifier solves it and
+ * names the method it used; a case a prerequisite's lighter method cracks
+ * ("ninth-grade algebra, not row reduction") is not practice of this node.
+ * Fails open: an unreachable verifier ships the case.
+ */
+export async function needsOwnMethod(p: {
+  topic: string;
+  nodeLabel: string;
+  priorLabels?: string[];
+  task: string;
+}): Promise<boolean> {
+  try {
+    const out = await generateJson(
+      user(`Topic: "${p.topic}". A practice case written to exercise "${p.nodeLabel}":
+"""${p.task}"""
+${p.priorLabels?.length ? `Concepts the learner learned BEFORE this one: ${p.priorLabels.join(", ")}.\n` : ""}
+Work out how you would solve it. Then say whether solving it genuinely REQUIRES "${p.nodeLabel}" — or whether an earlier, lighter method (one of the concepts above, or plain arithmetic) already does the whole job.
+
+Reply with JSON: {"method": "the method you used, in a few words", "needsNode": true}`),
+      (raw) => {
+        const r = obj(raw, "payload");
+        if (typeof r.needsNode !== "boolean") fail("needsNode must be a boolean");
+        return r.needsNode;
+      },
+      { label: "verify-method", role: "verify" },
+    );
+    if (!out) logEvent("verify_method_miss", { node: p.nodeLabel });
+    return out;
+  } catch {
+    return true;
+  }
+}
+
+/** Generate a case, and write it again once if it misses the node's method. */
+export async function ownMethod<T>(
+  meta: { topic: string; nodeLabel: string; priorLabels?: string[] },
+  taskOf: (c: T) => string,
+  make: () => Promise<T>,
+): Promise<T> {
+  const first = await make();
+  return (await needsOwnMethod({ ...meta, task: taskOf(first) })) ? first : make();
 }

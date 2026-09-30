@@ -294,3 +294,50 @@ private func upToCrucible() -> [Phase] {
     #expect(trying.phase == .socratic)
     #expect(store.phasesDone["cadeia"] == [.consume])
 }
+
+@MainActor
+@Test func aGuidedCruciblePassClosesTheGapButNotTheRung() {
+    // W1.2: a pass on the guided rung, right after the re-explanation, closes
+    // the gap it was aimed at. It does not master the node — the cold problem
+    // is the proof, and it opens a night later in the rung's own slot.
+    let gap = GapSpec(id: "cadeia-gap", label: "Taxa de dentro", reason: "não atravessou", dx: 40, dy: 60)
+    let (pass, store) = session(["lat": .mastered], done: upToCrucible())
+    pass.settleCrucible(
+        CrucibleJudgement(outcome: "partial", transfer: [], gapLabel: nil, gapReason: nil, reExplain: nil),
+        gap: gap
+    )
+    pass.settleCrucible(
+        CrucibleJudgement(outcome: "pass", transfer: [], gapLabel: nil, gapReason: nil, reExplain: nil),
+        gap: gap, guided: true
+    )
+    #expect(store.states["cadeia"] == .shaky)
+    #expect(store.shakyReasons["cadeia"] == .crucibleScaffolded)
+    #expect(store.phasesDone["cadeia"]?.contains(.crucible) != true)
+    #expect(store.graph.nodes.contains { $0.id == gap.id } == false)
+    #expect(store.heldUntil("cadeia", .crucible) != nil)
+}
+
+@MainActor
+@Test func anOpenGapHoldsAFinishedLadderAtLearning() {
+    // The last gate closes with a diagnosed hole still under the node: that is
+    // not mastery. Closing the gap is what lifts it.
+    let gap = GapSpec(id: "cadeia-gap", label: "Taxa de dentro", reason: "", dx: 0, dy: 0)
+    let (pass, store) = session(["lat": .mastered], done: upToCrucible())
+    store.graph = spawnGap(store.graph, parentId: "cadeia", gap)
+    store.completePhase(store.graph.nodes[1], .crucible, closed: .cleared)
+    #expect(store.states["cadeia"] == .learning)
+    var graph = store.graph
+    graph.nodes.removeAll { $0.id == gap.id }
+    graph.edges.removeAll { $0.to == gap.id }
+    store.graph = graph
+    #expect(store.states["cadeia"] == .mastered)
+    _ = pass
+}
+
+@MainActor
+@Test func studyingANodeHoldsItsRecallANight() {
+    // A cold retrieval minutes after the Crucible reads working memory.
+    let (_, store) = session(["lat": .mastered])
+    store.completePhase(store.graph.nodes[1], .consume)
+    #expect(store.heldUntil("cadeia", .recall) != nil)
+}

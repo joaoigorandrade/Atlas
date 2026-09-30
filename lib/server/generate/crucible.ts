@@ -2,6 +2,7 @@
 
 // The ladder is fixed copy, not generated — so it is translated here rather
 // than asked for from the model.
+import { ownMethod } from "./verify";
 import { cellNote } from "./cellNote";
 import type { Cell } from "@/lib/curriculum";
 import {
@@ -132,7 +133,18 @@ const rerunNote = (rerun: number): string =>
     ? `\nThis learner has already worked a transfer problem on this concept and passed it, so the obvious framing is spent. Set this one in ${RERUN_DOMAINS[rerun % RERUN_DOMAINS.length] || RERUN_DOMAINS[1]} — a different world from a first attempt, testing the same idea.`
     : "";
 
+/** W2.4: a transfer problem a prerequisite's method cracks is written again, once. */
 export async function generateCrucible(
+  params: Parameters<typeof writeCrucible>[0],
+): Promise<CrucibleContent> {
+  return ownMethod(
+    params,
+    (c) => c.problems[0]?.q ?? "",
+    () => writeCrucible(params),
+  );
+}
+
+async function writeCrucible(
   params: Boundary & {
     nodeKind?: NodeKind;
     domain?: Domain;
@@ -161,6 +173,7 @@ export async function generateCrucible(
     user(
       `Write the Crucible (application/transfer) pass for the concept "${nodeLabel}" within "${topic}".
 Force the knowledge into a NOVEL context it was never taught in — that's the truest mastery signal.
+The problem must be unsolvable without "${nodeLabel}" itself, as its own summary states it — not crackable by a prerequisite's lighter method.
 Concepts the learner already owns, to interleave: ${masteredLabels.join(", ") || "the concept's own prerequisites"}.
 ${interestNote(interests)}${rerunNote(rerun)}
 ${boundaryNote(params)}${kindNote(params.nodeKind, "crucible")}${domainNote(params.domain, "crucible")}${cellNote(params.cell, "crucible")}

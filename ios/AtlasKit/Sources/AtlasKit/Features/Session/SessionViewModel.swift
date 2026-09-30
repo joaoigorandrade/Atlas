@@ -41,7 +41,11 @@ public final class SessionViewModel: Identifiable {
         // Before the first warm, so the warm and the click after it address the
         // same problem: a redo of the Crucible asks for a new one rather than
         // re-serving the transfer the learner has already carried through.
-        if phase != nil, !resumed, self.phase == .crucible { store.bumpCrucibleRerun(node.id) }
+        // A redo, or the cold re-attempt after a guided pass, is owed a problem
+        // the learner has not solved: the server keys it to a bumped `rerun`.
+        let solved = store.phasesDone[node.id]?.contains(.crucible) == true
+            || store.shakyReasons[node.id] == .crucibleScaffolded
+        if !resumed, self.phase == .crucible, phase != nil || solved { store.forgetContent("crucible", node) }
         warmNext()
         noteReading()
         mark()
@@ -207,7 +211,11 @@ public final class SessionViewModel: Identifiable {
     /// which is what keeps the node short of Mastered.
     public func advance(passed: Bool) {
         markWorked()
-        if passed { store.completePhase(node, phase) } else { store.recordAttempt(node, phase, passed: false) }
+        if passed { store.completePhase(node, phase) } else {
+            store.recordAttempt(node, phase, passed: false)
+            // A failed Recall showed the rubric: the next attempt waits a night.
+            if phase == .recall { store.hold(node.id, .recall) }
+        }
         guard let next = handOff else { return finished = true }
         phase = next
     }
@@ -300,7 +308,7 @@ public final class SessionViewModel: Identifiable {
     /// A confirmed transfer lifts the node to Mastered and takes the
     /// first-attempt gap back off the map; a failure flips it Shaky and hangs
     /// the sub-concept that didn't carry over under it.
-    public func settleCrucible(_ judgement: CrucibleJudgement, gap: GapSpec) {
+    public func settleCrucible(_ judgement: CrucibleJudgement, gap: GapSpec, guided: Bool = false) {
         // The one phase that grants green was the one phase that never counted
         // as work: a learner who opens the Crucible straight from the map (a
         // Shaky node is owed it) and submits an attempt got no day on the
@@ -336,6 +344,20 @@ public final class SessionViewModel: Identifiable {
             graph.edges.removeAll { $0.from == gap.id || $0.to == gap.id }
             store.graph = graph
             store.states[gap.id] = nil
+        }
+        // Passed on the guided rung, right after the re-explanation (W1.2): the
+        // gap it was aimed at is closed, the rung is not. The node stays Shaky
+        // on its own reason and the cold problem waits out the night in the
+        // rung's slot — the whole Crucible session the web reopens there.
+        if guided {
+            store.recordAttempt(node, .crucible, passed: true, detail: ["scaffolded": .bool(true)])
+            store.markShaky(node, .crucibleScaffolded)
+            store.hold(node.id, .crucible, slot: [
+                "nodeId": .string(node.id), "stage": .string("confidence"), "conf": .null,
+                "rung": .number(0), "attempt": .string(""), "submitted": .bool(false),
+                "outcome": .null, "transfer": .null, "reExplain": .bool(false),
+            ])
+            return
         }
         // The transfer held, so the Crucible rung closes and the reason it
         // carried is cleared. What that makes the node is `stateFromPlan`'s

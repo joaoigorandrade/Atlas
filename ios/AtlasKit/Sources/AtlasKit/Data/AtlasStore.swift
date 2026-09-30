@@ -11,7 +11,7 @@ public final class AtlasStore {
     // Every stored property below is the run, and every one of them saves on
     // change — see `saveSoon`. `subject` is half the row's primary key, so
     // changing it is what starts a second map rather than overwriting the first.
-    public var graph: ConceptGraph { didSet { rederive(); saveSoon() } }
+    public var graph: ConceptGraph { didSet { settleGaps(oldValue); rederive(); saveSoon() } }
     public var states: StateMap { didSet { rederive(); saveSoon() } }
     public var subject: String { didSet { saveSoon() } }
     /// What the learner said they care about, from onboarding. Every generated
@@ -53,14 +53,6 @@ public final class AtlasStore {
     /// Nodes with a real review behind them — what earns Retido, since being
     /// Mastered alone doesn't (`phaseIndex`).
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
-
-    /// Which time through each node's Crucible the learner is on, keyed by node
-    /// id. Deliberately **not** persisted and deliberately without `saveSoon`:
-    /// it is part of a cache key, not part of the run, and a column for it
-    /// would need a migration on both clients to buy a counter that only has to
-    /// survive the app being open. A relaunch resets it, which costs at worst
-    /// one repeated problem. See `Warm.crucible`.
-    var crucibleRerun: [String: Int] = [:]
 
     /// The web's `consumeProgress`, held as JSON and keyed by node id. This
     /// client reads four of its fields (whether the pass finished, and where the
@@ -431,12 +423,34 @@ public extension AtlasStore {
     func completePhase(_ node: ConceptNode, _ phase: Phase, closed: Closing = .passed) {
         let challenged = challenge == node.id
         if challenged { challenge = nil } // one attempt, one verdict
-        recordAttempt(node, phase, passed: true, challenged: challenged)
+        recordAttempt(node, phase, passed: true, detail: challenged ? ["challenged": .bool(true)] : [:])
         let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged)
         phasesDone[node.id] = done
+        // Anything studied on a node that still owes Recall pushes Recall a
+        // night out: a cold retrieval has to be cold.
+        if holdsRecall(node.plan, done, phase) { hold(node.id, .recall) }
         let reason = reasonAfter(node.plan, done, phase, closed: closed, held: shakyReasons[node.id])
         shakyReasons[node.id] = reason
-        states[node.id] = stateFromPlan(node.plan, done, shaky: reason)
+        states[node.id] = stateFromPlan(
+            node.plan, done, shaky: reason, gaps: openGapIds(graph, node.id).count)
+    }
+
+    /// The gaps under a node changed with no phase closing — the last one was
+    /// just closed, or one was hung. Only a node that has finished its gates
+    /// moves; anywhere earlier the next `completePhase` settles it anyway.
+    /// Mirrors `phaseLedger.settle`.
+    private func settleGaps(_ old: ConceptGraph) {
+        let was = Set(old.nodes.filter { $0.gap == true }.map(\.id))
+        let now = Set(graph.nodes.filter { $0.gap == true }.map(\.id))
+        guard was != now else { return }
+        for node in graph.nodes where node.gap != true {
+            let done = phasesDone[node.id] ?? []
+            guard planGates(node.plan).allSatisfy(done.contains) else { continue }
+            let next = stateFromPlan(
+                node.plan, done, shaky: shakyReasons[node.id],
+                gaps: openGapIds(graph, node.id).count)
+            if states[node.id] != next { states[node.id] = next }
+        }
     }
 
     /// A gate failed, or a review slipped: record why the node is Shaky and
@@ -447,7 +461,9 @@ public extension AtlasStore {
     func markShaky(_ node: ConceptNode, _ reason: ShakyReason) {
         if challenge == node.id { challenge = nil } // a failed proof credits nothing
         shakyReasons[node.id] = reason
-        states[node.id] = stateFromPlan(node.plan, phasesDone[node.id] ?? [], shaky: reason)
+        states[node.id] = stateFromPlan(
+            node.plan, phasesDone[node.id] ?? [], shaky: reason,
+            gaps: openGapIds(graph, node.id).count)
     }
 
     /// Work begun on a node that has finished no phase yet — a part-read reading
@@ -627,15 +643,37 @@ public extension AtlasStore {
 
     /// One row in the attempts log (W0.2): every phase close, and every failed
     /// gate that closes nothing. Best-effort, like the phase clock.
-    func recordAttempt(_ node: ConceptNode, _ phase: Phase, passed: Bool, challenged: Bool = false) {
+    func recordAttempt(
+        _ node: ConceptNode, _ phase: Phase, passed: Bool, detail: [String: JSONValue] = [:]
+    ) {
         guard let topicId else { return }
         Task {
             guard let token = await bearer() else { return }
             try? await runs.attempt(
                 topicId, nodeId: node.id, phase: phase, passed: passed,
-                detail: challenged ? ["challenged": .bool(true)] : [:], token: token
+                detail: detail, token: token
             )
         }
+    }
+
+    /// When a phase held on this node opens, if it is still held (`spacing.ts`):
+    /// the `opensAt` in the phase's own `phase_progress` slot, in epoch ms.
+    func heldUntil(_ nodeId: String, _ phase: Phase, now: Date = .now) -> Date? {
+        guard case .number(let ms)? = phaseProgress[nodeId]?.fields?[phase.rawValue]?.fields?["opensAt"]
+        else { return nil }
+        let at = Date(timeIntervalSince1970: ms / 1000)
+        return at > now ? at : nil
+    }
+
+    /// Hold `phase` a night (~20 h) in its own slot. `slot` is what the web
+    /// reads there when the hold is over — a fresh Crucible session for the
+    /// cold re-attempt, nothing but the hold for Recall.
+    func hold(_ nodeId: String, _ phase: Phase, slot: [String: JSONValue] = [:], now: Date = .now) {
+        var slot = slot
+        slot["opensAt"] = .number((now.timeIntervalSince1970 + spacingSeconds) * 1000)
+        var forNode = phaseProgress[nodeId]?.fields ?? [:]
+        forNode[phase.rawValue] = .object(slot)
+        phaseProgress[nodeId] = .object(forNode)
     }
 
     /// Grade a card.

@@ -97,6 +97,9 @@ public enum ShakyReason: String, Codable, Sendable {
     /// the ladder shipped, and a topic's reasons decode as one map — without
     /// this case one such node dropped every reason on the topic.
     case socraticTold = "socratic-told"
+    /// Passed on the guided rung, right after the re-explanation: the gap
+    /// closed, the cold problem is still owed a night later.
+    case crucibleScaffolded = "crucible-scaffolded"
 
     /// `shakyLine` on the web, minus the language switch — the app is drawn in
     /// one language at a time and `Localizable.xcstrings` is where that lives.
@@ -112,6 +115,7 @@ public enum ShakyReason: String, Codable, Sendable {
         case .crucibleFail: return "Você se sente seguro aqui, mas sua última aplicação falhou. Isso é fluência, não domínio — tente \(gate) de novo."
         case .reviewMiss: return "Um cartão de revisão disso escorregou — a retenção está amolecendo. Tente \(gate) de novo para firmar."
         case .socraticTold: return "Você chegou lá, mas a sondagem teve que te entregar quase tudo. Vale uma releitura antes de \(gate)."
+        case .crucibleScaffolded: return "Atravessou com apoio — a lacuna fechou. A prova é o problema a frio em \(gate), que abre amanhã."
         }
     }
 }
@@ -236,6 +240,13 @@ public struct GapSpec: Decodable, Sendable {
     public let reason: String
     public let dx: Double
     public let dy: Double
+}
+
+/// The gap sub-nodes still open under `id` — read off the gap flag, not the
+/// edge's dash. Mirrors `openGapIds` in `replan.ts`.
+public func openGapIds(_ graph: ConceptGraph, _ id: String) -> [String] {
+    let gaps = Set(graph.nodes.filter { $0.gap == true }.map(\.id))
+    return graph.edges.filter { $0.from == id && gaps.contains($0.to) }.map(\.to)
 }
 
 /// A red gap node hung under its parent by a dashed edge. Idempotent, and a

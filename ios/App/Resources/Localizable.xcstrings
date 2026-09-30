@@ -1,6 +1,36 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "A recordação abre em %lld h — lembrar a frio precisa de uma noite." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recall opens in %lld h — remembering cold needs a night."
+          }
+        }
+      }
+    },
+    "Atravessou com apoio — a lacuna fechou. A prova é o problema a frio em %@, que abre amanhã." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It carried over with help — the gap is closed. The proof is the cold problem in %@, which opens tomorrow."
+          }
+        }
+      }
+    },
+    "O problema a frio abre em %lld h — a prova de transferência precisa de uma noite." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cold problem opens in %lld h — a proof of transfer needs a night."
+          }
+        }
+      }
+    },
     "— %@" : {
       "extractionState" : "stale",
       "localizations" : {
