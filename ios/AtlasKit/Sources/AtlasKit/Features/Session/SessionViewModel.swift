@@ -207,7 +207,7 @@ public final class SessionViewModel: Identifiable {
     /// which is what keeps the node short of Mastered.
     public func advance(passed: Bool) {
         markWorked()
-        if passed { store.completePhase(node, phase) }
+        if passed { store.completePhase(node, phase) } else { store.recordAttempt(node, phase, passed: false) }
         guard let next = handOff else { return finished = true }
         phase = next
     }
@@ -307,6 +307,7 @@ public final class SessionViewModel: Identifiable {
         // streak and, on an untouched node, never even went Learning.
         markWorked()
         guard judgement.passed else {
+            store.recordAttempt(node, .crucible, passed: false)
             store.markShaky(node, .crucibleFail)
             let named = GapSpec(
                 id: gap.id,

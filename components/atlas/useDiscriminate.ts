@@ -7,6 +7,7 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades the boundary between this concept and its neighbours, and it exits to the map.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback } from "react";
 import {
   discriminateScore,
@@ -113,8 +114,13 @@ export function useDiscriminate(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = discriminateCacheRef.current[cur.nodeId];
-    if (node && content && discriminatePassed(cur, content))
-      completePhase(node, "discriminate");
+    const passed = !!(node && content && discriminatePassed(cur, content));
+    const score = content
+      ? discriminateScore(cur, content) / Math.max(1, content.cases.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "discriminate", passed: false, score });
+    if (node && passed) completePhase(node, "discriminate", undefined, score);
     leaveTo(cur.nodeId);
   };
 

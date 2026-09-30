@@ -7,10 +7,12 @@
 // before the next one is worth attempting, and a batch at the end would grade
 // six turns the learner has already stopped thinking about.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback, useRef } from "react";
 import {
   phaseLabel,
   producePassed,
+  produceScore,
   produceReducer,
   produceStart,
   type ConceptNode,
@@ -147,7 +149,13 @@ export function useProduce(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = produceCacheRef.current[cur.nodeId];
-    if (node && content && producePassed(cur, content)) completePhase(node, "produce");
+    const passed = !!(node && content && producePassed(cur, content));
+    const score = content
+      ? produceScore(cur, content) / Math.max(1, content.turns.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "produce", passed: false, score });
+    if (node && passed) completePhase(node, "produce", undefined, score);
     leaveTo(cur.nodeId);
   };
 

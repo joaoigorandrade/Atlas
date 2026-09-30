@@ -431,6 +431,7 @@ public extension AtlasStore {
     func completePhase(_ node: ConceptNode, _ phase: Phase, closed: Closing = .passed) {
         let challenged = challenge == node.id
         if challenged { challenge = nil } // one attempt, one verdict
+        recordAttempt(node, phase, passed: true, challenged: challenged)
         let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged)
         phasesDone[node.id] = done
         let reason = reasonAfter(node.plan, done, phase, closed: closed, held: shakyReasons[node.id])
@@ -620,6 +621,19 @@ public extension AtlasStore {
             guard let token = await bearer() else { return }
             try? await runs.phaseTime(
                 topicId, nodeId: node.id, phase: phase, seconds: seconds, token: token
+            )
+        }
+    }
+
+    /// One row in the attempts log (W0.2): every phase close, and every failed
+    /// gate that closes nothing. Best-effort, like the phase clock.
+    func recordAttempt(_ node: ConceptNode, _ phase: Phase, passed: Bool, challenged: Bool = false) {
+        guard let topicId else { return }
+        Task {
+            guard let token = await bearer() else { return }
+            try? await runs.attempt(
+                topicId, nodeId: node.id, phase: phase, passed: passed,
+                detail: challenged ? ["challenged": .bool(true)] : [:], token: token
             )
         }
     }

@@ -166,6 +166,18 @@ public actor RunStore {
         _ = try await send(try RunEndpoint.phaseTime(id, body: body, token: token))
     }
 
+    /// One phase close, pass or fail — the attempts log.
+    public func attempt(
+        _ id: String, nodeId: String, phase: Phase, passed: Bool,
+        detail: [String: JSONValue], token: String
+    ) async throws {
+        let body = JSONValue.object([
+            "nodeId": .string(nodeId), "phase": .string(phase.rawValue),
+            "passed": .bool(passed), "detail": .object(detail),
+        ])
+        _ = try await send(try RunEndpoint.attempt(id, body: body, token: token))
+    }
+
     /// Cards a phase minted itself — Connect's one per confirmed link, and the
     /// deck Retain drafts.
     public func putCards(_ id: String, cards: [StoredCard], token: String) async throws {

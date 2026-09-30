@@ -10,10 +10,12 @@
 // There is no judge here at all. Every claim ships its own ruling, so the whole
 // pass costs one generation and grades in the browser.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback } from "react";
 import {
   phaseLabel,
   provenancePassed,
+  provenanceScore,
   provenanceReducer,
   provenanceStart,
   type ConceptNode,
@@ -102,8 +104,13 @@ export function useProvenance(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = provenanceCacheRef.current[cur.nodeId];
-    if (node && content && provenancePassed(cur, content))
-      completePhase(node, "provenance");
+    const passed = !!(node && content && provenancePassed(cur, content));
+    const score = content
+      ? provenanceScore(cur, content) / Math.max(1, content.claims.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "provenance", passed: false, score });
+    if (node && passed) completePhase(node, "provenance", undefined, score);
     leaveTo(cur.nodeId);
   };
 

@@ -16,6 +16,7 @@
 // green.
 
 import { useCallback, useRef } from "react";
+import { recordAttempt } from "@/lib/attempts";
 import {
   holdFrom,
   holdsRecall,
@@ -86,12 +87,28 @@ export function usePhaseLedger(deps: {
    * `shaky` is passed when the phase closed on a failed gate, and `null` to
    * clear a reason the phase has now cleared. Left off, the node's existing
    * reason stands — see `reasonAfter` for the one clean close that clears it.
+   *
+   * Every close lands one row in the attempts log (W0.2), with the phase's own
+   * `score` where it has one. A failed gate that closes nothing logs itself,
+   * where it fails.
    */
   const completePhase = useCallback(
-    (node: ConceptNode, phase: PhaseId, shaky?: ShakyReason | null): ProgressState => {
+    (
+      node: ConceptNode,
+      phase: PhaseId,
+      shaky?: ShakyReason | null,
+      score?: number,
+    ): ProgressState => {
       const prev = phasesDoneRef.current[node.id] ?? [];
       const challenged = challengeRef.current === node.id;
       if (challenged) challengeRef.current = null; // one attempt, one verdict
+      recordAttempt({
+        nodeId: node.id,
+        phase,
+        passed: true,
+        score,
+        detail: { ...(shaky ? { shaky } : null), ...(challenged ? { challenged } : null) },
+      });
       const plan = phasePlan(node);
       const done = ledgerAfter(plan, prev, phase, challenged);
       // Written through the ref as well as the setter: the handlers below run

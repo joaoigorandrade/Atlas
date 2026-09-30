@@ -7,11 +7,13 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades a forecast committed before the outcome is shown, and it exits to the map.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback } from "react";
 import {
   phaseLabel,
   predictCalibration,
   predictPassed,
+  predictScore,
   predictReducer,
   predictStart,
   type ConceptNode,
@@ -100,7 +102,13 @@ export function usePredict(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = predictCacheRef.current[cur.nodeId];
-    if (node && content && predictPassed(cur, content)) completePhase(node, "predict");
+    const passed = !!(node && content && predictPassed(cur, content));
+    const score = content
+      ? predictScore(cur, content) / Math.max(1, content.setups.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "predict", passed: false, score });
+    if (node && passed) completePhase(node, "predict", undefined, score);
     fileCalibration();
     leaveTo(cur.nodeId);
   };

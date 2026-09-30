@@ -10,6 +10,7 @@
 // is judged by the same measure as the stronger one, and a judge shown both
 // cases at once can actually apply that.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback, useRef } from "react";
 import {
   phaseLabel,
@@ -153,7 +154,10 @@ export function useSteelman(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = steelmanCacheRef.current[cur.nodeId];
-    if (node && content && steelmanPassed(cur, content)) completePhase(node, "steelman");
+    const passed = !!(node && content && steelmanPassed(cur, content));
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "steelman", passed: false });
+    if (node && passed) completePhase(node, "steelman");
     leaveTo(cur.nodeId);
   };
 

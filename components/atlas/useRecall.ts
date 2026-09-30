@@ -7,6 +7,7 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades a blank page and what comes back unaided, and it exits to the map.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback, useRef } from "react";
 import {
   CONFIDENCE_FELT,
@@ -188,7 +189,13 @@ export function useRecall(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = recallCacheRef.current[cur.nodeId];
-    if (node && content && recallPassed(cur, content)) completePhase(node, "recall");
+    const passed = !!(node && content && recallPassed(cur, content));
+    const score = content
+      ? recallScore(cur, content) / Math.max(1, content.rubric.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "recall", passed: false, score });
+    if (node && passed) completePhase(node, "recall", undefined, score);
     leaveTo(cur.nodeId);
   };
 

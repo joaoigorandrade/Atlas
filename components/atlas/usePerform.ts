@@ -7,6 +7,7 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades one case, carried out for real, and it exits to the map.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback, useRef } from "react";
 import {
   phaseLabel,
@@ -169,7 +170,10 @@ export function usePerform(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = performCacheRef.current[cur.nodeId];
-    if (node && content && performPassed(cur, content)) {
+    const passed = !!(node && content && performPassed(cur, content));
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "perform", passed: false });
+    if (node && passed) {
       completePhase(node, "perform");
       // Only a run that actually closed the rung is forgotten. A failed one is
       // still the learner's work on a case they will be handed again, and

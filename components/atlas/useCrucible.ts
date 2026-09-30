@@ -28,6 +28,7 @@ import {
   type GapSpec,
 } from "@/lib/curriculum";
 import { fetchJudgeCrucible } from "@/lib/api";
+import { recordAttempt } from "@/lib/attempts";
 import { dropParked, parkedSession } from "@/components/atlas/phaseParking";
 import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
@@ -186,6 +187,12 @@ export function useCrucible(deps: {
             crucibleReal(j.outcome, j.transfer),
           );
         if (j.outcome !== "partial") return;
+        recordAttempt({
+          nodeId: cur.nodeId,
+          phase: "crucible",
+          passed: false,
+          detail: { rung: cur.rung },
+        });
         disarmChallenge(); // a scaffolded re-attempt is not a cold pass
         // The judged gap replaces the pre-generated one when the judge named
         // a different missing sub-concept.
@@ -241,6 +248,12 @@ export function useCrucible(deps: {
           crucible: { ...crucibleStart(node.id), ...holdFrom() },
         },
       }));
+      recordAttempt({
+        nodeId: node.id,
+        phase: "crucible",
+        passed: true,
+        detail: { scaffolded: true },
+      });
       leaveTo(node.id);
       showToast(tc().guidedPass(node.label));
       return;

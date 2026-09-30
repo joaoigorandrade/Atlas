@@ -7,6 +7,7 @@
 // each other*, and this one does not. It is entered from the node's plan, it
 // grades the same call, timed, and it exits to the map.
 
+import { recordAttempt } from "@/lib/attempts";
 import { useCallback } from "react";
 import {
   drillScore,
@@ -113,7 +114,13 @@ export function useDrill(deps: {
     if (!cur) return;
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = drillCacheRef.current[cur.nodeId];
-    if (node && content && drillPassed(cur, content)) completePhase(node, "drill");
+    const passed = !!(node && content && drillPassed(cur, content));
+    const score = content
+      ? drillScore(cur, content) / Math.max(1, content.reps.length)
+      : 0;
+    if (content && !passed)
+      recordAttempt({ nodeId: cur.nodeId, phase: "drill", passed: false, score });
+    if (node && passed) completePhase(node, "drill", undefined, score);
     leaveTo(cur.nodeId);
   };
 
