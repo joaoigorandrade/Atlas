@@ -98,6 +98,8 @@ export function usePhaseLedger(deps: {
       phase: PhaseId,
       shaky?: ShakyReason | null,
       score?: number,
+      /** A clean first try, which earns skips (`CREDITS`, W3.2). */
+      clean = false,
     ): ProgressState => {
       const prev = phasesDoneRef.current[node.id] ?? [];
       const challenged = challengeRef.current === node.id;
@@ -110,10 +112,11 @@ export function usePhaseLedger(deps: {
         detail: {
           ...(shaky ? { shaky } : null),
           ...(challenged ? { challenged } : null),
+          ...(clean ? { clean } : null),
         },
       });
       const plan = phasePlan(node);
-      const done = ledgerAfter(plan, prev, phase, challenged);
+      const done = ledgerAfter(plan, prev, phase, challenged, clean);
       // Written through the ref as well as the setter: the handlers below run
       // several of these in one tick, and each needs to see the last.
       phasesDoneRef.current = { ...phasesDoneRef.current, [node.id]: done };

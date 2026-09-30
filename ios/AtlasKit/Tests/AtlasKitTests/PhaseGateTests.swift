@@ -441,3 +441,14 @@ private let dispute: SteelmanContent = try! JSONDecoder().decode(SteelmanContent
     #expect(resolvePlan(.concept, .general, .core, .easy)
         == [.consume, .discriminate, .feynman, .crucible, .recall, .retain])
 }
+
+@Test func aCleanFirstTryEarnsTheEasierGateBeforeIt() {
+    // W3.2: Feynman clean credits Socratic; Perform clean credits Trace.
+    let concept = phasePlans[.concept]!
+    #expect(ledgerAfter(concept, [.consume], .feynman, challenged: false, clean: true)
+        .contains(.socratic))
+    #expect(!ledgerAfter(concept, [.consume], .feynman, challenged: false).contains(.socratic))
+    let procedure = phasePlans[.procedure]!
+    #expect(ledgerAfter(procedure, [.consume], .perform, challenged: false, clean: true)
+        .contains(.trace))
+}

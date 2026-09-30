@@ -209,9 +209,10 @@ public final class SessionViewModel: Identifiable {
     /// bar (an unbroken prefix, no wrong step, two thirds, two thirds and no
     /// over-inclusion). A failed run still walks on; it leaves its rung open,
     /// which is what keeps the node short of Mastered.
-    public func advance(passed: Bool) {
+    public func advance(passed: Bool, clean: Bool = false) {
         markWorked()
-        if passed { store.completePhase(node, phase) } else {
+        // `clean`: a first try with no gap and no re-run earns skips (W3.2).
+        if passed { store.completePhase(node, phase, clean: clean) } else {
             store.recordAttempt(node, phase, passed: false)
             // A failed Recall showed the rubric: the next attempt waits a night.
             if phase == .recall { store.hold(node.id, .recall) }

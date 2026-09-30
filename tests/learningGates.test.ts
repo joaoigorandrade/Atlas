@@ -394,3 +394,22 @@ describe("W1.6: early exits and a disconfirmer that can be met", () => {
     expect(steelmanPassed(base, content)).toBe(true);
   });
 });
+
+describe("W3.2: earned skips", () => {
+  it("a clean first try credits the easier gate before it, and only then", async () => {
+    const { ledgerAfter, PHASE_PLAN } = await import("@/lib/curriculum");
+    expect(
+      ledgerAfter(PHASE_PLAN.concept, ["consume"], "feynman", false, true),
+    ).toContain("socratic");
+    expect(ledgerAfter(PHASE_PLAN.concept, ["consume"], "feynman", false)).not.toContain(
+      "socratic",
+    );
+    expect(
+      ledgerAfter(PHASE_PLAN.procedure, ["consume"], "perform", false, true),
+    ).toContain("trace");
+    // A credit never reaches past the phase that earned it.
+    expect(
+      ledgerAfter(PHASE_PLAN.principle, ["consume"], "feynman", false, true),
+    ).not.toContain("crucible");
+  });
+});

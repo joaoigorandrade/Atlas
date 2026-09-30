@@ -376,6 +376,7 @@ final class FeynmanViewModel {
     func advance() {
         settled = true
         session.settleFeynman(verdicts, beats: beats, quotes: quotes)
-        session.advance()
+        // No gap on the first teach-back earns the Socratic rung (W3.2).
+        session.advance(passed: true, clean: gapCount == 0 && previous == nil)
     }
 }

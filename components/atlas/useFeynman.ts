@@ -319,7 +319,9 @@ export function useFeynman(deps: {
     // The gaps are on the map now — the pass has nothing left to come back to.
     setFeynmanProgress(omitKey(feynman.nodeId));
     if (node) {
-      completePhase(node, "feynman");
+      // No gap on the first teach-back earns the Socratic rung (W3.2).
+      const clean = !specs.length && !feynman.previous;
+      completePhase(node, "feynman", undefined, undefined, clean);
       enterOwed(node);
       if (specs.length)
         showToast(tc().gapsAttached(specs.length, node.label), tc().mapUpdated);

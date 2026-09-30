@@ -138,7 +138,8 @@ final class PerformViewModel {
 
     func advance() {
         leave()
-        pass.advance(passed: passed)
+        // Right on the first run, before any re-run, earns Trace (W3.2).
+        pass.advance(passed: passed, clean: previous.isEmpty)
     }
 
     var handOffLabel: LocalizedStringKey { pass.handOffLabel }

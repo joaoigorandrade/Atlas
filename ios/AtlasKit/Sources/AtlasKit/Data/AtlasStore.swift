@@ -425,11 +425,11 @@ public extension AtlasStore {
     /// `.cleared` when it proved the node. Left `.passed`, the node's existing
     /// reason stands — so re-doing an unrelated phase can't silently promote a
     /// node past a Crucible it is still failing.
-    func completePhase(_ node: ConceptNode, _ phase: Phase, closed: Closing = .passed) {
+    func completePhase(_ node: ConceptNode, _ phase: Phase, closed: Closing = .passed, clean: Bool = false) {
         let challenged = challenge == node.id
         if challenged { challenge = nil } // one attempt, one verdict
         recordAttempt(node, phase, passed: true, detail: challenged ? ["challenged": .bool(true)] : [:])
-        let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged)
+        let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged, clean: clean)
         phasesDone[node.id] = done
         // Anything studied on a node that still owes Recall pushes Recall a
         // night out: a cold retrieval has to be cold.

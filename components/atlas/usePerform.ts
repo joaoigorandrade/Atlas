@@ -177,7 +177,8 @@ export function usePerform(deps: {
     if (content && !passed)
       recordAttempt({ nodeId: cur.nodeId, phase: "perform", passed: false });
     if (node && passed) {
-      completePhase(node, "perform");
+      // Right on the first run, before any re-run, earns Trace (W3.2).
+      completePhase(node, "perform", undefined, undefined, !cur.previous);
       // Only a run that actually closed the rung is forgotten. A failed one is
       // still the learner's work on a case they will be handed again, and
       // `exitPerform` keeps it for the same reason — a rung that did not close
