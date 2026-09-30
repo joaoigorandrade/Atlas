@@ -8,7 +8,6 @@
 
 import type { ScopeOffer } from "@/lib/api";
 import type { Continent } from "@/lib/continents";
-import type { GenerateBody } from "@/lib/server/jobInput";
 import { fail, type Db } from "@/lib/server/store/shared";
 
 export async function createContinent(
