@@ -417,3 +417,27 @@ private let dispute: SteelmanContent = try! JSONDecoder().decode(SteelmanContent
 @Test func twoThirdsRoundsUpLikeTheWeb() {
     #expect((0...12).map(twoThirds) == [0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8])
 }
+
+// MARK: - W3.1: rationing the heavy phases
+
+@Test func noPlanExceedsItsCellCap() {
+    for kind in NodeKind.allCases {
+        for domain in Domain.allCases {
+            for difficulty in [NodeDifficulty.easy, .medium, .hard] {
+                let gates = planGates(resolvePlan(kind, domain, .core, difficulty)).count
+                #expect(gates <= gateCap(difficulty), "\(kind)/\(domain)/\(difficulty)")
+            }
+        }
+    }
+}
+
+@Test func theHeavyPhasesRunWhereTheMapFoundWhatTheyNeed() {
+    let plan = resolvePlan(.concept, .interpretive, .core, .hard,
+                           PlanEvidence(contested: false, transferable: false, individual: true, neighbours: 1))
+    for phase in [Phase.steelman, .crucible, .discriminate, .connect] { #expect(!plan.contains(phase)) }
+    // Absent evidence rations nothing.
+    #expect(resolvePlan(.concept, .interpretive, .core, .hard).contains(.steelman))
+    // The same easy ladder as the web: five gates, Connect trimmed first.
+    #expect(resolvePlan(.concept, .general, .core, .easy)
+        == [.consume, .discriminate, .feynman, .crucible, .recall, .retain])
+}

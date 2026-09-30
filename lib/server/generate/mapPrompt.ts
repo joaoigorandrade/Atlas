@@ -113,9 +113,16 @@ export const ABOUT_RULE = `The "about" object describes the map as a whole:
 - "lenses": [] — except for a confessional or genuinely contested subject (religious history, a scripture, a political ideology), where it names TWO short readings a learner could study it through (e.g. "Academic historiography", "The Church's own reading, with its documents"). Never more than two.
 - "shape": how the topic is best walked. "timeline" for history and anything whose spine is chronology; "scenarios" for a language learned for real situations (a trip, a job), where each concept is a situation; "plan" for a life domain learned to act on (money, health habits, a career move), where concepts are decisions in the order life presents them; "hierarchy" for everything else.`;
 
+/** W3.1: the evidence that decides which HEAVY phases a node runs. Honest
+ *  booleans, not a quota — most nodes are none of the three special cases. */
+export const EVIDENCE_RULE = `Three booleans per concept decide which demanding exercises it gets, so answer them honestly:
+  "contested" — true only when informed people genuinely disagree about it today (a live scholarly, political or practical dispute), so that arguing both sides teaches something. Settled material is false.
+  "transferable" — true when applying it to a situation it was never taught in is meaningful (a principle, a method, a pattern); false for a label, a date, a one-off event or a convention.
+  "individual" — true when the concept IS one named person, event, document or place, rather than a class of things with members and non-members.`;
+
 /** One node as the model writes it — shared by the single-shot and streamed
  *  prompts so the two can't ask for different fields. */
-export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "domainWhy": "only when the domain differs from the topic's", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard"}`;
+export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "domainWhy": "only when the domain differs from the topic's", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard", "contested": false, "transferable": true, "individual": false}`;
 
 export const graphShape = (ask: [number, number]) => `{
   "about": ${ABOUT_SHAPE.slice(10, -1)},
@@ -212,6 +219,7 @@ export const mapRules = (ask: [number, number], goal: GoalKind) =>
 ${KIND_RULE}
 ${DOMAIN_RULE}
 ${ABOUT_RULE}
+${EVIDENCE_RULE}
 ${axesRule(goal)}
 ${sizeRule({
   unit: "concepts",

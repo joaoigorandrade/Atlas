@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  GATE_CAP,
   applyDiagnosticEffect,
   applyDiagnosticLedger,
   crucibleReducer,
@@ -1346,12 +1347,10 @@ describe("primaryPhase — what the CTA opens is what the CTA says", () => {
     expect(primaryPhase(interpretive, ["consume", "discriminate"], "learning")).toBe(
       "provenance",
     );
+    // W3.1's cap keeps the domain's own rungs and trims Socratic and Connect.
+    expect(interpretive).not.toContain("socratic");
     expect(
-      primaryPhase(
-        interpretive,
-        ["consume", "discriminate", "provenance", "socratic"],
-        "learning",
-      ),
+      primaryPhase(interpretive, ["consume", "discriminate", "provenance"], "learning"),
     ).toBe("steelman");
   });
 });
@@ -1957,8 +1956,9 @@ describe("importance × difficulty", () => {
   it("draws each bar from the plan", () => {
     const row = (i: NodeImportance, d: NodeDifficulty) =>
       resolvePlan("concept", "general", i, d).join(" ");
+    // W3.1: an easy node is capped at five gates, and Connect trails.
     expect(row("core", "easy")).toBe(
-      "consume discriminate feynman connect crucible recall retain",
+      "consume discriminate feynman crucible recall retain",
     );
     expect(row("core", "hard")).toBe(PHASE_PLAN.concept.join(" "));
     // use: Consume, the applied rung the kind wants, Retain — at any difficulty.
@@ -2081,8 +2081,10 @@ describe("DOMAIN_PLAN invariants", () => {
     // learner ever running anything.
     for (const phase of ["trace", "perform", "drill"] as const) {
       expect(PHASE_PLAN.concept).not.toContain(phase);
-      expect(resolvePlan("concept", "formal")).toContain(phase);
+      expect(resolvePlan("concept", "formal", "core", "hard")).toContain(phase);
     }
+    // Under W3.1's cap a medium one keeps the rung it computes on.
+    expect(resolvePlan("concept", "formal")).toContain("perform");
   });
 
   it("performative takes the prose rungs off, whatever the kind says", () => {
@@ -2185,5 +2187,31 @@ describe("applyDiagnosticLedger — a placement writes the ledger, not just stat
     const done = applyDiagnosticLedger({}, "shaky", "b", g);
     expect(done.b).toEqual(planGates(PHASE_PLAN.fact).slice(0, -1));
     expect(done.a).toBeUndefined();
+  });
+});
+
+describe("W3.1: the heavy phases run where the map found what they need", () => {
+  it("drops Steelman, Crucible, Discriminate and Connect on the evidence", () => {
+    const plan = resolvePlan("concept", "interpretive", "core", "hard", {
+      contested: false,
+      transferable: false,
+      individual: true,
+      neighbours: 1,
+    });
+    for (const p of ["steelman", "crucible", "discriminate", "connect"] as const)
+      expect(plan).not.toContain(p);
+    // Absent evidence rations nothing: every map before the flags keeps its ladder.
+    expect(resolvePlan("concept", "interpretive", "core", "hard")).toContain("steelman");
+  });
+
+  it("no plan exceeds its cell cap", () => {
+    for (const kind of NODE_KINDS)
+      for (const domain of DOMAINS)
+        for (const difficulty of ["easy", "medium", "hard"] as const) {
+          const gates = planGates(resolvePlan(kind, domain, "core", difficulty)).length;
+          expect(gates, `${kind}/${domain}/${difficulty}`).toBeLessThanOrEqual(
+            GATE_CAP[difficulty],
+          );
+        }
   });
 });

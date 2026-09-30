@@ -135,8 +135,10 @@ import Testing
 @Test func aFormalConceptGetsSomethingToActuallyCompute() {
     for phase in [Phase.trace, .perform, .drill] {
         #expect(!phasePlans[.concept]!.contains(phase))
-        #expect(resolvePlan(.concept, .formal).contains(phase))
+        #expect(resolvePlan(.concept, .formal, .core, .hard).contains(phase))
     }
+    // Under W3.1's cap a medium one keeps the rung it computes on.
+    #expect(resolvePlan(.concept, .formal).contains(.perform))
 }
 
 /// Explaining the preterite in your own words is not speaking Spanish, so the

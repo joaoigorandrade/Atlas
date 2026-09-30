@@ -89,7 +89,8 @@ public let domainPlans: [Domain: DomainPlanRule] = [
 /// Defaults reproduce the pre-axes ladder. Mirrors `resolvePlan` in `phases.ts`.
 public func resolvePlan(
     _ kind: NodeKind, _ domain: Domain,
-    _ importance: NodeImportance = .core, _ difficulty: NodeDifficulty = .medium
+    _ importance: NodeImportance = .core, _ difficulty: NodeDifficulty = .medium,
+    _ evidence: PlanEvidence = PlanEvidence()
 ) -> [Phase] {
     let base = phasePlans[kind] ?? legacyPhasePlan
     var want: Set<Phase>
@@ -106,7 +107,7 @@ public func resolvePlan(
         return Phase.allCases.filter { $0 == .consume || $0 == .retain || $0 == rung }
     case .core:
         if difficulty == .easy { want.remove(.socratic) }
-        return Phase.allCases.filter { want.contains($0) }
+        return ration(want, kind, difficulty, evidence)
     }
 }
 

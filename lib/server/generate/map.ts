@@ -50,6 +50,13 @@ export interface ScopeOffer {
   note: string;
 }
 
+/** W3.1's evidence as the model wrote it on a concept. */
+const evidence = (n: RawConcept) => ({
+  contested: n.contested,
+  transferable: n.transferable,
+  individual: n.individual,
+});
+
 /** Column layout from topological depth — deterministic, draggable afterwards. */
 function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[] {
   const ids = new Set(rawNodes.map((n) => n.id));
@@ -78,6 +85,7 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
   }
   const byCol: Record<number, string[]> = {};
   for (const n of rawNodes) (byCol[depth[n.id]] = byCol[depth[n.id]] ?? []).push(n.id);
+  const degree = (id: string) => edges.filter(([a, b]) => a === id || b === id).length;
   const nodes: ConceptNode[] = rawNodes.map((n) => {
     const d = depth[n.id];
     const col = byCol[d];
@@ -87,7 +95,10 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
       // Resolved here, once, and stored on the node. Recomputing it on every
       // read would mean shipping a new catalogue silently re-cut the ladder
       // under a run already in progress.
-      phasePlan: resolvePlan(n.kind, n.domain, n.importance, n.difficulty),
+      phasePlan: resolvePlan(n.kind, n.domain, n.importance, n.difficulty, {
+        ...evidence(n),
+        neighbours: degree(n.id),
+      }),
       state: "unknown" as const,
       g: d + 1,
       week: 0,
@@ -338,7 +349,15 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
       // re-space and never cross.
       const node: MapNode = {
         ...item,
-        phasePlan: resolvePlan(item.kind, item.domain, item.importance, item.difficulty),
+        // Provisional: the neighbour count Connect is rationed on is only known
+        // once the map is whole, so the settling pass resolves it again.
+        phasePlan: resolvePlan(
+          item.kind,
+          item.domain,
+          item.importance,
+          item.difficulty,
+          evidence(item),
+        ),
         state: "unknown",
         g: d + 1,
         week: 0,
