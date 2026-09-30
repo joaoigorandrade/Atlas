@@ -97,8 +97,7 @@ export interface Topic {
    *  maps above are the pre-catalogue columns and keep their own shape; a
    *  later phase lands here, so adding one is a key rather than a migration. */
   phaseProgress: Record<string, PhaseProgress>;
-  /** When each phase first closed per node, stamped by the server (W0.1). */
-  phaseClosedAt?: Record<string, Record<string, string>>;
+  phaseClosedAt?: Record<string, Record<string, string>>; // server-stamped, per node
   cards: StoredCard[];
   continent: Continent | null;
 }
@@ -288,16 +287,15 @@ export function deleteTopic(id: string): Promise<void> {
 }
 
 /** The map's only write path: what changed, and what left the map. */
-export function patchNodes(
-  id: string,
-  deltas: NodeDelta[],
-  remove: string[] = [],
-): Promise<{ states?: Record<string, ProgressState> } | null> {
-  return call("patchNodes", `/topics/${id}/nodes`, {
-    method: "PATCH",
-    body: { deltas, remove },
-  });
-}
+export const patchNodes = (id: string, deltas: NodeDelta[], remove: string[] = []) =>
+  call<{ states?: Record<string, ProgressState> } | null>(
+    "patchNodes",
+    `/topics/${id}/nodes`,
+    {
+      method: "PATCH",
+      body: { deltas, remove },
+    },
+  );
 
 export function putCards(id: string, cards: StoredCard[]): Promise<void> {
   return call("putCards", `/topics/${id}/cards`, { method: "PUT", body: { cards } });

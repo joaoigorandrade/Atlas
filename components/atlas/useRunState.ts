@@ -631,9 +631,7 @@ export function useRunState(opts: {
         saved: { nodes: savedNodesRef, cards: savedCardsRef, topic: savedTopicRef },
         adopt: (s) => setStates((p) => ({ ...p, ...s })),
       })
-        .then((wrote) => {
-          if (wrote) setSaveFailed(false);
-        })
+        .then((wrote) => wrote && setSaveFailed(false))
         .catch((err: unknown) => {
           logWarning("save_run_failed", err);
           setSaveFailed(true);

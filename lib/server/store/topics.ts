@@ -161,7 +161,6 @@ function assemble(
     feynmanProgress: {},
     connectProgress: {},
     phaseProgress: {},
-    phaseClosedAt: {},
     cards: [],
     continent: (topic.continent as Topic["continent"]) ?? null,
   };
@@ -207,8 +206,7 @@ function assemble(
     // One key per parked post-catalogue phase; `{}` from the column default.
     if (n.phase_progress && Object.keys(n.phase_progress).length)
       out.phaseProgress[n.id] = n.phase_progress;
-    if (n.phase_closed_at && Object.keys(n.phase_closed_at).length)
-      out.phaseClosedAt![n.id] = n.phase_closed_at;
+    if (n.phase_closed_at) (out.phaseClosedAt ??= {})[n.id] = n.phase_closed_at;
   }
   for (const e of edges)
     out.graph.edges.push([e.from_id, e.to_id, e.dashed] as ConceptEdge);

@@ -71,19 +71,14 @@ class OpenRouterError extends Error {
 }
 
 function modelChain(role: ModelRole): string[] {
-  const judge =
-    process.env.OPENROUTER_JUDGE_MODEL || process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
-  const primary =
-    role === "verify"
-      ? process.env.OPENROUTER_VERIFY_MODEL || judge
-      : role === "judge"
-        ? judge
-        : process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
-  const fallbacks = (process.env.OPENROUTER_FALLBACK_MODEL ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return [primary, ...fallbacks.filter((m) => m !== primary)];
+  const { OPENROUTER_MODEL, OPENROUTER_JUDGE_MODEL, OPENROUTER_VERIFY_MODEL } =
+    process.env;
+  const content = OPENROUTER_MODEL || DEFAULT_MODEL;
+  const judge = OPENROUTER_JUDGE_MODEL || content;
+  const primary = { content, judge, verify: OPENROUTER_VERIFY_MODEL || judge }[role];
+  const fallbacks = (process.env.OPENROUTER_FALLBACK_MODEL ?? "").split(",");
+  const chain = fallbacks.map((s) => s.trim()).filter((m) => m && m !== primary);
+  return [primary, ...chain];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
