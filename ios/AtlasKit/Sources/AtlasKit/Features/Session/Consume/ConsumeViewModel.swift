@@ -63,6 +63,12 @@ final class ConsumeViewModel {
     /// Sections whose check was passed on an earlier visit, so a re-entry does
     /// not re-gate work the learner already did.
     private var passedChecks: Set<String>
+    /// The check asked before each section (W3.3): `true` the learner had it,
+    /// `false` the guess missed. Mirrors the web's `ConsumeProgress.pretest`.
+    private var guesses: [String: Bool]
+    /// Sections whose prose was on screen while still being written. The check
+    /// landing must not put a pretest over what the learner is already reading.
+    private var readBare: Set<String> = []
     /// The most sections this pass has ever had. The frames carry no total, so
     /// a cold rail grows under the learner; what this stops is the *second*
     /// problem — a re-entry mid-stream drawing a shorter rail than last time.
@@ -78,6 +84,7 @@ final class ConsumeViewModel {
         // section 1 after a phone call is re-reading ten minutes of prose.
         index = max(0, progress?.idx ?? 0)
         passedChecks = progress?.checks ?? []
+        guesses = progress?.pretest ?? [:]
         seenTotal = progress?.total ?? 0
     }
 
@@ -185,11 +192,41 @@ final class ConsumeViewModel {
         // proves the learner read something, which is what a streak day means.
         passedChecks.insert(chunk.id)
         session.markWorked()
-        note(passed: chunk.id)
+        note(passed: chunk.id, option: option)
     }
 
     /// The end of the section has scrolled into view, so the check may appear.
     func reachEnd() { reachedEnd = true }
+
+    /// The section's check comes first, before its prose (W3.3): once, and only
+    /// on a section never answered either way nor read while being written.
+    var pretesting: Bool {
+        guard let chunk, chunk.settled, chunk.check != nil else { return false }
+        return guesses[chunk.id] == nil && !passedChecks.contains(chunk.id)
+            && !readBare.contains(chunk.id)
+    }
+    /// The learner already had this section — it can be skipped.
+    var knewIt: Bool { chunk.map { guesses[$0.id] == true } ?? false }
+    /// The guess before reading missed — the check at the end says so.
+    var guessMissed: Bool { !passed && (chunk.map { guesses[$0.id] == false } ?? false) }
+
+    /// The section on screen is still being written — its prose is being read.
+    func sawWriting(_ id: String) { readBare.insert(id) }
+
+    /// The pretest's one answer. Right passes the check on the spot; a miss
+    /// reveals nothing, so the check at the end of the section is still real.
+    func guess(_ option: Int) {
+        guard pretesting, let chunk, let check = chunk.check else { return }
+        let right = check.opts[safe: option]?.correct == true
+        guesses[chunk.id] = right
+        if right {
+            picked = option
+            grade = CheckGrade(correct: true, attempt: 1)
+            passedChecks.insert(chunk.id)
+            session.markWorked()
+        }
+        note(passed: right ? chunk.id : nil, option: option, guess: (chunk.id, right))
+    }
 
     /// Back to a section already read. The rail is the way back: the web keeps
     /// every revealed section on the page, and here only one is on screen at a
@@ -256,7 +293,8 @@ final class ConsumeViewModel {
     /// How far the reading got, written where the map can read it: the spiral
     /// refuses to tick Consume off a pass left part-way through, and "3 de 5"
     /// is the same two numbers. Mirrors the web's `ConsumeProgress`.
-    private func note(passed chunk: String? = nil) {
+    private func note(passed chunk: String? = nil, option: Int = -1,
+                      guess: (section: String, right: Bool)? = nil) {
         seenTotal = max(seenTotal, landed)
         session.store.note(
             reading: node.id, idx: index, total: seenTotal,
@@ -270,7 +308,7 @@ final class ConsumeViewModel {
             // last section *in hand* is not the last one while the stream is
             // still going.
             finished: !chunks.isEmpty && index >= chunks.count - 1 && !writing && passed,
-            passed: chunk
+            passed: chunk, option: option, guess: guess
         )
     }
 

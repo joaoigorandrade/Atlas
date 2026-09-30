@@ -434,6 +434,7 @@ export default function AtlasApp({
   });
   const {
     consumeCheck,
+    consumePretest,
     consumeContinue,
     consumeOpenModel,
     consumeCloseModel,
@@ -825,6 +826,7 @@ export default function AtlasApp({
             modelStreaming={modelStreaming}
             onExit={exitConsume}
             onCheck={consumeCheck}
+            onPretest={consumePretest}
             onContinue={consumeContinue}
             onFinish={finishConsume}
             onBeginNext={beginNextFromConsume}

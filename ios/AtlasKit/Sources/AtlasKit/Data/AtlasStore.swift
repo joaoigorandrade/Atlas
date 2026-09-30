@@ -356,13 +356,18 @@ public extension AtlasStore {
         guard let record = consumeProgress[id]?.fields else { return nil }
         func flag(_ key: String) -> Bool { if case .bool(true)? = record[key] { true } else { false } }
         func count(_ key: String) -> Int { if case .number(let n)? = record[key] { Int(n) } else { 0 } }
-        // The browser writes `checks` as `{ chunkId: true }`, one key per
-        // section answered.
+        // The browser writes a check as `{ oi, correct }`; this client used to
+        // write a bare `true`. Either is a pass when it says so.
         let passed = (record["checks"]?.fields ?? [:]).compactMap { id, value -> String? in
-            if case .bool(true) = value { id } else { nil }
+            if case .bool(true) = value { return id }
+            if case .bool(true)? = value.fields?["correct"] { return id }
+            return nil
+        }
+        let pretest = (record["pretest"]?.fields ?? [:]).compactMapValues { value -> Bool? in
+            if case .bool(let right) = value { right } else { nil }
         }
         return ReadingProgress(
-            idx: count("idx"), total: count("total"), checks: Set(passed),
+            idx: count("idx"), total: count("total"), checks: Set(passed), pretest: pretest,
             finished: flag("finished"), handedOff: flag("handedOff")
         )
     }
@@ -383,7 +388,8 @@ public extension AtlasStore {
     /// field means "no news", not "false".
     func note(
         reading id: String, idx: Int? = nil, total: Int? = nil,
-        finished: Bool? = nil, handedOff: Bool? = nil, passed chunk: String? = nil
+        finished: Bool? = nil, handedOff: Bool? = nil, passed chunk: String? = nil,
+        option: Int = -1, guess: (section: String, right: Bool)? = nil
     ) {
         var record = consumeProgress[id]?.fields ?? [:]
         if let idx { record["idx"] = .number(Double(idx)) }
@@ -394,9 +400,15 @@ public extension AtlasStore {
             record["total"] = .number(Double(max(total, held)))
         }
         if let chunk {
+            // The web's shape, so a section passed here reads as passed there.
             var checks = record["checks"]?.fields ?? [:]
-            checks[chunk] = .bool(true)
+            checks[chunk] = .object(["oi": .number(Double(option)), "correct": .bool(true)])
             record["checks"] = .object(checks)
+        }
+        if let guess {
+            var guesses = record["pretest"]?.fields ?? [:]
+            guesses[guess.section] = .bool(guess.right)
+            record["pretest"] = .object(guesses)
         }
         if let finished { record["finished"] = .bool(finished) }
         if let handedOff { record["handedOff"] = .bool(handedOff) }
@@ -404,7 +416,8 @@ public extension AtlasStore {
         // creates has to be a whole `ConsumeProgress`.
         for (key, fallback): (String, JSONValue) in [
             ("idx", .number(0)), ("variant", .object([:])), ("collapsed", .object([:])),
-            ("checks", .object([:])), ("termsSeen", .array([])), ("total", .number(0)),
+            ("checks", .object([:])), ("pretest", .object([:])), ("termsSeen", .array([])),
+            ("total", .number(0)),
             ("finished", .bool(false)), ("handedOff", .bool(false)),
         ] {
             record[key] = record[key] ?? fallback

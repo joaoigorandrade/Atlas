@@ -396,14 +396,19 @@ public struct ReadingProgress: Sendable {
     /// Chunk ids whose check is already passed. A section answered once is not
     /// re-gated.
     public var checks: Set<String>
+    /// The same check asked before its section (W3.3): `true` when the learner
+    /// already had it, `false` when the guess missed. Mirrors the web's
+    /// `ConsumeProgress.pretest`.
+    public var pretest: [String: Bool]
     public var finished: Bool
     public var handedOff: Bool
 
     public init(idx: Int = 0, total: Int = 0, checks: Set<String> = [],
-                finished: Bool, handedOff: Bool) {
+                pretest: [String: Bool] = [:], finished: Bool, handedOff: Bool) {
         self.idx = idx
         self.total = total
         self.checks = checks
+        self.pretest = pretest
         self.finished = finished
         self.handedOff = handedOff
     }

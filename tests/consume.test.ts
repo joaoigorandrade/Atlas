@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   ALT_CONTROLS,
   MODALITY_PREFERENCE_MIN,
+  afterPretest,
   altControls,
   emptyConsumeProgress,
+  needsPretest,
+  normaliseConsumeProgress,
   phaseIndex,
   preferredModality,
   planGates,
@@ -211,5 +214,48 @@ describe("validatePassage", () => {
 
   it("rejects a non-string paragraph", () => {
     expect(() => validatePassage({ answer: [{ p: "wrong shape" }] })).toThrow();
+  });
+});
+
+// W3.3 — the section's check, asked once before the section is read.
+describe("Consume pretest", () => {
+  const withCheck = { id: "c1", check: { q: "?" } };
+
+  it("asks only a section that has a check and no answer either way", () => {
+    const p = emptyConsumeProgress();
+    expect(needsPretest(p, withCheck)).toBe(true);
+    expect(needsPretest(p, { id: "c1" })).toBe(false);
+    expect(
+      needsPretest({ ...p, checks: { c1: { oi: 0, correct: false } } }, withCheck),
+    ).toBe(false);
+    expect(needsPretest({ ...p, pretest: { c1: false } }, withCheck)).toBe(false);
+  });
+
+  it("a right guess passes the check and folds the section", () => {
+    const p = afterPretest(emptyConsumeProgress(), "c1", 2, true);
+    expect(p.pretest).toEqual({ c1: true });
+    expect(p.checks.c1).toEqual({ oi: 2, correct: true });
+    expect(p.collapsed.c1).toBe(true);
+  });
+
+  it("a miss records only the miss — the check at the end is still a real question", () => {
+    const p = afterPretest(emptyConsumeProgress(), "c1", 0, false);
+    expect(p.pretest).toEqual({ c1: false });
+    expect(p.checks.c1).toBeUndefined();
+    expect(p.collapsed.c1).toBeUndefined();
+  });
+
+  it("answers once — a second guess is elimination", () => {
+    const missed = afterPretest(emptyConsumeProgress(), "c1", 0, false);
+    expect(afterPretest(missed, "c1", 1, true)).toBe(missed);
+  });
+
+  it("reads a row saved before pretests existed, and the phone's bare `true` check", () => {
+    const old = { idx: 2, checks: { c1: true } } as unknown as Partial<ConsumeProgress>;
+    const p = normaliseConsumeProgress(old);
+    expect(p.pretest).toEqual({});
+    expect(p.idx).toBe(2);
+    expect(p.checks.c1).toEqual({ oi: -1, correct: true });
+    expect(normaliseConsumeProgress(undefined)).toEqual(emptyConsumeProgress());
   });
 });

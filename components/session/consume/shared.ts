@@ -98,6 +98,11 @@ export const STRINGS = {
     checkAgain: "The right answer is marked above — the recap will name this one.",
     checkPassed: "Understood",
     checkMissed: "Not quite",
+    pretestKicker: "Before you read",
+    pretestHint:
+      "Guess first — one try. If you already have it, this section folds away; a miss makes the reading stick.",
+    pretestAgain: "Your guess before reading missed — now answer from what you read.",
+    pretestKnown: "You already had this — the full section is one tap away",
   },
   "pt-BR": {
     back: "← Mapa",
@@ -185,6 +190,11 @@ export const STRINGS = {
     checkAgain: "A resposta certa está marcada acima — o resumo vai lembrar desta.",
     checkPassed: "Entendido",
     checkMissed: "Ainda não",
+    pretestKicker: "Antes de ler",
+    pretestHint:
+      "Arrisque primeiro — uma tentativa. Se você já sabe, esta seção se recolhe; errar faz a leitura fixar.",
+    pretestAgain: "Seu palpite antes da leitura errou — agora responda com o que leu.",
+    pretestKnown: "Você já sabia isto — a seção completa está a um toque",
   },
 } as const;
 

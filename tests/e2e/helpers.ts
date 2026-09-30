@@ -234,10 +234,12 @@ export async function openPhase(
 /**
  * Answer the newest unanswered Consume section check.
  *
- * A check only mounts once the end of its section is properly on screen (an
- * IntersectionObserver in `SectionCheck.tsx`), so the reading is scrolled until
- * it appears. It opens on "Own words" and is answered once — this switches it
- * to Choices and picks `option` (1 is right in the fixture pass).
+ * Each section opens on its pretest (W3.3), so on a fresh section this answers
+ * that: option 1 is right in the fixture pass, which passes the check and folds
+ * the section. An end-of-section check only mounts once the end of its section
+ * is properly on screen (an IntersectionObserver in `SectionCheck.tsx`), so the
+ * reading is scrolled until a check appears. Either one opens on "Own words" and
+ * is answered once — this switches it to Choices and picks `option`.
  */
 export async function answerCheck(page: Page, option = 1): Promise<void> {
   const sheet = page.getByTestId("phase-consume");

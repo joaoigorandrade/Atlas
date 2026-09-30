@@ -307,3 +307,73 @@ struct MarkdownTests {
     // Nor read aloud: half a section stops mid-sentence and cannot resume.
     #expect(model.spoken.isEmpty)
 }
+
+// W3.3 — the section's check, asked once before the section is read.
+
+@MainActor
+@Test func aRightGuessBeforeReadingPassesTheSectionAndIsKept() {
+    let store = store()
+    reading(store, [section("c1", check: check(correct: [false, true, false])), section("c2")])
+    let model = consume(store)
+    #expect(model.pretesting)
+
+    model.guess(1)
+    #expect(model.passed)
+    #expect(model.knewIt)
+    #expect(model.pretesting == false)
+    // Written in the web's shape, so the browser reads the section as passed.
+    #expect(store.reading("lat")?.pretest["c1"] == true)
+    #expect(store.reading("lat")?.checks.contains("c1") == true)
+    // A re-entry does not ask again.
+    #expect(consume(store).pretesting == false)
+}
+
+@MainActor
+@Test func aMissedGuessRevealsNothingAndTheCheckWaitsAtTheEnd() {
+    let store = store()
+    reading(store, [section("c1", check: check(correct: [false, true, false]))])
+    let model = consume(store)
+
+    model.guess(0)
+    // Nothing is marked: the check at the end of the section is still a question.
+    #expect(model.passed == false)
+    #expect(model.grade == nil)
+    #expect(model.missed.isEmpty)
+    #expect(model.pretesting == false)
+    #expect(model.guessMissed)
+    #expect(store.reading("lat")?.pretest["c1"] == false)
+    // A second guess would be elimination.
+    model.guess(1)
+    #expect(model.passed == false)
+
+    model.pick(1)
+    #expect(model.passed)
+    #expect(model.guessMissed == false)
+}
+
+@MainActor
+@Test func proseReadWhileItWasBeingWrittenIsNeverPretested() {
+    let store = store()
+    reading(store, [section("c1", check: check(correct: [true, false, false]))])
+    let model = consume(store)
+    model.sawWriting("c1")
+    #expect(model.pretesting == false)
+}
+
+@MainActor
+@Test func aCheckPassedInTheBrowserReadsAsPassedHere() {
+    let store = store()
+    // The browser writes `{ oi, correct }`; a bare `true` is what this client
+    // used to write. Both are a pass; a recorded miss is not.
+    store.consumeProgress["lat"] = .object([
+        "checks": .object([
+            "c1": .object(["oi": .number(1), "correct": .bool(true)]),
+            "c2": .bool(true),
+            "c3": .object(["oi": .number(0), "correct": .bool(false)]),
+        ]),
+        "pretest": .object(["c1": .bool(true), "c3": .bool(false)]),
+    ])
+    let progress = store.reading("lat")
+    #expect(progress?.checks == ["c1", "c2"])
+    #expect(progress?.pretest == ["c1": true, "c3": false])
+}

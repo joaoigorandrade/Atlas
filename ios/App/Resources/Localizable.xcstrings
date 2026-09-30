@@ -11,6 +11,28 @@
         }
       }
     },
+    "Antes de ler" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before you read"
+          }
+        }
+      }
+    },
+    "Arrisque primeiro — uma tentativa. Se você já sabe, pode seguir; errar faz a leitura fixar." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guess first — one try. If you already know it, go on; a miss makes the reading stick."
+          }
+        }
+      }
+    },
     "Atravessou com apoio — a lacuna fechou. A prova é o problema a frio em %@, que abre amanhã." : {
       "localizations" : {
         "en" : {
@@ -191,6 +213,17 @@
         }
       }
     },
+    "Seu palpite antes da leitura errou — agora responda com o que leu." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your guess before reading missed — now answer from what you read."
+          }
+        }
+      }
+    },
     "temas de finanças, direito e impostos usam as regras dele" : {
       "localizations" : {
         "en" : {
@@ -217,6 +250,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A new case. Last run broke at: %@."
+          }
+        }
+      }
+    },
+    "Você já sabia isto — pode seguir, ou ler mesmo assim." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You already had this — go on, or read it anyway."
           }
         }
       }

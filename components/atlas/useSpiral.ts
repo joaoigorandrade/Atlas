@@ -27,7 +27,8 @@ import {
   connectStart,
   CONFIDENCE_FELT,
   earnsRetained,
-  emptyConsumeProgress,
+  afterPretest,
+  normaliseConsumeProgress,
   gapParentOf,
   markTodayMet,
   openGapIds,
@@ -308,7 +309,7 @@ export function useSpiral(deps: {
         const saved = consumeProgressRef.current[node.id];
         setConsume({
           nodeId: node.id,
-          ...(saved ?? emptyConsumeProgress()),
+          ...normaliseConsumeProgress(saved),
           term: null,
           // A resumed session never reopens the lens the learner left open —
           // they came back for the reading, not for the view over it.
@@ -423,6 +424,12 @@ export function useSpiral(deps: {
         ? { ...prev, checks: { ...prev.checks, [chunkId]: { oi, correct } } }
         : prev,
     );
+  };
+
+  /** The same check, asked before its section (W3.3): a right answer passes
+   *  it and collapses the section; a miss only opens the reading in full. */
+  const consumePretest = (chunkId: string, oi: number, correct: boolean) => {
+    setConsume((prev) => (prev ? afterPretest(prev, chunkId, oi, correct) : prev));
   };
 
   const consumeContinue = (chunkIndex: number) => {
@@ -671,6 +678,7 @@ export function useSpiral(deps: {
         variant: s.variant,
         collapsed: s.collapsed,
         checks: s.checks,
+        pretest: s.pretest,
         termsSeen: s.termsSeen,
         // A pass still streaming has fewer sections in hand than it will end
         // up with; never let a mid-stream count shrink a known total.
@@ -696,6 +704,7 @@ export function useSpiral(deps: {
     consume?.idx,
     consume?.variant,
     consume?.collapsed,
+    consume?.pretest,
     consume?.checks,
     consume?.termsSeen,
     consume?.finished,
@@ -1798,6 +1807,7 @@ export function useSpiral(deps: {
   return {
     enterSession,
     consumeCheck,
+    consumePretest,
     consumeContinue,
     consumeOpenModel,
     consumeCloseModel,
