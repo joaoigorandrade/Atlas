@@ -197,19 +197,24 @@ export function fixtureTable(name: string) {
         for (const row of matching()) Object.assign(row, patch);
         pending = { data: null, error: null };
       };
-      // The filters arrive after `update()`, so the work waits for the await.
-      return {
+      // The filters arrive after `update()`, and PostgREST applies all of them,
+      // so the work waits for the await — applying on the first `eq` patched
+      // every row the first filter matched.
+      const chain = {
         eq: (column: string, value: unknown) => {
           filters.push((row) => row[column] === value);
-          applied();
-          return api;
+          return chain;
         },
         in: (column: string, values: unknown[]) => {
           filters.push((row) => values.includes(row[column]));
+          return chain;
+        },
+        then: (resolve_: (v: Result) => unknown) => {
           applied();
-          return api;
+          return resolve_(pending);
         },
       };
+      return chain;
     },
     upsert: (
       rows: Row | Row[],

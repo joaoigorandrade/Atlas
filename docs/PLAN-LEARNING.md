@@ -1047,3 +1047,23 @@ record the five north-star numbers under "Baselines".
 _Filled by W0.3 and M.5 after each wave: disputed-key rate per domain, tag
 spread, chain count, phase-minute hours per panel map, the five north-star
 numbers._
+
+### 2026-09-30 — W0.3 baseline (before Wave 1–2 content changes)
+
+Model `openai/gpt-5.6-luna` for content and verify; two core nodes per map;
+`scratch/eval/panel-2026-09-30.json`.
+
+- **Disputed keys:** 9 / 329 overall (2.7%). By domain: formal 0/71,
+  executable 0/67, empirical 2/49 (predict 1/20, discriminate 1/10),
+  **interpretive 7/31 (23%)** (discriminate 3/11, provenance 4/15),
+  performative 0/60, craft 0/24, general 0/27.
+- **Tags:** no map spanned more than two domains; *Finanças pessoais* came
+  back `general` with no jurisdiction.
+- **Shape:** one chain — *The French Revolution*, 23 nodes of width 1, all
+  `concept`. *Igreja Antiga* returned the scope offer instead of a map.
+- **Phase-minute hours vs. pace model:** linear algebra 9.1 / 6.5,
+  probabilidade 13.2 / 8.0, git 9.4 / 5.2, python 8.6 / 6.5, cardio 9.1 / 7.2,
+  clima 10.4 / 6.5, French Revolution 20.8 / 13.0, espanhol 3.8 / 4.0,
+  italiano 3.8 / 4.0, finanças 4.2 / 2.8, sourdough 3.9 / 3.3.
+- **Locale and notation:** 0 Brazilian instruments in *Finanças pessoais*
+  Consume; no LaTeX on either formal map.
