@@ -18,6 +18,7 @@ import { useReducedMotion } from "@/lib/motion";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import Rich from "@/components/Rich";
+import TurnOver from "@/components/session/retain/TurnOver";
 import { STRINGS } from "@/components/session/retainCopy";
 
 // The micro-Socratic aside borrows Connect's violet; the fail re-explanation
@@ -97,8 +98,8 @@ const keycap: CSSProperties = {
 /** One card, as a catalogue card from the atlas: dealt off the deck, lifted and
  *  turned over, stamped with its grade and tossed onto the pile. Everything the
  *  card is — its kind, its number, where it came from — is written on it. The
- *  whole loop is keyboard-drivable (space to turn, 1–4 to grade, E for the
- *  aside, Enter to continue). */
+ *  whole loop is keyboard-drivable (1–3 to turn it with a confidence rating,
+ *  space to turn it without, 1–4 to grade, E for the aside, Enter to continue). */
 export default function ActiveCard({
   card,
   session,
@@ -114,7 +115,8 @@ export default function ActiveCard({
   session: RetainSession;
   content: RetainContent;
   nodeLabel: string;
-  onFlip: () => void;
+  /** Turn the card over — with the confidence tap that turned it, if any. */
+  onFlip: (sure?: number) => void;
   onGrade: (grade: ReviewGrade) => void;
   onToggleAside: () => void;
   onReteach: () => void;
@@ -159,6 +161,9 @@ export default function ActiveCard({
       if (isQuestion && (e.key === " " || e.key === "Enter")) {
         e.preventDefault();
         onFlip();
+      } else if (isQuestion && "123".includes(e.key)) {
+        e.preventDefault();
+        onFlip(Number(e.key) - 1);
       } else if (revealed && "1234".includes(e.key)) {
         e.preventDefault();
         grade(grades[Number(e.key) - 1].key);
@@ -262,16 +267,14 @@ export default function ActiveCard({
                 : `dealIn .42s ${motion.ease.enter} both`,
           }}
         >
-          {/* Front — the question, and the one thing to do with it: turn it
-              over. The whole card is the control; the line at its foot says so. */}
+          {/* Front — the question, and the one thing to do with it: say how
+              sure you are, which turns it over (`TurnOver`). */}
           <div
             className="rt-front"
-            onClick={isQuestion ? onFlip : undefined}
             style={{
               ...face,
               // `.rt-front` carries the visibility swap alongside its hover lift.
               transition: undefined,
-              cursor: isQuestion ? "pointer" : undefined,
               animation: flipped ? turn("faceOut") : undefined,
               visibility: flipped ? "hidden" : "visible",
               pointerEvents: flipped ? "none" : "auto",
@@ -294,27 +297,7 @@ export default function ActiveCard({
               >
                 {t.flipHint}
               </div>
-              <button
-                className="at-press"
-                data-testid="action-flip"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 9,
-                  padding: "8px 16px",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                  ...kicker(12.5, "0.12em", color.accent),
-                  background: "none",
-                  border: `1px solid ${color.accent}47`,
-                }}
-              >
-                <span aria-hidden style={{ fontSize: 15 }}>
-                  ↻
-                </span>
-                {t.showAnswer}
-                <span style={keycap}>{t.flipKey}</span>
-              </button>
+              <TurnOver onFlip={onFlip} keycap={keycap} />
             </div>
             <div
               style={{

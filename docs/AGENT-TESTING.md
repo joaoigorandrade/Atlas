@@ -103,9 +103,9 @@ fade at all.
 | Socratic                                          | `submit`                                                                                                                                                                                |
 | Feynman                                           | `begin` · `next` · `submit` · `advance`                                                                                                                                                 |
 | Crucible                                          | `confidence-<i>` · `submit` · `finish`                                                                                                                                                  |
-| the deck (Discriminate · Predict · Trace · Drill) | `mode-<open\|choices>` · `pick-<i>` · `next` · `finish` · `exit`                                                                                                                        |
-| Recall                                            | `submit` · `scaffold` · `finish` · `again` · `exit`                                                                                                                                     |
-| Retain                                            | `flip` · `grade-<again\|hard\|good\|easy>` · `continue`                                                                                                                                 |
+| the deck (Discriminate · Predict · Trace · Drill) | `sure-<i>` (Discriminate, Drill: once, before the first case) · `mode-<open\|choices>` · `pick-<i>` · `next` · `finish` · `exit`                                                        |
+| Recall                                            | `sure-<i>` · `submit` · `scaffold` · `finish` · `exit`                                                                                                                                  |
+| Retain                                            | `sure-<i>` (turns the card) · `grade-<again\|hard\|good\|easy>` · `continue`                                                                                                            |
 
 Two things that catch people out:
 
@@ -113,8 +113,13 @@ Two things that catch people out:
   IntersectionObserver, `components/session/consume/SectionCheck.tsx`).
   Playwright cannot auto-scroll to an element that does not exist yet — scroll
   the reading first. `scrollToCheck` in `tests/e2e/progression.spec.ts` does it.
-- **An answered check stays on screen, disabled.** Target
-  `[data-testid="action-check-1"]:not([disabled])`, not `.last()`.
+- **An answered check stays on screen, disabled, and is answered once.** It
+  opens on "Own words" — switch `mode-choices` to click `action-check-<i>`.
+  Target `[data-testid="action-check-1"]:not([disabled])`, not `.last()`.
+- **Recall holds for a night** after anything is completed on its node
+  (`phase_progress.recall.opensAt`). A spec that completes a phase and then
+  opens Recall on the same node sees the hold toast, not the sheet — seed the
+  rows instead.
 - **The six newest phases each have their own surface and their own testids.**
   They are not one screen wearing six names: Predict gates its answer controls
   behind `action-sure-<i>`, Drill opens on the closed form and shows a live

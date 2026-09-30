@@ -47,6 +47,9 @@ export interface RecallSession {
   /** True once they have asked for the scaffold — the report says so, because
    *  a cued retrieval is a different reading than an uncued one. */
   cued: boolean;
+  /** How much they expect to come back, tapped before the blank page opens
+   *  (an index into `CONFIDENCE_FELT`). Absent until tapped. */
+  sure?: number;
   /** The judge's reaction to the whole attempt. */
   response: string;
   pending: boolean;
@@ -71,6 +74,7 @@ export function recallStart(nodeId: string): RecallSession {
 }
 
 export type RecallAction =
+  | { type: "sure"; level: number }
   | { type: "write"; value: string }
   | { type: "cue" }
   | { type: "pending" }
@@ -79,14 +83,18 @@ export type RecallAction =
       response: string;
       retrieved: Record<string, TeachVerdict>;
       quotes: Record<string, string>;
-    }
-  | { type: "again" };
+    };
 
 export function recallReducer(
   session: RecallSession,
   action: RecallAction,
 ): RecallSession {
   switch (action.type) {
+    // Once, and before anything is written: a rating given mid-answer is a
+    // rating of the answer so far, not of what they expect to have.
+    case "sure":
+      if (session.sure !== undefined || session.written) return session;
+      return { ...session, sure: action.level };
     case "write":
       return { ...session, written: action.value };
     case "cue":
@@ -102,10 +110,9 @@ export function recallReducer(
         retrieved: action.retrieved,
         quotes: action.quotes,
       };
-    // A second attempt starts from a blank page. Leaving the first answer in
-    // the box turns retrieval into an edit of a report they have now read.
-    case "again":
-      return recallStart(session.nodeId);
+    // There is no "again" here any more. A second attempt straight after the
+    // report is an edit of a rubric they have now read; a failed Recall holds
+    // for a night instead (`spacing.ts`) and opens on a blank page then.
     default:
       return session;
   }
@@ -133,22 +140,24 @@ const RECALL_COPY = {
   en: {
     kicker: "Recall",
     lead: "From memory, with nothing in front of you.",
+    howSure: "Before you start: how much of it do you expect to bring back?",
     yourAnswer: "What you can still produce",
     placeholder: "Write down everything that comes back…",
     passed: "Retrieved cold — that is the signal review is built on.",
-    missed: "Some of it did not come back unaided. That is the finding.",
+    missed:
+      "Some of it did not come back unaided. That is the finding — Recall opens again tomorrow, cold.",
     cuedNote: "Retrieved after a cue — worth re-running cold later.",
-    again: "Try it cold again →",
   },
   "pt-BR": {
     kicker: "Recall",
     lead: "De memória, sem nada na sua frente.",
+    howSure: "Antes de começar: quanto disso você espera trazer de volta?",
     yourAnswer: "O que você ainda consegue produzir",
     placeholder: "Escreva tudo o que voltar…",
     passed: "Recuperado do zero — é esse o sinal em que a revisão se apoia.",
-    missed: "Parte disso não voltou sozinha. Essa é a descoberta.",
+    missed:
+      "Parte disso não voltou sozinha. Essa é a descoberta — o Recall abre de novo amanhã, do zero.",
     cuedNote: "Recuperado depois de uma dica — vale repetir do zero mais tarde.",
-    again: "Tentar do zero de novo →",
   },
 } as const;
 

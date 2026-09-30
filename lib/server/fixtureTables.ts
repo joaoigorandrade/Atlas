@@ -156,6 +156,12 @@ export function fixtureTable(name: string) {
       filters.push((row) => values.includes(row[column]));
       return api;
     },
+    // `is(column, null)` — the one IS the store issues: a row holding only a
+    // pointer, which a shared-cache delete must leave something to answer.
+    is: (column: string, value: null) => {
+      filters.push((row) => (row[column] ?? null) === value);
+      return api;
+    },
     lt: (column: string, value: string) => {
       filters.push((row) => String(row[column] ?? "") < value);
       return api;

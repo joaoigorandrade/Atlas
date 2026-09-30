@@ -21,6 +21,7 @@ import {
 } from "@/lib/curriculum";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import PhaseShell from "@/components/session/parts/PhaseShell";
+import ConfidenceGate from "@/components/session/parts/ConfidenceGate";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
 import Button from "@/components/ui/Button";
@@ -58,6 +59,7 @@ export default function DiscriminateView({
   content,
   session,
   onExit,
+  onSure,
   onCall,
   onNext,
   onAdvance,
@@ -68,6 +70,7 @@ export default function DiscriminateView({
   content: DiscriminateContent;
   session: DiscriminateSession;
   onExit: () => void;
+  onSure: (level: number) => void;
   onCall: (index: number, read?: string) => void;
   onNext: () => void;
   onAdvance: () => void;
@@ -120,7 +123,11 @@ export default function DiscriminateView({
         {copy.lead}
       </div>
 
-      {item && !session.done && (
+      {item && !session.done && session.sure === undefined && (
+        <ConfidenceGate question={copy.howSure} onPick={onSure} />
+      )}
+
+      {item && !session.done && session.sure !== undefined && (
         <div key={item.id} style={{ animation: "fadeUp .3s both" }}>
           <div
             data-testid="case-candidate"

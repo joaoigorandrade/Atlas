@@ -39,7 +39,7 @@ interface RetainViewProps {
   onToggleReminder: () => void;
   onExit: () => void;
   /** Turn the card over. */
-  onFlip: () => void;
+  onFlip: (sure?: number) => void;
   /** Grade after reveal — feeds FSRS (Again opens the alive-loop). */
   onGrade: (grade: ReviewGrade) => void;
   /** Toggle the micro-Socratic aside on a revealed card. */

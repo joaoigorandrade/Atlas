@@ -9,7 +9,9 @@
 
 import { useCallback } from "react";
 import {
+  discriminateScore,
   phaseLabel,
+  runReading,
   discriminatePassed,
   discriminateReducer,
   discriminateStart,
@@ -36,7 +38,7 @@ export function useDiscriminate(deps: {
 }) {
   const { run, sessions, gen, toast, ledger, setSelectedId, setScreen, centerOn, later } =
     deps;
-  const { graphRef, discriminateCacheRef } = run;
+  const { graphRef, discriminateCacheRef, recordCalib } = run;
   const { setDiscriminate, discriminateRef } = sessions;
   const { generate, warmKey, loadDiscriminate } = gen;
   const { tc } = toast;
@@ -84,7 +86,19 @@ export function useDiscriminate(deps: {
       return content ? discriminateReducer(prev, action, content) : prev;
     });
 
+  /** The tap before the run, against how it went — filed once, on the way
+   *  out, however the run is left. */
+  const fileCalibration = () => {
+    const cur = discriminateRef.current;
+    const content = cur && discriminateCacheRef.current[cur.nodeId];
+    if (!cur || !content) return;
+    const answered = Object.keys(cur.calls).length;
+    const reading = runReading(cur.sure, discriminateScore(cur, content), answered);
+    if (reading) recordCalib(cur.nodeId, reading.felt, reading.real);
+  };
+
   const leaveTo = (nodeId: string | undefined) => {
+    fileCalibration();
     setScreen("map");
     setDiscriminate(null);
     if (!nodeId) return;

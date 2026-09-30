@@ -4,6 +4,7 @@ import { memoLatest } from "@/components/ui/memoLatest";
 import { useEffect, useRef, useState } from "react";
 import {
   STATE_COLOR,
+  neighboursOf,
   phaseIndex,
   phaseLabel,
   phasePlan,
@@ -181,20 +182,12 @@ function NodeDetailBody({
       : node.domain === "craft"
         ? { back: t.finishFirst, forward: t.thenComes }
         : { back: locked ? t.learnFirst : t.prerequisites, forward: t.unlocks };
-  const prereqIds = edges
-    .filter(([, to, dashed]) => to === node.id && !dashed)
-    .map(([from]) => from);
-  const dependentIds = edges
-    .filter(([from, , dashed]) => from === node.id && !dashed)
-    .map(([, to]) => to);
-  // Dashed children are the sub-concepts the re-planner split out of this
-  // node's failures — surfaced separately from what it unlocks.
-  const gapIds = edges
-    .filter(([from, , dashed]) => from === node.id && dashed)
-    .map(([, to]) => to);
-  const parentIds = edges
-    .filter(([, to, dashed]) => to === node.id && dashed)
-    .map(([from]) => from);
+  const { gapIds, parentIds, prereqIds, dependentIds } = neighboursOf(
+    { nodes, edges },
+    node,
+  );
+  // A finished ladder that open gaps hold off green: the button closes one.
+  const gapCta = !ctaPhase && displayState === "learning" ? gapIds[0] : undefined;
 
   const chipStyle = {
     display: "inline-flex",
@@ -613,7 +606,11 @@ function NodeDetailBody({
       >
         {/* A part-read node's primary action is to get back into the reading,
             not to start something new. */}
-        {reading ? t.resumeReading : t.cta[displayState](ctaPhaseLabel)}
+        {reading
+          ? t.resumeReading
+          : gapCta
+            ? t.closeGap(labelOf(gapCta))
+            : t.cta[displayState](ctaPhaseLabel)}
       </Button>
 
       {displayState === "frontier" && (

@@ -7,12 +7,12 @@
 // transferred and which didn't. A failure is diagnostically rich — it names the
 // sub-concept that didn't transfer, writes it to the map as a red Gap node and
 // flips the parent Shaky, then offers a 30-second Socratic re-explanation before
-// a recalibrated re-attempt one rung down. Only Crucible success (plus
-// retention) grants green. Content ships the Linear Transformations transfer
-// problem — a type-designer shear the learner was never handed — so the
-// confidence → attempt → diagnostic → re-attempt loop is real, not decorative.
-import { GapSpec } from "./replan";
-import { STATE_COLOR } from "./types";
+// a recalibrated re-attempt one rung down. That guided pass closes the gap but
+// not the rung: the cold problem has to hold a night later (`spacing.ts`)
+// before the Crucible counts toward mastery.
+import { openGapIds, type GapSpec } from "./replan";
+import { phasePlan, type PhasesDoneMap } from "./phases";
+import { STATE_COLOR, type ConceptGraph } from "./types";
 import { Language } from "@/lib/i18n";
 
 /** The Crucible's deep-rust palette (its accent everywhere it appears). */
@@ -113,6 +113,9 @@ export interface CrucibleSession {
   transfer: TransferRow[] | null;
   /** Whether the 30-second Socratic re-explanation is expanded. */
   reExplain: boolean;
+  /** Set on the fresh session parked after a scaffolded pass: the cold
+   *  re-attempt that proves it opens a night later (`spacing.ts`). */
+  opensAt?: number;
 }
 
 export function crucibleStart(nodeId: string): CrucibleSession {
@@ -211,6 +214,54 @@ export function crucibleProblem(
  */
 export function crucibleCurrentRung(session: CrucibleSession): number {
   return session.rung === 0 ? 2 : 1;
+}
+
+/**
+ * What actually happened on an attempt, 0–100, for the calibration curve: the
+ * share of the transfer diagnostic that carried over. The rows are the judge's
+ * read of *this* attempt, so a pass that dropped a sub-concept reads below one
+ * that dropped none — which a flat pass/fail pair could never say. With no
+ * rows (the judge sent none), the verdict alone decides.
+ */
+export function crucibleReal(outcome: CrucibleOutcome, transfer: TransferRow[]): number {
+  if (!transfer.length) return outcome === "pass" ? 100 : 0;
+  const good = transfer.filter((r) => r.verdict === "good").length;
+  return Math.round((100 * good) / transfer.length);
+}
+
+/** The id of the gap a Crucible writes back — one per node, so a re-attempt
+ *  closes the gap the last failure opened. The generator stamps it. */
+export const crucibleGapId = (nodeId: string) => `gap-cru-${nodeId}`;
+
+/**
+ * Does closing Crucible master this node, or does it still owe something?
+ *
+ * Crucible is the last gate in every plan but not the only one, and a node
+ * lifts only when all of them are done and no gap is left open under it — so
+ * a learner who jumped ahead, or whose teach-back left a gap, passes the
+ * Crucible and stays Learning. The closing copy has to say which happened.
+ * Retain is excluded, as in `planGates`, and so is the Crucible's own gap,
+ * which the pass being read is what closes.
+ */
+export function crucibleMasters(
+  graph: ConceptGraph,
+  nodeId: string | undefined,
+  phasesDone: PhasesDoneMap,
+): boolean {
+  const node = graph.nodes.find((n) => n.id === nodeId);
+  if (!node) return true;
+  const done = phasesDone[node.id] ?? [];
+  const gaps = openGapIds(graph, node.id).filter((id) => id !== crucibleGapId(node.id));
+  return (
+    !gaps.length &&
+    phasePlan(node).every((p) => p === "retain" || p === "crucible" || done.includes(p))
+  );
+}
+
+/** A pass on the guided rung — the re-attempt after the re-explanation. It
+ *  closes the gap it was aimed at, but proves nothing cold. */
+export function crucibleScaffolded(session: CrucibleSession): boolean {
+  return session.rung > 0;
 }
 
 /**

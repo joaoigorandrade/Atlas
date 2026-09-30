@@ -9,9 +9,13 @@
 
 import { useCallback, useRef } from "react";
 import {
+  CONFIDENCE_FELT,
+  heldUntil,
+  hoursLeft,
   phaseLabel,
   recallPassed,
   recallReducer,
+  recallScore,
   recallStart,
   type ConceptNode,
   type RecallAction,
@@ -54,14 +58,23 @@ export function useRecall(deps: {
     judgingRef,
     setJudging,
   } = deps;
-  const { graphRef, formRef, recallCacheRef } = run;
+  const { graphRef, formRef, recallCacheRef, phaseProgressRef, recordCalib } = run;
   const { setRecall, recallRef } = sessions;
   const { generate, warmKey, loadRecall } = gen;
   const { tc, showToast, showError } = toast;
-  const { completePhase, markStarted, warmNext } = ledger;
+  const { completePhase, markStarted, warmNext, hold } = ledger;
 
   const enterRecall = useCallback(
     (node: ConceptNode) => {
+      // Cold means a night after the last thing studied on it (`spacing.ts`).
+      // Reached from a hand-off as often as from the map, so it lands there.
+      const until = heldUntil(phaseProgressRef.current[node.id]?.recall);
+      if (until) {
+        setScreen("map");
+        setSelectedId(node.id);
+        showToast(tc().recallHeld(node.label, hoursLeft(until)));
+        return;
+      }
       const open = () => {
         setRecall(recallStart(node.id));
         setSelectedId(node.id);
@@ -86,6 +99,8 @@ export function useRecall(deps: {
       generate,
       loadRecall,
       setRecall,
+      showToast,
+      phaseProgressRef,
       recallCacheRef,
       warmKey,
       setScreen,
@@ -139,6 +154,16 @@ export function useRecall(deps: {
           if (row.quote) quotes[r.id] = row.quote;
         }
         dispatchRecall({ type: "report", response: j.response, retrieved, quotes });
+        const done = { ...cur, retrieved, reported: true };
+        // What they expected to bring back, against what did.
+        if (cur.sure !== undefined)
+          recordCalib(
+            cur.nodeId,
+            CONFIDENCE_FELT[cur.sure],
+            Math.round((100 * recallScore(done, content)) / (content.rubric.length || 1)),
+          );
+        // The report just showed the rubric: the next try waits out a night.
+        if (!recallPassed(done, content)) hold(node.id, "recall");
       })
       .catch((err: unknown) =>
         showError(err, { context: "judge", retry: () => recallSubmitRef.current?.() }),

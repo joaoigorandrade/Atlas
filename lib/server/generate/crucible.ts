@@ -19,7 +19,7 @@ import {
   str,
   user,
 } from "./common";
-import { CrucibleContent } from "@/lib/curriculum";
+import { CrucibleContent, crucibleGapId } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
 import type { Domain, NodeKind } from "@/lib/curriculum";
@@ -98,7 +98,7 @@ export function validateCrucible(
       draws,
       rungs: RUNGS[language],
       gap: {
-        id: `gap-cru-${nodeId}`,
+        id: crucibleGapId(nodeId),
         label: str(root.gapLabel, "gapLabel"),
         reason: str(root.gapReason, "gapReason"),
         dx: 165,

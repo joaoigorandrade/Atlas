@@ -114,6 +114,20 @@ export async function readContentRows(
 }
 
 /**
+ * Every shared-cache row this topic points at — what deleting the topic hands
+ * to `forgetContent`, read *before* the delete, since the cascade takes the
+ * pointers with it. Paged for the same reason `readContentRows` is.
+ */
+export async function topicCacheKeys(db: SupabaseClient, topicId: string) {
+  const rows = await readAll<{ cache_key: string | null }>(
+    (from, to) =>
+      db.from("node_content").select("cache_key").eq("topic_id", topicId).range(from, to),
+    "topicCacheKeys",
+  );
+  return [...new Set(rows.flatMap((r) => (r.cache_key ? [r.cache_key] : [])))];
+}
+
+/**
  * Record that this topic has this payload.
  *
  * Written by the generate route, never by a client: the moment content exists

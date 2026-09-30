@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
+import FixAnswer from "@/components/session/feynman/FixAnswer";
 import {
   type PhaseId,
   phaseLabel,
@@ -88,7 +88,6 @@ const STRINGS = {
     attachGaps: (n: number) => `Attach ${n} gap${n === 1 ? "" : "s"} & continue →`,
     teachAgain: "↺ Teach it again from the top",
     targetedPass: "Targeted Socratic pass",
-    answerInWords: "Answer the probe in your own words…",
     close: "Close",
   },
   "pt-BR": {
@@ -147,7 +146,6 @@ const STRINGS = {
     attachGaps: (n: number) => `Anexar ${n} lacuna${n === 1 ? "" : "s"} e continuar →`,
     teachAgain: "↺ Ensinar de novo desde o início",
     targetedPass: "Passagem socrática focada",
-    answerInWords: "Responda à pergunta com suas próprias palavras…",
     close: "Fechar",
   },
 } as const;
@@ -177,7 +175,7 @@ interface FeynmanViewProps {
   onScaffold: () => void;
   onOpenFix: (beatId: string) => void;
   onCloseFix: () => void;
-  onFix: (index: number) => void;
+  onFix: (judged: { good: boolean; response: string }) => void;
   onTeachAgain: () => void;
   /** Attach any remaining gaps to the map and advance to what the plan owes. */
   onAdvance: () => void;
@@ -773,7 +771,7 @@ function GapReport({
   session: FeynmanSession;
   onOpenFix: (beatId: string) => void;
   onCloseFix: () => void;
-  onFix: (index: number) => void;
+  onFix: (judged: { good: boolean; response: string }) => void;
   onTeachAgain: () => void;
   onAdvance: () => void;
 }) {
@@ -1041,7 +1039,6 @@ function GapReport({
                     beat={b}
                     topic={topic}
                     nodeLabel={title}
-                    ruledOut={session.fixRuledOut}
                     reaction={session.fixReaction}
                     onFix={onFix}
                     onClose={onCloseFix}
@@ -1151,7 +1148,6 @@ function FixPass({
   beat,
   topic,
   nodeLabel,
-  ruledOut,
   reaction,
   onFix,
   onClose,
@@ -1159,13 +1155,11 @@ function FixPass({
   beat: FeynmanBeat;
   topic: string;
   nodeLabel: string;
-  ruledOut: string[];
   reaction: string | null;
-  onFix: (index: number) => void;
+  onFix: (judged: { good: boolean; response: string }) => void;
   onClose: () => void;
 }) {
   const t = useT(STRINGS);
-  const [mode, setMode] = useState<AnswerMode>("open");
   return (
     <div
       style={{
@@ -1185,7 +1179,6 @@ function FixPass({
         }}
       >
         <div style={{ ...kicker(9.5, "0.1em"), color: BLUE }}>{t.targetedPass}</div>
-        <AnswerModeToggle mode={mode} onMode={setMode} accent={BLUE} />
       </div>
       <div
         style={{
@@ -1198,48 +1191,13 @@ function FixPass({
       >
         <Rich text={beat.fix.probe} />
       </div>
-      {mode === "open" ? (
-        <OpenAnswer
-          topic={topic}
-          nodeLabel={nodeLabel}
-          question={beat.fix.probe}
-          options={beat.fix.replies.map((r) => r.label)}
-          onResolve={(i) => onFix(i)}
-          placeholder={t.answerInWords}
-          rows={2}
-          accent={BLUE}
-        />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {beat.fix.replies.map((r, i) => {
-            const spent = ruledOut.includes(r.label);
-            return (
-              <button
-                className="at-press"
-                key={r.label}
-                disabled={spent}
-                onClick={() => onFix(i)}
-                style={{
-                  textAlign: "left",
-                  padding: "10px 13px",
-                  borderRadius: 3,
-                  fontSize: 13.5,
-                  lineHeight: 1.4,
-                  cursor: spent ? "default" : "pointer",
-                  fontFamily: "inherit",
-                  border: `1px solid ${color.hairlineStrong}`,
-                  background: color.paper,
-                  color: color.ink,
-                  opacity: spent ? 0.45 : 1,
-                  textDecoration: spent ? "line-through" : "none",
-                }}
-              >
-                {r.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <FixAnswer
+        beat={beat}
+        topic={topic}
+        nodeLabel={nodeLabel}
+        accent={BLUE}
+        onJudged={onFix}
+      />
       {reaction && (
         <div
           style={{

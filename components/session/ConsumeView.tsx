@@ -35,19 +35,18 @@ interface ConsumeViewProps {
   /** The node's own ladder — the breadcrumb draws this, not the catalogue,
    *  since a `fact` and a `principle` no longer run the same rungs. */
   plan: readonly PhaseId[];
-  /** The generated reading pass for this node — sections already streamed
-   *  in, more may still be on the way while `streaming` is true. */
+  /** The node's reading pass — sections streamed in so far (see `streaming`). */
   chunks: ConsumeChunk[];
-  /** More sections are still being written — the deepest one currently in
-   *  `chunks` isn't necessarily the pass's last section yet. */
+  /** More sections are still being written — the deepest in hand isn't the last yet. */
   streaming?: boolean;
   session: ConsumeSession;
-  /** Beats of the open model view, in order. Empty (or short) while they are
-   *  still being written — the view opens on its first one. */
+  /** Beats of the open model view, in order — empty or short while being written. */
   modelBeats?: ConsumeModelBeat[];
   /** More beats are still on the way for the open view. */
   modelStreaming?: boolean;
   onExit: () => void;
+  /** The map's subject — context for judging a check answered in own words. */
+  topic: string;
   /** The end-of-section check was answered — right or wrong. */
   onCheck: (chunkId: string, oi: number, correct: boolean) => void;
   onContinue: (chunkIndex: number) => void;
@@ -75,6 +74,7 @@ interface ConsumeViewProps {
 }
 
 export default function ConsumeView({
+  topic,
   title,
   plan,
   chunks,
@@ -608,7 +608,7 @@ export default function ConsumeView({
             // passage a learner is mid-way through is the last thing that
             // should disappear when they ask for help with it.
             const paragraphs = c.body;
-            const checkPassed = !c.check || !!session.checks[c.id]?.correct;
+            const checkDone = !c.check || !!session.checks[c.id];
 
             return (
               <div
@@ -1026,21 +1026,21 @@ export default function ConsumeView({
                   </>
                 )}
 
-                {/* The section's receipt: answered right, the way onward
-                    appears; until then it is the only thing down here. */}
+                {/* The section's receipt: once answered, the way onward appears. */}
                 {c.check && (
                   <SectionCheck
+                    topic={topic}
+                    nodeLabel={title}
                     check={c.check}
                     answer={session.checks[c.id]}
                     onAnswer={(oi, correct) => onCheck(c.id, oi, correct)}
                   />
                 )}
 
-                {/* Continue / finish — only on the deepest revealed section,
-                    and only once its check is passed (sections cached before
-                    checks existed carry none, and stay ungated). */}
+                {/* Continue / finish — on the deepest section, once its check is
+                    answered (sections cached before checks carry none). */}
                 {isDeepest &&
-                  checkPassed &&
+                  checkDone &&
                   (nextArrived || isLast ? (
                     <div style={{ marginTop: 30 }}>
                       <button

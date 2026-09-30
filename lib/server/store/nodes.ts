@@ -85,7 +85,9 @@ export async function applyNodeDeltas(
       from_id: from,
       to_id: d.id,
       user_id: userId,
-      dashed: false,
+      // A gap hangs off its parent by a dashed edge — the map draws it that
+      // way, and it is not a prerequisite. Written solid, it came back as one.
+      dashed: d.isGap === true,
     })),
   );
   if (edges.length) {

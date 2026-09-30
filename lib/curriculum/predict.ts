@@ -137,18 +137,25 @@ export function predictOverconfident(
   );
 }
 
-/** Felt-vs-real pairs for the calibration curve: what they said they knew,
- *  against whether the forecast actually held. */
+/**
+ * The run's reading for the calibration curve: how sure they said they were,
+ * against how many of those forecasts held — over the forecasts that were
+ * both rated and committed. Null when there are none, so a run abandoned
+ * before its first forecast files nothing.
+ */
 export function predictCalibration(
   session: PredictSession,
   content: PredictContent,
-): Array<{ felt: number; real: number }> {
-  return content.setups
-    .filter((s) => session.sureness[s.id] !== undefined)
-    .map((s) => ({
-      felt: PREDICT_CONFIDENCE[session.sureness[s.id]],
-      real: session.forecasts[s.id] === s.answerIndex ? 90 : 20,
-    }));
+): { felt: number; real: number } | null {
+  const rated = content.setups.filter(
+    (s) => session.sureness[s.id] !== undefined && session.forecasts[s.id] !== undefined,
+  );
+  if (!rated.length) return null;
+  const mean = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+  return {
+    felt: mean(rated.map((s) => PREDICT_CONFIDENCE[session.sureness[s.id]])),
+    real: mean(rated.map((s) => (session.forecasts[s.id] === s.answerIndex ? 100 : 0))),
+  };
 }
 
 /** Predict's gate: two thirds forecast correctly. Confidence is measured and

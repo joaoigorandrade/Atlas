@@ -26,7 +26,8 @@ export const STRINGS = {
     gapWrittenBody: (gapLabel: string) => (
       <>
         “{gapLabel}” is now a red gap under this node, and the node itself dropped to{" "}
-        <b>Shaky</b>. Close it here and it lifts to Mastered.
+        <b>Shaky</b>. Close it here with help, then hold the cold problem tomorrow to lift
+        it.
       </>
     ),
     hideReExplain: "Hide re-explanation",
@@ -52,6 +53,17 @@ export const STRINGS = {
       </>
     ),
     markCrucibleDone: "Mark Crucible done · back to map →",
+    // The pass on the guided rung, straight after the re-explanation: it closes
+    // the gap, and it is not the proof. That one waits a night (`spacing.ts`).
+    guidedTitle: "The guided transfer held.",
+    guidedBody: (
+      <>
+        The gap is closed — but this came right after the re-explanation, one rung down.
+        The cold problem opens again <b>tomorrow</b>; holding it then is what lifts this
+        node.
+      </>
+    ),
+    markGuided: "Close the gap · back to map →",
     difficultyLadder: "Difficulty ladder",
     drawnFromMap: "Drawn from your map",
     interleaveNote:
@@ -82,7 +94,8 @@ export const STRINGS = {
     gapWrittenBody: (gapLabel: string) => (
       <>
         “{gapLabel}” agora é uma lacuna vermelha sob este nó, e o próprio nó caiu para{" "}
-        <b>Instável</b>. Feche-a aqui e ele sobe para Dominado.
+        <b>Instável</b>. Feche-a aqui com ajuda e resolva o problema sem ajuda amanhã para
+        ele subir.
       </>
     ),
     hideReExplain: "Ocultar reexplicação",
@@ -105,6 +118,15 @@ export const STRINGS = {
       </>
     ),
     markCrucibleDone: "Marcar Crucible como feito · voltar ao mapa →",
+    guidedTitle: "A transferência guiada se sustentou.",
+    guidedBody: (
+      <>
+        A lacuna está fechada — mas isso veio logo depois da reexplicação, um degrau
+        abaixo. O problema sem ajuda abre de novo <b>amanhã</b>; resolvê-lo então é o que
+        faz este nó subir.
+      </>
+    ),
+    markGuided: "Fechar a lacuna · voltar ao mapa →",
     difficultyLadder: "Escada de dificuldade",
     drawnFromMap: "Puxado do seu mapa",
     interleaveNote:

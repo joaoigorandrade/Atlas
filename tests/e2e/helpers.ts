@@ -226,3 +226,26 @@ export async function openPhase(
   const confirm = page.getByTestId("action-skip-confirm");
   if (await confirm.isVisible().catch(() => false)) await confirm.click();
 }
+
+/**
+ * Answer the newest unanswered Consume section check.
+ *
+ * A check only mounts once the end of its section is properly on screen (an
+ * IntersectionObserver in `SectionCheck.tsx`), so the reading is scrolled until
+ * it appears. It opens on "Own words" and is answered once — this switches it
+ * to Choices and picks `option` (1 is right in the fixture pass).
+ */
+export async function answerCheck(page: Page, option = 1): Promise<void> {
+  const sheet = page.getByTestId("phase-consume");
+  await sheet.hover();
+  const choices = sheet.getByTestId("action-mode-choices").last();
+  await expect(async () => {
+    await page.mouse.wheel(0, 900);
+    await expect(choices).toBeVisible({ timeout: 750 });
+  }).toPass({ timeout: 20_000 });
+  await choices.click();
+  await sheet
+    .locator(`[data-testid="action-check-${option}"]:not([disabled])`)
+    .last()
+    .click();
+}

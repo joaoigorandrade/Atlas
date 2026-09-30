@@ -28,6 +28,7 @@ import {
 } from "@/lib/curriculum";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import PhaseShell from "@/components/session/parts/PhaseShell";
+import ConfidenceGate from "@/components/session/parts/ConfidenceGate";
 import { color, font } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -83,6 +84,7 @@ export default function DrillView({
   content,
   session,
   onExit,
+  onSure,
   onAnswer,
   onNext,
   onAdvance,
@@ -93,6 +95,7 @@ export default function DrillView({
   content: DrillContent;
   session: DrillSession;
   onExit: () => void;
+  onSure: (level: number) => void;
   onAnswer: (index: number) => void;
   onNext: () => void;
   onAdvance: () => void;
@@ -109,6 +112,8 @@ export default function DrillView({
   const answered = hit !== undefined;
   const right = rep ? hit === rep.answerIndex : false;
   const labored = drillLabored(session, content);
+  // The reps, and their clock, wait on the confidence tap.
+  const rating = !session.done && session.sure === undefined;
 
   return (
     <PhaseShell
@@ -121,7 +126,7 @@ export default function DrillView({
       onExit={onExit}
       headerRight={
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {rep && !answered && !session.done && (
+          {rep && !answered && !session.done && !rating && (
             <RepClock since={session.openedAt} accent={accent} />
           )}
           <span
@@ -151,7 +156,9 @@ export default function DrillView({
         {copy.lead}
       </div>
 
-      {rep && !session.done && (
+      {rep && rating && <ConfidenceGate question={copy.howSure} onPick={onSure} />}
+
+      {rep && !session.done && !rating && (
         <div key={rep.id} style={{ animation: "fadeUp .2s both" }}>
           <div
             data-testid="rep-prompt"

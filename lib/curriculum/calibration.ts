@@ -1,11 +1,11 @@
 // ---- Calibration / Metacognition (§12) — the "learn to learn" edge ---------
 // The learner doesn't just learn the material — they learn *what they actually
-// know*. Confidence is captured cheaply everywhere (the Consume hook, the
-// tap before every Crucible problem and every review-card flip), then held
-// against first-try performance. Overconfidence — felt solid, failed — is the
-// thing this surface exists to catch, because that gap is fluency masquerading
-// as mastery. Content ships the design's sample confidence-vs-performance set so
-// the curve → per-node breakdown → "jump to its Crucible" loop is real.
+// know*. Confidence is captured with one tap before the work (every Crucible
+// problem, every Predict forecast, the start of a Discriminate, Drill or Recall
+// run, and the flip of every review card), then held against how that work
+// actually went. Overconfidence — felt solid, failed — is the thing this
+// surface exists to catch, because that gap is fluency masquerading as mastery.
+// The curve → per-node breakdown → "jump to its Crucible" loop reads it.
 import { CONNECT_COLOR } from "./connect";
 import { planGates, proofGate, type PhaseId } from "./phases";
 import { ConceptEdge, NodeState, ProgressState, STATE_COLOR, ShakyReason } from "./types";
@@ -19,6 +19,9 @@ export interface CalibSample {
   felt: number;
   /** Actual first-attempt performance — the honest signal. */
   real: number;
+  /** How many readings the two means are over. Absent on a sample written
+   *  before it existed (or by a client that drops it), which counts as one. */
+  n?: number;
 }
 
 /** How a reading sits against the diagonal: felt ahead of, behind, or tracking real. */
@@ -136,7 +139,7 @@ export function calibTopicLine(items: CalibItem[], lang: Language = "en"): strin
           ", ",
         )} — esses pareciam mais claros do que se mostraram sob um problema novo.`;
     if (items.length === 0)
-      return "Ainda sem leituras — os toques de confiança no Crisol e na Revisão constroem essa curva à medida que você trabalha.";
+      return "Ainda sem leituras — cada toque de confiança antes do trabalho (no Crucible, no Predict, no início de uma rodada e na Revisão) constrói essa curva.";
     return "Ainda sem tendência sistemática — continue trabalhando; cada toque de confiança refina essa leitura.";
   }
   if (over.length >= 2)
@@ -145,7 +148,7 @@ export function calibTopicLine(items: CalibItem[], lang: Language = "en"): strin
       .map((d) => d.label)
       .join(", ")} — these felt clearer than they've proven to be under a novel problem.`;
   if (items.length === 0)
-    return "No readings yet — confidence taps in the Crucible and Review build this curve as you work.";
+    return "No readings yet — every confidence tap before the work (the Crucible, Predict, the start of a run, and Review) builds this curve.";
   return "No systematic tilt yet — keep working; every confidence tap sharpens this read.";
 }
 
@@ -185,6 +188,10 @@ export function stateFromPlan(
      *  Without it a learner who read two sections and left would drop back to
      *  displaying as frontier, and that progress is real. */
     started?: boolean;
+    /** Gap sub-nodes still open under the node (`openGapIds`). A finished
+     *  ladder with a diagnosed hole in it is not mastery: it waits at Learning
+     *  until the gaps close, which is what a gap is *for*. */
+    gaps?: number;
   } = {},
 ): ProgressState {
   // Retain is the one rung mastery does not wait on. It is not something the
@@ -193,7 +200,7 @@ export function stateFromPlan(
   // Retained ✓. Requiring it here would mean no node was ever mastered until
   // it had been reviewed, which is not what green has meant.
   if (planGates(plan).every((p) => done.includes(p)))
-    return opts.shaky ? "shaky" : "mastered";
+    return opts.shaky ? "shaky" : opts.gaps ? "learning" : "mastered";
   if (opts.shaky) return "shaky";
   return done.length || opts.started ? "learning" : "unknown";
 }

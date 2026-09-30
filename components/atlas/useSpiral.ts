@@ -18,24 +18,24 @@ import {
   phaseIndex,
   phaseLabel,
   phasePlan,
-  stateFromPlan,
   proofGate,
   primaryPhase,
   SOCRATIC_STEPS,
   connectCards,
   connectReducer,
   connectStart,
-  crucibleReducer,
-  crucibleStart,
+  CONFIDENCE_FELT,
+  earnsRetained,
   emptyConsumeProgress,
   feynmanGaps,
   feynmanReducer,
   feynmanStart,
+  gapParentOf,
   markTodayMet,
+  openGapIds,
   preferredModality,
   recordMisconception,
   recurringMisconceptions,
-  removeNode,
   RETAIN_DRAFT_NODES,
   retainReducer,
   retainStart,
@@ -51,8 +51,6 @@ import {
   type ConsumeChunk,
   type ConsumeModelBeat,
   type ConsumeProgress,
-  type CrucibleAction,
-  type CrucibleSession,
   type FeynmanAction,
   type FeynmanBeat,
   type GapSpec,
@@ -73,7 +71,6 @@ import {
   fetchConsumeModelStream,
   fetchConsumeStream,
   fetchFeynmanStream,
-  fetchJudgeCrucible,
   fetchJudgeFeynman,
   fetchJudgeSocratic,
   fetchPassageStream,
@@ -87,9 +84,10 @@ import { usePredict } from "@/components/atlas/usePredict";
 import { useTrace } from "@/components/atlas/useTrace";
 import { useDrill } from "@/components/atlas/useDrill";
 import { useRecall } from "@/components/atlas/useRecall";
-import { dropParked, omitKey, parkedSession } from "@/components/atlas/phaseParking";
+import { omitKey } from "@/components/atlas/phaseParking";
 import { usePerform } from "@/components/atlas/usePerform";
 import { useDomainPhases } from "@/components/atlas/useDomainPhases";
+import { useCrucible } from "@/components/atlas/useCrucible";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
 import type { Screen } from "@/components/atlas/screen";
@@ -102,9 +100,6 @@ import type { createWarmQueue } from "@/lib/warm";
 
 /** The momentum replay spans onboarding (week 0) plus three weeks of work. */
 const MOMENTUM_WEEKS = 3;
-
-/** Confidence tap → a felt-% reading for the calibration curve. */
-const CRUCIBLE_FELT: Record<number, number> = { 0: 35, 1: 65, 2: 90 };
 
 export function useSpiral(deps: {
   run: RunState;
@@ -165,10 +160,7 @@ export function useSpiral(deps: {
     formRef,
     statesRef,
     cardsRef,
-    setGraph,
     setStates,
-    setPositions,
-    setSpawnedIds,
     setCards,
     setAdherence,
     setLitToday,
@@ -190,8 +182,6 @@ export function useSpiral(deps: {
     setFeynmanCache,
     feynmanCacheRef,
     connectCacheRef,
-    setCrucibleCache,
-    crucibleCacheRef,
     setRetainContent,
     retainContentRef,
     setConsumeProgress,
@@ -202,7 +192,6 @@ export function useSpiral(deps: {
     setConnectProgress,
     connectProgressRef,
     setPhaseProgress,
-    phaseProgressRef,
     setShakyReason,
     recordCalib,
     attachGap,
@@ -227,8 +216,6 @@ export function useSpiral(deps: {
     liveFeynmanRef,
     connect,
     setConnect,
-    setCrucible,
-    crucibleRef,
     setRetain,
     retainRef,
     consumeChunksRef,
@@ -249,21 +236,28 @@ export function useSpiral(deps: {
     loadSocratic,
     loadFeynman,
     loadConnect,
-    loadCrucible,
   } = gen;
 
   // The phase ledger — what each node has finished, and the mastery state
   // derived from it. Its own module: every handler below calls into it from
   // inside a `useCallback`, so these have to be stable.
   const ledger = usePhaseLedger({
+    graphRef,
     phasesDoneRef,
     setPhasesDone,
     shakyReasonsRef,
     setShakyReason,
     setStates,
+    setPhaseProgress,
     warmOne,
   });
-  const { completePhase, markStarted, warmNext, armChallenge, disarmChallenge } = ledger;
+  const { completePhase, settle, markStarted, warmNext, armChallenge, disarmChallenge } =
+    ledger;
+  /** The node a gap hangs off, looked up on the live graph. */
+  const gapParent = (gapId: string) => {
+    const id = gapParentOf(graphRef.current, gapId);
+    return graphRef.current.nodes.find((n) => n.id === id);
+  };
 
   // The six phases the catalogue added in its growth to twelve, one hook
   // each. Split out of this module on the `phaseLedger` precedent: the spiral
@@ -438,11 +432,13 @@ export function useSpiral(deps: {
 
   // ---- Consume (Learn view) --------------------------------------------
 
-  /** The end-of-section comprehension check — a wrong pick is kept (so the
-   *  miss can be named) and simply replaced by the next attempt. */
+  /** The end-of-section comprehension check — answered once. A miss is kept
+   *  so the recap can name it; a second pick would be elimination. */
   const consumeCheck = (chunkId: string, oi: number, correct: boolean) => {
     setConsume((prev) =>
-      prev ? { ...prev, checks: { ...prev.checks, [chunkId]: { oi, correct } } } : prev,
+      prev && !prev.checks[chunkId]
+        ? { ...prev, checks: { ...prev.checks, [chunkId]: { oi, correct } } }
+        : prev,
     );
   };
 
@@ -1491,197 +1487,27 @@ export function useSpiral(deps: {
     enterOwedPhase(node, () => leaveTo(node.id));
   };
 
-  // ---- Crucible (Phase 5 · application / transfer) ---------------------
+  // ---- Crucible (Phase 5 · application / transfer) — see `useCrucible` ---
 
-  /**
-   * Open the Crucible surface on a node, generating its transfer problem
-   * first if needed. The session opens on the confidence gate — the
-   * calibration hook that precedes the problem.
-   */
-  const enterCrucible = useCallback(
-    (node: ConceptNode) => {
-      const open = () => {
-        // A parked attempt is the learner's own writing — reopen it rather
-        // than handing them a blank workspace for a problem they started.
-        setCrucible(
-          parkedSession<CrucibleSession>(phaseProgressRef.current, node.id, "crucible") ??
-            crucibleStart(node.id),
-        );
-        setSelectedId(node.id);
-        setScreen("crucible");
-      };
-      if (crucibleCacheRef.current[node.id]) {
-        open();
-        return;
-      }
-      generate(
-        warmKey("crucible", node.id),
-        tc().kickerCrucible,
-        tc().forgingProblem(node.label),
-        () => loadCrucible(node),
-        open,
-      );
-    },
-    [
-      tc,
-      generate,
-      loadCrucible,
-      setCrucible,
-      crucibleCacheRef,
-      phaseProgressRef,
-      warmKey,
-      setScreen,
-      setSelectedId,
-    ],
-  );
-
-  const dispatchCrucible = (action: CrucibleAction) => {
-    setCrucible((prev) => {
-      if (!prev) return prev;
-      const content = crucibleCacheRef.current[prev.nodeId];
-      if (!content) return prev;
-      return crucibleReducer(prev, action, content);
-    });
-  };
-
-  /**
-   * Submitting an attempt. An empty workspace isn't diagnostic — nudge instead.
-   * A first-rung failure is precise: it spawns its named sub-concept as a red
-   * Gap node under the parent and flips the parent Shaky. The stated
-   * confidence, held against the outcome, becomes a live calibration reading.
-   */
-  const crucibleSubmit = () => {
-    const cur = crucibleRef.current;
-    if (!cur || cur.submitted || judgingRef.current) return;
-    if (!cur.attempt.trim()) {
-      showToast(tc().workspaceEmpty);
-      return;
-    }
-    const content = crucibleCacheRef.current[cur.nodeId];
-    const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
-    if (!content || !node) return;
-    const problem = content.problems[Math.min(cur.rung, content.problems.length - 1)];
-    // The judge grades the REAL attempt (#27): pass/partial is earned, the
-    // diagnostic quotes their work, and a failure names the actual gap.
-    setJudging(true);
-    // The worst wait in the app. `outcome` is one word and arrives on its own
-    // frame, so the result panel opens on it and the three diagnostic rows
-    // land into an already-open panel.
-    let applied = false;
-    const apply = (action: CrucibleAction) =>
-      setCrucible((prev) =>
-        prev?.nodeId === cur.nodeId ? crucibleReducer(prev, action, content) : prev,
-      );
-    fetchJudgeCrucible(
-      {
-        topic: formRef.current.topic,
-        nodeLabel: node.label,
-        problem: problem.q,
-        hint: problem.hint,
-        answer: cur.attempt,
-        language: languageRef.current,
-      },
-      (partial) => {
-        if (!partial.outcome) return;
-        applied = true;
-        apply({ type: "result", outcome: partial.outcome, transfer: [] });
-      },
-    )
-      .then((j) => {
-        apply(
-          applied
-            ? { type: "transfer", transfer: j.transfer }
-            : { type: "result", outcome: j.outcome, transfer: j.transfer },
-        );
-        // The calibration hook made real: felt (the confidence tap) vs. what
-        // actually happened on this attempt.
-        if (cur.conf !== null)
-          recordCalib(
-            cur.nodeId,
-            CRUCIBLE_FELT[cur.conf],
-            j.outcome === "partial" ? 45 : 88,
-          );
-        if (j.outcome !== "partial") return;
-        disarmChallenge(); // a scaffolded re-attempt is not a cold pass
-        // The judged gap replaces the pre-generated one when the judge named
-        // a different missing sub-concept.
-        const gap: GapSpec =
-          j.gapLabel && j.gapReason
-            ? { ...content.gap, label: j.gapLabel, reason: j.gapReason }
-            : content.gap;
-        if (j.gapLabel)
-          setCrucibleCache((prev) => ({
-            ...prev,
-            [cur.nodeId]: {
-              ...content,
-              gap,
-              reExplain: j.reExplain ?? content.reExplain,
-            },
-          }));
-        setStates((prev) => ({ ...prev, [node.id]: "shaky" }));
-        setShakyReason(node.id, "crucible-fail");
-        if (attachGap(node.id, gap))
-          showToast(tc().transferBroke(gap.label, node.label), tc().mapUpdated);
-      })
-      .catch((err: unknown) =>
-        showError(err, {
-          context: "judge",
-          retry: () => crucibleSubmitRef.current?.(),
-        }),
-      )
-      .finally(() => setJudging(false));
-  };
-  const crucibleSubmitRef = useRef(crucibleSubmit);
-  crucibleSubmitRef.current = crucibleSubmit;
-
-  /**
-   * Transfer confirmed: the re-attempt carried the concept into a framing it
-   * was never taught in, so the first-attempt gap resolves — it leaves the
-   * map — and the node lifts Shaky → Mastered, the only path to green.
-   */
-  const advanceFromCrucible = () => {
-    const cur = crucibleRef.current;
-    if (!cur) return;
-    const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
-    const gapId = crucibleCacheRef.current[cur.nodeId]?.gap.id;
-    if (gapId) {
-      setGraph((g) => removeNode(g, gapId));
-      setPositions(omitKey(gapId));
-      setStates(omitKey(gapId));
-      setSpawnedIds((prev) => {
-        if (!prev.has(gapId)) return prev;
-        const nextIds = new Set(prev);
-        nextIds.delete(gapId);
-        return nextIds;
-      });
-    }
-    // The transfer held, so the Crucible rung closes. What that makes the node
-    // is `stateFromPlan`'s call, not a literal written here — which is the
-    // whole point: this used to be the only path to green in the app, so a
-    // plan without a Crucible in it could never reach it.
-    if (node) {
-      setShakyReason(node.id, null);
-      completePhase(node, "crucible", null);
-      // The rung is closed — a re-entry must open a fresh problem, not the
-      // attempt that passed.
-      dropParked(setPhaseProgress, node.id, "crucible");
-    }
-    setCrucible(null);
-    if (!node) return leaveTo(undefined);
-    // A `concept` still owes Recall: green, the toast and the streak wait for it.
-    if (stateFromPlan(phasePlan(node), phasesDoneRef.current[node.id]) !== "mastered")
-      return enterOwedPhase(node, () => leaveTo(node.id));
-    leaveTo(node.id);
-    // Adherence: a node just went green — the day's winnable end.
+  /** A node just went green — the day's winnable end, from any path there. */
+  const litUp = (node: ConceptNode) => {
     setLitToday((prev) => (prev.includes(node.label) ? prev : [...prev, node.label]));
     setAdherence((prev) => markTodayMet(prev));
-    showToast(tc().transferConfirmed(node.label));
   };
 
-  const exitCrucible = () => {
-    leaveTo(crucibleRef.current?.nodeId);
-    setCrucible(null);
-  };
+  const {
+    enterCrucible,
+    dispatchCrucible,
+    crucibleSubmit,
+    advanceFromCrucible,
+    exitCrucible,
+  } = useCrucible({
+    ...phaseDeps,
+    ...judgeDeps,
+    leaveTo,
+    enterOwed: (node) => enterOwedRef.current(node),
+    litUp,
+  });
 
   // ---- Retain (Phase 6 · Review queue / FSRS) --------------------------
 
@@ -1801,10 +1627,10 @@ export function useSpiral(deps: {
     setScreen,
   ]);
 
-  const retainFlip = () => {
+  const retainFlip = (sure?: number) => {
     setRetain((prev) => {
       if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "flip" }, retainContentRef.current);
+      return retainReducer(prev, { type: "flip", sure }, retainContentRef.current);
     });
   };
 
@@ -1842,8 +1668,13 @@ export function useSpiral(deps: {
       setCards((prev) =>
         prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
       );
-    // Real review history — what finally earns "Retained ✓" (#13).
-    if (grade === "good" || grade === "easy")
+    // The flip's confidence tap, against whether it came back at all.
+    if (firstTrip && cur.sure !== undefined)
+      recordCalib(card.node, CONFIDENCE_FELT[cur.sure], grade === "again" ? 0 : 100);
+    // Real review history — what finally earns "Retained ✓" (#13) — and only
+    // across a real interval: read off the card *before* this grade moved it.
+    const held = cardsRef.current.find((c) => c.id === card.id)?.fsrs;
+    if (firstTrip && held && earnsRetained(grade, held))
       setReviewedNodes((prev) =>
         prev.includes(card.node) ? prev : [...prev, card.node],
       );
@@ -1916,9 +1747,16 @@ export function useSpiral(deps: {
     const outcome = socraticOutcome(session, !!node.gap);
     if (node.gap) {
       const closed = outcome === "unaided";
+      const parent = closed ? gapParent(node.id) : undefined;
       if (closed) removeGapNode(node.id);
       setScreen("map");
-      setSelectedId(closed ? null : node.id);
+      setSelectedId(closed ? (parent?.id ?? null) : node.id);
+      // Gaps hold a finished ladder off green, so closing the last one under
+      // it is the moment the parent is mastered.
+      if (parent && settle(parent) === "mastered") {
+        litUp(parent);
+        return showToast(tc().lastGapClosed(parent.label), tc().mapUpdated);
+      }
       showToast(
         closed ? tc().gapClosed(node.label) : tc().stillLeaning(node.label),
         closed ? tc().mapUpdated : tc().gapNotClosed,
@@ -1944,7 +1782,7 @@ export function useSpiral(deps: {
       attachGap(node.id, spec);
       // The rung closes even here: a pass told through is a weakness to
       // *record*, not to punish by holding the phase open. The gap above and
-      // the Shaky reason carry it, and `stateFromPlan` will not call the node
+      // the Shaky reason carry it, and the ledger will not call the node
       // mastered while the gap stands — so the reading below is an offer now
       // rather than the only door out. The ref is written alongside the state
       // because `enterSession` reads it synchronously, one line down.
@@ -2107,8 +1945,16 @@ export function useSpiral(deps: {
     }
     // Otherwise: the rung this node actually owes. Nothing here knows which
     // phase that is — that is the point, and it is the same function the CTA
-    // reads to name itself, so the button can't promise a different one.
-    enterOwedPhase(node, enterReview, displayState);
+    // reads to name itself, so the button can't promise a different one. A
+    // ladder with nothing owed that its open gaps still hold opens the first.
+    const gap = graphRef.current.nodes.find(
+      (n) => n.id === openGapIds(graphRef.current, node.id)[0],
+    );
+    const closeGap = (g: ConceptNode) => {
+      setSelectedId(g.id);
+      enterSocratic(g);
+    };
+    enterOwedPhase(node, gap ? () => closeGap(gap) : enterReview, displayState);
   };
 
   /** "I already know this" — prove it: open the node's proof gate, and a

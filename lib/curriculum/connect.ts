@@ -133,6 +133,29 @@ export type ConnectAction =
   | { type: "draftMnemonic"; value: string }
   | { type: "acceptMnemonic" };
 
+/** The fewest characters a link has to say before confirming it means
+ *  anything — about one short clause. */
+export const CONNECT_MIN_DRAFT = 20;
+
+const said = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+/**
+ * Is this draft the learner's own link? Long enough to say something, and not
+ * the map's suggestion pasted back — reading a plausible sentence and
+ * confirming it is recognition, and encodes almost nothing.
+ */
+export function connectDraftReady(
+  draft: string | undefined,
+  suggestion: string,
+): boolean {
+  const own = (draft ?? "").trim();
+  return own.length >= CONNECT_MIN_DRAFT && said(own) !== said(suggestion);
+}
+
 /**
  * The elaboration engine, as a pure transition. Selecting a candidate opens
  * its linking prompt with a draft pulled from the map; confirming links it;
@@ -156,8 +179,14 @@ export function connectReducer(
         ...session,
         drafts: { ...session.drafts, [action.id]: action.value },
       };
-    case "confirm":
+    case "confirm": {
+      // A link is confirmed in the learner's own words or not at all. Two
+      // taps on an empty box used to pass the phase on the map's sentence.
+      const cand = content.cands.find((c) => c.id === action.id);
+      if (!cand || !connectDraftReady(session.drafts[action.id], cand.rel))
+        return session;
       return { ...session, linked: { ...session.linked, [action.id]: true } };
+    }
     case "pickMnemonic": {
       const opt = content.mnemonics?.[action.index];
       if (!opt) return session;

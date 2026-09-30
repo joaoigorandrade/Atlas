@@ -123,6 +123,7 @@ export function phaseSheets(p: {
             content={discriminateContent}
             session={discriminate}
             onExit={exitDiscriminate}
+            onSure={(level) => dispatchDiscriminate({ type: "sure", level })}
             onCall={(index, read) => dispatchDiscriminate({ type: "call", index, read })}
             onNext={() => dispatchDiscriminate({ type: "next" })}
             onAdvance={advanceFromDiscriminate}
@@ -175,6 +176,7 @@ export function phaseSheets(p: {
             content={drillContent}
             session={drill}
             onExit={exitDrill}
+            onSure={(level) => dispatchDrill({ type: "sure", level })}
             onAnswer={(index) => dispatchDrill({ type: "answer", index })}
             onNext={() => dispatchDrill({ type: "next" })}
             onAdvance={advanceFromDrill}
@@ -195,7 +197,7 @@ export function phaseSheets(p: {
             onWrite={(value) => dispatchRecall({ type: "write", value })}
             onCue={() => dispatchRecall({ type: "cue" })}
             onSubmit={recallSubmit}
-            onAgain={() => dispatchRecall({ type: "again" })}
+            onSure={(level) => dispatchRecall({ type: "sure", level })}
             onAdvance={advanceFromRecall}
           />,
         )}

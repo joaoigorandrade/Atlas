@@ -15,6 +15,7 @@ import {
   type ElaborationLink,
 } from "@/lib/curriculum";
 import { MicButton } from "@/components/VoiceInput";
+import LinkConfirm from "@/components/session/connect/LinkConfirm";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
@@ -53,10 +54,7 @@ const STRINGS = {
     howDoes: (center: string, cand: string) => `How does ${center} relate to ${cand}?`,
     describeRelationship:
       "Describe the real relationship in your own words — writing it yourself is what makes it stick.",
-    showSuggestion: "Stuck? Show the map’s suggestion",
     connectionPlaceholder: "Your connection…",
-    linkConfirmedUpdate: "Link confirmed · update",
-    confirmThisLink: "Confirm this link →",
     pickConcept: "Pick a concept to link",
     idleBody:
       "Tap any node in the web on the left. Each real link you confirm becomes a card in the Retain phase — the tedious step, done for you.",
@@ -95,10 +93,7 @@ const STRINGS = {
     howDoes: (center: string, cand: string) => `Como ${center} se relaciona com ${cand}?`,
     describeRelationship:
       "Descreva a relação real com suas próprias palavras — escrever você mesmo é o que fixa.",
-    showSuggestion: "Travou? Ver a sugestão do mapa",
     connectionPlaceholder: "Sua conexão…",
-    linkConfirmedUpdate: "Vínculo confirmado · atualizar",
-    confirmThisLink: "Confirmar este vínculo →",
     pickConcept: "Escolha um conceito para vincular",
     idleBody:
       "Toque em qualquer nó da rede à esquerda. Cada vínculo real que você confirmar vira um card na fase Retain — a parte chata, já feita para você.",
@@ -632,48 +627,7 @@ function LinkingPrompt({
         onChange={(next) => onDraft(cand.id, next)}
         accent={VIOLET}
       />
-      {/* The map's suggestion, on demand only — an escape hatch from the blank
-          box, not the default. Gone once there's anything to lose by replacing it. */}
-      {!draft.trim() && cand.rel.trim() ? (
-        <button
-          className="at-press"
-          onClick={() => onDraft(cand.id, cand.rel)}
-          style={{
-            display: "block",
-            marginTop: 10,
-            padding: 0,
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            fontSize: 12.5,
-            color: color.inkFaint,
-            textDecoration: "underline",
-            textUnderlineOffset: 3,
-          }}
-        >
-          {t.showSuggestion}
-        </button>
-      ) : null}
-      <button
-        className="at-press"
-        data-testid="action-confirm-link"
-        onClick={() => onConfirm(cand.id)}
-        style={{
-          marginTop: 14,
-          width: "100%",
-          padding: 13,
-          borderRadius: 3,
-          fontSize: 14.5,
-          fontWeight: 600,
-          cursor: "pointer",
-          background: linked ? CONNECT_COLOR.soft : VIOLET,
-          color: linked ? VIOLET : color.accentInk,
-          border: linked ? `1px solid ${CONNECT_COLOR.border}` : "none",
-          boxShadow: linked ? "none" : `0 8px 20px ${CONNECT_COLOR.glow}`,
-        }}
-      >
-        {linked ? t.linkConfirmedUpdate : t.confirmThisLink}
-      </button>
+      <LinkConfirm cand={cand} draft={draft} linked={linked} onConfirm={onConfirm} />
     </div>
   );
 }

@@ -10,6 +10,7 @@
 import { useCallback } from "react";
 import {
   phaseLabel,
+  predictCalibration,
   predictPassed,
   predictReducer,
   predictStart,
@@ -36,7 +37,7 @@ export function usePredict(deps: {
 }) {
   const { run, sessions, gen, toast, ledger, setSelectedId, setScreen, centerOn, later } =
     deps;
-  const { graphRef, predictCacheRef } = run;
+  const { graphRef, predictCacheRef, recordCalib } = run;
   const { setPredict, predictRef } = sessions;
   const { generate, warmKey, loadPredict } = gen;
   const { tc } = toast;
@@ -100,10 +101,23 @@ export function usePredict(deps: {
     const node = graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = predictCacheRef.current[cur.nodeId];
     if (node && content && predictPassed(cur, content)) completePhase(node, "predict");
+    fileCalibration();
     leaveTo(cur.nodeId);
   };
 
-  const exitPredict = () => leaveTo(predictRef.current?.nodeId);
+  /** The confidence each forecast was rated at, against whether it held — one
+   *  reading per run, filed on the way out however the run is left. */
+  const fileCalibration = () => {
+    const cur = predictRef.current;
+    const content = cur && predictCacheRef.current[cur.nodeId];
+    const reading = cur && content ? predictCalibration(cur, content) : null;
+    if (cur && reading) recordCalib(cur.nodeId, reading.felt, reading.real);
+  };
+
+  const exitPredict = () => {
+    fileCalibration();
+    leaveTo(predictRef.current?.nodeId);
+  };
 
   return {
     enterPredict,
