@@ -25,35 +25,49 @@ final class HomeViewModel {
         }
     }
 
-    var today: String { Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)) }
+    var today: String { Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) }
 
-    /// Cards in today's session, counted from the store rather than fetched:
-    /// the dashboard says how much is waiting, and the deck itself — the order
-    /// and the intervals — is the server's answer, asked for when Review opens.
-    ///
-    /// `dueToday` and not `dueCount`: the deck is budgeted to half the daily
-    /// target, so the raw due pile is a promise Review does not keep.
-    private var dueCount: Int { store.dueToday }
-    var queueIsEmpty: Bool { dueCount == 0 && store.freshConcepts == 0 }
+    // MARK: - Revisar — the whole account's day, one tile
 
-    /// The queue, framed in minutes against the daily target — never a wall of
-    /// cards, and never a number that isn't due.
-    var reviewHeadline: String {
-        if dueCount > 0 { return String(localized: "\(dueCount) cartões pendentes") }
+    /// The cards one map's session actually offers: its due pile, budgeted to
+    /// the deck Review deals (`AtlasStore.dueToday`, the same floor). The open
+    /// map answers from live state, the others from their saved rows.
+    private func session(_ map: AtlasRun) -> Int {
+        let budget = max(1, Int(Double(store.reviewBudgetMin) / cardMinutes))
+        return isOpen(map) ? store.dueToday : min(AtlasStore.due(map.cards), budget)
+    }
+
+    /// Every map's session, added up — the number a learner opening the app
+    /// wants, since review is per map and a count for the open one alone read
+    /// as the whole day.
+    var dueTotal: Int { maps.reduce(0) { $0 + session($1) } }
+    private var dueMaps: [AtlasRun] { maps.filter { session($0) > 0 } }
+
+    /// What "Revisar" opens: the map with the most due, the open one on a tie
+    /// — Review deals one map at a time.
+    var reviewTarget: AtlasRun? {
+        dueMaps.max { a, b in
+            (session(a), isOpen(a) ? 1 : 0) < (session(b), isOpen(b) ? 1 : 0)
+        }
+    }
+
+    var reviewTitle: String {
+        if dueTotal > 0 { return String(localized: "\(dueTotal) cartões") }
         let fresh = store.freshConcepts
-        return fresh == 0 ? String(localized: "Fila limpa") : String(localized: "\(fresh) conceitos novos para revisar")
+        return fresh > 0 ? String(localized: "\(fresh) conceitos novos") : String(localized: "Fila limpa")
     }
 
     var reviewNote: String {
-        if dueCount > 0 {
-            return String(localized: "~\(Int((Double(dueCount) * cardMinutes).rounded())) min · no momento exato em que essas memórias estão prestes a desvanecer.")
+        let minutes = Int((Double(dueTotal) * cardMinutes).rounded())
+        if dueTotal > 0 {
+            return dueMaps.count > 1
+                ? String(localized: "~\(minutes) min · em \(dueMaps.count) mapas")
+                : String(localized: "~\(minutes) min · \(dueMaps.first?.subject ?? subject)")
         }
-        return store.freshConcepts == 0
-            ? String(localized: "Nada a recuperar agora. O próximo cartão volta assim que a memória começar a esfriar.")
-            : String(localized: "A primeira revisão cria os cartões do que você acabou de aprender — é isso que evita que se apague.")
+        return store.freshConcepts > 0
+            ? String(localized: "Criar os primeiros cartões")
+            : String(localized: "Nada vencendo agora")
     }
-
-    var reviewAction: LocalizedStringKey { queueIsEmpty ? "Abrir a revisão →" : "Iniciar revisão →" }
 
     var frontier: [ConceptNode] { store.frontier }
 
@@ -61,8 +75,7 @@ final class HomeViewModel {
 
     /// What "continue where you left off" opens: a concept already under way —
     /// Learning first, then one that went Shaky — and otherwise the next step
-    /// on the frontier. The card opens the pass itself; it used to only switch
-    /// to the map, and resuming was four taps and a search.
+    /// on the frontier. The tile opens the pass itself.
     var next: ConceptNode? {
         let shown = store.display
         let nodes = store.graph.nodes.filter { $0.gap != true }
@@ -73,8 +86,7 @@ final class HomeViewModel {
 
     var nextStarted: Bool { next.map { store.display[$0.id] != .frontier } ?? false }
 
-    var continueKicker: LocalizedStringKey { nextStarted ? "Continuar de onde parou" : "Próximo passo" }
-    var continueAction: LocalizedStringKey { nextStarted ? "Continuar →" : "Começar agora →" }
+    var continueKicker: LocalizedStringKey { nextStarted ? "Continuar" : "Próximo passo" }
 
     /// "Socratic · ~12 min" — the phase the pass opens on and what the node
     /// still costs, so the tap is a decision and not a surprise.
@@ -86,40 +98,23 @@ final class HomeViewModel {
             ? String(localized: "\(phase.label) · ~\(minutes) min")
             : phase.label
     }
-    /// The node's own label when there is one, so this is a String the view
-    /// renders verbatim — the fallbacks are the only half that is copy.
-    ///
-    /// Two fallbacks, not one: a map with nothing open on its frontier is not a
-    /// learner with no map. Sending someone who has been working all week to
-    /// "monte um mapa" is the one sentence on this screen that can't be true.
+
+    /// The tile's title when there is nothing to continue. Two fallbacks, not
+    /// one: a map with nothing open on its frontier is not a learner with no map.
     var frontierHeadline: String {
-        if let label = frontier.first?.label { return label }
-        return hasRun
-            ? String(localized: "Nada na fronteira agora")
-            : String(localized: "Seu mapa ainda está vazio")
-    }
-    var frontierNote: String {
-        if let summary = frontier.first?.summary { return summary }
-        return hasRun
-            ? String(localized: "Todo conceito liberado já está em andamento. Abra o mapa para levar um adiante.")
-            : String(localized: "Monte um mapa para acender sua primeira fronteira.")
-    }
-    var frontierLine: LocalizedStringKey {
-        guard !frontier.isEmpty else {
-            return hasRun
-                ? "Nenhum conceito na fronteira. Continue os que já estão em andamento."
-                : "Monte seu primeiro mapa para começar."
-        }
-        return "Você está na fronteira de \(frontier.count) conceitos. Continue de onde parou."
+        hasRun ? String(localized: "Nada na fronteira agora") : String(localized: "Seu mapa ainda está vazio")
     }
 
     var hasRun: Bool { !store.subject.isEmpty }
 
-    /// Today's review, named for the map it belongs to — the queue is per map,
-    /// and a count on its own read as the whole account's.
-    var reviewKicker: String {
-        hasRun ? String(localized: "Revisão de hoje · \(store.subject)") : String(localized: "Revisão de hoje")
+    // MARK: - Continentes, folded
+
+    /// Continents the learner folded down to their header.
+    private(set) var folded: Set<String> = []
+    func toggleFold(_ id: String) {
+        if folded.contains(id) { folded.remove(id) } else { folded.insert(id) }
     }
+
     var subject: String { store.subject }
     var goal: LocalizedStringKey { store.goal.label }
     var mastered: Double { store.mastered }
@@ -132,11 +127,6 @@ final class HomeViewModel {
     /// live state — see `AtlasStore.maps`.
     var maps: [AtlasRun] { store.maps }
     func isOpen(_ map: AtlasRun) -> Bool { map.subject == store.subject }
-
-    /// The chip each card carries: which one the tabs are currently showing.
-    func status(_ map: AtlasRun) -> LocalizedStringKey {
-        isOpen(map) ? "Em andamento" : "Salvo"
-    }
 
     func frontierCount(_ map: AtlasRun) -> Int {
         isOpen(map) ? frontier.count : map.frontierCount
