@@ -21,6 +21,46 @@
         }
       }
     },
+    "avaliar sua correção" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grade your fix"
+          }
+        }
+      }
+    },
+    "Conferir →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check it →"
+          }
+        }
+      }
+    },
+    "Explique só esta parte, com suas palavras…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explain just this part, in your own words…"
+          }
+        }
+      }
+    },
+    "Lendo…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading it…"
+          }
+        }
+      }
+    },
     "O problema a frio abre em %lld h — a prova de transferência precisa de uma noite." : {
       "localizations" : {
         "en" : {

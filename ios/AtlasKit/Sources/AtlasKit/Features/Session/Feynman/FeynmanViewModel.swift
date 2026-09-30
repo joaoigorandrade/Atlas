@@ -147,7 +147,6 @@ final class FeynmanViewModel {
         return (beat, fix)
     }
 
-    func ruledOut(_ reply: FeynmanFix.Reply) -> Bool { fixRuledOut.contains(reply.label) }
 
     // MARK: - Loading
 
@@ -314,25 +313,50 @@ final class FeynmanViewModel {
         save()
     }
 
-    func answerFix(_ reply: FeynmanFix.Reply) {
-        guard let open = fix, !ruledOut(reply) else { return }
-        guard reply.correct else {
-            // Caught: surface the correction, rule this one out, keep trying.
-            withAnimation(Motion.standard) {
-                fixReaction = reply.response
-                fixRuledOut.append(reply.label)
+    /// The repair, in the learner's own words (W1.3).
+    var fixText = ""
+    private(set) var fixJudging = false
+    /// Its own recogniser: the teach-back's belongs to the explanation box.
+    let fixDictation = Dictation()
+
+    /// Judge the repair against that one row's `mustConvey` — a one-row
+    /// Feynman judgement, the way the web does it. It used to be a pick among
+    /// written replies with each wrong one struck out, so a gap could be closed
+    /// by elimination; a gap found in unaided production closes the same way
+    /// it was found.
+    func submitFix() {
+        guard let open = fix, !fixJudging, !fixText.trimmed.isEmpty else { return }
+        fixDictation.flush()
+        fixJudging = true
+        var context = session.context
+        context["rubric"] = .array([.object([
+            "subPoint": .string(open.beat.subPoint),
+            "mustConvey": .array(open.beat.mustConvey.map { .string($0) }),
+        ])])
+        context["answer"] = .string(fixText.trimmed)
+        Task {
+            defer { fixJudging = false }
+            do {
+                let verdict: FeynmanJudgement = try await api.judge("feynman", context)
+                guard fixing == open.beat.id else { return }
+                if feynmanVerdicts(verdict, [open.beat]).verdicts[open.beat.id] == .good {
+                    // Gap closed: the sub-point flips to good and won't write back.
+                    withAnimation(Motion.standard) {
+                        verdicts[open.beat.id] = .good
+                        fixing = nil
+                    }
+                    fixReaction = nil
+                    fixText = ""
+                } else {
+                    // Not yet: the student says what is still missing, and they
+                    // try again in their own words — nothing to eliminate down.
+                    withAnimation(Motion.standard) { fixReaction = verdict.response }
+                }
+                save()
+            } catch {
+                fixReaction = ErrorCopy.sentence(for: error, doing: String(localized: "avaliar sua correção"))
             }
-            save()
-            return
         }
-        // Gap closed: the sub-point flips to good and won't write back.
-        withAnimation(Motion.standard) {
-            verdicts[open.beat.id] = .good
-            fixing = nil
-        }
-        fixRuledOut = []
-        fixReaction = nil
-        save()
     }
 
     /// The CTA off the Gap Report. It names the phase this node's plan actually
