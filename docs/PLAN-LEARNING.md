@@ -1067,3 +1067,27 @@ Model `openai/gpt-5.6-luna` for content and verify; two core nodes per map;
   italiano 3.8 / 4.0, finanças 4.2 / 2.8, sourdough 3.9 / 3.3.
 - **Locale and notation:** 0 Brazilian instruments in _Finanças pessoais_
   Consume; no LaTeX on either formal map.
+
+### 2026-09-30 — Stage I gate (after W0–W2)
+
+Same panel and models; `scratch/eval/panel-2026-09-30.json`. Disputed keys are
+measured on raw generations — the W2.1 verifier drops the confident disputes
+before anything is cached.
+
+- **Disputed keys (raw):** 7 / 328 (2.1%). Interpretive **3 / 30** (from
+  7 / 31): provenance 3/15, discriminate 0/11. Everywhere else ≤ 1 item.
+- **Tags:** every map carries its header; nodes inherit the topic domain
+  (only _Python para análise de dados_ keeps a stated second domain).
+- **Shape:** _The French Revolution_ is no longer a chain (width 2, `timeline`,
+  two lenses offered). _Sourdough baking_ reads as a chain by design (a craft
+  map is its build sequence). _Igreja Antiga_ still returns the scope offer.
+- **Axes:** Spanish and Italian carry `es-ES` / `it-IT` and `scenarios`;
+  _Finanças pessoais_ is `jurisdictional` and `plan`; a direct probe of its
+  Consume with `locale: BR` names Tesouro, Selic, CDI, CDB, FGC and Imposto de
+  Renda (the panel's two probe nodes were budgeting nodes and named none).
+- **Still open:** no LaTeX on formal maps (W7.1); phase-minute hours still
+  exceed the pace model (this run predates W3.1's rationing).
+- **W2.2 (model per role):** one model (`openai/gpt-5.6-luna`) serves every
+  domain at ≤ 2.1% raw disputes, and the verifier removes the rest, so
+  per-domain routing stays skipped and `OPENROUTER_VERIFY_MODEL` defaults to
+  the judge model.
