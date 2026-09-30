@@ -25,6 +25,7 @@ import {
   graphFromMapNodes,
   planGates,
   type GoalKind,
+  type MapMeta,
   type MapNode,
   type PhaseId,
 } from "@/lib/curriculum";
@@ -94,8 +95,16 @@ async function evalTopic(t: PanelTopic) {
     goal: t.goal,
     paretoPct: t.paretoPct,
     language: t.language,
-  })) as { nodes?: MapNode[]; scopes?: unknown };
+  })) as { nodes?: MapNode[]; scopes?: unknown; meta?: MapMeta };
   if (!map.nodes) return { topic: t.topic, scoped: true };
+  // The topic axes the server would stamp from the header (W0.4): the target
+  // language, and a locale on a jurisdictional topic (the panel's learners
+  // are Brazilian when they study in pt-BR).
+  const meta = map.meta;
+  const axes = {
+    ...(meta?.targetLanguage ? { targetLanguage: meta.targetLanguage } : null),
+    ...(meta?.jurisdictional && t.language === "pt-BR" ? { locale: "BR" } : null),
+  };
   const nodes = map.nodes;
   const graph = graphFromMapNodes(nodes);
   const domains = [...new Set(nodes.map((n) => n.domain ?? "general"))];
@@ -130,6 +139,7 @@ async function evalTopic(t: PanelTopic) {
       ...(node.kind && node.kind !== "concept" ? { nodeKind: node.kind } : null),
       ...(node.domain && node.domain !== "general" ? { domain: node.domain } : null),
       cell: cellOf(node.importance, node.difficulty),
+      ...axes,
     };
     const domain = node.domain ?? "general";
     const jobs: Promise<void>[] = [];
@@ -190,6 +200,7 @@ async function evalTopic(t: PanelTopic) {
     cells: count(nodes.map((n) => cellOf(n.importance, n.difficulty))),
     width,
     chain: nodes.length > 8 && width === 1,
+    meta,
     phaseHours: +(phaseMinutes / 60).toFixed(1),
     paceHours: +(paceMinutes / 60).toFixed(1),
     keys,
