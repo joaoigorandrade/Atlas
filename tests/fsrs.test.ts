@@ -5,6 +5,7 @@ import {
   retainDeck,
   retainQueueLabel,
   retainReducer,
+  suggestGrade,
   retainStart,
   reviewCard,
   type RetainAction,
@@ -138,6 +139,25 @@ describe("retain: a miss comes back once", () => {
     cards: [deckCard("a"), deckCard("b")],
   };
   const step = (s: RetainSession, a: RetainAction) => retainReducer(s, a, content);
+
+  it("keeps the answer written before the flip, and the judge's read of it (W4.3)", () => {
+    let s = step(retainStart(), { type: "flip", sure: 1, said: "  A a  " });
+    expect(s.said).toBe("A a");
+    // A verdict for a card the learner has already left is dropped.
+    expect(
+      step(s, { type: "suggest", idx: 1, grade: "good", read: "x" }).suggest,
+    ).toBeUndefined();
+    s = step(s, { type: "suggest", idx: 0, grade: "good", read: "It came back." });
+    expect(s.suggest).toEqual({ grade: "good", read: "It came back." });
+    // Dealing the next card clears both.
+    s = step(s, { type: "grade", grade: "good" });
+    expect(s.said).toBeUndefined();
+    expect(s.suggest).toBeUndefined();
+    // An answer given only in the head leaves nothing to judge.
+    expect(step(retainStart(), { type: "flip" }).said).toBeUndefined();
+    expect(suggestGrade("good")).toBe("good");
+    expect(suggestGrade("skipped")).toBe("again");
+  });
 
   it("sends the missed card to the back of the deck, and only once", () => {
     let s = retainStart();

@@ -25,8 +25,6 @@ import {
   connectDraftReady,
   connectReducer,
   connectStart,
-  CONFIDENCE_FELT,
-  earnsRetained,
   afterPretest,
   normaliseConsumeProgress,
   gapParentOf,
@@ -35,10 +33,6 @@ import {
   preferredModality,
   recordMisconception,
   recurringMisconceptions,
-  RETAIN_DRAFT_NODES,
-  retainReducer,
-  retainStart,
-  reviewCard,
   socraticOutcome,
   socraticPlan,
   socraticReducer,
@@ -52,24 +46,16 @@ import {
   type ConsumeProgress,
   type GapSpec,
   type NodeState,
-  type ReviewGrade,
   type SocraticAction,
   type SocraticStep,
   heldUntil,
   hoursLeft,
 } from "@/lib/curriculum";
-import {
-  dueCards,
-  gradeStoredCard,
-  newStoredCard,
-  retainContentFromStore,
-  type StoredCard,
-} from "@/lib/fsrs";
+import { newStoredCard } from "@/lib/fsrs";
 import {
   fetchConsumeModelStream,
   fetchConsumeStream,
   fetchJudgeSocratic,
-  fetchRetain,
   fetchSocraticStream,
   fetchJudgeConnect,
 } from "@/lib/api";
@@ -85,6 +71,7 @@ import { useDomainPhases } from "@/components/atlas/useDomainPhases";
 import { useCrucible } from "@/components/atlas/useCrucible";
 import { useFeynman } from "@/components/atlas/useFeynman";
 import { usePassage } from "@/components/atlas/usePassage";
+import { useRetain } from "@/components/atlas/useRetain";
 import type { Language } from "@/lib/i18n";
 import type { Surface } from "@/components/map/TopBar";
 import type { Screen } from "@/components/atlas/screen";
@@ -155,12 +142,10 @@ export function useSpiral(deps: {
     graphRef,
     formRef,
     statesRef,
-    cardsRef,
     setStates,
     setCards,
     setAdherence,
     setLitToday,
-    setReviewedNodes,
     reviewedNodes,
     setPhasesDone,
     phasesDoneRef,
@@ -176,8 +161,6 @@ export function useSpiral(deps: {
     setSocraticCache,
     socraticCacheRef,
     connectCacheRef,
-    setRetainContent,
-    retainContentRef,
     setConsumeProgress,
     consumeProgressRef,
     socraticProgressRef,
@@ -186,7 +169,6 @@ export function useSpiral(deps: {
     setPhaseProgress,
     phaseProgressRef,
     setShakyReason,
-    recordCalib,
     attachGap,
     removeGapNode,
   } = run;
@@ -204,8 +186,6 @@ export function useSpiral(deps: {
     liveSocraticRef,
     connect,
     setConnect,
-    setRetain,
-    retainRef,
     consumeChunksRef,
   } = sessions;
   const {
@@ -1202,208 +1182,28 @@ export function useSpiral(deps: {
     litUp,
   });
 
-  // ---- Retain (Phase 6 · Review queue / FSRS) --------------------------
-
-  /**
-   * What the Review queue would generate right now: the card factory only runs
-   * for touched nodes that have no cards yet. Derived in one place so a warm
-   * and the real entry address the same cache row. */
-  const retainPlan = useCallback(() => {
-    const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
-    const touched = graphRef.current.nodes.filter(
-      (n) =>
-        !n.gap &&
-        ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
-    );
-    // One draft covers one draft's worth of nodes. Sending every uncovered node
-    // asked for more cards than the factory will ever return, so the surplus
-    // nodes were silently dropped by whichever ones the model chose to write.
-    const uncovered = touched
-      .filter((n) => !cardsRef.current.some((c) => c.nodeId === n.id))
-      .slice(0, RETAIN_DRAFT_NODES);
-    return {
-      budgetMin,
-      touched,
-      uncovered,
-      key: `retain:${uncovered.map((n) => n.id).join(",")}`,
-      params: {
-        topic: formRef.current.topic,
-        budgetMin,
-        nodes: uncovered.map((n) => ({
-          id: n.id,
-          label: n.label,
-          state: statesRef.current[n.id]!,
-        })),
-        interests: formRef.current.interests,
-        language: languageRef.current,
-      },
-    };
-  }, [cardsRef, formRef, graphRef, statesRef, languageRef]);
-
-  /** Draft the day's new cards ahead of the click. The result is discarded —
-   *  its point is filling the shared cache so opening Review is a lookup. */
-  const warmRetain = useCallback(() => {
-    const plan = retainPlan();
-    if (plan.uncovered.length === 0) return;
-    warm.warm(plan.key, () => fetchRetain(plan.params, { prefetch: true }));
-  }, [retainPlan, warm]);
-
-  /**
-   * Open the daily Review queue — a global surface. The day's cards are
-   * generated once from the nodes the learner has actually touched; there is
-   * nothing to review until at least one concept has been learned.
-   */
-  const enterReview = useCallback(() => {
-    const { budgetMin, touched, uncovered, key, params } = retainPlan();
-    // The queue reads from the real card store (#21): due cards, real
-    // intervals on the grade buttons, forecast from actual due dates.
-    const openFrom = (store: StoredCard[]) => {
-      if (dueCards(store).length === 0) {
-        showToast(tc().queueClear);
-        return;
-      }
-      setRetainContent(
-        retainContentFromStore(store, budgetMin, new Date(), languageRef.current),
-      );
-      setRetain(retainStart());
-      setScreen("review");
-    };
-    if (touched.length === 0) {
-      showToast(tc().nothingToReview);
-      return;
-    }
-    // First review of a node: generate its atomic cards once, then they live
-    // in the store forever (the generation is a card FACTORY, not the queue).
-    if (uncovered.length === 0) {
-      openFrom(cardsRef.current);
-      return;
-    }
-    generate(
-      key,
-      tc().kickerRetain,
-      tc().draftingCards,
-      () => fetchRetain(params),
-      (content) => {
-        const now = new Date();
-        const stamp = Date.now();
-        const seeded = content.cards.map((c, i) =>
-          newStoredCard(
-            {
-              id: `${c.node}-retain-${stamp}-${i}`,
-              nodeId: c.node,
-              type: c.type,
-              source: c.source,
-              cloze: c.cloze,
-              answer: c.answer,
-              front: c.front,
-              back: c.back,
-              reExplain: c.reExplain,
-            },
-            now,
-          ),
-        );
-        const all = [...cardsRef.current, ...seeded];
-        setCards(all);
-        openFrom(all);
-      },
-    );
-  }, [
-    languageRef,
-    tc,
-    generate,
+  // ---- Retain (Phase 6 · Review queue / FSRS) — see `useRetain` -----------
+  const {
     retainPlan,
-    showToast,
-    setRetain,
-    cardsRef,
-    setCards,
-    setRetainContent,
+    warmRetain,
+    enterReview,
+    retainFlip,
+    retainToggleAside,
+    retainContinue,
+    retainGrade,
+    retainReteach,
+    exitReview,
+  } = useRetain({
+    run,
+    sessions,
+    gen,
+    toast,
+    warm,
+    languageRef,
     setScreen,
-  ]);
-
-  const retainFlip = (sure?: number) => {
-    setRetain((prev) => {
-      if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "flip", sure }, retainContentRef.current);
-    });
-  };
-
-  const retainToggleAside = () => {
-    setRetain((prev) => {
-      if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "toggleAside" }, retainContentRef.current);
-    });
-  };
-
-  const retainContinue = () => {
-    setRetain((prev) => {
-      if (!prev || !retainContentRef.current) return prev;
-      return retainReducer(prev, { type: "continue" }, retainContentRef.current);
-    });
-  };
-
-  /**
-   * Grade a card — feeds FSRS and advances. "Again" is the alive-loop: the
-   * fail stage opens and the card's node is flagged Shaky, so retention
-   * failure re-enters Phase 1.
-   */
-  const retainGrade = (grade: ReviewGrade) => {
-    const cur = retainRef.current;
-    const content = retainContentRef.current;
-    if (!cur || !content) return;
-    const card = reviewCard(cur, content);
-    // A card on its second trip through today's deck was already graded and
-    // rescheduled; grading it again would schedule off a state this pass no
-    // longer knows. The second answer only moves what the screen says about it.
-    const firstTrip = cur.idx < content.cards.length;
-    setRetain(retainReducer(cur, { type: "grade", grade }, content));
-    // Real FSRS (#21): the scheduler computes the card's next due date.
-    if (firstTrip)
-      setCards((prev) =>
-        prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
-      );
-    // The flip's confidence tap, against whether it came back at all.
-    if (firstTrip && cur.sure !== undefined)
-      recordCalib(card.node, CONFIDENCE_FELT[cur.sure], grade === "again" ? 0 : 100);
-    // Real review history — what finally earns "Retained ✓" (#13) — and only
-    // across a real interval: read off the card *before* this grade moved it.
-    const held = cardsRef.current.find((c) => c.id === card.id)?.fsrs;
-    if (firstTrip && held && earnsRetained(grade, held))
-      setReviewedNodes((prev) =>
-        prev.includes(card.node) ? prev : [...prev, card.node],
-      );
-    if (grade === "again" && card.fails) {
-      setStates((prev) =>
-        prev[card.node] === "shaky" ? prev : { ...prev, [card.node]: "shaky" },
-      );
-      setShakyReason(card.node, "review-miss");
-      showToast(
-        tc().cardFlaggedShaky(
-          graphRef.current.nodes.find((n) => n.id === card.node)?.label ?? tc().thisNode,
-        ),
-        tc().mapUpdated,
-      );
-    }
-  };
-
-  const retainReteach = () => {
-    const cur = retainRef.current;
-    const content = retainContentRef.current;
-    if (!cur || !content) return;
-    const card = reviewCard(cur, content);
-    const node = graphRef.current.nodes.find((n) => n.id === card.node);
-    setRetain(null);
-    if (node) {
-      enterSession(node);
-      later(() => showToast(tc().reEnteringLoop(node.label)), 420);
-    } else {
-      setScreen("map");
-    }
-  };
-
-  const exitReview = () => {
-    setScreen("map");
-    setRetain(null);
-  };
+    later,
+    enterSession,
+  });
 
   // ---- Calibration (§12 · Metacognition) -------------------------------
 

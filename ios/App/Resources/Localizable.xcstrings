@@ -145,6 +145,17 @@
         }
       }
     },
+    "Lendo sua resposta…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading your answer…"
+          }
+        }
+      }
+    },
     "Lendo…" : {
       "localizations" : {
         "en" : {
@@ -205,6 +216,17 @@
         }
       }
     },
+    "Não voltou" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Didn’t come back"
+          }
+        }
+      }
+    },
     "O problema a frio abre em %lld h — a prova de transferência precisa de uma noite." : {
       "localizations" : {
         "en" : {
@@ -253,6 +275,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "When you need it"
+          }
+        }
+      }
+    },
+    "Responda aqui primeiro — ou de cabeça, e só vire" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer it here first — or in your head, and just turn it"
           }
         }
       }
@@ -327,6 +360,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You knew all of it — prove it in %@"
+          }
+        }
+      }
+    },
+    "Voltou" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Came back"
           }
         }
       }

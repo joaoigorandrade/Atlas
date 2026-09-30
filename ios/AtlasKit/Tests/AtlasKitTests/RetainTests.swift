@@ -166,3 +166,17 @@ private func seen(_ days: Double, id: String = "c1") -> StoredCard {
     owner.dailyTarget = 20
     #expect(owner.reviewBudgetMin == 10)
 }
+
+@MainActor
+@Test func anAnswerWrittenBeforeTheFlipBelongsToThatCardOnly() {
+    // W4.3: the answer and the judge's read of it are the card's, and go with it.
+    let owner = store()
+    let review = ReviewViewModel(store: owner, deck: [card("c1"), card("c2")])
+    review.said = "a guess"
+    review.flip()
+    #expect(review.stage == .reveal)
+    review.grade(.good)
+    #expect(review.index == 1)
+    #expect(review.said.isEmpty)
+    #expect(review.suggest == nil)
+}
