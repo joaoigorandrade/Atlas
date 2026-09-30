@@ -54,6 +54,7 @@ import {
   mapNodeBounds,
   continentLinksParams,
   linksPayload,
+  verifiedRun,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import {
@@ -164,7 +165,27 @@ function buildJob(body: GenerateBody): Job {
     kind: CacheableKind,
     params: P,
     run: (p: P) => Promise<Record<string, unknown>>,
-  ): Job => ({ kind, key: contentKey(kind, params), run: () => run(params) });
+  ): Job => ({
+    kind,
+    key: contentKey(kind, params),
+    // Closed items are blind-solved before they are cached (W2.1).
+    run: () => verifiedRun(kind, params as never, run as never),
+  });
+
+  /** The params every per-node item phase keys on — one builder, so a new axis
+   *  cannot reach five of them and miss the sixth. */
+  const itemParams = () => {
+    if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
+    return {
+      topic,
+      nodeId,
+      nodeLabel,
+      interests,
+      language,
+      ...boundary(body),
+      ...nodeAxes(body),
+    };
+  };
 
   switch (body.kind) {
     case "curriculum": {
@@ -425,20 +446,9 @@ function buildJob(body: GenerateBody): Job {
     // stages, reps — so each gets its own case here rather than one arm with a
     // phase field: the payloads are genuinely different, not one table renamed.
     case "discriminate": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "discriminate",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateDiscriminate(p) }),
-      );
+      return cacheable("discriminate", itemParams(), async (p) => ({
+        content: await generateDiscriminate(p),
+      }));
     }
 
     // The three phases the domain axis adds. Each is its own case for the same
@@ -480,88 +490,33 @@ function buildJob(body: GenerateBody): Job {
     }
 
     case "predict": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "predict",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generatePredict(p) }),
-      );
+      return cacheable("predict", itemParams(), async (p) => ({
+        content: await generatePredict(p),
+      }));
     }
 
     case "trace": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "trace",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateTrace(p) }),
-      );
+      return cacheable("trace", itemParams(), async (p) => ({
+        content: await generateTrace(p),
+      }));
     }
 
     case "drill": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "drill",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateDrill(p) }),
-      );
+      return cacheable("drill", itemParams(), async (p) => ({
+        content: await generateDrill(p),
+      }));
     }
 
     case "recall": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "recall",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateRecall(p) }),
-      );
+      return cacheable("recall", itemParams(), async (p) => ({
+        content: await generateRecall(p),
+      }));
     }
 
     case "perform": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "perform",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          interests,
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generatePerform(p) }),
-      );
+      return cacheable("perform", itemParams(), async (p) => ({
+        content: await generatePerform(p),
+      }));
     }
 
     case "retain": {

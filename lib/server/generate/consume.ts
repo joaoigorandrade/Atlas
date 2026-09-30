@@ -1,4 +1,5 @@
 // ---- kind: consume ---------------------------------------------------------
+import { verifyChunkCheck } from "./verify";
 import { cellNote, consumeBand } from "./cellNote";
 import type { Cell } from "@/lib/curriculum";
 import {
@@ -247,7 +248,7 @@ export async function generateConsume(
     language?: Language;
   },
 ): Promise<ConsumeChunk[]> {
-  return generateJson(
+  const chunks = await generateJson(
     user(
       `${consumeContext(params)}
 
@@ -259,6 +260,8 @@ Return JSON:
     validateConsume,
     { label: "consume" },
   );
+  // Each section's check is blind-solved before it is cached (W2.1).
+  return Promise.all(chunks.map((c) => verifyChunkCheck(params, c)));
 }
 
 /**
@@ -281,6 +284,11 @@ Return JSON:
  * rare in practice since `generateConsume`'s single-shot path covers the
  * common failure mode (format non-compliance) upstream of this point.
  */
+const withoutCheck = <T extends { check?: unknown }>(c: T): T => {
+  const { check: _held, ...rest } = c;
+  return rest as T;
+};
+
 export async function* generateConsumeStream(
   params: Boundary & {
     nodeKind?: NodeKind;
@@ -309,16 +317,30 @@ ${CONSUME_SECTION_SHAPE}${languageNote(params.language)}`,
       validateConsumeSection,
       { label: "consume-stream", partial: draftConsumeSection },
     );
+    // A section lands at once without its check; the check follows at the
+    // same index once blind-solved (W2.1), while the next section is written.
+    const checked: StreamFrame[] = [];
+    const pending: Promise<void>[] = [];
     for await (const chunk of stream) {
+      while (checked.length) yield checked.shift()!;
       // Past the cap the payload fails its shape and is never cached, so every
       // learner on this node would pay for the same over-long reading again.
       if (yielded >= CONSUME_SECTION_BOUNDS.max) break;
       if (chunk.partial) {
-        yield { p: "chunks", i: yielded, v: chunk.value, partial: true };
+        yield { p: "chunks", i: yielded, v: withoutCheck(chunk.value), partial: true };
         continue;
       }
-      yield { p: "chunks", i: yielded++, v: chunk.value };
+      const i = yielded++;
+      yield { p: "chunks", i, v: withoutCheck(chunk.value) };
+      if (chunk.value.check)
+        pending.push(
+          verifyChunkCheck(params, chunk.value).then((v) => {
+            if (v.check) checked.push({ p: "chunks", i, v });
+          }),
+        );
     }
+    await Promise.all(pending);
+    while (checked.length) yield checked.shift()!;
   } catch (err) {
     if (yielded > 0) throw err;
     console.error(

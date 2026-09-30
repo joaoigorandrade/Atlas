@@ -9,6 +9,7 @@
 // which is the same paragraph under every concept in that state and says
 // nothing about the one just clicked. This backfills the missing sentence, one
 // node at a time, so the rail always answers "what IS this".
+import { blindSolve, disputedIds } from "./verify";
 import { SUMMARY_RULE } from "./map";
 
 import { fail, languageNote, obj, str, user } from "./common";
@@ -135,6 +136,29 @@ export interface DiagnosticQuestionParams {
  * since the next difficulty depends on that answer (see `stepDifficulty`).
  */
 export async function generateDiagnosticQuestion(
+  params: DiagnosticQuestionParams,
+): Promise<DiagnosticQuestion> {
+  // A placement question with a wrong key mis-prunes the map, so its key is
+  // blind-solved first (W2.1); a disputed one is written again, once.
+  const first = await writeDiagnosticQuestion(params);
+  return (await diagnosticKeyHolds(params.topic, first))
+    ? first
+    : writeDiagnosticQuestion(params);
+}
+
+async function diagnosticKeyHolds(topic: string, q: DiagnosticQuestion) {
+  if (!q.opts?.length || typeof q.correctIndex !== "number") return true;
+  const options = q.opts.map((o) => o.label);
+  const item = { id: "q", stem: q.q, options, key: q.correctIndex };
+  try {
+    const solved = await blindSolve({ topic, nodeLabel: q.tag, items: [item] });
+    return disputedIds([item], solved).length === 0;
+  } catch {
+    return true;
+  }
+}
+
+async function writeDiagnosticQuestion(
   params: DiagnosticQuestionParams,
 ): Promise<DiagnosticQuestion> {
   const { language = "en", nodeCandidates, difficulty } = params;
