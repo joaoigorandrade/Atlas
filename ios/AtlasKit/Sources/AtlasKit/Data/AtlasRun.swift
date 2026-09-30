@@ -154,6 +154,8 @@ public struct TopicAxes: Codable, Sendable, Equatable {
     public var lens: String?
     public var shape: String
     public var target: Target?
+    /// Built on a map a person reviewed (W2.8).
+    public var verified: Bool
 
     public struct Target: Codable, Sendable, Equatable {
         public var kind: String
@@ -170,6 +172,7 @@ public struct TopicAxes: Codable, Sendable, Equatable {
         lens = try? c.decodeIfPresent(String.self, forKey: .lens)
         shape = (try? c.decode(String.self, forKey: .shape)) ?? "hierarchy"
         target = try? c.decodeIfPresent(Target.self, forKey: .target)
+        verified = (try? c.decode(Bool.self, forKey: .verified)) ?? false
     }
 }
 

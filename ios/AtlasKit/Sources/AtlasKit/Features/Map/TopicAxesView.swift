@@ -22,8 +22,12 @@ struct TopicAxesView: View {
     }
 
     var body: some View {
-        if let axes = store.axes, axes.targetLanguage != nil || axes.lenses.count == 2 {
+        if let axes = store.axes, axes.targetLanguage != nil || axes.lenses.count == 2 || axes.verified {
             HStack(spacing: 8) {
+                if axes.verified {
+                    Chip("Mapa revisado", dot: NodeState.mastered.color)
+                        .accessibilityLabel(Text("Mapa revisado — uma pessoa conferiu"))
+                }
                 if let tag = axes.targetLanguage {
                     Menu {
                         let options = Self.variants[String(tag.prefix(2))] ?? [tag]

@@ -131,6 +131,26 @@
         }
       }
     },
+    "Mapa revisado" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reviewed map"
+          }
+        }
+      }
+    },
+    "Mapa revisado — uma pessoa conferiu" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reviewed map — a person checked it"
+          }
+        }
+      }
+    },
     "Não confirmado — " : {
       "localizations" : {
         "en" : {

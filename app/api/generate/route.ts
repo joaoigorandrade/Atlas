@@ -22,7 +22,7 @@ import {
   newRequestId,
   withRequestId,
 } from "@/lib/server/apiError";
-import { readContent, writeContent } from "@/lib/server/contentCache";
+import { isVerified, readContent, writeContent } from "@/lib/server/contentCache";
 import {
   logGenerationCalls,
   recordContent,
@@ -123,6 +123,7 @@ export async function POST(request: Request) {
           userId,
           body.topicId,
           asMapMeta(payload.meta),
+          !!job.key && (await isVerified(job.key)),
         );
     } catch (err) {
       logError("stamp_topic_failed", err, { req: requestId });

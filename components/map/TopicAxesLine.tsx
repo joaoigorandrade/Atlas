@@ -28,11 +28,13 @@ const VARIANTS: Record<string, string[]> = {
 const STRINGS = {
   en: {
     speaking: "Spoken as",
+    verified: "✓ Reviewed map — a person checked it",
     readThrough: "Read through",
     pickLens: "Pick the reading this map follows:",
   },
   "pt-BR": {
     speaking: "Falado como",
+    verified: "✓ Mapa revisado — uma pessoa conferiu",
     readThrough: "Lido pela",
     pickLens: "Escolha a leitura que este mapa segue:",
   },
@@ -60,6 +62,7 @@ export default function TopicAxesLine() {
   const variants = tag ? (VARIANTS[tag.split("-")[0]] ?? [tag]) : [];
   return (
     <div style={{ marginTop: 8, fontSize: 12.5, color: color.inkMuted }}>
+      {axes.verified && <div data-testid="topic-verified">{t.verified}</div>}
       {tag && (
         <label style={{ display: "block" }}>
           <span style={{ ...kicker(9.5) }}>{t.speaking} </span>

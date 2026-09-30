@@ -77,7 +77,7 @@ export async function withTopicAxes<T extends GenerateBody>(
 
 /** The axes as bootstrap returns them, from the topic's own row. */
 export const AXIS_COLUMNS =
-  "target_language, jurisdictional, locale, lenses, lens, shape, target";
+  "target_language, jurisdictional, locale, lenses, lens, shape, target, verified";
 
 export function axesFromRow(row: Record<string, unknown>): TopicAxes {
   const meta = asMapMeta({ ...row, targetLanguage: row.target_language });
@@ -89,6 +89,7 @@ export function axesFromRow(row: Record<string, unknown>): TopicAxes {
     lens: typeof row.lens === "string" && row.lens ? row.lens : null,
     shape: meta.shape,
     target: (row.target as TopicAxes["target"]) ?? null,
+    verified: row.verified === true,
   };
 }
 
@@ -105,6 +106,8 @@ export async function stampTopicMeta(
   userId: string,
   topicId: string,
   meta: MapMeta,
+  /** The map row a person reviewed (W2.8). */
+  verified = false,
 ): Promise<void> {
   let locale: string | null = null;
   if (meta.jurisdictional) {
@@ -127,6 +130,7 @@ export async function stampTopicMeta(
       locale,
       lenses: meta.lenses,
       shape: meta.shape,
+      verified,
     })
     .eq("id", topicId);
   if (error) fail("stampTopicMeta", error);

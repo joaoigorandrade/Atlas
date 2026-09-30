@@ -40,6 +40,8 @@ export interface TopicAxes {
   lens: string | null;
   shape: TopicShape;
   target: TopicTarget | null;
+  /** Built on a map a person reviewed (W2.8). */
+  verified?: boolean;
 }
 
 /** A BCP-47 tag with a region, normalised (`es-es` → `es-ES`), or null. */
