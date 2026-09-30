@@ -10,6 +10,7 @@
 import type { ConceptNode, NodeState } from "@/lib/curriculum";
 import { STATE_COLOR, stateLabel } from "@/lib/curriculum";
 import { useLanguage } from "@/lib/i18n";
+import { RETENTION_TARGET } from "@/lib/fsrs";
 import { color, font, map, motion, transition } from "@/lib/theme";
 import { WaxSeal } from "@/components/ui/Ornaments";
 import { CityMark, Relief, rankOf } from "@/components/map/Relief";
@@ -35,6 +36,7 @@ export default function MapNode({
   matches,
   earned,
   gapLabel,
+  fade,
   onSelect,
   onDown,
   onOpen,
@@ -43,6 +45,8 @@ export default function MapNode({
   node: ConceptNode;
   pos: { x: number; y: number };
   state: NodeState;
+  /** Its review deck's mean retrievability (`nodeRetention`), if reviewed. */
+  fade?: number;
   /** The concept its country is named after — drawn as the capital. */
   capital: boolean;
   /** The `animation` for the assemble beat, decided by the canvas. */
@@ -153,6 +157,12 @@ export default function MapNode({
           style={{
             display: "block",
             overflow: "visible",
+            // A mastered city fades as its cards come due (W4.2): forgetting
+            // shown where the learner plans. Opacity, never a filter (Safari).
+            opacity:
+              state === "mastered" && fade !== undefined && fade < RETENTION_TARGET
+                ? 0.4 + 0.6 * (fade / RETENTION_TARGET)
+                : undefined,
             // A node changing state is the point of the whole product; the
             // colour arrives in the city, and the pop lands on top of it.
             animation: earned

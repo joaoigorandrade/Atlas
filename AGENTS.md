@@ -165,7 +165,11 @@ Four rules sit around the gates, and `tests/learningGates.test.ts` pins them:
   on its own screen, as Recall and the Crucible do. A Crucible passed on
   the guided rung closes its gap but not the rung: the node stays Shaky and the
   cold problem is parked to open the next day (`useCrucible`). Retained ✓ needs
-  a Good/Easy on a card that went `RETAINED_MIN_DAYS` unseen.
+  a Good/Easy on a card that went `RETAINED_MIN_DAYS` unseen. A mastered city
+  fades on the map as its deck's FSRS retrievability drops below 90%
+  (`nodeRetention` — a display property like `frontier`, never stored; the
+  Swift mirror computes the FSRS-6 curve itself, since the phone runs no
+  scheduler).
 - **No gate is passed by clicking.** A Connect link is confirmed only with the
   learner's own words (`connectDraftReady`); a Consume check is open-answer
   first and answered once; Feynman's Fix-this is written and judged against

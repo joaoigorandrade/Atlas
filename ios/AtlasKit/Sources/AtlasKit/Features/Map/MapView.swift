@@ -167,6 +167,7 @@ public struct MapView: View {
                         // The bands are real views, in order, so a concept can
                         // be scrolled to — one placed with `.position` has the
                         // band's frame, not its own.
+                        let retention = nodeRetention(store.cards)
                         VStack(spacing: 0) {
                             ForEach(Array(map.levels.enumerated()), id: \.offset) { band, row in
                                 ZStack {
@@ -175,7 +176,8 @@ public struct MapView: View {
                                             node: placed.node,
                                             state: store.display[placed.id] ?? .unknown,
                                             selected: model.selection?.id == placed.id,
-                                            changed: model.landing == placed.id
+                                            changed: model.landing == placed.id,
+                                            fade: retention[placed.id]
                                         ) { open(placed.node) }
                                         .frame(width: TrailMap.slot - 12)
                                         .position(x: placed.at.x, y: TrailMap.band / 2)
@@ -338,11 +340,20 @@ private struct NodeMark: View {
     /// The concept a pass just changed: it lands with the reward spring, which
     /// is what the design reserves for a concept going green.
     let changed: Bool
+    /// Its review deck's retrievability (`nodeRetention`), when reviewed.
+    let fade: Double?
     let open: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
     @State private var landing = false
+
+    /// A mastered disc pales as its cards come due (W4.2): forgetting, shown
+    /// where the learner plans.
+    private var faded: Double {
+        guard state == .mastered, let fade, fade < retentionTarget else { return 1 }
+        return 0.4 + 0.6 * (fade / retentionTarget)
+    }
 
     /// The frontier is the biggest disc on the map and untouched territory the
     /// smallest — size carries "where am I" before colour does.
@@ -447,7 +458,7 @@ private struct NodeMark: View {
             // A paper ring first, so the edges running under a pale disc stop
             // showing through it.
             Circle().fill(Palette.paper).frame(width: size + 7, height: size + 7)
-            Circle().fill(state.color.opacity(state == .unknown ? 0.4 : 1))
+            Circle().fill(state.color.opacity(state == .unknown ? 0.4 : faded))
                 .frame(width: size, height: size)
                 .shadow(color: state.color.opacity(state == .unknown ? 0 : 0.3), radius: 5, y: 2)
             if selected {

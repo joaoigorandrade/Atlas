@@ -31,3 +31,31 @@ public func earnsRetained(_ grade: ReviewGrade, lastSeen: Date?, now: Date = .no
     guard grade == .good || grade == .easy, let lastSeen else { return false }
     return now.timeIntervalSince(lastSeen) >= retainedMinDays * 86_400
 }
+
+/// ts-fsrs 5.4's default decay (FSRS-6), which is what the server schedules
+/// with. Mirrors `forgetting_curve` in ts-fsrs.
+private let fsrsDecay = 0.1542
+
+/// The retention FSRS schedules toward: a node below it is fading.
+public let retentionTarget = 0.9
+
+/// How much of each node's review deck is likely still recalled now: the mean
+/// retrievability of its reviewed cards (W4.2). A node whose cards were never
+/// reviewed is absent — nothing has had time to fade. Mirrors `nodeRetention`
+/// in `fsrs.ts`: whole days since the last review, the FSRS-6 curve.
+public func nodeRetention(_ cards: [StoredCard], now: Date = .now) -> [String: Double] {
+    let decay = -fsrsDecay
+    let factor = pow(0.9, 1 / decay) - 1
+    var sums: [String: (Double, Double)] = [:]
+    for card in cards {
+        let f = card.fsrs.fields ?? [:]
+        guard case .number(let reps)? = f["reps"], reps > 0,
+              case .number(let stability)? = f["stability"], stability > 0,
+              f["last_review"] != nil, let seen = card.lastSeen else { continue }
+        let days = floor(max(0, now.timeIntervalSince(seen)) / 86_400)
+        let r = pow(1 + factor * days / stability, decay)
+        let held = sums[card.nodeId] ?? (0, 0)
+        sums[card.nodeId] = (held.0 + r, held.1 + 1)
+    }
+    return sums.mapValues { $0.0 / $0.1 }
+}

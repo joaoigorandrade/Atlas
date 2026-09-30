@@ -18,6 +18,8 @@ import {
   gradeStoredCard,
   intervalLabels,
   newStoredCard,
+  nodeRetention,
+  RETENTION_TARGET,
   retainContentFromStore,
   withSchedule,
 } from "@/lib/fsrs";
@@ -193,5 +195,23 @@ describe("retain: the queue chip counts in whole cards", () => {
     expect(retainQueueLabel(retainStart(), only, "pt-BR")).toContain("1 cartão");
     expect(retainQueueLabel(retainStart(), only, "en")).toContain("1 card");
     expect(retainQueueLabel(retainStart(), only, "pt-BR")).not.toContain("cartões");
+  });
+});
+
+// W4.2 — mastered cities fade as their review deck comes due.
+describe("nodeRetention", () => {
+  const day = 86_400_000;
+  const t0 = new Date("2026-10-01T12:00:00Z");
+  const card = (id: string, nodeId: string) =>
+    newStoredCard({ id, nodeId, type: "recall", source: "t", front: "f", back: "b" }, t0);
+
+  it("is the mean retrievability of a node's reviewed cards, falling with time", () => {
+    const reviewed = gradeStoredCard(card("a", "n"), "good", t0);
+    const fresh = card("b", "m"); // never reviewed: nothing to fade yet
+    const soon = nodeRetention([reviewed, fresh], new Date(t0.getTime() + day));
+    const later = nodeRetention([reviewed, fresh], new Date(t0.getTime() + 60 * day));
+    expect(Object.keys(soon)).toEqual(["n"]);
+    expect(soon.n).toBeGreaterThan(later.n);
+    expect(later.n).toBeLessThan(RETENTION_TARGET);
   });
 });

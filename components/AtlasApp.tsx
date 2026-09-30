@@ -332,9 +332,8 @@ export default function AtlasApp({
   const frontierTargetId = useCallback(() => {
     const plan = orderedFrontier(displayRef.current, graphRef.current, form.goal);
     if (plan[0]) return plan[0].node.id;
-    const display = displayRef.current;
     const inFlight = graphRef.current.nodes.filter((n) =>
-      ["learning", "shaky", "gap"].includes(display[n.id] ?? "unknown"),
+      ["learning", "shaky", "gap"].includes(displayRef.current[n.id] ?? "unknown"),
     );
     return inFlight.sort((a, b) => a.x - b.x)[0]?.id ?? null;
   }, [form.goal, graphRef, displayRef]);
@@ -620,6 +619,7 @@ export default function AtlasApp({
           spawnedIds={spawnedIds}
           staggered={usingFakeMap}
           display={display}
+          cards={run.cards}
           lockedPath={lockedPath}
           earned={earnedNodes}
           positions={usingFakeMap ? fake.FAKE_MAP_POSITIONS : positions}

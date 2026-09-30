@@ -362,3 +362,22 @@ private func upToCrucible() -> [Phase] {
     #expect(store.armChallenge(node) == .crucible)
     #expect(store.heldUntil("cadeia", .crucible) == nil)
 }
+
+@Test func aReviewedDeckFadesOnTheFSRSCurve() {
+    // W4.2. Stability is by definition the interval at which recall is 90%, so
+    // the curve pins itself: S days after the review, retention is the target.
+    let now = Date(timeIntervalSince1970: 86_400 * 100)
+    func card(_ id: String, _ node: String, daysAgo: Double, reps: Double = 3) -> StoredCard {
+        let seen = now.addingTimeInterval(-daysAgo * 86_400)
+        return StoredCard(id: id, nodeId: node, type: .recall, source: "t", back: "b", fsrs: .object([
+            "reps": .number(reps), "stability": .number(10),
+            "last_review": .string(ISO8601DateFormatter().string(from: seen)),
+        ]))
+    }
+    let atS = nodeRetention([card("a", "n", daysAgo: 10)], now: now)
+    #expect(abs((atS["n"] ?? 0) - retentionTarget) < 0.001)
+    let later = nodeRetention([card("a", "n", daysAgo: 40)], now: now)
+    #expect((later["n"] ?? 1) < retentionTarget)
+    // Never reviewed: nothing to fade.
+    #expect(nodeRetention([card("b", "m", daysAgo: 40, reps: 0)], now: now)["m"] == nil)
+}
