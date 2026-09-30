@@ -287,6 +287,7 @@ export function domainPhaseJudgement(body: GenerateBody): Record<string, unknown
         })),
         response:
           "The first case is one its holders would recognise. The second states the position in terms they would reject.",
+        disconfirmer: "real",
       };
     case "produce":
       return {

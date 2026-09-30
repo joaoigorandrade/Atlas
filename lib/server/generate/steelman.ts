@@ -97,6 +97,8 @@ Return JSON:
 export interface SteelmanJudgement {
   verdicts: Array<{ positionId: string; verdict: SteelmanVerdict; quote: string }>;
   response: string;
+  /** Could the disconfirmer actually be found or happen (W1.6)? */
+  disconfirmer: "real" | "vacuous";
 }
 
 interface JudgeSteelmanParams {
@@ -181,6 +183,11 @@ export function validateSteelmanJudgement(ids: string[]) {
   return (raw: unknown): SteelmanJudgement => ({
     verdicts: validateSteelmanVerdicts(raw, ids),
     response: str(obj(raw, "payload").response, "response"),
+    disconfirmer: (() => {
+      const d = obj(raw, "payload").disconfirmer;
+      if (d !== "real" && d !== "vacuous") fail('disconfirmer must be "real" or "vacuous"');
+      return d;
+    })(),
   });
 }
 
@@ -212,9 +219,11 @@ Rule EACH position independently, by its id:
 Judge the side they REJECT by exactly the same standard as the side they hold. A learner who writes a superb case for their own view and a shrug for the other has done the one thing this exercise forbids.
 On "thin" and "strawman", quote the learner's own words that earned it in \`quote\` — under 20 words.
 
-In \`response\`, 2-4 sentences. Say which case held and which did not, and name what the weaker one left out. If their disconfirmer is not something that could actually be found or happen, say so plainly.
+Rule the disconfirmer too, in \`disconfirmer\`: "real" when it names evidence or an event that could actually be found or happen and would bear on the question; "vacuous" when it could never be met ("if I were proven wrong", "new evidence"), restates the position, or is not about the question at all.
 
-Return JSON: {"verdicts": [{"positionId": "...", "verdict": "strong" | "thin" | "strawman", "quote": "..."}, ...one per position], "response": "..."}${languageNote(params.language ?? "en")}`,
+In \`response\`, 2-4 sentences. Say which case held and which did not, and name what the weaker one left out. If their disconfirmer is vacuous, say so plainly.
+
+Return JSON: {"verdicts": [{"positionId": "...", "verdict": "strong" | "thin" | "strawman", "quote": "..."}, ...one per position], "disconfirmer": "real" | "vacuous", "response": "..."}${languageNote(params.language ?? "en")}`,
     },
   ];
 }

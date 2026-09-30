@@ -75,11 +75,32 @@ export function traceReducer(
     case "next": {
       if (!item || session.walked[item.id] === undefined) return session;
       const index = session.index + 1;
-      return { ...session, index, done: index >= content.stages.length };
+      return {
+        ...session,
+        index,
+        // The walk continues past a break — every stage is still asked — and
+        // ends early only on a clean opening (`traceEarly`).
+        done: index >= content.stages.length || traceEarly(session, content),
+      };
     }
     default:
       return session;
   }
+}
+
+/** Stages that can end a walk: this many from the first, all right. */
+export const TRACE_EARLY_STREAK = 3;
+
+/** Early exit (W1.6): the opening stages all held. Derived from `walked`, so
+ *  a saved session needs no new field; only a chain longer than the streak can
+ *  end early. */
+export function traceEarly(session: TraceSession, content: TraceContent): boolean {
+  return (
+    content.stages.length > TRACE_EARLY_STREAK &&
+    content.stages
+      .slice(0, TRACE_EARLY_STREAK)
+      .every((s) => session.walked[s.id] === s.answerIndex)
+  );
 }
 
 export function traceScore(session: TraceSession, content: TraceContent): number {
@@ -108,6 +129,7 @@ export function traceBreak(session: TraceSession, content: TraceContent): number
  */
 export function tracePassed(session: TraceSession, content: TraceContent): boolean {
   if (!content.stages.length) return session.done;
+  if (traceEarly(session, content)) return true;
   const brokeAt = traceBreak(session, content);
   const unbroken = brokeAt < 0 ? content.stages.length : brokeAt;
   return unbroken >= Math.ceil(content.stages.length * (2 / 3));
@@ -122,6 +144,7 @@ const TRACE_COPY = {
     reached: "Where it has got to",
     handsOn: "What this stage hands on",
     passed: "You can walk it end to end. The chain is yours, not just its ends.",
+    early: "Ended early — a clean opening stretch is proof enough.",
     brokeAt: (n: number) =>
       `The chain breaks at stage ${n}. Everything after it was carried forward from there.`,
     next: "Next stage →",
@@ -134,6 +157,7 @@ const TRACE_COPY = {
     reached: "Onde chegou",
     handsOn: "O que este estágio entrega",
     passed: "Você percorre de ponta a ponta. A cadeia é sua, não só as pontas.",
+    early: "Encerrado mais cedo — um trecho inicial limpo já é prova suficiente.",
     brokeAt: (n: number) =>
       `A cadeia quebra no estágio ${n}. Tudo depois disso partiu dali.`,
     next: "Próximo estágio →",

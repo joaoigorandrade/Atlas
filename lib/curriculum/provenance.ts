@@ -94,11 +94,36 @@ export function provenanceReducer(
     case "next": {
       if (!item || session.rulings[item.id] === undefined) return session;
       const index = session.index + 1;
-      return { ...session, index, done: index >= content.claims.length };
+      return {
+        ...session,
+        index,
+        done: index >= content.claims.length || provenanceEarly(session, content),
+      };
     }
     default:
       return session;
   }
+}
+
+/** Claims that can end a run: this many from the first, all ruled right. */
+export const PROVENANCE_EARLY_STREAK = 3;
+
+/**
+ * Early exit (W1.6): the opening claims all ruled right, and among them at
+ * least one the source only `asserts` that was not taken as proof — the error
+ * this phase exists to catch, shown not to be made. A clean run of `proves`
+ * claims alone says nothing about it.
+ */
+export function provenanceEarly(
+  session: ProvenanceSession,
+  content: ProvenanceContent,
+): boolean {
+  const opening = content.claims.slice(0, PROVENANCE_EARLY_STREAK);
+  return (
+    content.claims.length > PROVENANCE_EARLY_STREAK &&
+    opening.every((c) => session.rulings[c.id] === c.ruling) &&
+    opening.some((c) => c.ruling === "asserts")
+  );
 }
 
 export function provenanceScore(
@@ -134,6 +159,7 @@ export function provenancePassed(
   content: ProvenanceContent,
 ): boolean {
   if (!content.claims.length) return session.done;
+  if (provenanceEarly(session, content)) return true;
   const enough =
     provenanceScore(session, content) >= Math.ceil(content.claims.length * (2 / 3));
   return enough && provenanceOvertrusted(session, content).length <= 1;
@@ -153,6 +179,7 @@ export const PROVENANCE_COPY = {
     proves: "The source proves it",
     neither: "Neither",
     passed: "You read it as a document, not as a record. That is the craft.",
+    early: "Ended early — you ruled the opening claims right, the source's own word included.",
     missed: "Some of these the source only claims. The reasons above say which.",
     overtrusted:
       "You took the source at its word — that it was said is not that it was so.",
@@ -169,6 +196,7 @@ export const PROVENANCE_COPY = {
     proves: "A fonte prova",
     neither: "Nenhum dos dois",
     passed: "Você a leu como documento, não como registro. É esse o ofício.",
+    early: "Encerrado mais cedo — você julgou certo as primeiras afirmações, inclusive a palavra da própria fonte.",
     missed: "Algumas coisas a fonte apenas afirma. Os motivos acima dizem quais.",
     overtrusted: "Você acreditou na fonte — ter sido dito não é ter sido assim.",
     next: "Próxima afirmação →",

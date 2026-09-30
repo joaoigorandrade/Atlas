@@ -16,6 +16,7 @@ import {
   PROVENANCE_RULINGS,
   provenanceCopy,
   provenanceOvertrusted,
+  provenanceEarly,
   provenancePassed,
   provenanceScore,
   type PhaseId,
@@ -292,7 +293,11 @@ export default function ProvenanceView({
               color: passed ? color.inkMuted : color.amberInk,
             }}
           >
-            {passed ? copy.passed : copy.missed}
+            {provenanceEarly(session, content)
+              ? copy.early
+              : passed
+                ? copy.passed
+                : copy.missed}
           </div>
 
           {/* Whose voice is missing is not a claim that can be ruled, so it is

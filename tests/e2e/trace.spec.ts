@@ -36,6 +36,8 @@ test("trace: each answered step stays on screen as the chain builds", async ({
   await expect(sheet.getByTestId("chain-link-0")).toBeVisible();
 
   for (let i = 1; i < 4; i++) {
+    // A clean opening three ends the walk early (W1.6).
+    if (await sheet.getByTestId("phase-score").isVisible()) break;
     await sheet.getByTestId("action-mode-choices").click();
     await sheet.getByTestId(`action-pick-${i % 2}`).click();
     await sheet.getByTestId("action-next").click();

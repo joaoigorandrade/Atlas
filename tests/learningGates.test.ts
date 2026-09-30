@@ -301,3 +301,96 @@ describe("calibration readings", () => {
     expect(next.sure).toBeUndefined();
   });
 });
+
+describe("W1.6: early exits and a disconfirmer that can be met", () => {
+  it("Trace ends early on a clean opening, and only on one", async () => {
+    const { traceEarly, tracePassed, traceStart } = await import("@/lib/curriculum");
+    const content = {
+      nodeId: "n",
+      nodeLabel: "N",
+      scenario: "",
+      stages: ["a", "b", "c", "d", "e"].map((id) => ({
+        id,
+        reached: "",
+        nexts: ["x", "y"],
+        answerIndex: 0,
+        handsOn: "",
+      })),
+    };
+    const walked = (...v: number[]) => ({
+      ...traceStart("n"),
+      walked: Object.fromEntries(v.map((x, i) => [content.stages[i].id, x])),
+    });
+    expect(traceEarly(walked(0, 0, 0), content)).toBe(true);
+    expect(tracePassed(walked(0, 0, 0), content)).toBe(true);
+    expect(traceEarly(walked(0, 1, 0), content)).toBe(false);
+  });
+
+  it("Provenance ends early only when an `asserts` claim was not taken as proof", async () => {
+    const { provenanceEarly, provenanceStart } = await import("@/lib/curriculum");
+    const claim = (id: string, ruling: "asserts" | "proves" | "neither") => ({
+      id,
+      claim: "",
+      ruling,
+      because: "",
+    });
+    const content = {
+      nodeId: "n",
+      nodeLabel: "N",
+      source: { title: "", attribution: "", date: "", excerpt: "" },
+      silence: "",
+      claims: [
+        claim("a", "proves"),
+        claim("b", "asserts"),
+        claim("c", "neither"),
+        claim("d", "proves"),
+      ],
+    };
+    const ruled = (r: Record<string, "asserts" | "proves" | "neither">) => ({
+      ...provenanceStart("n"),
+      rulings: r,
+    });
+    expect(
+      provenanceEarly(ruled({ a: "proves", b: "asserts", c: "neither" }), content),
+    ).toBe(true);
+    expect(
+      provenanceEarly(ruled({ a: "proves", b: "proves", c: "neither" }), content),
+    ).toBe(false);
+    const noAsserts = {
+      ...content,
+      claims: [
+        claim("a", "proves"),
+        claim("b", "proves"),
+        claim("c", "neither"),
+        claim("d", "asserts"),
+      ],
+    };
+    expect(
+      provenanceEarly(ruled({ a: "proves", b: "proves", c: "neither" }), noAsserts),
+    ).toBe(false);
+  });
+
+  it("Steelman's gate reads the judge's ruling on the disconfirmer, not its length", async () => {
+    const { steelmanPassed, steelmanStart } = await import("@/lib/curriculum");
+    const content = {
+      nodeId: "n",
+      nodeLabel: "N",
+      question: "",
+      positions: [
+        { id: "p", label: "", heldBy: "", mustCover: [] },
+        { id: "q", label: "", heldBy: "", mustCover: [] },
+      ],
+    } as never;
+    const base = {
+      ...steelmanStart("n"),
+      verdicts: { p: "strong", q: "strong" } as const,
+      disconfirmer: "If new evidence ever emerged that proved me wrong about all of it.",
+    };
+    expect(steelmanPassed({ ...base, disconfirmerRuling: "vacuous" }, content)).toBe(
+      false,
+    );
+    expect(steelmanPassed({ ...base, disconfirmerRuling: "real" }, content)).toBe(true);
+    // A session judged before the ruling existed keeps the old length test.
+    expect(steelmanPassed(base, content)).toBe(true);
+  });
+});

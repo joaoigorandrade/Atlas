@@ -123,7 +123,7 @@ final class SteelmanViewModel {
                 var verdicts: [String: SteelmanVerdict] = [:]
                 for row in ruling.verdicts { verdicts[row.positionId] = row.verdict }
                 withAnimation(Motion.enter) {
-                    session.judged(verdicts, response: ruling.response)
+                    session.judged(verdicts, response: ruling.response, disconfirmer: ruling.disconfirmer)
                 }
             } catch is CancellationError {
                 return
@@ -160,6 +160,8 @@ public struct SteelmanJudgement: Decodable, Sendable {
 
     public let verdicts: [Row]
     public let response: String
+    /// "real" or "vacuous" — absent from a server older than W1.6.
+    public let disconfirmer: String?
 }
 
 public extension SteelmanVerdict {

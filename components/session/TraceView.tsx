@@ -13,6 +13,7 @@ import {
   TRACE_COLOR,
   traceBreak,
   traceCopy,
+  traceEarly,
   tracePassed,
   traceScore,
   type PhaseId,
@@ -353,7 +354,11 @@ export default function TraceView({
               color: tracePassed(session, content) ? color.inkMuted : color.amberInk,
             }}
           >
-            {tracePassed(session, content) ? copy.passed : copy.brokeAt(brokeAt + 1)}
+            {traceEarly(session, content)
+              ? copy.early
+              : tracePassed(session, content)
+                ? copy.passed
+                : copy.brokeAt(brokeAt + 1)}
           </div>
           <Button
             data-testid="action-finish"

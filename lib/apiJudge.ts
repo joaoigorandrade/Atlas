@@ -102,6 +102,8 @@ export interface SteelmanJudgement {
     quote?: string;
   }>;
   response: string;
+  /** Whether the disconfirmer could actually be met (W1.6). */
+  disconfirmer?: "real" | "vacuous";
 }
 
 /** One spoken turn's ruling. `thin` is the important one: understood, and the

@@ -131,7 +131,12 @@ export function useSteelman(deps: {
       .then((j) => {
         const verdicts: Record<string, SteelmanVerdict> = {};
         for (const row of j.verdicts) verdicts[row.positionId] = row.verdict;
-        dispatchSteelman({ type: "judged", verdicts, response: j.response });
+        dispatchSteelman({
+          type: "judged",
+          verdicts,
+          response: j.response,
+          disconfirmer: j.disconfirmer,
+        });
       })
       .catch((err: unknown) =>
         showError(err, { context: "judge", retry: () => submitRef.current?.() }),
