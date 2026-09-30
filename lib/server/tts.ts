@@ -61,7 +61,9 @@ export function ttsConfigured(): boolean {
 export function modelFor(language: Speech): string {
   return (
     process.env.SPEECHIFY_MODEL ||
-    (language === "en" || language.startsWith("en-") ? "simba-english" : "simba-multilingual")
+    (language === "en" || language.startsWith("en-")
+      ? "simba-english"
+      : "simba-multilingual")
   );
 }
 

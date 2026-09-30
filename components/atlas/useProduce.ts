@@ -130,7 +130,10 @@ export function useProduce(deps: {
     })
       .then((j) => dispatchProduce({ type: "judged", verdict: j.verdict, read: j.read }))
       .catch((err: unknown) =>
-        showError(err, { context: "judge", retry: () => submitRef.current?.(said, confidence) }),
+        showError(err, {
+          context: "judge",
+          retry: () => submitRef.current?.(said, confidence),
+        }),
       )
       .finally(() => setJudging(false));
   };

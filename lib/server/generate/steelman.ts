@@ -185,7 +185,8 @@ export function validateSteelmanJudgement(ids: string[]) {
     response: str(obj(raw, "payload").response, "response"),
     disconfirmer: (() => {
       const d = obj(raw, "payload").disconfirmer;
-      if (d !== "real" && d !== "vacuous") fail('disconfirmer must be "real" or "vacuous"');
+      if (d !== "real" && d !== "vacuous")
+        fail('disconfirmer must be "real" or "vacuous"');
       return d;
     })(),
   });

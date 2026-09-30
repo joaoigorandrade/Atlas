@@ -185,7 +185,8 @@ export const PROVENANCE_COPY = {
     proves: "The source proves it",
     neither: "Neither",
     passed: "You read it as a document, not as a record. That is the craft.",
-    early: "Ended early — you ruled the opening claims right, the source's own word included.",
+    early:
+      "Ended early — you ruled the opening claims right, the source's own word included.",
     missed: "Some of these the source only claims. The reasons above say which.",
     overtrusted:
       "You took the source at its word — that it was said is not that it was so.",
@@ -204,7 +205,8 @@ export const PROVENANCE_COPY = {
     proves: "A fonte prova",
     neither: "Nenhum dos dois",
     passed: "Você a leu como documento, não como registro. É esse o ofício.",
-    early: "Encerrado mais cedo — você julgou certo as primeiras afirmações, inclusive a palavra da própria fonte.",
+    early:
+      "Encerrado mais cedo — você julgou certo as primeiras afirmações, inclusive a palavra da própria fonte.",
     missed: "Algumas coisas a fonte apenas afirma. Os motivos acima dizem quais.",
     overtrusted: "Você acreditou na fonte — ter sido dito não é ter sido assim.",
     next: "Próxima afirmação →",

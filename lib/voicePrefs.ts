@@ -78,4 +78,3 @@ export function useVoicePrefs(): VoicePrefs & {
     setReadAloud: useCallback((on: boolean) => patch({ readAloud: on }), [patch]),
   };
 }
-

@@ -27,7 +27,9 @@ export function allowedSource(raw: unknown): string | null {
     const url = new URL(raw.trim());
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
     const host = url.hostname.toLowerCase();
-    return SOURCE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`)) ? url.toString() : null;
+    return SOURCE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
+      ? url.toString()
+      : null;
   } catch {
     return null;
   }

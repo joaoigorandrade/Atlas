@@ -50,7 +50,6 @@ export async function continentIsMine(db: SupabaseClient, id: string | null | un
     throw new AtlasError("invalid", "continentId: not the caller's continent");
 }
 
-
 /** W5.1: what the learner will be able to do, and how it will be known. */
 function asTarget(raw: TopicPatch["target"]) {
   if (!raw || typeof raw !== "object") return null;
