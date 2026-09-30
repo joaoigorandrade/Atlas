@@ -199,6 +199,8 @@ public struct Continent: Codable, Sendable, Hashable, Identifiable {
 public struct AtlasProfile: Codable, Sendable {
     public var dailyTarget: Int
     public var language: String?
+    /// ISO 3166 — whose rules a jurisdictional topic teaches (W2.5).
+    public var country: String?
     public var adherence: Adherence
 
     public struct Adherence: Codable, Sendable {

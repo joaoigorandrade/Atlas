@@ -55,6 +55,7 @@ import type { Language } from "@/lib/i18n";
 export interface Profile {
   dailyTarget: number;
   language: Language | null;
+  country?: string | null; // ISO 3166, whose rules jurisdictional topics teach
   adherence: AdherenceState;
 }
 
@@ -146,6 +147,7 @@ export interface TopicPatch {
 export interface ProfilePatch {
   dailyTarget?: number;
   language?: Language;
+  country?: string | null;
   adherence?: Partial<AdherenceState>;
 }
 

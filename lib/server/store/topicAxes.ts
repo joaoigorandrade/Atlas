@@ -108,12 +108,15 @@ export async function stampTopicMeta(
 ): Promise<void> {
   let locale: string | null = null;
   if (meta.jurisdictional) {
-    const { data } = await db
-      .from("profiles")
-      .select("country")
-      .eq("user_id", userId)
-      .maybeSingle();
-    locale = (data as { country?: string } | null)?.country ?? null;
+    const [{ data }, { data: topic }] = await Promise.all([
+      db.from("profiles").select("country").eq("user_id", userId).maybeSingle(),
+      db.from("topics").select("language").eq("id", topicId).maybeSingle(),
+    ]);
+    // A learner whose device never told us falls back to the country the
+    // run's language implies, where one does — pt-BR is Brazil's.
+    locale =
+      (data as { country?: string } | null)?.country ??
+      ((topic as { language?: string } | null)?.language === "pt-BR" ? "BR" : null);
   }
   const { error } = await db
     .from("topics")

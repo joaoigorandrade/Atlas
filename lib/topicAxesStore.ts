@@ -20,6 +20,24 @@ export function topicAxes(): TopicAxes | null {
   return current;
 }
 
+// The learner's country (W2.5) — whose rules a jurisdictional topic teaches.
+// A learner fact, not a topic one, but read the same few places.
+let country: string | null = null;
+export function setCountry(next: string | null | undefined): void {
+  country = next ?? null;
+  for (const listen of listeners) listen();
+}
+export function useCountry(): string | null {
+  return useSyncExternalStore(
+    (listen) => {
+      listeners.add(listen);
+      return () => listeners.delete(listen);
+    },
+    () => country,
+    () => null,
+  );
+}
+
 export function useTopicAxes(): TopicAxes | null {
   return useSyncExternalStore(
     (listen) => {

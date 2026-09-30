@@ -15,6 +15,7 @@ import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
 import SwitchMark from "@/components/ui/SwitchMark";
+import CountrySetting from "@/components/settings/CountrySetting";
 
 const STRINGS = {
   en: {
@@ -271,12 +272,7 @@ export default function SettingsScreen({
           </div>
           {form.goal === "exam" && (
             <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                marginTop: 12,
-              }}
+              style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}
             >
               <span style={{ fontSize: 14, color: color.inkSoft }}>
                 {t.examDate}{" "}
@@ -319,6 +315,8 @@ export default function SettingsScreen({
             </button>
           </div>
         </Section>
+
+        <CountrySetting />
 
         <Section label={t.voice} hint={t.voiceHint}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

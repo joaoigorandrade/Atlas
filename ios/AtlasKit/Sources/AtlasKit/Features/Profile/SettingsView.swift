@@ -59,6 +59,19 @@ struct SettingsView: View {
                         }
                     }
 
+                    field("País", "temas de finanças, direito e impostos usam as regras dele") {
+                        Menu {
+                            ForEach(Self.countries, id: \.self) { code in
+                                Button(Locale.current.localizedString(forRegionCode: code) ?? code) {
+                                    store.setCountry(code)
+                                }
+                            }
+                        } label: {
+                            Chip(verbatim: Locale.current.localizedString(forRegionCode: store.country ?? "") ?? "—",
+                                 dot: Palette.accent)
+                        }
+                    }
+
                     field("Voz", "fale em vez de digitar") {
                         VStack(spacing: 0) {
                             toggle("Ditado", "microfone em toda caixa de resposta", $store.dictationOn)
@@ -160,6 +173,10 @@ struct SettingsView: View {
     }
 
     // MARK: - The pieces the design repeats
+
+    /// The countries offered — where the app's learners are.
+    static let countries = ["BR", "PT", "US", "GB", "CA", "AU", "IE", "ES", "MX", "AR", "CO", "CL",
+                            "FR", "DE", "IT", "NL", "AO", "MZ", "IN", "JP"]
 
     private func field<Content: View>(_ title: LocalizedStringKey, _ note: LocalizedStringKey,
                                       @ViewBuilder content: () -> Content) -> some View {

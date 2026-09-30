@@ -33,12 +33,14 @@ import type { Language } from "@/lib/i18n";
 import {
   deleteCards,
   patchNodes,
+  patchProfile,
   patchTopic,
   putCards,
   type NodeDelta,
   type Profile,
 } from "@/lib/persistence";
 import { withRetry } from "@/lib/retry";
+import { setCountry } from "@/lib/topicAxesStore";
 
 /** The persisted projection of every node on the map, keyed by id. */
 export function projectNodes(run: {
@@ -141,6 +143,11 @@ export function adoptProfile(
   baseline: React.MutableRefObject<string>,
 ): void {
   setForm((f) => ({ ...f, target: profile.dailyTarget }));
+  // W2.5: whose rules a jurisdictional topic teaches — the device's region
+  // until the learner says otherwise in Settings.
+  const region = /-([A-Za-z]{2})$/.exec(navigator.language)?.[1]?.toUpperCase();
+  setCountry(profile.country ?? region);
+  if (!profile.country && region) patchProfile({ country: region }).catch(() => {});
   baseline.current = JSON.stringify({
     dailyTarget: profile.dailyTarget,
     adherence: profile.adherence,

@@ -11,11 +11,12 @@ import type { Profile, ProfilePatch } from "@/lib/persistence";
 import { fail } from "@/lib/server/store/shared";
 
 const PROFILE_COLUMNS =
-  "daily_target, language, streak, best, freezes, last_day, met_today, usual_time, reminder_on, history";
+  "daily_target, language, country, streak, best, freezes, last_day, met_today, usual_time, reminder_on, history";
 
 type ProfileRow = {
   daily_target: number;
   language: string | null;
+  country: string | null;
   streak: number;
   best: number;
   freezes: number;
@@ -29,6 +30,7 @@ type ProfileRow = {
 const toProfile = (row: ProfileRow | null): Profile => ({
   dailyTarget: row?.daily_target ?? 15,
   language: (row?.language as Language | null) ?? null,
+  country: row?.country ?? null,
   adherence: {
     streak: row?.streak ?? 0,
     best: row?.best ?? 0,
@@ -68,6 +70,14 @@ export async function patchProfile(
     user_id: userId,
     ...(patch.dailyTarget !== undefined ? { daily_target: patch.dailyTarget } : null),
     ...(patch.language !== undefined ? { language: patch.language } : null),
+    // ISO 3166 alpha-2 — whose rules a jurisdictional topic teaches (W2.5).
+    ...(patch.country !== undefined
+      ? {
+          country: /^[A-Za-z]{2}$/.test(patch.country ?? "")
+            ? patch.country!.toUpperCase()
+            : null,
+        }
+      : null),
     ...(a.streak !== undefined ? { streak: a.streak } : null),
     ...(a.best !== undefined ? { best: a.best } : null),
     ...(a.freezes !== undefined ? { freezes: a.freezes } : null),

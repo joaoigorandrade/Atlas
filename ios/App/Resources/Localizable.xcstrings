@@ -141,6 +141,26 @@
         }
       }
     },
+    "País" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Country"
+          }
+        }
+      }
+    },
+    "temas de finanças, direito e impostos usam as regras dele" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "money, law and tax topics use its rules"
+          }
+        }
+      }
+    },
     "Trocar a variante do idioma" : {
       "localizations" : {
         "en" : {

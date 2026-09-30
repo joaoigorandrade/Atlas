@@ -56,6 +56,8 @@ public final class AtlasStore {
     /// The open topic's axes (W1.1 …): read by the surfaces that need one, never
     /// sent in a generation body — the server stamps those itself.
     public internal(set) var axes: TopicAxes?
+    /// ISO 3166 (W2.5), from the profile or the device.
+    public internal(set) var country: String?
 
     /// The web's `consumeProgress`, held as JSON and keyed by node id. This
     /// client reads four of its fields (whether the pass finished, and where the
@@ -892,6 +894,9 @@ public extension AtlasStore {
         quiet = true
         defer { quiet = wasQuiet }
         dailyTarget = profile.dailyTarget
+        // W2.5: the device's region until the learner says otherwise.
+        country = profile.country ?? Locale.current.region?.identifier
+        if profile.country == nil, let country { setCountry(country) }
         streak = profile.adherence.streak
         lastActiveDay = profile.adherence.lastDay
         savedProfile = Self.profileShot(target: profile.dailyTarget, streak: profile.adherence.streak, day: profile.adherence.lastDay)
@@ -973,6 +978,15 @@ public extension AtlasStore {
               let run = try? await runs.topic(topicId, token: token), run.id == self.topicId
         else { return }
         axes = run.axes
+    }
+
+    /// Whose rules a jurisdictional topic teaches — the learner's, not a topic's.
+    func setCountry(_ code: String) {
+        country = code
+        Task {
+            guard let token = await bearer() else { return }
+            try? await runs.patchProfile(.object(["country": .string(code)]), token: token)
+        }
     }
 
     /// Set a learner-chosen axis on the open topic (W1.1 variant, W2.6 lens).
