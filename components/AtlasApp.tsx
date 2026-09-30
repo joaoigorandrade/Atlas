@@ -82,9 +82,8 @@ export default function AtlasApp({
 }) {
   const supabase = useMemo(() => createClient(), []);
   // The learner's chosen UI language — threaded into every generation/judge
-  // call so AI content comes back in it too (a ref, like `formRef` etc.
-  // below, so it can be read from stable callbacks without widening their
-  // dependency arrays).
+  // call so AI content comes back in it too (a ref, like `formRef` below, so
+  // stable callbacks can read it without widening their dependency arrays).
   const { language, adoptLanguage, settled, explicit } = useLanguage();
   // The background warm queue: content for the phases just ahead is fetched
   // while the learner works, so entering them is a state change, not a wait.
@@ -829,6 +828,7 @@ export default function AtlasApp({
         consumeChunks &&
         sheetBoundary(
           <ConsumeView
+            topic={form.topic}
             title={nodeOf(consume.nodeId)?.label ?? "Concept"}
             plan={planOf(consume.nodeId)}
             chunks={consumeChunks}
@@ -895,7 +895,7 @@ export default function AtlasApp({
             onScaffold={() => dispatchFeynman({ type: "scaffold" })}
             onOpenFix={(beatId) => dispatchFeynman({ type: "openFix", beatId })}
             onCloseFix={() => dispatchFeynman({ type: "closeFix" })}
-            onFix={(index) => dispatchFeynman({ type: "fix", index })}
+            onFix={(judged) => dispatchFeynman({ type: "fixJudged", ...judged })}
             onTeachAgain={() => dispatchFeynman({ type: "teachAgain" })}
             onAdvance={advanceFromFeynman}
           />,
@@ -936,7 +936,7 @@ export default function AtlasApp({
             onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
             onRetry={() => dispatchCrucible({ type: "retry" })}
             onFinish={advanceFromCrucible}
-            lifts={crucibleMasters(graph.nodes, crucible.nodeId, phasesDone)}
+            lifts={crucibleMasters(graph, crucible.nodeId, phasesDone)}
           />,
         )}
 

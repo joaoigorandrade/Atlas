@@ -20,11 +20,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDomainPhaseCaches } from "@/components/atlas/useDomainPhaseCaches";
 import { useLive } from "@/components/atlas/useLive";
+import { omitKey } from "@/components/atlas/phaseParking";
 import {
   DEFAULT_FORM,
   PARETO_DEFAULT,
   emptyGraph,
   freshAdherence,
+  mergeCalib,
   removeNode,
   rolloverAdherence,
   spawnGap,
@@ -276,19 +278,7 @@ export function useRunState(opts: {
 
   /** Merge a felt/real reading into the live calibration set (running average). */
   const recordCalib = useCallback((nodeId: string, felt: number, real: number) => {
-    setCalibSamples((prev) => {
-      const existing = prev.find((s) => s.id === nodeId);
-      if (!existing) return [...prev, { id: nodeId, felt, real }];
-      return prev.map((s) =>
-        s.id === nodeId
-          ? {
-              id: nodeId,
-              felt: Math.round((s.felt + felt) / 2),
-              real: Math.round((s.real + real) / 2),
-            }
-          : s,
-      );
-    });
+    setCalibSamples((prev) => mergeCalib(prev, nodeId, felt, real));
   }, []);
 
   /**
@@ -301,6 +291,8 @@ export function useRunState(opts: {
       const base = positionsRef.current[parentId];
       if (!parent || !base) return false;
       if (graphRef.current.nodes.some((n) => n.id === spec.id)) return false;
+      // Through the ref too: the ledger counts open gaps in this same tick.
+      graphRef.current = spawnGap(graphRef.current, parentId, spec);
       setGraph((g) => spawnGap(g, parentId, spec));
       setStates((prev) => ({ ...prev, [spec.id]: "gap" }));
       setPositions((prev) => ({
@@ -313,28 +305,23 @@ export function useRunState(opts: {
     [graphRef, positionsRef],
   );
 
-  /** Remove a resolved gap node and every trace of it from the run state. */
-  const removeGapNode = useCallback((gapId: string) => {
-    setGraph((g) => removeNode(g, gapId));
-    setPositions((prev) => {
-      if (!prev[gapId]) return prev;
-      const nextPos = { ...prev };
-      delete nextPos[gapId];
-      return nextPos;
-    });
-    setSpawnedIds((prev) => {
-      if (!prev.has(gapId)) return prev;
-      const nextIds = new Set(prev);
-      nextIds.delete(gapId);
-      return nextIds;
-    });
-    setStates((prev) => {
-      if (!(gapId in prev)) return prev;
-      const nextStates = { ...prev };
-      delete nextStates[gapId];
-      return nextStates;
-    });
-  }, []);
+  /** Remove a resolved gap node and every trace of it from the run state —
+   *  through the ref as well, so its parent is re-read without it at once. */
+  const removeGapNode = useCallback(
+    (gapId: string) => {
+      graphRef.current = removeNode(graphRef.current, gapId);
+      setGraph((g) => removeNode(g, gapId));
+      setPositions(omitKey(gapId));
+      setStates(omitKey(gapId));
+      setSpawnedIds((prev) => {
+        if (!prev.has(gapId)) return prev;
+        const nextIds = new Set(prev);
+        nextIds.delete(gapId);
+        return nextIds;
+      });
+    },
+    [graphRef],
+  );
 
   /**
    * Drop every cached generation.

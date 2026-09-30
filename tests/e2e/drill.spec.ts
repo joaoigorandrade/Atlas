@@ -7,7 +7,7 @@
 // timing is reported, and it is not what decides the rung.
 
 import { expect, test } from "@playwright/test";
-import { openPhase, openRun, readNodeRows } from "./helpers";
+import { openPhase, openRun, readNodeRows, readRun } from "./helpers";
 
 test("drill: the clock is reported, and correctness is what closes the rung", async ({
   page,
@@ -20,6 +20,9 @@ test("drill: the clock is reported, and correctness is what closes the rung", as
 
   const sheet = page.getByTestId("phase-drill");
   await expect(sheet).toBeVisible();
+  // The confidence tap comes first, and the clock only starts on it.
+  await expect(sheet.getByTestId("rep-clock")).toHaveCount(0);
+  await sheet.getByTestId("action-sure-2").click();
   // Drill is the one phase that opens on the closed form: routing a timed rep
   // through a judge round-trip would measure the network, not the learner.
   await expect(sheet.getByTestId("action-pick-0")).toBeVisible();
@@ -44,5 +47,11 @@ test("drill: the clock is reported, and correctness is what closes the rung", as
   await expect(async () => {
     const row = (await readNodeRows(page.request)).find((r) => r.id === "notation")!;
     expect(row.phases_done).toContain("drill");
+  }).toPass({ timeout: 20_000 });
+  // …and the tap before the run is filed against how it went.
+  await expect(async () => {
+    const run = await readRun(page.request);
+    const samples = (run?.calibSamples ?? []) as Array<{ id: string }>;
+    expect(samples.map((s) => s.id)).toContain("notation");
   }).toPass({ timeout: 20_000 });
 });

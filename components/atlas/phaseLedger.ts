@@ -17,49 +17,78 @@
 
 import { useCallback, useRef } from "react";
 import {
+  holdFrom,
+  holdsRecall,
   ledgerAfter,
+  openGapIds,
   phasePlan,
+  planGates,
   reasonAfter,
   stateFromPlan,
+  type ConceptGraph,
   type ConceptNode,
   type PhaseId,
+  type PhaseProgress,
   type PhasesDoneMap,
+  type ProgressState,
   type ShakyReason,
   type StateMap,
 } from "@/lib/curriculum";
 
 export function usePhaseLedger(deps: {
+  /** Read for the gaps still open under a node, which hold it off mastery.
+   *  `attachGap` and `removeGapNode` write it through in the same tick, so a
+   *  phase that spawns gaps and closes in one handler sees them. */
+  graphRef: React.RefObject<ConceptGraph>;
   phasesDoneRef: React.MutableRefObject<PhasesDoneMap>;
   setPhasesDone: React.Dispatch<React.SetStateAction<PhasesDoneMap>>;
   shakyReasonsRef: React.MutableRefObject<Record<string, ShakyReason>>;
   setShakyReason: (id: string, reason: ShakyReason | null) => void;
   setStates: React.Dispatch<React.SetStateAction<StateMap>>;
+  /** Where a spacing hold is written — the held phase's own slot. */
+  setPhaseProgress: React.Dispatch<React.SetStateAction<Record<string, PhaseProgress>>>;
   /** Pull the next phase's material forward while the learner is in this one.
    *  Retain is excluded because it has no per-node generation to pull: it is
    *  the shared review queue, warmed on its own schedule by `retainPlan`. */
   warmOne: (kind: Exclude<PhaseId, "retain">, node: ConceptNode) => void;
 }) {
   const {
+    graphRef,
     phasesDoneRef,
     setPhasesDone,
     shakyReasonsRef,
     setShakyReason,
     setStates,
+    setPhaseProgress,
     warmOne,
   } = deps;
   /** The node under a "prove it" challenge, if any. Session-only on purpose:
    *  a reload drops it, which fails safe — the attempt just credits itself. */
   const challengeRef = useRef<string | null>(null);
 
+  /** Hold `phase` on this node for a night (`spacing.ts`). */
+  const hold = useCallback(
+    (id: string, phase: PhaseId) =>
+      setPhaseProgress((p) => ({ ...p, [id]: { ...p[id], [phase]: holdFrom() } })),
+    [setPhaseProgress],
+  );
+
+  const gapsOf = useCallback(
+    (id: string) => openGapIds(graphRef.current, id).length,
+    [graphRef],
+  );
+
   /**
-   * A phase closed. Record it, and let mastery state fall out of the record.
+   * A phase closed. Record it, and let mastery state fall out of the record —
+   * which is returned, so a caller deciding "did that make it green?" asks the
+   * same function the map does instead of re-deriving it without the gaps.
    *
    * `shaky` is passed when the phase closed on a failed gate, and `null` to
    * clear a reason the phase has now cleared. Left off, the node's existing
    * reason stands — see `reasonAfter` for the one clean close that clears it.
    */
   const completePhase = useCallback(
-    (node: ConceptNode, phase: PhaseId, shaky?: ShakyReason | null) => {
+    (node: ConceptNode, phase: PhaseId, shaky?: ShakyReason | null): ProgressState => {
       const prev = phasesDoneRef.current[node.id] ?? [];
       const challenged = challengeRef.current === node.id;
       if (challenged) challengeRef.current = null; // one attempt, one verdict
@@ -69,15 +98,44 @@ export function usePhaseLedger(deps: {
       // several of these in one tick, and each needs to see the last.
       phasesDoneRef.current = { ...phasesDoneRef.current, [node.id]: done };
       setPhasesDone((p) => ({ ...p, [node.id]: done }));
+      // Anything studied on a node that still owes Recall pushes Recall a
+      // night out: a cold retrieval has to be cold.
+      if (holdsRecall(plan, done, phase)) hold(node.id, "recall");
       const held = shakyReasonsRef.current[node.id];
       const reason = reasonAfter(plan, done, phase, shaky, held);
       if (held && !reason) setShakyReason(node.id, null);
-      setStates((p) => ({
-        ...p,
-        [node.id]: stateFromPlan(plan, done, { shaky: reason }),
-      }));
+      const state = stateFromPlan(plan, done, { shaky: reason, gaps: gapsOf(node.id) });
+      setStates((p) => ({ ...p, [node.id]: state }));
+      return state;
     },
-    [phasesDoneRef, setPhasesDone, shakyReasonsRef, setShakyReason, setStates],
+    [
+      phasesDoneRef,
+      setPhasesDone,
+      shakyReasonsRef,
+      setShakyReason,
+      setStates,
+      gapsOf,
+      hold,
+    ],
+  );
+
+  /**
+   * Re-read a node whose gaps changed with no phase closing — the last one
+   * under it was just closed. Only a node that has finished its gates moves:
+   * anywhere earlier, the next `completePhase` settles it anyway. Returns the
+   * new state, or undefined when nothing was re-read.
+   */
+  const settle = useCallback(
+    (node: ConceptNode): ProgressState | undefined => {
+      const plan = phasePlan(node);
+      const done = phasesDoneRef.current[node.id] ?? [];
+      if (!planGates(plan).every((p) => done.includes(p))) return undefined;
+      const shaky = shakyReasonsRef.current[node.id];
+      const state = stateFromPlan(plan, done, { shaky, gaps: gapsOf(node.id) });
+      setStates((p) => (p[node.id] === state ? p : { ...p, [node.id]: state }));
+      return state;
+    },
+    [phasesDoneRef, shakyReasonsRef, setStates, gapsOf],
   );
 
   /** Mark work begun on a node that has finished no phase yet — a part-read
@@ -126,5 +184,14 @@ export function usePhaseLedger(deps: {
     challengeRef.current = null;
   }, []);
 
-  return { completePhase, markStarted, warmNext, armChallenge, disarmChallenge };
+  return {
+    completePhase,
+    settle,
+    gapsOf,
+    hold,
+    markStarted,
+    warmNext,
+    armChallenge,
+    disarmChallenge,
+  };
 }

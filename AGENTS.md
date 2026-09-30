@@ -145,6 +145,29 @@ over-inclusion, because calling every case an instance scores by luck rather
 than by the boundary. A gate that quietly became a shared two-thirds threshold
 is the twelve collapsing back into a few with extra files.
 
+Four rules sit around the gates, and `tests/learningGates.test.ts` pins them:
+
+- **Open gaps hold mastery.** `stateFromPlan` takes the node's open gap count
+  (`openGapIds`, read off the gap flag, not the edge's dash) and a finished
+  ladder with a gap under it stays Learning; closing the last gap is what
+  lifts it (`phaseLedger.settle`). So a Feynman teach-back gates through its
+  gaps, and `attachGap`/`removeGapNode` write `graphRef` through in the same
+  tick so the ledger counts them.
+- **Some proofs wait a night** (`lib/curriculum/spacing.ts`). Every completed
+  phase on a node that owes Recall holds Recall ~20h (`{ opensAt }` in its
+  `phase_progress` slot), and a failed Recall re-holds it. A Crucible passed on
+  the guided rung closes its gap but not the rung: the node stays Shaky and the
+  cold problem is parked to open the next day (`useCrucible`). Retained ✓ needs
+  a Good/Easy on a card that went `RETAINED_MIN_DAYS` unseen.
+- **No gate is passed by clicking.** A Connect link is confirmed only with the
+  learner's own words (`connectDraftReady`); a Consume check is open-answer
+  first and answered once; Feynman's Fix-this is written and judged against
+  that row's `mustConvey`, not picked from options.
+- **Confidence is one scale** (`CONFIDENCE_FELT`, `lib/curriculum/confidence.ts`),
+  tapped before the work — Crucible, every Predict forecast, the start of a
+  Discriminate/Drill/Recall run (`ConfidenceGate`), and each review card's flip
+  (`TurnOver`) — and folded into a running mean per node (`mergeCalib`).
+
 Kind is also the **second lever**: `kindNote(kind, phase)`
 (`lib/server/generate/common.ts`) changes how a phase that every plan contains
 is written — a `fact` gets no worked example and no figure, a `procedure`'s

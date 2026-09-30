@@ -94,9 +94,10 @@ export const STRINGS = {
     recapBackToMap: "Back to the map",
     recapReread: "↑ Re-read",
     checkKicker: "Before you continue",
-    checkHint: "Answer from what you just read — this unlocks the next section.",
-    checkAgain: "Not quite — read that part again, then pick another.",
+    checkHint: "Answer from what you just read — one try, then the next section opens.",
+    checkAgain: "The right answer is marked above — the recap will name this one.",
     checkPassed: "Understood",
+    checkMissed: "Not quite",
   },
   "pt-BR": {
     back: "← Mapa",
@@ -179,9 +180,11 @@ export const STRINGS = {
     recapBackToMap: "Voltar ao mapa",
     recapReread: "↑ Reler",
     checkKicker: "Antes de continuar",
-    checkHint: "Responda com o que você acabou de ler — isso libera a próxima seção.",
-    checkAgain: "Ainda não — releia esse trecho e escolha outra.",
+    checkHint:
+      "Responda com o que você acabou de ler — uma tentativa, e a próxima seção se abre.",
+    checkAgain: "A resposta certa está marcada acima — o resumo vai lembrar desta.",
     checkPassed: "Entendido",
+    checkMissed: "Ainda não",
   },
 } as const;
 

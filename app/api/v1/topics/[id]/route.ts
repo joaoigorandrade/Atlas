@@ -3,18 +3,21 @@
 // DELETE is one statement. `topics` is the root of the cascade, so nodes,
 // edges, cards and node_content go with it and cannot be left behind — the
 // guarantee lives in the foreign keys, not in cleanup code that has to be
-// remembered at every call site. The shared content_cache is deliberately out
-// of reach: it holds no learner text, only payloads addressed by a hash of
-// prompt inputs, and is shared with every other learner on the same topic.
+// remembered at every call site. The shared content_cache rows the topic
+// pointed at are forgotten behind it (`forgetContent`), so rebuilding the same
+// subject writes fresh material rather than replaying the answer key the
+// learner already saw. The pointers are read first: the cascade takes them.
 
 import { NextResponse } from "next/server";
 import { logError, logEvent } from "@/lib/log";
 import { apiError, apiErrorFrom, withRequestId } from "@/lib/server/apiError";
+import { forgetContent } from "@/lib/server/contentCache";
 import {
   deleteTopic,
   loadTopic,
   ownsTopic,
   patchTopic,
+  topicCacheKeys,
   type TopicPatch,
 } from "@/lib/server/store";
 import { caller, isResponse, jsonBody } from "@/lib/server/v1";
@@ -63,8 +66,17 @@ export async function DELETE(_request: Request, { params }: Params) {
   try {
     if (!(await ownsTopic(who.db, id)))
       return apiError("notfound", { requestId: who.requestId });
+    // Best-effort: a pointer list that can't be read costs a replayed pass on
+    // a rebuild, never the delete the learner asked for.
+    const keys = await topicCacheKeys(who.db, id).catch(() => []);
     await deleteTopic(who.db, id);
-    logEvent("topic_deleted", { user: who.userId, topic: id, req: who.requestId });
+    const forgotten = await forgetContent(keys, id);
+    logEvent("topic_deleted", {
+      user: who.userId,
+      topic: id,
+      forgotten,
+      req: who.requestId,
+    });
     return withRequestId(NextResponse.json({ ok: true }), who.requestId);
   } catch (err) {
     logError("topic_delete_failed", err, { req: who.requestId });

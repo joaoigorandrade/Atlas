@@ -19,6 +19,9 @@ test.describe("discriminate", () => {
 
     const sheet = page.getByTestId("phase-discriminate");
     await expect(sheet).toBeVisible();
+    // The run opens on how sure they are — the first case waits on the tap.
+    await expect(sheet.getByTestId("case-candidate")).toHaveCount(0);
+    await sheet.getByTestId("action-sure-1").click();
     await expect(sheet.getByTestId("case-candidate")).toBeVisible();
     // The reveal, the verdict and the reason are all withheld until an answer
     // is committed — otherwise the item is a recognition task.
@@ -37,6 +40,7 @@ test.describe("discriminate", () => {
     await openPhase(page, "notation", "discriminate");
 
     const sheet = page.getByTestId("phase-discriminate");
+    await sheet.getByTestId("action-sure-2").click();
     await sheet.getByTestId("action-mode-choices").click();
 
     // The fixture deck alternates its answer between option 0 and option 1,

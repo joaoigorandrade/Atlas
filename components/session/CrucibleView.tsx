@@ -23,6 +23,7 @@ import Masthead from "@/components/ui/Masthead";
 
 import Rich from "@/components/Rich";
 import { STRINGS } from "@/components/session/crucibleCopy";
+import PassPanel from "@/components/session/crucible/PassPanel";
 // The Crucible owns the deep-rust accent; the transfer diagnostic borrows the
 // shared mastered-green / gap-red so a carried-over sub-concept reads the same
 // here as it does on the map.
@@ -596,70 +597,7 @@ function Diagnostic({
           )}
         </>
       ) : (
-        <>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 13,
-              background: color.successBg,
-              border: `1px solid rgba(74,117,82,0.34)`,
-              borderRadius: 3,
-              padding: "15px 18px",
-              marginBottom: 18,
-            }}
-          >
-            <span
-              style={{
-                width: 11,
-                height: 11,
-                borderRadius: "50%",
-                background: TRANSFER_COLOR.good,
-                flex: "0 0 auto",
-                marginTop: 5,
-              }}
-            />
-            <div>
-              <div
-                style={{
-                  fontFamily: font.serif,
-                  fontSize: 17,
-                  marginBottom: 3,
-                }}
-              >
-                {t.transferConfirmedTitle}
-              </div>
-              <div
-                style={{
-                  fontSize: 13.5,
-                  color: color.inkMuted,
-                  lineHeight: 1.55,
-                }}
-              >
-                {lifts ? t.transferConfirmedBody : t.transferConfirmedPartialBody}
-              </div>
-            </div>
-          </div>
-          <button
-            className="at-press"
-            data-testid="action-finish"
-            onClick={onFinish}
-            style={{
-              padding: "15px 26px",
-              background: color.accent,
-              color: color.accentInk,
-              border: "none",
-              borderRadius: 3,
-              fontSize: 15,
-              fontFamily: font.caps,
-              letterSpacing: "0.06em",
-              cursor: "pointer",
-              boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
-            }}
-          >
-            {lifts ? t.markMastered : t.markCrucibleDone}
-          </button>
-        </>
+        <PassPanel guided={session.rung > 0} lifts={lifts} onFinish={onFinish} />
       )}
     </div>
   );

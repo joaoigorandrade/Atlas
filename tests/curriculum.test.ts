@@ -34,6 +34,7 @@ import {
   type NodeKind,
   nodeAxes,
   PHASE_MINUTES,
+  crucibleGapId,
   crucibleMasters,
   phaseIndex,
   planGates,
@@ -91,6 +92,7 @@ import {
   type FeynmanBeat,
   type SocraticSession,
   type ConceptEdge,
+  type ConceptNode,
   type SocraticStep,
   type StateMap,
 } from "@/lib/curriculum";
@@ -894,8 +896,16 @@ describe("feynmanReducer", () => {
       beats,
     );
     s = feynmanReducer(s, { type: "openFix", beatId: "b1" }, beats);
-    s = feynmanReducer(s, { type: "fix", index: 0 }, beats);
+    const missed = feynmanReducer(
+      s,
+      { type: "fixJudged", good: false, response: "still missing why" },
+      beats,
+    );
+    expect(missed.verdicts["b1"]).toBe("confused");
+    expect(missed.fixReaction).toBe("still missing why");
+    s = feynmanReducer(missed, { type: "fixJudged", good: true, response: "" }, beats);
     expect(s.verdicts["b1"]).toBe("good");
+    expect(s.fixing).toBeNull();
   });
 
   it("teaching it again keeps the last pass's verdicts for the delta", () => {
@@ -1386,24 +1396,41 @@ describe("topicDomainOf", () => {
 describe("crucibleMasters", () => {
   // A `procedure`: the kind whose last gate genuinely is the Crucible. A
   // `concept` owes Recall after it, which is exactly the case below.
-  const nodes = [{ id: "n", kind: "procedure" as const }];
+  const graphOf = (nodes: ConceptNode[], edges: ConceptEdge[] = []) => ({ nodes, edges });
+  const node = (id: string, kind: ConceptNode["kind"], gap = false) =>
+    ({
+      id,
+      label: id,
+      kind,
+      gap,
+      state: "unknown",
+      g: 0,
+      week: 0,
+      x: 0,
+      y: 0,
+    }) as ConceptNode;
+  const nodes = graphOf([node("n", "procedure")]);
   const done = (...p: string[]) => ({ n: p as never });
+  const ladder = done("consume", "trace", "feynman", "perform", "drill", "connect");
 
   it("lifts the node when Crucible is the last gate left", () => {
-    expect(
-      crucibleMasters(
-        nodes,
-        "n",
-        done("consume", "trace", "feynman", "perform", "drill", "connect"),
-      ),
-    ).toBe(true);
+    expect(crucibleMasters(nodes, "n", ladder)).toBe(true);
+  });
+
+  it("does not lift a node another gap still holds — only its own", () => {
+    const withGap = (id: string) =>
+      graphOf([node("n", "procedure"), node(id, undefined, true)], [["n", id, true]]);
+    // The Crucible's own gap is what this pass closes.
+    expect(crucibleMasters(withGap(crucibleGapId("n")), "n", ladder)).toBe(true);
+    // A teach-back's gap is not, and it holds the node at Learning.
+    expect(crucibleMasters(withGap("gap-feynman"), "n", ladder)).toBe(false);
   });
 
   it("does not lift a node that still owes a rung after the Crucible", () => {
     // The concept ladder puts Recall behind the Crucible, so passing the
     // transfer test closes that rung and nothing else — and the closing copy
     // must not promise green, or the map contradicts it on the next screen.
-    const concept = [{ id: "n", kind: "concept" as const }];
+    const concept = graphOf([node("n", "concept")]);
     expect(
       crucibleMasters(concept, "n", done("consume", "socratic", "feynman", "connect")),
     ).toBe(false);
@@ -1723,9 +1750,12 @@ describe("recall", () => {
     ).toBe(1);
   });
 
-  it("writing it again leaves nothing of the first attempt", () => {
-    const again = recallReducer(reported({ a: "good" }), { type: "again" });
-    expect(again).toEqual(recallStart("n"));
+  it("takes its confidence once, and only before anything is written", () => {
+    const sure = recallReducer(recallStart("n"), { type: "sure", level: 2 });
+    expect(sure.sure).toBe(2);
+    expect(recallReducer(sure, { type: "sure", level: 0 }).sure).toBe(2);
+    const writing = recallReducer(recallStart("n"), { type: "write", value: "x" });
+    expect(recallReducer(writing, { type: "sure", level: 1 }).sure).toBeUndefined();
   });
 });
 

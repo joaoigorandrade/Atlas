@@ -107,7 +107,9 @@ export interface FeynmanSession {
   reported: boolean;
   /** A Fix-this micro-pass open on this beat id, or null. */
   fixing: string | null;
-  /** Fix replies already caught in the open micro-pass. */
+  /** Always empty now. The fix used to be a pick among written replies, and
+   *  this held the ones already ruled out — elimination, not an explanation.
+   *  Kept in the shape because the phone decodes the stored session. */
   fixRuledOut: string[];
   /** The naive student's latest reaction inside an open fix, or null. */
   fixReaction: string | null;
@@ -254,15 +256,18 @@ export type FeynmanAction =
   | { type: "stream"; text: string; pending?: boolean }
   | { type: "openFix"; beatId: string }
   | { type: "closeFix" }
-  | { type: "fix"; index: number }
+  /** The open fix, explained in the learner's own words and judged against
+   *  that row's `mustConvey` — the same bar the teach-back was held to. */
+  | { type: "fixJudged"; good: boolean; response: string }
   | { type: "teachAgain" };
 
 /**
  * The naive-student engine, as a pure transition. The learner teaches the whole
  * concept in their own words with nothing prompting them → the judge diffs it
- * against the rubric → the Gap Report opens. "Fix this" runs a one-probe
- * corrective that flips a gap to good, and "Teach again" resets for a fresh
- * pass while keeping the last one's verdicts for the delta.
+ * against the rubric → the Gap Report opens. "Fix this" asks for that one
+ * sub-point again, judged against its row, and flips it to good when it holds;
+ * "Teach again" resets for a fresh pass while keeping the last one's verdicts
+ * for the delta.
  */
 export function feynmanReducer(
   session: FeynmanSession,
@@ -310,27 +315,20 @@ export function feynmanReducer(
       };
     case "closeFix":
       return { ...session, fixing: null, fixRuledOut: [], fixReaction: null };
-    case "fix": {
-      if (!session.fixing) return session;
-      const beat = beats.find((b) => b.id === session.fixing);
-      const reply = beat?.fix.replies[action.index];
-      if (!reply || session.fixRuledOut.includes(reply.label)) return session;
-      if (reply.correct) {
-        // Gap closed: the sub-point flips to good and won't write back.
+    case "fixJudged": {
+      if (!session.fixing || !beats.some((b) => b.id === session.fixing)) return session;
+      // Explained: the sub-point flips to good and won't write back.
+      if (action.good)
         return {
           ...session,
-          verdicts: { ...session.verdicts, [beat!.id]: "good" },
+          verdicts: { ...session.verdicts, [session.fixing]: "good" },
           fixing: null,
           fixRuledOut: [],
           fixReaction: null,
         };
-      }
-      // Caught: surface the correction, rule the wrong answer out, keep trying.
-      return {
-        ...session,
-        fixReaction: reply.response,
-        fixRuledOut: [...session.fixRuledOut, reply.label],
-      };
+      // Not yet: the student says what is still missing, and they try again
+      // in their own words — there is no list to eliminate down.
+      return { ...session, fixReaction: action.response };
     }
     case "teachAgain":
       return {

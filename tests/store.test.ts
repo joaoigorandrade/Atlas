@@ -100,7 +100,7 @@ describe("a run, stored as rows", () => {
     ]);
     const loaded = await loadTopic(db(), topic.id);
     expect(loaded?.graph.nodes.find((n) => n.id === "b-gap")?.gap).toBe(true);
-    expect(loaded?.graph.edges).toContainEqual(["b", "b-gap", false]);
+    expect(loaded?.graph.edges).toContainEqual(["b", "b-gap", true]);
   });
 
   it("never mixes column shapes in one upsert", async () => {

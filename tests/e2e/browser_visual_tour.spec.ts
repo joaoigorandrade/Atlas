@@ -1,7 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { FIRST_NODE, SECOND_NODE, clearRuns, openPhase, openRun, TOPIC } from "./helpers";
+import {
+  FIRST_NODE,
+  SECOND_NODE,
+  answerCheck,
+  clearRuns,
+  openPhase,
+  openRun,
+  TOPIC,
+} from "./helpers";
 
 // Under the gitignored `test-results/`, so the tour writes where the rest of
 // Playwright's output already goes. It was an absolute path into one machine's
@@ -69,15 +77,7 @@ test.describe("Full Visual Browser Tour", () => {
 
     // Scroll and answer checks to get to recap
     for (let i = 0; i < 3; i++) {
-      await consumeSheet.hover();
-      const check = consumeSheet
-        .locator('[data-testid="action-check-1"]:not([disabled])')
-        .last();
-      await expect(async () => {
-        await page.mouse.wheel(0, 800);
-        await expect(check).toBeVisible({ timeout: 1000 });
-      }).toPass({ timeout: 20_000 });
-      await check.click();
+      await answerCheck(page, 1);
       const last = i === 2;
       await consumeSheet
         .getByTestId(last ? "action-finish" : "action-continue")
@@ -157,13 +157,13 @@ test.describe("Full Visual Browser Tour", () => {
     await openPhase(page, FIRST_NODE, "retain");
     const retainSheet = page.getByTestId("phase-retain");
     await expect(retainSheet).toBeVisible();
-    await expect(retainSheet.getByTestId("action-flip")).toBeVisible({
+    await expect(retainSheet.getByTestId("action-sure-1")).toBeVisible({
       timeout: 20_000,
     });
     await page.waitForTimeout(500);
     // The card's *front* — the screen as the learner meets it.
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "12_phase_retain.png") });
-    await retainSheet.getByTestId("action-flip").click();
+    await retainSheet.getByTestId("action-sure-1").click();
     await page.waitForTimeout(700);
     await page.screenshot({
       path: path.join(SCREENSHOT_DIR, "12b_phase_retain_back.png"),

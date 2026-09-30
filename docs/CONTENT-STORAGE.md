@@ -48,6 +48,14 @@ whose topic it hollowed out. So:
 The invariant those three buy: **a topic keeps its content until the learner
 deletes the topic.** Nothing else may take it.
 
+And deleting it takes the material with it. The DELETE route reads the topic's
+`cache_key`s before the cascade drops them and hands them to `forgetContent`,
+which removes those `content_cache` rows — so rebuilding the same subject writes
+fresh cases, setups and rubrics instead of replaying the answer key the learner
+already saw. The one row it leaves is one another topic holds only as a pointer
+(no copy of its own): removing that would empty someone else's screen. A topic
+that kept the bytes loses nothing — its read falls back to the copy.
+
 ### And a hit is content too
 
 `/api/generate` has always recorded a cache hit against the topic. `/api/content`

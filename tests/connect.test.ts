@@ -55,6 +55,13 @@ const run = (
 ): ConnectSession =>
   actions.reduce((s, a) => connectReducer(s, a, c), connectStart(c.centerId));
 
+/** Confirming a link takes a link written in the learner's own words. */
+const link = (id: string, value = `${id} is what this is built on, in my words`) =>
+  [
+    { type: "draft", id, value },
+    { type: "confirm", id },
+  ] as const;
+
 describe("connect reducer", () => {
   it("opens the prompt blank so the learner generates, and keeps edits after", () => {
     const opened = run([{ type: "select", id: "vectors" }]);
@@ -104,61 +111,57 @@ describe("connect reducer", () => {
 
 describe("connect advance gate", () => {
   it("needs two links when two are on offer", () => {
-    const one = run([{ type: "confirm", id: "vectors" }]);
+    const one = run([...link("vectors")]);
     expect(connectLinkedCount(one)).toBe(1);
     expect(connectReady(one, content.cands.length)).toBe(false);
 
-    const two = run([
-      { type: "confirm", id: "vectors" },
-      { type: "confirm", id: "matrices" },
-    ]);
+    const two = run([...link("vectors"), ...link("matrices")]);
     expect(connectReady(two, content.cands.length)).toBe(true);
   });
 
   it("is not a dead end when the web only ever offered one candidate", () => {
     const solo: ElaborationContent = { ...content, cands: [content.cands[0]] };
-    const s = run([{ type: "confirm", id: "vectors" }], solo);
+    const s = run([...link("vectors")], solo);
     expect(connectReady(s, solo.cands.length)).toBe(true);
+  });
+
+  it("will not confirm an empty box, whitespace, or the suggestion pasted back", () => {
+    for (const value of [undefined, "   ", "Represented by a MATRIX."]) {
+      const s = run([
+        ...(value === undefined
+          ? []
+          : [{ type: "draft", id: "matrices", value } as const]),
+        { type: "confirm", id: "matrices" },
+      ]);
+      expect(connectLinkedCount(s)).toBe(0);
+    }
   });
 });
 
 describe("connect cards", () => {
-  it("drafts one card per confirmed link, keyed stably", () => {
+  it("drafts one card per confirmed link, keyed stably, in the learner's words", () => {
     const s = run([
       { type: "select", id: "vectors" },
-      { type: "draft", id: "vectors", value: "my own words" },
-      { type: "confirm", id: "vectors" },
-      { type: "confirm", id: "matrices" },
+      ...link("vectors", "they move vectors around, my own words"),
+      ...link("matrices"),
     ]);
     const cards = connectCards(s, content);
     expect(cards.map((c) => c.key)).toEqual([
       "linear-transformations-connect-vectors",
       "linear-transformations-connect-matrices",
     ]);
-    expect(cards[0].back).toBe("my own words");
-    // Never confirmed with a blank back: an untouched draft falls back to the
-    // relationship the map suggested.
-    expect(cards[1].back).toBe("represented by a matrix");
+    expect(cards[0].back).toBe("they move vectors around, my own words");
   });
 
-  it("falls back to the map's draft when the learner confirms whitespace", () => {
-    const s = run([
-      { type: "select", id: "vectors" },
-      { type: "draft", id: "vectors", value: "   " },
-      { type: "confirm", id: "vectors" },
-    ]);
-    expect(connectCards(s, content)[0].back).toBe("maps vectors");
+  it("still gives a link confirmed before drafts were required a real back", () => {
+    // A parked session from before the rule: linked, with no draft written.
+    const legacy = { ...connectStart(content.centerId), linked: { vectors: true } };
+    expect(connectCards(legacy, content)[0].back).toBe("maps vectors");
   });
 
   it("re-running the phase produces the same keys, so Review cannot double up", () => {
-    const first = run([
-      { type: "confirm", id: "vectors" },
-      { type: "confirm", id: "matrices" },
-    ]);
-    const again = run([
-      { type: "confirm", id: "matrices" },
-      { type: "confirm", id: "vectors" },
-    ]);
+    const first = run([...link("vectors"), ...link("matrices")]);
+    const again = run([...link("matrices"), ...link("vectors")]);
     expect(new Set(connectCards(again, content).map((c) => c.key))).toEqual(
       new Set(connectCards(first, content).map((c) => c.key)),
     );
@@ -166,10 +169,7 @@ describe("connect cards", () => {
 
   it("adds the mnemonic card only once the aid is accepted, list-like only", () => {
     const picked = run(
-      [
-        { type: "confirm", id: "vectors" },
-        { type: "pickMnemonic", index: 0 },
-      ],
+      [...link("vectors"), { type: "pickMnemonic", index: 0 }],
       listLike,
     );
     expect(connectCards(picked, listLike)).toHaveLength(1);
@@ -184,7 +184,7 @@ describe("connect cards", () => {
   });
 
   it("writes card fronts in the learner's language", () => {
-    const s = run([{ type: "confirm", id: "vectors" }]);
+    const s = run([...link("vectors")]);
     expect(connectCards(s, content, "en")[0].front).toContain("what’s the connection?");
     expect(connectCards(s, content, "pt-BR")[0].front).toContain("qual é a conexão?");
   });

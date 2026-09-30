@@ -52,6 +52,15 @@ const EN = {
   reEnteringLoop: (label: string) =>
     `Re-entering the loop · ${label} — retention failure routes back to Consume`,
   gapClosed: (label: string) => `Gap closed · ${label} resolved and off the map`,
+  lastGapClosed: (label: string) => `Last gap closed · ${label} is Mastered`,
+  gapsHold: (label: string, n: number) =>
+    `${label}'s ladder is done, but ${n} open gap${n === 1 ? "" : "s"} still hold${n === 1 ? "s" : ""} it — close ${n === 1 ? "it" : "them"} to master it.`,
+  guidedPass: (label: string) =>
+    `Guided pass on ${label} — the gap is closed. The cold re-attempt opens tomorrow, and that one counts.`,
+  crucibleHeld: (label: string, hours: number) =>
+    `The cold Crucible on ${label} opens in ~${hours}h — the proof is the unguided problem after a night.`,
+  recallHeld: (label: string, hours: number) =>
+    `Recall on ${label} opens in ~${hours}h — a retrieval only counts once the material has had a night to fade.`,
   gapNotClosed: "Gap not closed",
   stillLeaning: (label: string) =>
     `Still leaning on being told — ${label} stays flagged until it's reconstructed unaided.`,
@@ -138,6 +147,17 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     reEnteringLoop: (label: string) =>
       `Reentrando no ciclo · ${label} — a falha de retenção volta para o Consume`,
     gapClosed: (label: string) => `Lacuna fechada · ${label} resolvido e fora do mapa`,
+    lastGapClosed: (label: string) => `Última lacuna fechada · ${label} está Dominado`,
+    gapsHold: (label: string, n: number) =>
+      n === 1
+        ? `A escada de ${label} terminou, mas 1 lacuna aberta ainda o segura — feche-a para dominá-lo.`
+        : `A escada de ${label} terminou, mas ${n} lacunas abertas ainda o seguram — feche-as para dominá-lo.`,
+    guidedPass: (label: string) =>
+      `Passagem guiada em ${label} — a lacuna está fechada. A nova tentativa sem ajuda abre amanhã, e é ela que conta.`,
+    crucibleHeld: (label: string, hours: number) =>
+      `O Crucible sem ajuda em ${label} abre em ~${hours}h — a prova é o problema sem guia depois de uma noite.`,
+    recallHeld: (label: string, hours: number) =>
+      `O Recall em ${label} abre em ~${hours}h — uma recuperação só vale depois que o material teve uma noite para esmaecer.`,
     gapNotClosed: "Lacuna não fechada",
     stillLeaning: (label: string) =>
       `Ainda apoiado na resposta pronta — ${label} continua marcado até ser reconstruído sozinho.`,

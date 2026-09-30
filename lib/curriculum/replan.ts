@@ -259,6 +259,42 @@ export function spawnGap(
 }
 
 /**
+ * The gap sub-nodes still hanging off `id` — split out of its failures and not
+ * yet closed. Read off the gap flag rather than the edge's dash: gap edges
+ * persisted before they kept their dash come back from the store solid.
+ */
+export function openGapIds(graph: ConceptGraph, id: string): string[] {
+  const gaps = new Set(graph.nodes.filter((n) => n.gap).map((n) => n.id));
+  return graph.edges
+    .filter(([from, to]) => from === id && gaps.has(to))
+    .map(([, to]) => to);
+}
+
+/**
+ * A node's neighbours as the detail rail lists them. Gap children are the
+ * sub-concepts split out of its failures, kept apart from what it unlocks; a
+ * gap's own parent is not its prerequisite. Both are read off the gap flag, not
+ * the edge's dash, for the reason `openGapIds` gives.
+ */
+export function neighboursOf(graph: ConceptGraph, node: ConceptNode) {
+  const gapIds = openGapIds(graph, node.id);
+  const into = graph.edges.filter(([, to]) => to === node.id);
+  return {
+    gapIds,
+    parentIds: node.gap ? into.map(([from]) => from) : [],
+    prereqIds: node.gap ? [] : into.filter(([, , dashed]) => !dashed).map(([f]) => f),
+    dependentIds: graph.edges
+      .filter(([from, to, dashed]) => from === node.id && !dashed && !gapIds.includes(to))
+      .map(([, to]) => to),
+  };
+}
+
+/** The node a gap hangs off, while it still does. */
+export function gapParentOf(graph: ConceptGraph, gapId: string): string | undefined {
+  return graph.edges.find(([, to]) => to === gapId)?.[0];
+}
+
+/**
  * Remove a node and every edge touching it. The Crucible calls this to close
  * its first-attempt gap once the re-attempt finally transfers — the diagnosed
  * sub-node is resolved, so it leaves the map.

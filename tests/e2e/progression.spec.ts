@@ -10,6 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   FIRST_NODE,
   SECOND_NODE,
+  answerCheck,
   openPhase,
   openRun,
   gapIds,
@@ -39,26 +40,6 @@ async function persisted(page: Page, until: (run: Run) => boolean = () => true) 
 const nodeState = (page: Page, id: string) =>
   expect(page.getByTestId(`node-${id}`)).toHaveAttribute("data-state", /./);
 
-/**
- * A section's check only mounts once the end of that section is properly on
- * screen (an IntersectionObserver with a -15% bottom margin, in
- * components/session/consume/SectionCheck.tsx). Playwright cannot auto-scroll
- * to an element that does not exist yet, so the reading is scrolled the way a
- * learner scrolls it until the check appears.
- */
-async function scrollToCheck(page: Page) {
-  const sheet = page.getByTestId("phase-consume");
-  await sheet.hover();
-  // Not merely the last check: an already-answered one stays on screen and
-  // stays disabled, so the newest *unanswered* option is the target.
-  const check = sheet.locator('[data-testid="action-check-1"]:not([disabled])').last();
-  await expect(async () => {
-    await page.mouse.wheel(0, 900);
-    await expect(check).toBeVisible({ timeout: 750 });
-  }).toPass({ timeout: 20_000 });
-  return check;
-}
-
 test("consume: reading the pass through moves the node off unknown", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "frontier" });
   await openPhase(page, FIRST_NODE, "consume");
@@ -69,8 +50,7 @@ test("consume: reading the pass through moves the node off unknown", async ({ pa
   // Three fixture sections; each gates its Continue behind the check.
   for (let i = 0; i < 3; i++) {
     // Option 1 is the correct one (lib/server/fixtures.ts).
-    const check = await scrollToCheck(page);
-    await check.click();
+    await answerCheck(page, 1);
     const last = i === 2;
     await sheet.getByTestId(last ? "action-finish" : "action-continue").click({
       timeout: 15_000,
@@ -239,7 +219,7 @@ test("retain: grading the day's queue writes the card store", async ({ page }) =
   await expect(sheet).toBeVisible();
 
   // Read the front, turn it over, grade it.
-  await sheet.getByTestId("action-flip").click();
+  await sheet.getByTestId("action-sure-1").click();
   const good = sheet.getByTestId("action-grade-good");
   await expect(good).toBeVisible({ timeout: 20_000 });
   await good.click();
@@ -253,7 +233,7 @@ test("retain: a missed card comes back at the end of the same pass", async ({ pa
 
   const sheet = page.getByTestId("phase-retain");
   await expect(sheet).toBeVisible();
-  await sheet.getByTestId("action-flip").click();
+  await sheet.getByTestId("action-sure-1").click();
   await expect(sheet.getByTestId("action-grade-again")).toBeVisible({
     timeout: 20_000,
   });
@@ -265,7 +245,7 @@ test("retain: a missed card comes back at the end of the same pass", async ({ pa
   await expect(sheet.getByText(/Card 2 of 3|Card 2 de 3/)).toBeVisible();
 
   // …and the third slot really is the one that was missed.
-  await sheet.getByTestId("action-flip").click();
+  await sheet.getByTestId("action-sure-1").click();
   await sheet.getByTestId("action-grade-good").click();
   await expect(sheet.getByText(/Card 3 of 3|Card 3 de 3/)).toBeVisible();
 });

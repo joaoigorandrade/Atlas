@@ -9,7 +9,9 @@
 
 import { useCallback } from "react";
 import {
+  drillScore,
   phaseLabel,
+  runReading,
   drillPassed,
   drillReducer,
   drillStart,
@@ -36,7 +38,7 @@ export function useDrill(deps: {
 }) {
   const { run, sessions, gen, toast, ledger, setSelectedId, setScreen, centerOn, later } =
     deps;
-  const { graphRef, drillCacheRef } = run;
+  const { graphRef, drillCacheRef, recordCalib } = run;
   const { setDrill, drillRef } = sessions;
   const { generate, warmKey, loadDrill } = gen;
   const { tc } = toast;
@@ -84,7 +86,19 @@ export function useDrill(deps: {
       return content ? drillReducer(prev, action, content) : prev;
     });
 
+  /** The tap before the run, against how it went — filed once, on the way
+   *  out, however the run is left. */
+  const fileCalibration = () => {
+    const cur = drillRef.current;
+    const content = cur && drillCacheRef.current[cur.nodeId];
+    if (!cur || !content) return;
+    const answered = Object.keys(cur.hits).length;
+    const reading = runReading(cur.sure, drillScore(cur, content), answered);
+    if (reading) recordCalib(cur.nodeId, reading.felt, reading.real);
+  };
+
   const leaveTo = (nodeId: string | undefined) => {
+    fileCalibration();
     setScreen("map");
     setDrill(null);
     if (!nodeId) return;

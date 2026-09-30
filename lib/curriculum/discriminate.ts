@@ -52,6 +52,9 @@ export interface DiscriminateSession {
   calls: Record<string, number>;
   /** The judge's one-line read when the call came in the learner's own words. */
   reads: Record<string, string>;
+  /** How sure they were of the boundary, tapped before the first case
+   *  (an index into `CONFIDENCE_FELT`). The cases wait on it. */
+  sure?: number;
   done: boolean;
 }
 
@@ -60,7 +63,9 @@ export function discriminateStart(nodeId: string): DiscriminateSession {
 }
 
 export type DiscriminateAction =
-  { type: "call"; index: number; read?: string } | { type: "next" };
+  | { type: "sure"; level: number }
+  | { type: "call"; index: number; read?: string }
+  | { type: "next" };
 
 export function discriminateReducer(
   session: DiscriminateSession,
@@ -69,6 +74,10 @@ export function discriminateReducer(
 ): DiscriminateSession {
   const item = content.cases[session.index];
   switch (action.type) {
+    case "sure":
+      // Once, before the first case is seen — after it, it rates that case.
+      if (session.sure !== undefined || Object.keys(session.calls).length) return session;
+      return { ...session, sure: action.level };
     case "call": {
       // One call per case. Re-calling would let a learner cycle the readings
       // until the reveal turns green, which is not a boundary test.
@@ -158,6 +167,8 @@ const DISCRIMINATE_COPY = {
   en: {
     kicker: "Discriminate",
     lead: "Where does this concept stop and the next one start?",
+    howSure:
+      "Before the first case: how sure are you that you can tell it from its neighbours?",
     theCase: "The case",
     decidedBy: "What decides it",
     passed: "You can tell it from its neighbours. That is what having it means.",
@@ -170,6 +181,8 @@ const DISCRIMINATE_COPY = {
   "pt-BR": {
     kicker: "Discriminate",
     lead: "Onde esse conceito termina e o vizinho começa?",
+    howSure:
+      "Antes do primeiro caso: quanta certeza você tem de que consegue distinguir isso dos vizinhos?",
     theCase: "O caso",
     decidedBy: "O que decide",
     passed: "Você distingue isso dos vizinhos. É isso que significa ter o conceito.",

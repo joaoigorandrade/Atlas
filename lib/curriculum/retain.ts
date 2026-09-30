@@ -182,6 +182,9 @@ export interface RetainSession {
   wroteBack: boolean;
   /** True once the queue is cleared — the done-for-today surface. */
   finished: boolean;
+  /** How sure the learner said they were as they turned the card on screen
+   *  (an index into `CONFIDENCE_FELT`); cleared when the next card is dealt. */
+  sure?: number;
 }
 
 export function retainStart(): RetainSession {
@@ -196,7 +199,7 @@ export function retainStart(): RetainSession {
 }
 
 export type RetainAction =
-  | { type: "flip" }
+  | { type: "flip"; sure?: number }
   | { type: "grade"; grade: ReviewGrade }
   | { type: "toggleAside" }
   | { type: "continue" };
@@ -220,8 +223,8 @@ function retainAdvance(
 ): RetainSession {
   const next = session.idx + 1;
   if (next >= retainDeck(session, content).length)
-    return { ...session, done, finished: true };
-  return { ...session, idx: next, stage: "question", done };
+    return { ...session, done, finished: true, sure: undefined };
+  return { ...session, idx: next, stage: "question", done, sure: undefined };
 }
 
 /**
@@ -239,7 +242,7 @@ export function retainReducer(
   switch (action.type) {
     case "flip":
       if (session.stage !== "question") return session;
-      return { ...session, stage: "reveal" };
+      return { ...session, stage: "reveal", sure: action.sure };
     case "toggleAside":
       if (session.stage !== "reveal" && session.stage !== "aside") return session;
       return {

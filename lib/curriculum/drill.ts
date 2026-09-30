@@ -50,6 +50,9 @@ export interface DrillSession {
   took: Record<string, number>;
   /** When the open rep was put on screen. */
   openedAt: number;
+  /** How sure they were of these calls, tapped before the first rep (an index
+   *  into `CONFIDENCE_FELT`). The clock starts on the tap, not before it. */
+  sure?: number;
   done: boolean;
 }
 
@@ -58,7 +61,9 @@ export function drillStart(nodeId: string, now = Date.now()): DrillSession {
 }
 
 export type DrillAction =
-  { type: "answer"; index: number; now?: number } | { type: "next"; now?: number };
+  | { type: "sure"; level: number; now?: number }
+  | { type: "answer"; index: number; now?: number }
+  | { type: "next"; now?: number };
 
 export function drillReducer(
   session: DrillSession,
@@ -67,6 +72,10 @@ export function drillReducer(
 ): DrillSession {
   const rep = content.reps[session.index];
   switch (action.type) {
+    case "sure":
+      if (session.sure !== undefined || Object.keys(session.hits).length) return session;
+      // The first rep goes on screen now, so its clock starts now.
+      return { ...session, sure: action.level, openedAt: action.now ?? Date.now() };
     case "answer": {
       if (!rep || session.hits[rep.id] !== undefined) return session;
       const now = action.now ?? Date.now();
@@ -168,6 +177,7 @@ const DRILL_COPY = {
   en: {
     kicker: "Drill",
     lead: "The same call, made without stopping to derive it.",
+    howSure: "Before the clock starts: how sure are you that you'll get these right?",
     rule: "The rule that fires",
     pace: (s: string) => `${s}s a call, typically`,
     passed: "It comes without working for it. That is what automatic means.",
@@ -179,6 +189,7 @@ const DRILL_COPY = {
   "pt-BR": {
     kicker: "Drill",
     lead: "A mesma decisão, sem parar para deduzir.",
+    howSure: "Antes de o relógio começar: quanta certeza você tem de que vai acertar?",
     rule: "A regra que dispara",
     pace: (s: string) => `${s}s por decisão, em geral`,
     passed: "Sai sem esforço. É isso que significa estar automático.",

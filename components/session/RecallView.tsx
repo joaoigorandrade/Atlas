@@ -24,6 +24,7 @@ import {
 import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import PhaseShell from "@/components/session/parts/PhaseShell";
+import ConfidenceGate from "@/components/session/parts/ConfidenceGate";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -61,7 +62,7 @@ export default function RecallView({
   onWrite,
   onCue,
   onSubmit,
-  onAgain,
+  onSure,
   onAdvance,
 }: {
   title: string;
@@ -73,7 +74,7 @@ export default function RecallView({
   onWrite: (value: string) => void;
   onCue: () => void;
   onSubmit: () => void;
-  onAgain: () => void;
+  onSure: (level: number) => void;
   onAdvance: () => void;
 }) {
   const t = useT(STRINGS);
@@ -122,7 +123,11 @@ export default function RecallView({
         <Rich text={content.brief} />
       </div>
 
-      {!session.reported && (
+      {!session.reported && session.sure === undefined && (
+        <ConfidenceGate question={copy.howSure} onPick={onSure} />
+      )}
+
+      {!session.reported && session.sure !== undefined && (
         <div style={{ marginTop: 22 }}>
           <div
             style={{
@@ -366,13 +371,13 @@ export default function RecallView({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <div style={{ marginTop: 20 }}>
             <button
               className="at-press"
               data-testid="action-finish"
               onClick={onAdvance}
               style={{
-                flex: 1,
+                width: "100%",
                 padding: 15,
                 background: passed ? color.accent : color.card,
                 color: passed ? color.accentInk : color.ink,
@@ -384,23 +389,6 @@ export default function RecallView({
               }}
             >
               {t.advance}
-            </button>
-            <button
-              className="at-press"
-              data-testid="action-again"
-              onClick={onAgain}
-              style={{
-                flex: "0 0 auto",
-                padding: "15px 18px",
-                background: color.card,
-                border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 3,
-                fontSize: 14,
-                color: color.inkMuted,
-                cursor: "pointer",
-              }}
-            >
-              {copy.again}
             </button>
           </div>
 

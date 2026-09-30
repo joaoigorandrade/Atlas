@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { FIRST_NODE, SECOND_NODE, clearRuns, openPhase, openRun, TOPIC } from "./helpers";
+import {
+  FIRST_NODE,
+  SECOND_NODE,
+  answerCheck,
+  clearRuns,
+  openPhase,
+  openRun,
+  TOPIC,
+} from "./helpers";
 
 interface AuditLog {
   errors: string[];
@@ -153,16 +161,7 @@ test.describe("Deep Web Feature Audit", () => {
 
     // Complete all 3 sections
     for (let i = 0; i < 3; i++) {
-      await sheet.hover();
-      const check = sheet
-        .locator('[data-testid="action-check-1"]:not([disabled])')
-        .last();
-      await expect(async () => {
-        await page.mouse.wheel(0, 800);
-        await expect(check).toBeVisible({ timeout: 1000 });
-      }).toPass({ timeout: 20_000 });
-
-      await check.click();
+      await answerCheck(page, 1);
       const last = i === 2;
       const nextBtn = sheet.getByTestId(last ? "action-finish" : "action-continue");
       await expect(nextBtn).toBeVisible();
@@ -266,7 +265,7 @@ test.describe("Deep Web Feature Audit", () => {
     await expect(sheet).toBeVisible();
     audit.passedChecks.push("Retain review sheet rendered");
 
-    const flip = sheet.getByTestId("action-flip");
+    const flip = sheet.getByTestId("action-sure-1");
     await expect(flip).toBeVisible({ timeout: 20_000 });
     await flip.click();
     audit.passedChecks.push("Retain card turned over");

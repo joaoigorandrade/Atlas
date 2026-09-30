@@ -1,21 +1,32 @@
 "use client";
 
+// The comprehension check that closes a section: asked in the learner's own
+// words first (the judge maps them onto the options), answered once. A second
+// pick after a wrong one was elimination, not comprehension — so a miss shows
+// the right answer, is kept for the recap to name, and the reading goes on.
+
 import { BLUE, RIGHT, STRINGS, WRONG } from "./shared";
 import { ConsumePrediction } from "@/lib/curriculum";
 import { useT } from "@/lib/i18n";
 import { color, font, transition } from "@/lib/theme";
 import { useEffect, useRef, useState } from "react";
 import Rich from "@/components/Rich";
+import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 
 export function SectionCheck({
+  topic,
+  nodeLabel,
   check,
   answer,
   onAnswer,
 }: {
+  topic: string;
+  nodeLabel: string;
   check: ConsumePrediction;
   answer?: { oi: number; correct: boolean };
   onAnswer: (oi: number, correct: boolean) => void;
 }) {
+  const [mode, setMode] = useState<AnswerMode>("open");
   const t = useT(STRINGS);
   const slot = useRef<HTMLDivElement>(null);
   // Answered before this mounted (re-render after a scroll away) → already in.
@@ -35,6 +46,7 @@ export function SectionCheck({
   }, [revealed]);
 
   const passed = !!answer?.correct;
+  const missed = !!answer && !passed;
 
   return (
     <div ref={slot} style={{ minHeight: 1, marginTop: 30 }}>
@@ -74,7 +86,7 @@ export function SectionCheck({
                 color: passed ? RIGHT : BLUE,
               }}
             >
-              {passed ? t.checkPassed : t.checkKicker}
+              {passed ? t.checkPassed : missed ? t.checkMissed : t.checkKicker}
             </span>
           </div>
           <div
@@ -87,47 +99,59 @@ export function SectionCheck({
           >
             <Rich text={check.q} />
           </div>
-          {!passed && (
+          {!answer && (
             <div style={{ fontSize: 13, color: color.inkFaint, marginBottom: 14 }}>
               {t.checkHint}
+              <div style={{ marginTop: 10 }}>
+                <AnswerModeToggle mode={mode} onMode={setMode} accent={BLUE} />
+              </div>
             </div>
           )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-            {check.opts.map((o, oi) => {
-              const picked = answer?.oi === oi;
-              const shown = passed ? o.correct : picked;
-              return (
-                <button
-                  className="at-press"
-                  key={o.label}
-                  // Only the live check is addressable: an answered section
-                  // keeps its options on screen, and carrying the same testid
-                  // there made every `action-check-N` match twice.
-                  data-testid={passed ? undefined : `action-check-${oi}`}
-                  onClick={passed ? undefined : () => onAnswer(oi, o.correct)}
-                  disabled={passed || picked}
-                  style={{
-                    textAlign: "left",
-                    padding: "13px 16px",
-                    borderRadius: 3,
-                    fontSize: 14.5,
-                    fontFamily: "inherit",
-                    cursor: passed ? "default" : "pointer",
-                    border: `1px solid ${shown ? (o.correct ? RIGHT : WRONG) : color.hairlineStrong}`,
-                    background: shown
-                      ? o.correct
-                        ? color.successBg
-                        : color.card
-                      : color.card,
-                    color: color.ink,
-                    opacity: passed && !o.correct ? 0.5 : 1,
-                  }}
-                >
-                  <Rich text={o.label} />
-                </button>
-              );
-            })}
-          </div>
+          {!answer && mode === "open" ? (
+            <OpenAnswer
+              topic={topic}
+              nodeLabel={nodeLabel}
+              question={check.q}
+              options={check.opts.map((o) => o.label)}
+              accent={BLUE}
+              rows={2}
+              onResolve={(oi) => onAnswer(oi, !!check.opts[oi]?.correct)}
+            />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {check.opts.map((o, oi) => {
+                const picked = answer?.oi === oi;
+                // Once answered, the right option is marked either way.
+                const shown = answer ? o.correct || picked : false;
+                return (
+                  <button
+                    className="at-press"
+                    key={o.label}
+                    // Only the live check is addressable: an answered section
+                    // keeps its options on screen, and carrying the same testid
+                    // there made every `action-check-N` match twice.
+                    data-testid={answer ? undefined : `action-check-${oi}`}
+                    onClick={answer ? undefined : () => onAnswer(oi, o.correct)}
+                    disabled={!!answer}
+                    style={{
+                      textAlign: "left",
+                      padding: "13px 16px",
+                      borderRadius: 3,
+                      fontSize: 14.5,
+                      fontFamily: "inherit",
+                      cursor: answer ? "default" : "pointer",
+                      border: `1px solid ${shown ? (o.correct ? RIGHT : WRONG) : color.hairlineStrong}`,
+                      background: shown && o.correct ? color.successBg : color.card,
+                      color: color.ink,
+                      opacity: answer && !shown ? 0.5 : 1,
+                    }}
+                  >
+                    <Rich text={o.label} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {answer && (
             <div
               style={{
@@ -140,7 +164,7 @@ export function SectionCheck({
                 animation: "softIn .3s both",
               }}
             >
-              {passed ? check.right : `${t.checkAgain} ${check.wrong}`}
+              {passed ? check.right : `${check.wrong} ${t.checkAgain}`}
             </div>
           )}
         </div>
