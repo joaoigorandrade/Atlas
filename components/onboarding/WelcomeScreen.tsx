@@ -6,6 +6,7 @@ import {
   PARETO_DEFAULT,
   PARETO_LEVELS,
   goals,
+  goalDateLabel,
   localDay,
   type OnboardingForm,
 } from "@/lib/curriculum";
@@ -27,7 +28,6 @@ const STRINGS = {
     dropSuffix: " · we ground the map in a real source",
     goalQuestion: "Why are you learning this?",
     goalHint: "— steers what we prune and prioritize",
-    examDate: "Exam date",
     examDateHint: "— powers the real countdown & pace (skippable)",
     interests: "Your interests",
     interestsHint: "— for analogies & examples (optional)",
@@ -52,7 +52,6 @@ const STRINGS = {
     dropSuffix: " · fundamentamos o mapa numa fonte real",
     goalQuestion: "Por que você está aprendendo isso?",
     goalHint: "— orienta o que priorizamos e deixamos de lado",
-    examDate: "Data da prova",
     examDateHint: "— alimenta a contagem regressiva e o ritmo (opcional)",
     interests: "Seus interesses",
     interestsHint: "— para analogias e exemplos (opcional)",
@@ -300,37 +299,35 @@ export default function WelcomeScreen({
               </div>
             </div>
           )}
-          {form.goal === "exam" && (
-            <div
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginTop: 12,
+              animation: "fadeUp 0.25s both",
+            }}
+          >
+            <span style={{ fontSize: 14, color: color.inkSoft }}>
+              {goalDateLabel(form.goal, language)}{" "}
+              <span style={{ color: color.inkGhost }}>{t.examDateHint}</span>
+            </span>
+            <input
+              type="date"
+              value={form.examDate}
+              min={localDay()}
+              onChange={(e) => onChange({ examDate: e.target.value })}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                marginTop: 12,
-                animation: "fadeUp 0.25s both",
+                background: color.card,
+                border: `1px solid ${color.hairlineStrong}`,
+                borderRadius: 3,
+                padding: "9px 12px",
+                fontSize: 14,
+                color: color.ink,
+                fontFamily: font.sans,
               }}
-            >
-              <span style={{ fontSize: 14, color: color.inkSoft }}>
-                {t.examDate}{" "}
-                <span style={{ color: color.inkGhost }}>{t.examDateHint}</span>
-              </span>
-              <input
-                type="date"
-                value={form.examDate}
-                min={localDay()}
-                onChange={(e) => onChange({ examDate: e.target.value })}
-                style={{
-                  background: color.card,
-                  border: `1px solid ${color.hairlineStrong}`,
-                  borderRadius: 3,
-                  padding: "9px 12px",
-                  fontSize: 14,
-                  color: color.ink,
-                  fontFamily: font.sans,
-                }}
-              />
-            </div>
-          )}
+            />
+          </div>
         </div>
 
         <div style={{ marginBottom: 32 }}>

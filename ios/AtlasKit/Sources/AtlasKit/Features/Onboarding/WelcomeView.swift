@@ -35,7 +35,7 @@ struct WelcomeView: View {
                             ForEach([GoalKind.exam, .pareto, .mastery, .project], id: \.self, content: option)
                         }
                         if onboarding.form.goal == .pareto { paretoRow }
-                        if onboarding.form.goal == .exam { examRow }
+                        examRow
                     }
 
                     field("Seus interesses", "opcional") {
@@ -189,7 +189,7 @@ struct WelcomeView: View {
         // showing a date, and let it be cleared.
         if onboarding.form.examDate.isEmpty {
             HStack {
-                Text("Data da prova")
+                Text(onboarding.form.goal.dateLabel)
                 Spacer(minLength: 12)
                 Button("Definir") { onboarding.form.examDate = Date.now.formatted(isoDay) }
                     .foregroundStyle(Palette.accent)
@@ -202,7 +202,7 @@ struct WelcomeView: View {
         } else {
             HStack {
                 DatePicker(
-                    "Data da prova",
+                    onboarding.form.goal.dateLabel,
                     selection: Binding(
                         get: { (try? Date(onboarding.form.examDate, strategy: isoDay)) ?? .now },
                         set: { onboarding.form.examDate = $0.formatted(isoDay) }

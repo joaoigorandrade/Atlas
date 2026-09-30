@@ -336,8 +336,9 @@ export interface OnboardingForm {
   goal: GoalKind;
   interests: string;
   target: number;
-  /** ISO date (YYYY-MM-DD) of the exam when goal is "exam"; "" = not set —
-   *  pace then shows no countdown instead of a fabricated one (#23). */
+  /** ISO date (YYYY-MM-DD) of the goal's date — the exam, the trip, the
+   *  deadline; any goal may set one (W4.5). The name predates that and is kept
+   *  for the wire. "" = not set: no countdown instead of a fabricated one. */
   examDate: string;
   /** Coverage share when goal is "pareto"; absent = PARETO_DEFAULT (also what
    *  every pre-Pareto saved run has). */

@@ -195,10 +195,10 @@ export function useDerived(deps: {
       // A date that has already passed is not a deadline — it would divide the
       // remaining territory by a floor of one day and demand a fabricated
       // 12-hour pace. No countdown beats a wrong one (#23).
-      form.goal === "exam" && daysUntil(form.examDate) > 0
+      daysUntil(form.examDate) > 0
         ? paceStatus(states, graph, form.target, daysUntil(form.examDate), phasesDone)
         : null,
-    [form.goal, form.examDate, form.target, states, graph, phasesDone],
+    [form.examDate, form.target, states, graph, phasesDone],
   );
 
   // The live calibration readings, resolved against the node labels — read by

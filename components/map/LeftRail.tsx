@@ -11,6 +11,7 @@ import {
   type NodeState,
   type PaceStatus,
   type PlanEntry,
+  goalCountdown,
 } from "@/lib/curriculum";
 import { color, font, kicker, layout, transition } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -23,7 +24,6 @@ import { SettlementLegend } from "@/components/map/Relief";
 const STRINGS = {
   en: {
     subject: "Subject",
-    finalExam: (days: number) => `Final exam · ${days} days`,
     onPace: (neededPerDay: number, remaining: number) =>
       `On pace — ~${neededPerDay} min/day covers the ${remaining} concepts left.`,
     behindPace: (neededPerDay: number, targetPerDay: number) =>
@@ -48,7 +48,6 @@ const STRINGS = {
   },
   "pt-BR": {
     subject: "Assunto",
-    finalExam: (days: number) => `Prova final · ${days} dias`,
     onPace: (neededPerDay: number, remaining: number) =>
       `No ritmo — ~${neededPerDay} min/dia cobre os ${remaining} conceitos restantes.`,
     behindPace: (neededPerDay: number, targetPerDay: number) =>
@@ -205,7 +204,7 @@ function LeftRail({
             <span
               style={{ width: 5, height: 5, borderRadius: "50%", background: "#b0852c" }}
             />
-            {t.finalExam(pace.daysLeft)}
+            {goalCountdown(goal, pace.daysLeft, language)}
           </div>
         )}
         {pace && (

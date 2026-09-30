@@ -26,6 +26,7 @@ export * from "./recall";
 export * from "./retain";
 export * from "./adherence";
 export * from "./calibration";
+export * from "./goalDate";
 export * from "./replan";
 export * from "./spacing";
 export * from "./confidence";
