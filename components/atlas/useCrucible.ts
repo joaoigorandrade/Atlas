@@ -59,6 +59,7 @@ export function useCrucible(deps: {
   const { run, sessions, gen, toast, ledger, setSelectedId, setScreen } = deps;
   const { languageRef, judgingRef, setJudging, leaveTo, enterOwed, litUp } = deps;
   const { graphRef, formRef, crucibleCacheRef, setCrucibleCache } = run;
+  const { phasesDoneRef, shakyReasonsRef } = run;
   const { phaseProgressRef, setPhaseProgress, setStates, setShakyReason } = run;
   const { recordCalib, attachGap, removeGapNode } = run;
   const { setCrucible, crucibleRef } = sessions;
@@ -99,8 +100,8 @@ export function useCrucible(deps: {
       // the learner has not solved: the server keys it to a bumped `rerun`
       // (W1.2), so the one in memory is not the one to open.
       const solved =
-        run.phasesDoneRef.current[node.id]?.includes("crucible") ||
-        run.shakyReasonsRef.current[node.id] === "crucible-scaffolded";
+        phasesDoneRef.current[node.id]?.includes("crucible") ||
+        shakyReasonsRef.current[node.id] === "crucible-scaffolded";
       if (crucibleCacheRef.current[node.id] && !solved) {
         open();
         return;
@@ -120,6 +121,8 @@ export function useCrucible(deps: {
       loadCrucible,
       setCrucible,
       crucibleCacheRef,
+      phasesDoneRef,
+      shakyReasonsRef,
       phaseProgressRef,
       warmKey,
       setScreen,

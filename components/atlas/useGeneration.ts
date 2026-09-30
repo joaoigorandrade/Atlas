@@ -668,14 +668,8 @@ export function useGeneration(opts_: {
       connectParams,
       crucibleParams,
       nodeParams,
-      nodeParams,
-      nodeParams,
-      nodeParams,
-      nodeParams,
-      nodeParams,
       provenanceParams,
       steelmanParams,
-      nodeParams,
     ],
   );
 

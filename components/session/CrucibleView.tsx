@@ -20,7 +20,6 @@ import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
 import Masthead from "@/components/ui/Masthead";
-
 import Rich from "@/components/Rich";
 import { STRINGS } from "@/components/session/crucibleCopy";
 import PassPanel from "@/components/session/crucible/PassPanel";
