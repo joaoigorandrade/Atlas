@@ -38,6 +38,10 @@ const EN = {
     `Attached ${n} gap${n === 1 ? "" : "s"} under ${label} — now wire it into what you already know.`,
   cardsDrafted: (n: number) =>
     `${n} card${n === 1 ? "" : "s"} drafted for Review · now prove it transfers — the Crucible.`,
+  drillCarded: (n: number) =>
+    n === 1
+      ? "1 call you're still working out goes to Review — speed comes across days, not in one sitting."
+      : `${n} calls you're still working out go to Review — speed comes across days, not in one sitting.`,
   workspaceEmpty: "Put something in the workspace — even a wrong attempt is diagnostic",
   transferBroke: (gap: string, label: string) =>
     `Transfer broke on “${gap}” — written back as a red gap under ${label}`,
@@ -133,6 +137,10 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
       `${n} lacuna${n === 1 ? "" : "s"} anexada${n === 1 ? "" : "s"} sob ${label} — agora conecte isso ao que você já sabe.`,
     cardsDrafted: (n: number) =>
       `${n} card${n === 1 ? "" : "s"} criado${n === 1 ? "" : "s"} para a Revisão · agora prove que transfere — o Crucible.`,
+    drillCarded: (n: number) =>
+      n === 1
+        ? "1 decisão que você ainda está elaborando vai para a Revisão — a velocidade vem ao longo dos dias, não numa sessão."
+        : `${n} decisões que você ainda está elaborando vão para a Revisão — a velocidade vem ao longo dos dias, não numa sessão.`,
     workspaceEmpty:
       "Escreva algo na área de trabalho — até uma tentativa errada é diagnóstica",
     transferBroke: (gap: string, label: string) =>

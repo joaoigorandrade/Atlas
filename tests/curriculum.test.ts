@@ -58,6 +58,7 @@ import {
   discriminateStart,
   drillLabored,
   drillMedianMs,
+  drillCards,
   drillPassed,
   drillReducer,
   drillStart,
@@ -1594,6 +1595,18 @@ describe("drill early exit", () => {
     }
     return s;
   };
+
+  it("sends every call not yet automatic to review — missed or slow (W4.4)", () => {
+    const s = run([
+      [0, 2000],
+      [1, 2000],
+      [0, 12000],
+      [0, 2000],
+    ]);
+    const cards = drillCards(s, content);
+    expect(cards.map((c) => c.key)).toEqual(["n-drill-r1", "n-drill-r2"]);
+    expect(cards[0]).toMatchObject({ front: "rep 1", back: "a — the rule" });
+  });
 
   it("ends after four fast, right reps from the start", () => {
     const s = run([

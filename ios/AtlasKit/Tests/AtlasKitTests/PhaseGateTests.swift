@@ -220,6 +220,22 @@ private func reps(_ count: Int) -> DrillContent {
     #expect(session.took["d1"] == 3)
 }
 
+@Test func drillSendsEveryCallNotYetAutomaticToReview() {
+    // W4.4: a miss and a right-but-slow rep become cards; a fast right one
+    // is already automatic and does not.
+    let content = reps(3)
+    let start = Date(timeIntervalSince1970: 0)
+    var session = DrillSession(nodeId: "n", now: start)
+    let beats: [(pick: Int, at: Double)] = [(0, 2), (1, 4), (0, 20)]
+    for beat in beats {
+        session.answer(beat.pick, content, now: start.addingTimeInterval(beat.at))
+        session.next(content, now: start.addingTimeInterval(beat.at))
+    }
+    let cards = session.cards(content)
+    #expect(cards.map(\.id) == ["n-drill-d1", "n-drill-d2"])
+    #expect(cards.first?.back == "a — r")
+}
+
 // MARK: - Predict · confidence is read, not required
 
 private func setups(_ count: Int) -> PredictContent {
