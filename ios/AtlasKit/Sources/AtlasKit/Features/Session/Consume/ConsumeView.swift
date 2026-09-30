@@ -433,6 +433,10 @@ struct ConsumeView: View {
             } else if model.writing {
                 CTAButton("Escrevendo a próxima seção…", tint: Palette.inkGhost) {}
                     .disabled(true)
+            } else if model.knewAll {
+                // Every section known before it was read (W3.4).
+                CTAButton("Você já sabia cada seção — prove no \(model.proofLabel)") { model.prove() }
+                GhostButton(model.handOffLabel) { model.finish() }
             } else {
                 CTAButton(model.handOffLabel, tint: model.handOffTint) { model.finish() }
                     .disabled(!model.passed)

@@ -11,6 +11,8 @@ import {
   type ConsumeChunk,
   type ConsumeModelBeat,
   needsPretest,
+  pretestClean,
+  proofGate,
 } from "@/lib/curriculum";
 import { segmentsForChunk, useReadAloud, useVoicePrefs } from "@/lib/speech";
 import { color, font, kicker, motion, transition } from "@/lib/theme";
@@ -58,6 +60,9 @@ interface ConsumeViewProps {
   onFinish: () => void;
   /** The recap's CTA: hand off to Socratic. */
   onBeginNext: () => void;
+  /** Every section was known before it was read — go straight to the proof
+   *  gate under the challenge that credits the ladder on a pass (W3.4). */
+  onProve: () => void;
   /** Open a lens over a section. The whole chunk travels up because the model
    *  view is written for this section's exact prose — the caller keys its
    *  request on it. */
@@ -92,6 +97,7 @@ export default function ConsumeView({
   onContinue,
   onFinish,
   onBeginNext,
+  onProve,
   onOpenModel,
   onCloseModel,
   onToggleTerm,
@@ -186,6 +192,8 @@ export default function ConsumeView({
   // The rung owed next, per kind — none on a recognise-only (Consume, Retain) plan.
   const next = plan.find((p) => p !== "consume" && p !== "retain");
   const nextLabel = next && phaseLabel(next);
+  // Every section known before it was read: proving it beats re-learning it.
+  const knewAll = pretestClean(session, chunks.length);
 
   // Honest time-left estimate: word count of what's left, at ~200wpm.
   // ponytail: while still streaming we don't yet know the pass's true length
@@ -401,21 +409,28 @@ export default function ConsumeView({
               flexWrap: "wrap",
             }}
           >
+            {knewAll && (
+              <Button data-testid="action-prove-known" onClick={onProve}>
+                {t.recapProve(phaseLabel(proofGate(plan)))}
+              </Button>
+            )}
             <button
               className="at-press"
               data-testid="action-begin-next"
               onClick={onBeginNext}
               style={{
                 padding: "14px 24px",
-                background: color.accent,
-                color: color.accentInk,
-                border: "none",
+                background: knewAll ? "none" : color.accent,
+                color: knewAll ? color.ink : color.accentInk,
+                border: knewAll ? `1px solid ${color.hairlineStrong}` : "none",
                 borderRadius: 3,
                 fontSize: 15,
                 fontFamily: font.caps,
                 letterSpacing: "0.06em",
                 cursor: "pointer",
-                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+                boxShadow: knewAll
+                  ? "none"
+                  : `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
               }}
             >
               {t.recapBegin(nextLabel)}

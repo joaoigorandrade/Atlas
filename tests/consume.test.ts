@@ -7,6 +7,8 @@ import {
   emptyConsumeProgress,
   needsPretest,
   normaliseConsumeProgress,
+  pretestClean,
+  provesOnSight,
   phaseIndex,
   preferredModality,
   planGates,
@@ -257,5 +259,46 @@ describe("Consume pretest", () => {
     expect(p.idx).toBe(2);
     expect(p.checks.c1).toEqual({ oi: -1, correct: true });
     expect(normaliseConsumeProgress(undefined)).toEqual(emptyConsumeProgress());
+  });
+});
+
+// W3.4 — a reading known end to end offers the proof gate instead of the ladder.
+describe("prove it on sight", () => {
+  const clean = {
+    ...emptyConsumeProgress(),
+    finished: true,
+    total: 3,
+    pretest: { a: true, b: true, c: true },
+  };
+  const plan = [
+    "consume",
+    "discriminate",
+    "socratic",
+    "crucible",
+    "recall",
+    "retain",
+  ] as const;
+
+  it("needs every section guessed right, over a finished pass of two or more", () => {
+    expect(pretestClean(clean)).toBe(true);
+    expect(pretestClean({ ...clean, finished: false })).toBe(false);
+    expect(pretestClean({ ...clean, pretest: { a: true, b: false, c: true } })).toBe(
+      false,
+    );
+    // A section read while it was being written left no guess: not clean.
+    expect(pretestClean({ ...clean, pretest: { a: true, b: true } })).toBe(false);
+    expect(pretestClean(clean, 4)).toBe(false);
+    expect(pretestClean({ ...clean, total: 1, pretest: { a: true } })).toBe(false);
+    expect(pretestClean(undefined)).toBe(false);
+  });
+
+  it("offers the proof gate once — not after it was tried, nor on a Shaky node", () => {
+    expect(provesOnSight(plan, ["consume"], "learning", clean)).toBe(true);
+    expect(provesOnSight(plan, ["consume", "crucible"], "learning", clean)).toBe(false);
+    expect(provesOnSight(plan, ["consume"], "shaky", clean, "crucible-fail")).toBe(false);
+    expect(provesOnSight(plan, ["consume"], "learning", clean, "crucible-fail")).toBe(
+      false,
+    );
+    expect(provesOnSight(plan, ["consume"], "frontier", clean)).toBe(false);
   });
 });

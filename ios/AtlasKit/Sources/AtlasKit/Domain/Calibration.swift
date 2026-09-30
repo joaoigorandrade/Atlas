@@ -102,6 +102,25 @@ public func calibItems(_ samples: [CalibSample], _ graph: ConceptGraph) -> [Cali
 ///     to displaying as frontier, and that progress is real.
 ///   - gaps: gap sub-nodes still open under the node (`openGapIds`). A finished
 ///     ladder with a diagnosed hole in it waits at Learning until they close.
+/// Every section was known before it was read (W3.4): each one's check right
+/// as a pretest, over a finished pass of at least two sections. Mirrors
+/// `pretestClean` in `consume.ts`.
+public func pretestClean(_ reading: ReadingProgress?, sections: Int? = nil) -> Bool {
+    guard let reading, reading.finished else { return false }
+    let guesses = Array(reading.pretest.values)
+    return guesses.count >= max(2, sections ?? reading.total) && guesses.allSatisfy { $0 }
+}
+
+/// Should the node lead with "prove it" rather than its next rung (W3.4)? A
+/// reading known end to end, a proof gate never tried, nothing marking it
+/// Shaky. Mirrors `provesOnSight` in `calibration.ts`.
+public func provesOnSight(
+    _ plan: [Phase], _ done: [Phase], state: NodeState,
+    reading: ReadingProgress?, shaky: ShakyReason?
+) -> Bool {
+    state == .learning && shaky == nil && !done.contains(proofGate(plan)) && pretestClean(reading)
+}
+
 public func stateFromPlan(
     _ plan: [Phase], _ done: [Phase] = [],
     shaky: ShakyReason? = nil, started: Bool = false, gaps: Int = 0

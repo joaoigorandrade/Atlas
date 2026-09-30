@@ -210,6 +210,22 @@ final class ConsumeViewModel {
     /// The guess before reading missed — the check at the end says so.
     var guessMissed: Bool { !passed && (chunk.map { guesses[$0.id] == false } ?? false) }
 
+    /// Every section was known before it was read (W3.4): the hand-off leads
+    /// with proving it rather than the next rung.
+    var knewAll: Bool {
+        guard !writing, next == nil, passed else { return false }
+        let reading = ReadingProgress(total: landed, pretest: guesses, finished: true, handedOff: false)
+        return pretestClean(reading, sections: landed)
+    }
+    var proofLabel: String { proofGate(node.plan).label }
+
+    func prove() {
+        guard knewAll else { return }
+        speaker.stop()
+        note()
+        session.prove()
+    }
+
     /// The section on screen is still being written — its prose is being read.
     func sawWriting(_ id: String) { readBare.insert(id) }
 

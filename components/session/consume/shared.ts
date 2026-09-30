@@ -91,6 +91,7 @@ export const STRINGS = {
     recapTermsHeading: "Terms you opened",
     recapBegin: (phase?: string) =>
       phase ? `Begin ${phase} →` : "Done — back to the map →",
+    recapProve: (phase: string) => `You knew every section — prove it in ${phase} →`,
     recapBackToMap: "Back to the map",
     recapReread: "↑ Re-read",
     checkKicker: "Before you continue",
@@ -182,6 +183,7 @@ export const STRINGS = {
     recapTermsHeading: "Termos que você abriu",
     recapBegin: (phase?: string) =>
       phase ? `Começar ${phase} →` : "Pronto — voltar ao mapa →",
+    recapProve: (phase: string) => `Você já sabia cada seção — prove no ${phase} →`,
     recapBackToMap: "Voltar ao mapa",
     recapReread: "↑ Reler",
     checkKicker: "Antes de continuar",

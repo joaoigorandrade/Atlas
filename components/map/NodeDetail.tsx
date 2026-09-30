@@ -9,6 +9,8 @@ import {
   phaseLabel,
   phasePlan,
   phaseSkipNudge,
+  proofGate,
+  provesOnSight,
   primaryPhase,
   readingProgress,
   shakyLine,
@@ -32,6 +34,7 @@ import { STRINGS } from "@/components/map/nodeDetailCopy";
 import NodeSeal from "@/components/map/NodeSeal";
 import { WaxSeal } from "@/components/ui/Ornaments";
 import Button from "@/components/ui/Button";
+import { SkipNudge } from "@/components/map/SkipNudge";
 
 /** The right-aligned small-caps note a row carries. */
 const TAG: React.CSSProperties = {
@@ -154,6 +157,14 @@ function NodeDetailBody({
       ? readingProgress(consumeProgress)
       : null;
   const locked = displayState === "unknown";
+  // Every section known before it was read: the ladder is re-teaching (W3.4).
+  const proving = provesOnSight(
+    plan,
+    phasesDone,
+    displayState,
+    consumeProgress,
+    shakyReason,
+  );
   // A lacuna is not a map topic: no six-phase spiral, no green CTA. It is one
   // targeted Socratic pass hanging off its parent, and it reads that way.
   const isGap = displayState === "gap";
@@ -520,78 +531,29 @@ function NodeDetailBody({
           </div>
 
           {pendingSkip !== null && currentPhase >= 0 && (
-            <div
-              style={{
-                background: color.amberBg,
-                border: "1px solid rgba(160,106,48,0.25)",
-                borderRadius: 3,
-                padding: "13px 15px",
-                marginTop: -8,
-                marginBottom: 18,
-                animation: "fadeUp 0.25s both",
+            <SkipNudge
+              nudge={phaseSkipNudge(plan[currentPhase], language)}
+              doFirst={t.doFirst(phaseLabel(plan[currentPhase]))}
+              skipTo={t.skipTo(phaseLabel(plan[pendingSkip]))}
+              onDoFirst={() => {
+                setPendingSkip(null);
+                onPhaseAction(node, displayState, currentPhase);
               }}
-            >
-              <div
-                style={{
-                  fontSize: 13.5,
-                  lineHeight: 1.5,
-                  color: color.amberInk,
-                  marginBottom: 11,
-                }}
-              >
-                {phaseSkipNudge(plan[currentPhase], language)}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button
-                  className="at-press"
-                  data-testid="action-skip-cancel"
-                  onClick={() => {
-                    setPendingSkip(null);
-                    onPhaseAction(node, displayState, currentPhase);
-                  }}
-                  style={{
-                    padding: "8px 13px",
-                    background: color.accent,
-                    color: color.accentInk,
-                    border: "none",
-                    borderRadius: 3,
-                    fontSize: 13,
-                    fontFamily: font.caps,
-                    letterSpacing: "0.06em",
-                    cursor: "pointer",
-                  }}
-                >
-                  {t.doFirst(phaseLabel(plan[currentPhase]))}
-                </button>
-                <button
-                  className="at-press"
-                  data-testid="action-skip-confirm"
-                  onClick={() => {
-                    const target = pendingSkip;
-                    setPendingSkip(null);
-                    onPhaseAction(node, displayState, target);
-                  }}
-                  style={{
-                    padding: "8px 4px",
-                    background: "none",
-                    border: "none",
-                    fontSize: 13,
-                    color: color.amberInk,
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                  }}
-                >
-                  {t.skipTo(phaseLabel(plan[pendingSkip]))}
-                </button>
-              </div>
-            </div>
+              onSkip={() => {
+                const target = pendingSkip;
+                setPendingSkip(null);
+                onPhaseAction(node, displayState, target);
+              }}
+            />
           )}
         </>
       )}
 
       <Button
         data-testid="action-primary"
-        onClick={() => onPrimaryAction(node, displayState)}
+        onClick={() =>
+          proving ? onSkipKnown(node) : onPrimaryAction(node, displayState)
+        }
         accent={isGap ? stateColor : color.accent}
         style={
           locked
@@ -606,22 +568,26 @@ function NodeDetailBody({
       >
         {/* A part-read node's primary action is to get back into the reading,
             not to start something new. */}
-        {reading
-          ? t.resumeReading
-          : gapCta
-            ? t.closeGap(labelOf(gapCta))
-            : t.cta[displayState](ctaPhaseLabel)}
+        {proving
+          ? t.proveNow(phaseLabel(proofGate(plan)))
+          : reading
+            ? t.resumeReading
+            : gapCta
+              ? t.closeGap(labelOf(gapCta))
+              : t.cta[displayState](ctaPhaseLabel)}
       </Button>
 
-      {displayState === "frontier" && (
+      {(displayState === "frontier" || proving) && (
         <Button
           variant="secondary"
           accent={color.inkMuted}
-          data-testid="action-skip-known"
-          onClick={() => onSkipKnown(node)}
+          data-testid={proving ? "action-walk-ladder" : "action-skip-known"}
+          onClick={() =>
+            proving ? onPrimaryAction(node, displayState) : onSkipKnown(node)
+          }
           style={{ marginTop: 10, fontSize: 14 }}
         >
-          {t.skipKnown}
+          {proving ? t.walkLadder(ctaPhaseLabel) : t.skipKnown}
         </Button>
       )}
 

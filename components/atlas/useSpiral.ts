@@ -1631,6 +1631,9 @@ export function useSpiral(deps: {
 
   /** The recap's primary CTA: forward into whatever the plan says is next. */
   const beginNextFromConsume = () => leaveConsume(enterOwedPhase);
+  /** The recap's "you knew every section": straight to the proof gate, under
+   *  the challenge that credits the ladder on a cold pass (W3.4). */
+  const proveFromConsume = () => leaveConsume((node) => skipKnown(node));
   /** "I know this — test me" is a deliberate jump, not a hand-off, so it keeps
    *  its target; a plan with no Crucible falls back to the owed rung. */
   const consumeSkipCrucible = () =>
@@ -1871,6 +1874,7 @@ export function useSpiral(deps: {
     advanceFromSocratic,
     finishConsume,
     beginNextFromConsume,
+    proveFromConsume,
     consumeSkipCrucible,
     consumeRoutePrereq,
     onNodeDoubleClick,

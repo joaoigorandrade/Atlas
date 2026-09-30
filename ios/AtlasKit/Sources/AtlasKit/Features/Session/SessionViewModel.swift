@@ -203,6 +203,15 @@ public final class SessionViewModel: Identifiable {
     /// only path to green: a plan without one could never reach it.
     public func advance() { advance(passed: true) }
 
+    /// The reading was known end to end (W3.4): close it, then go straight to
+    /// the proof gate under the challenge that credits the ladder on a cold
+    /// pass. Closed first — closing a phase is what spends a challenge.
+    public func prove() {
+        markWorked()
+        store.completePhase(node, phase)
+        phase = store.armChallenge(node)
+    }
+
     /// The same hand-off, for a phase that grades itself. The rung closes only
     /// on a run that actually cleared its own gate — reading the report is not
     /// passing the phase, and the six the catalogue added each set a different

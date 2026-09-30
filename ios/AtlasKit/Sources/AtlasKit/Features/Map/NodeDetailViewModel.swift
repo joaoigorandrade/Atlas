@@ -208,6 +208,13 @@ final class NodeDetailViewModel {
         ].compactMap(\.self).joined(separator: " · ")
     }
 
+    /// A reading known end to end leads with proving it (W3.4).
+    var proving: Bool {
+        provesOnSight(plan, done, state: state, reading: store.reading(node.id),
+                      shaky: store.shakyReasons[node.id])
+    }
+    var proofLabel: String { proofGate(plan).label }
+
     /// "Já sei isso — provar": not the honour system. Opens the proof gate, and
     /// only a first-try pass credits the whole plan (`ledgerAfter`).
     func prove() -> Phase { store.armChallenge(node) }

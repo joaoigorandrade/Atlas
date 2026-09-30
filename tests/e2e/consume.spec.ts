@@ -49,3 +49,56 @@ test("consume: a right pretest passes the check and folds the section", async ({
   // The check counts as passed, so the way on is open without re-reading.
   await expect(sheet.getByTestId("action-continue")).toBeVisible();
 });
+
+test("consume: knowing every section before reading offers the proof gate (W3.4)", async ({
+  page,
+}) => {
+  await openRun(page, { [FIRST_NODE]: "frontier" });
+  await openPhase(page, FIRST_NODE, "consume");
+
+  const sheet = page.getByTestId("phase-consume");
+  for (let i = 0; i < 3; i++) {
+    await guess(page, 1);
+    const last = i === 2;
+    await sheet.getByTestId(last ? "action-finish" : "action-continue").click();
+  }
+  const recap = page.getByTestId("phase-consume-recap");
+  await expect(recap.getByTestId("action-prove-known")).toBeVisible();
+  // The ladder stays one tap away; proving it is the lead.
+  await expect(recap.getByTestId("action-begin-next")).toBeVisible();
+  await recap.getByTestId("action-prove-known").click();
+  await expect(page.getByTestId("phase-crucible")).toBeVisible();
+});
+
+test("node detail: a reading known end to end leads with proving it (W3.4)", async ({
+  page,
+}) => {
+  const clean = {
+    idx: 2,
+    total: 3,
+    finished: true,
+    handedOff: false,
+    variant: {},
+    collapsed: { c1: true, c2: true, c3: true },
+    checks: {
+      c1: { oi: 1, correct: true },
+      c2: { oi: 1, correct: true },
+      c3: { oi: 1, correct: true },
+    },
+    pretest: { c1: true, c2: true, c3: true },
+    termsSeen: [],
+  };
+  await openRun(page, {
+    [FIRST_NODE]: {
+      state: "learning",
+      phases_done: ["consume"],
+      consume_progress: clean,
+    },
+  });
+  await page.getByTestId(`node-${FIRST_NODE}`).press("Enter");
+  const panel = page.getByTestId("panel-node");
+  await expect(panel.getByTestId("action-primary")).toContainText("prove it");
+  await expect(panel.getByTestId("action-walk-ladder")).toBeVisible();
+  await panel.getByTestId("action-primary").click();
+  await expect(page.getByTestId("phase-crucible")).toBeVisible();
+});

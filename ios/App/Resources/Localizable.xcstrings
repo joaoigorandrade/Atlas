@@ -254,6 +254,17 @@
         }
       }
     },
+    "Você já sabia cada seção — prove no %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You knew every section — prove it in %@"
+          }
+        }
+      }
+    },
     "Você já sabia isto — pode seguir, ou ler mesmo assim." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -261,6 +272,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You already had this — go on, or read it anyway."
+          }
+        }
+      }
+    },
+    "Você já sabia tudo — prove no %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You knew all of it — prove it in %@"
           }
         }
       }

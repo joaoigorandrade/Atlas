@@ -252,6 +252,21 @@ export function afterPretest<P extends ConsumeProgress>(
     : { ...p, pretest };
 }
 
+/**
+ * Every section was already known before it was read (W3.4): each one's check
+ * answered right as a pretest, over a finished pass of at least two sections.
+ * A section with no check leaves no guess, so a pass that had one is never
+ * clean — the evidence has to cover the whole reading.
+ */
+export function pretestClean(
+  p: ConsumeProgress | undefined,
+  sections = p?.total ?? 0,
+): boolean {
+  if (!p?.finished) return false;
+  const guesses = Object.values(p.pretest ?? {});
+  return guesses.length >= Math.max(2, sections) && guesses.every(Boolean);
+}
+
 /** Sections read out of sections there are — never claiming past what exists,
  *  and never short-changing a finished pass whose `total` arrived late. */
 export function readingProgress(p: ConsumeProgress): {
