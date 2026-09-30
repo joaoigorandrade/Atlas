@@ -24,6 +24,7 @@ import {
   hoursLeft,
   type ConceptNode,
   type CrucibleAction,
+  type CrucibleContent,
   type CrucibleSession,
   type GapSpec,
 } from "@/lib/curriculum";
@@ -89,19 +90,21 @@ export function useCrucible(deps: {
         showToast(tc().crucibleHeld(node.label, hoursLeft(until)));
         return;
       }
-      const open = () => {
-        // A parked attempt is the learner's own writing — reopen it rather
-        // than handing them a blank workspace for a problem they started.
-        setCrucible(parked ? { ...parked, opensAt: undefined } : crucibleStart(node.id));
-        setSelectedId(node.id);
-        setScreen("crucible");
-      };
       // A redo, or the cold re-attempt after a guided pass, is owed a problem
       // the learner has not solved: the server keys it to a bumped `rerun`
       // (W1.2), so the one in memory is not the one to open.
       const solved =
         phasesDoneRef.current[node.id]?.includes("crucible") ||
         shakyReasonsRef.current[node.id] === "crucible-scaffolded";
+      const open = (fresh?: CrucibleContent) => {
+        // The loader keeps a node's first problem; a solved one is replaced.
+        if (fresh && solved) setCrucibleCache((p) => ({ ...p, [node.id]: fresh }));
+        // A parked attempt is the learner's own writing — reopen it rather
+        // than handing them a blank workspace for a problem they started.
+        setCrucible(parked ? { ...parked, opensAt: undefined } : crucibleStart(node.id));
+        setSelectedId(node.id);
+        setScreen("crucible");
+      };
       if (crucibleCacheRef.current[node.id] && !solved) {
         open();
         return;
@@ -121,6 +124,7 @@ export function useCrucible(deps: {
       loadCrucible,
       setCrucible,
       crucibleCacheRef,
+      setCrucibleCache,
       phasesDoneRef,
       shakyReasonsRef,
       phaseProgressRef,

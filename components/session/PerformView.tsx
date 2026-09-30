@@ -24,7 +24,7 @@ import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
-import { color, font } from "@/lib/theme";
+import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -119,11 +119,7 @@ export default function PerformView({
       >
         <div
           style={{
-            fontFamily: font.mono,
-            fontSize: 10,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: color.inkGhost,
+            ...kicker(10, "0.12em", color.inkGhost),
             marginBottom: 8,
           }}
         >
@@ -132,17 +128,18 @@ export default function PerformView({
         <div style={{ fontFamily: font.serif, fontSize: 17, lineHeight: 1.5 }}>
           <Rich text={content.task} />
         </div>
+        {session.previous?.length ? (
+          <div style={{ marginTop: 10, fontSize: 14, color: color.inkSoft }}>
+            {copy.lastBroke(session.previous.join(" · "))}
+          </div>
+        ) : null}
       </div>
 
       {!session.reported && (
         <div style={{ marginTop: 22 }}>
           <div
             style={{
-              fontFamily: font.mono,
-              fontSize: 10,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: color.inkGhost,
+              ...kicker(10, "0.1em", color.inkGhost),
               marginBottom: 9,
             }}
           >

@@ -16,13 +16,19 @@ export interface Attempt {
   detail?: Record<string, unknown>;
 }
 
-export function recordAttempt(a: Attempt): void {
+/** The write itself, for the one caller that must wait on it (a re-run,
+ *  whose next case is keyed on this row). */
+export function postAttempt(a: Attempt): Promise<unknown> {
   const topicId = generationTopic();
-  if (!topicId) return;
-  void fetch(`/api/v1/topics/${topicId}/attempts`, {
+  if (!topicId) return Promise.resolve();
+  return fetch(`/api/v1/topics/${topicId}/attempts`, {
     method: "POST",
     keepalive: true,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(a),
   }).catch(() => {});
+}
+
+export function recordAttempt(a: Attempt): void {
+  void postAttempt(a);
 }

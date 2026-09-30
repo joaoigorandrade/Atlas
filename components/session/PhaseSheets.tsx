@@ -85,6 +85,7 @@ export function phaseSheets(p: {
     exitRecall,
     dispatchPerform,
     performSubmit,
+    performRerun,
     advanceFromPerform,
     exitPerform,
     domainPhases,
@@ -216,7 +217,7 @@ export function phaseSheets(p: {
             onWork={(value) => dispatchPerform({ type: "work", value })}
             onNudge={() => dispatchPerform({ type: "nudge" })}
             onSubmit={performSubmit}
-            onRerun={() => dispatchPerform({ type: "rerun" })}
+            onRerun={performRerun}
             onAdvance={advanceFromPerform}
           />,
         )}

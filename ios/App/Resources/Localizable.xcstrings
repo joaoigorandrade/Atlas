@@ -31,6 +31,16 @@
         }
       }
     },
+    "Um caso novo. A última execução quebrou em: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new case. Last run broke at: %@."
+          }
+        }
+      }
+    },
     "— %@" : {
       "extractionState" : "stale",
       "localizations" : {

@@ -656,6 +656,13 @@ public extension AtlasStore {
         }
     }
 
+    /// The same write, awaited — for the re-run, whose next case is keyed on it.
+    func postAttempt(_ node: ConceptNode, _ phase: Phase, passed: Bool) async {
+        guard let topicId, let token = await bearer() else { return }
+        try? await runs.attempt(topicId, nodeId: node.id, phase: phase, passed: passed,
+                                detail: [:], token: token)
+    }
+
     /// When a phase held on this node opens, if it is still held (`spacing.ts`):
     /// the `opensAt` in the phase's own `phase_progress` slot, in epoch ms.
     func heldUntil(_ nodeId: String, _ phase: Phase, now: Date = .now) -> Date? {

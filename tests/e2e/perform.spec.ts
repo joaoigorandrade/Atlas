@@ -45,3 +45,30 @@ test("perform: its own surface, its own brief, its own rung", async ({ page }) =
     expect(row.phases_done).not.toContain("perform");
   }).toPass({ timeout: 20_000 });
 });
+
+test("perform: a re-run asks for a new case and quotes where the last one broke", async ({
+  page,
+}) => {
+  // W1.4: re-running the case whose report just named the wrong step tests
+  // reading the report. The failed run is logged, the server's `rerun` moves,
+  // and a case is fetched fresh.
+  await openRun(page, {
+    "worked-cases": { state: "learning", phases_done: ["consume", "trace", "feynman"] },
+    "core-rule": "mastered",
+    foundations: "mastered",
+    notation: "mastered",
+  });
+  await openPhase(page, "worked-cases", "perform");
+  const sheet = page.getByTestId("phase-perform");
+  await sheet.getByTestId("field-answer").fill("Step one holds, so step two applies.");
+  await sheet.getByTestId("action-submit").click();
+  await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
+
+  const fetched = page.waitForRequest(
+    (r) => r.url().includes("/api/generate") && r.postDataJSON()?.kind === "perform",
+  );
+  await sheet.getByTestId("action-rerun").click();
+  await fetched;
+  await expect(sheet.getByText(/Last run broke at/)).toBeVisible();
+  await expect(sheet.getByTestId("field-answer")).toHaveValue("");
+});
