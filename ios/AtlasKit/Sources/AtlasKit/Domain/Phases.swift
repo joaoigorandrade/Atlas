@@ -285,7 +285,17 @@ public extension ConceptNode {
         guard whole > 0 else { return 0 }
         let owed = gates.filter { !done.contains($0) }.reduce(0) { $0 + $1.minutes }
         let budget = cellBudget(importance ?? .core, difficulty ?? .medium)
-        return Int((Double(budget * owed) / Double(whole)).rounded())
+        let share = Double(budget * owed) / Double(whole)
+        // A core node never promises less than its phases take (W3.6);
+        // working and peripheral phases are cut to their budget already.
+        // Mirrors `DIFFICULTY_PACE` in `replan.ts`.
+        let pace: Double = switch difficulty ?? .medium {
+        case .easy: 0.75
+        case .medium: 1
+        case .hard: 1.25
+        }
+        let floor = (importance ?? .core) == .core ? Double(owed) * pace : 0
+        return Int(max(share, floor).rounded())
     }
 }
 

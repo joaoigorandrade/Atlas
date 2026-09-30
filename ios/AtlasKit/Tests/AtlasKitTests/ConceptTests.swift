@@ -246,12 +246,13 @@ import Testing
     #expect(!resolvePlan(.concept, .general, .core, .easy).contains(.socratic))
 
     var node = ConceptNode(id: "a", label: "A", kind: .concept, domain: .general)
-    // The default cell's 35-minute budget, spread over the gates by weight:
-    // consume 10 of the ladder's 50 phase-minutes.
-    #expect(node.minutesLeft([]) == 35)
-    #expect(node.minutesLeft([.consume]) == 28)
-    node.difficulty = .hard
+    // A core node never promises less than its rungs take (W3.6): the
+    // ladder's 50 phase-minutes beat its cell's 35-minute budget.
     #expect(node.minutesLeft([]) == 50)
+    #expect(node.minutesLeft([.consume]) == 40)
+    node.difficulty = .hard
+    #expect(node.minutesLeft([]) == 63)
+    // A peripheral node's phases are cut to its budget: the budget stands.
     node.importance = .peripheral
     #expect(node.minutesLeft([]) == 6)
 }

@@ -1873,8 +1873,9 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10);
     expect(pace.remaining).toBe(1);
     expect(pace.daysLeft).toBe(10);
-    // One plan-less node is a core/medium concept: its 35-minute budget over 10 days.
-    expect(pace.neededPerDay).toBe(4);
+    // One plan-less node is a core/medium concept: its ladder's 50 phase-minutes
+    // (more than its 35-minute cell budget, W3.6) over 10 days.
+    expect(pace.neededPerDay).toBe(5);
     expect(pace.onTrack).toBe(true);
   });
 
@@ -1883,8 +1884,9 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10, {
       b: [...done.b],
     });
-    // 28 of the ladder's 50 phase-minutes are owed: 35 × 28/50 ≈ 20 min → 2/day.
-    expect(pace.neededPerDay).toBe(2);
+    // 28 of the ladder's 50 phase-minutes are owed — more than 35 × 28/50 ≈ 20
+    // of budget, so the 28 stand: 3/day.
+    expect(pace.neededPerDay).toBe(3);
   });
 });
 
@@ -1899,21 +1901,27 @@ describe("minutesLeft", () => {
     y: 0,
   } as const;
 
-  it("charges the cell's budget, spread over the unfinished gates", () => {
-    expect(minutesLeft(node)).toBe(CELL_BUDGET["12"]);
-    expect(minutesLeft(node, [...planGates(PHASE_PLAN.concept)])).toBe(0);
-    const gates = planGates(PHASE_PLAN.concept);
-    const whole = gates.reduce((m, p) => m + PHASE_MINUTES[p], 0);
-    expect(minutesLeft(node, ["consume"])).toBe(
-      Math.round((CELL_BUDGET["12"] * (whole - PHASE_MINUTES.consume)) / whole),
-    );
+  const gates = planGates(PHASE_PLAN.concept);
+  const whole = gates.reduce((m, p) => m + PHASE_MINUTES[p], 0);
+
+  it("never promises less than the unfinished phases take (W3.6)", () => {
+    // The concept ladder's rungs add up to more than its cell's budget.
+    expect(whole).toBeGreaterThan(CELL_BUDGET["12"]);
+    expect(minutesLeft(node)).toBe(whole);
+    expect(minutesLeft(node, [...gates])).toBe(0);
+    expect(minutesLeft(node, ["consume"])).toBe(whole - PHASE_MINUTES.consume);
   });
 
   it("an easier or less important cell costs less", () => {
-    expect(minutesLeft({ ...node, difficulty: "hard" })).toBe(CELL_BUDGET["13"]);
-    expect(minutesLeft({ ...node, difficulty: "easy" })).toBe(CELL_BUDGET["11"]);
-    expect(minutesLeft({ ...node, importance: "working" })).toBe(CELL_BUDGET["22"]);
-    expect(minutesLeft({ ...node, importance: "peripheral" })).toBe(CELL_BUDGET["32"]);
+    expect(minutesLeft({ ...node, difficulty: "hard" })).toBe(
+      Math.round(Math.max(CELL_BUDGET["13"], whole * 1.25)),
+    );
+    expect(minutesLeft({ ...node, difficulty: "easy" })).toBeLessThan(minutesLeft(node));
+    const working = { ...node, importance: "working" as const };
+    expect(minutesLeft(working)).toBeLessThan(minutesLeft(node));
+    expect(minutesLeft({ ...node, importance: "peripheral" as const })).toBeLessThan(
+      minutesLeft(working),
+    );
   });
 });
 
