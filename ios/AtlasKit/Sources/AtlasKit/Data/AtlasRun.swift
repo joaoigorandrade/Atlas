@@ -65,6 +65,9 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
     public var cards: [StoredCard]
     /// The continent this map belongs to, if any — see `Continent`.
     public var continent: Continent?
+    /// The topic-level axes the server stamped from the map's header, or the
+    /// learner chose (W1.1, W2.5, W2.6, W5.1, W9.1). Nil from an older server.
+    public var axes: TopicAxes?
 
     public struct Point: Codable, Sendable {
         public let x: Double
@@ -88,7 +91,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         case calibSamples, litToday, updatedAt, graph, states, positions
         case shakyReasons, phasesDone, reviewedNodes, consumeProgress, socraticProgress
         case feynmanProgress, connectProgress, phaseProgress, misconceptions, cards
-        case continent, phaseClosedAt
+        case continent, phaseClosedAt, axes
     }
 
     public init(from decoder: Decoder) throws {
@@ -123,6 +126,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         misconceptions = c.lenientList(.misconceptions)
         cards = c.lenientList(.cards)
         continent = try? c.decodeIfPresent(Continent.self, forKey: .continent)
+        axes = try? c.decodeIfPresent(TopicAxes.self, forKey: .axes)
         // Positions are their own map because the browser draws from it and
         // never from a node's generated coordinates. Folding it onto the nodes
         // here is what makes the two clients draw the same map, and leaves this
@@ -137,6 +141,35 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
         // left here was folded back over the nodes on the next launch — which
         // put a node the learner had dragged back where it started.
         positions = [:]
+    }
+}
+
+/// The topic-level axes, as bootstrap returns them. Mirrors `TopicAxes` in
+/// `lib/curriculum/topicMeta.ts`; every field lenient, so a new one is ignored.
+public struct TopicAxes: Codable, Sendable, Equatable {
+    public var targetLanguage: String?
+    public var jurisdictional: Bool
+    public var locale: String?
+    public var lenses: [String]
+    public var lens: String?
+    public var shape: String
+    public var target: Target?
+
+    public struct Target: Codable, Sendable, Equatable {
+        public var kind: String
+        public var text: String
+        public var date: String?
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        targetLanguage = try? c.decodeIfPresent(String.self, forKey: .targetLanguage)
+        jurisdictional = (try? c.decode(Bool.self, forKey: .jurisdictional)) ?? false
+        locale = try? c.decodeIfPresent(String.self, forKey: .locale)
+        lenses = (try? c.decode([String].self, forKey: .lenses)) ?? []
+        lens = try? c.decodeIfPresent(String.self, forKey: .lens)
+        shape = (try? c.decode(String.self, forKey: .shape)) ?? "hierarchy"
+        target = try? c.decodeIfPresent(Target.self, forKey: .target)
     }
 }
 

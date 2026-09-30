@@ -58,15 +58,43 @@ export function ttsConfigured(): boolean {
 /** Non-English needs the multilingual model; English gets the model tuned for
  *  it. Overridable, because the provider's recommended slug moves faster than
  *  a deploy does. */
-export function modelFor(language: Language): string {
+export function modelFor(language: Speech): string {
   return (
     process.env.SPEECHIFY_MODEL ||
-    (language === "en" ? "simba-english" : "simba-multilingual")
+    (language === "en" || language.startsWith("en-") ? "simba-english" : "simba-multilingual")
   );
 }
 
-export function voiceId(): string {
-  return process.env.SPEECHIFY_VOICE_ID || DEFAULT_VOICE;
+/**
+ * What a segment is spoken in: the interface language, or — for a target-
+ * language segment (W1.1) — its own BCP-47 tag, so a Spanish line is said by a
+ * Spanish voice and not read out by the Portuguese one.
+ */
+export type Speech = Language | string;
+
+/** The locale the engine is told, for either kind of `Speech`. */
+export const speechTag = (s: Speech): string =>
+  s === "en" || s === "pt-BR" ? speechLang(s) : s;
+
+/**
+ * The voice per spoken language. One calm voice carries the interface
+ * languages; a target language may name its own native one through
+ * `SPEECHIFY_VOICES` (`{"es": "…", "es-MX": "…"}`, most specific wins).
+ */
+export function voiceId(speech: Speech = "en"): string {
+  let table: Record<string, string> = {};
+  try {
+    table = JSON.parse(process.env.SPEECHIFY_VOICES || "{}");
+  } catch {
+    table = {};
+  }
+  const tag = speechTag(speech);
+  return (
+    table[tag] ||
+    table[tag.split("-")[0]] ||
+    process.env.SPEECHIFY_VOICE_ID ||
+    DEFAULT_VOICE
+  );
 }
 
 function num(value: unknown): number | null {
@@ -167,7 +195,7 @@ export function splitForProvider(text: string, limit = PROVIDER_CHARS): string[]
  */
 export async function synthesize(
   text: string,
-  language: Language,
+  language: Speech,
   requestId?: string,
 ): Promise<SpeechClip> {
   const pieces = splitForProvider(text);
@@ -199,7 +227,7 @@ export async function synthesize(
 
 async function synthesizeOne(
   text: string,
-  language: Language,
+  language: Speech,
   requestId?: string,
 ): Promise<SpeechClip> {
   const key = process.env.SPEECHIFY_API_KEY;
@@ -218,10 +246,10 @@ async function synthesizeOne(
       },
       body: JSON.stringify({
         input: text,
-        voice_id: voiceId(),
+        voice_id: voiceId(language),
         model,
         audio_format: "mp3",
-        language: speechLang(language),
+        language: speechTag(language),
       }),
       signal: AbortSignal.timeout(REQUEST_MS),
     });
@@ -257,8 +285,8 @@ async function synthesizeOne(
   logEvent("tts_call", {
     req: requestId,
     model,
-    voice: voiceId(),
-    lang: speechLang(language),
+    voice: voiceId(language),
+    lang: speechTag(language),
     chars: num(payload?.billable_characters_count) ?? text.length,
     marks: marks.length,
     ms: Date.now() - started,

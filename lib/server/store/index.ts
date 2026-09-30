@@ -22,3 +22,4 @@ export * from "./content";
 export * from "./continents";
 export * from "./derive";
 export * from "./topicAxes";
+export * from "./topicPatch";

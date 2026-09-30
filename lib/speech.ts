@@ -72,79 +72,9 @@ export function appendTranscript(existing: string, addition: string): string {
 }
 
 // ---- preferences ----------------------------------------------------------
-
-export const VOICE_STORAGE_KEY = "atlas.voice";
-
-export interface VoicePrefs {
-  dictation: boolean;
-  readAloud: boolean;
-}
-
-/** Both halves are on wherever the browser can do them. */
-export const DEFAULT_VOICE_PREFS: VoicePrefs = {
-  dictation: true,
-  readAloud: true,
-};
-
-/** Tolerates a missing, malformed, or half-written value — a corrupt entry
- *  falls back to the defaults rather than taking voice away. */
-export function parseVoicePrefs(raw: string | null): VoicePrefs {
-  if (!raw) return DEFAULT_VOICE_PREFS;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return DEFAULT_VOICE_PREFS;
-  }
-  if (!parsed || typeof parsed !== "object") return DEFAULT_VOICE_PREFS;
-  const rec = parsed as Record<string, unknown>;
-  return {
-    dictation:
-      typeof rec.dictation === "boolean" ? rec.dictation : DEFAULT_VOICE_PREFS.dictation,
-    readAloud:
-      typeof rec.readAloud === "boolean" ? rec.readAloud : DEFAULT_VOICE_PREFS.readAloud,
-  };
-}
-
-// One device-level store shared by every hook instance, so flipping a toggle
-// in Settings reaches a mic mounted on another surface.
-let storedPrefs: VoicePrefs = DEFAULT_VOICE_PREFS;
-let prefsLoaded = false;
-const prefsListeners = new Set<(p: VoicePrefs) => void>();
-
-/** Device-level voice preferences. Mirrors `detectLanguage()` in `lib/i18n`:
- *  mount with the defaults, read `localStorage` in an effect, so the server
- *  render and the first client render agree. */
-export function useVoicePrefs(): VoicePrefs & {
-  setDictation: (on: boolean) => void;
-  setReadAloud: (on: boolean) => void;
-} {
-  const [prefs, setPrefs] = useState<VoicePrefs>(DEFAULT_VOICE_PREFS);
-
-  useEffect(() => {
-    if (!prefsLoaded) {
-      prefsLoaded = true;
-      storedPrefs = parseVoicePrefs(window.localStorage.getItem(VOICE_STORAGE_KEY));
-    }
-    setPrefs(storedPrefs);
-    prefsListeners.add(setPrefs);
-    return () => {
-      prefsListeners.delete(setPrefs);
-    };
-  }, []);
-
-  const patch = useCallback((next: Partial<VoicePrefs>) => {
-    storedPrefs = { ...storedPrefs, ...next };
-    window.localStorage.setItem(VOICE_STORAGE_KEY, JSON.stringify(storedPrefs));
-    for (const listen of prefsListeners) listen(storedPrefs);
-  }, []);
-
-  return {
-    ...prefs,
-    setDictation: useCallback((on: boolean) => patch({ dictation: on }), [patch]),
-    setReadAloud: useCallback((on: boolean) => patch({ readAloud: on }), [patch]),
-  };
-}
+// The device-level on/off switches live in `./voicePrefs` — a setting, not an
+// engine. Re-exported because every caller reaches them through here.
+export * from "./voicePrefs";
 
 // ---- browser capability ---------------------------------------------------
 
@@ -153,6 +83,7 @@ export function useVoicePrefs(): VoicePrefs & {
 // so the shape it actually uses is declared structurally right here.
 interface RecognitionAlternative {
   readonly transcript: string;
+  readonly confidence?: number;
 }
 interface RecognitionResult {
   readonly isFinal: boolean;
@@ -242,11 +173,17 @@ export interface Dictation {
 
 export function useDictation({
   language,
+  speech,
   onFinal,
 }: {
   language: Language;
-  /** Called with each finalized segment — the caller appends it. */
-  onFinal: (text: string) => void;
+  /** The recognizer's own BCP-47 tag when the answer is in a target language
+   *  (W1.1) — Spanish spoken into a pt-BR recognizer comes out as Portuguese,
+   *  normalising the very errors Produce exists to catch. */
+  speech?: string;
+  /** Called with each finalized segment and the engine's confidence in it
+   *  (0–1, or undefined where it reports none) — the caller appends it. */
+  onFinal: (text: string, confidence?: number) => void;
 }): Dictation {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -256,11 +193,11 @@ export function useDictation({
 
   const recRef = useRef<Recognition | null>(null);
   const onFinalRef = useRef(onFinal);
-  const langRef = useRef(language);
+  const langRef = useRef(speech ?? speechLang(language));
 
   useEffect(() => {
     onFinalRef.current = onFinal;
-    langRef.current = language;
+    langRef.current = speech ?? speechLang(language);
   });
 
   useEffect(() => {
@@ -291,21 +228,26 @@ export function useDictation({
     const Ctor = recognitionCtor();
     if (!Ctor || recRef.current) return;
     const rec = new Ctor();
-    rec.lang = speechLang(langRef.current);
+    rec.lang = langRef.current;
     rec.continuous = true;
     rec.interimResults = true;
     rec.onstart = () => setStarting(false);
     rec.onresult = (e) => {
       let final = "";
       let live = "";
+      let sure: number | undefined;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const result = e.results[i];
         const text = result[0]?.transcript ?? "";
-        if (result.isFinal) final += text;
-        else live += text;
+        if (result.isFinal) {
+          final += text;
+          // The weakest span is the one the judge must not credit.
+          const c = result[0]?.confidence;
+          if (typeof c === "number" && c > 0) sure = Math.min(sure ?? 1, c);
+        } else live += text;
       }
       setInterim(live);
-      if (final.trim()) onFinalRef.current(final);
+      if (final.trim()) onFinalRef.current(final, sure);
     };
     rec.onerror = (e) => {
       if (e.error === "aborted") return;

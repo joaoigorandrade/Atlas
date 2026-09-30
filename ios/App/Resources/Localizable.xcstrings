@@ -71,6 +71,16 @@
         }
       }
     },
+    "Escolha a leitura deste mapa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick the reading this map follows"
+          }
+        }
+      }
+    },
     "Explique só esta parte, com suas palavras…" : {
       "localizations" : {
         "en" : {
@@ -81,12 +91,32 @@
         }
       }
     },
+    "Falado como %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spoken as %@"
+          }
+        }
+      }
+    },
     "Lendo…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reading it…"
+          }
+        }
+      }
+    },
+    "Lido pela %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read through %@"
           }
         }
       }
@@ -107,6 +137,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The cold problem opens in %lld h — a proof of transfer needs a night."
+          }
+        }
+      }
+    },
+    "Trocar a variante do idioma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change the language variant"
           }
         }
       }

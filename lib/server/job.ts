@@ -64,6 +64,7 @@ import {
   badRequest,
   boundary,
   neighboursAxis,
+  topicAxes,
   labels,
   nodeAxes,
   poolOf,
@@ -222,8 +223,15 @@ function buildJob(body: GenerateBody): Job {
         // earns its own row rather than forking the common one.
         ...(body.scoped === true ? { scoped: true } : {}),
         ...neighboursAxis(body),
+        // The learner's target shapes the map (W5.1); the axes the map writes
+        // about itself (language, shape) are its outputs, never its key.
+        ...(topicAxes(body).target ? { target: topicAxes(body).target } : {}),
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
+        // The map prompt gained its "about" header (W1.1, W2.3): a map cached
+        // before it has no topic axes to stamp, so the kind gets its own
+        // version rather than every kind re-billing through `VERSION`.
+        mapV: 2,
       };
       return {
         kind: "curriculum",
@@ -234,7 +242,13 @@ function buildJob(body: GenerateBody): Job {
         // asks for — a Pareto map is deliberately smaller. The scopes variant
         // is the too-broad answer (#30) — a complete, cacheable payload with
         // no map in it at all.
-        shape: [{ nodes: mapNodeBounds(paretoPct) }, { scopes: { min: 2, max: 3 } }],
+        // The header-carrying map first; a map cached before the header still
+        // assembles through the second shape.
+        shape: [
+          { nodes: mapNodeBounds(paretoPct), meta: "one" },
+          { nodes: mapNodeBounds(paretoPct) },
+          { scopes: { min: 2, max: 3 } },
+        ],
       };
     }
 
@@ -761,6 +775,11 @@ function buildJob(body: GenerateBody): Job {
           targetForms: labels(body.targetForms, 3),
           said: answer,
           language,
+          // Stamped from the topic, not taken from the client (W1.1).
+          ...(body.targetLanguage ? { heardIn: s(body.targetLanguage) } : {}),
+          ...(typeof body.confidence === "number"
+            ? { confidence: Math.max(0, Math.min(1, body.confidence)) }
+            : {}),
         };
         return uncached(
           async () => ({ judgement: await judgeProduce(p) }),

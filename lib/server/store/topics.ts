@@ -36,8 +36,8 @@ import type {
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
 import { fail, readAll } from "@/lib/server/store/shared";
-import { ownsContinent } from "@/lib/server/store/continents";
-import { AtlasError } from "@/lib/errors";
+import { continentIsMine } from "@/lib/server/store/topicPatch";
+import { AXIS_COLUMNS, axesFromRow } from "@/lib/server/store/topicAxes";
 import type { Language } from "@/lib/i18n";
 // The wire contract lives with the client that speaks it — one definition of
 // what a topic is, shared by the module that assembles it from rows and the
@@ -111,8 +111,7 @@ export type CardRow = {
   fsrs: StoredCard["fsrs"];
 };
 
-const TOPIC_COLUMNS =
-  "id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at, continent:continents(id, name, scopes)";
+const TOPIC_COLUMNS = `id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at, ${AXIS_COLUMNS}, continent:continents(id, name, scopes)`;
 const NODE_COLUMNS =
   "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, importance, difficulty, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress, phase_closed_at";
 export const CARD_COLUMNS = "topic_id, id, node_id, type, source, content, fsrs";
@@ -163,6 +162,7 @@ function assemble(
     phaseProgress: {},
     cards: [],
     continent: (topic.continent as Topic["continent"]) ?? null,
+    axes: axesFromRow(topic),
   };
   for (const n of nodes) {
     const node: ConceptNode = {
@@ -348,40 +348,6 @@ export async function createTopic(
   // empty ladder until a delta corrected it. A wire field no caller sets and
   // no path needs is one more way to write a wrong row.
   return { ...(await loadTopic(db, row.id))!, created: !existing };
-}
-
-export async function patchTopic(
-  db: SupabaseClient,
-  id: string,
-  patch: TopicPatch,
-): Promise<void> {
-  const row = {
-    ...(patch.goal !== undefined ? { goal: patch.goal } : null),
-    ...(patch.interests !== undefined ? { interests: patch.interests } : null),
-    ...(patch.paretoPct !== undefined ? { pareto_pct: patch.paretoPct } : null),
-    ...(patch.examDate !== undefined ? { exam_date: patch.examDate } : null),
-    ...(patch.language !== undefined ? { language: patch.language } : null),
-    ...(patch.calibSamples !== undefined ? { calib_samples: patch.calibSamples } : null),
-    ...(patch.misconceptions !== undefined
-      ? { misconceptions: patch.misconceptions }
-      : null),
-    ...(patch.modalityTally !== undefined
-      ? { modality_tally: patch.modalityTally }
-      : null),
-    ...(patch.litToday !== undefined ? { lit_today: patch.litToday } : null),
-    ...(patch.continentId !== undefined ? { continent_id: patch.continentId } : null),
-  };
-  if (Object.keys(row).length === 0) return;
-  await continentIsMine(db, patch.continentId);
-  const { error } = await db.from("topics").update(row).eq("id", id);
-  if (error) fail("patchTopic", error);
-}
-
-/** A foreign key ignores RLS, so a topic could otherwise join a continent
- *  that is somebody else's. `null` (leaving one) needs no check. */
-async function continentIsMine(db: SupabaseClient, id: string | null | undefined) {
-  if (id && !(await ownsContinent(db, id)))
-    throw new AtlasError("invalid", "continentId: not the caller's continent");
 }
 
 /** One statement. The cascade takes nodes, edges, cards and node_content with

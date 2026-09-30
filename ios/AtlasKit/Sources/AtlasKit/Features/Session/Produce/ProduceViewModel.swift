@@ -32,7 +32,13 @@ final class ProduceViewModel {
         self.pass = pass
         self.api = api
         session = ProduceSession(nodeId: pass.node.id)
+        // Spoken in the language being learned, not the interface's (W1.1).
+        dictation.language = pass.store.axes?.targetLanguage
     }
+
+    /// The recogniser's confidence in the weakest span of this turn — what
+    /// the judge is told not to credit a target form inside.
+    private var sure: Double?
 
     var node: ConceptNode { pass.node }
     var content: ProduceContent? { pass.store.turns(node) }
@@ -82,6 +88,7 @@ final class ProduceViewModel {
 
     func dictated(_ text: String) {
         said += said.isEmpty ? text : " \(text)"
+        if let c = dictation.confidence { sure = min(sure ?? 1, c) }
     }
 
     /// Send what they said. The transcript is the whole input — no audio leaves
@@ -99,6 +106,8 @@ final class ProduceViewModel {
         context["targetForms"] = .array(turn.targetForms.map { .string($0) })
         let text = said.trimmed
         context["answer"] = .string(text)
+        if let sure { context["confidence"] = .number(sure) }
+        sure = nil
         let sent = context
         judge = Task {
             defer { judging = false }

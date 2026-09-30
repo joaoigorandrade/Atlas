@@ -11,6 +11,7 @@ import {
   sizeRule,
   str,
   user,
+  lensNote,
 } from "./common";
 import { FEYNMAN_BEAT_BOUNDS, FeynmanBeat } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
@@ -96,7 +97,7 @@ ${sizeRule({
 })}
 The learner never sees these — they teach the concept from a blank page, and their explanation is diffed against these rows. So each sub-point is what a *complete* explanation contains, in the order it would naturally be taught, not a question or a prompt.
 ${interestNote(params.interests)}
-${boundaryNote(params)}`;
+${boundaryNote(params)}${lensNote(params)}`;
 }
 
 const FEYNMAN_BEAT_SHAPE = `{

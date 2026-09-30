@@ -60,7 +60,8 @@ function admin(): SupabaseClient | null {
  */
 export function speechKey(opts: {
   text: string;
-  language: Language;
+  /** The interface language, or a target language's BCP-47 tag (W1.1). */
+  language: Language | string;
   voice: string;
   model: string;
 }): string {

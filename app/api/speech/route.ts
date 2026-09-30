@@ -14,7 +14,14 @@ import {
   withRequestId,
 } from "@/lib/server/apiError";
 import { readClip, speechKey, writeClip } from "@/lib/server/speechCache";
-import { modelFor, synthesize, ttsConfigured, voiceId } from "@/lib/server/tts";
+import {
+  modelFor,
+  synthesize,
+  ttsConfigured,
+  voiceId,
+  type Speech,
+} from "@/lib/server/tts";
+import { asLanguageTag } from "@/lib/curriculum";
 import { createClient } from "@/lib/supabase/server";
 
 // Long segments synthesize in 2–3 pieces at up to 20s each; 30 cut them off
@@ -48,18 +55,22 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     text?: unknown;
     language?: unknown;
+    lang?: unknown;
   } | null;
 
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) return apiError("invalid", { requestId, reason: "no_text" });
   if (text.length > MAX_CHARS)
     return apiError("invalid", { requestId, reason: "text_too_long" });
-  const language: Language = isLanguage(body?.language) ? body.language : "pt-BR";
+  // A target-language segment names its own BCP-47 tag (W1.1); anything else
+  // is spoken in the interface language, as it always was.
+  const tag = asLanguageTag(body?.lang);
+  const language: Speech = tag ?? (isLanguage(body?.language) ? body.language : "pt-BR");
 
   const key = speechKey({
     text,
     language,
-    voice: voiceId(),
+    voice: voiceId(language),
     model: modelFor(language),
   });
 

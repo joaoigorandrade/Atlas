@@ -105,7 +105,7 @@ export function useProduce(deps: {
 
   /** Send what they said for this turn. The transcript is the whole input —
    *  no audio leaves the browser, and the server never sees a recording. */
-  const produceSubmit = (said: string) => {
+  const produceSubmit = (said: string, confidence?: number) => {
     const cur = produceRef.current;
     if (!cur || judgingRef.current) return;
     const content = produceCacheRef.current[cur.nodeId];
@@ -126,10 +126,11 @@ export function useProduce(deps: {
       targetForms: turn.targetForms,
       answer: said,
       language: languageRef.current,
+      ...(confidence !== undefined ? { confidence } : null),
     })
       .then((j) => dispatchProduce({ type: "judged", verdict: j.verdict, read: j.read }))
       .catch((err: unknown) =>
-        showError(err, { context: "judge", retry: () => submitRef.current?.(said) }),
+        showError(err, { context: "judge", retry: () => submitRef.current?.(said, confidence) }),
       )
       .finally(() => setJudging(false));
   };

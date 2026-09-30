@@ -15,6 +15,7 @@ import {
   sizeRule,
   str,
   user,
+  lensNote,
 } from "./common";
 import { CONSUME_SECTION_SHAPE } from "./shapes";
 import {
@@ -232,7 +233,7 @@ Rules for the prose:
   ORDER, not a checklist of five sections — a small concept covers several of
   those beats inside one section.
 - Name the common misconception explicitly and say why it is wrong.
-${boundaryNote(params)}${kindNote(params.nodeKind, "consume")}${domainNote(params.domain, "consume")}${cellNote(params.cell, "consume")}${languageNote(language)}`;
+${boundaryNote(params)}${lensNote(params)}${kindNote(params.nodeKind, "consume")}${domainNote(params.domain, "consume")}${cellNote(params.cell, "consume")}${languageNote(language)}`;
 }
 
 export async function generateConsume(

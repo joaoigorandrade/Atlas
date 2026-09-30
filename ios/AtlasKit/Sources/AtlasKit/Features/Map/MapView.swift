@@ -40,6 +40,7 @@ public struct MapView: View {
                 }
             }
 
+            TopicAxesView()
             if model.legend { legend.transition(.opacity.combined(with: .move(edge: .top))) }
 
             trail

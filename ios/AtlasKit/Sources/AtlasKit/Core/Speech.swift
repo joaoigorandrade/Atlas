@@ -167,6 +167,14 @@ public final class Dictation {
     /// actually has.
     public private(set) var level: Double = 0
     public private(set) var trouble: Trouble?
+    /// The recogniser's language when the answer is in a target language
+    /// (W1.1) — Spanish into a pt-BR recogniser comes out as Portuguese,
+    /// normalising the very errors Produce exists to catch. Nil follows the
+    /// interface language.
+    public var language: String?
+    /// The recogniser's confidence in the weakest segment of the last run, 0…1,
+    /// where it reported any — what the Produce judge is told not to credit.
+    public private(set) var confidence: Double?
     /// Between the tap and the permission reply there is no engine to stop and
     /// nothing on screen yet — but a second tap must not start a second one:
     /// two `installTap`s on the same bus is an ObjC exception, not an error.
@@ -207,7 +215,7 @@ public final class Dictation {
 
     private func start(_ onText: @escaping (String) -> Void) {
         trouble = nil
-        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: AtlasAPI.language)),
+        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: language ?? AtlasAPI.language)),
               recognizer.isAvailable else { return trouble = .unavailable }
         starting = true
         self.onText = onText
@@ -259,6 +267,7 @@ public final class Dictation {
         let current = run
         transcript = ""
         heard = ""
+        confidence = nil
         // The buffer request is handed to an audio-thread tap and to the
         // recognizer's own queue; neither is Sendable and both are the API's
         // documented use, so the crossing is stated rather than hidden.
@@ -323,11 +332,13 @@ public final class Dictation {
             // Only the string and two flags cross back — the result object
             // stays on the recognizer's queue.
             let text = result?.bestTranscription.formattedString
+            let sure = result?.bestTranscription.segments.map { Double($0.confidence) }.filter { $0 > 0 }.min()
             let (failed, final) = (error != nil, result?.isFinal ?? false)
             Task { @MainActor in
                 // Only this run's: a stopped one still reports once more.
                 guard self.run == current, self.listening else { return }
                 if let text { self.transcript = text; self.heard = text }
+                if let sure { self.confidence = sure }
                 // The recogniser ends on its own on a network drop and at
                 // Apple's ~one-minute cap on a single utterance. Nothing would
                 // fire again: the mic would keep breathing over an engine

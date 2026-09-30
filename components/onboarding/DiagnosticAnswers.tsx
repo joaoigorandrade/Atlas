@@ -19,6 +19,7 @@ import type {
   DiagnosticQuestion,
 } from "@/lib/curriculum";
 import { MicButton } from "@/components/VoiceInput";
+import { useTopicAxes } from "@/lib/topicAxesStore";
 import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
@@ -142,7 +143,12 @@ export function SpeakAnswer({
           style={{ ...box, paddingRight: 46 }}
         />
         <div style={{ position: "absolute", right: 8, top: 7 }}>
-          <MicButton value={said} onChange={setSaid} accent={accent} />
+          <MicButton
+            value={said}
+            onChange={setSaid}
+            accent={accent}
+            speech={useTopicAxes()?.targetLanguage ?? undefined}
+          />
         </div>
       </div>
       <Submit

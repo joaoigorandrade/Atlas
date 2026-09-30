@@ -184,7 +184,17 @@ export interface Boundary {
   priorLabels?: string[];
   laterLabels?: string[];
   neighbours?: string[];
+  /** Topic-level axes, stamped by the server (`withTopicAxes`). */
+  targetLanguage?: string;
+  locale?: string;
+  readingLens?: string;
+  target?: { kind: string; text: string; date?: string };
 }
+
+// The topic-level notes (language, country, target, lens) live in
+// `./topicNote`; `boundaryNote` appends the first.
+export { lensNote, topicNote } from "./topicNote";
+import { topicNote } from "./topicNote";
 
 /**
  * The concept's boundary on the map: what the other passes already taught and
@@ -203,7 +213,7 @@ export function boundaryNote(params: Boundary): string {
   const prior = (params.priorLabels ?? []).filter(Boolean);
   const later = (params.laterLabels ?? []).filter(Boolean);
   const neighbours = (params.neighbours ?? []).filter(Boolean);
-  if (!prior.length && !later.length && !neighbours.length) return "";
+  if (!prior.length && !later.length && !neighbours.length) return topicNote(params);
   const lines = [
     "",
     "THE MAP AROUND THIS CONCEPT — the learner is working through a whole map, and every other concept on it has its own pass. Stay inside this one:",
@@ -223,7 +233,7 @@ export function boundaryNote(params: Boundary): string {
   lines.push(
     "- Anything the concept genuinely needs that appears in NEITHER list is yours to teach, in as much depth as it earns.",
   );
-  return lines.join("\n") + "\n";
+  return lines.join("\n") + "\n" + topicNote(params);
 }
 
 /**

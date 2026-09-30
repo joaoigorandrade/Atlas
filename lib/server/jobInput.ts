@@ -67,6 +67,15 @@ export interface GenerateBody {
   /** What the other maps of this topic's continent teach. Set by the server
    *  alone (`withTopicAxes`) — whatever a client sends is dropped. */
   neighbours?: string[];
+  /** Topic-level axes, set by the server alone (`withTopicAxes`): the
+   *  language a language map teaches (W1.1), the learner's country on a
+   *  jurisdictional topic (W2.5), the chosen lens (W2.6), the map's shape
+   *  (W9.1), and the target (W5.1). Omitted from every key when unset. */
+  targetLanguage?: string;
+  locale?: string;
+  readingLens?: string;
+  shape?: string;
+  target?: { kind: string; text: string; date?: string };
   /** continentLinks: the continent's maps, each with its concept labels. */
   maps?: Array<{ subject?: unknown; labels?: unknown }>;
   // model fields — the section a lens was opened over, as it is on screen
@@ -115,6 +124,8 @@ export interface GenerateBody {
   /** judge-recall: the brief they worked from, and whether they took the cue. */
   brief?: string;
   cued?: boolean;
+  /** judge-produce: the recognizer's confidence in the weakest span (W1.1). */
+  confidence?: number;
   /** judge-perform: the case the run was carried out on. */
   task?: string;
   problem?: string;
@@ -201,6 +212,7 @@ export const boundary = (
     ...(priorLabels.length ? { priorLabels } : {}),
     ...(laterLabels.length ? { laterLabels } : {}),
     ...neighboursAxis(body),
+    ...topicAxes(body),
   };
 };
 
@@ -224,9 +236,36 @@ export const neighboursAxis = (body: GenerateBody): { neighbours?: string[] } =>
  *  node keys to the row it already wrote and no VERSION bump is owed. A node on
  *  a real kind or a real domain gets a different prompt, and correctly misses
  *  into a new key. */
+/** The topic-level axes as a cache key sees them: present only when set, so
+ *  a topic without one keys to the row it always did (W0.4). */
+export const topicAxes = (body: GenerateBody) => {
+  const t = body.target;
+  return {
+    ...(body.targetLanguage
+      ? { targetLanguage: s(body.targetLanguage).slice(0, 12) }
+      : {}),
+    ...(body.locale ? { locale: s(body.locale).slice(0, 8) } : {}),
+    ...(body.readingLens ? { readingLens: s(body.readingLens).slice(0, 80) } : {}),
+    ...(body.shape && body.shape !== "hierarchy"
+      ? { shape: s(body.shape).slice(0, 12) }
+      : {}),
+    ...(t?.kind
+      ? {
+          target: {
+            kind: s(t.kind),
+            text: s(t.text).slice(0, 400),
+            ...(t.date ? { date: s(t.date) } : {}),
+          },
+        }
+      : {}),
+  };
+};
+
 export const nodeAxes = (
   body: GenerateBody,
-): { nodeKind?: NodeKind; domain?: Domain; cell?: Cell } => {
+): { nodeKind?: NodeKind; domain?: Domain; cell?: Cell } & ReturnType<
+  typeof topicAxes
+> => {
   const k = asNodeKind(body.nodeKind);
   const d = asDomain(body.domain);
   const cell = cellOf(asImportance(body.importance), asDifficulty(body.nodeDifficulty));
@@ -235,6 +274,7 @@ export const nodeAxes = (
     ...(d === "general" ? {} : { domain: d }),
     // The default cell writes the pre-grid prompt, so it keys to its old row.
     ...(cell === DEFAULT_CELL ? {} : { cell }),
+    ...topicAxes(body),
   };
 };
 

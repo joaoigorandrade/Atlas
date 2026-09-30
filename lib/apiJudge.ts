@@ -226,6 +226,8 @@ export function fetchJudgeProduce(
     targetForms: string[];
     answer: string;
     language?: Language;
+    /** The recognizer's confidence in the weakest span, when dictated (W1.1). */
+    confidence?: number;
   },
   onVerdict?: (partial: Partial<ProduceJudgement>) => void,
 ): Promise<ProduceJudgement> {

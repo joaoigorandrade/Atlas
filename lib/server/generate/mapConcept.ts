@@ -4,7 +4,22 @@
 // field on a node, a new way the model restates itself.
 
 import { fail, obj, slug, str } from "./common";
-import { nodeAxes, type GoalKind } from "@/lib/curriculum";
+import { nodeAxes, type Domain, type GoalKind } from "@/lib/curriculum";
+
+/**
+ * One domain per map (W2.3): a node takes the topic's unless it says why its
+ * own warrant differs. Tags written node by node were noisy enough to put
+ * budgeting on an `executable` ladder; a stated reason is the price of
+ * overriding the map.
+ */
+export function inherit(
+  c: Record<string, unknown>,
+  topicDomain?: Domain,
+): Record<string, unknown> {
+  if (!topicDomain) return c;
+  const why = typeof c.domainWhy === "string" && c.domainWhy.trim().length > 8;
+  return why ? c : { ...c, domain: topicDomain };
+}
 import { logEvent } from "@/lib/log";
 
 /** A validated concept before layout — the same shape whether it arrived in one
@@ -36,8 +51,9 @@ export function validateMapConcept(
   index: number,
   seen: SeenConcepts,
   goal?: GoalKind,
+  topicDomain?: Domain,
 ): RawConcept & { prereqs: string[] } {
-  const c = obj(raw, `concept[${index}]`);
+  const c = inherit(obj(raw, `concept[${index}]`), topicDomain);
   const id = slug(c.id, `concept[${index}].id`);
   const label = str(c.label, `concept[${index}].label`);
   // Resolved before `claim`, which registers this concept: a self-reference

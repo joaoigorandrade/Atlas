@@ -1,5 +1,6 @@
 "use client";
 
+import TopicAxesLine from "@/components/map/TopicAxesLine";
 import { memoLatest } from "@/components/ui/memoLatest";
 import {
   STATE_COLOR,
@@ -185,6 +186,7 @@ function LeftRail({
         <div style={{ fontFamily: font.display, fontSize: 25, lineHeight: 1.1 }}>
           {subject}
         </div>
+        <TopicAxesLine />
         {pace && (
           <div
             style={{
@@ -201,12 +203,7 @@ function LeftRail({
             }}
           >
             <span
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: "50%",
-                background: "#b0852c",
-              }}
+              style={{ width: 5, height: 5, borderRadius: "50%", background: "#b0852c" }}
             />
             {t.finalExam(pace.daysLeft)}
           </div>

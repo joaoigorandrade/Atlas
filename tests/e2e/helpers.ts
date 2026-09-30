@@ -182,6 +182,8 @@ export async function readNodeRows(
 export async function openRun(
   page: Page,
   states: Record<string, NodePatch> = {},
+  /** Columns to force on the topic row — the server-stamped axes, say. */
+  topic: Record<string, unknown> = {},
 ): Promise<Run> {
   if (!cached()) {
     // A run left behind by an earlier spec would open on the map, and
@@ -197,7 +199,9 @@ export async function openRun(
     mkdirSync(path.dirname(CACHE), { recursive: true });
     writeFileSync(CACHE, JSON.stringify(captured));
   }
-  await writeTables(page.request, withStates(captured!, states));
+  const tables = withStates(captured!, states);
+  tables.topics = (tables.topics ?? []).map((t) => ({ ...t, ...topic }));
+  await writeTables(page.request, tables);
   await page.goto("/");
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
   await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");

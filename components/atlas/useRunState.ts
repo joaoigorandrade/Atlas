@@ -78,6 +78,7 @@ import {
   pushRun,
 } from "@/components/atlas/runProjection";
 import { setGenerationTopic, supersedeGenerations } from "@/lib/generationTopic";
+import { setTopicAxes } from "@/lib/topicAxesStore";
 import { hydrateContent } from "@/lib/contentMirror";
 import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
@@ -431,6 +432,7 @@ export function useRunState(opts: {
     (topic: Topic) => {
       setTopicId(topic.id);
       setGenerationTopic(topic.id); // now, not next render: `hydrateContent` checks it
+      setTopicAxes(topic.axes);
       warm.clear();
       resetSessions();
       resetTransient();
@@ -511,9 +513,7 @@ export function useRunState(opts: {
     if (initial !== undefined) {
       if (initial) hydrate(initial);
       else setHydrated(true);
-      return () => {
-        cancelled = true;
-      };
+      return; // nothing in flight to cancel
     }
 
     bootstrap()

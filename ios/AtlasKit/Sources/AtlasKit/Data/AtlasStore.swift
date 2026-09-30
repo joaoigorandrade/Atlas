@@ -53,6 +53,9 @@ public final class AtlasStore {
     /// Nodes with a real review behind them — what earns Retido, since being
     /// Mastered alone doesn't (`phaseIndex`).
     public var reviewed: Set<String> = [] { didSet { saveSoon() } }
+    /// The open topic's axes (W1.1 …): read by the surfaces that need one, never
+    /// sent in a generation body — the server stamps those itself.
+    public internal(set) var axes: TopicAxes?
 
     /// The web's `consumeProgress`, held as JSON and keyed by node id. This
     /// client reads four of its fields (whether the pass finished, and where the
@@ -950,6 +953,7 @@ public extension AtlasStore {
         connectProgress = run.connectProgress
         phaseProgress = run.phaseProgress
         misconceptions = run.misconceptions
+        axes = run.axes
         // Only when the topic records one: a run built before the field existed
         // has a genuinely unknown content language, and the device preference is
         // the honest fallback.
@@ -960,6 +964,29 @@ public extension AtlasStore {
         savedNodes = nodeShots()
         savedCards = cardShots()
         savedTopic = topicShot()
+    }
+
+    /// Read back what the server stamped from a fresh map's header (its
+    /// language, lenses, shape) — it lands before the build stream closes.
+    func reloadAxes() async {
+        guard let topicId, let token = await bearer(),
+              let run = try? await runs.topic(topicId, token: token), run.id == self.topicId
+        else { return }
+        axes = run.axes
+    }
+
+    /// Set a learner-chosen axis on the open topic (W1.1 variant, W2.6 lens).
+    func setAxis(targetLanguage: String? = nil, lens: String? = nil) {
+        guard var next = axes else { return }
+        var body: [String: JSONValue] = [:]
+        if let targetLanguage { next.targetLanguage = targetLanguage; body["targetLanguage"] = .string(targetLanguage) }
+        if let lens { next.lens = lens; body["lens"] = .string(lens) }
+        axes = next
+        guard let topicId else { return }
+        Task {
+            guard let token = await bearer() else { return }
+            try? await runs.patchTopic(topicId, body: .object(body), token: token)
+        }
     }
 
     /// Create the topic a build is about to fill.

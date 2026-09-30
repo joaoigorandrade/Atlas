@@ -9,6 +9,7 @@
 // one. Each is omitted when unset, so a topic without it keys to the row it
 // always did.
 
+import { asMapMeta, type MapMeta, type TopicAxes } from "@/lib/curriculum";
 import type { GenerateBody } from "@/lib/server/jobInput";
 import { neighboursOf } from "@/lib/server/store/continents";
 import { fail, type Db } from "@/lib/server/store/shared";
@@ -16,10 +17,13 @@ import { fail, type Db } from "@/lib/server/store/shared";
 /** `topics` column → body field, for every stamped axis but the neighbours
  *  (which are read off sibling maps, not a column). A wave that adds an axis
  *  adds its column here and to `topicAxes` in `jobInput.ts`. */
-export const TOPIC_AXIS_COLUMNS = {} as const satisfies Record<
-  string,
-  keyof GenerateBody
->;
+export const TOPIC_AXIS_COLUMNS = {
+  target_language: "targetLanguage",
+  locale: "locale",
+  lens: "readingLens",
+  shape: "shape",
+  target: "target",
+} as const satisfies Record<string, keyof GenerateBody>;
 
 type Axes = Partial<Pick<GenerateBody, "neighbours">> & Record<string, unknown>;
 
@@ -45,7 +49,9 @@ async function axesOf(db: Db, topicId: string): Promise<Axes> {
     string,
   ][]) {
     const v = row[column];
-    if (v != null && v !== "") out[field] = v;
+    // `hierarchy` is what every map was before shapes: it keys to the old row.
+    if (v != null && v !== "" && !(field === "shape" && v === "hierarchy"))
+      out[field] = v;
   }
   return out;
 }
@@ -67,4 +73,58 @@ export async function withTopicAxes<T extends GenerateBody>(
     memo?.set(body.topicId, pending);
   }
   return { ...rest, ...(await pending) } as unknown as T;
+}
+
+/** The axes as bootstrap returns them, from the topic's own row. */
+export const AXIS_COLUMNS =
+  "target_language, jurisdictional, locale, lenses, lens, shape, target";
+
+export function axesFromRow(row: Record<string, unknown>): TopicAxes {
+  const meta = asMapMeta({ ...row, targetLanguage: row.target_language });
+  return {
+    targetLanguage: meta.targetLanguage,
+    jurisdictional: row.jurisdictional === true,
+    locale: typeof row.locale === "string" ? row.locale : null,
+    lenses: meta.lenses,
+    lens: typeof row.lens === "string" && row.lens ? row.lens : null,
+    shape: meta.shape,
+    target: (row.target as TopicAxes["target"]) ?? null,
+  };
+}
+
+/**
+ * Stamp what a map says about itself onto its topic — the server's half of
+ * the header (W1.1, W2.3, W2.5, W2.6, W9.1). Awaited before the build's
+ * response closes, so the client's reload after it reads the stamped row.
+ *
+ * The locale is the learner's country, and only for a jurisdictional topic:
+ * linear algebra keeps its shared cache row whoever studies it.
+ */
+export async function stampTopicMeta(
+  db: Db,
+  userId: string,
+  topicId: string,
+  meta: MapMeta,
+): Promise<void> {
+  let locale: string | null = null;
+  if (meta.jurisdictional) {
+    const { data } = await db
+      .from("profiles")
+      .select("country")
+      .eq("user_id", userId)
+      .maybeSingle();
+    locale = (data as { country?: string } | null)?.country ?? null;
+  }
+  const { error } = await db
+    .from("topics")
+    .update({
+      map_domain: meta.domain,
+      target_language: meta.targetLanguage,
+      jurisdictional: meta.jurisdictional,
+      locale,
+      lenses: meta.lenses,
+      shape: meta.shape,
+    })
+    .eq("id", topicId);
+  if (error) fail("stampTopicMeta", error);
 }

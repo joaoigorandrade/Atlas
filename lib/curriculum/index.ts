@@ -29,3 +29,4 @@ export * from "./calibration";
 export * from "./replan";
 export * from "./spacing";
 export * from "./confidence";
+export * from "./topicMeta";
