@@ -444,9 +444,11 @@ public extension AtlasStore {
         recordAttempt(node, phase, passed: true, detail: challenged ? ["challenged": .bool(true)] : [:])
         let done = ledgerAfter(node.plan, phasesDone[node.id] ?? [], phase, challenged: challenged, clean: clean)
         phasesDone[node.id] = done
-        // Anything studied on a node that still owes Recall pushes Recall a
-        // night out: a cold retrieval has to be cold.
-        if holdsRecall(node.plan, done, phase) { hold(node.id, .recall) }
+        // Anything studied on a node pushes its last gate a night out (W4.1),
+        // merged into the slot so a session parked there survives the wait.
+        if let gate = heldGate(node.plan, done, phase) {
+            hold(node.id, gate, slot: phaseProgress[node.id]?.fields?[gate.rawValue]?.fields ?? [:])
+        }
         let reason = reasonAfter(node.plan, done, phase, closed: closed, held: shakyReasons[node.id])
         shakyReasons[node.id] = reason
         states[node.id] = stateFromPlan(
@@ -498,7 +500,11 @@ public extension AtlasStore {
     func armChallenge(_ node: ConceptNode) -> Phase {
         markStarted(node)
         challenge = node.id
-        return proofGate(node.plan)
+        // The claim is that it was known before this sitting: the night a
+        // studied gate waits does not apply to it (W4.1).
+        let gate = proofGate(node.plan)
+        release(node.id, gate)
+        return gate
     }
 
     /// Put the reading back to the top, unread. What a flagged Socratic pass
@@ -688,6 +694,16 @@ public extension AtlasStore {
         else { return nil }
         let at = Date(timeIntervalSince1970: ms / 1000)
         return at > now ? at : nil
+    }
+
+    /// End a hold early, keeping whatever else the slot holds.
+    func release(_ nodeId: String, _ phase: Phase) {
+        guard heldUntil(nodeId, phase) != nil,
+              var slot = phaseProgress[nodeId]?.fields?[phase.rawValue]?.fields else { return }
+        slot["opensAt"] = .number(0)
+        var forNode = phaseProgress[nodeId]?.fields ?? [:]
+        forNode[phase.rawValue] = .object(slot)
+        phaseProgress[nodeId] = .object(forNode)
     }
 
     /// Hold `phase` a night (~20 h) in its own slot. `slot` is what the web

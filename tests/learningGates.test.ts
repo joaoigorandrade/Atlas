@@ -24,7 +24,7 @@ import {
   gapParentOf,
   heldUntil,
   holdFrom,
-  holdsRecall,
+  heldGate,
   hoursLeft,
   mergeCalib,
   neighboursOf,
@@ -105,12 +105,18 @@ describe("spacing", () => {
     expect(hoursLeft(now + SPACING_MS, now)).toBe(20);
   });
 
-  it("pushes Recall out after anything studied, but not after Recall itself", () => {
+  it("pushes the last gate out after anything studied, but not after itself (W4.1)", () => {
     const plan = ["consume", "connect", "recall", "retain"] as const;
-    expect(holdsRecall(plan, ["consume"], "consume")).toBe(true);
-    expect(holdsRecall(plan, ["consume", "recall"], "connect")).toBe(false);
-    expect(holdsRecall(plan, ["consume"], "recall")).toBe(false);
-    expect(holdsRecall(["consume", "crucible", "retain"], [], "consume")).toBe(false);
+    expect(heldGate(plan, ["consume"], "consume")).toBe("recall");
+    expect(heldGate(plan, ["consume", "recall"], "connect")).toBeNull();
+    expect(heldGate(plan, ["consume"], "recall")).toBeNull();
+    // A plan without Recall holds whatever proves it last — no node goes
+    // green on the day it was learned.
+    expect(heldGate(["consume", "trace", "crucible", "retain"], [], "trace")).toBe(
+      "crucible",
+    );
+    // A plan whose only gate is the one being closed holds nothing.
+    expect(heldGate(["consume", "retain"], [], "consume")).toBeNull();
   });
 
   it("earns Retained ✓ only across a real interval", () => {

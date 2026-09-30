@@ -55,6 +55,8 @@ import {
   type ReviewGrade,
   type SocraticAction,
   type SocraticStep,
+  heldUntil,
+  hoursLeft,
 } from "@/lib/curriculum";
 import {
   dueCards,
@@ -183,6 +185,7 @@ export function useSpiral(deps: {
     setConnectProgress,
     connectProgressRef,
     setPhaseProgress,
+    phaseProgressRef,
     setShakyReason,
     recordCalib,
     attachGap,
@@ -233,6 +236,7 @@ export function useSpiral(deps: {
     setShakyReason,
     setStates,
     setPhaseProgress,
+    phaseProgressRef,
     warmOne,
   });
   const { completePhase, settle, markStarted, warmNext, armChallenge, disarmChallenge } =
@@ -1617,6 +1621,17 @@ export function useSpiral(deps: {
    * Provenance once domains added it) and Socratic jumped to Feynman (past
    * Steelman). Being IN the plan is not enough. `exhausted` takes a finished one.
    */
+  /** A last gate on its night's hold (W4.1) says so from the map instead of
+   *  opening. Recall and the Crucible check their own slots, in their words. */
+  const heldOnMap = (node: ConceptNode, phase: PhaseId) => {
+    const until = heldUntil(phaseProgressRef.current[node.id]?.[phase]);
+    if (!until || phase === "recall" || phase === "crucible") return false;
+    setScreen("map");
+    setSelectedId(node.id);
+    showToast(tc().gateHeld(phaseLabel(phase), node.label, hoursLeft(until)));
+    return true;
+  };
+
   const enterOwedPhase = (
     node: ConceptNode,
     exhausted: () => void = () => setScreen("map"),
@@ -1624,8 +1639,8 @@ export function useSpiral(deps: {
   ) => {
     disarmChallenge();
     const next = primaryPhase(phasePlan(node), phasesDoneRef.current[node.id], state);
-    if (next) enterPhase[next](node);
-    else exhausted();
+    if (!next) exhausted();
+    else if (!heldOnMap(node, next)) enterPhase[next](node);
   };
   enterOwedRef.current = (node) => enterOwedPhase(node, () => leaveTo(node.id));
 
@@ -1756,6 +1771,7 @@ export function useSpiral(deps: {
     // Every phase opens from its own row, done or not: re-reading and re-doing
     // are first-class actions. Only the jump-ahead needs saying out loud, and
     // the nudge has already said it.
+    if (heldOnMap(node, phase)) return;
     if (idx > current) {
       markStarted(node);
       showToast(tc().jumpingAhead(phaseLabel(phase), node.label));

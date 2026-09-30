@@ -14,10 +14,12 @@ import Foundation
 /// learner who studies at the same hour each day is not locked out by minutes.
 public let spacingSeconds: TimeInterval = 20 * 60 * 60
 
-/// Does closing `phase` push Recall a night out? Anything studied on a node
-/// that still owes Recall does.
-public func holdsRecall(_ plan: [Phase], _ done: [Phase], _ phase: Phase) -> Bool {
-    phase != .recall && plan.contains(.recall) && !done.contains(.recall)
+/// Which gate closing `phase` pushes a night out, if any (W4.1): the plan's
+/// last gate — Recall where there is one, otherwise whatever proves the node
+/// last — while it is still owed. No node goes green on the day it was learned.
+public func heldGate(_ plan: [Phase], _ done: [Phase], _ phase: Phase) -> Phase? {
+    guard let last = planGates(plan).last, phase != last, !done.contains(last) else { return nil }
+    return last
 }
 
 /// The shortest interval a review must have survived to earn Retido ✓.

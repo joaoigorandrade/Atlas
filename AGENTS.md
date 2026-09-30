@@ -155,8 +155,14 @@ Four rules sit around the gates, and `tests/learningGates.test.ts` pins them:
   gaps, and `attachGap`/`removeGapNode` write `graphRef` through in the same
   tick so the ledger counts them.
 - **Some proofs wait a night** (`lib/curriculum/spacing.ts`). Every completed
-  phase on a node that owes Recall holds Recall ~20h (`{ opensAt }` in its
-  `phase_progress` slot), and a failed Recall re-holds it. A Crucible passed on
+  phase on a node holds the plan's **last gate** ~20h (`heldGate` — Recall on a
+  concept, the Crucible on a procedure or principle; `{ opensAt }` merged into
+  its `phase_progress` slot, written through the ref because the hand-off reads
+  it in the same tick), so no node goes green on the day it was learned. A
+  failed Recall re-holds it. A "prove it" challenge releases the hold on its
+  proof gate (`armChallenge`), and `heldOnMap` in `useSpiral` (the iOS session
+  shell) turns a held gate back to the map for every phase that doesn't say so
+  on its own screen, as Recall and the Crucible do. A Crucible passed on
   the guided rung closes its gap but not the rung: the node stays Shaky and the
   cold problem is parked to open the next day (`useCrucible`). Retained ✓ needs
   a Good/Easy on a card that went `RETAINED_MIN_DAYS` unseen.

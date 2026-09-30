@@ -341,3 +341,24 @@ private func upToCrucible() -> [Phase] {
     store.completePhase(store.graph.nodes[1], .consume)
     #expect(store.heldUntil("cadeia", .recall) != nil)
 }
+
+@Test func theLastGateIsHeldWhateverItIs() {
+    // W4.1: Recall where the plan has one; otherwise whatever proves it last.
+    let concept = phasePlans[.concept]!
+    #expect(heldGate(concept, [.consume], .consume) == .recall)
+    #expect(heldGate(concept, [.consume, .recall], .connect) == nil)
+    #expect(heldGate([.consume, .trace, .crucible, .retain], [], .trace) == .crucible)
+    #expect(heldGate([.consume, .retain], [], .consume) == nil)
+}
+
+@MainActor
+@Test func aProveItChallengeReleasesTheNightOnItsGate() {
+    // The claim is that it was known before this sitting; a miss costs the try.
+    var node = ConceptNode(id: "cadeia", label: "Regra da cadeia")
+    node.phasePlan = [.consume, .trace, .crucible, .retain]
+    let (_, store) = session(["lat": .mastered])
+    store.completePhase(node, .consume)
+    #expect(store.heldUntil("cadeia", .crucible) != nil)
+    #expect(store.armChallenge(node) == .crucible)
+    #expect(store.heldUntil("cadeia", .crucible) == nil)
+}

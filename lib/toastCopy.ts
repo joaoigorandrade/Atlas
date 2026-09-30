@@ -61,6 +61,8 @@ const EN = {
     `The cold Crucible on ${label} opens in ~${hours}h — the proof is the unguided problem after a night.`,
   recallHeld: (label: string, hours: number) =>
     `Recall on ${label} opens in ~${hours}h — a retrieval only counts once the material has had a night to fade.`,
+  gateHeld: (phase: string, label: string, hours: number) =>
+    `${phase} on ${label} opens in ~${hours}h — the last proof counts only after a night away from the material.`,
   gapNotClosed: "Gap not closed",
   stillLeaning: (label: string) =>
     `Still leaning on being told — ${label} stays flagged until it's reconstructed unaided.`,
@@ -158,6 +160,8 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
       `O Crucible sem ajuda em ${label} abre em ~${hours}h — a prova é o problema sem guia depois de uma noite.`,
     recallHeld: (label: string, hours: number) =>
       `O Recall em ${label} abre em ~${hours}h — uma recuperação só vale depois que o material teve uma noite para esmaecer.`,
+    gateHeld: (phase: string, label: string, hours: number) =>
+      `${phase} em ${label} abre em ~${hours}h — a última prova só vale depois de uma noite longe do material.`,
     gapNotClosed: "Lacuna não fechada",
     stillLeaning: (label: string) =>
       `Ainda apoiado na resposta pronta — ${label} continua marcado até ser reconstruído sozinho.`,

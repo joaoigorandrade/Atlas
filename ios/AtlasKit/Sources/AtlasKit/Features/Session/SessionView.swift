@@ -76,6 +76,33 @@ struct SessionView: View {
 
     @ViewBuilder
     private func phase(_ session: SessionViewModel) -> some View {
+        // A last gate on its night's hold (W4.1). Recall and the Crucible say
+        // so on their own screens, in their own words.
+        if session.phase != .recall, session.phase != .crucible,
+           let opens = store.heldUntil(node.id, session.phase) {
+            held(session.phase, opens)
+        } else {
+            screen(session)
+        }
+    }
+
+    /// Why the gate isn't open yet, and the way back to the map.
+    private func held(_ phase: Phase, _ opens: Date) -> some View {
+        let hours = max(1, Int((opens.timeIntervalSinceNow / 3600).rounded(.up)))
+        return VStack(alignment: .leading, spacing: 16) {
+            Kicker(verbatim: phase.label)
+            Text("Abre em \(hours) h — a última prova só vale depois de uma noite longe do material.")
+                .font(.atlas(.serif, 18))
+                .foregroundStyle(Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            GhostButton("Voltar ao mapa") { navigator.pop() }
+        }
+        .padding(Metrics.gutter)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func screen(_ session: SessionViewModel) -> some View {
         switch session.phase {
         case .consume: ConsumeView(session: session)
         case .discriminate: DiscriminateView(session: session)

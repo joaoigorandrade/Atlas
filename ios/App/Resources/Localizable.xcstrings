@@ -11,6 +11,17 @@
         }
       }
     },
+    "Abre em %lld h — a última prova só vale depois de uma noite longe do material." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens in %lld h — the last proof only counts after a night away from the material."
+          }
+        }
+      }
+    },
     "Antes de ler" : {
       "extractionState" : "manual",
       "localizations" : {
