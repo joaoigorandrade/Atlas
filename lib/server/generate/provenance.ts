@@ -6,6 +6,7 @@
 // No judge: every claim ships its own ruling, and `provenancePassed` grades
 // locally. One generation, no grading call, ever.
 
+import { SOURCE_HOSTS, allowedSource, quoteHolds } from "@/lib/server/sources";
 import {
   type Boundary,
   arr,
@@ -60,6 +61,7 @@ export function validateProvenance(nodeId: string, nodeLabel: string) {
         attribution: str(src.attribution, "source.attribution"),
         date: str(src.date, "source.date"),
         excerpt: str(src.excerpt, "source.excerpt"),
+        ...(allowedSource(src.url) ? { url: allowedSource(src.url)! } : null),
       },
       claims,
       silence: str(root.silence, "silence"),
@@ -79,7 +81,7 @@ export async function generateProvenance(
   params: ProvenanceParams,
 ): Promise<ProvenanceContent> {
   const { topic, nodeLabel, language = "en" } = params;
-  return generateJson(
+  const content = await generateJson(
     user(
       `Write a SOURCE-READING pass for "${nodeLabel}" within "${topic}". The learner is handed one primary source and asked, of each claim, what this document will actually carry.
 ${boundaryNote(params)}
@@ -98,7 +100,8 @@ Return JSON:
     "title": "the document's name",
     "attribution": "who wrote it, to whom, and in what capacity",
     "date": "when",
-    "excerpt": "60-150 words of it"
+    "excerpt": "60-150 words of it",
+    "url": "the page holding the text, ONLY if it is on ${SOURCE_HOSTS.join(", ")} — otherwise null"
   },
   "claims": [
     { "claim": "a statement about the world, stated plainly",
@@ -112,4 +115,8 @@ Return JSON:
     validateProvenance(params.nodeId, nodeLabel),
     { label: "provenance" },
   );
+  // W2.7: the excerpt is checked against the page it names before caching.
+  const { url, excerpt } = content.source;
+  if (url) content.source.verified = await quoteHolds(url, excerpt);
+  return content;
 }

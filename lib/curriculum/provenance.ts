@@ -40,6 +40,10 @@ export interface ProvenanceSource {
   attribution: string;
   date: string;
   excerpt: string;
+  /** The page it is on, on an allow-listed public-domain corpus (W2.7). */
+  url?: string;
+  /** The excerpt was found on that page. False is a paraphrase, labelled as one. */
+  verified?: boolean;
 }
 
 export interface ProvenanceClaim {
@@ -172,6 +176,8 @@ export const PROVENANCE_COPY = {
     kicker: "Provenance",
     lead: "What is this source for, and what will it actually carry?",
     theSource: "The source",
+    readSource: "Read the full source →",
+    paraphrase: "The excerpt could not be matched on the page — read it as a paraphrase.",
     theClaim: "The claim",
     because: "Why",
     silence: "What it does not say",
@@ -189,6 +195,8 @@ export const PROVENANCE_COPY = {
     kicker: "Provenance",
     lead: "Para que serve esta fonte, e o que ela realmente sustenta?",
     theSource: "A fonte",
+    readSource: "Ler a fonte completa →",
+    paraphrase: "O trecho não foi encontrado na página — leia-o como paráfrase.",
     theClaim: "A afirmação",
     because: "Por quê",
     silence: "O que ela não diz",

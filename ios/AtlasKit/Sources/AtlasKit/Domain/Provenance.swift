@@ -30,6 +30,10 @@ public struct ProvenanceSource: Decodable, Sendable {
     public let attribution: String
     public let date: String
     public let excerpt: String
+    /// The page it is on, on an allow-listed public-domain corpus (W2.7).
+    public let url: String?
+    /// The excerpt was found on that page; false is a paraphrase.
+    public let verified: Bool?
 }
 
 public struct ProvenanceClaim: Decodable, Sendable, Identifiable {

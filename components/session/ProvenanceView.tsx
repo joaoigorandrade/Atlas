@@ -152,6 +152,21 @@ export default function ProvenanceView({
         >
           <Rich text={content.source.excerpt} />
         </div>
+        {content.source.url && (
+          <div data-testid="provenance-source" style={{ marginTop: 10, fontSize: 13 }}>
+            {content.source.verified === false && (
+              <span style={{ color: color.amberInk }}>{copy.paraphrase} </span>
+            )}
+            <a
+              href={content.source.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: color.accent }}
+            >
+              {copy.readSource}
+            </a>
+          </div>
+        )}
       </div>
 
       {item && !session.done && (

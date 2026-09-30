@@ -111,6 +111,16 @@
         }
       }
     },
+    "Ler a fonte completa →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read the full source →"
+          }
+        }
+      }
+    },
     "Lido pela %@" : {
       "localizations" : {
         "en" : {
@@ -137,6 +147,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The cold problem opens in %lld h — a proof of transfer needs a night."
+          }
+        }
+      }
+    },
+    "O trecho não foi encontrado na página — leia-o como paráfrase." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The excerpt could not be matched on the page — read it as a paraphrase."
           }
         }
       }
