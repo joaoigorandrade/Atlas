@@ -72,29 +72,6 @@ export function Fleuron({ style }: { style?: CSSProperties }) {
   );
 }
 
-/**
- * A surveyor's scale bar in alternating ink and paper. `scale` stretches it on
- * the compositor (`scaleX`) — the ruler used to animate its `width`, a layout
- * change on every zoom step.
- */
-export function ScaleBar({ scale, unit = 60 }: { scale: number; unit?: number }) {
-  return (
-    <span
-      aria-hidden
-      style={{
-        display: "inline-block",
-        width: unit,
-        height: 5,
-        border: `1px solid ${color.inkSoft}`,
-        background: `repeating-linear-gradient(90deg, ${color.inkSoft} 0 25%, ${color.card} 25% 50%)`,
-        transformOrigin: "0 50%",
-        transform: `scaleX(${scale})`,
-        transition: `transform ${motion.duration.fast}ms ${motion.ease.standard}`,
-      }}
-    />
-  );
-}
-
 // A scalloped disc: sixteen lobes around a round face, like wax pressed out
 // from under a seal.
 const LOBES = 16;

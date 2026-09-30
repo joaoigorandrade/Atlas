@@ -15,7 +15,6 @@ import { useT } from "@/lib/i18n";
 import NodeHoverCard, { useDwell, usePeek } from "@/components/map/NodeHoverCard";
 import MapNode from "@/components/map/MapNode";
 import MapEdges from "@/components/map/MapEdges";
-import MapControls from "@/components/map/MapControls";
 import { regionsOf, seedOf } from "@/components/map/atlasTerrain";
 import { Fog, Land, StageLabels, Terrain } from "@/components/map/MapTerrain";
 import { useBox, useTerritory } from "@/components/map/useMapPointer";
@@ -362,9 +361,8 @@ function MapCanvas({
         {chart}
       </div>
 
-      {/* Outside the transformed layer on purpose: the card and the
-          instruments are chrome, so they keep their own type size and shadow
-          at every zoom level. */}
+      {/* Outside the transformed layer on purpose: the card is chrome, so it
+          keeps its own type size and shadow at every zoom level. */}
       {/* The sheet's grain, foxing and darkened edges, laid over the chart and
           fixed to the window like the paper it is printed on: a static layer
           that no pan repaints, with no blend mode for Safari to re-run. */}
@@ -379,18 +377,6 @@ function MapCanvas({
         }}
       />
       <NodeHoverCard shown={peek} />
-      {screen === "map" && box.w > 0 && (
-        <MapControls
-          ids={ids}
-          edges={edges}
-          positions={positions}
-          display={display}
-          view={view}
-          box={box}
-          insets={{ left: insetLeft, right: insetRight, top: layout.topBar, bottom: 0 }}
-          onView={onView}
-        />
-      )}
     </div>
   );
 }
