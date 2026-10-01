@@ -93,6 +93,7 @@ Each claim is ruled exactly one of:
   "proves" — the existence of this document, from this author, at this date, establishes it. Usually a fact about the dispute itself: that the claim was being made, that the author held this office, that the question was live.
   "neither" — the source does not bear on it at all, in either direction.
 Most claims should be "asserts": that is the ruling learners collapse into "proves", and the whole phase turns on the difference.
+The learner sees ONLY the excerpt, the attribution and the date. Rule every claim on those alone: a claim the document makes outside the excerpt is "neither" for this learner, so never write one.
 
 Return JSON:
 {

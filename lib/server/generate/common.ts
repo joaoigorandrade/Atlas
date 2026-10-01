@@ -344,7 +344,7 @@ const DOMAIN_NOTES: Record<
     consume:
       "THIS IS AN EMPIRICAL DOMAIN — a claim here is settled by MEASUREMENT, and every measurement carries uncertainty. Give the quantity, how it is measured, and what would make the measurement wrong. A mechanism with no observable consequence is not finished.",
     predict:
-      "THIS IS AN EMPIRICAL DOMAIN. Ask for the forecast of an actual measurement before it is shown — a direction and a rough magnitude — and then give the real result, including when it surprises.",
+      "THIS IS AN EMPIRICAL DOMAIN. Ask for the forecast of a measurement — a direction and a rough magnitude — from conditions and values the situation states. The result must follow from those stated values and the principle; never cite an observed reading, record or experiment the situation did not give.",
   },
   interpretive: {
     consume:

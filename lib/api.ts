@@ -718,7 +718,7 @@ export async function fetchProduce(
 export const retainRequest = (params: {
   topic: string;
   budgetMin: number;
-  nodes: Array<{ id: string; label: string; state: string }>;
+  nodes: Array<{ id: string; label: string; state: string; summary?: string }>;
   interests: string;
   language?: Language;
 }) => ({ kind: "retain", ...params });

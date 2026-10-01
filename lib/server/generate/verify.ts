@@ -17,7 +17,7 @@ import type {
   ProvenanceContent,
   TraceContent,
 } from "@/lib/curriculum";
-import { PROVENANCE_RULINGS } from "@/lib/curriculum";
+import { PROVENANCE_RULINGS, sectionText } from "@/lib/curriculum";
 import { logEvent } from "@/lib/log";
 import { generateJson } from "@/lib/server/openrouter";
 import { arr, fail, obj, user } from "./common";
@@ -42,6 +42,9 @@ export interface Solved {
   confidence: number;
   /** Which method the solver used — W2.4 checks it against the node's own. */
   method?: string;
+  /** The item leans on something it never states — a spec, a typical value,
+   *  "the example" — so the learner cannot answer it from the item alone. */
+  unstated?: boolean;
 }
 
 /**
@@ -52,6 +55,9 @@ export async function blindSolve(p: {
   topic: string;
   nodeLabel: string;
   context?: string;
+  /** The learner answers WITHOUT the context in front of them — a Consume
+   *  check is also asked before its section is read. */
+  contextHidden?: boolean;
   items: ClosedItem[];
   withMethod?: boolean;
 }): Promise<Record<string, Solved>> {
@@ -64,12 +70,17 @@ export async function blindSolve(p: {
     .join("\n\n");
   const out = await generateJson(
     user(`You are an expert examiner checking an answer key you cannot see. Topic: "${p.topic}", concept: "${p.nodeLabel}".
-${p.context ? `\nShared context:\n${p.context}\n` : ""}
-Answer every item below independently. For each, pick the ONE best option by its index, and say how sure you are (0 to 1). Be honest: if two options are defensible, or none is right, say so with a low confidence rather than guessing boldly.${p.withMethod ? ' Also name, in a few words, the method you used ("method").' : ""}
+${p.context ? `\nShared context (${p.contextHidden ? "background only: the learner does NOT see it when answering" : "the learner sees it with every item"}):\n${p.context}\n` : ""}
+Answer every item below independently. For each, pick the ONE best option by its index, and say how sure you are (0 to 1). Be honest: if two options are defensible, or none is right, say so with a low confidence rather than guessing boldly.
+${
+  p.contextHidden
+    ? 'Also set "unstated": true when an item points at material it does not include ("in the example", "the section", "the text above") instead of stating the case it asks about — it is put to the learner before they have read anything.'
+    : `Also set "unstated": true when the learner could NOT answer from the item itself${p.context ? ", the shared context" : ""} plus the concept "${p.nodeLabel}" — because the right option turns on a specific real-world value, spec, standard, date or name the item never states (a USB port's voltage, a battery's rated value), or because the item points at material it does not include ("in the example", "the text above"). You may know the fact; the learner is only given the item.`
+}${p.withMethod ? ' Also name, in a few words, the method you used ("method").' : ""}
 
 ${listing}
 
-Reply with JSON: {"answers": [{"id": "<the id in brackets>", "pick": 0, "confidence": 0.9${p.withMethod ? ', "method": "…"' : ""}}]}`),
+Reply with JSON: {"answers": [{"id": "<the id in brackets>", "pick": 0, "confidence": 0.9, "unstated": false${p.withMethod ? ', "method": "…"' : ""}}]}`),
     (raw) => {
       const answers = arr(obj(raw, "payload").answers, "answers", 1, 40);
       const got: Record<string, Solved> = {};
@@ -80,6 +91,7 @@ Reply with JSON: {"answers": [{"id": "<the id in brackets>", "pick": 0, "confide
           pick: typeof a.pick === "number" ? Math.trunc(a.pick) : -1,
           confidence: typeof a.confidence === "number" ? a.confidence : 0,
           ...(typeof a.method === "string" ? { method: a.method } : null),
+          ...(a.unstated === true ? { unstated: true } : null),
         };
       }
       return got;
@@ -89,7 +101,8 @@ Reply with JSON: {"answers": [{"id": "<the id in brackets>", "pick": 0, "confide
   return out;
 }
 
-/** The items the solver confidently answered differently. */
+/** The items the solver confidently answered differently, or flagged as
+ *  leaning on something they never state. */
 export function disputedIds(
   items: ClosedItem[],
   solved: Record<string, Solved>,
@@ -97,7 +110,7 @@ export function disputedIds(
   return items
     .filter((it) => {
       const s = solved[it.id];
-      return s && s.confidence >= SURE && s.pick !== it.key;
+      return s && (s.unstated || (s.confidence >= SURE && s.pick !== it.key));
     })
     .map((it) => it.id);
 }
@@ -251,7 +264,8 @@ export async function verifyChunkCheck(
   try {
     const solved = await blindSolve({
       ...meta,
-      context: chunk.body.join("\n"),
+      context: sectionText(chunk),
+      contextHidden: true,
       items: [item],
     });
     if (!disputedIds([item], solved).length) return chunk;

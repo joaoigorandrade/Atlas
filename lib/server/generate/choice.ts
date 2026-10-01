@@ -48,7 +48,7 @@ They answered in their own words: """${answer}"""
 Map their answer onto the closest of these candidate answers:
 ${options.map((o, i) => `${i}. ${o}`).join("\n")}
 
-Pick the candidate that matches what they ACTUALLY said, not what they should have said. Empty, vague, evasive or off-topic answers map to the weakest / least-correct candidate — never a generous one.
+Pick the candidate that matches what they ACTUALLY said, not what they should have said. Match on MEANING, not wording: the same quantity in another unit, prefix or number notation (1,6 V = 1.600 mV = 1600 mV; 0.5 = 1/2 = 50%) is the same answer, and a candidate that merely shares their digits or words while meaning something else is not. Empty, vague, evasive or off-topic answers map to the weakest / least-correct candidate — never a generous one.
 
 Return JSON: {"index": <number>, "response": "one sentence to the learner naming what their answer showed, quoting their words"}${languageNote(language)}`,
     },

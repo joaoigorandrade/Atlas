@@ -6,6 +6,7 @@
 // precedent — it opens and closes inside the reading and hands off to nothing.
 
 import { fetchPassageStream } from "@/lib/api";
+import { sectionText } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 import type { PassageAsk } from "@/components/session/ConsumeView";
 import type { RunState } from "./useRunState";
@@ -64,7 +65,7 @@ export function usePassage(deps: {
         : []);
     const chunk = chunks.find((c) => c.id === ask.chunkId);
     if (!node || !chunk) return;
-    const section = chunk.body.join("\n\n");
+    const section = sectionText(chunk);
 
     /** Fold an update into the ask, but only while it's still the open one —
      *  a learner who closed the panel or moved node mid-stream must not have

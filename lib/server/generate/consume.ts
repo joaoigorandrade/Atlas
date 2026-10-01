@@ -216,11 +216,14 @@ ${sizeRule({
 This is the READING phase — the learner is here to be taught, not tested. Write
 real teaching material: explain the idea, show where it comes from, work an
 example, name what usually goes wrong. Real questioning happens in later
-phases, so the pass carries no questions before the prose — only one short
-comprehension check per section ("check"), which closes it and which the
-learner must get right before continuing. A check is a receipt for reading,
-not a test: it asks for something stated or worked in THAT section's prose or
-example, and its wrong options are plausible misreadings, never absurd.
+phases, so the pass carries one short comprehension check per section
+("check"), which closes it and which the learner must get right before
+continuing. A check is a receipt for reading, not a test: it asks for
+something stated or worked in THAT section's prose or example, and its wrong
+options are plausible misreadings, never absurd. The same check is also put to
+the learner BEFORE the section, as a pre-question, so it must read as a
+complete question on its own: state the case or values it asks about, and
+never refer to "the example", "the section" or "the text".
 
 Rules for the prose:
 - Teach, don't summarize. Each section's body is 2-5 full paragraphs of 3-6

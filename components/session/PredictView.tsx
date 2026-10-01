@@ -197,7 +197,7 @@ export default function PredictView({
                     <OpenAnswer
                       topic={topic}
                       nodeLabel={title}
-                      question={`${item.situation}\n\nWhat happens?`}
+                      question={item.situation}
                       options={item.outcomes}
                       accent={accent}
                       placeholder={t.placeholder}

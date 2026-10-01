@@ -82,7 +82,7 @@ const SOCRATIC_STEP_EXAMPLE = `Here is one filled-in step, from an unrelated con
 {
       "spare": false,
       "move": "Challenge the assumption",
-      "prompt": "You said a low gear makes the bike easier to pedal. Easier in what sense — are you doing less work overall to get up the hill?",
+      "prompt": "People say a low gear makes the bike easier to pedal. Easier in what sense — are you doing less work overall to get up the hill?",
       "sufficient": ["the total work against gravity is unchanged", "low gear trades force per stroke for more strokes"],
       "replies": [
         {"label": "No, the total work is about the same, I just spread it over more pedal strokes.", "quality": "correct", "response": "Exactly — you traded force per stroke for number of strokes. The hill still costs what it costs."},

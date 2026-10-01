@@ -45,6 +45,14 @@ describe("disputedIds", () => {
       }),
     ).toEqual(["a"]);
   });
+  it("flags an item that leans on what it never states, even when the key matches", () => {
+    expect(
+      disputedIds(items, {
+        a: { pick: 0, confidence: 1, unstated: true },
+        b: { pick: 0, confidence: 1 },
+      }),
+    ).toEqual(["a"]);
+  });
 });
 
 describe("verified", () => {

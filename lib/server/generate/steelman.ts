@@ -72,7 +72,7 @@ ${boundaryNote(params)}
 
 Pick a question where informed, honest people genuinely disagree — about causes, about significance, about what an episode shows. Never a question of fact with a known answer, and never a question of religious truth: where a tradition's own claims are at issue, the contest is over how historians read the evidence, not over whether the faith is correct.
 
-State the question so that NEITHER side is the default reading. Name each position by who actually held it — a named school, party, tradition or historian. A position nobody held is a strawman with better manners.
+State the question so that NEITHER side is the default reading. Name each position by who actually held it — a named school, party, tradition or historian. A position nobody held is a strawman with better manners. Name an individual only when you are certain they argued it; otherwise name the school or tradition. A real name on a view they never held is worse than no name.
 
 "mustCover" is the rubric: the load-bearing points a genuinely strong version of that side makes. The learner never sees it. Write it so that a case missing one of them is thinner, not wrong.
 

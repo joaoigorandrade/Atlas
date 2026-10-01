@@ -108,7 +108,7 @@ const FEYNMAN_BEAT_SHAPE = `{
         "replies": [{"label": "...", "correct": true, "response": "..."}, {"label": "the misconception a real learner holds here, written out in their voice", "correct": false, "response": "the specific catch"}]
       },
       "gapLabel": "the gap's map label (2-5 words)",
-      "gapReason": "why it split out, phrased to the learner ('the Z trap' — the sentence continues after a quote of their own words)"
+      "gapReason": "why an explanation without this sub-point does not hold, phrased to the learner. Written BEFORE they explain, and shown both when they skipped it and when they got it wrong — so it must never claim they said or believed anything"
     }`;
 
 /** A filled-in beat on an unrelated everyday concept — `mustConvey` is the
@@ -126,7 +126,7 @@ const FEYNMAN_BEAT_EXAMPLE = `Here is one filled-in beat, from an unrelated conc
         ]
       },
       "gapLabel": "Gears as free effort",
-      "gapReason": "you treated the lower gear as a discount on the climb rather than a different way of paying for it"
+      "gapReason": "without the trade between force and strokes, a lower gear looks like a discount on the climb rather than a different way of paying for it"
     }`;
 
 export async function generateFeynman(params: FeynmanParams): Promise<FeynmanBeat[]> {

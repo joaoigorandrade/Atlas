@@ -103,7 +103,7 @@ Return JSON:
   "ask": "the one short question asked of every case (e.g. 'Which reading best classifies this case?')",
   "cases": [
     { "candidate": "one concrete case in a sentence or two, naming NO concept",
-      "readings": ["3-4 candidate readings: the correct one plus the neighbouring concepts a learner really confuses it with. Name real neighbours from this topic — never 'none of the above', and never an option nobody would pick"],
+      "readings": ["3-4 candidate readings: the correct one plus the neighbouring concepts a learner really confuses it with. Name real neighbours from this topic — never 'none of the above', and never an option nobody would pick. A neighbour the map teaches LATER has not been taught yet: never make one the correct reading, and if one appears as a wrong reading, gloss it in a few words so the learner knows what it names"],
       "answerIndex": 0,
       "decidedBy": "the specific feature present or missing in THIS case that puts it on one side of the boundary. Never 'because it matches the definition'",
       "isInstance": true },

@@ -109,7 +109,7 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
 export async function generateRetain(params: {
   topic: string;
   budgetMin: number;
-  nodes: Array<{ id: string; label: string; state: string }>;
+  nodes: Array<{ id: string; label: string; state: string; summary?: string }>;
   interests: string;
   language?: Language;
 }): Promise<RetainContent> {
@@ -119,8 +119,9 @@ export async function generateRetain(params: {
     user(
       `Draft the review cards for the topic "${topic}".
 Cards are atomic — one fact each — and varied by type. Daily budget: ~${budgetMin} minutes.
-The learner's nodes in rotation (id: label — state):
-${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}`).join("\n")}
+The learner's nodes in rotation (id: label — state — what it taught):
+${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}${n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}`).join("\n")}
+Every card asks only for what its node teaches, as summarised here. Never a real-world spec, typical value, date or name the node does not cover: a card about a fact the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
 ${interestNote(interests)}
 
 ${sizeRule({

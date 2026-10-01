@@ -545,12 +545,11 @@ function buildJob(body: GenerateBody): Job {
       const nodes = Array.isArray(body.nodes)
         ? body.nodes
             .filter(
-              (n): n is { id: string; label: string; state: string } =>
+              (n): n is { id: string; label: string; state: string; summary?: string } =>
                 typeof n === "object" &&
                 n !== null &&
-                typeof n.id === "string" &&
-                typeof n.label === "string" &&
-                typeof n.state === "string",
+                [n.id, n.label, n.state].every((v) => typeof v === "string") &&
+                (!("summary" in n) || typeof n.summary === "string"),
             )
             .slice(0, CAPS.listItems)
         : [];

@@ -32,7 +32,7 @@ export const CONSUME_SECTION_SHAPE = `{
       },
       "ask": "a mini-Socratic prompt that answers a likely question with a question",
       "check": {                                           // EVERY SECTION — the comprehension check that closes it
-        "q": "a question answerable only by someone who read THIS section — never general knowledge, never guessable from the kicker",
+        "q": "a question answerable only by someone who read THIS section — never general knowledge, never guessable from the kicker. It is ALSO shown BEFORE the section is read, so it must stand alone: state the case, value or reading it asks about inside the question itself, and never point at the material ('in the example', 'this section', 'as shown above')",
         "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
                                                              // all three within a few words of the same length, and each as specific as
                                                              // the others: the longest, most-qualified option must not be the answer,

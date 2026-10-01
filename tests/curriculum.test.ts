@@ -944,7 +944,7 @@ describe("feynmanGaps", () => {
     );
     const [gap] = feynmanGaps(s, beats);
     expect(gap.id).toBe("gap-b1");
-    expect(gap.reason).toBe('You said: "it just rotates" — why');
+    expect(gap.reason).toBe("“it just rotates” — why");
   });
 
   it("falls back to the written reason when nothing was quotable", () => {

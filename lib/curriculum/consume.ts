@@ -94,6 +94,20 @@ export function figureLayers(fig: ConsumeFigure): Map<string, number> {
  *  worth rejecting. `Job.shape` mirrors this, never the prompt's band. */
 export const CONSUME_SECTION_BOUNDS = { min: 2, max: 6 } as const;
 
+/** Everything a section shows as text — terms, prose, worked example,
+ *  takeaway. What a model must see to answer about any part of it; the body
+ *  alone misses whatever the learner highlighted in the example. */
+export function sectionText(c: ConsumeChunk): string {
+  return [
+    ...(c.terms ?? []).map((x) => `${x.t}: ${x.d}`),
+    ...c.body,
+    ...(c.example ? [c.example.title, ...c.example.steps] : []),
+    c.takeaway,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export interface ConsumeChunk {
   id: string;
   /** Segment label, e.g. "1 · What it is". */

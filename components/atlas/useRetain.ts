@@ -93,6 +93,7 @@ export function useRetain(deps: {
           id: n.id,
           label: n.label,
           state: statesRef.current[n.id]!,
+          ...(n.summary ? { summary: n.summary } : null),
         })),
         interests: formRef.current.interests,
         language: languageRef.current,

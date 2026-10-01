@@ -353,9 +353,7 @@ export function feynmanGaps(session: FeynmanSession, beats: FeynmanBeat[]): GapS
     )
     .map((b) => {
       const quote = session.quotes[b.id]?.trim();
-      return quote
-        ? { ...b.gap, reason: `You said: "${quote}" — ${b.gap.reason}` }
-        : b.gap;
+      return quote ? { ...b.gap, reason: `“${quote}” — ${b.gap.reason}` } : b.gap;
     });
 }
 
