@@ -236,6 +236,11 @@ export function boundaryNote(params: Boundary): string {
   return lines.join("\n") + "\n" + topicNote(params);
 }
 
+/** For every keyed item a learner commits to. A key that leans on a real-world
+ *  spec the map never taught (a USB port's 5 V) grades trivia, not the concept. */
+export const GIVENS_NOTE =
+  "SELF-CONTAINED: every item must be decidable from what the item itself states plus what this concept and the concepts already taught establish. Never let the answer turn on outside knowledge — a real-world spec, standard, typical value, date or name the material did not teach. If the answer needs a value, state the value. The explanation of the answer may only use what the item stated; never invent a measurement or record the item did not give.";
+
 /**
  * How this kind of concept wants this phase written.
  *

@@ -1,446 +1,6 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
-    "%@ em %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ on %2$@"
-          }
-        }
-      }
-    },
-    "%lld cartões vencidos" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld cards due"
-          }
-        }
-      }
-    },
-    "%lld dias até sua data" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days to your date"
-          }
-        }
-      }
-    },
-    "1 cartão vencido" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 card due"
-          }
-        }
-      }
-    },
-    "1 dia até sua data" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 day to your date"
-          }
-        }
-      }
-    },
-    "A recordação abre em %lld h — lembrar a frio precisa de uma noite." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recall opens in %lld h — remembering cold needs a night."
-          }
-        }
-      }
-    },
-    "Abre em %lld h — a última prova só vale depois de uma noite longe do material." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opens in %lld h — the last proof only counts after a night away from the material."
-          }
-        }
-      }
-    },
-    "Antes de ler" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Before you read"
-          }
-        }
-      }
-    },
-    "Arrisque primeiro — uma tentativa. Se você já sabe, pode seguir; errar faz a leitura fixar." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guess first — one try. If you already know it, go on; a miss makes the reading stick."
-          }
-        }
-      }
-    },
-    "Atravessou com apoio — a lacuna fechou. A prova é o problema a frio em %@, que abre amanhã." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It carried over with help — the gap is closed. The proof is the cold problem in %@, which opens tomorrow."
-          }
-        }
-      }
-    },
-    "avaliar sua correção" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "grade your fix"
-          }
-        }
-      }
-    },
-    "Compare com a versão do mapa para %@: “%@”" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compare with the map’s version for %1$@: “%2$@”"
-          }
-        }
-      }
-    },
-    "Conferindo o vínculo…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checking the link…"
-          }
-        }
-      }
-    },
-    "Conferir →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Check it →"
-          }
-        }
-      }
-    },
-    "Confirmado, mas raso — " : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Confirmed, but thin — "
-          }
-        }
-      }
-    },
-    "Data-alvo" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Target date"
-          }
-        }
-      }
-    },
-    "Escolha a leitura deste mapa" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick the reading this map follows"
-          }
-        }
-      }
-    },
-    "Explique só esta parte, com suas palavras…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Explain just this part, in your own words…"
-          }
-        }
-      }
-    },
-    "Falado como %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spoken as %@"
-          }
-        }
-      }
-    },
-    "Hoje, em todos os seus mapas" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today, across your maps"
-          }
-        }
-      }
-    },
-    "Lendo sua resposta…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reading your answer…"
-          }
-        }
-      }
-    },
-    "Lendo…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reading it…"
-          }
-        }
-      }
-    },
-    "Ler a fonte completa →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read the full source →"
-          }
-        }
-      }
-    },
-    "Lido pela %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read through %@"
-          }
-        }
-      }
-    },
-    "Mapa revisado" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reviewed map"
-          }
-        }
-      }
-    },
-    "Mapa revisado — uma pessoa conferiu" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reviewed map — a person checked it"
-          }
-        }
-      }
-    },
-    "Não confirmado — " : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not confirmed — "
-          }
-        }
-      }
-    },
-    "Não voltou" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Didn’t come back"
-          }
-        }
-      }
-    },
-    "O problema a frio abre em %lld h — a prova de transferência precisa de uma noite." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The cold problem opens in %lld h — a proof of transfer needs a night."
-          }
-        }
-      }
-    },
-    "O trecho não foi encontrado na página — leia-o como paráfrase." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The excerpt could not be matched on the page — read it as a paraphrase."
-          }
-        }
-      }
-    },
-    "País" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Country"
-          }
-        }
-      }
-    },
-    "Prazo" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deadline"
-          }
-        }
-      }
-    },
-    "Quando você precisa" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When you need it"
-          }
-        }
-      }
-    },
-    "Responda aqui primeiro — ou de cabeça, e só vire" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Answer it here first — or in your head, and just turn it"
-          }
-        }
-      }
-    },
-    "Seu palpite antes da leitura errou — agora responda com o que leu." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your guess before reading missed — now answer from what you read."
-          }
-        }
-      }
-    },
-    "temas de finanças, direito e impostos usam as regras dele" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "money, law and tax topics use its rules"
-          }
-        }
-      }
-    },
-    "Trocar a variante do idioma" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Change the language variant"
-          }
-        }
-      }
-    },
-    "Um caso novo. A última execução quebrou em: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A new case. Last run broke at: %@."
-          }
-        }
-      }
-    },
-    "Você já sabia cada seção — prove no %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You knew every section — prove it in %@"
-          }
-        }
-      }
-    },
-    "Você já sabia isto — pode seguir, ou ler mesmo assim." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You already had this — go on, or read it anyway."
-          }
-        }
-      }
-    },
-    "Você já sabia tudo — prove no %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You knew all of it — prove it in %@"
-          }
-        }
-      }
-    },
-    "Voltou" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Came back"
-          }
-        }
-      }
-    },
     "— %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -617,6 +177,17 @@
         }
       }
     },
+    "%@ em %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ on %2$@"
+          }
+        }
+      }
+    },
     "%@%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -728,6 +299,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld cartões vencidos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld cards due"
           }
         }
       }
@@ -973,6 +555,17 @@
         }
       }
     },
+    "%lld dias até sua data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days to your date"
+          }
+        }
+      }
+    },
     "%lld min" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1068,6 +661,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "~5 minutes to a lit map with a clear frontier"
+          }
+        }
+      }
+    },
+    "1 cartão vencido" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 card due"
+          }
+        }
+      }
+    },
+    "1 dia até sua data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 day to your date"
           }
         }
       }
@@ -1366,6 +981,17 @@
         }
       }
     },
+    "A recordação abre em %lld h — lembrar a frio precisa de uma noite." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recall opens in %lld h — remembering cold needs a night."
+          }
+        }
+      }
+    },
     "A regra que dispara" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1439,6 +1065,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expanded"
+          }
+        }
+      }
+    },
+    "Abre em %lld h — a última prova só vale depois de uma noite longe do material." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens in %lld h — the last proof only counts after a night away from the material."
           }
         }
       }
@@ -1773,6 +1410,17 @@
         }
       }
     },
+    "Antes de ler" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before you read"
+          }
+        }
+      }
+    },
     "Antes de ver o problema" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1971,6 +1619,17 @@
         }
       }
     },
+    "Arrisque primeiro — uma tentativa. Se você já sabe, pode seguir; errar faz a leitura fixar." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guess first — one try. If you already know it, go on; a miss makes the reading stick."
+          }
+        }
+      }
+    },
     "As notificações do Atlas estão desligadas nos Ajustes do iPhone." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2033,6 +1692,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Carried over"
+          }
+        }
+      }
+    },
+    "Atravessou com apoio — a lacuna fechou. A prova é o problema a frio em %@, que abre amanhã." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It carried over with help — the gap is closed. The proof is the cold problem in %@, which opens tomorrow."
+          }
+        }
+      }
+    },
+    "avaliar sua correção" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grade your fix"
           }
         }
       }
@@ -2378,6 +2059,17 @@
         }
       }
     },
+    "Compare com a versão do mapa para %@: “%@”" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare with the map’s version for %1$@: “%2$@”"
+          }
+        }
+      }
+    },
     "Compreendido e conectado — agora prove que isso se transfere em %@." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2433,6 +2125,17 @@
         }
       }
     },
+    "Conferindo o vínculo…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the link…"
+          }
+        }
+      }
+    },
     "Conferindo sua execução…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2440,6 +2143,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Checking your run…"
+          }
+        }
+      }
+    },
+    "Conferir →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check it →"
           }
         }
       }
@@ -2517,6 +2231,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Check the email and password, then try again."
+          }
+        }
+      }
+    },
+    "Confirmado, mas raso — " : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmed, but thin — "
           }
         }
       }
@@ -2877,6 +2602,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exam date"
+          }
+        }
+      }
+    },
+    "Data-alvo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target date"
           }
         }
       }
@@ -3541,6 +3277,17 @@
         }
       }
     },
+    "Escolha a leitura deste mapa" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick the reading this map follows"
+          }
+        }
+      }
+    },
     "Esconder a legenda" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4058,6 +3805,17 @@
         }
       }
     },
+    "Explique só esta parte, com suas palavras…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explain just this part, in your own words…"
+          }
+        }
+      }
+    },
     "Explorando o território…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4109,6 +3867,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Easy"
+          }
+        }
+      }
+    },
+    "Falado como %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spoken as %@"
           }
         }
       }
@@ -4348,6 +4117,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Guide me"
+          }
+        }
+      }
+    },
+    "Hoje, em todos os seus mapas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today, across your maps"
           }
         }
       }
@@ -4704,6 +4484,17 @@
         }
       }
     },
+    "Lendo sua resposta…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading your answer…"
+          }
+        }
+      }
+    },
     "Lendo sua tentativa — isso leva alguns segundos." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4715,6 +4506,17 @@
         }
       }
     },
+    "Lendo…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading it…"
+          }
+        }
+      }
+    },
     "Ler a explicação, seção por seção" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4722,6 +4524,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Read the explanation, section by section"
+          }
+        }
+      }
+    },
+    "Ler a fonte completa →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read the full source →"
           }
         }
       }
@@ -4777,6 +4590,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Read wrong"
+          }
+        }
+      }
+    },
+    "Lido pela %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read through %@"
           }
         }
       }
@@ -4854,6 +4678,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open map · %@"
+          }
+        }
+      }
+    },
+    "Mapa revisado" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reviewed map"
+          }
+        }
+      }
+    },
+    "Mapa revisado — uma pessoa conferiu" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reviewed map — a person checked it"
           }
         }
       }
@@ -5276,6 +5122,17 @@
         }
       }
     },
+    "Não confirmado — " : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not confirmed — "
+          }
+        }
+      }
+    },
     "Não confirmou" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5393,6 +5250,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not sure"
+          }
+        }
+      }
+    },
+    "Não voltou" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Didn’t come back"
           }
         }
       }
@@ -5562,6 +5430,17 @@
         }
       }
     },
+    "O problema a frio abre em %lld h — a prova de transferência precisa de uma noite." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cold problem opens in %lld h — a proof of transfer needs a night."
+          }
+        }
+      }
+    },
     "O que a curva diz" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5712,6 +5591,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The pace"
+          }
+        }
+      }
+    },
+    "O trecho não foi encontrado na página — leia-o como paráfrase." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The excerpt could not be matched on the page — read it as a paraphrase."
           }
         }
       }
@@ -5921,6 +5811,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "hearing what you said"
+          }
+        }
+      }
+    },
+    "País" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Country"
           }
         }
       }
@@ -6152,6 +6053,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Portuguese"
+          }
+        }
+      }
+    },
+    "Prazo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deadline"
           }
         }
       }
@@ -6497,6 +6409,17 @@
         }
       }
     },
+    "Quando você precisa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you need it"
+          }
+        }
+      }
+    },
     "Quanta certeza você tem?" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6779,6 +6702,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Answer before you see the problem — afterwards the answer measures nothing. The %@ holds what you felt against what happened."
+          }
+        }
+      }
+    },
+    "Responda aqui primeiro — ou de cabeça, e só vire" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer it here first — or in your head, and just turn it"
           }
         }
       }
@@ -7245,6 +7179,17 @@
         }
       }
     },
+    "Seu palpite antes da leitura errou — agora responda com o que leu." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your guess before reading missed — now answer from what you read."
+          }
+        }
+      }
+    },
     "Seu trabalho" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7428,6 +7373,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Concept web"
+          }
+        }
+      }
+    },
+    "temas de finanças, direito e impostos usam as regras dele" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "money, law and tax topics use its rules"
           }
         }
       }
@@ -7641,6 +7597,17 @@
         }
       }
     },
+    "Trocar a variante do idioma" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change the language variant"
+          }
+        }
+      }
+    },
     "Trocar de mapa" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7681,6 +7648,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A concrete case, worked step by step."
+          }
+        }
+      }
+    },
+    "Um caso novo. A última execução quebrou em: %@." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new case. Last run broke at: %@."
           }
         }
       }
@@ -8169,6 +8147,39 @@
         }
       }
     },
+    "Você já sabia cada seção — prove no %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You knew every section — prove it in %@"
+          }
+        }
+      }
+    },
+    "Você já sabia isto — pode seguir, ou ler mesmo assim." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You already had this — go on, or read it anyway."
+          }
+        }
+      }
+    },
+    "Você já sabia tudo — prove no %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You knew all of it — prove it in %@"
+          }
+        }
+      }
+    },
     "Você já tem um mapa de %@. Abra-o em Seus mapas, ou escolha outro nome." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8352,6 +8363,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Back to the map →"
+          }
+        }
+      }
+    },
+    "Voltou" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Came back"
           }
         }
       }

@@ -19,6 +19,7 @@ import {
   rejectEcho,
   str,
   user,
+  GIVENS_NOTE,
 } from "./common";
 import type { DrillContent, Domain, NodeKind } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
@@ -88,6 +89,7 @@ export async function generateDrill(params: DrillParams): Promise<DrillContent> 
       `Write a DRILL pass for "${nodeLabel}" within "${topic}": the same small call made over and over until it stops being derived and starts being known.
 ${interestNote(interests)}
 ${boundaryNote(params)}${kindNote(params.nodeKind, "drill")}${domainNote(params.domain, "drill")}${cellNote(params.cell, "drill")}
+${GIVENS_NOTE}
 
 The learner is TIMED. Every rep must be answerable in a few seconds by someone who has the concept, and impossible to guess by someone who does not. A rep is its prompt and nothing else — no scenario, no setup, no preamble.
 

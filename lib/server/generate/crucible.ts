@@ -19,6 +19,7 @@ import {
   rejectSelfIdenticalError,
   str,
   user,
+  GIVENS_NOTE,
 } from "./common";
 import { CrucibleContent, crucibleGapId } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
@@ -177,6 +178,7 @@ The problem must be unsolvable without "${nodeLabel}" itself, as its own summary
 Concepts the learner already owns, to interleave: ${masteredLabels.join(", ") || "the concept's own prerequisites"}.
 ${interestNote(interests)}${rerunNote(rerun)}
 ${boundaryNote(params)}${kindNote(params.nodeKind, "crucible")}${domainNote(params.domain, "crucible")}${cellNote(params.cell, "crucible")}
+${GIVENS_NOTE}
 
 Return JSON:
 {

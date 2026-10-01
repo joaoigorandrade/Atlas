@@ -19,6 +19,7 @@ import {
   rejectEcho,
   str,
   user,
+  GIVENS_NOTE,
 } from "./common";
 import type { Domain, NodeKind, PredictContent } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
@@ -84,6 +85,7 @@ export async function generatePredict(params: PredictParams): Promise<PredictCon
       `Write a PREDICTION pass for the principle "${nodeLabel}" within "${topic}": the learner is given a situation it governs and must say what HAPPENS before being shown.
 ${interestNote(interests)}
 ${boundaryNote(params)}${kindNote(params.nodeKind, "predict")}${domainNote(params.domain, "predict")}${cellNote(params.cell, "predict")}
+${GIVENS_NOTE}
 
 The forecast is the test and it is worthless once the answer is visible, so no situation may hint at its own outcome, and none may reuse a case worked in the reading.
 
