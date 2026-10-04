@@ -228,10 +228,10 @@ function buildJob(body: GenerateBody): Job {
         ...(topicAxes(body).target ? { target: topicAxes(body).target } : {}),
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
-        // The map prompt gained its "about" header (W1.1, W2.3): a map cached
-        // before it has no topic axes to stamp, so the kind gets its own
-        // version rather than every kind re-billing through `VERSION`.
-        mapV: 2,
+        // The map kind's own version, so a map-prompt change never re-bills
+        // every kind through `VERSION`. 2: the "about" header (W1.1, W2.3);
+        // 3: a topic naming one chapter maps that chapter, not the book.
+        mapV: 3,
       };
       return {
         kind: "curriculum",

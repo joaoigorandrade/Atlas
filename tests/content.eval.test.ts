@@ -58,6 +58,13 @@ interface PanelTopic {
 /** Two per domain, en and pt-BR, including the four research topics. */
 export const PANEL: PanelTopic[] = [
   { topic: "Linear algebra", goal: "exam", language: "en", expect: { latex: true } },
+  // A named chapter maps that chapter only — no circuit-variables recap from ch. 1.
+  {
+    topic: "Circuitos elétricos — capítulo 2 (Nilsson & Riedel)",
+    goal: "exam",
+    language: "pt-BR",
+    expect: { latex: true },
+  },
   { topic: "Probabilidade", goal: "mastery", language: "pt-BR", expect: { latex: true } },
   { topic: "Git version control", goal: "pareto", paretoPct: 50, language: "en" },
   { topic: "Python para análise de dados", goal: "exam", language: "pt-BR" },

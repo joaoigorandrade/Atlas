@@ -17,9 +17,10 @@ import {
 import type { Language } from "@/lib/i18n";
 
 const GOAL_HINT: Record<GoalKind, string> = {
-  exam: "The learner is preparing for an exam — cover the canonical syllabus.",
+  exam: "The learner is preparing for an exam — cover the canonical syllabus of exactly what the topic names.",
   project: "The learner wants to build something real — bias toward applicable tools.",
-  mastery: "The learner wants deep general mastery — favor conceptual foundations.",
+  mastery:
+    "The learner wants deep general mastery — favor the conceptual foundations of exactly what the topic names.",
   pareto: "", // supplied per-request by `paretoNote` — it depends on the chosen share.
 };
 
@@ -74,6 +75,12 @@ export function mapNodeBounds(paretoPct?: number): {
   };
 }
 
+// "Circuitos elétricos capítulo 2" came back as the whole course: the goal
+// hints and the syllabus step both read the book's name and mapped the book.
+// A named part is the learner saying where they are — earlier parts are behind
+// them, and a gap there surfaces through the checks, not through the map.
+const PART_OF_WORK = `If the topic names ONE PART of a larger work — a chapter, section, unit or lecture of a book or course ("capítulo 2", "Ch. 3", "Lecture 5") — map ONLY that part. First recall that part's own sections in that work; every concept comes from those sections, from the part's first idea to its capstone. Nothing an earlier part already taught is a concept here, not even as a root (for a textbook's chapter 2, chapter 1's definitions, units and sign conventions are held by the learner), and nothing a later part teaches either. Name the part's title as you understand it in the first concept's summary. A topic that names no such part is mapped as usual.`;
+
 export function mapContext(params: MapParams): string {
   const { topic, goal, outline } = params;
   const grounding = outline?.trim()
@@ -94,6 +101,7 @@ export function mapContext(params: MapParams): string {
     ? `\nThis map is one country of a larger continent the learner is charting. The NEIGHBOURING maps below are separate maps with their own concepts:\n${params.neighbours.map((n) => `- ${n}`).join("\n")}\nNo concept on this map may duplicate or re-teach one of theirs. Where this topic genuinely rests on one of them, start from it as known instead of mapping it again.\n`
     : "";
   return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}${paretoNote(params)}
+${PART_OF_WORK}
 ${grounding}${continent}
 ${escape}`;
 }
@@ -181,7 +189,8 @@ export const DOMAIN_MAP_RULE = `NOW APPLY YOUR CHOSEN DOMAIN. This row overrides
 - interpretive: an edge means "A SET THE STAGE FOR B" — NOT "A is a prerequisite of B". Order the map CHRONOLOGICALLY, earliest first; the Council of Nicaea is not a prerequisite of the Great Schism, it is earlier. 12-40 nodes — as many DISTINCT ones as the span genuinely holds: one life or one decade is nearer 15, three centuries nearer 40. They are events, institutions, movements, controversies and DOCUMENTS — not "concepts". Include at least one node that is a single primary source, and one that is the historiography itself: how this story is told differently by different traditions. If the topic spans more than roughly three centuries, do not build one map — return the scope offer, and make the offers PERIODS rather than themes.
 - performative: nodes are COMPETENCIES the learner performs, never concepts they understand — "ordering food", "the sounds that mark a foreign speaker", "the 300 highest-frequency words". An edge means "you need A to say B". Order by frequency x real utility, not by grammatical tidiness. 22-35 nodes. If the output language is closely related to the target (Portuguese and Spanish, say), say so and spend the map ONLY on the deltas — false friends, the contrasts that genuinely differ, and pronunciation — skipping everything that transfers for free. Include one node whose whole job is catching the learner being understood while still wrong.
 - craft: the map IS the build sequence and it is IRREVERSIBLE — an edge means "A must be finished before B can start". 8-14 stages. The FIRST node is always the manifest: materials, cut list, tools, total cost and total hours, with nothing to learn and everything to gather. Every later node is a stage the learner carries out away from the screen, so each must name its tolerances and the ways it goes wrong.
-- general: the generic rules above stand unchanged.`;
+- general: the generic rules above stand unchanged.
+Whatever the domain: a topic that names ONE PART of a larger work takes its concept count from that part alone — usually 6-10 — and that overrides the row's range.`;
 
 /**
  * The two cost axes — importance sets the bar a node is held to, difficulty the
