@@ -27,17 +27,23 @@ export async function withSyllabus(params: MapParams): Promise<MapParams> {
     return params;
   // Asked as "the standard course", a named chapter came back as another
   // textbook's chapter of the same number — Sadiku's "Leis básicas" for Nilsson.
+  // Memory of a book's contents stays unreliable (Nilsson's ch. 2 kept gaining
+  // ch. 3), so sections the learner typed into the topic win outright.
   const ask = part
-    ? `"${params.topic}" names one part of a larger work. List the sections of THAT part exactly as that work lays them out, in its own order — if a book or author is named, that book's own sections, never another textbook's part of the same number. The first unit opens with the part's title. Never list the rest of the work. Reply with JSON: {"units": ["section — its key subtopics", ...]} (4-10 units).`
+    ? `"${params.topic}" names one part of a larger work. If it already lists that part's sections or contents, return exactly those, in its order, and nothing else — the learner has said what the part holds. Otherwise list the numbered sections of THAT part exactly as that work numbers and titles them ("2.1 …", "2.2 …"), in its own order — if a book or author is named, that book's own sections, never another textbook's part of the same number. After each, only the subtopics that section itself INTRODUCES: never one an earlier part introduced that this part merely uses (a definition, a unit, a sign convention), never one a later part teaches. The first unit opens with the part's title. Reply with JSON: {"units": ["2.1 Section title — the subtopics it introduces", ...]} (3-10 units).`
     : `List the units of the standard university or exam-board course on "${params.topic}", in teaching order — what its syllabus actually covers and an exam actually tests, including the topics usually forgotten in a quick summary. Reply with JSON: {"units": ["unit — its key subtopics", ...]} (8-16 units). If "${params.topic}" names ONE PART of a larger work, list only the sections of THAT part (4-10 units), never the rest of the work.`;
   try {
     const units = await generateJson(
       user(`${ask}${languageNote(params.language ?? "en")}`),
       (r) =>
-        arr(obj(r, "payload").units, "units", 4, 24).map((u, i) => str(u, `units[${i}]`)),
+        arr(obj(r, "payload").units, "units", 3, 24).map((u, i) => str(u, `units[${i}]`)),
       { label: "curriculum-syllabus" },
     );
-    return { ...params, outline: units.map((u, i) => `${i + 1}. ${u}`).join("\n") };
+    return {
+      ...params,
+      outline: units.map((u, i) => `${i + 1}. ${u}`).join("\n"),
+      ...(part ? { part: true } : {}),
+    };
   } catch {
     return params;
   }

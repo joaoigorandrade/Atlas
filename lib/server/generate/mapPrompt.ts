@@ -39,6 +39,9 @@ export interface MapParams {
   /** The other maps of this map's continent (`withTopicAxes`) — each owns its
    *  own concepts, so this map must not carry them. */
   neighbours?: string[];
+  /** The outline is the section list of the one part the topic names
+   *  (`withSyllabus`) — the map's boundary, not a guide to it. */
+  part?: boolean;
   language?: Language;
 }
 
@@ -79,13 +82,17 @@ export function mapNodeBounds(paretoPct?: number): {
 // hints and the syllabus step both read the book's name and mapped the book.
 // A named part is the learner saying where they are — earlier parts are behind
 // them, and a gap there surfaces through the checks, not through the map.
-const PART_OF_WORK = `If the topic names ONE PART of a larger work — a chapter, section, unit or lecture of a book or course ("capítulo 2", "Ch. 3", "Lecture 5") — map ONLY that part. First recall that part's own sections in that work; every concept comes from those sections, from the part's first idea to its capstone. Nothing an earlier part already taught is a concept here, not even as a root (for a textbook's chapter 2, chapter 1's definitions, units and sign conventions are held by the learner), and nothing a later part teaches either. Name the part's title as you understand it in the first concept's summary. A topic that names no such part is mapped as usual.`;
+const PART_OF_WORK = `If the topic names ONE PART of a larger work — a chapter, section, unit or lecture of a book or course ("capítulo 2", "Ch. 3", "Lecture 5") — map ONLY that part. If the topic itself lists the part's sections or contents, those ARE the part, exactly. Otherwise first recall that part's own sections in that work; every concept comes from those sections, from the part's first idea to its capstone. Nothing an earlier part already taught is a concept here, not even as a root (for a textbook's chapter 2, chapter 1's definitions, units and sign conventions are held by the learner), and nothing a later part teaches either. Name the part's title as you understand it in the first concept's summary. A topic that names no such part is mapped as usual.`;
 
 export function mapContext(params: MapParams): string {
   const { topic, goal, outline } = params;
-  const grounding = outline?.trim()
-    ? `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`
-    : "";
+  // As a guide, a chapter's section list still let chapter 1's sign
+  // convention in as a root: the "foundations" rules outweighed it.
+  const grounding = !outline?.trim()
+    ? ""
+    : params.part
+      ? `\nThe learner named one part of a work. These are THAT part's sections, and they are the map's HARD BOUNDARY:\n"""\n${outline.trim().slice(0, 6000)}\n"""\nEvery concept must be one these sections themselves introduce. A concept they only use — taught in an earlier part — is NOT a node, not even a root or a foundation; the learner already holds it. Nothing past these sections either. This overrides every rule below about foundations.\n`
+      : `\nGround the map in this course outline the learner uploaded — its units and their order are the source of truth for what to cover:\n"""\n${outline.trim().slice(0, 6000)}\n"""\n`;
   // A picked scope arrives as a bare label with its period or qualifier left
   // behind in the offer's note, so the model re-reads it as wide and offers to
   // scope it again — and again. Three rounds deep on church history the
