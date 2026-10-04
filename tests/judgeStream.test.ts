@@ -111,4 +111,42 @@ describe("judgeStream", () => {
     generateJson.mockRejectedValue(new Error("fallback unavailable"));
     await expect(collect()).rejects.toThrow("fallback unavailable");
   });
+
+  it("sends Jev's ruling first, tells the LLM, and pins it over every frame", async () => {
+    let told = "";
+    stream.mockImplementation(async function* (sent, validate) {
+      told = sent[0].content;
+      // The LLM disagrees; the pinned ruling still wins on its frame.
+      yield { value: validate({ quality: "near", response: "Not quite." }) };
+    });
+    const frames: StreamFrame[] = [];
+    for await (const frame of judgeStream(messages, {
+      ...spec,
+      decided: Promise.resolve({
+        verdict: { quality: "correct" },
+        tell: '"quality" is "correct".',
+        early: true,
+      }),
+    }))
+      frames.push(frame);
+    expect(frames).toEqual([
+      { p: "judgement", v: { quality: "correct" } },
+      { p: "judgement", v: { quality: "correct", response: "Not quite." } },
+    ]);
+    expect(told).toContain("THE RULING IS ALREADY MADE");
+    expect(told).toContain('"quality" is "correct".');
+  });
+
+  it("runs the plain judge when Jev has no ruling", async () => {
+    stream.mockImplementation(async function* (_messages, validate) {
+      yield { value: validate(full) };
+    });
+    const frames: StreamFrame[] = [];
+    for await (const frame of judgeStream(messages, {
+      ...spec,
+      decided: Promise.resolve(null),
+    }))
+      frames.push(frame);
+    expect(frames).toEqual([{ p: "judgement", v: full }]);
+  });
 });

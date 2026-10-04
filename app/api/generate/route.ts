@@ -43,6 +43,7 @@ import {
 } from "@/lib/server/store";
 import { asMapMeta } from "@/lib/curriculum";
 import { createClient } from "@/lib/supabase/server";
+import { shareable } from "@/lib/server/generate/jev";
 
 // Content generation is a real LLM round-trip — allow it time. It has to fit
 // TWO of them back to back: `generateMapStream` falls back to the single-shot
@@ -192,7 +193,10 @@ export async function POST(request: Request) {
     await stampMap(payload);
   };
 
-  if (streaming) return streamGeneration(job, userId, prefetch, onLanded, requestId);
+  if (streaming)
+    return streamGeneration(job, userId, prefetch, onLanded, requestId, (payload) =>
+      shareable(job.kind, body, payload),
+    );
 
   try {
     const payload = await job.run();
@@ -201,7 +205,11 @@ export async function POST(request: Request) {
     // instance the moment this handler returns, and the write that never lands
     // is a generation the next learner pays for again. `after()` is the same
     // mechanism `recordContent` already uses one line down.
-    if (job.key) after(() => writeContent(job.key!, job.kind, payload));
+    if (job.key)
+      after(async () => {
+        if (await shareable(job.kind, body, payload))
+          await writeContent(job.key!, job.kind, payload);
+      });
     recordContent(supabase, body, job, userId, payload);
     onPayload(payload);
     await stampMap(payload);
@@ -235,6 +243,7 @@ function streamGeneration(
   prefetch: boolean,
   onPayload: (payload: Record<string, unknown>) => void | Promise<void>,
   requestId: string,
+  share: (payload: Record<string, unknown>) => Promise<boolean>,
 ): Promise<Response> {
   return ndjsonStream(job.stream!(), {
     requestId,
@@ -257,7 +266,8 @@ function streamGeneration(
       // the last frame *is* the end of the request, so a write left running
       // after it is one that may never land — which is exactly what happened
       // to a lens the learner opened, generated and was billed for twice.
-      if (job.key) await writeContent(job.key, job.kind, payload);
+      if (job.key && (await share(payload)))
+        await writeContent(job.key, job.kind, payload);
       await onPayload(payload);
     },
     onError: (err, phase) => {

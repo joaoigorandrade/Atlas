@@ -17,6 +17,7 @@ import {
 import { logError, logEvent } from "@/lib/log";
 import { CACHEABLE_KINDS, readContent, writeContent } from "@/lib/server/contentCache";
 import { ownsTopic, putContent } from "@/lib/server/store";
+import { shareable } from "@/lib/server/generate/jev";
 import { resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -241,7 +242,8 @@ export function startCurriculumWarm(
         try {
           // Through resolveJob, so these hash to the row the learner's own
           // request will later address.
-          const warm = resolveJob(frontierWarmBody(body, graph, node, kind));
+          const wb = frontierWarmBody(body, graph, node, kind);
+          const warm = resolveJob(wb);
           if (!warm.key) continue;
           const record = (payload: unknown) =>
             topicId
@@ -265,7 +267,8 @@ export function startCurriculumWarm(
           const jobId = crypto.randomUUID();
           await logGenerationCalls(supabase, warm, { jobId, topicId });
           const payload = await warm.run();
-          await writeContent(warm.key, warm.kind, payload);
+          if (await shareable(kind, wb, payload))
+            await writeContent(warm.key, warm.kind, payload);
           await record(payload);
           logEvent("curriculum_warm", { user: userId, kind, node: node.id });
         } catch (err) {

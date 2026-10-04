@@ -9,9 +9,10 @@ import { QUALITIES } from "./socratic";
 import { obj, oneOf, str, languageNote } from "./common";
 import { JUDGE_SYSTEM } from "./judge";
 import { Language } from "@/lib/i18n";
-import { ChatMessage, generateJson } from "@/lib/server/openrouter";
+import { ChatMessage } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
-import { judgeStream } from "./judgeStream";
+import { judgeOnce, judgeStream } from "./judgeStream";
+import { decideSocratic } from "./jevJudge";
 
 export interface SocraticJudgement {
   quality: "correct" | "partial" | "near" | "wrong" | "lost";
@@ -181,10 +182,12 @@ const validateSocraticJudgement = (raw: unknown): SocraticJudgement => {
 export async function judgeSocratic(
   params: JudgeSocraticParams,
 ): Promise<SocraticJudgement> {
-  return generateJson(socraticJudgeMessages(params), validateSocraticJudgement, {
-    label: "judge-socratic",
-    role: "judge",
-  });
+  return judgeOnce(
+    socraticJudgeMessages(params),
+    validateSocraticJudgement,
+    "judge-socratic",
+    decideSocratic(params),
+  );
 }
 
 export function judgeSocraticStream(
@@ -205,5 +208,6 @@ export function judgeSocraticStream(
     },
     full: validateSocraticJudgement,
     label: "judge-socratic",
+    decided: decideSocratic(params),
   });
 }

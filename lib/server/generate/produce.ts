@@ -30,6 +30,8 @@ import {
 import { Language } from "@/lib/i18n";
 import { ChatMessage, generateJson } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
+import { decideProduce } from "./jevJudge";
+import { judgeOnce } from "./judgeStream";
 
 export const PRODUCE_TURN_BOUNDS = { min: 4, max: 8 } as const;
 /** Short on purpose: an unbounded turn stops being production under pressure
@@ -177,10 +179,12 @@ Return JSON: {"verdict": "good" | "thin" | "wrong", "read": "..."}${languageNote
 export async function judgeProduce(
   params: JudgeProduceParams,
 ): Promise<ProduceJudgement> {
-  return generateJson(produceJudgeMessages(params), validateProduceJudgement, {
-    label: "judge-produce",
-    role: "judge",
-  });
+  return judgeOnce(
+    produceJudgeMessages(params),
+    validateProduceJudgement,
+    "judge-produce",
+    decideProduce(params),
+  );
 }
 
 export function judgeProduceStream(
@@ -193,5 +197,6 @@ export function judgeProduceStream(
     }),
     full: validateProduceJudgement,
     label: "judge-produce",
+    decided: decideProduce(params),
   });
 }

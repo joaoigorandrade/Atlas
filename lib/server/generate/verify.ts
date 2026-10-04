@@ -21,6 +21,7 @@ import { PROVENANCE_RULINGS, sectionText } from "@/lib/curriculum";
 import { logEvent } from "@/lib/log";
 import { generateJson } from "@/lib/server/openrouter";
 import { arr, fail, obj, user } from "./common";
+import { jevSolve } from "./jev";
 import { DISCRIMINATE_CASE_BOUNDS } from "./discriminate";
 import { DRILL_REP_BOUNDS } from "./drill";
 import { PREDICT_SETUP_BOUNDS } from "./predict";
@@ -34,7 +35,8 @@ export interface ClosedItem {
   key: number;
 }
 
-/** Below this the solver is guessing, and a guess disputes nothing. */
+/** Below this the solver is guessing, and a guess disputes nothing. Jev's
+ *  confidence is the probability of its pick, so the bar means what it says. */
 const SURE = 0.7;
 
 export interface Solved {
@@ -62,6 +64,13 @@ export async function blindSolve(p: {
   withMethod?: boolean;
 }): Promise<Record<string, Solved>> {
   if (p.items.length === 0) return {};
+  // Jev first: one ~0.5s call whose per-option probabilities are calibrated,
+  // where the LLM's confidence was self-reported. It names no method, so a
+  // call that asks for one goes to the LLM.
+  if (!p.withMethod) {
+    const jev = await jevSolve(p);
+    if (jev) return jev;
+  }
   const listing = p.items
     .map(
       (it, i) =>

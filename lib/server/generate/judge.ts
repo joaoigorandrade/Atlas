@@ -9,7 +9,8 @@ import { Language } from "@/lib/i18n";
 import { ChatMessage, generateJson } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
 import { MATH_RULE } from "./common";
-import { judgeStream } from "./judgeStream";
+import { judgeOnce, judgeStream } from "./judgeStream";
+import { decideRubric } from "./jevJudge";
 
 export { judgeStream } from "./judgeStream";
 
@@ -220,13 +221,11 @@ export const validateFeynmanJudgement =
 export async function judgeFeynman(
   params: JudgeFeynmanParams,
 ): Promise<FeynmanJudgement> {
-  return generateJson(
+  return judgeOnce(
     feynmanJudgeMessages(params),
     validateFeynmanJudgement(params.rubric.length),
-    {
-      label: "judge-feynman",
-      role: "judge",
-    },
+    "judge-feynman",
+    decideRubric("feynman", { ...params, text: params.explanation }),
   );
 }
 
@@ -239,6 +238,7 @@ export function judgeFeynmanStream(
     first: verdictPrefix(count),
     full: validateFeynmanJudgement(count),
     label: "judge-feynman",
+    decided: decideRubric("feynman", { ...params, text: params.explanation }),
   });
 }
 

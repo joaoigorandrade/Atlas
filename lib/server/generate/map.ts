@@ -22,6 +22,7 @@ import {
   type MapMeta,
 } from "@/lib/curriculum";
 import { noteChain, withSyllabus } from "./mapSyllabus";
+import { backstopAxes } from "./jev";
 import {
   claim,
   inherit,
@@ -86,7 +87,7 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
   const byCol: Record<number, string[]> = {};
   for (const n of rawNodes) (byCol[depth[n.id]] = byCol[depth[n.id]] ?? []).push(n.id);
   const degree = (id: string) => edges.filter(([a, b]) => a === id || b === id).length;
-  const nodes: ConceptNode[] = rawNodes.map((n) => {
+  return rawNodes.map((n): ConceptNode => {
     const d = depth[n.id];
     const col = byCol[d];
     const i = col.indexOf(n.id);
@@ -106,7 +107,6 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
       y: 440 + (i - (col.length - 1) / 2) * 140,
     };
   });
-  return nodes;
 }
 
 /** The 2-3 scoped sub-map offers a too-broad topic comes back with instead of
@@ -368,7 +368,7 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
       yield { p: "nodes", i: yielded++, v: node };
     }
 
-    const settled = layoutMapNodes(accepted);
+    const settled = layoutMapNodes(await backstopAxes(accepted, params));
     // The one whole-graph check per-concept validation can't make. Throwing
     // here is deliberate: it is mid-stream, so nothing is written to
     // `content_cache` and reopening retries, while the learner keeps the map

@@ -9,6 +9,8 @@
 import type { ScopeOffer } from "@/lib/api";
 import type { Continent } from "@/lib/continents";
 import { fail, type Db } from "@/lib/server/store/shared";
+import { placeInContinent } from "@/lib/server/generate/jev";
+import { logEvent } from "@/lib/log";
 
 export async function createContinent(
   db: Db,
@@ -127,4 +129,25 @@ export function neighbourLines(
     if (!same(s.label, subject) && !members.some((m) => same(m.subject, s.label)))
       lines.push(`${s.label} (not charted yet): ${s.note}`);
   return lines.sort();
+}
+
+/**
+ * The continent a brand-new map belongs in, when the learner didn't pick one
+ * and Jev is sure (`placeInContinent`). Best-effort: any failure is "none".
+ */
+export async function suggestContinent(
+  db: Db,
+  subject: string,
+  interests: string,
+): Promise<string | undefined> {
+  const { data, error } = await db.from("continents").select("id, name, topics(subject)");
+  if (error || !data?.length) return undefined;
+  const rows = data as { id: string; name: string; topics: { subject: string }[] }[];
+  const id = await placeInContinent(
+    subject,
+    interests,
+    rows.map((c) => ({ id: c.id, name: c.name, maps: c.topics.map((t) => t.subject) })),
+  );
+  if (id) logEvent("continent_placed", { continent: id });
+  return id;
 }

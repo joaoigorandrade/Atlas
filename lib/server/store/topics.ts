@@ -37,6 +37,7 @@ import type {
 import type { StoredCard } from "@/lib/fsrs";
 import { fail, readAll } from "@/lib/server/store/shared";
 import { continentIsMine } from "@/lib/server/store/topicPatch";
+import { suggestContinent } from "@/lib/server/store/continents";
 import { AXIS_COLUMNS, axesFromRow } from "@/lib/server/store/topicAxes";
 import type { Language } from "@/lib/i18n";
 // The wire contract lives with the client that speaks it — one definition of
@@ -321,6 +322,12 @@ export async function createTopic(
     .maybeSingle();
   if (existingError) fail("createTopic/existing", existingError);
   await continentIsMine(db, topic.continentId);
+  // A new map the learner didn't place goes where it clearly belongs (#10).
+  const continentId =
+    topic.continentId ??
+    (existing
+      ? undefined
+      : await suggestContinent(db, topic.subject, topic.interests ?? ""));
 
   const { data, error } = await db
     .from("topics")
@@ -333,7 +340,7 @@ export async function createTopic(
         pareto_pct: topic.paretoPct ?? 20,
         exam_date: topic.examDate ?? "",
         ...(topic.language ? { language: topic.language } : null),
-        ...(topic.continentId ? { continent_id: topic.continentId } : null),
+        ...(continentId ? { continent_id: continentId } : null),
       },
       { onConflict: "user_id,subject" },
     )

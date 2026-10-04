@@ -25,7 +25,7 @@
     "lib/curriculum/socratic.ts": 458,
     "lib/server/fixtures.ts": 438,
     "lib/server/generate/map.ts": 412,
-    "lib/server/job.ts": 801,
+    "lib/server/job.ts": 800,
     "lib/server/openrouter.ts": 539,
     "lib/speech.ts": 720
   }

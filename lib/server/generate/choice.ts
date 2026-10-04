@@ -4,10 +4,12 @@
 // words; the judge maps that onto the option index the existing closed-path
 // logic already keys on, so nothing downstream changes.
 import { JUDGE_SYSTEM, judgeStream } from "./judge";
+import { decideChoice } from "./jevJudge";
+import { judgeOnce } from "./judgeStream";
 
 import { fail, languageNote, obj, str } from "./common";
 import { Language } from "@/lib/i18n";
-import { ChatMessage, generateJson } from "@/lib/server/openrouter";
+import { ChatMessage } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
 
 export interface ChoiceJudgement {
@@ -56,13 +58,11 @@ Return JSON: {"index": <number>, "response": "one sentence to the learner naming
 }
 
 export async function judgeChoice(params: JudgeChoiceParams): Promise<ChoiceJudgement> {
-  return generateJson(
+  return judgeOnce(
     choiceJudgeMessages(params),
     validateChoice(params.options.length),
-    {
-      label: "judge-choice",
-      role: "judge",
-    },
+    "judge-choice",
+    decideChoice(params),
   );
 }
 
@@ -87,5 +87,6 @@ export function judgeChoiceStream(
     },
     full: validateChoice(count),
     label: "judge-choice",
+    decided: decideChoice(params),
   });
 }

@@ -255,6 +255,19 @@ validated server-side with one corrective retry; ids, graph layout, and gap
 placement offsets are always computed server-side, never trusted from the
 model.
 
+**Decisions go to Jev.** `lib/server/decide.ts` is a second OpenRouter path,
+`/systemone` (TypeSafe's Jev): a state plus typed questions in, calibrated
+probabilities out, in ~0.5s for a fraction of a cent. Wherever a call's job
+is to _pick from a fixed set_, Jev is asked first and its answer counts only
+at or above `SURE`; below that, or on any failure, the call site runs the LLM
+path it always had. The questions live in `generate/jevJudge.ts` (every judge
+mode but Perform and Crucible: the ruling is told to the LLM and pinned over
+every frame through `judgeStream`'s `decided`, so the critique can never argue
+with the verdict) and `generate/jev.ts` (verify's blind solve, the Consume
+boundary check that keeps an overlapping pass out of `content_cache`, the map's
+kind/cell backstop, a new map's continent). Jev writes no prose: every word a
+learner reads is still the LLM's. `DECIDE_MODEL=off` turns it all off.
+
 ## Never make a screen wait on a model
 
 Generation is seconds; a screen entry should be milliseconds. Three layers keep

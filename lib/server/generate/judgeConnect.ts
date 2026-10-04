@@ -4,9 +4,11 @@
 // months is the worst outcome the app can produce — so a `false` link is not
 // confirmed, and a `vague` one is confirmed with a line saying what it lacks.
 import { JUDGE_SYSTEM, judgeStream } from "./judge";
+import { decideConnect } from "./jevJudge";
+import { judgeOnce } from "./judgeStream";
 import { fail, languageNote, obj, str } from "./common";
 import { Language } from "@/lib/i18n";
-import { ChatMessage, generateJson } from "@/lib/server/openrouter";
+import { ChatMessage } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
 
 export const CONNECT_VERDICTS = ["true", "vague", "false"] as const;
@@ -61,10 +63,12 @@ Return JSON: {"verdict": "true|vague|false", "response": "one sentence to the le
 }
 
 export async function judgeConnect(p: JudgeConnectParams): Promise<ConnectJudgement> {
-  return generateJson(messages(p), validateConnectJudgement, {
-    label: "judge-connect",
-    role: "judge",
-  });
+  return judgeOnce(
+    messages(p),
+    validateConnectJudgement,
+    "judge-connect",
+    decideConnect(p),
+  );
 }
 
 export function judgeConnectStream(p: JudgeConnectParams): AsyncGenerator<StreamFrame> {
@@ -73,5 +77,6 @@ export function judgeConnectStream(p: JudgeConnectParams): AsyncGenerator<Stream
     first: (raw) => ({ verdict: verdictOf(raw) }),
     full: validateConnectJudgement,
     label: "judge-connect",
+    decided: decideConnect(p),
   });
 }

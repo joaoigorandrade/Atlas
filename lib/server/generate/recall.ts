@@ -38,6 +38,8 @@ import type { Domain, NodeKind, RecallContent } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { ChatMessage, generateJson } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
+import { decideRubric } from "./jevJudge";
+import { judgeOnce } from "./judgeStream";
 
 /** How many rows a cold retrieval is asked for. Narrower than Feynman's
  *  rubric: this is one retrieval, not a whole explanation. */
@@ -162,10 +164,11 @@ Return JSON: {"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", 
 }
 
 export async function judgeRecall(params: JudgeRecallParams): Promise<FeynmanJudgement> {
-  return generateJson(
+  return judgeOnce(
     recallJudgeMessages(params),
     validateFeynmanJudgement(params.rubric.length),
-    { label: "judge-recall", role: "judge" },
+    "judge-recall",
+    decideRubric("recall", { ...params, text: params.written }),
   );
 }
 
@@ -178,5 +181,6 @@ export function judgeRecallStream(
     first: verdictPrefix(count),
     full: validateFeynmanJudgement(count),
     label: "judge-recall",
+    decided: decideRubric("recall", { ...params, text: params.written }),
   });
 }

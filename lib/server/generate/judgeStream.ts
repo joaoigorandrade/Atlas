@@ -6,6 +6,53 @@ import {
 import { StreamFrame } from "@/lib/server/stream";
 import { logWarning } from "@/lib/log";
 
+/**
+ * A verdict Jev was sure of (`lib/server/decide.ts`), and how it lands.
+ *
+ * The LLM is *told* the verdict, so the critique it writes argues for it
+ * instead of against it, and `pin` folds it over every object the LLM sends,
+ * so no frame can carry a different ruling. Null — Jev unsure, down or off —
+ * leaves the judge exactly as it was.
+ */
+export interface Decided<T> {
+  verdict: Partial<T>;
+  /** One line appended to the prompt stating the fixed ruling. */
+  tell: string;
+  /** Folds the verdict over an LLM object. Default: shallow merge. */
+  pin?: (llm: Partial<T>, verdict: Partial<T>) => Partial<T>;
+  /** Send the verdict as the first frame, before the LLM has said anything.
+   *  Off for rubric judges, whose first frame must also carry the quotes. */
+  early?: boolean;
+}
+
+function withDecision<T>(messages: ChatMessage[], d: Decided<T> | null) {
+  if (!d) return { messages, pin: <V>(v: V) => v };
+  const last = messages.length - 1;
+  const pin = d.pin ?? ((llm, v) => ({ ...llm, ...v }));
+  return {
+    messages: messages.map((m, i) =>
+      i === last
+        ? {
+            ...m,
+            content: `${m.content}\n\nTHE RULING IS ALREADY MADE — a separate grader decided it, and your JSON must repeat it exactly: ${d.tell}\nWrite everything else (the reply, the quotes) so it is consistent with that ruling.`,
+          }
+        : m,
+    ),
+    pin: <V>(v: V) => pin(v as Partial<T>, d.verdict) as V,
+  };
+}
+
+/** The single-shot judge, with the decision applied the same way. */
+export async function judgeOnce<T>(
+  messages: ChatMessage[],
+  full: (raw: unknown) => T,
+  label: string,
+  decided?: Promise<Decided<T> | null>,
+): Promise<T> {
+  const { messages: told, pin } = withDecision(messages, (await decided) ?? null);
+  return pin(await generateJson(told, full, { label, role: "judge" }));
+}
+
 /** Shared verdict-first transport; incomplete streams use the retried path. */
 export async function* judgeStream<T extends object>(
   messages: ChatMessage[],
@@ -15,10 +62,14 @@ export async function* judgeStream<T extends object>(
     first: (raw: unknown) => Partial<T>;
     full: (raw: unknown) => T;
     label: string;
+    decided?: Promise<Decided<T> | null>;
   },
 ): AsyncGenerator<StreamFrame> {
-  const last = messages.length - 1;
-  const streamed: ChatMessage[] = messages.map((m, i) =>
+  const d = (await spec.decided) ?? null;
+  const { messages: told, pin } = withDecision(messages, d);
+  if (d?.early) yield { p: "judgement", v: d.verdict };
+  const last = told.length - 1;
+  const streamed: ChatMessage[] = told.map((m, i) =>
     i === last
       ? {
           ...m,
@@ -67,7 +118,7 @@ Then the full object described above (it repeats the verdict and adds the rest).
         continue;
       }
       sent++;
-      yield { p: "judgement", v: item.value };
+      yield { p: "judgement", v: pin(item.value) };
       if (complete) return;
     }
   } catch (err) {
@@ -76,9 +127,6 @@ Then the full object described above (it repeats the verdict and adds the rest).
   // A later complete frame replaces the prefix or draft in the client.
   yield {
     p: "judgement",
-    v: await generateJson(messages, spec.full, {
-      label: spec.label,
-      role: "judge",
-    }),
+    v: pin(await generateJson(told, spec.full, { label: spec.label, role: "judge" })),
   };
 }

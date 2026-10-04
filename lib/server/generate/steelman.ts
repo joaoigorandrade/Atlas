@@ -29,6 +29,8 @@ import {
 import { Language } from "@/lib/i18n";
 import { ChatMessage, generateJson } from "@/lib/server/openrouter";
 import { StreamFrame } from "@/lib/server/stream";
+import { decideSteelman } from "./jevJudge";
+import { judgeOnce } from "./judgeStream";
 
 export function validateSteelman(nodeId: string, nodeLabel: string) {
   return (raw: unknown): SteelmanContent => {
@@ -232,10 +234,11 @@ Return JSON: {"verdicts": [{"positionId": "...", "verdict": "strong" | "thin" | 
 export async function judgeSteelman(
   params: JudgeSteelmanParams,
 ): Promise<SteelmanJudgement> {
-  return generateJson(
+  return judgeOnce(
     steelmanJudgeMessages(params),
     validateSteelmanJudgement(params.positions.map((p) => p.id)),
-    { label: "judge-steelman", role: "judge" },
+    "judge-steelman",
+    decideSteelman(params),
   );
 }
 
@@ -248,5 +251,6 @@ export function judgeSteelmanStream(
     first: steelmanVerdictPrefix(ids),
     full: validateSteelmanJudgement(ids),
     label: "judge-steelman",
+    decided: decideSteelman(params),
   });
 }
