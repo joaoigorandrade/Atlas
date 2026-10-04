@@ -43,9 +43,9 @@ export interface ChatMessage {
   content: string;
 }
 
-/** Which model role a call wants: bulk content, the stricter judge (#28), or
- *  the blind solver that checks a closed item's key before it is cached. */
-export type ModelRole = "content" | "judge" | "verify";
+/** Which model role a call wants: bulk content, the stricter judge (#28), the
+ *  blind solver that checks a closed item's key, or content with web search. */
+export type ModelRole = "content" | "judge" | "verify" | "search";
 
 /**
  * Content is writing; judging is classification.
@@ -75,7 +75,8 @@ function modelChain(role: ModelRole): string[] {
     process.env;
   const content = OPENROUTER_MODEL || DEFAULT_MODEL;
   const judge = OPENROUTER_JUDGE_MODEL || content;
-  const primary = { content, judge, verify: OPENROUTER_VERIFY_MODEL || judge }[role];
+  const verify = OPENROUTER_VERIFY_MODEL || judge;
+  const primary = { content, judge, verify, search: `${content}:online` }[role];
   const fallbacks = (process.env.OPENROUTER_FALLBACK_MODEL ?? "").split(",");
   const chain = fallbacks.map((s) => s.trim()).filter((m) => m && m !== primary);
   return [primary, ...chain];
@@ -124,9 +125,9 @@ async function chatOnce(
       model,
       messages,
       temperature: temperatureFor(role),
-      // Most cheap models honor this; models that don't still get the
-      // "JSON only" instruction in the system prompt.
-      response_format: { type: "json_object" },
+      // Most models honor this (web search refuses it); the rest still get
+      // the "JSON only" system prompt, and `extractJson` tolerates prose.
+      response_format: role === "search" ? undefined : { type: "json_object" },
     }),
   });
   if (!res.ok) throw await providerError(res);
@@ -150,6 +151,12 @@ const isTimeout = (err: unknown): boolean =>
     ? err.status === 504
     : err instanceof DOMException && err.name === "TimeoutError";
 
+function apiKey(): string {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (key) return key;
+  throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);
+}
+
 /**
  * Chat with retry + fallback: each model in the chain gets its transient
  * failures (429/5xx/network) retried with backoff before the next model is
@@ -158,12 +165,7 @@ const isTimeout = (err: unknown): boolean =>
  * while the raw provider payload is logged server-side.
  */
 async function chat(messages: ChatMessage[], role: ModelRole): Promise<ChatResult> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key)
-    throw new OpenRouterError(
-      "OPENROUTER_API_KEY is not set — add it to .env.local",
-      500,
-    );
+  const key = apiKey();
   let last: unknown;
   for (const model of modelChain(role)) {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
@@ -406,12 +408,7 @@ export async function* streamJsonObjectsProgressive<T>(
     partial?: (raw: unknown, index: number) => T | null;
   } = {},
 ): AsyncGenerator<StreamedJson<T>> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key)
-    throw new OpenRouterError(
-      "OPENROUTER_API_KEY is not set — add it to .env.local",
-      500,
-    );
+  const key = apiKey();
   const { label = "unlabeled", role = "content" } = opts;
   const model = modelChain(role)[0];
   const started = Date.now();

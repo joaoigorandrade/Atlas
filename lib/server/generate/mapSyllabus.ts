@@ -27,17 +27,19 @@ export async function withSyllabus(params: MapParams): Promise<MapParams> {
     return params;
   // Asked as "the standard course", a named chapter came back as another
   // textbook's chapter of the same number — Sadiku's "Leis básicas" for Nilsson.
-  // Memory of a book's contents stays unreliable (Nilsson's ch. 2 kept gaining
-  // ch. 3), so sections the learner typed into the topic win outright.
+  // Memory of a book's contents stays unreliable: Nilsson's chapters 3-8 came
+  // back as the wrong chapter 5 times in 12, and 10 in 16 even when it listed
+  // the whole book first. With web search it was 6 in 6, so a named part is
+  // looked up; sections the learner typed into the topic still win outright.
   const ask = part
-    ? `"${params.topic}" names one part of a larger work. If it already lists that part's sections or contents, return exactly those, in its order, and nothing else — the learner has said what the part holds. Otherwise list the numbered sections of THAT part exactly as that work numbers and titles them ("2.1 …", "2.2 …"), in its own order — if a book or author is named, that book's own sections, never another textbook's part of the same number. After each, only the subtopics that section itself INTRODUCES: never one an earlier part introduced that this part merely uses (a definition, a unit, a sign convention), never one a later part teaches. The first unit opens with the part's title. Reply with JSON: {"units": ["2.1 Section title — the subtopics it introduces", ...]} (3-10 units).`
+    ? `"${params.topic}" names one part of a larger work. If it already lists that part's sections or contents, return exactly those, in its order, and nothing else — the learner has said what the part holds. Otherwise look up that work's table of contents and list the numbered sections of THAT part exactly as that work numbers and titles them ("2.1 …", "2.2 …"), in its own order — if a book or author is named, that book's own sections, never another textbook's part of the same number. After each, only the subtopics that section itself INTRODUCES: never one an earlier part introduced that this part merely uses (a definition, a unit, a sign convention), never one a later part teaches. The first unit opens with the part's title. Reply with JSON: {"units": ["2.1 Section title — the subtopics it introduces", ...]} (3-10 units).`
     : `List the units of the standard university or exam-board course on "${params.topic}", in teaching order — what its syllabus actually covers and an exam actually tests, including the topics usually forgotten in a quick summary. Reply with JSON: {"units": ["unit — its key subtopics", ...]} (8-16 units). If "${params.topic}" names ONE PART of a larger work, list only the sections of THAT part (4-10 units), never the rest of the work.`;
   try {
     const units = await generateJson(
       user(`${ask}${languageNote(params.language ?? "en")}`),
       (r) =>
         arr(obj(r, "payload").units, "units", 3, 24).map((u, i) => str(u, `units[${i}]`)),
-      { label: "curriculum-syllabus" },
+      { label: "curriculum-syllabus", ...(part ? { role: "search" as const } : {}) },
     );
     return {
       ...params,
