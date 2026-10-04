@@ -197,7 +197,7 @@ export const DOMAIN_MAP_RULE = `NOW APPLY YOUR CHOSEN DOMAIN. This row overrides
 - performative: nodes are COMPETENCIES the learner performs, never concepts they understand — "ordering food", "the sounds that mark a foreign speaker", "the 300 highest-frequency words". An edge means "you need A to say B". Order by frequency x real utility, not by grammatical tidiness. 22-35 nodes. If the output language is closely related to the target (Portuguese and Spanish, say), say so and spend the map ONLY on the deltas — false friends, the contrasts that genuinely differ, and pronunciation — skipping everything that transfers for free. Include one node whose whole job is catching the learner being understood while still wrong.
 - craft: the map IS the build sequence and it is IRREVERSIBLE — an edge means "A must be finished before B can start". 8-14 stages. The FIRST node is always the manifest: materials, cut list, tools, total cost and total hours, with nothing to learn and everything to gather. Every later node is a stage the learner carries out away from the screen, so each must name its tolerances and the ways it goes wrong.
 - general: the generic rules above stand unchanged.
-Whatever the domain: a topic that names ONE PART of a larger work takes its concept count from that part alone — usually 6-10 — and that overrides the row's range.`;
+Whatever the domain: a topic that names ONE PART of a larger work takes its concept count from that part's sections alone — usually 6-10, fewer under a Pareto share — and the row's range does not apply. When the part's concepts run out, stop writing: never restate one under a new label to reach a count.`;
 
 /**
  * The two cost axes — importance sets the bar a node is held to, difficulty the
