@@ -85,6 +85,8 @@ export interface PerformParams extends Boundary {
   cell?: Cell;
   /** How many runs this node has had — server-stamped from the attempts log. */
   rerun?: number;
+  /** The lesson the learner read for this node — server-stamped, see `withNodeCell`. */
+  lesson?: string;
 }
 
 export async function generatePerform(params: PerformParams): Promise<PerformContent> {
@@ -109,7 +111,7 @@ Its method is the one "${nodeLabel}" names and nothing lighter: the case must be
         params.rerun
           ? `\nThe learner has already run this procedure on a case like this ${params.rerun} time(s) and seen the report. Same procedure, different values and a different surface — nothing from an earlier case may carry over as an answer.`
           : ""
-      }
+      }${lessonNote(params.lesson)}
 
 The learner never sees the steps below. A step is a thing their WORK has to show on this case, not a thing they should understand.
 
@@ -129,6 +131,19 @@ Mark a step "loadBearing": false only when everything after it would still be co
     validatePerform(params.nodeId, nodeLabel),
     { label: "perform" },
   );
+}
+
+/** The run tests what the lesson taught. Without this the case was written
+ *  from the label alone, and graded commands and options the lesson never showed. */
+function lessonNote(lesson: string | undefined): string {
+  if (!lesson) return "";
+  return `
+
+WHAT THE LEARNER READ on this concept — the whole lesson, verbatim:
+"""
+${lesson}
+"""
+The run tests THIS lesson. The case must be workable with the commands, operations, rules and notation the lesson (or a concept already taught) actually showed, and every mustShow must be something it taught them to do or read. Never require a command, option, flag, formula or technique it never showed — a run that turns on one grades outside knowledge, not the concept. Change the values and the situation, not the toolkit.`;
 }
 
 // ---- the grader ------------------------------------------------------------

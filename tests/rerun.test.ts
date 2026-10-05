@@ -39,3 +39,37 @@ describe("rerun is stamped from the attempts log", () => {
     ).toBeUndefined();
   });
 });
+
+describe("Perform is stamped with the lesson the learner read", () => {
+  it("reads their consume row for Perform only, and drops a client's copy", async () => {
+    const chunk = {
+      id: "c1",
+      kicker: "1 · Grupos",
+      terms: [],
+      body: ["`usermod -aG equipe ana` acrescenta um grupo."],
+      example: { title: "Acrescentar", steps: ["Execute `groupadd equipe`."] },
+      takeaway: "-aG acrescenta.",
+    };
+    const asked = (kind: string) =>
+      ({ ...(body(kind) as object), lesson: "forjada" }) as never;
+    expect(
+      ((await withNodeCell(db, asked("perform"))) as { lesson?: string }).lesson,
+    ).toBeUndefined();
+    seedTable("node_content", [
+      {
+        topic_id: "t",
+        node_id: "n",
+        kind: "consume",
+        variant: "",
+        payload: { chunks: [chunk] },
+      },
+    ]);
+    const lesson = ((await withNodeCell(db, asked("perform"))) as { lesson?: string })
+      .lesson;
+    expect(lesson).toContain("usermod -aG");
+    expect(lesson).toContain("groupadd equipe");
+    expect(
+      ((await withNodeCell(db, asked("drill"))) as { lesson?: string }).lesson,
+    ).toBeUndefined();
+  });
+});

@@ -98,6 +98,11 @@ export interface GenerateBody {
    *  learner has already solved. Part of the cache key, and omitted when 0 so
    *  rows written before it keep their address. */
   rerun?: number;
+  /** perform: the lesson this learner actually read for the node, as text. Set
+   *  by the server alone (`withNodeCell`, from their `consume` row) — the run
+   *  is written against it, so it is keyed on, the way `model` keys on its
+   *  section. Absent before the lesson exists, and that key is unchanged. */
+  lesson?: string;
   // passage fields ("ask about this" — the learner's own words about a
   // highlighted stretch of the reading)
   /** The section's kicker — named by the model view and the passage ask alike. */
@@ -172,6 +177,7 @@ export const CAPS = {
   nodeLabel: 120,
   outline: 20_000,
   freeText: 4_000, // learner answers/attempts/explanations
+  lesson: 16_000, // a whole consume pass, as text
   listItems: 30,
 } as const;
 
@@ -230,6 +236,12 @@ export const neighboursAxis = (body: GenerateBody): { neighbours?: string[] } =>
   return lines.length ? { neighbours: lines } : {};
 };
 
+/** The read lesson (`withNodeCell`), or nothing — omitted rather than empty. */
+export const lessonAxis = (body: GenerateBody): { lesson?: string } => {
+  const lesson = s(body.lesson).slice(0, CAPS.lesson);
+  return lesson ? { lesson } : {};
+};
+
 /** The axes a node is written on, each omitted when it is the default —
  *  same trick as `boundary`, and for the same reason: `concept` and `general`
  *  produce byte-identical prompts to the engine that predated them, so a plain
@@ -263,7 +275,7 @@ export const topicAxes = (body: GenerateBody) => {
 
 export const nodeAxes = (
   body: GenerateBody,
-): { nodeKind?: NodeKind; domain?: Domain; cell?: Cell } & ReturnType<
+): { nodeKind?: NodeKind; domain?: Domain; cell?: Cell; lesson?: string } & ReturnType<
   typeof topicAxes
 > => {
   const k = asNodeKind(body.nodeKind);
@@ -274,6 +286,8 @@ export const nodeAxes = (
     ...(d === "general" ? {} : { domain: d }),
     // The default cell writes the pre-grid prompt, so it keys to its old row.
     ...(cell === DEFAULT_CELL ? {} : { cell }),
+    // Only Perform is ever stamped with one (`withNodeCell`).
+    ...lessonAxis(body),
     ...topicAxes(body),
   };
 };

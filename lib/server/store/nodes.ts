@@ -3,7 +3,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fail } from "@/lib/server/store/shared";
 import type { NodeDelta } from "@/lib/persistence";
-import type { NodeDifficulty, NodeImportance } from "@/lib/curriculum";
+import {
+  sectionText,
+  type ConsumeChunk,
+  type NodeDifficulty,
+  type NodeImportance,
+} from "@/lib/curriculum";
 import type { GenerateBody } from "@/lib/server/jobInput";
 
 // ------------------------------------------------------------------ nodes --
@@ -142,14 +147,20 @@ type CellRows = Map<
  * (cold or guided) and every Perform run bump it — so a redo, the cold
  * re-attempt after a guided pass, and a re-run after a report all get a case
  * the learner has not already solved, and neither client keeps a counter.
+ *
+ * Perform also gets `lesson`: the consume pass this learner read for the node.
+ * Without it the run was written from the label alone and graded commands the
+ * lesson never showed.
  */
 export async function withNodeCell<T extends GenerateBody>(
   db: SupabaseClient,
   body: T,
   memo?: Map<string, Promise<CellRows>>,
 ): Promise<T> {
-  const { importance: _i, nodeDifficulty: _d, rerun: _r, ...rest } = body;
+  const { importance: _i, nodeDifficulty: _d, rerun: _r, lesson: _l, ...rest } = body;
   if (!body.topicId || !body.nodeId) return rest as T;
+  const lesson =
+    body.kind === "perform" ? await readLesson(db, body.topicId, body.nodeId) : "";
   let pending = memo?.get(body.topicId);
   if (!pending) {
     pending = cellRows(db, body.topicId);
@@ -163,7 +174,27 @@ export async function withNodeCell<T extends GenerateBody>(
     importance: row.importance,
     nodeDifficulty: row.difficulty,
     ...(rerun ? { rerun } : null),
+    ...(lesson ? { lesson } : null),
   } as T;
+}
+
+/** The lesson this learner read for a node, as text — "" before there is one. */
+async function readLesson(
+  db: SupabaseClient,
+  topicId: string,
+  nodeId: string,
+): Promise<string> {
+  const { data, error } = await db
+    .from("node_content")
+    .select("payload")
+    .eq("topic_id", topicId)
+    .eq("node_id", nodeId)
+    .eq("kind", "consume")
+    .eq("variant", "")
+    .maybeSingle();
+  if (error) fail("read lesson", error);
+  const chunks = (data?.payload as { chunks?: ConsumeChunk[] } | null)?.chunks;
+  return Array.isArray(chunks) ? chunks.map(sectionText).join("\n\n") : "";
 }
 
 /** What bumps a node's `rerun` for each kind that has one. */
