@@ -17,6 +17,7 @@ import {
   generateCrucible,
   generateDiscriminate,
   generateDrill,
+  generateExplain,
   generateDiagnosticQuestion,
   generateFeynman,
   generateFeynmanStream,
@@ -460,14 +461,17 @@ function buildJob(body: GenerateBody): Job {
       );
     }
 
-    // The four item phases. Each generates its own shape — cases, setups,
+    // The item phases. Each generates its own shape — cases, setups,
     // stages, reps — so each gets its own case here rather than one arm with a
     // phase field: the payloads are genuinely different, not one table renamed.
-    case "discriminate": {
+    case "discriminate":
       return cacheable("discriminate", itemParams(), async (p) => ({
         content: await generateDiscriminate(p),
       }));
-    }
+    case "explain":
+      return cacheable("explain", itemParams(), async (p) => ({
+        content: await generateExplain(p),
+      }));
 
     // The three phases the domain axis adds. Each is its own case for the same
     // reason the item phases are: the payloads are genuinely different shapes,
@@ -507,29 +511,25 @@ function buildJob(body: GenerateBody): Job {
       );
     }
 
-    case "predict": {
+    case "predict":
       return cacheable("predict", itemParams(), async (p) => ({
         content: await generatePredict(p),
       }));
-    }
 
-    case "trace": {
+    case "trace":
       return cacheable("trace", itemParams(), async (p) => ({
         content: await generateTrace(p),
       }));
-    }
 
-    case "drill": {
+    case "drill":
       return cacheable("drill", itemParams(), async (p) => ({
         content: await generateDrill(p),
       }));
-    }
 
-    case "recall": {
+    case "recall":
       return cacheable("recall", itemParams(), async (p) => ({
         content: await generateRecall(p),
       }));
-    }
 
     case "perform": {
       return cacheable(

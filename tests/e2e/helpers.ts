@@ -232,6 +232,21 @@ export async function openPhase(
 }
 
 /**
+ * Walk the Explain sheet to its end: reveal every card, then pick the reply
+ * that defuses the listener (the fixture's second) on the closed form, and
+ * finish — which hands on to whatever the plan owes next.
+ */
+export async function passExplain(page: Page): Promise<void> {
+  const sheet = page.getByTestId("phase-explain");
+  await expect(sheet).toBeVisible();
+  while (await sheet.getByTestId("action-reveal").isVisible())
+    await sheet.getByTestId("action-reveal").click();
+  await sheet.getByTestId("action-mode-choices").click();
+  await sheet.getByTestId("action-reply-1").click();
+  await sheet.getByTestId("action-finish").click();
+}
+
+/**
  * Answer the newest unanswered Consume section check.
  *
  * Each section opens on its pretest (W3.3), so on a fresh section this answers

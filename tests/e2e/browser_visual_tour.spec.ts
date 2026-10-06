@@ -8,6 +8,7 @@ import {
   clearRuns,
   openPhase,
   openRun,
+  passExplain,
   TOPIC,
 } from "./helpers";
 
@@ -91,10 +92,14 @@ test.describe("Full Visual Browser Tour", () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "07_consume_recap.png") });
 
     // 7. The hand-off out of the reading goes to the rung the node OWES, which
-    // for a concept is Discriminate — not a phase named in the handler. This
-    // step used to assert Socratic and passed, because the CTA was hard-coded
-    // to it and skipped whatever the plan put in between.
+    // is Explain, and then Discriminate for a concept — not a phase named in
+    // the handler. This step used to assert Socratic and passed, because the
+    // CTA was hard-coded to it and skipped whatever the plan put in between.
     await recap.getByTestId("action-begin-next").click();
+    await expect(page.getByTestId("phase-explain")).toBeVisible();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "07a_explain.png") });
+    await passExplain(page);
     const discriminateSheet = page.getByTestId("phase-discriminate");
     await expect(discriminateSheet).toBeVisible();
     await page.waitForTimeout(500);

@@ -156,7 +156,7 @@ export function useRunState(opts: {
   const [drillCache, setDrillCache] = useState<Record<string, DrillContent>>({});
   const [recallCache, setRecallCache] = useState<Record<string, RecallContent>>({});
   const [performCache, setPerformCache] = useState<Record<string, PerformContent>>({});
-  // The three phases the domain axis adds — see `useDomainPhaseCaches`.
+  // The three phases the domain axis adds, and Explain — see `useDomainPhaseCaches`.
   const domainCaches = useDomainPhaseCaches();
   // Model views (a lens opened over one section of the reading), keyed by
   // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
@@ -367,9 +367,7 @@ export function useRunState(opts: {
     [setDrillCache, "drill"],
     [setRecallCache, "recall"],
     [setPerformCache, "perform"],
-    [domainCaches.setProvenanceCache, "provenance"],
-    [domainCaches.setSteelmanCache, "steelman"],
-    [domainCaches.setProduceCache, "produce"],
+    ...domainCaches.contentTables,
   ] as const).current;
 
   const clearContentCaches = useCallback(() => {

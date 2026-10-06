@@ -1110,6 +1110,7 @@ describe("PHASE_PLAN invariants", () => {
     // worth asserting literally, since a typo in it is a ladder shipped.
     expect([...PHASE_PLAN.fact]).toEqual([
       "consume",
+      "explain",
       "discriminate",
       "drill",
       "connect",
@@ -1118,6 +1119,7 @@ describe("PHASE_PLAN invariants", () => {
     ]);
     expect([...PHASE_PLAN.concept]).toEqual([
       "consume",
+      "explain",
       "discriminate",
       "socratic",
       "feynman",
@@ -1128,6 +1130,7 @@ describe("PHASE_PLAN invariants", () => {
     ]);
     expect([...PHASE_PLAN.procedure]).toEqual([
       "consume",
+      "explain",
       "trace",
       "feynman",
       "perform",
@@ -1138,6 +1141,7 @@ describe("PHASE_PLAN invariants", () => {
     ]);
     expect([...PHASE_PLAN.principle]).toEqual([
       "consume",
+      "explain",
       "socratic",
       "predict",
       "trace",
@@ -1165,7 +1169,7 @@ describe("PHASE_PLAN invariants", () => {
     // arbitrary association is still confusable with its neighbours.
     expect(PHASE_PLAN.concept).toContain("discriminate");
     expect(PHASE_PLAN.fact).toContain("discriminate");
-    expect(PHASE_PLAN.concept.indexOf("discriminate")).toBe(1);
+    expect(PHASE_PLAN.concept.indexOf("discriminate")).toBe(2);
   });
 
   it("asks only a procedure to execute", () => {
@@ -1182,11 +1186,12 @@ describe("PHASE_PLAN invariants", () => {
 
   it("is the whole catalogue, with every phase built", () => {
     // `PHASE_ORDER` holds only built phases, so this assertion is also the
-    // statement that nothing is pending. Fifteen now: the twelve that were
-    // keyed on kind, plus the three the domain axis added — Provenance and
-    // Steelman for `interpretive`, Produce for `performative`.
+    // statement that nothing is pending. Sixteen now: the twelve that were
+    // keyed on kind, the three the domain axis added — Provenance and
+    // Steelman for `interpretive`, Produce for `performative` — and Explain.
     expect([...PHASE_ORDER]).toEqual([
       "consume",
+      "explain",
       "discriminate",
       "provenance",
       "socratic",
@@ -1344,14 +1349,21 @@ describe("primaryPhase — what the CTA opens is what the CTA says", () => {
     // learner actually walks, while the map's own route ran them correctly.
     // Being IN the plan is not enough; these are the rungs that come first.
     const interpretive = resolvePlan("concept", "interpretive");
-    expect(primaryPhase(interpretive, ["consume"], "learning")).toBe("discriminate");
-    expect(primaryPhase(interpretive, ["consume", "discriminate"], "learning")).toBe(
-      "provenance",
+    expect(primaryPhase(interpretive, ["consume"], "learning")).toBe("explain");
+    expect(primaryPhase(interpretive, ["consume", "explain"], "learning")).toBe(
+      "discriminate",
     );
+    expect(
+      primaryPhase(interpretive, ["consume", "explain", "discriminate"], "learning"),
+    ).toBe("provenance");
     // W3.1's cap keeps the domain's own rungs and trims Socratic and Connect.
     expect(interpretive).not.toContain("socratic");
     expect(
-      primaryPhase(interpretive, ["consume", "discriminate", "provenance"], "learning"),
+      primaryPhase(
+        interpretive,
+        ["consume", "explain", "discriminate", "provenance"],
+        "learning",
+      ),
     ).toBe("steelman");
   });
 });
@@ -1411,7 +1423,15 @@ describe("crucibleMasters", () => {
     }) as ConceptNode;
   const nodes = graphOf([node("n", "procedure")]);
   const done = (...p: string[]) => ({ n: p as never });
-  const ladder = done("consume", "trace", "feynman", "perform", "drill", "connect");
+  const ladder = done(
+    "consume",
+    "explain",
+    "trace",
+    "feynman",
+    "perform",
+    "drill",
+    "connect",
+  );
 
   it("lifts the node when Crucible is the last gate left", () => {
     expect(crucibleMasters(nodes, "n", ladder)).toBe(true);
@@ -1886,18 +1906,18 @@ describe("real pace math", () => {
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10);
     expect(pace.remaining).toBe(1);
     expect(pace.daysLeft).toBe(10);
-    // One plan-less node is a core/medium concept: its ladder's 50 phase-minutes
+    // One plan-less node is a core/medium concept: its ladder's 54 phase-minutes
     // (more than its 35-minute cell budget, W3.6) over 10 days.
-    expect(pace.neededPerDay).toBe(5);
+    expect(pace.neededPerDay).toBe(6);
     expect(pace.onTrack).toBe(true);
   });
 
   it("paceStatus counts only the phases still owed", () => {
-    const done = { b: ["consume", "discriminate", "socratic"] as const };
+    const done = { b: ["consume", "explain", "discriminate", "socratic"] as const };
     const pace = paceStatus({ a: "mastered" }, graph, 35, 10, {
       b: [...done.b],
     });
-    // 28 of the ladder's 50 phase-minutes are owed — more than 35 × 28/50 ≈ 20
+    // 28 of the ladder's 54 phase-minutes are owed — more than 35 × 28/54 ≈ 18
     // of budget, so the 28 stand: 3/day.
     expect(pace.neededPerDay).toBe(3);
   });
@@ -1957,9 +1977,14 @@ describe("importance × difficulty", () => {
       expect([...at], c.join("/")).toEqual([...at].sort((a, b) => a - b));
       expect(plan[0], c.join("/")).toBe("consume");
       expect(plan.at(-1), c.join("/")).toBe("retain");
-      // A recognise node's reading IS its gate, a use node adds one applied
-      // rung, a master node owes a real ladder.
-      const gates = planGates(plan).length;
+      // Explain rides behind the reading on every bar, and on every domain
+      // but the one that replaces its ladder with production.
+      const explains = c[1] !== "performative";
+      expect(plan.includes("explain"), c.join("/")).toBe(explains);
+      if (explains) expect(plan[1], c.join("/")).toBe("explain");
+      // Beside it, a recognise node's reading IS its gate, a use node adds one
+      // applied rung, a master node owes a real ladder.
+      const gates = planGates(plan).filter((p) => p !== "explain").length;
       if (c[2] === "peripheral") expect(gates, c.join("/")).toBe(1);
       else if (c[2] === "working") expect(gates, c.join("/")).toBe(2);
       else expect(gates, c.join("/")).toBeGreaterThan(2);
@@ -1978,15 +2003,16 @@ describe("importance × difficulty", () => {
     const row = (i: NodeImportance, d: NodeDifficulty) =>
       resolvePlan("concept", "general", i, d).join(" ");
     // W3.1: an easy node is capped at five gates, and Connect trails.
+    // Explain is outside the cap, so it never displaces one of the five.
     expect(row("core", "easy")).toBe(
-      "consume discriminate feynman crucible recall retain",
+      "consume explain discriminate feynman crucible recall retain",
     );
     expect(row("core", "hard")).toBe(PHASE_PLAN.concept.join(" "));
     // use: Consume, the applied rung the kind wants, Retain — at any difficulty.
-    expect(row("working", "medium")).toBe("consume discriminate retain");
-    expect(row("working", "hard")).toBe("consume discriminate retain");
-    // recognise: the reading alone, then review keeps it alive.
-    expect(row("peripheral", "hard")).toBe("consume retain");
+    expect(row("working", "medium")).toBe("consume explain discriminate retain");
+    expect(row("working", "hard")).toBe("consume explain discriminate retain");
+    // recognise: the reading and how to explain it, then review keeps it alive.
+    expect(row("peripheral", "hard")).toBe("consume explain retain");
   });
 
   it("the use rung follows the kind, and the domain where it replaces the ladder", () => {
@@ -2229,7 +2255,10 @@ describe("W3.1: the heavy phases run where the map found what they need", () => 
     for (const kind of NODE_KINDS)
       for (const domain of DOMAINS)
         for (const difficulty of ["easy", "medium", "hard"] as const) {
-          const gates = planGates(resolvePlan(kind, domain, "core", difficulty)).length;
+          // Explain is outside the cap by design (`resolvePlan`).
+          const gates = planGates(resolvePlan(kind, domain, "core", difficulty)).filter(
+            (p) => p !== "explain",
+          ).length;
           expect(gates, `${kind}/${domain}/${difficulty}`).toBeLessThanOrEqual(
             GATE_CAP[difficulty],
           );

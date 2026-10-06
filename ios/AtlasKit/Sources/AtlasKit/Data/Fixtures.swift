@@ -65,7 +65,7 @@ public enum Fixtures {
             // have to argue for.
             "comp": [.consume],
             // Understood and wired; the transfer is what is still owed.
-            "lat": [.consume, .discriminate, .socratic, .feynman, .connect],
+            "lat": [.consume, .explain, .discriminate, .socratic, .feynman, .connect],
         ]
     }()
 

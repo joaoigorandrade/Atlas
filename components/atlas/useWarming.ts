@@ -23,6 +23,7 @@ import { warmKindsFor } from "@/components/atlas/useGeneration";
  *  node in the graph and is saved with the run. */
 const SLOT: Record<string, string> = {
   consume: "chunks",
+  explain: "content",
   socratic: "steps",
   feynman: "beats",
   connect: "content",

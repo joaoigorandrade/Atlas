@@ -373,6 +373,7 @@ public extension AtlasStore {
     // each, named for what the phase actually holds — a run of cases is not a
     // run of reps, and neither is a rubric.
     func cases(_ node: ConceptNode) -> DiscriminateContent? { warm.content(address("discriminate", node)) }
+    func modelExplanation(_ node: ConceptNode) -> ExplainContent? { warm.content(address("explain", node)) }
     func setups(_ node: ConceptNode) -> PredictContent? { warm.content(address("predict", node)) }
     func chain(_ node: ConceptNode) -> TraceContent? { warm.content(address("trace", node)) }
     func reps(_ node: ConceptNode) -> DrillContent? { warm.content(address("drill", node)) }
@@ -444,6 +445,12 @@ public extension AtlasStore {
         return await warm.fill(address("crucible", node), once: { try await api.crucible(sent) })
     }
 
+
+    @discardableResult
+    func explain(_ node: ConceptNode) async -> Error? {
+        let (api, sent) = (api, context(for: node))
+        return await warm.fill(address("explain", node), once: { try await api.explain(sent) })
+    }
 
     @discardableResult
     func discriminate(_ node: ConceptNode) async -> Error? {
@@ -544,6 +551,7 @@ public extension AtlasStore {
             case .feynman: await feynman(node)
             case .connect: await connect(node)
             case .crucible: await crucible(node)
+            case .explain: await explain(node)
             case .discriminate: await discriminate(node)
             case .predict: await predict(node)
             case .trace: await trace(node)
@@ -682,6 +690,7 @@ public extension AtlasStore {
                      shortOf: FeynmanBeatBounds.min)
             case .connect: seed(key, item.payload, as: ElaborationContent.self)
             case .crucible: seed(key, item.payload, as: CrucibleContent.self)
+            case .explain: seed(key, item.payload, as: ExplainContent.self)
             case .discriminate: seed(key, item.payload, as: DiscriminateContent.self)
             case .predict: seed(key, item.payload, as: PredictContent.self)
             case .trace: seed(key, item.payload, as: TraceContent.self)
@@ -719,6 +728,7 @@ protocol Floored { var usable: Bool { get } }
 
 extension CrucibleContent: Floored { var usable: Bool { !problems.isEmpty } }
 extension DiscriminateContent: Floored { var usable: Bool { !cases.isEmpty } }
+extension ExplainContent: Floored { var usable: Bool { listener.replies.count >= 2 } }
 extension PredictContent: Floored { var usable: Bool { !setups.isEmpty } }
 extension TraceContent: Floored { var usable: Bool { !stages.isEmpty } }
 extension DrillContent: Floored { var usable: Bool { !reps.isEmpty } }

@@ -74,7 +74,8 @@ public let domainPlans: [Domain: DomainPlanRule] = [
     .performative: .plan([.consume, .discriminate, .drill, .produce, .recall, .retain]),
     // Work the app never sees. Predict runs the failures in simulation before
     // the learner runs them in oak; Perform is the debrief of work already done.
-    .craft: .plan([.consume, .discriminate, .predict, .perform, .retain]),
+    // Explain stays: how to put a joint across is still said in words.
+    .craft: .plan([.consume, .explain, .discriminate, .predict, .perform, .retain]),
 ]
 
 /// The ladder a `(kind, domain)` pair runs, before anything is stored.
@@ -85,7 +86,8 @@ public let domainPlans: [Domain: DomainPlanRule] = [
 ///
 /// Then importance sets the bar and only ever *removes* rungs: `core` keeps the
 /// whole ladder (less Socratic when easy), `working` keeps Consume, the one
-/// applied rung its kind wants and Retain, `peripheral` Consume and Retain.
+/// applied rung its kind wants and Retain, `peripheral` Consume and Retain —
+/// each with Explain beside the reading wherever the plan has it.
 /// Defaults reproduce the pre-axes ladder. Mirrors `resolvePlan` in `phases.ts`.
 public func resolvePlan(
     _ kind: NodeKind, _ domain: Domain,
@@ -99,12 +101,15 @@ public func resolvePlan(
     case .plan(let replacement): want = Set(replacement)
     case .add(let extra): want = Set(base).union(extra)
     }
+    // Explain rides with Consume on every bar, outside the cap — only a plan
+    // that leaves it out (performative) goes without.
+    let rides = { (p: Phase) in p == .consume || p == .retain || (p == .explain && want.contains(p)) }
     switch importance {
     case .peripheral:
-        return [.consume, .retain]
+        return Phase.allCases.filter(rides)
     case .working:
         let rung = appliedRung(Phase.allCases.filter { want.contains($0) }, kind, domain)
-        return Phase.allCases.filter { $0 == .consume || $0 == .retain || $0 == rung }
+        return Phase.allCases.filter { rides($0) || $0 == rung }
     case .core:
         if difficulty == .easy { want.remove(.socratic) }
         return ration(want, kind, difficulty, evidence)

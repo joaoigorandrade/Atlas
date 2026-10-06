@@ -108,6 +108,8 @@ private func upToCrucible() -> [Phase] {
     let pass = SessionViewModel(node: store.graph.nodes[0], store: store)
     #expect(pass.phase == .consume)
     pass.advance()
+    #expect(pass.phase == .explain)
+    pass.advance()
     // Trace, not Socratic: a procedure is executed, not argued with.
     #expect(pass.phase == .trace)
 }
@@ -275,9 +277,11 @@ private func upToCrucible() -> [Phase] {
     jumped.settleSocratic(.unaided)
     #expect(jumped.phase == .consume)
     #expect(store.phasesDone["cadeia"] == [.socratic])
-    // Consume closes, and the next owed rung is Discriminate — Socratic is
-    // already in the ledger, so it is walked past rather than reopened.
-    #expect(jumped.handOff == .discriminate)
+    // Consume closes, and the next owed rungs are Explain and Discriminate —
+    // Socratic is already in the ledger, so it is walked past, not reopened.
+    #expect(jumped.handOff == .explain)
+    jumped.advance()
+    #expect(jumped.phase == .explain)
     jumped.advance()
     #expect(jumped.phase == .discriminate)
     jumped.advance()
@@ -288,11 +292,11 @@ private func upToCrucible() -> [Phase] {
 /// phase just closed counts as behind the learner for where they go next.
 @MainActor
 @Test func aFailedRunWalksOnInsteadOfReopeningItself() {
-    let (pass, store) = session(["lat": .mastered], done: [.consume])
+    let (pass, store) = session(["lat": .mastered], done: [.consume, .explain])
     let trying = SessionViewModel(node: pass.node, store: store, phase: .discriminate)
     trying.advance(passed: false)
     #expect(trying.phase == .socratic)
-    #expect(store.phasesDone["cadeia"] == [.consume])
+    #expect(store.phasesDone["cadeia"] == [.consume, .explain])
 }
 
 @MainActor

@@ -81,7 +81,7 @@ import Testing
     // Every *gate* done is Mastered. Retain is not a gate: it is weeks of review
     // history, not something the learner does in a session, so waiting on it
     // would mean no node was ever green until it had been reviewed.
-    let gates: [Phase] = [.consume, .discriminate, .drill, .connect, .recall]
+    let gates: [Phase] = [.consume, .explain, .discriminate, .drill, .connect, .recall]
     #expect(stateFromPlan(plan, gates) == .mastered)
     #expect(!gates.contains(.retain))
     // A reason on the node holds it Shaky however full the ledger is.
@@ -161,9 +161,11 @@ import Testing
     let plan = procedure.plan
 
     #expect(primaryPhase(plan, [], state: .unknown) == .consume)
-    #expect(primaryPhase(plan, [.consume], state: .learning) == .trace)
+    // Explain rides behind the reading on every plan, then the kind's own rungs.
+    #expect(primaryPhase(plan, [.consume], state: .learning) == .explain)
+    #expect(primaryPhase(plan, [.consume, .explain], state: .learning) == .trace)
     // Not Socratic, which a `procedure` does not run at all.
-    #expect(primaryPhase(plan, [.consume], state: .learning) != .socratic)
+    #expect(primaryPhase(plan, [.consume, .explain], state: .learning) != .socratic)
     #expect(primaryPhase(planGates(plan), planGates(plan), state: .shaky) == .crucible)
     // Nothing left to open: the CTA is the review queue, not a seventh rung.
     #expect(primaryPhase(plan, planGates(plan), state: .mastered) == nil)
@@ -239,19 +241,19 @@ import Testing
 /// old ladder. Mirrors `resolvePlan` / `minutesLeft` in `phases.ts` / `replan.ts`.
 @Test func importanceAndDifficultyTrimTheLadderAndPriceIt() {
     #expect(resolvePlan(.concept, .general, .core, .medium) == phasePlans[.concept]!)
-    #expect(resolvePlan(.concept, .general, .working, .medium) == [.consume, .discriminate, .retain])
-    #expect(resolvePlan(.procedure, .general, .working, .hard) == [.consume, .perform, .retain])
+    #expect(resolvePlan(.concept, .general, .working, .medium) == [.consume, .explain, .discriminate, .retain])
+    #expect(resolvePlan(.procedure, .general, .working, .hard) == [.consume, .explain, .perform, .retain])
     #expect(resolvePlan(.concept, .performative, .working, .easy) == [.consume, .produce, .retain])
-    #expect(resolvePlan(.principle, .formal, .peripheral, .hard) == [.consume, .retain])
+    #expect(resolvePlan(.principle, .formal, .peripheral, .hard) == [.consume, .explain, .retain])
     #expect(!resolvePlan(.concept, .general, .core, .easy).contains(.socratic))
 
     var node = ConceptNode(id: "a", label: "A", kind: .concept, domain: .general)
     // A core node never promises less than its rungs take (W3.6): the
-    // ladder's 50 phase-minutes beat its cell's 35-minute budget.
-    #expect(node.minutesLeft([]) == 50)
-    #expect(node.minutesLeft([.consume]) == 40)
+    // ladder's 54 phase-minutes beat its cell's 35-minute budget.
+    #expect(node.minutesLeft([]) == 54)
+    #expect(node.minutesLeft([.consume]) == 44)
     node.difficulty = .hard
-    #expect(node.minutesLeft([]) == 63)
+    #expect(node.minutesLeft([]) == 68)
     // A peripheral node's phases are cut to its budget: the budget stands.
     node.importance = .peripheral
     #expect(node.minutesLeft([]) == 6)

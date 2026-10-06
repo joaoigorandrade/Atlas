@@ -7,6 +7,7 @@ export * from "./map";
 export * from "./mapConcept";
 export * from "./summary";
 export * from "./consume";
+export * from "./explain";
 export * from "./model";
 export * from "./passage";
 export * from "./socratic";

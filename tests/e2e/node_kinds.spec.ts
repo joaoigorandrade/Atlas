@@ -218,8 +218,8 @@ test.describe("the phase catalogue, end to end", () => {
     // `worked-cases` is a procedure, which runs no Socratic pass at all and
     // owes Trace — a mechanism is followed before it is argued with.
     await openRun(page, {
-      "core-rule": { state: "learning", phases_done: ["consume"] },
-      "worked-cases": { state: "learning", phases_done: ["consume"] },
+      "core-rule": { state: "learning", phases_done: ["consume", "explain"] },
+      "worked-cases": { state: "learning", phases_done: ["consume", "explain"] },
     });
 
     await page.getByTestId("node-worked-cases").press("Enter");
@@ -258,6 +258,7 @@ test.describe("the phase catalogue, end to end", () => {
         reviewed: true,
         phases_done: [
           "consume",
+          "explain",
           "trace",
           "feynman",
           "perform",

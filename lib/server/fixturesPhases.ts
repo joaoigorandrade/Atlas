@@ -13,6 +13,7 @@ import type {
   DiscriminateContent,
   Domain,
   DrillContent,
+  ExplainContent,
   PerformContent,
   PredictContent,
   ProduceContent,
@@ -85,6 +86,51 @@ export const diagnosticFixture = (
   correctIndex: 1,
   // A shaped domain overrides the four options above; `general` keeps them.
   ...(SHAPES[asDomain(body.domain)]?.(label) ?? {}),
+});
+
+// The defusing reply sits second, so a run can miss once before it lands —
+// the only shape that exercises the try-again path.
+export const explainContent = (v: Vars): ExplainContent => ({
+  nodeId: v.nodeId,
+  nodeLabel: v.nodeLabel,
+  problem: `What question does ${v.nodeLabel} answer, before anyone names it?`,
+  analogy: {
+    text: `${v.nodeLabel} works like a recipe card: the steps hold whoever cooks.`,
+    breaks: "A recipe can be bent to taste; this rule does not bend.",
+  },
+  order: [
+    "The problem it solves",
+    `The rule ${v.nodeLabel} states`,
+    "One case where it applies, one where it does not",
+  ],
+  misconception: {
+    belief: `${v.nodeLabel} only applies to the example it was taught with.`,
+    tempting: "Every case the listener has seen looked like that example.",
+  },
+  checkBack: {
+    question: `Where else would ${v.nodeLabel} apply?`,
+    rightAnswer: "A case that shares the requirement, not the surface.",
+  },
+  listener: {
+    says: `So ${v.nodeLabel} is just about that one example, right?`,
+    replies: [
+      {
+        label: `No — ${v.nodeLabel} is defined precisely, so it is general.`,
+        correct: false,
+        why: "Repeating the definition louder leaves the belief where it was.",
+      },
+      {
+        label: "Here is a case that looks nothing like it and still follows the rule.",
+        correct: true,
+        why: "A second, unlike case breaks the link to the one example.",
+      },
+      {
+        label: "The example was just a simplification, don't worry about it.",
+        correct: false,
+        why: "It dismisses the worry without showing why it is wrong.",
+      },
+    ],
+  },
 });
 
 export const provenanceContent = (v: Vars): ProvenanceContent => ({
@@ -298,6 +344,20 @@ export function domainPhaseJudgement(body: GenerateBody): Record<string, unknown
       return null;
   }
 }
+
+/** Every phase payload here that ships as `{ content }`, by kind. */
+export const PHASE_CONTENT: Record<string, (v: Vars) => unknown> = {
+  explain: explainContent,
+  discriminate: discriminateContent,
+  predict: predictContent,
+  trace: traceContent,
+  drill: drillContent,
+  recall: recallContent,
+  perform: performContent,
+  provenance: provenanceContent,
+  steelman: steelmanContent,
+  produce: produceContent,
+};
 
 /**
  * Fixture kinds that are not a phase. A continent's links: two maps connect

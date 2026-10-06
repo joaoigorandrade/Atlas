@@ -177,9 +177,10 @@ test("feynman: a judged teach-back spawns the gap it found", async ({ page }) =>
   await advance.click();
 
   // The hand-off goes to the rung the plan still owes — a step in the spiral,
-  // not an exit to the map. This node has only read, so that is Discriminate:
-  // Feynman used to jump to Connect and skip it (and Perform on a procedure).
-  await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "discriminate");
+  // not an exit to the map. This node has only read, so that is Explain, the
+  // rung behind the reading: Feynman used to jump to Connect and skip what the
+  // plan put in between (Discriminate, and Perform on a procedure).
+  await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "explain");
   // A gap is a node with the flag on it now, not an id in a second list — so
   // "the gap is a real node on the persisted graph" is true by construction,
   // and what is worth asserting is that one was spawned at all.

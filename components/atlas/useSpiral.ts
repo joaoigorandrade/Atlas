@@ -61,6 +61,7 @@ import {
 } from "@/lib/api";
 import { usePhaseLedger } from "@/components/atlas/phaseLedger";
 import { useDiscriminate } from "@/components/atlas/useDiscriminate";
+import { useExplain } from "@/components/atlas/useExplain";
 import { usePredict } from "@/components/atlas/usePredict";
 import { useTrace } from "@/components/atlas/useTrace";
 import { useDrill } from "@/components/atlas/useDrill";
@@ -244,12 +245,7 @@ export function useSpiral(deps: {
   };
   const judgeDeps = { languageRef, judgingRef, setJudging };
 
-  const {
-    enterDiscriminate,
-    dispatchDiscriminate,
-    advanceFromDiscriminate,
-    exitDiscriminate,
-  } = useDiscriminate({ ...phaseDeps });
+  const discriminate = useDiscriminate({ ...phaseDeps });
 
   const { enterPredict, dispatchPredict, advanceFromPredict, exitPredict } = usePredict({
     ...phaseDeps,
@@ -959,6 +955,10 @@ export function useSpiral(deps: {
 
   // Connect hands off to the owed phase, resolved below — out of a forward reference.
   const enterOwedRef = useRef<(node: ConceptNode) => void>(() => {});
+  const enterOwed = (node: ConceptNode) => enterOwedRef.current(node);
+
+  // Explain sits behind the reading and hands on to the owed rung — see `useExplain`.
+  const explain = useExplain({ ...phaseDeps, enterOwed });
 
   // Feynman's handlers live in `useFeynman`, on the `useCrucible` precedent.
   const {
@@ -974,7 +974,7 @@ export function useSpiral(deps: {
     warm,
     loadingRef,
     leaveTo,
-    enterOwed: (node) => enterOwedRef.current(node),
+    enterOwed,
     fileMisconception,
   });
 
@@ -1178,7 +1178,7 @@ export function useSpiral(deps: {
     ...phaseDeps,
     ...judgeDeps,
     leaveTo,
-    enterOwed: (node) => enterOwedRef.current(node),
+    enterOwed,
     litUp,
   });
 
@@ -1414,7 +1414,8 @@ export function useSpiral(deps: {
    */
   const enterPhase: Record<PhaseId, (node: ConceptNode) => void> = {
     consume: enterSession,
-    discriminate: enterDiscriminate,
+    explain: explain.enterExplain,
+    discriminate: discriminate.enterDiscriminate,
     socratic: enterSocratic,
     predict: enterPredict,
     trace: enterTrace,
@@ -1575,10 +1576,8 @@ export function useSpiral(deps: {
     crucibleSubmit,
     advanceFromCrucible,
     exitCrucible,
-    enterDiscriminate,
-    dispatchDiscriminate,
-    advanceFromDiscriminate,
-    exitDiscriminate,
+    ...discriminate,
+    explain,
     enterPredict,
     dispatchPredict,
     advanceFromPredict,

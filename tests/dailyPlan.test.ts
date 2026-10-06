@@ -59,7 +59,7 @@ describe("dailyPlan", () => {
   it("skips a gate held until tomorrow, and a map with nothing to do today", () => {
     const held = topic("Held", {
       states: { a: "learning" },
-      phasesDone: { a: ["consume"] },
+      phasesDone: { a: ["consume", "explain"] },
       phaseProgress: { a: { discriminate: { opensAt: now.getTime() + day } } },
     });
     const reviewed = gradeStoredCard(dueCard("r"), "good", now);
@@ -68,6 +68,7 @@ describe("dailyPlan", () => {
       phasesDone: {
         a: [
           "consume",
+          "explain",
           "discriminate",
           "socratic",
           "feynman",
@@ -77,6 +78,7 @@ describe("dailyPlan", () => {
         ],
         b: [
           "consume",
+          "explain",
           "discriminate",
           "socratic",
           "feynman",

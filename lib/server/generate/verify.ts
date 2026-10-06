@@ -13,6 +13,7 @@ import type {
   ConsumeChunk,
   DiscriminateContent,
   DrillContent,
+  ExplainContent,
   PredictContent,
   ProvenanceContent,
   TraceContent,
@@ -126,7 +127,8 @@ export function disputedIds(
 
 // ---- per-kind adapters -------------------------------------------------------
 
-type Verifiable = "discriminate" | "predict" | "trace" | "drill" | "provenance";
+type Verifiable =
+  "discriminate" | "explain" | "predict" | "trace" | "drill" | "provenance";
 
 interface Adapter<T> {
   items: (c: T) => { context?: string; items: ClosedItem[] };
@@ -152,6 +154,23 @@ export const VERIFY: { [K in Verifiable]: Adapter<VerifyPayload[K]> } = {
     }),
     drop: (c, ids) => ({ ...c, cases: c.cases.filter((x) => !ids.includes(x.id)) }),
     min: () => DISCRIMINATE_CASE_BOUNDS.min,
+  },
+  // One check, so a dispute can't be dropped — it regenerates, as Trace does.
+  explain: {
+    items: (c) => ({
+      context:
+        "A listener voices a misconception about the concept. Pick the reply that actually defuses it.",
+      items: [
+        {
+          id: `ex-${c.nodeId}`,
+          stem: c.listener.says,
+          options: c.listener.replies.map((r) => r.label),
+          key: c.listener.replies.findIndex((r) => r.correct),
+        },
+      ],
+    }),
+    drop: (c) => c,
+    min: () => 1,
   },
   predict: {
     items: (c) => ({
@@ -207,6 +226,7 @@ export const VERIFY: { [K in Verifiable]: Adapter<VerifyPayload[K]> } = {
 
 interface VerifyPayload {
   discriminate: DiscriminateContent;
+  explain: ExplainContent;
   predict: PredictContent;
   trace: TraceContent;
   drill: DrillContent;

@@ -337,6 +337,10 @@ public actor AtlasAPI {
         try await whole("discriminate", context)
     }
 
+    public func explain(_ context: [String: JSONValue]) async throws -> Landed<ExplainContent> {
+        try await whole("explain", context)
+    }
+
     public func predict(_ context: [String: JSONValue]) async throws -> Landed<PredictContent> {
         try await whole("predict", context)
     }

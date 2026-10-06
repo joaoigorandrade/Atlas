@@ -22,7 +22,7 @@
 // they cost no column and survive the iOS client, which carries that object
 // whole. Recall's slot is otherwise unused — it is never parked.
 
-import { planGates, type PhaseId, type PhasesDoneMap } from "./phases";
+import { lastGate, type PhaseId, type PhasesDoneMap } from "./phases";
 
 /** "Tomorrow", as a duration: long enough to sleep on, short enough that a
  *  learner who studies at the same hour each day is not locked out by minutes. */
@@ -55,7 +55,7 @@ export function heldGate(
   done: PhasesDoneMap[string] | undefined,
   phase: PhaseId,
 ): PhaseId | null {
-  const last = planGates(plan).at(-1);
+  const last = lastGate(plan);
   return last && phase !== last && !done?.includes(last) ? last : null;
 }
 

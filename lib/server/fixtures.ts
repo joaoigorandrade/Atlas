@@ -26,16 +26,8 @@ import type {
 import { resolvePlan } from "@/lib/curriculum";
 import { FIXTURES } from "@/lib/fixtureMode";
 import {
-  discriminateContent,
+  PHASE_CONTENT,
   domainPhaseJudgement,
-  drillContent,
-  performContent,
-  predictContent,
-  produceContent,
-  provenanceContent,
-  recallContent,
-  steelmanContent,
-  traceContent,
   diagnosticFixture,
 } from "@/lib/server/fixturesPhases";
 import { fixtureTable } from "@/lib/server/fixtureTables";
@@ -393,15 +385,7 @@ export function fixturePayload(
 const CONTENT: Record<string, (v: Vars) => unknown> = {
   connect: connectContent,
   crucible: crucibleContent,
-  discriminate: discriminateContent,
-  predict: predictContent,
-  trace: traceContent,
-  drill: drillContent,
-  recall: recallContent,
-  perform: performContent,
-  provenance: provenanceContent,
-  steelman: steelmanContent,
-  produce: produceContent,
+  ...PHASE_CONTENT,
 };
 
 // ---- the Supabase stand-in -------------------------------------------------

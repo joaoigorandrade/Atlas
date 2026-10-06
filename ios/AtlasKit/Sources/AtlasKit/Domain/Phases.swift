@@ -50,7 +50,7 @@ public enum NodeDifficulty: String, Codable, Sendable, CaseIterable {
 /// `Retained` is the one place the two differ, and it differed silently until
 /// the ledger started round-tripping through this enum.
 public enum Phase: String, Codable, CaseIterable, Sendable, Identifiable {
-    case consume, discriminate, provenance, socratic, steelman, predict, trace
+    case consume, explain, discriminate, provenance, socratic, steelman, predict, trace
     case feynman, perform, drill, produce, connect, crucible, recall, retain
     public var id: String { rawValue }
 }
@@ -61,6 +61,7 @@ public extension Phase {
     var label: String {
         switch self {
         case .consume: "Consume"
+        case .explain: "Explain"
         case .discriminate: "Discriminate"
         case .provenance: "Provenance"
         case .socratic: "Socratic"
@@ -84,6 +85,7 @@ public extension Phase {
     var signal: String {
         switch self {
         case .consume: "exposure"
+        case .explain: "explanation design"
         case .discriminate: "boundary"
         case .provenance: "evidence quality"
         case .socratic: "reasoning under questioning"
@@ -113,6 +115,7 @@ public extension Phase {
         switch self {
         case .consume: Palette.accent
         case .socratic, .feynman: NodeState.learning.color
+        case .explain: Palette.explainInk
         case .discriminate: Palette.discriminateInk
         case .provenance: Palette.provenanceInk
         case .steelman: Palette.steelmanInk
@@ -133,6 +136,7 @@ public extension Phase {
     var blurb: LocalizedStringKey {
         switch self {
         case .consume: "Ler a explicação, seção por seção"
+        case .explain: "Ver como explicar isso a outra pessoa"
         case .discriminate: "Separar casos verdadeiros dos que só parecem"
         case .provenance: "Pesar de onde vem uma afirmação"
         case .socratic: "Responder perguntas que constroem a ideia"
@@ -154,6 +158,7 @@ public extension Phase {
     var kicker: LocalizedStringKey {
         switch self {
         case .consume: "Consume · leitura"
+        case .explain: "Explain · como explicar"
         case .discriminate: "Discriminate · fronteira"
         case .provenance: "Provenance · a fonte"
         case .socratic: "Socratic · sessão"
@@ -177,6 +182,7 @@ public extension Phase {
     var skipNudge: LocalizedStringKey {
         switch self {
         case .consume: "Você ainda não leu isso — quer ler?"
+        case .explain: "Você ainda não viu como explicar isso — quer ver?"
         case .discriminate: "Você ainda não distinguiu isso dos vizinhos — quer tentar?"
         case .provenance: "Você ainda não pesou a fonte disso — quer tentar?"
         case .socratic: "Você ainda não raciocinou sobre isso — quer tentar?"
@@ -208,11 +214,13 @@ public extension Phase {
 /// classification, so discriminating instances is the whole job. A procedure is
 /// executed — watch it run, run it, run it fast, choose it under pressure. A
 /// principle is a mechanism — forecast it, walk its causal chain, explain it.
+/// Explain sits behind the reading on every kind: how to put it across to
+/// someone else, before Feynman asks for that explanation unaided.
 public let phasePlans: [NodeKind: [Phase]] = [
-    .fact: [.consume, .discriminate, .drill, .connect, .recall, .retain],
-    .concept: [.consume, .discriminate, .socratic, .feynman, .connect, .crucible, .recall, .retain],
-    .procedure: [.consume, .trace, .feynman, .perform, .drill, .connect, .crucible, .retain],
-    .principle: [.consume, .socratic, .predict, .trace, .feynman, .connect, .crucible, .retain],
+    .fact: [.consume, .explain, .discriminate, .drill, .connect, .recall, .retain],
+    .concept: [.consume, .explain, .discriminate, .socratic, .feynman, .connect, .crucible, .recall, .retain],
+    .procedure: [.consume, .explain, .trace, .feynman, .perform, .drill, .connect, .crucible, .retain],
+    .principle: [.consume, .explain, .socratic, .predict, .trace, .feynman, .connect, .crucible, .retain],
 ]
 
 /// The pre-catalogue ladder, and the `phase_plan` every row built before it was
@@ -235,7 +243,13 @@ public func planGates(_ plan: [Phase]) -> [Phase] {
 /// The gate that proves a concept cold: the Crucible wherever the plan has
 /// one, else its last gate. Mirrors `proofGate` in `phases.ts`.
 public func proofGate(_ plan: [Phase]) -> Phase {
-    plan.contains(.crucible) ? .crucible : (planGates(plan).last ?? .consume)
+    plan.contains(.crucible) ? .crucible : (lastGate(plan) ?? .consume)
+}
+
+/// The gate that proves a node last. Never Explain: it models an explanation
+/// rather than proving anything. Mirrors `lastGate` in `phases.ts`.
+public func lastGate(_ plan: [Phase]) -> Phase? {
+    planGates(plan.filter { $0 != .explain }).last
 }
 
 /// The ledger after `phase` closes. Under a "prove it" challenge, passing the
@@ -309,7 +323,7 @@ public extension Phase {
         case .socratic, .feynman, .produce: 8
         case .provenance: 6
         case .predict, .trace, .connect, .recall: 5
-        case .discriminate: 4
+        case .explain, .discriminate: 4
         case .drill: 3
         case .retain: 0
         }

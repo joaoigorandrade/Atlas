@@ -230,3 +230,28 @@ private let web = #"""
     model.work = "minha tentativa"
     #expect(model.canSubmit)
 }
+
+// MARK: - Explain
+
+@MainActor
+@Test func anExplainPassFoundOnTheSecondTryClosesTheRung() async throws {
+    let (store, session) = try pass(.explain, #"""
+    {"nodeId":"n","nodeLabel":"Limite","problem":"p","analogy":{"text":"a","breaks":"b"},
+     "order":["1","2","3"],"misconception":{"belief":"m","tempting":"t"},
+     "checkBack":{"question":"q","rightAnswer":"r"},
+     "listener":{"says":"s","replies":[
+       {"label":"x","correct":false,"why":"w"},{"label":"y","correct":true,"why":"w"}]}}
+    """#)
+    let model = ExplainViewModel(session: session)
+    await model.load()
+    #expect(model.cards.count == 1 && !model.checking)
+    for _ in 1..<ExplainCard.allCases.count { model.reveal() }
+    #expect(model.checking)
+    model.pick(0)
+    #expect(model.picked?.correct == false)
+    #expect(model.open.map(\.index) == [1])
+    model.pick(1)
+    #expect(model.session.done)
+    model.advance()
+    #expect(store.phasesDone["n"]?.contains(.explain) == true)
+}

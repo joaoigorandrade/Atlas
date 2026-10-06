@@ -21,6 +21,7 @@ import type {
   FeynmanBeat,
   DiscriminateSession,
   DrillSession,
+  ExplainSession,
   FeynmanSession,
   PerformSession,
   ProduceSession,
@@ -82,6 +83,7 @@ export function useSessionState() {
   const [provenance, setProvenance] = useState<ProvenanceSession | null>(null);
   const [steelman, setSteelman] = useState<SteelmanSession | null>(null);
   const [produce, setProduce] = useState<ProduceSession | null>(null);
+  const [explain, setExplain] = useState<ExplainSession | null>(null);
   const [retain, setRetain] = useState<RetainSession | null>(null);
 
   const consumeRef = useRef(consume);
@@ -118,6 +120,8 @@ export function useSessionState() {
   steelmanRef.current = steelman;
   const produceRef = useRef(produce);
   produceRef.current = produce;
+  const explainRef = useRef(explain);
+  explainRef.current = explain;
   /** The reading pass on screen — committed sections, or the streaming ones
    *  standing in for them. Assigned once `consumeChunks` is derived. */
   const consumeChunksRef = useRef<ConsumeChunk[]>([]);
@@ -146,6 +150,7 @@ export function useSessionState() {
     setDrill(null);
     setRecall(null);
     setPerform(null);
+    setExplain(null);
     setRetain(null);
   }, []);
 
@@ -202,6 +207,9 @@ export function useSessionState() {
     produce,
     setProduce,
     produceRef,
+    explain,
+    setExplain,
+    explainRef,
     retain,
     setRetain,
     retainRef,

@@ -440,7 +440,8 @@ private let dispute: SteelmanContent = try! JSONDecoder().decode(SteelmanContent
     for kind in NodeKind.allCases {
         for domain in Domain.allCases {
             for difficulty in [NodeDifficulty.easy, .medium, .hard] {
-                let gates = planGates(resolvePlan(kind, domain, .core, difficulty)).count
+                // Explain is outside the cap by design (`ration`).
+                let gates = planGates(resolvePlan(kind, domain, .core, difficulty)).filter { $0 != .explain }.count
                 #expect(gates <= gateCap(difficulty), "\(kind)/\(domain)/\(difficulty)")
             }
         }
@@ -455,7 +456,7 @@ private let dispute: SteelmanContent = try! JSONDecoder().decode(SteelmanContent
     #expect(resolvePlan(.concept, .interpretive, .core, .hard).contains(.steelman))
     // The same easy ladder as the web: five gates, Connect trimmed first.
     #expect(resolvePlan(.concept, .general, .core, .easy)
-        == [.consume, .discriminate, .feynman, .crucible, .recall, .retain])
+        == [.consume, .explain, .discriminate, .feynman, .crucible, .recall, .retain])
 }
 
 @Test func aCleanFirstTryEarnsTheEasierGateBeforeIt() {
@@ -467,4 +468,51 @@ private let dispute: SteelmanContent = try! JSONDecoder().decode(SteelmanContent
     let procedure = phasePlans[.procedure]!
     #expect(ledgerAfter(procedure, [.consume], .perform, challenged: false, clean: true)
         .contains(.trace))
+}
+
+// MARK: - Explain · explanation design
+
+private let explanation = try! JSONDecoder().decode(ExplainContent.self, from: Data("""
+{"nodeId":"n","nodeLabel":"N","problem":"p","analogy":{"text":"a","breaks":"b"},
+ "order":["1","2","3"],"misconception":{"belief":"m","tempting":"t"},
+ "checkBack":{"question":"q","rightAnswer":"r"},
+ "listener":{"says":"s","replies":[
+   {"label":"x","correct":false,"why":"w"},
+   {"label":"y","correct":true,"why":"w"},
+   {"label":"z","correct":false,"why":"w"}]}}
+""".utf8))
+
+@Test func explainHoldsTheCheckUntilTheModelIsShownThenTeachesAMiss() {
+    var session = ExplainSession(nodeId: "n")
+    // The check waits on all five cards.
+    session.pick(1, explanation)
+    #expect(!session.done && session.picked == nil)
+    for _ in ExplainCard.allCases { session.reveal() }
+    #expect(session.checking && session.revealed == ExplainCard.allCases.count)
+    // A miss is taught and ruled out, never a second try…
+    session.pick(0, explanation)
+    #expect(!session.passed && session.tried == [0])
+    session.pick(0, explanation)
+    #expect(session.tried == [0])
+    // …and the gate is finding the reply, however many tries it took.
+    session.pick(1, explanation)
+    #expect(session.passed)
+}
+
+@Test func explainRidesBehindTheReadingOutsideTheCap() {
+    for kind in NodeKind.allCases {
+        for importance in NodeImportance.allCases {
+            for difficulty in NodeDifficulty.allCases {
+                let plan = resolvePlan(kind, .general, importance, difficulty)
+                #expect(plan.prefix(2) == [.consume, .explain])
+                let capped = planGates(plan).filter { $0 != .explain }.count
+                if importance == .core { #expect(capped <= gateCap(difficulty)) }
+            }
+        }
+    }
+    // Performative replaces its ladder with production and goes without.
+    #expect(!resolvePlan(.concept, .performative).contains(.explain))
+    // Explain never becomes the gate a night's hold waits on.
+    #expect(lastGate([.consume, .explain, .retain]) == .consume)
+    #expect(heldGate([.consume, .explain, .retain], [], .consume) == nil)
 }

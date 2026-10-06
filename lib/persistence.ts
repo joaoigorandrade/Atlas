@@ -372,6 +372,7 @@ export function foldContent(items: ContentItem[]): RunCaches {
   return {
     ...caches,
     discriminate: usableShapes(caches.discriminate, "cases"),
+    explain: usableShapes(caches.explain, "order"),
     predict: usableShapes(caches.predict, "setups"),
     trace: usableShapes(caches.trace, "stages"),
     drill: usableShapes(caches.drill, "reps"),

@@ -105,6 +105,7 @@ struct SessionView: View {
     private func screen(_ session: SessionViewModel) -> some View {
         switch session.phase {
         case .consume: ConsumeView(session: session)
+        case .explain: ExplainView(session: session)
         case .discriminate: DiscriminateView(session: session)
         case .provenance: ProvenanceView(session: session)
         case .socratic: SocraticView(session: session)

@@ -98,6 +98,7 @@ const EN = {
   blankPage: (label: string) => `Clearing the page for ${label}…`,
   settingCase: (label: string) => `Setting a case to run ${label} on…`,
   findingSource: (label: string) => `Finding a source on ${label}…`,
+  draftingExplanation: (label: string) => `Drafting how to explain ${label}…`,
   findingDispute: (label: string) => `Finding what is contested about ${label}…`,
   settingScene: (label: string) => `Setting a scene to use ${label} in…`,
   bothCasesNeeded: "Write a real case for both sides before submitting.",
@@ -201,6 +202,7 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     blankPage: (label: string) => `Limpando a página para ${label}…`,
     settingCase: (label: string) => `Preparando um caso para executar ${label}…`,
     findingSource: (label: string) => `Procurando uma fonte sobre ${label}…`,
+    draftingExplanation: (label: string) => `Montando como explicar ${label}…`,
     findingDispute: (label: string) => `Procurando o que se disputa em ${label}…`,
     settingScene: (label: string) => `Preparando uma cena para usar ${label}…`,
     bothCasesNeeded:

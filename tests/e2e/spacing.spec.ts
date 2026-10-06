@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openPhase, openRun } from "./helpers";
+import { openPhase, openRun, passExplain } from "./helpers";
 
 // W4.1 — every plan's last gate opens a night after the last thing studied,
 // so no node goes green on the day it was learned. `edge-cases` is a working
-// concept: Consume, then Discriminate as its one — and last — gate.
+// concept: Consume and Explain, then Discriminate as its one — and last — gate.
+// Explain itself never waits: it only models an explanation.
 const NODE = "edge-cases";
 
 async function readKnowingEverySection(page: Page) {
@@ -21,6 +22,7 @@ async function readKnowingEverySection(page: Page) {
 test("the last gate waits a night after the reading", async ({ page }) => {
   const recap = await readKnowingEverySection(page);
   await recap.getByTestId("action-begin-next").click();
+  await passExplain(page);
   // Held: the map, and a line saying when it opens — not the phase.
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
   await expect(page.getByText(/Discriminate on Edge cases opens in ~\d+h/)).toBeVisible();

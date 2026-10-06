@@ -110,7 +110,11 @@ export const DOMAIN_PLAN: Partial<Record<Domain, DomainPlanRule>> = {
   },
   // Work the app never sees. Predict runs the failures in simulation before the
   // learner runs them in oak; Perform is the debrief of work already done.
-  craft: { plan: ["consume", "discriminate", "predict", "perform", "retain"] },
+  // Explain stays: how to put a joint or a sauce across to someone is still
+  // explained in words, even where the work itself is never seen.
+  craft: {
+    plan: ["consume", "explain", "discriminate", "predict", "perform", "retain"],
+  },
 };
 
 /**

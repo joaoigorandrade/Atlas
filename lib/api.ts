@@ -10,6 +10,7 @@ import type {
   CrucibleContent,
   DiagnosticDifficulty,
   DiscriminateContent,
+  ExplainContent,
   DrillContent,
   DiagnosticQuestion,
   ElaborationContent,
@@ -623,6 +624,15 @@ export async function fetchDiscriminate(
     .content;
 }
 
+export const explainRequest = (params: NodeRequest) => ({ kind: "explain", ...params });
+
+export async function fetchExplain(
+  params: NodeRequest,
+  opts?: FetchOpts,
+): Promise<ExplainContent> {
+  return (await post<{ content: ExplainContent }>(explainRequest(params), opts)).content;
+}
+
 export const predictRequest = (params: NodeRequest) => ({ kind: "predict", ...params });
 
 export async function fetchPredict(
@@ -668,16 +678,10 @@ export async function fetchPerform(
   return (await post<{ content: PerformContent }>(performRequest(params), opts)).content;
 }
 
-export const provenanceRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "provenance", ...params });
+export const provenanceRequest = (params: Omit<NodeRequest, "interests">) => ({
+  kind: "provenance",
+  ...params,
+});
 
 export async function fetchProvenance(
   params: Parameters<typeof provenanceRequest>[0],
@@ -687,16 +691,10 @@ export async function fetchProvenance(
     .content;
 }
 
-export const steelmanRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  language?: Language;
-  nodeKind?: NodeKind;
-  domain?: Domain;
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "steelman", ...params });
+export const steelmanRequest = (params: Omit<NodeRequest, "interests">) => ({
+  kind: "steelman",
+  ...params,
+});
 
 export async function fetchSteelman(
   params: Parameters<typeof steelmanRequest>[0],

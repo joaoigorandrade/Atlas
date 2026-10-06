@@ -1,6 +1,226 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "A analogia" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analogy"
+          }
+        }
+      }
+    },
+    "A ordem" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The order"
+          }
+        }
+      }
+    },
+    "Comece pelo problema" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with the problem"
+          }
+        }
+      }
+    },
+    "Como você explicaria isso para alguém que nunca ouviu falar?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How would you explain this to someone who has never heard of it?"
+          }
+        }
+      }
+    },
+    "Confira se ele entendeu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check they got it"
+          }
+        }
+      }
+    },
+    "Explain · como explicar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explain · how to explain it"
+          }
+        }
+      }
+    },
+    "Isso deixa o erro de pé" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That leaves it standing"
+          }
+        }
+      }
+    },
+    "Isso desfaz o erro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That defuses it"
+          }
+        }
+      }
+    },
+    "Montando como explicar isso…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafting how to explain this…"
+          }
+        }
+      }
+    },
+    "O que seu ouvinte vai entender errado" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What your listener will get wrong"
+          }
+        }
+      }
+    },
+    "O que você responde?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What do you say back?"
+          }
+        }
+      }
+    },
+    "Onde ela falha" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where it breaks"
+          }
+        }
+      }
+    },
+    "Por que é tentador" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why it is tempting"
+          }
+        }
+      }
+    },
+    "Próximo cartão →" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next card →"
+          }
+        }
+      }
+    },
+    "Seu ouvinte diz" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your listener says"
+          }
+        }
+      }
+    },
+    "Tente outra resposta." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try another reply."
+          }
+        }
+      }
+    },
+    "Uma resposta certa contém" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A right answer contains"
+          }
+        }
+      }
+    },
+    "Ver como explicar isso a outra pessoa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See how to explain this to someone else"
+          }
+        }
+      }
+    },
+    "Você ainda não viu como explicar isso — quer ver?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't seen how to explain this yet — want to?"
+          }
+        }
+      }
+    },
+    "montar a explicação" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "draft the explanation"
+          }
+        }
+      }
+    },
     "— %@" : {
       "extractionState" : "stale",
       "localizations" : {

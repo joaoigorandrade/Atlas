@@ -9,6 +9,7 @@ import { STRINGS as DASHBOARD_SCREEN_STRINGS } from "@/components/dashboardScree
 import { STRINGS as SOCRATIC_STRINGS } from "@/components/session/socraticCopy";
 import { STRINGS as NODE_DETAIL_STRINGS } from "@/components/map/nodeDetailCopy";
 import {
+  EXPLAIN_COPY,
   GOAL_DATE_COPY,
   PRODUCE_COPY,
   PROVENANCE_COPY,
@@ -85,6 +86,7 @@ describe("i18n coverage", () => {
     ["dashboard screen", DASHBOARD_SCREEN_STRINGS],
     ["socratic", SOCRATIC_STRINGS],
     ["node detail", NODE_DETAIL_STRINGS],
+    ["explain", EXPLAIN_COPY],
     ["provenance", PROVENANCE_COPY],
     ["steelman", STEELMAN_COPY],
     ["produce", PRODUCE_COPY],

@@ -1,7 +1,7 @@
 "use client";
 
 // Every per-node phase sheet that postdates the original spiral: the six the
-// catalogue added, and the three the domain axis added.
+// catalogue added, the three the domain axis added, and Explain.
 //
 // A function rather than a component — these are sibling blocks in AtlasApp's
 // render, and wrapping them would put a boundary between the shell and the
@@ -19,6 +19,7 @@ import SteelmanView from "@/components/session/SteelmanView";
 import type { ReactNode } from "react";
 import DiscriminateView from "@/components/session/DiscriminateView";
 import DrillView from "@/components/session/DrillView";
+import ExplainView from "@/components/session/ExplainView";
 import PerformView from "@/components/session/PerformView";
 import PredictView from "@/components/session/PredictView";
 import RecallView from "@/components/session/RecallView";
@@ -116,10 +117,31 @@ export function phaseSheets(p: {
     : undefined;
   const steelmanContent = steelman ? run.steelmanCache[steelman.nodeId] : undefined;
   const produceContent = produce ? run.produceCache[produce.nodeId] : undefined;
+  const { explain } = sessions;
+  const explainContent = explain ? run.explainCache[explain.nodeId] : undefined;
   const titleOf = (id: string) =>
     graph.nodes.find((n) => n.id === id)?.label ?? "Concept";
   return (
     <>
+      {openSheet === "explain" &&
+        explain &&
+        explainContent &&
+        sheetBoundary(
+          <ExplainView
+            topic={topic}
+            title={titleOf(explain.nodeId)}
+            plan={planOf(explain.nodeId)}
+            content={explainContent}
+            session={explain}
+            onExit={spiral.explain.exitExplain}
+            onReveal={() => spiral.explain.dispatchExplain({ type: "reveal" })}
+            onPick={(index, read) =>
+              spiral.explain.dispatchExplain({ type: "pick", index, read })
+            }
+            onAdvance={() => spiral.explain.advanceFromExplain()}
+          />,
+        )}
+
       {openSheet === "discriminate" &&
         discriminate &&
         discriminateContent &&

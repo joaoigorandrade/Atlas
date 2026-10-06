@@ -160,6 +160,7 @@ export function frontierTarget(
  *  ponytail: estimates until real session-length analytics exist (#23). */
 export const PHASE_MINUTES: Record<PhaseId, number> = {
   consume: 10,
+  explain: 4,
   discriminate: 4,
   provenance: 6,
   socratic: 8,

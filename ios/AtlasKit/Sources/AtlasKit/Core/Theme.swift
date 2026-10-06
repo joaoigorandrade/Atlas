@@ -50,6 +50,10 @@ public enum Palette {
     public static let connectInk = adaptive(0x7A5A82, 0xBFA0D0)
     public static let connectBg = adaptive(0x7A5A82, 0xBFA0D0, opacity: 0.08, darkOpacity: 0.14)
     public static let connectBorder = adaptive(0x7A5A82, 0xBFA0D0, opacity: 0.35, darkOpacity: 0.45)
+    /// Explain — a schoolroom olive.
+    public static let explainInk = adaptive(0x6B6A2E, 0xC4C27A)
+    public static let explainBg = adaptive(0x6B6A2E, 0xC4C27A, opacity: 0.08, darkOpacity: 0.14)
+    public static let explainBorder = adaptive(0x6B6A2E, 0xC4C27A, opacity: 0.32, darkOpacity: 0.42)
     public static let discriminateInk = adaptive(0x4A5D70, 0x8FAFCF)
     public static let discriminateBg = adaptive(0x4A5D70, 0x8FAFCF, opacity: 0.08, darkOpacity: 0.14)
     public static let discriminateBorder = adaptive(0x4A5D70, 0x8FAFCF, opacity: 0.32, darkOpacity: 0.42)

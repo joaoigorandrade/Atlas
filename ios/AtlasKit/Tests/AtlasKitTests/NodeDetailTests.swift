@@ -86,7 +86,7 @@ import Testing
     // A node made Shaky by Connect: everything up to and including Connect is in
     // its ledger, and the Crucible is what it is owed. The rail draws the node's
     // own plan — `concept`'s here, which is not the six every node used to run.
-    let upToConnect: [Phase] = [.consume, .discriminate, .socratic, .feynman, .connect]
+    let upToConnect: [Phase] = [.consume, .explain, .discriminate, .socratic, .feynman, .connect]
     let rows = drawer(.shaky, done: upToConnect).rows
     #expect(rows.map(\.phase) == phasePlans[.concept]!)
     #expect(rows.filter(\.done).map(\.phase) == upToConnect)

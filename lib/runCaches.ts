@@ -10,6 +10,7 @@ import type {
   ElaborationContent,
   CrucibleContent,
   DiscriminateContent,
+  ExplainContent,
   PredictContent,
   TraceContent,
   DrillContent,
@@ -37,6 +38,7 @@ export interface RunCaches {
   feynman: Record<string, FeynmanBeat[]>;
   connect: Record<string, ElaborationContent>;
   crucible: Record<string, CrucibleContent>;
+  explain: Record<string, ExplainContent>;
   // The six phases of the catalogue's growth to twelve. Each keyed by node
   // id, exactly like the eight before them.
   discriminate: Record<string, DiscriminateContent>;
@@ -58,6 +60,7 @@ export const emptyCaches = (): RunCaches => ({
   feynman: {},
   connect: {},
   crucible: {},
+  explain: {},
   discriminate: {},
   predict: {},
   trace: {},

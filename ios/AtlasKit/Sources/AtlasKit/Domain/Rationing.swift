@@ -54,7 +54,10 @@ func ration(_ want: Set<Phase>, _ kind: NodeKind, _ difficulty: NodeDifficulty,
     if evidence.transferable == false { want.remove(.crucible) }
     if evidence.individual == true { want.remove(.discriminate) }
     if let n = evidence.neighbours, n < 2 { want.remove(.connect) }
-    let gates = Phase.allCases.filter { want.contains($0) && $0 != .retain }
+    // Explain is outside the cap, so it never displaces a heavier rung.
+    let gates = Phase.allCases.filter { want.contains($0) && $0 != .retain && $0 != .explain }
     let keep = Set(gates.sorted { gateRank(kind, $0) < gateRank(kind, $1) }.prefix(gateCap(difficulty)))
-    return Phase.allCases.filter { $0 == .retain ? want.contains($0) : keep.contains($0) }
+    return Phase.allCases.filter {
+        $0 == .retain || $0 == .explain ? want.contains($0) : keep.contains($0)
+    }
 }

@@ -27,6 +27,7 @@ import {
   type NodeKind,
   type PhaseId,
   type DiscriminateContent,
+  type ExplainContent,
   type PredictContent,
   type TraceContent,
   type DrillContent,
@@ -48,6 +49,7 @@ import {
   fetchConsumeModel,
   fetchCrucible,
   fetchDiscriminate,
+  fetchExplain,
   fetchDrill,
   fetchFeynman,
   fetchPerform,
@@ -57,6 +59,7 @@ import {
   fetchSocratic,
   fetchSummary,
   discriminateRequest,
+  explainRequest,
   drillRequest,
   performRequest,
   produceRequest,
@@ -172,6 +175,7 @@ export function useGeneration(opts_: {
     provenanceCacheRef,
     steelmanCacheRef,
     produceCacheRef,
+    explainCacheRef,
     setGraph,
     setSummaryFailed,
     setConsumeCache,
@@ -189,6 +193,7 @@ export function useGeneration(opts_: {
     setProvenanceCache,
     setSteelmanCache,
     setProduceCache,
+    setExplainCache,
   } = run;
 
   // ---- generation plumbing ---------------------------------------------
@@ -446,41 +451,21 @@ export function useGeneration(opts_: {
   // The three phases the domain axis adds. Provenance and Steelman take no
   // interests: an analogy drawn from the learner's hobbies has no business in
   // a source reading or a contested question.
-  const provenanceParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
-      domain: node.domain,
-    }),
-    [boundaryOf, formRef, languageRef],
+  const sourceParams = useCallback(
+    (node: ConceptNode) => {
+      const { interests: _interests, ...params } = nodeParams(node);
+      return params;
+    },
+    [nodeParams],
   );
 
-  const loadProvenance = useNodeLoader(
-    fetchProvenance,
-    provenanceParams,
-    setProvenanceCache,
-  );
+  const loadProvenance = useNodeLoader(fetchProvenance, sourceParams, setProvenanceCache);
 
-  const steelmanParams = useCallback(
-    (node: ConceptNode) => ({
-      topic: formRef.current.topic,
-      nodeId: node.id,
-      nodeLabel: node.label,
-      language: languageRef.current,
-      ...boundaryOf(node.id),
-      nodeKind: node.kind,
-      domain: node.domain,
-    }),
-    [boundaryOf, formRef, languageRef],
-  );
-
-  const loadSteelman = useNodeLoader(fetchSteelman, steelmanParams, setSteelmanCache);
+  const loadSteelman = useNodeLoader(fetchSteelman, sourceParams, setSteelmanCache);
 
   const loadProduce = useNodeLoader(fetchProduce, nodeParams, setProduceCache);
+
+  const loadExplain = useNodeLoader(fetchExplain, nodeParams, setExplainCache);
 
   /** Warm-queue / in-memory cache address for one node's surface. */
   const warmKey = (kind: WarmKind, nodeId: string) => `${kind}:${nodeId}`;
@@ -595,6 +580,8 @@ export function useGeneration(opts_: {
           return !!steelmanCacheRef.current[nodeId];
         case "produce":
           return !!produceCacheRef.current[nodeId];
+        case "explain":
+          return !!explainCacheRef.current[nodeId];
       }
     },
     [
@@ -613,6 +600,7 @@ export function useGeneration(opts_: {
       provenanceCacheRef,
       steelmanCacheRef,
       produceCacheRef,
+      explainCacheRef,
     ],
   );
 
@@ -653,11 +641,13 @@ export function useGeneration(opts_: {
         case "perform":
           return performRequest(nodeParams(node));
         case "provenance":
-          return provenanceRequest(provenanceParams(node));
+          return provenanceRequest(sourceParams(node));
         case "steelman":
-          return steelmanRequest(steelmanParams(node));
+          return steelmanRequest(sourceParams(node));
         case "produce":
           return produceRequest(nodeParams(node));
+        case "explain":
+          return explainRequest(nodeParams(node));
       }
     },
     [
@@ -668,8 +658,7 @@ export function useGeneration(opts_: {
       connectParams,
       crucibleParams,
       nodeParams,
-      provenanceParams,
-      steelmanParams,
+      sourceParams,
     ],
   );
 
@@ -716,6 +705,8 @@ export function useGeneration(opts_: {
         return put(setSteelmanCache, p.content as SteelmanContent | undefined);
       case "produce":
         return put(setProduceCache, p.content as ProduceContent | undefined);
+      case "explain":
+        return put(setExplainCache, p.content as ExplainContent | undefined);
     }
   };
 
@@ -756,6 +747,8 @@ export function useGeneration(opts_: {
           return warm.warm(key, () => loadSteelman(node, true));
         case "produce":
           return warm.warm(key, () => loadProduce(node, true));
+        case "explain":
+          return warm.warm(key, () => loadExplain(node, true));
       }
     },
     [
@@ -777,6 +770,7 @@ export function useGeneration(opts_: {
       loadProvenance,
       loadSteelman,
       loadProduce,
+      loadExplain,
     ],
   );
 
@@ -816,6 +810,7 @@ export function useGeneration(opts_: {
     loadProvenance,
     loadSteelman,
     loadProduce,
+    loadExplain,
     isCached,
     requestFor,
     applyWarmHit,

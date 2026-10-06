@@ -18,7 +18,7 @@ public let spacingSeconds: TimeInterval = 20 * 60 * 60
 /// last gate — Recall where there is one, otherwise whatever proves the node
 /// last — while it is still owed. No node goes green on the day it was learned.
 public func heldGate(_ plan: [Phase], _ done: [Phase], _ phase: Phase) -> Phase? {
-    guard let last = planGates(plan).last, phase != last, !done.contains(last) else { return nil }
+    guard let last = lastGate(plan), phase != last, !done.contains(last) else { return nil }
     return last
 }
 

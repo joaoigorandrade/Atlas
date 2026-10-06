@@ -14,6 +14,7 @@ import { fail, readAll } from "@/lib/server/store/shared";
 export const SLOT: Record<string, string> = {
   summary: "summary",
   consume: "chunks",
+  explain: "content",
   model: "beats",
   socratic: "steps",
   feynman: "beats",

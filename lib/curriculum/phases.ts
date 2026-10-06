@@ -50,7 +50,7 @@ export function asNodeKind(raw: unknown): NodeKind {
  * `PHASE_DEFS[id].signal`). A candidate that adds no new signal is a setting,
  * not a phase.
  *
- * This list holds only phases that are *built*, which is now all twelve of
+ * This list holds only phases that are *built*, which is now all sixteen of
  * them. Each was inserted here at its canonical position by the release that
  * implemented it, so `PHASE_PLAN` was never inconsistent with what existed and
  * the "every phase has a home" invariant stayed meaningful throughout. A
@@ -59,6 +59,7 @@ export function asNodeKind(raw: unknown): NodeKind {
  */
 export const PHASE_ORDER = [
   "consume",
+  "explain",
   "discriminate",
   "provenance",
   "socratic",
@@ -92,6 +93,7 @@ export type PhaseId = (typeof PHASE_ORDER)[number];
  */
 export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
   consume: { label: "Consume", signal: "exposure" },
+  explain: { label: "Explain", signal: "explanation design" },
   discriminate: { label: "Discriminate", signal: "boundary" },
   provenance: { label: "Provenance", signal: "evidence quality" },
   socratic: { label: "Socratic", signal: "reasoning under questioning" },
@@ -117,13 +119,18 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
  *
  * These are the four target ladders, complete — every phase they name exists.
  *
- *   fact       consume · discriminate · drill · connect · recall · retain
- *   concept    consume · discriminate · socratic · feynman · connect ·
- *              crucible · recall · retain
- *   procedure  consume · trace · feynman · perform · drill · connect ·
- *              crucible · retain
- *   principle  consume · socratic · predict · trace · feynman · connect ·
- *              crucible · retain
+ *   fact       consume · explain · discriminate · drill · connect · recall ·
+ *              retain
+ *   concept    consume · explain · discriminate · socratic · feynman ·
+ *              connect · crucible · recall · retain
+ *   procedure  consume · explain · trace · feynman · perform · drill ·
+ *              connect · crucible · retain
+ *   principle  consume · explain · socratic · predict · trace · feynman ·
+ *              connect · crucible · retain
+ *
+ * Explain sits behind the reading on every kind: Consume teaches the content,
+ * Explain models how to put it across to someone else, and Feynman, several
+ * rungs later, asks for that explanation unaided.
  *
  * Why they differ: a fact has nothing to reason from — tell it from its
  * neighbours, drill it, wire it, retrieve it cold. A concept is a
@@ -140,11 +147,12 @@ export const PHASE_DEFS: Record<PhaseId, { label: string; signal: string }> = {
 export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
   // Nothing to reason from: tell it from its neighbours, wire it into the map,
   // retrieve it cold, keep it alive.
-  fact: ["consume", "discriminate", "drill", "connect", "recall", "retain"],
+  fact: ["consume", "explain", "discriminate", "drill", "connect", "recall", "retain"],
   // A concept IS a classification, so telling instances from near-misses is
   // not a warm-up for the ladder — it is the thing being learned.
   concept: [
     "consume",
+    "explain",
     "discriminate",
     "socratic",
     "feynman",
@@ -159,6 +167,7 @@ export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
   // a real case, then run it fast.
   procedure: [
     "consume",
+    "explain",
     "trace",
     "feynman",
     "perform",
@@ -171,6 +180,7 @@ export const PHASE_PLAN: Record<NodeKind, readonly PhaseId[]> = {
   // happens before being shown, then explain why it had to.
   principle: [
     "consume",
+    "explain",
     "socratic",
     "predict",
     "trace",
@@ -191,7 +201,14 @@ export function planGates(plan: readonly PhaseId[]): readonly PhaseId[] {
  *  never taught) wherever the plan has one, else the plan's last gate. What
  *  "I already know this" sends the learner to. */
 export function proofGate(plan: readonly PhaseId[]): PhaseId {
-  return plan.includes("crucible") ? "crucible" : (planGates(plan).at(-1) ?? "consume");
+  return plan.includes("crucible") ? "crucible" : (lastGate(plan) ?? "consume");
+}
+
+/** The gate that proves a node last. Never Explain: it models an explanation
+ *  rather than proving anything, so on a recognise-only plan (Consume,
+ *  Explain) the reading stays the proof and nothing is held a night. */
+export function lastGate(plan: readonly PhaseId[]): PhaseId | undefined {
+  return planGates(plan.filter((p) => p !== "explain")).at(-1);
 }
 
 /** The pre-catalogue ladder, and the `phase_plan` every row built before it was
@@ -277,10 +294,15 @@ export function resolvePlan(
   const want = new Set<PhaseId>(
     !rule ? base : "plan" in rule ? rule.plan : [...base, ...rule.add],
   );
+  // Explain rides with Consume: on every bar, never counted against the cap,
+  // so it can't displace a heavier rung. Only a plan that leaves it out
+  // (performative) goes without.
+  const explain = want.has("explain");
+  const rides = (p: PhaseId) => p === "consume" || (p === "explain" && explain);
   const bar = BAR[importance];
   if (bar !== "master") {
     const rung = bar === "use" ? appliedRung([...want], kind, domain) : undefined;
-    return PHASE_ORDER.filter((p) => p === "consume" || p === "retain" || p === rung);
+    return PHASE_ORDER.filter((p) => rides(p) || p === "retain" || p === rung);
   }
   if (difficulty === "easy") want.delete("socratic");
   // W3.1, in this order: a heavy phase runs only where the map found what it
@@ -290,13 +312,17 @@ export function resolvePlan(
   if (evidence.individual === true) want.delete("discriminate");
   if (evidence.neighbours !== undefined && evidence.neighbours < 2)
     want.delete("connect");
-  const gates = PHASE_ORDER.filter((p) => want.has(p) && p !== "retain");
+  const gates = PHASE_ORDER.filter(
+    (p) => want.has(p) && p !== "retain" && p !== "explain",
+  );
   const keep = new Set(
     [...gates]
       .sort((a, b) => gateRank(kind, a) - gateRank(kind, b))
       .slice(0, GATE_CAP[difficulty]),
   );
-  return PHASE_ORDER.filter((p) => (p === "retain" ? want.has(p) : keep.has(p)));
+  return PHASE_ORDER.filter((p) =>
+    p === "retain" || p === "explain" ? want.has(p) : keep.has(p),
+  );
 }
 
 /** The plan a node runs: its stored one, else the one its axes resolve to. A
@@ -325,6 +351,7 @@ export function phasePlan(node: {
  */
 export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
   consume: "You haven't read this yet — want to?",
+  explain: "You haven't seen how to explain this yet — want to?",
   discriminate: "You haven't told this apart from its neighbours yet — want to?",
   provenance: "You haven't weighed the source on this yet — want to?",
   socratic: "You haven't reasoned this out yet — want to?",
@@ -343,6 +370,7 @@ export const PHASE_SKIP_NUDGE: Record<PhaseId, string> = {
 
 const PHASE_SKIP_NUDGE_PT: Record<PhaseId, string> = {
   consume: "Você ainda não leu isso — quer ler?",
+  explain: "Você ainda não viu como explicar isso — quer ver?",
   discriminate: "Você ainda não distinguiu isso dos vizinhos — quer tentar?",
   provenance: "Você ainda não pesou a fonte disso — quer tentar?",
   socratic: "Você ainda não raciocinou sobre isso — quer tentar?",
