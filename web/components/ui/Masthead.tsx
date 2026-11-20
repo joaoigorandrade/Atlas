@@ -52,7 +52,7 @@ export default function Masthead({
   children?: ReactNode;
 }) {
   return (
-    <header style={{ ...mastheadBar, ...style }}>
+    <header className="at-mast" style={{ ...mastheadBar, ...style }}>
       {onBack && (
         <>
           <button
@@ -68,6 +68,7 @@ export default function Masthead({
               fontStyle: "italic",
               fontSize: 15.5,
               color: color.inkMuted,
+              whiteSpace: "nowrap",
             }}
           >
             {back}
@@ -79,6 +80,7 @@ export default function Masthead({
       )}
       {kicker && (
         <span
+          className="at-mast-kicker"
           style={{
             fontFamily: font.caps,
             fontSize: 13,
@@ -93,6 +95,7 @@ export default function Masthead({
       )}
       {title && (
         <div
+          className="at-mast-title"
           style={{
             fontFamily: font.display,
             fontSize: 21,
@@ -107,7 +110,8 @@ export default function Masthead({
       )}
       {meta}
       <div style={{ flex: 1 }} />
-      {children}
+      {/* `contents` on desktop; a phone clips it to one line (globals.css). */}
+      {children && <span className="at-mast-end">{children}</span>}
     </header>
   );
 }

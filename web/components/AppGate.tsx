@@ -1,24 +1,28 @@
 "use client";
 
 // The two whole-screen states that stand in for the app: the mark held while
-// the saved run loads, and the gate below the 768px minimum (#8).
+// the saved run loads, and the map's gate below 768px: a phone gets every
+// screen and phase sheet, only the canvas needs the room (#8).
 
 import { InkRule } from "@/components/Pending";
+import Button from "@/components/ui/Button";
 import { useT } from "@/lib/i18n";
 import { color, font } from "@/lib/theme";
 
 const STRINGS = {
   en: {
     tagline: "Atlas · learn anything, deeply",
-    narrowTitle: "Atlas is best on a desktop screen",
+    narrowTitle: "The map needs a bigger screen",
     narrowBody:
-      "The living concept map needs room to breathe. Open Atlas on a laptop or desktop — your progress is saved to your account and will be right where you left it.",
+      "The living concept map needs room to breathe — open it on a laptop or desktop. Your review, today's plan and every phase work right here.",
+    back: "Back to today",
   },
   "pt-BR": {
     tagline: "Atlas · aprenda qualquer coisa, a fundo",
-    narrowTitle: "O Atlas funciona melhor em uma tela de computador",
+    narrowTitle: "O mapa precisa de uma tela maior",
     narrowBody:
-      "O mapa vivo de conceitos precisa de espaço. Abra o Atlas em um notebook ou computador — seu progresso fica salvo na sua conta, exatamente onde você parou.",
+      "O mapa vivo de conceitos precisa de espaço — abra-o em um notebook ou computador. Sua revisão, o plano de hoje e todas as fases funcionam aqui.",
+    back: "Voltar para hoje",
   },
 } as const;
 
@@ -41,7 +45,13 @@ const TAGLINE: React.CSSProperties = {
   marginBottom: 16,
 };
 
-export default function AppGate({ narrow }: { narrow: boolean }) {
+export default function AppGate({
+  narrow,
+  onBack,
+}: {
+  narrow: boolean;
+  onBack?: () => void;
+}) {
   const t = useT(STRINGS);
   if (!narrow)
     return (
@@ -77,6 +87,15 @@ export default function AppGate({ narrow }: { narrow: boolean }) {
         <div style={{ fontSize: 14.5, lineHeight: 1.6, color: color.inkSoft }}>
           {t.narrowBody}
         </div>
+        {onBack && (
+          <Button
+            data-testid="action-gate-back"
+            onClick={onBack}
+            style={{ marginTop: 24 }}
+          >
+            {t.back}
+          </Button>
+        )}
       </div>
     </div>
   );

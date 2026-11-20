@@ -346,7 +346,7 @@ export default function SettingsScreen({
         </Section>
 
         <Section label={t.dailyTarget} hint={t.dailyTargetHint}>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             {DAILY_TARGETS.map((minutes) => (
               <button
                 className="at-press"

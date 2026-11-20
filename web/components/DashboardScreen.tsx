@@ -201,7 +201,7 @@ export default function DashboardScreen({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
               gap: 16,
               marginBottom: 44,
             }}
@@ -285,7 +285,7 @@ export default function DashboardScreen({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3,1fr)",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))",
               gap: 16,
             }}
           >

@@ -1,7 +1,7 @@
 {
   "default": 400,
   "files": {
-    "components/AtlasApp.tsx": 1008,
+    "components/AtlasApp.tsx": 979,
     "components/DashboardScreen.tsx": 505,
     "components/SettingsScreen.tsx": 434,
     "components/analytics/CalibrationView.tsx": 649,

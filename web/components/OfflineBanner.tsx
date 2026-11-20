@@ -61,3 +61,43 @@ export default function OfflineBanner({
     </div>
   );
 }
+
+/** A write that has exhausted its retries — the same quiet, standing state as
+ *  the banner, pinned top-centre instead of full width. */
+export function SaveFailedPill({ message }: { message: string }) {
+  return (
+    <div
+      role="status"
+      style={{
+        position: "absolute",
+        top: 14,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 38,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "6px 12px",
+        borderRadius: 999,
+        background: color.dangerBg,
+        border: "1px solid rgba(154,64,52,0.22)",
+        color: color.dangerInk,
+        fontFamily: font.mono,
+        fontSize: 10.5,
+        letterSpacing: "0.06em",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: "50%",
+          background: color.dangerInk,
+          animation: "breathe 1.8s ease-in-out infinite",
+        }}
+      />
+      {message}
+    </div>
+  );
+}

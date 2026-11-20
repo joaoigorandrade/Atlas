@@ -101,12 +101,13 @@ export default function ProfileScreen({
           style={{
             maxWidth: 760,
             margin: "0 auto",
-            padding: "48px 40px 80px",
+            padding: "48px clamp(16px, 5vw, 40px) 80px",
           }}
         >
           <div
             style={{
               display: "flex",
+              flexWrap: "wrap",
               alignItems: "center",
               gap: 22,
               marginBottom: 40,
@@ -165,7 +166,7 @@ export default function ProfileScreen({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
+              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
               gap: 14,
               marginBottom: 40,
             }}

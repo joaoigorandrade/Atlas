@@ -64,7 +64,7 @@ import Toast from "@/components/Toast";
 import ScreenTimer from "@/components/ScreenTimer";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ErrorState } from "@/components/ErrorState";
-import OfflineBanner from "@/components/OfflineBanner";
+import OfflineBanner, { SaveFailedPill } from "@/components/OfflineBanner";
 import { ERROR_STRINGS } from "@/lib/errorCopy";
 import RailToggle from "@/components/map/RailToggle";
 import { logWarning } from "@/lib/log";
@@ -543,7 +543,7 @@ export default function AtlasApp({
   // delayed past a fast hydration so a quick resume never flashes a spinner.
   if (!hydrated) return <AppGate narrow={false} />;
   // Below the hard minimum a polished gate beats a broken layout (#8).
-  if (vw < 768) return <AppGate narrow />;
+  if (vw < 768 && isMap && !openSheet) return <AppGate narrow onBack={enterDashboard} />;
   const narrow = vw < layout.railsMin;
   const pickNode = (id: string) => (setSelectedId(id), centerOn(id));
   const errorStrings = ERROR_STRINGS[language];
@@ -760,7 +760,12 @@ export default function AtlasApp({
           frontierTotal={frontierTotal}
           maps={mapCards}
           today={dailyPlan(run.maps, form.target)}
-          onOpenMap={openMap}
+          // ponytail: a phone has no map to open, so the frontier card opens its next phase.
+          onOpenMap={
+            vw < 768 && nextUp[0]
+              ? () => onPrimaryAction(nextUp[0].node, display[nextUp[0].node.id])
+              : openMap
+          }
           onSelectMap={switchMap}
           onReview={enterReview}
           onProfile={enterProfile}
@@ -963,41 +968,7 @@ export default function AtlasApp({
           than a toast: the debounce fires every 1.2s, so a toast would be a
           strobe, and the next tick is already the retry. Suppressed offline —
           the banner above is a truer account of the same fact. */}
-      {saveFailed && online && (
-        <div
-          role="status"
-          style={{
-            position: "absolute",
-            top: 14,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 38,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 7,
-            padding: "6px 12px",
-            borderRadius: 999,
-            background: color.dangerBg,
-            border: "1px solid rgba(154,64,52,0.22)",
-            color: color.dangerInk,
-            fontFamily: font.mono,
-            fontSize: 10.5,
-            letterSpacing: "0.06em",
-          }}
-        >
-          <span
-            aria-hidden
-            style={{
-              width: 5,
-              height: 5,
-              borderRadius: "50%",
-              background: color.dangerInk,
-              animation: "breathe 1.8s ease-in-out infinite",
-            }}
-          />
-          {errorStrings.notSaved}
-        </div>
-      )}
+      {saveFailed && online && <SaveFailedPill message={errorStrings.notSaved} />}
 
       <Toast toast={toast} onDismiss={dismissToast} />
 

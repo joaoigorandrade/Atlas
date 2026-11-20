@@ -730,3 +730,33 @@ html[data-turn="back"]::view-transition-new(root) {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Phones (below the map's 768px gate): the masthead keeps one 58px row — the
+   right-edge slot clips instead of stacking word by word. */
+.at-mast-end {
+  display: contents;
+}
+@media (max-width: 767px) {
+  .at-mast {
+    padding: 0 16px !important;
+    gap: 10px !important;
+  }
+  .at-mast-title {
+    display: none;
+  }
+  .at-mast-kicker {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* The right slot keeps its controls; a breadcrumb or count drops. */
+  .at-mast-end {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .at-mast-end > :not(button) {
+    display: none;
+  }
+}
