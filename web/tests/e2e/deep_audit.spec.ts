@@ -76,6 +76,7 @@ test.describe("Deep Web Feature Audit", () => {
     audit.passedChecks.push("Welcome screen visible");
 
     // Check goal choices
+    await page.getByTestId("action-mode-mastery").click();
     await page.getByTestId("action-goal-project").click();
     await page.getByTestId("action-goal-mastery").click();
     audit.passedChecks.push("Goal toggles functional");

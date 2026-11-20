@@ -346,6 +346,21 @@ private func upToCrucible() -> [Phase] {
     #expect(store.heldUntil("cadeia", .recall) != nil)
 }
 
+@MainActor
+@Test func aQuickLookRunsItsPerformTheSameSitting() {
+    // "Só quero saber": Consume, Explain, Perform, Retain — no night on Perform.
+    var node = ConceptNode(id: "cadeia", label: "Regra da cadeia")
+    node.phasePlan = [.consume, .explain, .perform, .retain]
+    let (_, store) = session(["lat": .mastered])
+    store.quiet = true // keep the test's goal out of the device's Defaults
+    store.goal = .glance
+    store.completePhase(node, .consume)
+    #expect(store.heldUntil("cadeia", .perform) == nil)
+    store.goal = .exam
+    store.completePhase(node, .explain)
+    #expect(store.heldUntil("cadeia", .perform) != nil)
+}
+
 @Test func theLastGateIsHeldWhateverItIs() {
     // W4.1: Recall where the plan has one; otherwise whatever proves it last.
     let concept = phasePlans[.concept]!

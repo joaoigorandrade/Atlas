@@ -199,7 +199,7 @@ function buildJob(body: GenerateBody): Job {
 
   switch (body.kind) {
     case "curriculum": {
-      const goal: GoalKind = ["exam", "project", "mastery", "pareto"].includes(
+      const goal: GoalKind = ["exam", "project", "mastery", "pareto", "glance"].includes(
         s(body.goal),
       )
         ? (body.goal as GoalKind)
@@ -246,8 +246,8 @@ function buildJob(body: GenerateBody): Job {
         // The header-carrying map first; a map cached before the header still
         // assembles through the second shape.
         shape: [
-          { nodes: mapNodeBounds(paretoPct), meta: "one" },
-          { nodes: mapNodeBounds(paretoPct) },
+          { nodes: mapNodeBounds(paretoPct, goal), meta: "one" },
+          { nodes: mapNodeBounds(paretoPct, goal) },
           { scopes: { min: 2, max: 3 } },
         ],
       };

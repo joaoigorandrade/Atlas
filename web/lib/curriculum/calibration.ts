@@ -303,7 +303,10 @@ export function provesOnSight(
 // whether a node with nothing finished looks started, which is
 // `stateFromPlan`'s `started` option.
 
-export type GoalKind = "exam" | "project" | "mastery" | "pareto";
+/** `glance` is "just want to know": a 1-3 node map, each node on `GLANCE_PLAN`,
+ *  no placement, no overnight hold. Not in `GOALS` — it is the other mode of
+ *  the welcome screen, not one of mastery's goals. */
+export type GoalKind = "exam" | "project" | "mastery" | "pareto" | "glance";
 
 export const GOALS: ReadonlyArray<[GoalKind, string]> = [
   ["exam", "Pass an exam"],
@@ -349,7 +352,7 @@ export const DEFAULT_FORM: OnboardingForm = {
   // Empty on purpose: a pre-filled topic makes `build()`'s empty-topic guard
   // unreachable and lets a distracted learner build somebody else's map.
   topic: "",
-  goal: "exam",
+  goal: "glance",
   interests: "",
   target: 15,
   examDate: "",

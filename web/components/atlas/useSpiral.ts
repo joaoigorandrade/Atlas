@@ -218,6 +218,7 @@ export function useSpiral(deps: {
     setPhaseProgress,
     phaseProgressRef,
     warmOne,
+    quick: useCallback(() => formRef.current.goal === "glance", [formRef]),
   });
   const { completePhase, settle, markStarted, warmNext, armChallenge, disarmChallenge } =
     ledger;

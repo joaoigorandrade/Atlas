@@ -106,7 +106,8 @@ export function useOnboarding(deps: {
   const [answered, setAnswered] = useState(0);
   const [reveal, setReveal] = useState(0);
   /** Uploaded-outline grounding + too-broad-topic scoping (#30). */
-  const { outline, uploadNote, onOutlineFile, clearOutline } = useOutlineUpload(toast);
+  const upload = useOutlineUpload(toast);
+  const { outline, clearOutline } = upload;
   const [scopes, setScopes] = useState<ScopeOffer[] | null>(null);
   /** What the build has actually produced so far, named for the overlay.
    *  Indeterminate waits read ~30% longer than determinate ones, and this one
@@ -286,6 +287,7 @@ export function useOnboarding(deps: {
           return;
         }
         topicRow.adoptAxes(current);
+        if (params.goal === "glance") return startRef.current(); // no placement, no beat
         setBuildNote(`placement question 1 of ${DIAGNOSTIC_COUNT}`);
         // Short map (or a stream that ended early): the overlap never fired, so
         // ask now against everything that landed.
@@ -458,6 +460,7 @@ export function useOnboarding(deps: {
    * the top of the goal-ordered plan, not merely the leftmost lit node.
    */
 
+  const startRef = useRef(() => {}); // `build` is memoized above `startMap`
   const startMap = () => {
     setScreen("map");
     const target = frontierTargetId();
@@ -482,9 +485,7 @@ export function useOnboarding(deps: {
       );
     });
   };
-
-  // Content: the one seam every foreground generation goes through, and one
-  // builder per kind for the inputs a warm and the click after it must share.
+  startRef.current = startMap;
 
   /** Everything onboarding owns that a run switch has to clear. Called from
    *  `useRunState.applyRun` through a ref: the run mounts first (onboarding
@@ -504,13 +505,11 @@ export function useOnboarding(deps: {
     answered,
     setAnswered,
     reveal,
-    outline,
-    uploadNote,
+    upload,
     scopes,
     buildNote,
     build,
     pickScope,
-    onOutlineFile,
     answerDiagnostic,
     startMap,
     askedNodeIdsRef,

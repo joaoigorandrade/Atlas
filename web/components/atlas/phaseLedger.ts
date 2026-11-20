@@ -56,6 +56,8 @@ export function usePhaseLedger(deps: {
    *  Retain is excluded because it has no per-node generation to pull: it is
    *  the shared review queue, warmed on its own schedule by `retainPlan`. */
   warmOne: (kind: Exclude<PhaseId, "retain">, node: ConceptNode) => void;
+  /** A "just want to know" map: its Perform runs in the same sitting, no night. */
+  quick: () => boolean;
 }) {
   const {
     graphRef,
@@ -67,6 +69,7 @@ export function usePhaseLedger(deps: {
     setPhaseProgress,
     phaseProgressRef,
     warmOne,
+    quick,
   } = deps;
   /** The node under a "prove it" challenge, if any. Session-only on purpose:
    *  a reload drops it, which fails safe — the attempt just credits itself. */
@@ -149,7 +152,7 @@ export function usePhaseLedger(deps: {
       setPhasesDone((p) => ({ ...p, [node.id]: done }));
       // Anything studied on a node pushes its last gate a night out (W4.1):
       // the proof has to outlast the sitting it was learned in.
-      const gate = heldGate(plan, done, phase);
+      const gate = quick() ? null : heldGate(plan, done, phase);
       if (gate) hold(node.id, gate);
       const held = shakyReasonsRef.current[node.id];
       const reason = reasonAfter(plan, done, phase, shaky, held);
@@ -166,6 +169,7 @@ export function usePhaseLedger(deps: {
       setStates,
       gapsOf,
       hold,
+      quick,
     ],
   );
 

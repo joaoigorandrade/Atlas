@@ -22,6 +22,8 @@ const GOAL_HINT: Record<GoalKind, string> = {
   mastery:
     "The learner wants deep general mastery — favor the conceptual foundations of exactly what the topic names.",
   pareto: "", // supplied per-request by `paretoNote` — it depends on the chosen share.
+  glance:
+    "The learner just wants to KNOW what this is and use it once — a quick first look, not a course. Build the smallest map that answers that: ONE concept when the topic is one idea, never more than THREE, each one the learner can understand and try on a real case in minutes. This overrides every concept count below, the domain rows included.",
 };
 
 export interface MapParams {
@@ -53,9 +55,19 @@ function paretoNote(params: MapParams): string {
   return `The learner wants a Pareto map: only the concepts that carry roughly the top ${pct}% of real-world results in this topic, at the least effort. Ruthlessly drop edge cases, history, rarely-used variants and completeness-for-its-own-sake — keep what a competent practitioner actually uses ${pct === 80 ? "most weeks" : "every day"}. A smaller, higher-leverage map is the goal, not coverage.`;
 }
 
+/** The band for a request: Pareto sizes by its share, a quick look by its own. */
+export const boundsFor = (p: Pick<MapParams, "goal" | "paretoPct">) =>
+  mapNodeBounds(
+    p.goal === "pareto" ? (p.paretoPct ?? PARETO_DEFAULT) : undefined,
+    p.goal,
+  );
+
 /** Concept-count band per map: the range the prompt asks for, plus the
  *  validator bounds around it. A Pareto map is deliberately smaller. */
-export function mapNodeBounds(paretoPct?: number): {
+export function mapNodeBounds(
+  paretoPct?: number,
+  goal?: GoalKind,
+): {
   ask: [number, number];
   min: number;
   max: number;
@@ -68,6 +80,7 @@ export function mapNodeBounds(paretoPct?: number): {
   // competencies and a formal map of 12 concepts come back through the same
   // validator. Its job here is catching nonsense (2 nodes, 90 nodes), not
   // enforcing a band the prompt states more precisely.
+  if (goal === "glance") return { ask: [1, 3], min: 1, max: 3 };
   if (paretoPct === undefined) return { ask: [6, 16], min: 5, max: 44 };
   // 20% -> ~7 concepts, 50% -> ~12, 80% -> ~17.
   const target = Math.round(4 + (paretoPct / 100) * 16);
@@ -98,9 +111,12 @@ export function mapContext(params: MapParams): string {
   // scope it again — and again. Three rounds deep on church history the
   // learner still has no map, because `DOMAIN_MAP_RULE.interpretive` measures
   // centuries and a label carries no dates. The escape hatch is answered once.
-  const escape = params.scoped
-    ? `This topic is ALREADY a scoped sub-topic the learner chose from a list of offers. Build the map for it. Do NOT return "tooBroad" — narrow the treatment instead, and if the label is missing the period or qualifier that bounds it, pick the reading its offer plainly meant and say so in the first concept's summary.`
-    : `If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
+  // A quick look never bounces back with offers: the learner asked to know
+  // what the thing is, and "pick a narrower topic" is not an answer to that.
+  const escape =
+    params.scoped || goal === "glance"
+      ? `This topic is ALREADY a scoped sub-topic the learner chose from a list of offers. Build the map for it. Do NOT return "tooBroad" — narrow the treatment instead, and if the label is missing the period or qualifier that bounds it, pick the reading its offer plainly meant and say so in the first concept's summary.`
+      : `If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
 {"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
   // One country of a continent: its neighbours are whole maps of their own,
   // and a concept both of them carry is a lesson the learner sits twice.
@@ -211,6 +227,7 @@ const AXES_MIX: Record<GoalKind, string> = {
   exam: `Roughly 40% "core" and the rest "working"; "peripheral" only for easy context the syllabus itself names.`,
   project: `Roughly 40% "core" and 60% "working". A hard idea the build needs is a TOOL here: rate its difficulty by how hard it is to USE, not by how hard it is to understand inside.`,
   mastery: `Weight the map to the core: at least half the concepts are "core". "working" and "peripheral" fill in what the core needs around it.`,
+  glance: `Every concept is "working".`,
 };
 
 export function axesRule(goal: GoalKind): string {

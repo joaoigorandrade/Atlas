@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// Screen 5 — Boas-vindas. Everything the map generation needs, on one scroll
-/// with the CTA in a dock: the topic, why, and the daily unit the streak counts.
+/// Screen 5 — Boas-vindas. A topic and how far to take it. "Só quero saber" is
+/// the default and asks nothing more — a 1-3 stop map on the quick ladder,
+/// straight onto the map. "Domínio" unfolds the full setup beneath, unchanged:
+/// why, the goal's date, interests, and the daily unit the streak counts.
 struct WelcomeView: View {
     @Bindable var onboarding: OnboardingViewModel
     @FocusState private var editing: Bool
@@ -30,35 +32,25 @@ struct WelcomeView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
-                    field("Por que você está aprendendo isso?", "orienta o que priorizamos") {
-                        LazyVGrid(columns: columns(2), spacing: 9) {
-                            ForEach([GoalKind.exam, .pareto, .mastery, .project], id: \.self, content: option)
-                        }
-                        if onboarding.form.goal == .pareto { paretoRow }
-                        examRow
+                    VStack(alignment: .leading, spacing: 11) {
+                        Text("Até onde você quer ir?")
+                            .font(.atlas(.serif, 15.5))
+                            .foregroundStyle(Palette.inkSoft)
+                        modeCard(
+                            "Só quero saber",
+                            "De uma a três paradas. Leia, veja como explicar, tente uma vez.",
+                            "minutos · sem teste", on: quick
+                        ) { onboarding.form.goal = .glance }
+                        modeCard(
+                            "Domínio",
+                            "O atlas completo: teste de nivelamento e uma escada funda em cada conceito.",
+                            "semanas · no ritmo do seu objetivo", on: !quick
+                        ) { if quick { onboarding.form.goal = onboarding.masteryGoal } }
                     }
+                    .padding(.top, 26)
+                    .accessibilityElement(children: .contain)
 
-                    field("Seus interesses", "opcional") {
-                        TextField("ex.: xadrez, investimentos, culinária", text: $onboarding.form.interests)
-                            .font(.atlas(.serif, 16.5))
-                            // Same flag as the topic field: "Montar meu mapa"
-                            // sets it false, and the keyboard has to come down
-                            // whichever of the two was open.
-                            .focused($editing)
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 50)
-                            .boxed(Palette.card, border: Palette.hairlineStrong)
-                    }
-
-                    field("Meta diária", "sua unidade de sequência") {
-                        LazyVGrid(columns: columns(4), spacing: 9) {
-                            ForEach(dailyTargets, id: \.self) { minutes in
-                                pill("\(minutes) min", on: onboarding.form.target == minutes) {
-                                    onboarding.form.target = minutes
-                                }
-                            }
-                        }
-                    }
+                    if !quick { masterySetup.transition(.opacity.combined(with: .move(edge: .top))) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Metrics.gutter)
@@ -69,13 +61,20 @@ struct WelcomeView: View {
             .dismissesKeyboardOnTap()
 
             Dock {
-                CTAButton("Montar meu mapa →", hero: true) {
+                CTAButton(quick ? "Me mostre →" : "Montar meu mapa →", hero: true) {
                     editing = false
                     onboarding.buildMap()
                 }
-                Text("~5 minutos para um mapa aceso com uma fronteira clara")
-                    .font(.atlas(.serif, 14))
-                    .foregroundStyle(Palette.inkGhost)
+                Group {
+                    if quick {
+                        Text("Direto para o mapa — sem nivelamento, nada para configurar")
+                    } else {
+                        Text("~5 minutos para um mapa aceso com uma fronteira clara")
+                    }
+                }
+                .font(.atlas(.serif, 14))
+                .foregroundStyle(Palette.inkGhost)
+                .multilineTextAlignment(.center)
             }
         }
         .background(Palette.paper)
@@ -84,6 +83,70 @@ struct WelcomeView: View {
         .animation(Motion.standard, value: onboarding.scopes.count)
         .animation(Motion.standard, value: onboarding.message)
         .animation(Motion.standard, value: onboarding.form.goal)
+    }
+
+    private var quick: Bool { onboarding.form.goal == .glance }
+
+    /// The full setup a mastery map always asked for.
+    private var masterySetup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            field("Por que você está aprendendo isso?", "orienta o que priorizamos") {
+                LazyVGrid(columns: columns(2), spacing: 9) {
+                    ForEach(GoalKind.masteryGoals, id: \.self, content: option)
+                }
+                if onboarding.form.goal == .pareto { paretoRow }
+                examRow
+            }
+
+            field("Seus interesses", "opcional") {
+                TextField("ex.: xadrez, investimentos, culinária", text: $onboarding.form.interests)
+                    .font(.atlas(.serif, 16.5))
+                    // Same flag as the topic field: "Montar meu mapa"
+                    // sets it false, and the keyboard has to come down
+                    // whichever of the two was open.
+                    .focused($editing)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 50)
+                    .boxed(Palette.card, border: Palette.hairlineStrong)
+            }
+
+            field("Meta diária", "sua unidade de sequência") {
+                LazyVGrid(columns: columns(4), spacing: 9) {
+                    ForEach(dailyTargets, id: \.self) { minutes in
+                        pill("\(minutes) min", on: onboarding.form.target == minutes) {
+                            onboarding.form.target = minutes
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// One of the two ways in — a plate that reads as a choice, not a setting.
+    private func modeCard(
+        _ title: LocalizedStringKey, _ body: LocalizedStringKey, _ meta: LocalizedStringKey,
+        on: Bool, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.atlas(.display, 22))
+                    .foregroundStyle(on ? Palette.accent : Palette.ink)
+                Text(body)
+                    .font(.atlas(.serif, 15.5))
+                    .foregroundStyle(Palette.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+                Kicker(meta, tint: on ? Palette.accent : Palette.inkFaint, size: 10)
+                    .padding(.top, 4)
+            }
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .boxed(on ? Palette.accentBg : Palette.card, border: on ? Palette.accent : Palette.hairlineStrong)
+        }
+        .pressable()
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .animation(Motion.snap, value: on)
     }
 
     // MARK: - Pieces

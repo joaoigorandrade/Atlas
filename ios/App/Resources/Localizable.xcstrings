@@ -23,6 +23,16 @@
         }
       }
     },
+    "Até onde você quer ir?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How far do you want to go?"
+          }
+        }
+      }
+    },
     "Comece pelo problema" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -52,6 +62,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Check they got it"
+          }
+        }
+      }
+    },
+    "De uma a três paradas. Leia, veja como explicar, tente uma vez." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One to three stops. Read it, see how to explain it, try it once."
+          }
+        }
+      }
+    },
+    "Domínio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mastery"
+          }
+        }
+      }
+    },
+    "Direto para o mapa — sem nivelamento, nada para configurar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Straight to the map — no placement, nothing to set up"
           }
         }
       }
@@ -89,6 +129,16 @@
         }
       }
     },
+    "Me mostre →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show me →"
+          }
+        }
+      }
+    },
     "Montando como explicar isso…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -96,6 +146,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Drafting how to explain this…"
+          }
+        }
+      }
+    },
+    "O atlas completo: teste de nivelamento e uma escada funda em cada conceito." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The full atlas: a placement test, a deep ladder on every concept."
           }
         }
       }
@@ -166,6 +226,16 @@
         }
       }
     },
+    "Só quero saber" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just want to know"
+          }
+        }
+      }
+    },
     "Tente outra resposta." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -210,6 +280,16 @@
         }
       }
     },
+    "minutos · sem teste" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minutes · no test"
+          }
+        }
+      }
+    },
     "montar a explicação" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -217,6 +297,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "draft the explanation"
+          }
+        }
+      }
+    },
+    "semanas · no ritmo do seu objetivo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weeks · paced to your goal"
           }
         }
       }

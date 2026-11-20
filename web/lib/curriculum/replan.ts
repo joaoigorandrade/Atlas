@@ -98,6 +98,7 @@ export const GOAL_ORDER_CAPTION: Record<GoalKind, string> = {
   project: "ordered to your build — unlocks the tools first",
   mastery: "foundations first — depth over speed",
   pareto: "ordered by leverage — the vital few first",
+  glance: "a quick look — just what it is and how to use it",
 };
 
 const GOAL_ORDER_CAPTION_PT: Record<GoalKind, string> = {
@@ -105,6 +106,7 @@ const GOAL_ORDER_CAPTION_PT: Record<GoalKind, string> = {
   project: "ordenado para sua construção — desbloqueia as ferramentas primeiro",
   mastery: "fundamentos primeiro — profundidade antes de velocidade",
   pareto: "ordenado por alavancagem — o essencial primeiro",
+  glance: "uma olhada rápida — só o que é e como usar",
 };
 
 /** Language-aware plan-ordering caption. */

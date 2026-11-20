@@ -53,6 +53,7 @@ export function regionsOf(nodes: ConceptNode[], edges: ConceptEdge[]) {
     else cur.push(...stage);
   }
   for (const members of countries) {
+    if (!members.length) continue; // no nodes yet: a reloaded map mounts before its graph
     const capital = members.reduce((best, n) =>
       (degree[n.id] ?? 0) > (degree[best.id] ?? 0) ? n : best,
     );

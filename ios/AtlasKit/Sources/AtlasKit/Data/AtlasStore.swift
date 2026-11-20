@@ -446,7 +446,8 @@ public extension AtlasStore {
         phasesDone[node.id] = done
         // Anything studied on a node pushes its last gate a night out (W4.1),
         // merged into the slot so a session parked there survives the wait.
-        if let gate = heldGate(node.plan, done, phase) {
+        // A quick look ("Só quero saber") runs its Perform in the same sitting.
+        if goal != .glance, let gate = heldGate(node.plan, done, phase) {
             hold(node.id, gate, slot: phaseProgress[node.id]?.fields?[gate.rawValue]?.fields ?? [:])
         }
         let reason = reasonAfter(node.plan, done, phase, closed: closed, held: shakyReasons[node.id])

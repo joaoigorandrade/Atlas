@@ -6,6 +6,7 @@ import {
   graphShape,
   mapContext,
   mapNodeBounds,
+  boundsFor,
   mapRules,
   type MapParams,
 } from "./mapPrompt";
@@ -15,8 +16,8 @@ import {
   MapNode,
   nodeAxes,
   resolvePlan,
+  withGoalPlan,
   type GoalKind,
-  PARETO_DEFAULT,
   asMapMeta,
   graphFromMapNodes,
   type MapMeta,
@@ -155,7 +156,8 @@ export function validateGraphPart(
   // Bounded to match the check below, which is the real floor: it tolerates up
   // to four roots, while `nodes.length - 1` demanded a spanning tree of the RAW
   // list. 80 rejected any wide map with three prereqs a node (40 → 117 edges).
-  const floor = Math.max(1, nodes.length - 4);
+  // A one-concept quick look has nothing to wire.
+  const floor = Math.max(nodes.length > 1 ? 1 : 0, nodes.length - 4);
   for (const [i, v] of arr(root.edges, "edges", floor, 400).entries()) {
     const e = arr(v, `edges[${i}]`, 2, 3);
     const from = seen.get(slug(e[0], `edges[${i}][0]`));
@@ -228,9 +230,7 @@ export async function generateMap(
 ): Promise<CurriculumMapPayload | { scopes: ScopeOffer[] }> {
   params = await withSyllabus(params);
   const { language = "en" } = params;
-  const bounds = mapNodeBounds(
-    params.goal === "pareto" ? (params.paretoPct ?? PARETO_DEFAULT) : undefined,
-  );
+  const bounds = boundsFor(params);
   const raw = await generateJson<
     | { scopes: ScopeOffer[] }
     | { nodes: RawConcept[]; edges: ConceptEdge[]; meta?: MapMeta }
@@ -250,7 +250,8 @@ ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
     { label: "curriculum-map" },
   );
   if ("scopes" in raw) return { scopes: raw.scopes };
-  const nodes = withPrereqs(layoutGraph(raw.nodes, raw.edges), raw.edges);
+  const laid = withPrereqs(layoutGraph(raw.nodes, raw.edges), raw.edges);
+  const nodes = withGoalPlan(laid, params.goal);
   noteChain(nodes, params.topic);
   return raw.meta ? { nodes, meta: raw.meta } : { nodes };
 }
@@ -276,9 +277,7 @@ ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
 export async function* generateMapStream(params: MapParams): AsyncGenerator<StreamFrame> {
   params = await withSyllabus(params);
   const { language = "en" } = params;
-  const bounds = mapNodeBounds(
-    params.goal === "pareto" ? (params.paretoPct ?? PARETO_DEFAULT) : undefined,
-  );
+  const bounds = boundsFor(params);
   let yielded = 0;
   try {
     const seen: SeenConcepts = new Map();
@@ -368,7 +367,8 @@ least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
       yield { p: "nodes", i: yielded++, v: node };
     }
 
-    const settled = layoutMapNodes(await backstopAxes(accepted, params));
+    const laid = layoutMapNodes(await backstopAxes(accepted, params));
+    const settled = withGoalPlan(laid, params.goal);
     // The one whole-graph check per-concept validation can't make. Throwing
     // here is deliberate: it is mid-stream, so nothing is written to
     // `content_cache` and reopening retries, while the learner keeps the map

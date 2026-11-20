@@ -35,7 +35,7 @@ struct SettingsView: View {
 
                     field("Objetivo", "orienta o que priorizamos") {
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
-                            ForEach(GoalKind.allCases, id: \.self) { goal in
+                            ForEach(GoalKind.masteryGoals, id: \.self) { goal in
                                 choice(goal.label, on: store.goal == goal) { model.choose(goal: goal) }
                             }
                         }

@@ -85,6 +85,7 @@ export async function runOnboarding(
   await page.goto("/");
   await page.getByTestId("screen-welcome").waitFor();
   await page.getByTestId("field-topic").fill(TOPIC);
+  await page.getByTestId("action-mode-mastery").click();
   await page.getByTestId("action-goal-mastery").click();
   await page.getByTestId("action-build").click();
   // The placement panel opens as soon as its first question lands. Answering

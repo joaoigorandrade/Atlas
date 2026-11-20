@@ -6,7 +6,13 @@ import SwiftUI
 // writes to the map, and how hard the next question is pitched.
 
 public enum GoalKind: String, Codable, Sendable, CaseIterable {
-    case exam, project, mastery, pareto
+    /// `glance` is "Só quero saber": a 1-3 node map on the quick ladder
+    /// (Consume, Explain, Perform, Retain), no placement, no overnight hold.
+    /// The welcome screen's other mode, not one of mastery's goals.
+    case exam, project, mastery, pareto, glance
+
+    /// The goals the mastery setup offers — everything but the quick look.
+    static let masteryGoals: [GoalKind] = [.exam, .pareto, .mastery, .project]
 
     /// The design draws these as a 2×2 grid, so the labels are the short ones.
     var label: LocalizedStringKey {
@@ -15,6 +21,7 @@ public enum GoalKind: String, Codable, Sendable, CaseIterable {
         case .pareto: "Pareto (80/20)"
         case .mastery: "Dominar tudo"
         case .project: "Construir um projeto"
+        case .glance: "Só quero saber"
         }
     }
 
@@ -25,7 +32,7 @@ public enum GoalKind: String, Codable, Sendable, CaseIterable {
         case .exam: "Data da prova"
         case .project: "Prazo"
         case .mastery: "Data-alvo"
-        case .pareto: "Quando você precisa"
+        case .pareto, .glance: "Quando você precisa"
         }
     }
 }
@@ -34,7 +41,7 @@ public enum GoalKind: String, Codable, Sendable, CaseIterable {
 /// goal — the server honours the offered shares and nothing else.
 public struct OnboardingForm: Sendable {
     public var topic = ""
-    public var goal: GoalKind = .exam
+    public var goal: GoalKind = .glance
     public var interests = ""
     public var target = 15
     public var paretoPct = paretoLevels[0]

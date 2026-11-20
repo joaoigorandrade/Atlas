@@ -1,71 +1,53 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type DragEvent } from "react";
-import {
-  DAILY_TARGETS,
-  PARETO_DEFAULT,
-  PARETO_LEVELS,
-  goals,
-  goalDateLabel,
-  localDay,
-  type OnboardingForm,
-} from "@/lib/curriculum";
+import type { OnboardingForm } from "@/lib/curriculum";
 import type { ScopeOffer } from "@/lib/api";
-import { InkDots } from "@/components/Pending";
+import MasteryDetails from "@/components/onboarding/MasteryDetails";
 import ScopeOffers from "@/components/onboarding/ScopeOffers";
+import TopicComposer from "@/components/onboarding/TopicComposer";
+import type { OutlineUpload } from "@/components/atlas/outlineUpload";
 import { CompassRose, Fleuron } from "@/components/ui/Ornaments";
 import { color, font, kicker, motion } from "@/lib/theme";
 import Button from "@/components/ui/Button";
-import { useLanguage, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
+
+// The atlas opened at its cover: what (`TopicComposer` — the topic and an
+// optional source), then how far. "Just want to know" asks nothing more;
+// "Mastery" unfolds the full setup underneath.
 
 const STRINGS = {
   en: {
-    kicker: "Atlas · learn anything, deeply",
+    back: "← Your atlas",
+    kicker: "Atlas · learn anything",
     title: "What do you want to learn?",
-    topicPlaceholder: "A topic, a pasted syllabus…",
-    dropPrefix: "or drop a PDF / course outline here · ",
-    browse: "browse",
-    dropSuffix: " · we ground the map in a real source",
-    goalQuestion: "Why are you learning this?",
-    goalHint: "— steers what we prune and prioritize",
-    examDateHint: "— powers the real countdown & pace (skippable)",
-    interests: "Your interests",
-    interestsHint: "— for analogies & examples (optional)",
-    interestsPlaceholder: "e.g. chess, investing, cooking",
-    pareto: "How much of the topic?",
-    paretoHint: "— the share of real results you want, at least effort",
-    paretoPct: (pct: number) => `top ${pct}%`,
-    paretoNote: (pct: number) =>
-      `A smaller map: only the concepts carrying the top ${pct}% of real-world results — edge cases and completeness pruned.`,
-    dailyTarget: "Daily target",
-    dailyTargetHint: "— your streak unit & honest queue budget",
-    minutes: (min: number) => `${min} min`,
-    build: "Build my map →",
-    footer: "~5 minutes to a lit-up map with a clear frontier",
+    modes: "How far do you want to go?",
+    glance: "Just want to know",
+    glanceBody: "One to three stops. Read it, see how to explain it, try it once.",
+    glanceMeta: "minutes · no test",
+    mastery: "Mastery",
+    masteryBody: "The full atlas: a placement test, a deep ladder on every concept.",
+    masteryMeta: "weeks · paced to your goal",
+    buildGlance: "Show me →",
+    buildMastery: "Build my map →",
+    footerGlance: "Straight to the map — no placement, nothing to set up",
+    footerMastery: "~5 minutes to a lit-up map with a clear frontier",
   },
   "pt-BR": {
-    kicker: "Atlas · aprenda qualquer coisa, a fundo",
+    back: "← Seu atlas",
+    kicker: "Atlas · aprenda qualquer coisa",
     title: "O que você quer aprender?",
-    topicPlaceholder: "Um tema, uma ementa colada…",
-    dropPrefix: "ou solte um PDF / ementa aqui · ",
-    browse: "procurar",
-    dropSuffix: " · fundamentamos o mapa numa fonte real",
-    goalQuestion: "Por que você está aprendendo isso?",
-    goalHint: "— orienta o que priorizamos e deixamos de lado",
-    examDateHint: "— alimenta a contagem regressiva e o ritmo (opcional)",
-    interests: "Seus interesses",
-    interestsHint: "— para analogias e exemplos (opcional)",
-    interestsPlaceholder: "ex.: xadrez, investimentos, culinária",
-    pareto: "Quanto do tema?",
-    paretoHint: "— a fatia de resultado real que você quer, com menos esforço",
-    paretoPct: (pct: number) => `top ${pct}%`,
-    paretoNote: (pct: number) =>
-      `Um mapa menor: só os conceitos que carregam os ${pct}% mais úteis na prática — casos de borda e completude podados.`,
-    dailyTarget: "Meta diária",
-    dailyTargetHint: "— sua unidade de sequência e orçamento honesto de fila",
-    minutes: (min: number) => `${min} min`,
-    build: "Montar meu mapa →",
-    footer: "~5 minutos para um mapa aceso com uma fronteira clara",
+    modes: "Até onde você quer ir?",
+    glance: "Só quero saber",
+    glanceBody: "De uma a três paradas. Leia, veja como explicar, tente uma vez.",
+    glanceMeta: "minutos · sem teste",
+    mastery: "Domínio",
+    masteryBody:
+      "O atlas completo: teste de nivelamento e uma escada funda em cada conceito.",
+    masteryMeta: "semanas · no ritmo do seu objetivo",
+    buildGlance: "Me mostre →",
+    buildMastery: "Montar meu mapa →",
+    footerGlance: "Direto para o mapa — sem nivelamento, nada para configurar",
+    footerMastery: "~5 minutos para um mapa aceso com uma fronteira clara",
   },
 } as const;
 
@@ -73,12 +55,10 @@ interface WelcomeScreenProps {
   form: OnboardingForm;
   onChange: (patch: Partial<OnboardingForm>) => void;
   onBuild: () => void;
-  /** Uploaded-outline grounding (#30): a chosen file goes up for extraction. */
-  onFile: (file: File) => void;
-  /** Status line under the drop zone — "Grounded in x.pdf", or honest failure copy. */
-  uploadNote: string | null;
-  /** True while the dropped file is still being read server-side. */
-  uploadBusy: boolean;
+  /** Back to the dashboard — only when the learner already has a map to go back to. */
+  onBack?: () => void;
+  /** Uploaded-outline grounding (#30), read by the composer. */
+  upload: OutlineUpload;
   /** Scoped sub-map offers when the topic was too broad, else null (#30). */
   scopes: ScopeOffer[] | null;
   onPickScope: (label: string) => void;
@@ -86,294 +66,230 @@ interface WelcomeScreenProps {
   onChartContinent: () => void;
 }
 
-function optionStyle(active: boolean, grow: boolean): CSSProperties {
-  return {
-    flex: grow ? 1 : "0 0 auto",
-    padding: grow ? "13px 10px" : "12px 20px",
-    background: active ? color.accentBg : color.card,
-    border: `1px solid ${active ? color.accent : color.hairlineStrong}`,
-    borderRadius: 11,
-    fontSize: 14,
-    cursor: "pointer",
-    color: active ? color.accent : color.inkSoft,
-    fontWeight: active ? 600 : 400,
-  };
+/** One of the two ways in: a plate that reads as a choice, not a setting. */
+function ModeCard(props: {
+  id: "glance" | "mastery";
+  active: boolean;
+  title: string;
+  body: string;
+  meta: string;
+  onPick: () => void;
+}) {
+  const { active } = props;
+  return (
+    <button
+      className="at-press"
+      type="button"
+      role="radio"
+      aria-checked={active}
+      data-testid={`action-mode-${props.id}`}
+      onClick={props.onPick}
+      style={{
+        flex: "1 1 220px",
+        display: "flex",
+        gap: 12,
+        textAlign: "left",
+        padding: "16px 18px",
+        background: active ? color.accentBg : color.card,
+        border: `1px solid ${active ? color.accent : color.hairlineStrong}`,
+        boxShadow: active
+          ? `inset 0 0 0 3px ${color.card}, inset 0 0 0 4px ${color.accent}55`
+          : "none",
+        borderRadius: 3,
+        cursor: "pointer",
+        color: color.ink,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          flex: "0 0 auto",
+          width: 14,
+          height: 14,
+          marginTop: 6,
+          borderRadius: "50%",
+          border: `1.5px solid ${active ? color.accent : color.inkGhost}`,
+          background: active ? color.accent : "transparent",
+          boxShadow: active ? `inset 0 0 0 2.5px ${color.accentBg}` : "none",
+        }}
+      />
+      <span>
+        <span
+          style={{
+            display: "block",
+            fontFamily: font.display,
+            fontSize: 22,
+            lineHeight: 1.15,
+            color: active ? color.accent : color.ink,
+            marginBottom: 6,
+          }}
+        >
+          {props.title}
+        </span>
+        <span
+          style={{
+            display: "block",
+            fontFamily: font.serif,
+            fontSize: 15,
+            lineHeight: 1.4,
+            color: color.inkSoft,
+          }}
+        >
+          {props.body}
+        </span>
+        <span
+          style={{
+            display: "block",
+            ...kicker(11, "0.16em"),
+            marginTop: 10,
+            color: active ? color.accent : color.inkFaint,
+          }}
+        >
+          {props.meta}
+        </span>
+      </span>
+    </button>
+  );
 }
 
 export default function WelcomeScreen({
   form,
   onChange,
   onBuild,
-  onFile,
-  uploadNote,
-  uploadBusy,
+  onBack,
+  upload,
   scopes,
   onPickScope,
   onChartContinent,
 }: WelcomeScreenProps) {
   const t = useT(STRINGS);
-  const { language } = useLanguage();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) onFile(file);
-  };
+  const quick = form.goal === "glance";
+  const ready = form.topic.trim().length > 0;
 
   return (
-    // The atlas opened at its cover: marbled endpapers, and the first leaf —
-    // torn-edged, hand-made — laid over them.
     <div
       data-testid="screen-welcome"
       className="at-endpaper"
-      style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "56px 24px" }}
+      style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "56px 16px" }}
     >
+      {onBack && (
+        <button
+          type="button"
+          className="at-press"
+          data-testid="action-back-dashboard"
+          onClick={onBack}
+          style={{
+            position: "absolute",
+            top: 16,
+            left: 16,
+            background: color.card,
+            border: `1px solid ${color.hairlineStrong}`,
+            borderRadius: 3,
+            padding: "7px 14px",
+            cursor: "pointer",
+            fontFamily: font.display,
+            fontStyle: "italic",
+            fontSize: 15.5,
+            color: color.inkMuted,
+          }}
+        >
+          {t.back}
+        </button>
+      )}
       <div
         className="at-deckle"
         style={{
           maxWidth: 680,
           margin: "0 auto",
-          padding: "54px 60px 64px",
+          padding: "44px clamp(20px, 7vw, 60px) 52px",
           background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
           boxShadow: "0 30px 60px rgba(10,8,6,0.45), 0 2px 0 rgba(10,8,6,0.2)",
           animation: `fadeUp ${motion.duration.deliberate}ms ${motion.ease.enter} both`,
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
           <CompassRose size={46} />
           <div style={{ ...kicker(12, "0.22em"), margin: "14px 0 12px" }}>{t.kicker}</div>
           <h1
             style={{
               fontFamily: font.display,
               fontWeight: 400,
-              fontSize: 48,
+              fontSize: "clamp(34px, 7vw, 48px)",
               lineHeight: 1.05,
               margin: 0,
             }}
           >
             {t.title}
           </h1>
-          <Fleuron style={{ margin: "22px 60px 0" }} />
         </div>
 
-        <div
-          onDragOver={(e) => {
+        <form
+          onSubmit={(e) => {
             e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          style={{
-            background: color.card,
-            border: `1px ${dragging ? "dashed" : "solid"} ${dragging ? color.accent : color.hairlineStrong}`,
-            borderRadius: 3,
-            padding: 6,
-            marginBottom: 8,
-            boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
+            if (ready) onBuild();
           }}
         >
-          <input
-            data-testid="field-topic"
-            aria-label={t.title}
-            value={form.topic}
-            onChange={(e) => onChange({ topic: e.target.value })}
-            placeholder={t.topicPlaceholder}
-            style={{
-              width: "100%",
-              border: "none",
-              background: "transparent",
-              fontFamily: font.serif,
-              fontSize: 22,
-              color: color.ink,
-              padding: "16px 16px",
-            }}
-          />
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: uploadNote ? color.accent : color.inkFaint,
-            marginBottom: 38,
-            paddingLeft: 4,
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-          }}
-        >
-          {uploadNote ? (
-            <>
-              <span
-                style={
-                  uploadBusy
-                    ? { animation: "breathe 2s ease-in-out infinite" }
-                    : { animation: "fadeUp .3s both" }
-                }
-              >
-                {uploadNote}
-              </span>
-              {uploadBusy && <InkDots size={3.5} tone={color.accent} />}
-            </>
-          ) : (
-            <span>
-              {t.dropPrefix}
-              <button
-                className="at-press"
-                onClick={() => fileRef.current?.click()}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  fontSize: 13,
-                  color: color.inkMuted,
-                  textDecoration: "underline",
-                  cursor: "pointer",
-                }}
-              >
-                {t.browse}
-              </button>
-              {t.dropSuffix}
-            </span>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".pdf,.txt,.md,text/plain,application/pdf"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onFile(file);
-              e.target.value = "";
-            }}
-          />
-        </div>
-
-        {scopes && (
-          <ScopeOffers
+          <TopicComposer
+            label={t.title}
             topic={form.topic}
-            scopes={scopes}
-            onPick={onPickScope}
-            onChartAll={onChartContinent}
+            onTopic={(topic) => onChange({ topic })}
+            upload={upload}
           />
-        )}
 
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            {t.goalQuestion} <span style={{ color: color.inkGhost }}>{t.goalHint}</span>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {goals(language).map(([key, label]) => (
-              <button
-                className="at-press"
-                key={key}
-                data-testid={`action-goal-${key}`}
-                aria-pressed={form.goal === key}
-                onClick={() => onChange({ goal: key })}
-                style={optionStyle(form.goal === key, true)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {form.goal === "pareto" && (
-            <div style={{ marginTop: 14, animation: "fadeUp 0.25s both" }}>
-              <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 10 }}>
-                {t.pareto} <span style={{ color: color.inkGhost }}>{t.paretoHint}</span>
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                {PARETO_LEVELS.map((pct) => (
-                  <button
-                    className="at-press"
-                    key={pct}
-                    onClick={() => onChange({ paretoPct: pct })}
-                    style={optionStyle((form.paretoPct ?? PARETO_DEFAULT) === pct, false)}
-                  >
-                    {t.paretoPct(pct)}
-                  </button>
-                ))}
-              </div>
-              <div style={{ fontSize: 13, color: color.inkGhost, marginTop: 10 }}>
-                {t.paretoNote(form.paretoPct ?? PARETO_DEFAULT)}
-              </div>
+          {scopes && (
+            <div style={{ marginTop: 24 }}>
+              <ScopeOffers
+                topic={form.topic}
+                scopes={scopes}
+                onPick={onPickScope}
+                onChartAll={onChartContinent}
+              />
             </div>
           )}
+
+          <div style={{ ...kicker(11.5, "0.18em"), margin: "30px 0 12px" }}>
+            {t.modes}
+          </div>
           <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              marginTop: 12,
-              animation: "fadeUp 0.25s both",
-            }}
+            role="radiogroup"
+            aria-label={t.modes}
+            style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
           >
-            <span style={{ fontSize: 14, color: color.inkSoft }}>
-              {goalDateLabel(form.goal, language)}{" "}
-              <span style={{ color: color.inkGhost }}>{t.examDateHint}</span>
-            </span>
-            <input
-              type="date"
-              value={form.examDate}
-              min={localDay()}
-              onChange={(e) => onChange({ examDate: e.target.value })}
-              style={{
-                background: color.card,
-                border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 3,
-                padding: "9px 12px",
-                fontSize: 14,
-                color: color.ink,
-                fontFamily: font.sans,
-              }}
+            <ModeCard
+              id="glance"
+              active={quick}
+              title={t.glance}
+              body={t.glanceBody}
+              meta={t.glanceMeta}
+              onPick={() => onChange({ goal: "glance" })}
+            />
+            <ModeCard
+              id="mastery"
+              active={!quick}
+              title={t.mastery}
+              body={t.masteryBody}
+              meta={t.masteryMeta}
+              // Mastery's own goals; "exam" is what the full flow always defaulted to.
+              onPick={() => quick && onChange({ goal: "exam" })}
             />
           </div>
-        </div>
 
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            {t.interests} <span style={{ color: color.inkGhost }}>{t.interestsHint}</span>
-          </div>
-          <input
-            data-testid="field-interests"
-            aria-label={t.interests}
-            value={form.interests}
-            onChange={(e) => onChange({ interests: e.target.value })}
-            placeholder={t.interestsPlaceholder}
-            style={{
-              width: "100%",
-              background: color.card,
-              border: `1px solid ${color.hairlineStrong}`,
-              borderRadius: 3,
-              padding: "14px 16px",
-              fontSize: 15,
-              color: color.ink,
-            }}
-          />
-        </div>
+          {!quick && (
+            <div style={{ marginTop: 30, animation: "fadeUp 0.25s both" }}>
+              <Fleuron style={{ margin: "0 60px 28px" }} />
+              <MasteryDetails form={form} onChange={onChange} />
+            </div>
+          )}
 
-        <div style={{ marginBottom: 44 }}>
-          <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
-            {t.dailyTarget}{" "}
-            <span style={{ color: color.inkGhost }}>{t.dailyTargetHint}</span>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            {DAILY_TARGETS.map((minutes) => (
-              <button
-                className="at-press"
-                key={minutes}
-                onClick={() => onChange({ target: minutes })}
-                style={optionStyle(form.target === minutes, false)}
-              >
-                {t.minutes(minutes)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <Button data-testid="action-build" onClick={onBuild}>
-          {t.build}
-        </Button>
+          <Button
+            data-testid="action-build"
+            type="submit"
+            disabled={!ready}
+            style={{ marginTop: 32 }}
+          >
+            {quick ? t.buildGlance : t.buildMastery}
+          </Button>
+        </form>
         <div
           style={{
             textAlign: "center",
@@ -382,7 +298,7 @@ export default function WelcomeScreen({
             color: color.inkGhost,
           }}
         >
-          {t.footer}
+          {quick ? t.footerGlance : t.footerMastery}
         </div>
       </div>
     </div>

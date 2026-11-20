@@ -14,7 +14,7 @@ import {
   displayStates,
   orderedFrontier,
   paceStatus,
-  goals,
+  goalName,
   unmetPathOf,
   type AltKey,
   type NodeState,
@@ -289,8 +289,7 @@ export function useDerived(deps: {
   const frontierTotal = graph.nodes.filter((n) => display[n.id] === "frontier").length;
   const frontierConcept = nextUp[0]?.node.label ?? null;
   const subject = form.topic.trim() || t.yourMap;
-  const goalOptions = goals(language);
-  const goalLabel = goalOptions.find(([g]) => g === form.goal)?.[1] ?? t.generalMastery;
+  const goalLabel = goalName(form.goal, language) ?? t.generalMastery;
 
   // The dashboard's "Your maps" grid: the live run's numbers stay live (they
   // update mid-session, before any save lands); every other saved map reads
@@ -307,7 +306,7 @@ export function useDerived(deps: {
         ).length;
         return {
           subject: m.subject,
-          goalLabel: goalOptions.find(([g]) => g === m.goal)?.[1] ?? t.generalMastery,
+          goalLabel: goalName(m.goal, language) ?? t.generalMastery,
           masteryPct: m.graph.nodes.length
             ? Math.round((mastered / m.graph.nodes.length) * 100)
             : 0,
@@ -324,7 +323,7 @@ export function useDerived(deps: {
     graph,
     subject,
     goalLabel,
-    goalOptions,
+    language,
     masteryPct,
     frontierTotal,
     t,

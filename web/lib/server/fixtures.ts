@@ -23,7 +23,7 @@ import type {
   RetainContent,
   SocraticStep,
 } from "@/lib/curriculum";
-import { resolvePlan } from "@/lib/curriculum";
+import { GLANCE_PLAN, resolvePlan, type GoalKind } from "@/lib/curriculum";
 import { FIXTURES } from "@/lib/fixtureMode";
 import {
   PHASE_CONTENT,
@@ -86,10 +86,10 @@ const TOO_BROAD = { scopes: ["Stars", "Cells"].map((l) => ({ label: l, note: l }
 
 /** Column = topological depth, row = position within it — the same left-to-right
  *  reading the real layout produces, without the layout pass. */
-function mapNodes(): MapNode[] {
+function mapNodes(goal?: GoalKind, n = goal === "glance" ? 2 : MAP.length): MapNode[] {
   const depth = new Map<string, number>();
   const rows = new Map<number, number>();
-  return MAP.map(([id, label, prereqs, ...axes]) => {
+  return MAP.slice(0, n).map(([id, label, prereqs, ...axes]) => {
     const g = prereqs.reduce((d, p) => Math.max(d, (depth.get(p) ?? 0) + 1), 0);
     depth.set(id, g);
     const row = rows.get(g) ?? 0;
@@ -101,7 +101,7 @@ function mapNodes(): MapNode[] {
       kind: axes[0],
       importance: axes[2],
       difficulty: axes[3],
-      phasePlan: resolvePlan(...axes),
+      phasePlan: goal === "glance" ? GLANCE_PLAN : resolvePlan(...axes),
       prereqs,
       state: "unknown" as const,
       g,
@@ -352,7 +352,7 @@ export function fixturePayload(
   const v = vars(body);
   switch (kind) {
     case "curriculum": // "Everything" is too broad, so a spec can chart a continent.
-      return /^everything$/i.test(v.topic) ? TOO_BROAD : { nodes: mapNodes() };
+      return /^everything$/i.test(v.topic) ? TOO_BROAD : { nodes: mapNodes(body.goal) };
     case "summary":
       return { summary: `What ${v.nodeLabel} is, in one line.` };
     case "diagnosticQuestion":

@@ -83,6 +83,7 @@ private final class Stub: URLProtocol, @unchecked Sendable {
 @Test func theCommitCarriesTheGapItsStateAndWhyTheNodeIsShaky() async {
     let (model, store) = onboarding()
     model.form.topic = "Cálculo I"
+    model.form.goal = .exam // "Domínio": a quick look has no placement
     model.buildMap()
     await waitForPlacement(model)
     #expect(model.stage == .placement)

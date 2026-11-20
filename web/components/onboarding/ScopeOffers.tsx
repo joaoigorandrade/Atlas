@@ -39,7 +39,7 @@ function Offer({
   ...button
 }: { label: string; note: string; ink: string } & React.ComponentProps<"button">) {
   return (
-    <button className="at-press" {...button}>
+    <button type="button" className="at-press" {...button}>
       <div style={{ fontFamily: font.serif, fontSize: 16.5, color: ink }}>{label}</div>
       <div style={{ fontSize: 13, color: color.inkSoft, marginTop: 3 }}>{note}</div>
     </button>

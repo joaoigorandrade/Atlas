@@ -102,11 +102,9 @@ public final class OnboardingViewModel {
         // `dailyTarget` is one value on the profile, not one per map, so a form
         // that opened on 15 min for someone who had set 20 was offering to
         // change a setting they never came here to change — and writing it back
-        // on finish. The goal is per-map, so the last one is an offer rather
-        // than a fact, but it is a better guess than "Passar na prova" for
-        // someone who has only ever picked "Dominar tudo".
+        // on finish. The goal opens on "Só quero saber", the main way in;
+        // `masteryGoal` is the offer "Domínio" makes.
         if dailyTargets.contains(store.dailyTarget) { form.target = store.dailyTarget }
-        form.goal = store.goal
         // An uncharted scope charted from "Seus mapas": straight to the build.
         if let charting = store.charting {
             store.charting = nil
@@ -115,6 +113,11 @@ public final class OnboardingViewModel {
             buildMap()
         }
     }
+
+    /// The goal "Domínio" opens on: the last mastery goal this learner chose — a
+    /// better guess than "Passar na prova" for someone who only ever picks
+    /// "Dominar tudo".
+    public var masteryGoal: GoalKind { store.goal == .glance ? .exam : store.goal }
 
     /// Minimum time the assembly beat plays. A floor, not a target: SPEC §2
     /// calls it a deliberate "this is mine" moment, not a spinner to minimise.
@@ -127,9 +130,10 @@ public final class OnboardingViewModel {
     static let poolMinimum = 8
 
     /// Fewest concepts that count as a map. Mirrors `mapNodeBounds().min` on the
-    /// server (4 is the Pareto floor): below this the stream was truncated, not
-    /// short, and committing it parks the shell on an empty map with no way out.
-    static let mapMinimum = 4
+    /// server (4 is the Pareto floor, 1 a quick look): below this the stream was
+    /// truncated, not short, and committing it parks the shell on an empty map
+    /// with no way out.
+    var mapMinimum: Int { form.goal == .glance ? 1 : 4 }
 
     // MARK: - Screen 6, the build
 
@@ -215,7 +219,7 @@ public final class OnboardingViewModel {
                 message = ErrorCopy.sentence(for: error, doing: String(localized: "montar seu mapa"))
                 // A stream that died at concept 18 of 20 still left a real map:
                 // keep what landed and let the fork offer another build.
-                guard graph.nodes.count >= Self.mapMinimum else {
+                guard graph.nodes.count >= mapMinimum else {
                     pending?.cancel()
                     stage = .welcome
                     await store.abandonTopic()
@@ -227,7 +231,7 @@ public final class OnboardingViewModel {
             // A stream that ended clean but empty (or truncated to two or three
             // concepts) is not a finished map, and "Seu mapa está pronto." over
             // it is a lie the learner cannot back out of.
-            guard graph.nodes.count >= Self.mapMinimum else {
+            guard graph.nodes.count >= mapMinimum else {
                 pending?.cancel()
                 message = String(localized: "Seu mapa não ficou pronto. Tente de novo.")
                 stage = .welcome
@@ -238,6 +242,8 @@ public final class OnboardingViewModel {
             // asks a `speak` question in the language it names.
             await store.reloadAxes()
             dictation.language = store.axes?.targetLanguage
+            // A quick look has no placement and no assembly beat: straight to the map.
+            if form.goal == .glance { return finish() }
             // Short map, or a stream that ended before the overlap fired.
             let question = first ?? ask()
             // The fork opens on its own — a learner who wants the map should not
@@ -413,7 +419,7 @@ public final class OnboardingViewModel {
         // `RootView` switches on `graph.nodes.isEmpty` as a *transition*, so an
         // empty commit leaves onboarding parked with every button a no-op — and
         // `subject` alone is enough to upsert a junk row.
-        guard graph.nodes.count >= Self.mapMinimum else {
+        guard graph.nodes.count >= mapMinimum else {
             message = String(localized: "Seu mapa não ficou pronto. Tente de novo.")
             stage = .welcome
             stopBuilding()

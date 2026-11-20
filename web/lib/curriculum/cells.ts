@@ -75,6 +75,8 @@ export const GOAL_CELLS: Record<GoalKind, readonly Cell[]> = {
   exam: ["11", "12", "13", "21", "22", "23", "31"],
   project: ["11", "12", "21", "22"],
   mastery: ALL_CELLS,
+  // A first look: every node is something to use, never something to master.
+  glance: ["21", "22"],
 };
 
 /**

@@ -28,6 +28,7 @@ test.describe("Full Visual Browser Tour", () => {
     await page.goto("/");
     await expect(page.getByTestId("screen-welcome")).toBeVisible();
     await page.getByTestId("field-topic").fill(TOPIC);
+    await page.getByTestId("action-mode-mastery").click();
     await page.getByTestId("action-goal-mastery").click();
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "01_welcome.png") });

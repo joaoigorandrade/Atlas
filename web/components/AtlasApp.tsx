@@ -340,13 +340,11 @@ export default function AtlasApp({
     diagnostic,
     answered,
     reveal,
-    outline,
-    uploadNote,
+    upload,
     scopes,
     buildNote,
     build,
     pickScope,
-    onOutlineFile,
     answerDiagnostic,
     startMap,
     reset: resetOnboarding,
@@ -739,9 +737,8 @@ export default function AtlasApp({
           form={form}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onBuild={build}
-          onFile={onOutlineFile}
-          uploadNote={uploadNote}
-          uploadBusy={uploadNote !== null && outline === null}
+          onBack={mapCards.length ? enterDashboard : undefined}
+          upload={upload}
           scopes={scopes}
           onPickScope={pickScope}
           onChartContinent={continents.chartAll}
