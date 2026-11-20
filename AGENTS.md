@@ -10,6 +10,19 @@ Connect, Crucible, Recall, Retain — Provenance, Steelman and Produce are the t
 domain axis added, for interpretive and performative nodes) are implemented; all content is AI-generated per topic via
 OpenRouter (see "AI content generation" below).
 
+## Repository layout
+
+| Folder     | What it is                                                                                                        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `web/`     | The Next.js app: web client **and** the API (`app/api/`, `lib/server/`) — one Vercel deploy, Root Directory `web` |
+| `ios/`     | The native app — its own rules in `ios/AGENTS.md`                                                                 |
+| `backend/` | Supabase: `supabase/migrations/` and the ops SQL (`budgets.sql`)                                                  |
+| `docs/`    | Spec, plans, research                                                                                             |
+
+**Every path below that names `app/`, `components/`, `lib/`, `tests/`,
+`scripts/` or `public/` is relative to `web/`, and every `npm` command runs
+from `web/`.**
+
 ## Stack
 
 - Next.js 15 (App Router) · React 19 · TypeScript 5 (strict)
@@ -425,7 +438,7 @@ it.
   (a topic, a profile, a node delta) and the browser's client for it;
   `lib/server/store.ts` is the data layer behind the routes. RLS stays on as
   defence-in-depth and every route uses the caller's bearer.
-- **A run is rows** (`supabase/migrations/20260907120000_normalize.sql`):
+- **A run is rows** (`backend/supabase/migrations/20260907120000_normalize.sql`):
   `topics` → `nodes`, `edges`, `cards`, `node_content`, all `on delete cascade`,
   plus `profiles` for what belongs to the learner rather than to a topic (the
   streak, the daily target, the reminders). Deleting a topic is one statement

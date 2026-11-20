@@ -21,7 +21,7 @@ The web map supports pan, zoom, dragging, search, and prerequisite highlighting.
 
 ### Twelve phases, selected by concept kind
 
-The phase catalogue lives in [`lib/curriculum/phases.ts`](lib/curriculum/phases.ts). A node receives a persisted plan when its map is built.
+The phase catalogue lives in [`lib/curriculum/phases.ts`](web/lib/curriculum/phases.ts). A node receives a persisted plan when its map is built.
 
 | Phase        | Purpose                                                            |
 | ------------ | ------------------------------------------------------------------ |
@@ -64,11 +64,13 @@ In the current prerequisite rules, both Shaky and Mastered satisfy a prerequisit
 
 ## Run the web app
 
+Every `npm` command below runs from `web/`.
+
 Use Node.js 22 and npm, matching the repository's CI environment.
 
 ```bash
 git clone https://github.com/joaoigorandrade/Atlas.git
-cd Atlas
+cd Atlas/web
 npm ci
 ```
 
@@ -101,9 +103,9 @@ Configure these values in `.env.local`:
 
 Then prepare the backend:
 
-1. Apply the SQL files in [`supabase/migrations/`](supabase/migrations/) in filename order to the intended Supabase project. Review and back up an existing deployment first: the history includes normalization, backfills, and removal of legacy `run_states`.
+1. Apply the SQL files in [`backend/supabase/migrations/`](backend/supabase/migrations/) in filename order to the intended Supabase project. Review and back up an existing deployment first: the history includes normalization, backfills, and removal of legacy `run_states`.
 2. Enable email/password authentication and configure the allowed web redirect URLs.
-3. Configure confirmation emails for the [`/auth/confirm` callback](app/auth/confirm/route.ts), which expects `token_hash` and `type`. Do not assume a callback accepting only an authorization `code`.
+3. Configure confirmation emails for the [`/auth/confirm` callback](web/app/auth/confirm/route.ts), which expects `token_hash` and `type`. Do not assume a callback accepting only an authorization `code`.
 4. Start the app with `npm run dev`.
 
 Authentication currently uses email/password signup and login with email confirmation, not passwordless magic-link login. Some older comments elsewhere in the repository still describe the previous auth and storage designs.
@@ -186,7 +188,7 @@ Boot an iOS simulator before running `make test` or the default `make run`. Nati
 - **iOS:** SwiftUI with observable view models, Keychain-backed sessions, SwiftData local content storage, and streamed networking.
 - **Identity and persistence:** Supabase Auth and Postgres with row-level security. Web requests use cookies; native requests use bearer tokens.
 - **Generation:** server-side OpenRouter calls with input normalization, structured-output validation, and NDJSON streaming for progressive rendering.
-- **Scheduling:** `ts-fsrs` in [`lib/fsrs.ts`](lib/fsrs.ts). The web uses the TypeScript scheduler; native review reaches it through the API.
+- **Scheduling:** `ts-fsrs` in [`lib/fsrs.ts`](web/lib/fsrs.ts). The web uses the TypeScript scheduler; native review reaches it through the API.
 
 Both clients persist application data through `/api/v1`. The normalized model separates profiles, topics, nodes, prerequisite edges, cards, node content, and generation logs rather than uploading an entire run document on each change.
 
@@ -268,27 +270,30 @@ The [web CI workflow](.github/workflows/ci.yml) runs lint, format, type, coverag
 ## Repository map
 
 ```text
-app/                    Web pages, auth callback, and API route handlers
-components/
-  atlas/                Web application state and orchestration hooks
-  onboarding/           Goal setup, map building, and placement
-  map/                  Interactive web concept map
-  session/              Learning-phase surfaces
-lib/
-  curriculum/           Graphs, phase plans, progress, and calibration
-  server/generate/      Per-kind AI generators and response validation
-  server/store/         Normalized server persistence
-  supabase/             Browser/server auth clients and middleware support
-  fsrs.ts               Shared review scheduling implementation
-  persistence.ts        Web persistence API client
-  theme.ts              Web design tokens
+web/                    Next.js app — the web client AND the API (deployed together on Vercel)
+  app/                  Web pages, auth callback, and API route handlers (app/api/)
+  components/
+    atlas/              Web application state and orchestration hooks
+    onboarding/         Goal setup, map building, and placement
+    map/                Interactive web concept map
+    session/            Learning-phase surfaces
+  lib/
+    curriculum/         Graphs, phase plans, progress, and calibration
+    server/generate/    Per-kind AI generators and response validation
+    server/store/       Normalized server persistence
+    supabase/           Browser/server auth clients and middleware support
+    fsrs.ts             Shared review scheduling implementation
+    persistence.ts      Web persistence API client
+    theme.ts            Web design tokens
+  tests/                Unit, integration, live-model, and browser tests
+  scripts/              Web quality tooling (size ratchet, textures)
 ios/
   App/                  App entry point, resources, and localization
   AtlasKit/             Native domain, networking, storage, features, and tests
   Project.swift         Tuist app manifest
-supabase/migrations/    Ordered database schema and data migrations
-tests/                  Unit, integration, live-model, and browser tests
-scripts/                Repository quality tooling
+backend/
+  supabase/migrations/  Ordered database schema and data migrations
+  budgets.sql           Per-cell timing medians from live rows
 docs/                   Testing/storage guides, plans, and historical audits
 ```
 

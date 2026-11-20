@@ -199,7 +199,7 @@ export function minutesLeft(node: ConceptNode, done: readonly PhaseId[] = []): n
 
 /** How much faster or slower a node's phases run than `PHASE_MINUTES`, by
  *  difficulty — the generators write fewer, simpler items for an easy node.
- *  ponytail: starting estimates; `scripts/budgets.sql` reads the real ones. */
+ *  ponytail: starting estimates; `backend/budgets.sql` reads the real ones. */
 export const DIFFICULTY_PACE: Record<NodeDifficulty, number> = {
   easy: 0.75,
   medium: 1,

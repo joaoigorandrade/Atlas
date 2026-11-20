@@ -27,7 +27,7 @@ import { describe, expect, it } from "vitest";
 
 const TS_SRC = readFileSync("lib/persistence.ts", "utf8");
 const SWIFT_SRC = readFileSync(
-  "ios/AtlasKit/Sources/AtlasKit/Data/AtlasRun.swift",
+  "../ios/AtlasKit/Sources/AtlasKit/Data/AtlasRun.swift",
   "utf8",
 );
 

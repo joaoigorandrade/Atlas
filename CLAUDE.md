@@ -9,5 +9,5 @@ Claude-specific notes:
   adding a surface so new UI reads and writes the shared node mastery state
   instead of inventing its own.
 - The visual source of truth is the Claude Design project file
-  `Learning Platform.dc.html` — match its tokens via `lib/theme.ts` rather than
+  `Learning Platform.dc.html` — match its tokens via `web/lib/theme.ts` rather than
   eyeballing colors.
