@@ -851,7 +851,9 @@ public extension AtlasStore {
     /// now — a learner's whole library is a few hundred rows — and the third is
     /// narrowed to the nodes about to be shown.
     func loadLibrary() async {
-        opening = true
+        // Only hold the splash when nothing is drawn: a refresh behind a map
+        // already on screen swapped it back out for the wordmark.
+        if graph.nodes.isEmpty { opening = true }
         defer { opening = false }
 
         let mirrored = local.topics()
