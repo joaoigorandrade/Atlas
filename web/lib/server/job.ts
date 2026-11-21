@@ -1,11 +1,9 @@
 // One request → one job: the normalized inputs, the cache key they hash to,
-// and the thunk that generates the content when the cache misses.
-//
-// Both /api/generate and /api/content resolve requests through here, which is
-// what guarantees the batch warm addresses the exact same rows a real
-// generation would write. Normalization (the input caps, the list trimming)
-// happens before the key is derived, so a request and its capped twin share a
-// cache entry instead of generating twice.
+// and the thunk that generates the content when the cache misses. Both
+// /api/generate and /api/content resolve requests through here, which is what
+// guarantees the batch warm addresses the exact same rows a real generation
+// would write. Normalization (the input caps, the list trimming) happens before
+// the key is derived, so a request and its capped twin share a cache entry.
 
 import type { Language } from "@/lib/i18n";
 import {
@@ -60,6 +58,7 @@ import {
   judgeConnectStream,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
+import { examJob } from "./examJob";
 import {
   CAPS,
   badRequest,
@@ -788,12 +787,13 @@ function buildJob(body: GenerateBody): Job {
       throw badRequest(`unknown judge mode "${String(body.mode)}"`);
     }
 
+    case "exam":
+      return examJob(body, { topic, interests, language });
     default:
       throw badRequest(`unknown kind "${String(body.kind)}"`);
   }
 }
 
-// The request vocabulary lives in `./jobInput` now. Re-exported so every call
-// site that imports it from here keeps working — the split is internal.
+// Re-exported from `./jobInput` so every call site importing them here still works.
 export { BadRequest, CAPS, badRequest } from "./jobInput";
 export type { GenerateBody, GenerateKind } from "./jobInput";

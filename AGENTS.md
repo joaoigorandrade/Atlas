@@ -252,6 +252,15 @@ lens). `passage` is "ask about this": the learner's question about a stretch of
 prose they highlighted, streamed a paragraph at a time and — like `judge` —
 never cached, since the inputs are one learner's selection and one learner's
 words.
+One kind spans the whole map: `exam`, the **mock exam** a learner can sit
+once every concept is mastered (`mapFinished`; the invite is
+`components/map/ExamInvite.tsx`, the sheet `components/session/ExamView.tsx`,
+the session `useExam` over the pure `lib/curriculum/exam.ts`). They choose the
+size (`EXAM_SIZES`) and the difficulty; the server spreads the questions over
+the pool (`examAllocation`), stamps ids and shuffles every question's options
+(`lib/server/generate/exam.ts`). It is uncached — a retake is a new paper — and
+it is not a phase: it reads the map and writes no mastery, pointing a missed
+concept back to its node instead.
 Every per-node generation also carries the **map around the concept**
 (`conceptBoundary` in `lib/curriculum.ts` → `boundaryNote` in `generate.ts`):
 the labels of every ancestor (already taught — build on it, never re-teach it)

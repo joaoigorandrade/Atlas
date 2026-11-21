@@ -2,17 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLive } from "@/components/atlas/useLive";
+import { useDayRollover } from "@/components/atlas/useDayRollover";
+import { useExam } from "@/components/atlas/useExam";
 import { usePhaseParking } from "@/components/atlas/phaseParking";
 import {
   calibOverCount,
+  mapFinished,
   DIAGNOSTIC_COUNT,
-  localDay,
-  markTodayMet,
   crucibleMasters,
   phasePlan,
   frontierTarget,
   reviewCard,
-  rolloverAdherence,
   toggleReminder,
   type GapSpec,
   type NodeState,
@@ -40,6 +40,8 @@ import CrucibleView from "@/components/session/CrucibleView";
 import { phaseSheets } from "@/components/session/PhaseSheets";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
+import ExamView from "@/components/session/ExamView";
+import ExamInvite from "@/components/map/ExamInvite";
 import GeneratingOverlay from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas from "@/components/map/MapCanvas";
@@ -221,27 +223,8 @@ export default function AtlasApp({
     clearCaches,
   } = run;
 
-  // ---- day rollover (#22): judge passed days whenever the calendar turns —
-  // on load (after hydration applies it too) and once a minute while open.
-  useEffect(() => {
-    const tick = () => {
-      setAdherence((prev) =>
-        prev.lastDay && prev.lastDay !== localDay() ? rolloverAdherence(prev) : prev,
-      );
-    };
-    const id = setInterval(tick, 60_000);
-    window.addEventListener("focus", tick);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", tick);
-    };
-  }, [setAdherence]);
-
-  // Clearing the daily queue is the honest "done for today" — it marks the day
-  // met, so the streak ticks forward and the flame reads lit everywhere.
-  useEffect(() => {
-    if (retain?.finished) setAdherence((prev) => markTodayMet(prev));
-  }, [retain?.finished, setAdherence]);
+  useDayRollover(setAdherence, retain?.finished);
+  const exam = useExam(form, graph, languageRef, showError);
   const onToggleReminder = () => setAdherence((prev) => toggleReminder(prev));
 
   const displayRef = useRef<Record<string, NodeState>>({});
@@ -710,6 +693,13 @@ export default function AtlasApp({
             onPhaseAction={onPhaseAction}
             onSkipKnown={skipKnown}
           />
+          {mapFinished(graph, display) && (
+            <ExamInvite
+              onOpen={() => setScreen("exam")}
+              insetLeft={!narrow || railOpen ? layout.leftRail : 0}
+              insetRight={selectedNode && (!narrow || detailOpen) ? layout.nodePanel : 0}
+            />
+          )}
           {narrow && (
             // Collapsed-rail toggles below 1280 (#8); a phone's node sheet opens with the selection.
             <>
@@ -944,6 +934,15 @@ export default function AtlasApp({
       {openSheet === "calibration" &&
         sheetBoundary(
           <CalibrationView items={calib} onExit={exitCalib} onCloseGap={closeCalibGap} />,
+        )}
+
+      {openSheet === "exam" &&
+        sheetBoundary(
+          <ExamView
+            exam={exam}
+            onExit={() => setScreen("map")}
+            onOpenNode={(id) => (setScreen("map"), pickNode(id))}
+          />,
         )}
 
       {/* Mounted through its own fade-out; `loading` is already null by then,

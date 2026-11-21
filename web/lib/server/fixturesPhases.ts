@@ -6,6 +6,7 @@
 // fixture run that only ever passes tests the screen and not the rule.
 
 import type { GenerateBody } from "./jobInput";
+import { examFixture } from "./fixturesExam";
 import { continentLinksParams } from "./generate/continentLinks";
 import { asDomain } from "@/lib/curriculum";
 import type {
@@ -366,6 +367,7 @@ export const PHASE_CONTENT: Record<string, (v: Vars) => unknown> = {
  * in common stay islands, without a model deciding either.
  */
 export function otherFixture(kind: string, body: GenerateBody) {
+  if (kind === "exam") return { questions: examFixture(body) };
   if (kind !== "continentLinks") return null;
   const { maps } = continentLinksParams(body, "fixture");
   const words = maps.map(
