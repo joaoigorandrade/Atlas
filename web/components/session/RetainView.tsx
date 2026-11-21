@@ -1,17 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
+  QUEUE_COLOR,
   retainBudget,
+  retainCounts,
   retainDeck,
   retainQueueLabel,
   reviewCard,
   reviewGrades,
   type AdherenceState,
+  type ReviewQueue,
   type RetainContent,
   type ReviewGrade,
   type RetainSession,
 } from "@/lib/curriculum";
-import { color, kicker, transition } from "@/lib/theme";
+import { color, figures, kicker, layout, transition } from "@/lib/theme";
 import StreakFlame from "@/components/map/StreakFlame";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
@@ -69,6 +73,7 @@ export default function RetainView({
   const { language } = useLanguage();
   const card = reviewCard(session, content);
   const budget = retainBudget(session, content);
+  const narrow = useNarrow();
 
   return (
     <Sheet data-testid="phase-retain" aria-label="Retain">
@@ -87,9 +92,10 @@ export default function RetainView({
             background: color.accentBg,
             border: "1px solid rgba(58,106,85,0.22)",
             borderRadius: 20,
-            padding: "6px 14px",
-            fontSize: 13,
+            padding: narrow ? "5px 10px" : "6px 14px",
+            fontSize: narrow ? 12 : 13,
             color: color.accent,
+            whiteSpace: "nowrap",
           }}
         >
           <span
@@ -104,20 +110,21 @@ export default function RetainView({
         </div>
       </Masthead>
 
-      {/* Body — scrolls; card column + retention-health sidebar */}
+      {/* Body — scrolls; card column + retention-health sidebar, stacked under
+          the card on a phone (side by side it squeezed the card to a sliver). */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div
           style={{
             maxWidth: 1000,
             margin: "0 auto",
-            padding: "34px 32px 120px",
+            padding: narrow ? "16px 14px 96px" : "34px 32px 120px",
             display: "grid",
-            gridTemplateColumns: "1fr 268px",
-            gap: 34,
+            gridTemplateColumns: narrow ? "minmax(0, 1fr)" : "minmax(0, 1fr) 268px",
+            gap: narrow ? 24 : 34,
             alignItems: "start",
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             {session.finished ? (
               <Finished
                 remaining={content.remaining ?? 0}
@@ -133,8 +140,8 @@ export default function RetainView({
                 <ActiveCard
                   card={card}
                   session={session}
-                  content={content}
                   nodeLabel={nodeLabel ?? t.thisNode}
+                  compact={narrow}
                   onFlip={onFlip}
                   onGrade={onGrade}
                   onToggleAside={onToggleAside}
@@ -149,6 +156,59 @@ export default function RetainView({
         </div>
       </div>
     </Sheet>
+  );
+}
+
+/** Below the phone breakpoint — the layout stacks and the card tightens. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${layout.phone - 1}px)`);
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return narrow;
+}
+
+/** Anki's counts: what's left of each queue, the card on screen's underlined. */
+function QueueCounts({
+  session,
+  content,
+}: {
+  session: RetainSession;
+  content: RetainContent;
+}) {
+  const t = useT(STRINGS);
+  const counts = retainCounts(session, content);
+  const current = session.finished
+    ? undefined
+    : (reviewCard(session, content).queue ?? "review");
+  const names: Record<ReviewQueue, string> = {
+    new: t.queueNew,
+    learning: t.queueLearning,
+    review: t.queueReview,
+  };
+  return (
+    <span data-testid="queue-counts" style={{ display: "inline-flex", gap: 12 }}>
+      {(["new", "learning", "review"] as const).map((q) => (
+        <span
+          key={q}
+          aria-label={`${names[q]}: ${counts[q]}`}
+          style={{
+            ...figures,
+            fontSize: 14,
+            fontWeight: 600,
+            color: QUEUE_COLOR[q],
+            textDecoration: current === q ? "underline" : undefined,
+            textUnderlineOffset: 3,
+          }}
+        >
+          {counts[q]}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -195,12 +255,13 @@ function QueueRail({
         style={{
           display: "flex",
           justifyContent: "space-between",
+          alignItems: "center",
           marginTop: 7,
           ...kicker(9.5, "0.1em"),
         }}
       >
         <span>{t.cardOf(Math.min(session.idx + 1, deck.length), deck.length)}</span>
-        <span>{t.deckLeft(Math.max(0, deck.length - session.idx - 1))}</span>
+        <QueueCounts session={session} content={content} />
       </div>
     </div>
   );

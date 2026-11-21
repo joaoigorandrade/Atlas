@@ -245,10 +245,13 @@ test("retain: a missed card comes back at the end of the same pass", async ({ pa
   await sheet.getByTestId("action-continue").click();
   await expect(sheet.getByText(/Card 2 of 3|Card 2 de 3/)).toBeVisible();
 
-  // …and the third slot really is the one that was missed.
+  // The second card is new: Good puts it on its 10-minute learning step,
+  // which lands inside the pass, so it is dealt again too — as in Anki.
   await sheet.getByTestId("action-sure-1").click();
   await sheet.getByTestId("action-grade-good").click();
-  await expect(sheet.getByText(/Card 3 of 3|Card 3 de 3/)).toBeVisible();
+  await expect(sheet.getByText(/Card 3 of 4|Card 3 de 4/)).toBeVisible();
+  // The new/learning/review counts move with it: nothing new is left.
+  await expect(sheet.getByTestId("queue-counts")).toContainText("0");
 });
 
 test("persistence: a reload restores the run exactly", async ({ page }) => {

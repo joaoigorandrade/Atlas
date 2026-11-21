@@ -7,12 +7,8 @@ import { STATE_COLOR, type ReviewCard } from "@/lib/curriculum";
 import { color, font, motion } from "@/lib/theme";
 import Rich from "@/components/Rich";
 
-/** How long the card takes to turn over. The faces swap `visibility` at the
- *  half-way point so the hidden face can never be clicked mid-turn. */
-export const FLIP_MS = motion.duration.deliberate;
-
-/** The question, filled or blank — shared by both faces of the card so the
- *  answer lands *in* the sentence it belongs to rather than beside it. */
+/** The question, filled or blank — the same sentence before and after the
+ *  answer is shown, so a cloze answer lands *in* it rather than beside it. */
 export function Question({
   card,
   filled,
@@ -47,7 +43,7 @@ export function Question({
             style={{
               color: STATE_COLOR.mastered,
               display: "inline-block",
-              animation: `clozeReveal .34s ${motion.ease.spring} both ${FLIP_MS / 2}ms`,
+              animation: `clozeReveal .34s ${motion.ease.spring} both`,
             }}
           >
             {card.answer}

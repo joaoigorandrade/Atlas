@@ -9,6 +9,7 @@ import {
   fsrs,
   generatorParameters,
   Rating,
+  State,
   type Card as FsrsCard,
   type Grade,
 } from "ts-fsrs";
@@ -19,6 +20,7 @@ import type {
   ReviewCard,
   ReviewCardType,
   ReviewGrade,
+  ReviewQueue,
 } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 
@@ -33,7 +35,9 @@ const FORECAST_STRINGS = {
     minutes: (n: number) => `~${n} min`,
     onSchedule: "recall lifting as scheduled",
     farOut: "next lift 30 d+ out",
+    hours: (n: number) => `${n} h`,
     months: (n: number) => `${n} mo`,
+    years: (n: number) => `${n} y`,
   },
   "pt-BR": {
     dueNow: "Vencidos ao todo — a fila de hoje inclusa",
@@ -43,9 +47,17 @@ const FORECAST_STRINGS = {
     minutes: (n: number) => `~${n} min`,
     onSchedule: "a lembrança sobe conforme o previsto",
     farOut: "próxima revisão em 30 d+",
-    months: (n: number) => `${n} meses`,
+    hours: (n: number) => `${n} h`,
+    months: (n: number) => (n === 1 ? "1 mês" : `${n} meses`),
+    years: (n: number) => (n === 1 ? "1 ano" : `${n} anos`),
   },
 } as const;
+
+/** The copy for a language — falling back to English for anything else, so a
+ *  client sending an unknown `lang` gets English rather than a 500. */
+function stringsFor(lang: Language | string | null | undefined) {
+  return FORECAST_STRINGS[lang as Language] ?? FORECAST_STRINGS.en;
+}
 
 /** ts-fsrs card state with dates as ISO strings — JSON-snapshot safe. */
 export type StoredFsrsState = Omit<FsrsCard, "due" | "last_review"> & {
@@ -176,13 +188,17 @@ export { CARD_MINUTES };
  *  Localized because it is the one number the phone no longer computes: the
  *  scheduler runs here, so these words are written here too, and an app whose
  *  source language is pt-BR would otherwise show "2 mo" under "Fácil". */
-function fmtInterval(ms: number, lang: Language = "en"): string {
-  const t = FORECAST_STRINGS[lang];
+export function fmtInterval(ms: number, lang: Language = "en"): string {
+  const t = stringsFor(lang);
   const min = ms / 60_000;
+  // Anki's own reading of a learning step: "<10m" means "within ten minutes".
   if (min < 60) return `<${Math.max(1, Math.ceil(min))} min`;
+  const hours = ms / 3_600_000;
+  if (hours < 22) return t.hours(Math.round(hours));
   const days = ms / 86_400_000;
   if (days < 30) return `${Math.max(1, Math.round(days))} d`;
-  return t.months(Math.round(days / 30));
+  if (days < 365) return t.months(Math.round(days / 30));
+  return t.years(Math.round(days / 365));
 }
 
 /** What each grade would schedule for this card — real intervals on the buttons. */
@@ -205,7 +221,7 @@ export function forecastRows(
   now: Date = new Date(),
   lang: Language = "en",
 ): ForecastRow[] {
-  const t = FORECAST_STRINGS[lang];
+  const t = stringsFor(lang);
   const due = cards.filter((c) => isDue(c, now)).length;
   const week = cards.filter(
     (c) => !isDue(c, now) && Date.parse(c.fsrs.due) <= now.getTime() + 7 * 86_400_000,
@@ -241,15 +257,23 @@ export function forecastRows(
  * scheduler's real intervals. Review states (State.Review with a miss risk)
  * keep the alive-loop wiring (`fails`).
  */
-export function retainContentFromStore(
-  cards: StoredCard[],
-  budgetMin: number,
+/** Which of Anki's three queues a card is in: never seen, still on its
+ *  learning (or relearning) steps, or a graduated review. */
+export function queueOf(card: StoredCard): ReviewQueue {
+  const state = card.fsrs.state;
+  if (state === State.New || !card.fsrs.reps) return "new";
+  if (state === State.Learning || state === State.Relearning) return "learning";
+  return "review";
+}
+
+/** A stored card, dealt: its content, its queue, and the real interval on
+ *  every grade button as of `now`. */
+export function toReviewCard(
+  c: StoredCard,
   now: Date = new Date(),
   lang: Language = "en",
-): RetainContent {
-  const due = dueCards(cards, now);
-  const budgeted = due.slice(0, Math.max(1, Math.floor(budgetMin / CARD_MINUTES)));
-  const deck: ReviewCard[] = budgeted.map((c) => ({
+): ReviewCard {
+  return {
     id: c.id,
     type: c.type,
     source: c.source,
@@ -259,9 +283,34 @@ export function retainContentFromStore(
     front: c.front,
     back: c.back,
     fsrs: intervalLabels(c, now, lang),
+    queue: queueOf(c),
     fails: true,
     reExplain: c.reExplain,
-  }));
+  };
+}
+
+/**
+ * How far ahead a learning step still counts as "this pass" — Anki's
+ * learn-ahead limit. A card the scheduler puts back within it (a miss at 1 min,
+ * a new card's 10-minute step) is dealt again before the pass ends, and graded
+ * for real when it is; one due later waits for its day.
+ */
+export const LEARN_AHEAD_MS = 20 * 60_000;
+
+/** Does this just-graded card come back before today's pass ends? */
+export function returnsThisPass(card: StoredCard, now: Date = new Date()): boolean {
+  return Date.parse(card.fsrs.due) - now.getTime() <= LEARN_AHEAD_MS;
+}
+
+export function retainContentFromStore(
+  cards: StoredCard[],
+  budgetMin: number,
+  now: Date = new Date(),
+  lang: Language = "en",
+): RetainContent {
+  const due = dueCards(cards, now);
+  const budgeted = due.slice(0, Math.max(1, Math.floor(budgetMin / CARD_MINUTES)));
+  const deck: ReviewCard[] = budgeted.map((c) => toReviewCard(c, now, lang));
   return {
     budgetMin,
     forecast: forecastRows(cards, now, lang),

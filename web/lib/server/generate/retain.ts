@@ -27,12 +27,15 @@ const CARD_SOURCES = ["Consume", "Socratic", "Feynman", "Connect", "Crucible"] a
  *  The band the prompt asks for is narrower and derived per request — see
  *  `retainCardBounds` — since the honest count is roughly one card per node the
  *  learner actually has in rotation. */
-export const RETAIN_CARD_BOUNDS = { min: 3, max: RETAIN_DRAFT_NODES } as const;
+export const RETAIN_CARD_BOUNDS = { min: 1, max: RETAIN_DRAFT_NODES } as const;
 
 /** The band to ask this particular draft for: about one card per node in
  *  rotation, clamped into `RETAIN_CARD_BOUNDS`. A three-node rotation asking
  *  for six cards got six — four of them second and third cuts at the same fact,
- *  which is exactly what a review queue must not be made of. */
+ *  which is exactly what a review queue must not be made of. The floor used to
+ *  be three whatever the rotation, so a single new node was asked for three
+ *  cards by a prompt that also forbade a second cut at one fact: the model
+ *  either padded or obeyed and failed validation. */
 export function retainCardBounds(nodeCount: number): {
   min: number;
   max: number;

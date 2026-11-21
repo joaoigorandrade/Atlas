@@ -36,12 +36,14 @@ export const STRINGS = {
     budgetBody:
       "Framed in minutes, never a wall of cards. When the target’s met, you’re done — guilt-free.",
     retentionHealth: "Retention health · FSRS forecast",
-    questionEcho: "Q.",
-    flipHint: "answer it in your head first — then say how sure you are to turn it over",
+    flipHint:
+      "answer it in your head first — then say how sure you are to show the answer",
+    showAnswer: "Show answer · how sure are you?",
+    queueNew: "New",
+    queueLearning: "Learning",
+    queueReview: "To review",
     asideKey: "E",
     cardOf: (i: number, n: number) => `Card ${i} of ${n}`,
-    cardNo: (i: number) => `No. ${i}`,
-    deckLeft: (n: number) => `${n} left in the deck`,
     fsrsNote:
       "FSRS predicts recall per card and surfaces each at its optimal spacing — not fixed SM-2 steps.",
   },
@@ -82,12 +84,14 @@ export const STRINGS = {
     budgetBody:
       "Pensado em minutos, nunca uma parede de cards. Quando a meta é cumprida, você terminou — sem culpa.",
     retentionHealth: "Saúde da retenção · previsão FSRS",
-    questionEcho: "P.",
-    flipHint: "responda de cabeça primeiro — depois diga o quanto tem certeza para virar",
+    flipHint:
+      "responda de cabeça primeiro — depois diga o quanto tem certeza para ver a resposta",
+    showAnswer: "Mostrar resposta · qual a sua certeza?",
+    queueNew: "Novos",
+    queueLearning: "Aprendendo",
+    queueReview: "A revisar",
     asideKey: "E",
     cardOf: (i: number, n: number) => `Card ${i} de ${n}`,
-    cardNo: (i: number) => `Nº ${i}`,
-    deckLeft: (n: number) => `${n} restante${n === 1 ? "" : "s"} no baralho`,
     fsrsNote:
       "O FSRS prevê a lembrança de cada card e o mostra no seu espaçamento ideal — não em passos fixos do SM-2.",
   },

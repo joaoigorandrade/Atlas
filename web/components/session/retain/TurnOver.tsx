@@ -13,8 +13,8 @@ import { useLanguage } from "@/lib/i18n";
 import type { CSSProperties } from "react";
 
 const STRINGS = {
-  en: { sure: ["Not sure", "Fairly sure", "Certain"], turn: "turn it over" },
-  "pt-BR": { sure: ["Não sei", "Quase certo", "Certeza"], turn: "vire o card" },
+  en: { sure: ["Not sure", "Fairly sure", "Certain"], turn: "show the answer" },
+  "pt-BR": { sure: ["Não sei", "Quase certo", "Certeza"], turn: "mostrar a resposta" },
 } as const;
 
 export default function TurnOver({

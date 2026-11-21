@@ -35,7 +35,10 @@ export async function GET(request: Request, { params }: Params) {
     60,
     Math.max(1, Number(url.searchParams.get("budgetMin")) || 15),
   );
-  const lang = (url.searchParams.get("lang") as Language | null) ?? "en";
+  // Checked, not cast: the copy is looked up by this, and an unknown value
+  // used to throw on the lookup and answer 500.
+  const asked = url.searchParams.get("lang");
+  const lang: Language = asked === "pt-BR" ? "pt-BR" : "en";
   try {
     // The deck, not the whole topic: this route reads `cards` and nothing else.
     if (!(await ownsTopic(who.db, id)))

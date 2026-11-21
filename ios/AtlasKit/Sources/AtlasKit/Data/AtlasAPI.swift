@@ -425,15 +425,25 @@ public actor AtlasAPI {
     /// The day's new cards. A card factory, not a queue: it is asked only about
     /// nodes that have none yet, and what it returns is scheduled locally from
     /// then on.
-    public func retain(topic: String, budgetMin: Int, nodes: [(id: String, label: String, state: NodeState)],
+    public func retain(topic: String, budgetMin: Int,
+                       nodes: [(id: String, label: String, state: NodeState, summary: String?)],
                        interests: String, language: String = AtlasAPI.language) async throws -> Landed<[ReviewCard]> {
         let landed: Landed<RetainContent> = try await whole("retain", [
             "topic": .string(topic),
             "budgetMin": .number(Double(budgetMin)),
             "interests": .string(interests),
             "language": .string(language),
-            "nodes": .array(nodes.map {
-                .object(["id": .string($0.id), "label": .string($0.label), "state": .string($0.state.rawValue)])
+            // The summary travels when the node has one, exactly as the browser
+            // sends it (`retainPlan`): it grounds each card in what the node
+            // taught, and it is part of the shared `content_cache` key — leaving
+            // it out paid for a second draft of the same rotation.
+            "nodes": .array(nodes.map { node in
+                var fields: [String: JSONValue] = [
+                    "id": .string(node.id), "label": .string(node.label),
+                    "state": .string(node.state.rawValue),
+                ]
+                if let summary = node.summary, !summary.isEmpty { fields["summary"] = .string(summary) }
+                return .object(fields)
             }),
         ])
         return Landed(value: landed.value.cards, raw: landed.raw)

@@ -3,23 +3,20 @@
 import {
   CONNECT_COLOR,
   STATE_COLOR,
-  retainDeck,
   reviewAside,
   reviewGrades,
   reviewTypeMeta,
-  type RetainContent,
   type ReviewCard,
   type ReviewGrade,
   type RetainSession,
 } from "@/lib/curriculum";
 import { color, figures, font, kicker, motion } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
-import { useReducedMotion } from "@/lib/motion";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 import Rich from "@/components/Rich";
 import TurnOver from "@/components/session/retain/TurnOver";
-import { FLIP_MS, Question } from "@/components/session/retain/Question";
+import { Question } from "@/components/session/retain/Question";
 import { CardAnswer, Suggestion } from "@/components/session/retain/CardAnswer";
 import { STRINGS } from "@/components/session/retainCopy";
 
@@ -27,10 +24,6 @@ import { STRINGS } from "@/components/session/retainCopy";
 // borrows the learning-blue and the flagged node the shaky-amber, so each reads
 // the same here as it does on the map.
 const ASIDE_ACCENT = CONNECT_COLOR.accent;
-
-/** The grade is inked onto the card, then the card is tossed onto the pile. */
-const STAMP_MS = 260;
-const TOSS_MS = 220;
 
 const keycap: CSSProperties = {
   fontFamily: font.caps,
@@ -43,16 +36,20 @@ const keycap: CSSProperties = {
   padding: "2px 5px 1px",
 };
 
-/** One card, as a catalogue card from the atlas: dealt off the deck, lifted and
- *  turned over, stamped with its grade and tossed onto the pile. Everything the
- *  card is — its kind, its number, where it came from — is written on it. The
- *  whole loop is keyboard-drivable (1–3 to turn it with a confidence rating,
- *  space to turn it without, 1–4 to grade, E for the aside, Enter to continue). */
+/** One review card, laid out the way Anki lays one out: the question stays
+ *  where it is, the answer arrives beneath a rule (a cloze fills its blank in
+ *  place), and the four grade buttons sit at the foot with the interval each
+ *  would schedule written above its name. No flip and no toss — a grade is
+ *  committed the instant it is pressed, so leaving the screen can't drop one.
+ *
+ *  Keyboard, as in Anki: space or Enter shows the answer (1–3 shows it with a
+ *  confidence rating), then 1–4 grades and space or Enter is Good. E opens the
+ *  aside; Enter continues past a miss. Held keys don't repeat into a grade. */
 export default function ActiveCard({
   card,
   session,
-  content,
   nodeLabel,
+  compact,
   onFlip,
   onGrade,
   onToggleAside,
@@ -61,9 +58,10 @@ export default function ActiveCard({
 }: {
   card: ReviewCard;
   session: RetainSession;
-  content: RetainContent;
   nodeLabel: string;
-  /** Turn the card over — with the confidence tap that turned it, if any, and
+  /** Phone width: tighter margins, no keycaps (there is no keyboard). */
+  compact: boolean;
+  /** Show the answer — with the confidence tap that showed it, if any, and
    *  the answer written before it (W4.3). */
   onFlip: (sure?: number, said?: string) => void;
   onGrade: (grade: ReviewGrade) => void;
@@ -73,59 +71,39 @@ export default function ActiveCard({
 }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
-  const reduced = useReducedMotion();
   const type = reviewTypeMeta(card.type, language);
   const grades = reviewGrades(language);
   const isQuestion = session.stage === "question";
   const revealed = session.stage === "reveal" || session.stage === "aside";
   const failed = session.stage === "failed";
-  const flipped = revealed || failed;
-  // The answer written before turning — one per dealt card.
+  const shown = revealed || failed;
+  // The answer written before showing — one per dealt card.
   const [said, setSaid] = useState("");
   useEffect(() => setSaid(""), [card.id, session.idx]);
 
-  // The toss: a graded card is stamped, then leaves before the next one is
-  // dealt. "Again" keeps the card on screen — the fail panel opens underneath
-  // it — so it never tosses.
-  const [tossing, setTossing] = useState<ReviewGrade | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-
-  const grade = useCallback(
-    (g: ReviewGrade) => {
-      if (tossing) return;
-      if (g === "again" || reduced) return onGrade(g);
-      setTossing(g);
-      timer.current = setTimeout(() => {
-        setTossing(null);
-        onGrade(g);
-      }, STAMP_MS + TOSS_MS);
-    },
-    [tossing, reduced, onGrade],
-  );
-
-  // Anki muscle memory: the whole card is drivable without the mouse.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // A held key repeats; without this, holding "1" showed the answer and
+      // then graded the card Again on the next repeat.
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
-      if (isQuestion && (e.key === " " || e.key === "Enter")) {
+      // `preventDefault` also cancels a focused button's own space/Enter
+      // click, so one key is one action.
+      const pick = (fn: () => void) => {
         e.preventDefault();
-        onFlip(undefined, said);
-      } else if (isQuestion && "123".includes(e.key)) {
-        e.preventDefault();
-        onFlip(Number(e.key) - 1, said);
-      } else if (revealed && "1234".includes(e.key)) {
-        e.preventDefault();
-        grade(grades[Number(e.key) - 1].key);
-      } else if (revealed && e.key.toLowerCase() === "e") {
-        e.preventDefault();
-        onToggleAside();
-      } else if (failed && e.key === "Enter") {
-        e.preventDefault();
-        onContinue();
-      }
+        fn();
+      };
+      if (isQuestion && (e.key === " " || e.key === "Enter"))
+        pick(() => onFlip(undefined, said));
+      else if (isQuestion && /^[123]$/.test(e.key))
+        pick(() => onFlip(Number(e.key) - 1, said));
+      else if (revealed && /^[1234]$/.test(e.key))
+        pick(() => onGrade(grades[Number(e.key) - 1].key));
+      else if (revealed && (e.key === " " || e.key === "Enter"))
+        pick(() => onGrade("good"));
+      else if (revealed && e.key.toLowerCase() === "e") pick(onToggleAside);
+      else if (failed && (e.key === " " || e.key === "Enter")) pick(onContinue);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -134,269 +112,200 @@ export default function ActiveCard({
     revealed,
     failed,
     grades,
-    grade,
+    onGrade,
     onFlip,
     onToggleAside,
     onContinue,
     said,
   ]);
 
-  const deck = retainDeck(session, content).length;
-  const remaining = deck - session.idx - 1;
-  const stamped = grades.find((g) => g.key === tossing);
-  // The back's blocks ink in one after another once the card is past its edge.
-  const inkIn = (i: number) =>
-    flipped
-      ? { animation: `fadeUp .36s ${motion.ease.enter} both ${FLIP_MS / 2 + i * 70}ms` }
-      : undefined;
-
-  const face: CSSProperties = {
-    gridArea: "1 / 1",
-    position: "relative",
-    // An index card cut from the atlas's own stock, faintly ruled.
-    background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
-    border: "1px solid rgba(43,33,24,0.26)",
-    borderRadius: 3,
-    display: "flex",
-    flexDirection: "column",
-    backfaceVisibility: "hidden",
-    WebkitBackfaceVisibility: "hidden",
-    boxShadow: "0 1px 0 rgba(43,33,24,0.08), 0 14px 34px rgba(43,33,24,0.1)",
-    overflow: "hidden",
-    // Each face carries its own rotation rather than riding a rotated parent:
-    // a preserve-3d container leaves hit-testing pointing at the container, so
-    // the back face's buttons become unclickable. The face that has turned away
-    // also drops out at the half-way point — `backface-visibility` hides it,
-    // but hit-testing still finds it.
-    transition: `visibility 0s linear ${FLIP_MS / 2}ms`,
-  };
-  const turn = (name: string) => `${name} ${FLIP_MS}ms ${motion.ease.standard} both`;
-
-  const header = (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        padding: "15px 26px 11px",
-        borderBottom: `1px solid ${color.rubric}59`,
-        boxShadow: `0 3px 0 -2px ${color.rubric}33`,
-      }}
-    >
-      <span style={{ ...kicker(10.5, "0.14em", type.color) }}>◆ {type.label}</span>
-      <span style={kicker(10.5, "0.12em")}>{t.cardNo(session.idx + 1)}</span>
-    </div>
-  );
+  const pad = compact ? 18 : 36;
+  const qSize = compact ? 21 : 26;
+  const cap = compact ? { display: "none" } : keycap;
+  const showBack = !card.cloze || card.back.trim() !== (card.answer ?? "").trim();
+  const answerIn = { animation: `fadeUp .28s ${motion.ease.enter} both` };
 
   return (
     <>
-      {/* The deck. Two ghosts sit under the live card so the queue has depth —
-          they slide up as it empties, and vanish on the last card. */}
-      <div style={{ position: "relative", perspective: 1800 }}>
-        {[2, 1].map((depth) =>
-          remaining >= depth ? (
-            <div
-              key={depth}
-              aria-hidden
-              style={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: 3,
-                pointerEvents: "none",
-                background: color.cardAlt,
-                border: `1px solid ${color.hairlineStrong}`,
-                transform: `translateY(${depth * 9}px) scale(${1 - depth * 0.022}) rotate(${depth === 2 ? 0.6 : -0.4}deg)`,
-                transition: "transform 380ms cubic-bezier(.2,.8,.3,1)",
-                opacity: 1 - depth * 0.25,
-              }}
-            />
-          ) : null,
-        )}
-
+      <div
+        // Keyed by slot, not card: a card dealt again later in the pass has
+        // the same id, and must arrive question-side like any other deal.
+        key={`${card.id}-${session.idx}`}
+        style={{
+          position: "relative",
+          background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
+          border: "1px solid rgba(43,33,24,0.26)",
+          borderRadius: 4,
+          boxShadow: "0 1px 0 rgba(43,33,24,0.08), 0 14px 34px rgba(43,33,24,0.1)",
+          overflow: "hidden",
+          animation: failed
+            ? `nudge .42s ${motion.ease.standard} both`
+            : `dealIn .32s ${motion.ease.enter} both`,
+        }}
+      >
         <div
-          // Keyed by slot, not card: a missed card is dealt again with the same
-          // id, and must arrive face-up-question like any other deal.
-          key={`${card.id}-${session.idx}`}
           style={{
-            position: "relative",
-            display: "grid",
-            minHeight: 300,
-            perspective: 1800,
-            animation: tossing
-              ? `cardToss ${TOSS_MS}ms ${motion.ease.exit} both ${STAMP_MS}ms`
-              : failed
-                ? `nudge .42s ${motion.ease.standard} both`
-                : `dealIn .42s ${motion.ease.enter} both`,
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: `13px ${pad}px 10px`,
+            borderBottom: `1px solid ${color.hairline}`,
           }}
         >
-          {/* Front — the question, and the one thing to do with it: say how
-              sure you are, which turns it over (`TurnOver`). */}
-          <div
-            className="rt-front"
+          <span style={{ ...kicker(10.5, "0.14em", type.color), whiteSpace: "nowrap" }}>
+            ◆ {type.label}
+          </span>
+          <span
             style={{
-              ...face,
-              // `.rt-front` carries the visibility swap alongside its hover lift.
-              transition: undefined,
-              animation: flipped ? turn("faceOut") : undefined,
-              visibility: flipped ? "hidden" : "visible",
-              pointerEvents: flipped ? "none" : "auto",
-              background: `repeating-linear-gradient(transparent 0 35px, rgba(58,106,85,0.09) 35px 36px), url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
+              ...kicker(9.5, "0.1em", color.inkGhost),
+              textAlign: "right",
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            {header}
-            <div style={{ margin: "auto 0", padding: "30px 34px 10px" }}>
-              <Question card={card} filled={false} size={27} />
+            {t.autoGenerated(card.source)}
+          </span>
+        </div>
+
+        {/* The card itself — question on top, the answer under a rule. */}
+        <div
+          data-testid="card-body"
+          style={{
+            padding: `${compact ? 26 : 38}px ${pad}px ${compact ? 22 : 30}px`,
+            textAlign: "center",
+            minHeight: compact ? 150 : 190,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
+        >
+          <Question card={card} filled={shown} size={qSize} />
+          {shown && showBack && (
+            <div style={answerIn}>
+              <hr
+                style={{
+                  border: "none",
+                  borderTop: `1px solid ${color.hairlineStrong}`,
+                  margin: `${compact ? 18 : 24}px 0`,
+                }}
+              />
+              <div
+                data-testid="card-back"
+                style={{
+                  fontFamily: font.serif,
+                  fontSize: card.cloze ? qSize - 5 : qSize - 2,
+                  lineHeight: 1.5,
+                  color: card.cloze ? color.inkSoft : color.ink,
+                }}
+              >
+                <Rich text={card.back} />
+              </div>
             </div>
+          )}
+          {revealed && (
+            <div style={{ ...answerIn, textAlign: "left", marginTop: 18 }}>
+              <button
+                className="at-press"
+                onClick={onToggleAside}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: session.stage === "aside" ? `${ASIDE_ACCENT}12` : "none",
+                  border: `1px solid ${session.stage === "aside" ? `${ASIDE_ACCENT}55` : "transparent"}`,
+                  borderRadius: 3,
+                  padding: "6px 10px",
+                  marginLeft: -10,
+                  fontFamily: font.serif,
+                  fontStyle: "italic",
+                  fontSize: 14,
+                  color: ASIDE_ACCENT,
+                  cursor: "pointer",
+                }}
+              >
+                {t.explainAside}
+                <span style={cap}>{t.asideKey}</span>
+              </button>
+              {session.stage === "aside" && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    borderLeft: `3px solid ${ASIDE_ACCENT}`,
+                    padding: "6px 0 6px 15px",
+                    fontSize: 14.5,
+                    lineHeight: 1.55,
+                    color: color.inkSoft,
+                    fontFamily: font.serif,
+                    animation: "fadeUp .25s both",
+                  }}
+                >
+                  {reviewAside(language)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* The foot: "Show answer" until it's shown, then the four grades. */}
+        {isQuestion && (
+          <div
+            style={{
+              borderTop: `1px solid ${color.hairline}`,
+              padding: `14px ${pad}px 16px`,
+              background: "rgba(43,33,24,0.025)",
+            }}
+          >
             {card.type !== "why" && <CardAnswer value={said} onChange={setSaid} />}
-            <div style={{ textAlign: "center", padding: "6px 34px 18px" }}>
+            <div
+              style={{ ...kicker(10, "0.12em"), textAlign: "center", marginBottom: 9 }}
+            >
+              {t.showAnswer}
+            </div>
+            <TurnOver onFlip={(sure) => onFlip(sure, said)} keycap={cap} />
+            {!compact && (
               <div
                 style={{
                   fontFamily: font.serif,
                   fontStyle: "italic",
-                  fontSize: 13.5,
+                  fontSize: 13,
                   color: color.inkFaint,
-                  marginBottom: 10,
+                  textAlign: "center",
+                  marginTop: 10,
                 }}
               >
                 {t.flipHint}
               </div>
-              <TurnOver onFlip={(sure) => onFlip(sure, said)} keycap={keycap} />
-            </div>
-            <div
-              style={{
-                ...kicker(9.5, "0.1em", color.inkGhost),
-                padding: "9px 26px 11px",
-                borderTop: `1px solid ${color.hairline}`,
-              }}
-            >
-              {t.autoGenerated(card.source)}
-            </div>
+            )}
           </div>
+        )}
 
-          {/* Back — the answer set in its question, the aside and the grades. */}
-          <div
-            style={{
-              ...face,
-              transform: flipped ? undefined : "rotateY(180deg)",
-              animation: flipped ? turn("faceIn") : undefined,
-              visibility: flipped ? "visible" : "hidden",
-              pointerEvents: flipped && !tossing ? "auto" : "none",
-            }}
-          >
-            {header}
-            <div style={{ padding: "24px 34px 22px", flex: 1 }}>
-              {card.cloze ? (
-                <div style={inkIn(0)}>
-                  <Question card={card} filled size={24} />
-                  {card.back.trim() !== (card.answer ?? "").trim() && (
-                    <div
-                      style={{
-                        marginTop: 16,
-                        paddingTop: 14,
-                        borderTop: `1px solid ${color.hairline}`,
-                        fontFamily: font.serif,
-                        fontSize: 16.5,
-                        lineHeight: 1.6,
-                        color: color.inkSoft,
-                      }}
-                    >
-                      <Rich text={card.back} />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                    <span style={kicker(11, "0.08em", color.inkGhost)}>
-                      {t.questionEcho}
-                    </span>
-                    <Question card={card} filled size={16} ink={color.inkMuted} />
-                  </div>
-                  <div
-                    style={{
-                      ...inkIn(0),
-                      marginTop: 16,
-                      fontFamily: font.serif,
-                      fontSize: 21,
-                      lineHeight: 1.5,
-                      color: color.ink,
-                    }}
-                  >
-                    <Rich text={card.back} />
-                  </div>
-                </>
-              )}
-
-              <div style={inkIn(1)}>
-                <button
-                  className="at-press"
-                  onClick={onToggleAside}
-                  style={{
-                    marginTop: 16,
-                    marginLeft: -10,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    background: session.stage === "aside" ? `${ASIDE_ACCENT}12` : "none",
-                    border: `1px solid ${session.stage === "aside" ? `${ASIDE_ACCENT}55` : "transparent"}`,
-                    borderRadius: 3,
-                    padding: "6px 10px",
-                    fontFamily: font.serif,
-                    fontStyle: "italic",
-                    fontSize: 14,
-                    color: ASIDE_ACCENT,
-                    cursor: "pointer",
-                  }}
-                >
-                  {t.explainAside}
-                  <span style={keycap}>{t.asideKey}</span>
-                </button>
-                {session.stage === "aside" && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      borderLeft: `3px solid ${ASIDE_ACCENT}`,
-                      padding: "6px 0 6px 15px",
-                      fontSize: 14.5,
-                      lineHeight: 1.55,
-                      color: color.inkSoft,
-                      fontFamily: font.serif,
-                      animation: "fadeUp .25s both",
-                    }}
-                  >
-                    {reviewAside(language)}
-                  </div>
-                )}
-              </div>
-            </div>
-
+        {revealed && (
+          <div style={answerIn}>
             <Suggestion session={session} />
-            {/* Grade — tabs fused to the card's foot, where Anki puts them.
-                Each carries the interval FSRS would hand it; the judged
-                answer's suggestion is ringed (W4.3), never pressed for them. */}
+            {/* Anki's answer bar: interval over the name, worst to best. The
+                judged answer's suggestion is ringed (W4.3), never pressed. */}
             <div
-              style={{
-                ...inkIn(2),
-                display: "flex",
-                borderTop: `1px solid ${color.hairlineStrong}`,
-              }}
+              style={{ display: "flex", borderTop: `1px solid ${color.hairlineStrong}` }}
             >
               {grades.map((g, i) => (
                 <button
                   className="rt-grade"
                   key={g.key}
                   data-testid={`action-grade-${g.key}`}
-                  data-on={tossing === g.key || undefined}
-                  onClick={() => grade(g.key)}
+                  onClick={() => onGrade(g.key)}
                   style={
                     {
                       "--g-wash": `${g.color}24`,
                       flex: 1,
+                      minWidth: 0,
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      gap: 5,
-                      padding: "14px 8px 12px",
+                      gap: 4,
+                      padding: compact ? "11px 2px 12px" : "12px 8px 12px",
                       cursor: "pointer",
                       border: "none",
                       borderLeft: i ? `1px solid ${color.hairline}` : "none",
@@ -409,56 +318,34 @@ export default function ActiveCard({
                 >
                   <span
                     style={{
+                      ...figures,
+                      fontSize: compact ? 12 : 13,
+                      color: color.inkMuted,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {card.fsrs?.[g.key] ?? " "}
+                  </span>
+                  <span
+                    style={{
                       fontFamily: font.serif,
-                      fontSize: 18,
+                      fontSize: compact ? 15.5 : 18,
                       fontWeight: 600,
                       color: g.color,
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {g.label}
                   </span>
-                  <span style={{ ...figures, fontSize: 14, color: color.inkSoft }}>
-                    {card.fsrs?.[g.key] ?? " "}
-                  </span>
-                  <span style={keycap}>{i + 1}</span>
+                  <span style={cap}>{i + 1}</span>
                 </button>
               ))}
             </div>
-
-            {/* The grade, inked onto the card before it's tossed. */}
-            {stamped && (
-              <div
-                aria-hidden
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "grid",
-                  placeItems: "center",
-                  pointerEvents: "none",
-                }}
-              >
-                <div style={{ transform: "rotate(-7deg)" }}>
-                  <div
-                    style={{
-                      ...kicker(24, "0.16em", stamped.color),
-                      border: `4px double ${stamped.color}`,
-                      borderRadius: 5,
-                      padding: "8px 20px 6px",
-                      background: `${color.card}e0`,
-                      animation: `stamp ${STAMP_MS}ms ${motion.ease.spring} both`,
-                    }}
-                  >
-                    {stamped.label}
-                    {card.fsrs?.[stamped.key] ? ` · ${card.fsrs[stamped.key]}` : ""}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Failed — the alive-loop: calibration read, instant re-explain, writeback */}
+      {/* Failed — the alive-loop: instant re-explain, then the map write-back. */}
       {failed && (
         <div style={{ marginTop: 22, animation: "fadeUp .3s both" }}>
           <div
