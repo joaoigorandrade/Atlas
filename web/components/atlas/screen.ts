@@ -27,7 +27,8 @@ export type Screen =
   | "crucible"
   | "recall"
   | "review"
-  | "calibration";
+  | "calibration"
+  | "exam";
 
 /** Screens that render as a full-screen `Sheet` over the map. */
 export const SHEET_SCREENS = new Set<Screen>([
@@ -48,5 +49,6 @@ export const SHEET_SCREENS = new Set<Screen>([
   "recall",
   "review",
   "calibration",
+  "exam",
   "settings",
 ]);

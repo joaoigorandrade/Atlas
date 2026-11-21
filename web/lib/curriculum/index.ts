@@ -24,6 +24,7 @@ export * from "./produce";
 export * from "./provenance";
 export * from "./steelman";
 export * from "./drill";
+export * from "./exam";
 export * from "./recall";
 export * from "./retain";
 export * from "./adherence";

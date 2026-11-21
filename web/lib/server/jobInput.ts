@@ -24,7 +24,8 @@ import {
 import { DEFAULT_CELL } from "@/lib/server/generate/cellNote";
 import type { Language } from "@/lib/i18n";
 
-export type GenerateKind = CacheableKind | "judge" | "diagnosticQuestion" | "passage";
+export type GenerateKind =
+  CacheableKind | "judge" | "diagnosticQuestion" | "passage" | "exam";
 
 export interface GenerateBody {
   kind: GenerateKind;
@@ -87,8 +88,10 @@ export interface GenerateBody {
   pool?: Array<{ id: string; label: string }>;
   nodes?: Array<{ id: string; label: string; state: string }>;
   budgetMin?: number;
-  // diagnosticQuestion fields
+  // diagnosticQuestion fields (`difficulty` is the exam's too)
   difficulty?: string;
+  /** exam: how many questions the paper has (`EXAM_SIZES`). */
+  count?: number;
   index?: number;
   /** Background warm: the client is filling its cache, nobody is waiting. */
   prefetch?: boolean;
