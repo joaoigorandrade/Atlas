@@ -117,6 +117,16 @@ public final class OnboardingViewModel {
     /// The goal "Domínio" opens on: the last mastery goal this learner chose — a
     /// better guess than "Passar na prova" for someone who only ever picks
     /// "Dominar tudo".
+    /// Whether the welcome screen offers a way back to the maps already saved.
+    public var canLeave: Bool { store.canLeaveNewMap }
+
+    /// "Voltar" on the welcome screen: drop this new map and reopen the last one.
+    public func leave() {
+        guard stage == .welcome else { return }
+        stopBuilding()
+        Task { await store.leaveNewMap() }
+    }
+
     public var masteryGoal: GoalKind { store.goal == .glance ? .exam : store.goal }
 
     /// Minimum time the assembly beat plays. A floor, not a target: SPEC §2

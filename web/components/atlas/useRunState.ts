@@ -85,6 +85,7 @@ import { logWarning } from "@/lib/log";
 import { withRetry } from "@/lib/retry";
 import type { ErrorContext } from "@/lib/errorCopy";
 import type { createWarmQueue } from "@/lib/warm";
+import { arrivingInTab } from "@/lib/landing";
 
 export type RunState = ReturnType<typeof useRunState>;
 
@@ -500,8 +501,12 @@ export function useRunState(opts: {
       setAdherence(rolled);
       setMaps(payload.topics);
       const open = payload.topics[0];
+      const arriving = arrivingInTab();
       if (open) {
         applyRun(open);
+        // Arriving (a sign-in, a new tab) lands on the dashboard — home; a
+        // reload goes back to the map it was on.
+        if (arriving) setScreen("dashboard");
         if (rolled.lastDay !== payload.profile.adherence.lastDay) setLitToday([]);
       }
       setHydrated(true);
@@ -527,7 +532,7 @@ export function useRunState(opts: {
     return () => {
       cancelled = true;
     };
-  }, [showError, applyRun, initial]);
+  }, [showError, applyRun, initial, setScreen]);
 
   const runActive =
     hydrated &&

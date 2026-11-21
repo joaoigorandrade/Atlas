@@ -7,6 +7,7 @@ import { CompassRose } from "@/components/ui/Ornaments";
 import { color, font, kicker } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { useT } from "@/lib/i18n";
+import { forgetTab } from "@/lib/landing";
 
 const STRINGS = {
   en: {
@@ -124,6 +125,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
             setMessage(error.message);
           } else {
             // Full navigation so middleware sees the fresh session cookies.
+            forgetTab();
             window.location.assign("/");
           }
         });
@@ -142,6 +144,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
             setMessage(error.message);
           } else if (data.session) {
             // Email confirmation disabled — signed in immediately.
+            forgetTab();
             window.location.assign("/");
           } else {
             // Email confirmation required — user must click the link.

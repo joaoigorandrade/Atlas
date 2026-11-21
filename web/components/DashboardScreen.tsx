@@ -259,6 +259,7 @@ export default function DashboardScreen({
             <div style={{ fontFamily: font.serif, fontSize: 22 }}>{t.yourMaps}</div>
             <button
               className="at-press"
+              data-testid="action-new-map"
               onClick={onNewMap}
               style={{
                 background: "none",

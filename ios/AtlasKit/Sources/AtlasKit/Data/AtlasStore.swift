@@ -1215,6 +1215,27 @@ public extension AtlasStore {
         closeRun()
     }
 
+    /// Onboarding has a way out only when there is a map to go back to.
+    var canLeaveNewMap: Bool { graph.nodes.isEmpty && !library.isEmpty }
+
+    /// Onboarding's "Voltar": reopen the map the learner left for "Novo mapa",
+    /// which puts the shell back on the tab it was tapped from. Re-read like
+    /// `switchTo`, since the library copy predates whatever the last session
+    /// saved; the mirror, then the library, when the network does not answer.
+    func leaveNewMap() async {
+        guard canLeaveNewMap,
+              let run = library.first(where: { $0.id == Defaults.lastTopic }) ?? library.first
+        else { return }
+        charting = nil
+        let mirrored = local.topics().first { $0.id == run.id }
+        var fresh: AtlasRun?
+        if let token = await bearer() { fresh = try? await runs.topic(run.id, token: token) }
+        // The learner may have started building while the GET was out.
+        guard graph.nodes.isEmpty else { return }
+        open(fresh ?? mirrored ?? run)
+        await hydrateContent()
+    }
+
     /// No map open, and nothing the server holds to diff against.
     private func closeRun() {
         silently {
