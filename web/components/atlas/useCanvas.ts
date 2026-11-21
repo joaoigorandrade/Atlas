@@ -150,30 +150,42 @@ export function useCanvas(opts: {
     };
   }, [showToast, setSelectedId, displayRef, setPositions, language, setView]);
 
-  /** Put a node in the middle of the screen at a readable zoom. */
   /**
    * Bring a node into view — into the *free* band, not the middle of the
    * window. The plan rail (262) and the node detail (356) are opaque and
    * always up above 1280, so centring on `innerWidth / 2` parked the node the
    * learner had just selected underneath one of them; the lit node of a fresh
-   * map opened behind the rail every time.
+   * map opened behind the rail every time. On a phone the detail is a sheet
+   * over the bottom half, so the free band is the top of the screen.
    */
   const centerOn = useCallback(
-    (id: string) => {
+    (id: string, scale = 0.85) => {
       const pos = positionsRef.current[id];
       if (!pos) return;
-      const scale = 0.85;
       const { innerWidth: w, innerHeight: h } = window;
       const rails = w >= layout.railsMin;
       const free = w - layout.leftRail - layout.nodePanel;
       const cx = rails ? layout.leftRail + free / 2 : w / 2;
+      const bottom = w < layout.phone ? h * 0.45 : h;
       setView({
         x: cx - pos.x * scale,
-        y: layout.topBar + (h - layout.topBar) / 2 - pos.y * scale,
+        y: layout.topBar + (bottom - layout.topBar) / 2 - pos.y * scale,
         scale,
       });
     },
     [positionsRef, setView],
+  );
+
+  /** A tap on a touch screen: select what it landed on, keeping the zoom the
+   *  learner pinched to, or clear the selection on open ground. */
+  const onTap = useCallback(
+    (id: string | null) => {
+      setSelectedId(id);
+      if (!id) return;
+      centerOn(id, viewRef.current.scale);
+      if (displayRef.current[id] === "unknown") showToast(TOAST_STRINGS[language].locked);
+    },
+    [setSelectedId, centerOn, displayRef, showToast, language],
   );
 
   return {
@@ -184,5 +196,6 @@ export function useCanvas(opts: {
     onCanvasDown,
     onNodeDown,
     centerOn,
+    onTap,
   };
 }

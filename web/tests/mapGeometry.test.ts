@@ -36,6 +36,19 @@ describe("mapGeometry", () => {
     expect(Math.round((left + right) / 2)).toBe(262 + (1440 - 262 - 356) / 2);
   });
 
+  it("frames a focus point at a readable zoom instead of the whole map", () => {
+    const bounds = mapBounds({ a: { x: 0, y: 0 }, b: { x: 4000, y: 300 } })!;
+    const v = fitView(
+      bounds,
+      { w: 390, h: 844 },
+      { left: 0, right: 0, top: 58, bottom: 0 },
+      { x: 900, y: 150 },
+    );
+    expect(v.scale).toBe(0.8);
+    expect(900 * v.scale + v.x).toBe(195);
+    expect(150 * v.scale + v.y).toBe(422);
+  });
+
   it("never frames a tiny map at full stretch", () => {
     const v = fitView(
       mapBounds({ a: { x: 0, y: 0 } })!,

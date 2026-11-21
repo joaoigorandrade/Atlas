@@ -153,6 +153,7 @@ function LeftRail({
     TERRITORY_ORDER.slice(0, i).reduce((n, s) => n + count(s), 0);
   return (
     <div
+      className="at-plan-rail"
       style={{
         position: "absolute",
         top: layout.topBar,
@@ -175,8 +176,7 @@ function LeftRail({
           textAlign: "center",
           border: `3px double ${color.rule}`,
           borderRadius: 2,
-          // A cartouche: the title block of a printed map, double-ruled with a
-          // hairline set inside.
+          // A cartouche: a printed map's title block, double-ruled, hairline inside.
           boxShadow: `inset 0 0 0 3px ${color.paper}, inset 0 0 0 4px ${color.hairlineStrong}`,
           background: color.paper,
         }}

@@ -68,6 +68,9 @@ export const layout = {
   nodePanel: 356,
   /** Below this the rails collapse to toggles and stop reserving their width. */
   railsMin: 1280,
+  /** Below this the map is laid out for a phone: the plan is a full-width
+   *  drawer, the node detail a bottom sheet, and the canvas takes touch. */
+  phone: 768,
 } as const;
 
 /**

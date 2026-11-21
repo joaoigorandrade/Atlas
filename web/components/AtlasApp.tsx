@@ -245,13 +245,9 @@ export default function AtlasApp({
   const onToggleReminder = () => setAdherence((prev) => toggleReminder(prev));
 
   const displayRef = useRef<Record<string, NodeState>>({});
-  const { view, setView, onWheel, onCanvasDown, onNodeDown, centerOn } = useCanvas({
-    setSelectedId,
-    displayRef,
-    showToast,
-    positionsRef,
-    setPositions,
-  });
+  const { view, setView, onWheel, onCanvasDown, onNodeDown, centerOn, onTap } = useCanvas(
+    { setSelectedId, displayRef, showToast, positionsRef, setPositions },
+  );
 
   // Which language wins, and whether a change is a *switch* (regenerate) or
   // merely the app working out where it is (leave everything alone).
@@ -541,11 +537,12 @@ export default function AtlasApp({
   // Hold the paper blank until the saved-run fetch settles — a resumed run
   // must open on the map, never flash the welcome screen first. The mark is
   // delayed past a fast hydration so a quick resume never flashes a spinner.
-  if (!hydrated) return <AppGate narrow={false} />;
-  // Below the hard minimum a polished gate beats a broken layout (#8).
-  if (vw < 768 && isMap && !openSheet) return <AppGate narrow onBack={enterDashboard} />;
+  if (!hydrated) return <AppGate />;
   const narrow = vw < layout.railsMin;
-  const pickNode = (id: string) => (setSelectedId(id), centerOn(id));
+  const phone = vw < layout.phone;
+  // On a phone the plan is a full-width drawer: picking from it shows the map.
+  const closePlan = () => phone && setRailOpen(false);
+  const pickNode = (id: string) => (setSelectedId(id), centerOn(id), closePlan());
   const errorStrings = ERROR_STRINGS[language];
 
   /**
@@ -597,7 +594,7 @@ export default function AtlasApp({
       style={{
         position: "relative",
         width: "100%",
-        height: "100vh",
+        height: "100dvh", // a phone's `100vh` runs under its toolbar
         // clip (not hidden) forbids programmatic scrolling — scrollIntoView on
         // off-screen canvas content can never drag the UI off-screen (#7).
         overflow: "clip",
@@ -632,6 +629,7 @@ export default function AtlasApp({
           onNodeSelect={pickNode}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeHover={hoverNode}
+          onTap={onTap}
           onView={setView}
           insetLeft={!narrow || railOpen ? layout.leftRail : 0}
           insetRight={selectedNode && (!narrow || detailOpen) ? layout.nodePanel : 0}
@@ -677,7 +675,7 @@ export default function AtlasApp({
               calibOver={calibOverCount(calib)}
               momentumPlaying={momentumPlaying}
               momentumWeek={momentumWeek}
-              onJumpFrontier={jumpFrontier}
+              onJumpFrontier={() => (jumpFrontier(), closePlan())}
               onCalibration={enterCalib}
               onToggleMomentum={toggleMomentum}
               onPickNode={pickNode}
@@ -687,7 +685,7 @@ export default function AtlasApp({
           {/* Always mounted: the drawer owns its own enter and exit, so it
               needs to outlive the selection it is animating away from. */}
           <NodeDetail
-            visible={!narrow || detailOpen}
+            visible={!narrow || detailOpen || phone}
             node={selectedNode}
             displayState={selectedDisplayState}
             nodes={graph.nodes}
@@ -713,14 +711,14 @@ export default function AtlasApp({
             onSkipKnown={skipKnown}
           />
           {narrow && (
-            // Collapsed-rail toggles for laptop-narrow widths (#8).
+            // Collapsed-rail toggles below 1280 (#8); a phone's node sheet opens with the selection.
             <>
               <RailToggle
                 side="plan"
                 open={railOpen}
                 onToggle={() => setRailOpen((v) => !v)}
               />
-              {selectedNode && (
+              {selectedNode && !phone && (
                 <RailToggle
                   side="node"
                   open={detailOpen}
@@ -760,12 +758,7 @@ export default function AtlasApp({
           frontierTotal={frontierTotal}
           maps={mapCards}
           today={dailyPlan(run.maps, form.target)}
-          // ponytail: a phone has no map to open, so the frontier card opens its next phase.
-          onOpenMap={
-            vw < 768 && nextUp[0]
-              ? () => onPrimaryAction(nextUp[0].node, display[nextUp[0].node.id])
-              : openMap
-          }
+          onOpenMap={openMap}
           onSelectMap={switchMap}
           onReview={enterReview}
           onProfile={enterProfile}

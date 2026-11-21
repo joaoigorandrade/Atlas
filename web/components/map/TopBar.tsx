@@ -87,6 +87,7 @@ export default memoLatest(function TopBar({
   const t = useT(STRINGS);
   return (
     <div
+      className="at-top"
       style={{
         ...mastheadBar,
         position: "absolute",
@@ -112,7 +113,7 @@ export default memoLatest(function TopBar({
         >
           {/* The wordmark's compass rose — the same rose the map frames with. */}
           <CompassRose size={20} />
-          Atlas
+          <span className="at-top-word">Atlas</span>
         </div>
       </HoverHint>
       <div
@@ -131,7 +132,7 @@ export default memoLatest(function TopBar({
           const active = key === "map";
           return (
             <button
-              className="at-press"
+              className="at-press at-top-tab"
               key={key}
               onClick={() => onSurface(key)}
               style={{
@@ -153,6 +154,7 @@ export default memoLatest(function TopBar({
         })}
       </div>
       <div
+        className="at-top-search"
         style={{
           flex: 1,
           maxWidth: 300,
@@ -219,7 +221,7 @@ export default memoLatest(function TopBar({
         }
       >
         <button
-          className="at-press"
+          className="at-press at-top-review"
           onClick={() => onSurface("review")}
           style={{
             display: "flex",
