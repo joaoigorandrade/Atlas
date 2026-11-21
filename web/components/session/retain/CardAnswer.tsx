@@ -38,7 +38,7 @@ export function CardAnswer({
 }) {
   const t = STRINGS[useLanguage().language];
   return (
-    <div style={{ position: "relative", margin: "0 34px 12px" }}>
+    <div style={{ margin: "0 0 12px" }}>
       <textarea
         data-testid="field-card-answer"
         value={value}
@@ -47,7 +47,8 @@ export function CardAnswer({
         rows={2}
         style={{
           width: "100%",
-          padding: "11px 44px 11px 13px",
+          padding: "11px 13px",
+          display: "block",
           borderRadius: 3,
           border: `1px solid ${color.hairlineStrong}`,
           background: color.paper,
@@ -57,7 +58,9 @@ export function CardAnswer({
           resize: "none",
         }}
       />
-      <div style={{ position: "absolute", right: 8, top: 8 }}>
+      {/* Under the box rather than inside it: the mic carries a label, and on
+          a phone it sat on top of the placeholder. */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
         <MicButton value={value} onChange={onChange} accent={STATE_COLOR.learning} />
       </div>
     </div>
@@ -78,7 +81,7 @@ export function Suggestion({ session }: { session: RetainSession }) {
     <div
       data-testid="card-suggestion"
       style={{
-        margin: "0 26px 12px",
+        margin: "14px 18px 12px",
         paddingLeft: 12,
         borderLeft: `3px solid ${tint}`,
         fontSize: 14,

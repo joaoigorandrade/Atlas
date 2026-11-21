@@ -73,6 +73,7 @@ import {
 import {
   adoptProfile,
   projectCards,
+  schedulePush,
   projectNodes,
   projectTopic,
   pushRun,
@@ -591,7 +592,7 @@ export function useRunState(opts: {
   // the server last acknowledged, so a failed write is retried by the next tick.
   useEffect(() => {
     if (!runActive || !topicId) return;
-    const timer = setTimeout(() => {
+    return schedulePush(() => {
       const nodes = projectNodes({
         graph,
         states,
@@ -635,7 +636,6 @@ export function useRunState(opts: {
           setSaveFailed(true);
         });
     }, 1200);
-    return () => clearTimeout(timer);
   }, [
     runActive,
     topicId,

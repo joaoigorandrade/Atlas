@@ -586,7 +586,9 @@ public extension AtlasStore {
         // the shared `content_cache` key — two clients sending different ones
         // pay for the same draft twice.
         let (api, topic, budget, interests) = (api, subject, reviewBudgetMin, interests)
-        let items = nodes.map { (id: $0.id, label: $0.label, state: states[$0.id] ?? .learning) }
+        let items = nodes.map {
+            (id: $0.id, label: $0.label, state: states[$0.id] ?? .learning, summary: $0.summary)
+        }
         let error = await warm.fill(key, once: {
             try await api.retain(topic: topic, budgetMin: budget, nodes: items, interests: interests)
         })

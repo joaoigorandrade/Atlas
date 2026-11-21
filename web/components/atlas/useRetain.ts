@@ -22,6 +22,8 @@ import {
   gradeStoredCard,
   newStoredCard,
   retainContentFromStore,
+  returnsThisPass,
+  toReviewCard,
   type StoredCard,
 } from "@/lib/fsrs";
 import { fetchJudgeRecall, fetchRetain } from "@/lib/api";
@@ -147,7 +149,12 @@ export function useRetain(deps: {
       (content) => {
         const now = new Date();
         const stamp = Date.now();
-        const seeded = content.cards.map((c, i) =>
+        // A node that gained cards while this draft was out (another phase
+        // drafted some, or an earlier draft landed) keeps the ones it has —
+        // filing these as well would deal the same fact twice.
+        const carded = new Set(cardsRef.current.map((c) => c.nodeId));
+        const fresh = content.cards.filter((c) => !carded.has(c.node));
+        const seeded = fresh.map((c, i) =>
           newStoredCard(
             {
               id: `${c.node}-retain-${stamp}-${i}`,
@@ -166,6 +173,16 @@ export function useRetain(deps: {
         const all = [...cardsRef.current, ...seeded];
         setCards(all);
         openFrom(all);
+      },
+      false,
+      // A failed draft is new cards that didn't arrive, not a reason to keep
+      // the learner from the ones already due: review those, and the uncovered
+      // nodes are drafted again on the next open.
+      () => {
+        if (dueCards(cardsRef.current).length === 0) return false;
+        openFrom(cardsRef.current);
+        showToast(tc().draftFailedReviewing);
+        return true;
       },
     );
   }, [
@@ -245,16 +262,21 @@ export function useRetain(deps: {
     const content = retainContentRef.current;
     if (!cur || !content) return;
     const card = reviewCard(cur, content);
-    // A card on its second trip through today's deck was already graded and
-    // rescheduled; grading it again would schedule off a state this pass no
-    // longer knows. The second answer only moves what the screen says about it.
+    // Every trip is a real review, as in Anki: the store holds the card as the
+    // last grade left it, so a second answer schedules from the step the first
+    // one put it on. A card the scheduler brings back inside the learn-ahead
+    // window is dealt again before the pass ends, with that step's intervals.
     const firstTrip = cur.idx < content.cards.length;
-    setRetain(retainReducer(cur, { type: "grade", grade }, content));
+    const held = cardsRef.current.find((c) => c.id === card.id);
+    const now = new Date();
+    const next = held ? gradeStoredCard(held, grade, now) : undefined;
+    const returns =
+      next && returnsThisPass(next, now)
+        ? toReviewCard(next, now, languageRef.current)
+        : undefined;
+    setRetain(retainReducer(cur, { type: "grade", grade, returns }, content));
     // Real FSRS (#21): the scheduler computes the card's next due date.
-    if (firstTrip)
-      setCards((prev) =>
-        prev.map((c) => (c.id === card.id ? gradeStoredCard(c, grade) : c)),
-      );
+    if (next) setCards((prev) => prev.map((c) => (c.id === next.id ? next : c)));
     // The flip's confidence tap, against whether it came back at all — read
     // off the judged answer when there was one (W4.3): a grade given after
     // seeing the back is the fluency this reading exists to catch.
@@ -263,12 +285,12 @@ export function useRetain(deps: {
       recordCalib(card.node, CONFIDENCE_FELT[cur.sure], cameBack ? 100 : 0);
     // Real review history — what finally earns "Retained ✓" (#13) — and only
     // across a real interval: read off the card *before* this grade moved it.
-    const held = cardsRef.current.find((c) => c.id === card.id)?.fsrs;
-    if (firstTrip && held && earnsRetained(grade, held))
+    if (held && earnsRetained(grade, held.fsrs))
       setReviewedNodes((prev) =>
         prev.includes(card.node) ? prev : [...prev, card.node],
       );
-    if (grade === "again" && card.fails) {
+    // Flag once: a card missed again on its next trip has already said so.
+    if (grade === "again" && card.fails && statesRef.current[card.node] !== "shaky") {
       setStates((prev) =>
         prev[card.node] === "shaky" ? prev : { ...prev, [card.node]: "shaky" },
       );

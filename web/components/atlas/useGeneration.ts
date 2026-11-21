@@ -215,8 +215,8 @@ export function useGeneration(opts_: {
       message: string,
       fetcher: () => Promise<T>,
       onReady: (content: T) => void,
-      /** Ask again rather than join a landed warm — a solved problem. */
-      fresh = false,
+      fresh = false, // ask again rather than join a landed warm — a solved problem
+      onFail?: (err: unknown) => boolean, // true: handled elsewhere, no toast
     ) => {
       if (loadingRef.current) return;
       if (fresh) warm.drop(key);
@@ -237,7 +237,7 @@ export function useGeneration(opts_: {
         })
         .then((content) => live() && onReady(content))
         .catch((err: unknown) => {
-          if (!live()) return;
+          if (!live() || onFail?.(err)) return;
           showError(err, {
             context: "content",
             retry: () => {

@@ -100,6 +100,43 @@ export function projectNodes(run: {
   return out;
 }
 
+/**
+ * Run `push` after `ms` of quiet — or at once when the page is hidden, and then
+ * only once. A grade is the last thing done before a phone is pocketed or a tab
+ * closed, and behind a bare debounce it was lost with the timer. Returns the
+ * effect's cleanup.
+ */
+export function schedulePush(push: () => void, ms: number): () => void {
+  let sent = false;
+  const once = () => {
+    if (sent) return;
+    sent = true;
+    push();
+  };
+  const timer = setTimeout(once, ms);
+  const onHide = () => {
+    if (document.visibilityState !== "hidden") return;
+    clearTimeout(timer);
+    once();
+  };
+  document.addEventListener("visibilitychange", onHide);
+  return () => {
+    clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onHide);
+  };
+}
+
+/** The cards route takes at most this many per request (`MAX_CARDS`), and
+ *  rejects a larger batch whole — which, unsplit, was retried every tick and
+ *  never landed. */
+export const CARD_BATCH = 200;
+
+function chunks<T>(list: T[], size = CARD_BATCH): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
 export function projectCards(cards: StoredCard[]): Record<string, string> {
   return Object.fromEntries(cards.map((c) => [c.id, JSON.stringify(c)]));
 }
@@ -213,8 +250,8 @@ export async function pushRun(run: {
   if (changed.length || dropped.length)
     writes.push(
       Promise.all([
-        changed.length ? withRetry(() => putCards(topicId, changed)) : null,
-        dropped.length ? withRetry(() => deleteCards(topicId, dropped)) : null,
+        ...chunks(changed).map((batch) => withRetry(() => putCards(topicId, batch))),
+        ...chunks(dropped).map((batch) => withRetry(() => deleteCards(topicId, batch))),
       ]).then(() => {
         saved.cards.current = cardShots;
       }),

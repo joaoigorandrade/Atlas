@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   CARD_MINUTES,
+  MAX_TRIPS,
   retainBudget,
+  retainCounts,
   retainDeck,
   retainQueueLabel,
   retainReducer,
@@ -21,7 +23,10 @@ import {
   newStoredCard,
   nodeRetention,
   RETENTION_TARGET,
+  fmtInterval,
+  queueOf,
   retainContentFromStore,
+  returnsThisPass,
   withSchedule,
 } from "@/lib/fsrs";
 
@@ -124,7 +129,7 @@ describe("withSchedule — a card minted by a client that has no scheduler", () 
 
 // ---- the pass over today's deck ------------------------------------------
 
-describe("retain: a miss comes back once", () => {
+describe("retain: the pass over the deck", () => {
   const deckCard = (id: string): ReviewCard => ({
     id,
     type: "recall",
@@ -159,32 +164,65 @@ describe("retain: a miss comes back once", () => {
     expect(suggestGrade("skipped")).toBe("again");
   });
 
-  it("sends the missed card to the back of the deck, and only once", () => {
+  // The card as the scheduler left it — what the hook passes as `returns`.
+  const again = (id: string): ReviewCard => ({ ...deckCard(id), queue: "learning" });
+
+  it("deals a card again when its learning step lands inside the pass", () => {
     let s = retainStart();
     expect(retainDeck(s, content).length).toBe(2);
 
-    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
+    s = step(step(s, { type: "flip" }), {
+      type: "grade",
+      grade: "again",
+      returns: again("a"),
+    });
     expect(s.stage).toBe("failed");
-    // Three slots now: a, b, and a's second trip.
+    // Three slots now: a, b, and a's next step.
     expect(retainDeck(s, content).length).toBe(3);
     expect(reviewCard(s, content).id).toBe("a");
 
     s = step(s, { type: "continue" });
     expect(reviewCard(s, content).id).toBe("b");
+    // A Good that the scheduler puts out for days is done for today.
     s = step(step(s, { type: "flip" }), { type: "grade", grade: "good" });
     expect(reviewCard(s, content).id).toBe("a");
+    // The second trip carries the scheduler's newer state, not the first's.
+    expect(reviewCard(s, content).queue).toBe("learning");
 
-    // Missing it a second time does not grow the deck again — a card nobody
-    // can answer would be a pass with no end.
-    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
-    expect(retainDeck(s, content).length).toBe(3);
-    s = step(s, { type: "continue" });
+    s = step(step(s, { type: "flip" }), { type: "grade", grade: "good" });
     expect(s.finished).toBe(true);
+  });
+
+  it("brings back a passed card too, when its step is short (a new card's 10 min)", () => {
+    let s = step(retainStart(), { type: "flip" });
+    s = step(s, { type: "grade", grade: "good", returns: again("a") });
+    expect(s.stage).toBe("question");
+    expect(retainDeck(s, content).map((c) => c.id)).toEqual(["a", "b", "a"]);
+  });
+
+  it("stops dealing a card nobody can answer after MAX_TRIPS", () => {
+    let s = retainStart();
+    for (let i = 0; i < 12 && !s.finished; i++) {
+      const id = reviewCard(s, content).id;
+      s = step(step(s, { type: "flip" }), {
+        type: "grade",
+        grade: "again",
+        returns: again(id),
+      });
+      s = step(s, { type: "continue" });
+    }
+    expect(s.finished).toBe(true);
+    const deck = retainDeck(s, content);
+    expect(deck.filter((c) => c.id === "a").length).toBe(MAX_TRIPS);
   });
 
   it("grades by deck position, so the second trip does not repaint the first", () => {
     let s = retainStart();
-    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
+    s = step(step(s, { type: "flip" }), {
+      type: "grade",
+      grade: "again",
+      returns: again("a"),
+    });
     s = step(s, { type: "continue" });
     s = step(step(s, { type: "flip" }), { type: "grade", grade: "good" });
     s = step(step(s, { type: "flip" }), { type: "grade", grade: "good" });
@@ -195,10 +233,30 @@ describe("retain: a miss comes back once", () => {
 
   it("budgets the requeued card as real work", () => {
     let s = retainStart();
-    s = step(step(s, { type: "flip" }), { type: "grade", grade: "again" });
+    s = step(step(s, { type: "flip" }), {
+      type: "grade",
+      grade: "again",
+      returns: again("a"),
+    });
     // Three cards at 1.5 min each — the minutes owed grew with the deck.
     expect(retainBudget(s, content).total).toBe(3);
     expect(retainBudget(s, content).spent).toBe(Math.round(CARD_MINUTES));
+  });
+
+  it("counts what's left in each of Anki's queues, the card on screen included", () => {
+    const mixed: RetainContent = {
+      budgetMin: 6,
+      cards: [
+        { ...deckCard("a"), queue: "new" },
+        { ...deckCard("b"), queue: "review" },
+      ],
+    };
+    let s = retainStart();
+    expect(retainCounts(s, mixed)).toEqual({ new: 1, learning: 0, review: 1 });
+    s = retainReducer(s, { type: "flip" }, mixed);
+    s = retainReducer(s, { type: "grade", grade: "good", returns: again("a") }, mixed);
+    // "a" left the new queue and is back as a learning card.
+    expect(retainCounts(s, mixed)).toEqual({ new: 0, learning: 1, review: 1 });
   });
 });
 
@@ -233,5 +291,56 @@ describe("nodeRetention", () => {
     expect(Object.keys(soon)).toEqual(["n"]);
     expect(soon.n).toBeGreaterThan(later.n);
     expect(later.n).toBeLessThan(RETENTION_TARGET);
+  });
+});
+
+// ---- Anki's queues and learning steps ---------------------------------------
+
+describe("learning steps inside the pass", () => {
+  it("moves a card new → learning → review as the scheduler steps it", () => {
+    const fresh = card("a");
+    expect(queueOf(fresh)).toBe("new");
+    const stepped = gradeStoredCard(fresh, "good", now);
+    expect(queueOf(stepped)).toBe("learning");
+    // A new card's Good is a 10-minute step: it comes back this pass.
+    expect(returnsThisPass(stepped, now)).toBe(true);
+    const later = new Date(Date.parse(stepped.fsrs.due));
+    const graduated = gradeStoredCard(stepped, "good", later);
+    expect(queueOf(graduated)).toBe("review");
+    // Graduated to days: done for today.
+    expect(returnsThisPass(graduated, later)).toBe(false);
+  });
+
+  it("brings a miss back, and lets an Easy go", () => {
+    expect(returnsThisPass(gradeStoredCard(card("a"), "again", now), now)).toBe(true);
+    expect(returnsThisPass(gradeStoredCard(card("a"), "easy", now), now)).toBe(false);
+  });
+
+  it("tags the dealt deck with each card's queue", () => {
+    const deck = retainContentFromStore([card("a")], 6, now);
+    expect(deck.cards[0].queue).toBe("new");
+  });
+});
+
+describe("interval labels", () => {
+  const min = 60_000;
+  const day = 86_400_000;
+  it("reads like Anki's buttons, hours and years included", () => {
+    expect(fmtInterval(10 * min)).toBe("<10 min");
+    expect(fmtInterval(3 * 60 * min)).toBe("3 h");
+    expect(fmtInterval(4 * day)).toBe("4 d");
+    expect(fmtInterval(60 * day)).toBe("2 mo");
+    expect(fmtInterval(800 * day)).toBe("2 y");
+  });
+
+  it("agrees in number in Portuguese", () => {
+    expect(fmtInterval(35 * day, "pt-BR")).toBe("1 mês");
+    expect(fmtInterval(90 * day, "pt-BR")).toBe("3 meses");
+    expect(fmtInterval(400 * day, "pt-BR")).toBe("1 ano");
+  });
+
+  it("falls back to English for a language it has no copy for", () => {
+    // `GET /review?lang=fr` used to throw on the lookup and answer 500.
+    expect(() => forecastRows([card("a")], now, "fr" as never)).not.toThrow();
   });
 });

@@ -50,6 +50,8 @@ const EN = {
   queueClear: "Queue clear — nothing due right now. Cards resurface as memories fade.",
   nothingToReview:
     "Nothing to review yet — learn your first concept and cards draft themselves",
+  draftFailedReviewing:
+    "Couldn’t draft cards for your newest concepts — reviewing what’s due, and they’ll be drafted next time",
   thisNode: "This node",
   cardFlaggedShaky: (label: string) =>
     `“${label}” flagged Shaky — retention failure re-enters the loop`,
@@ -152,6 +154,8 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
       "Fila zerada — nada pendente agora. Os cards voltam conforme a memória enfraquece.",
     nothingToReview:
       "Nada para revisar ainda — aprenda seu primeiro conceito e os cards se escrevem sozinhos",
+    draftFailedReviewing:
+      "Não deu para escrever cards dos conceitos mais novos — revisando os vencidos, e eles ficam para a próxima",
     thisNode: "Este nó",
     cardFlaggedShaky: (label: string) =>
       `“${label}” marcado como Instável — a falha de retenção reentra no ciclo`,

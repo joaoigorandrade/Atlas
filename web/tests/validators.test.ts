@@ -885,7 +885,10 @@ describe("retainCardBounds", () => {
   });
 
   it("never asks below the floor or above the ceiling", () => {
-    expect(retainCardBounds(1)).toEqual({ min: 3, max: 4 });
+    // One new node asks for one card (two if it holds two facts) — never a
+    // padded third cut at the same fact.
+    expect(retainCardBounds(1)).toEqual({ min: 1, max: 2 });
+    expect(retainCardBounds(2)).toEqual({ min: 1, max: 3 });
     expect(retainCardBounds(30)).toEqual({ min: 7, max: 8 });
   });
 });

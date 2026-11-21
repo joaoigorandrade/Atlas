@@ -55,6 +55,17 @@ export function reviewTypeMeta(
     : REVIEW_TYPE_META[type];
 }
 
+/** Anki's three queues: never seen, on its learning steps, graduated. */
+export type ReviewQueue = "new" | "learning" | "review";
+
+/** The queue counts' colours, in Anki's order and Anki's sense: new is blue,
+ *  learning is red, review is green — borrowed from the states that echo them. */
+export const QUEUE_COLOR: Record<ReviewQueue, string> = {
+  new: STATE_COLOR.learning,
+  learning: STATE_COLOR.gap,
+  review: STATE_COLOR.mastered,
+};
+
 /** The FSRS grade after reveal — sets the next interval. */
 export type ReviewGrade = "again" | "hard" | "good" | "easy";
 
@@ -129,6 +140,9 @@ export interface ReviewCard {
    *  the scheduler (`intervalLabels`), never by the generator: the generated
    *  card is a draft that `newStoredCard` turns into a real scheduled card. */
   fsrs?: Record<ReviewGrade, string>;
+  /** Which queue the card is dealt from (`queueOf`) — the counts above the
+   *  card. Absent on the generator's drafts, which are not in a queue yet. */
+  queue?: ReviewQueue;
   /** A card whose miss re-enters Phase 1 (writes its node Shaky). */
   fails?: boolean;
   /** The 30-second Socratic re-explanation shown when it's missed. */
@@ -170,10 +184,11 @@ export interface RetainSession {
   /** Index of the card on screen, into `retainDeck` rather than `content.cards`. */
   idx: number;
   stage: RetainStage;
-  /** Indices into `content.cards` of missed cards sent to the back of the deck,
-   *  in the order they were missed. A miss really does come back — but only
-   *  once, or a card nobody can answer is a pass with no end. */
-  requeued: number[];
+  /** Cards dealt again later in this pass, in grading order — each as the
+   *  scheduler left it, so its buttons carry its *next* step's intervals. A
+   *  card comes back when its learning step lands inside the learn-ahead
+   *  window (`returnsThisPass`): a miss, or a new card's 10-minute step. */
+  requeued: ReviewCard[];
   /** Grade recorded per **deck position**, not per card id: a requeued card
    *  comes back under the same id, and keying by id lit its second slot on the
    *  rail with the first answer's colour before it had been answered. */
@@ -219,22 +234,41 @@ export type RetainAction =
   /** The judge's read of the answer on the card at `idx` — ignored once the
    *  learner has moved past it, so a late verdict can't land on the next card. */
   | { type: "suggest"; idx: number; grade: CardSuggestion; read: string }
-  | { type: "grade"; grade: ReviewGrade }
+  /** `returns` is the card as it comes back later this pass, when the
+   *  scheduler put it inside the learn-ahead window; absent, it is done for
+   *  today. */
+  | { type: "grade"; grade: ReviewGrade; returns?: ReviewCard }
   | { type: "toggleAside" }
   | { type: "continue" };
 
 /**
- * Today's deck: the budgeted cards, then whichever of them were missed. The
- * requeue is the session's, not the store's — the scheduler has already been
- * told where the card goes next, and this second trip is the learner getting
- * one more honest attempt before the pass ends.
+ * Today's deck: the budgeted cards, then the ones whose learning step brought
+ * them back inside this pass. Every trip is a real review — the scheduler is
+ * told each answer — so a card answered on its second try graduates instead of
+ * sitting due again the moment the pass ends.
  */
 export function retainDeck(session: RetainSession, content: RetainContent): ReviewCard[] {
   if (session.requeued.length === 0) return content.cards;
-  return [...content.cards, ...session.requeued.map((i) => content.cards[i])];
+  return [...content.cards, ...session.requeued];
 }
 
-/** Move to the next card, or finish the queue when it's the last. */
+/** The most times one card is dealt in a pass. Anki has no ceiling; this one
+ *  exists so a card nobody can answer still lets the pass end. */
+export const MAX_TRIPS = 4;
+
+/** What's left in each queue — the card on screen included, Anki's
+ *  "new · learning · review" counts above the card. */
+export function retainCounts(
+  session: RetainSession,
+  content: RetainContent,
+): Record<ReviewQueue, number> {
+  const out: Record<ReviewQueue, number> = { new: 0, learning: 0, review: 0 };
+  if (session.finished) return out;
+  const deck = retainDeck(session, content);
+  for (let i = session.idx; i < deck.length; i++) out[deck[i].queue ?? "review"]++;
+  return out;
+}
+
 /** What a card leaves behind when the next one is dealt: nothing. */
 const CLEARED = { sure: undefined, said: undefined, suggest: undefined };
 
@@ -284,22 +318,16 @@ export function retainReducer(
       if (session.stage !== "reveal" && session.stage !== "aside") return session;
       const card = reviewCard(session, content);
       const done = { ...session.done, [session.idx]: action.grade };
-      // A miss doesn't just reschedule — it opens the alive-loop, flags the
-      // node Shaky (the write-back happens in AtlasApp) and sends the card to
-      // the back of today's deck. Only a card on its *first* trip requeues:
-      // `idx` past the budgeted cards is already the second one.
+      const trips = retainDeck(session, content).filter((c) => c.id === card.id).length;
+      const requeued =
+        action.returns && trips < MAX_TRIPS
+          ? [...session.requeued, action.returns]
+          : session.requeued;
+      // A miss doesn't just reschedule — it opens the alive-loop and flags the
+      // node Shaky (the write-back happens in AtlasApp).
       if (action.grade === "again")
-        return {
-          ...session,
-          stage: "failed",
-          done,
-          wroteBack: !!card.fails,
-          requeued:
-            session.idx < content.cards.length
-              ? [...session.requeued, session.idx]
-              : session.requeued,
-        };
-      return retainAdvance(session, done, content);
+        return { ...session, stage: "failed", done, wroteBack: !!card.fails, requeued };
+      return retainAdvance({ ...session, requeued }, done, content);
     }
     case "continue":
       // "Schedule re-teach · continue" — leave the fail stage and move on.
