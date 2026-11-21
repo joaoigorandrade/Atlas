@@ -37,7 +37,7 @@ export function useTerritory(
   const territory = useRef<Territory | null>(null);
   const now = useRef(view);
   now.current = view;
-  const at = (e: React.MouseEvent) => {
+  const at = (e: { clientX: number; clientY: number }) => {
     const rect = el.current?.getBoundingClientRect();
     const v = now.current;
     if (!rect || !live) return undefined;

@@ -19,6 +19,7 @@ import MapEdges from "@/components/map/MapEdges";
 import { regionsOf, seedOf } from "@/components/map/atlasTerrain";
 import { Fog, Land, StageLabels, Terrain } from "@/components/map/MapTerrain";
 import { useBox, useTerritory } from "@/components/map/useMapPointer";
+import { useMapTouch } from "@/components/map/useMapTouch";
 import {
   fitView,
   mapBounds,
@@ -98,6 +99,8 @@ interface MapCanvasProps {
   onNodeSelect: (id: string) => void;
   onNodeDoubleClick: (id: string) => void;
   onNodeHover: (id: string | null) => void;
+  /** A tap on a touch screen: select (and bring into view) or clear. */
+  onTap: (id: string | null) => void;
   /** The instruments move the view directly — zoom, frame, overview. */
   onView: (view: ViewTransform) => void;
   /** The rails over each side of the canvas right now; the instruments sit
@@ -142,6 +145,7 @@ function MapCanvas({
   onNodeSelect,
   onNodeDoubleClick,
   onNodeHover,
+  onTap,
   onView,
   insetLeft,
   insetRight,
@@ -156,11 +160,13 @@ function MapCanvas({
     onNodeSelect,
     onNodeDoubleClick,
     onNodeHover,
+    onTap,
   };
   const on = useRef(handlers);
   on.current = handlers;
   const hover = useCallback((id: string | null) => on.current.onNodeHover(id), []);
   const land = useTerritory(elRef, view, screen === "map");
+  useMapTouch(elRef, { view, onView, at: land.at, handlers: on });
 
   useEffect(() => {
     const el = elRef.current;
@@ -221,8 +227,10 @@ function MapCanvas({
     if (screen !== "map" || !bounds || !box.w || framed.current) return;
     framed.current = true;
     const insets = { left: insetLeft, right: insetRight, top: layout.topBar, bottom: 0 };
-    onView(fitView(bounds, box, insets));
-  }, [screen, bounds, box, insetLeft, insetRight, onView]);
+    // A phone can't show a whole map at a readable size: open on the lit node.
+    const lit = box.w < layout.phone ? ids.find((id) => display[id] === "frontier") : "";
+    onView(fitView(bounds, box, insets, lit ? positions[lit] : undefined));
+  }, [screen, bounds, box, insetLeft, insetRight, onView, ids, display, positions]);
   const clear = useCallback(
     (id: string) =>
       (display[id] ?? "unknown") !== "unknown" ||
@@ -351,6 +359,8 @@ function MapCanvas({
         position: "absolute",
         inset: 0,
         cursor: "grab",
+        // Every finger on the map is the map's: no page pan, no page zoom.
+        touchAction: "none",
         background: color.paper,
       }}
     >

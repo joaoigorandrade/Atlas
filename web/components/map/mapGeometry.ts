@@ -61,8 +61,13 @@ export function fitView(
   bounds: Bounds,
   box: { w: number; h: number },
   insets: { left: number; right: number; top: number; bottom: number },
+  /** Frame this point instead of the whole map, at a readable zoom — for a
+   *  screen too small to show all of it legibly. */
+  focus?: Pt,
   pad = 110,
 ): ViewTransform {
+  if (focus)
+    return { x: box.w / 2 - focus.x * 0.8, y: box.h / 2 - focus.y * 0.8, scale: 0.8 };
   const freeW = Math.max(box.w - insets.left - insets.right, 120);
   const freeH = Math.max(box.h - insets.top - insets.bottom, 120);
   const w = bounds.maxX - bounds.minX + pad * 2;

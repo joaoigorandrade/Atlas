@@ -37,7 +37,7 @@ export default function RailToggle({
   const plan = side === "plan";
   return (
     <button
-      className="at-press"
+      className={`at-press at-rail-toggle at-rail-toggle-${side}`}
       onClick={onToggle}
       style={{
         position: "absolute",

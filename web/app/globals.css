@@ -731,7 +731,7 @@ html[data-turn="back"]::view-transition-new(root) {
   }
 }
 
-/* Phones (below the map's 768px gate): the masthead keeps one 58px row — the
+/* Phones (below 768px): the masthead keeps one 58px row — the
    right-edge slot clips instead of stacking word by word. */
 .at-mast-end {
   display: contents;
@@ -758,5 +758,68 @@ html[data-turn="back"]::view-transition-new(root) {
   }
   .at-mast-end > :not(button) {
     display: none;
+  }
+}
+
+/* The map on a phone (below `layout.phone`): the top bar keeps the wordmark's
+   rose, the three surfaces, the flame and the avatar; the plan is a
+   full-width drawer under its own toggle; the node detail is a bottom sheet. */
+@media (max-width: 767px) {
+  .at-top {
+    padding: 0 10px !important;
+    gap: 8px !important;
+  }
+  .at-top-word,
+  .at-top-search,
+  .at-top-review {
+    display: none !important;
+  }
+  .at-top-tab {
+    padding: 5px 9px !important;
+    font-size: 14px !important;
+  }
+  .at-plan-rail {
+    width: 100% !important;
+    border-right: none !important;
+    padding: 64px 20px calc(24px + env(safe-area-inset-bottom)) !important;
+    z-index: 16 !important;
+  }
+  .at-rail-toggle {
+    left: 12px !important;
+    top: 70px !important;
+    z-index: 17 !important;
+  }
+  .at-node-panel {
+    top: auto !important;
+    left: 0;
+    width: auto !important;
+    max-height: 56dvh;
+    border-left: none !important;
+    border-top: 3px double var(--at-rule);
+    border-radius: 10px 10px 0 0;
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom)) !important;
+    box-shadow: 0 -10px 28px rgba(43, 33, 24, 0.14);
+    overscroll-behavior: contain;
+  }
+  /* The detail is the only drawer: on a phone it rises instead of sliding. */
+  @keyframes drawerIn {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes drawerOut {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateY(40px);
+    }
   }
 }

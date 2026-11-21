@@ -185,8 +185,8 @@ function NodeDetailBody({
   useEffect(() => setPendingSkip(null), [node.id, displayState]);
 
   // An edge means a different thing per domain, so the words on it must too:
-  // "set the stage for" where the map is read in time, "finish before you can
-  // start" where the material does not go back.
+  // "set the stage for" where the map is read in time, "finish before you
+  // can start" where the material does not go back.
   const edgeLabel =
     node.domain === "interpretive"
       ? { back: t.ledHere, forward: t.ledTo }
@@ -244,6 +244,7 @@ function NodeDetailBody({
   return (
     <div
       data-testid="panel-node"
+      className="at-node-panel"
       data-node={node?.id ?? ""}
       role="complementary"
       aria-label={node?.label}
@@ -393,9 +394,8 @@ function NodeDetailBody({
             {plan.map((id, i) => {
               const name = phaseLabel(id);
               // Done because the ledger says so, not because it sits left of
-              // the current rung: jumping ahead closes a phase out of order.
-              // The positional test stays for Retain — closed by review
-              // history, so never in `phasesDone`.
+              // the current rung (jumping ahead closes phases out of order).
+              // Retain keeps the positional test: review closes it, not the ledger.
               const status =
                 currentPhase < 0
                   ? "locked"
