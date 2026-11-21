@@ -4,13 +4,14 @@
 // Presentational — the session lives in `useExam`.
 
 import { useMemo } from "react";
-import { examPool, examScore } from "@/lib/curriculum";
+import { examScore, examTotal, examWaiting, previousAttempt } from "@/lib/curriculum";
 import type { ExamState } from "@/components/atlas/useExam";
 import Sheet from "@/components/Sheet";
 import Masthead from "@/components/ui/Masthead";
 import ExamSetup from "@/components/session/exam/ExamSetup";
 import ExamQuestionCard from "@/components/session/exam/ExamQuestionCard";
 import ExamResults from "@/components/session/exam/ExamResults";
+import ExamHistory from "@/components/session/exam/ExamHistory";
 import { color } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
@@ -19,11 +20,14 @@ const STRINGS = {
     back: "← Map",
     kicker: "Mock exam",
     answered: (a: number, n: number) => `${a}/${n} answered`,
+    short: (n: number) =>
+      `The rest of this paper didn't come through — it is ${n} questions long.`,
   },
   "pt-BR": {
     back: "← Mapa",
     kicker: "Simulado",
     answered: (a: number, n: number) => `${a}/${n} respondidas`,
+    short: (n: number) => `O resto desta prova não chegou — ela tem ${n} questões.`,
   },
 } as const;
 
@@ -47,8 +51,10 @@ export default function ExamView({
     [graph.nodes],
   );
   const labelOf = (id: string) => labels.get(id) ?? id;
-  const concepts = examPool(graph).length;
+  // Every concept the paper may draw on: the map less its repairs.
+  const concepts = graph.nodes.filter((n) => !n.gap).length || graph.nodes.length;
   const question = session.questions[session.index];
+  const total = examTotal(session);
   const answered = session.questions.filter(
     (q) => session.picks[q.id] !== undefined,
   ).length;
@@ -65,7 +71,7 @@ export default function ExamView({
         meta={
           session.stage === "taking" ? (
             <span style={{ fontSize: 13, color: color.inkFaint }}>
-              {t.answered(answered, session.questions.length)}
+              {t.answered(answered, total)}
             </span>
           ) : undefined
         }
@@ -73,16 +79,27 @@ export default function ExamView({
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 680, margin: "0 auto", padding: "34px 20px 120px" }}>
           {(session.stage === "setup" || session.stage === "writing") && (
-            <ExamSetup
-              concepts={concepts}
-              count={session.count}
-              difficulty={session.difficulty}
-              writing={session.stage === "writing"}
-              failed={!!session.error}
-              accent={ACCENT}
-              onConfigure={exam.configure}
-              onStart={() => exam.start(session.count, session.difficulty)}
-            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              <ExamSetup
+                concepts={concepts}
+                count={session.count}
+                difficulty={session.difficulty}
+                writing={session.stage === "writing"}
+                error={session.error}
+                accent={ACCENT}
+                onConfigure={exam.configure}
+                onStart={() => exam.start(session.count, session.difficulty)}
+              />
+              <ExamHistory attempts={exam.attempts} />
+            </div>
+          )}
+          {session.stage === "taking" && session.error === "short" && (
+            <div
+              data-testid="exam-short"
+              style={{ marginBottom: 14, fontSize: 14, color: color.amberInk }}
+            >
+              {t.short(session.questions.length)}
+            </div>
           )}
           {session.stage === "taking" && question && (
             <ExamQuestionCard
@@ -90,8 +107,10 @@ export default function ExamView({
               conceptLabel={labelOf(question.nodeId)}
               question={question}
               index={session.index}
-              total={session.questions.length}
+              total={total}
               pick={session.picks[question.id]}
+              written={session.written[question.id]}
+              waiting={examWaiting(session)}
               accent={ACCENT}
               onPick={exam.pick}
               onNext={exam.next}
@@ -103,6 +122,8 @@ export default function ExamView({
               score={examScore(session.questions, session.picks)}
               questions={session.questions}
               picks={session.picks}
+              written={session.written}
+              previous={previousAttempt(exam.attempts, session.paperId)}
               labelOf={labelOf}
               accent={ACCENT}
               onOpenNode={onOpenNode}

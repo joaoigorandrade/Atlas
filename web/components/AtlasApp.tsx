@@ -224,7 +224,7 @@ export default function AtlasApp({
   } = run;
 
   useDayRollover(setAdherence, retain?.finished);
-  const exam = useExam(form, graph, languageRef, showError);
+  const exam = useExam(form, graph, run.topicId, languageRef, showError);
   const onToggleReminder = () => setAdherence((prev) => toggleReminder(prev));
 
   const displayRef = useRef<Record<string, NodeState>>({});

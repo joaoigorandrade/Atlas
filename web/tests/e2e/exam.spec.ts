@@ -70,3 +70,64 @@ test.describe("mock exam", () => {
     await expect(page.getByTestId("app")).toHaveAttribute("data-sheet", "none");
   });
 });
+
+test.describe("mock exam — changing answers, resuming, history", () => {
+  test("a changed answer keeps its draft and can move on by choice; a reload resumes; papers are kept", async ({
+    page,
+  }) => {
+    const run = await openRun(page);
+    const all = Object.fromEntries(run.graph.nodes.map((n) => [n.id, "mastered"]));
+    await openRun(page, all);
+    await page.getByTestId("action-exam-open").click();
+    const sheet = page.getByTestId("screen-exam");
+    await expect(sheet.getByTestId("exam-history")).toHaveCount(0);
+    await sheet.getByTestId("action-exam-size-5").click();
+    await sheet.getByTestId("action-exam-start").click();
+
+    // Q1 in own words, then "Change answer": the draft comes back, not a blank box.
+    await sheet.getByTestId("field-answer").fill("my first draft");
+    await sheet.getByTestId("action-submit").click();
+    await sheet.getByTestId("action-exam-change").click();
+    await expect(sheet.getByTestId("field-answer")).toHaveValue("my first draft");
+    // …and switching to the choices to settle it must not leave "next" stuck.
+    await sheet.getByTestId("action-mode-choices").click();
+    await sheet.getByTestId("action-pick-1").click(); // key A — a miss
+    await expect(sheet.getByTestId("action-exam-next")).toBeEnabled();
+    await sheet.getByTestId("action-exam-next").click();
+    await sheet.getByTestId("action-pick-1").click(); // key B
+    await sheet.getByTestId("action-exam-next").click();
+    await expect(sheet.getByTestId("exam-question")).toContainText("Question 3");
+
+    // A reload mid-paper resumes on the question the learner was on.
+    await page.reload();
+    await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
+    await page.getByTestId("action-exam-open").click();
+    await expect(sheet.getByTestId("exam-question")).toContainText("Question 3");
+    await expect(sheet).toContainText("2/5 answered");
+    await sheet.getByTestId("action-mode-choices").click();
+    for (const pick of [2, 3, 0]) {
+      await sheet.getByTestId(`action-pick-${pick}`).click();
+      await sheet.getByTestId("action-exam-next").click();
+    }
+    await expect(sheet.getByTestId("exam-result")).toContainText("80%");
+    await expect(sheet.getByTestId("exam-trend")).toHaveCount(0);
+
+    // A second paper reads against the first.
+    await sheet.getByTestId("action-exam-retake").click();
+    await sheet.getByTestId("action-mode-choices").click();
+    for (const pick of [0, 1, 2, 3, 0]) {
+      await sheet.getByTestId(`action-pick-${pick}`).click();
+      await sheet.getByTestId("action-exam-next").click();
+    }
+    await expect(sheet.getByTestId("exam-result")).toContainText("100%");
+    await expect(sheet.getByTestId("exam-trend")).toContainText("Up 20 points");
+
+    // Both papers are on the setup page, and survive a reload.
+    await sheet.getByTestId("action-exam-setup").click();
+    await expect(sheet.getByTestId("exam-history")).toContainText("Best 100%");
+    await page.reload();
+    await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
+    await page.getByTestId("action-exam-open").click();
+    await expect(sheet.getByTestId("exam-history")).toContainText("Last 100%");
+  });
+});

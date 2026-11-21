@@ -258,9 +258,21 @@ once every concept is mastered (`mapFinished`; the invite is
 the session `useExam` over the pure `lib/curriculum/exam.ts`). They choose the
 size (`EXAM_SIZES`) and the difficulty; the server spreads the questions over
 the pool (`examAllocation`), stamps ids and shuffles every question's options
-(`lib/server/generate/exam.ts`). It is uncached — a retake is a new paper — and
-it is not a phase: it reads the map and writes no mastery, pointing a missed
-concept back to its node instead.
+(`lib/server/generate/exam.ts`). It is uncached — a retake is a new paper, and
+the allocation starts from a random phase so a retake also asks about other
+concepts — and it is not a phase: it reads the map and writes no mastery,
+pointing a missed concept back to its node instead. The allocation is enforced,
+not only requested: the server's `Paper` refuses a question over its concept's
+share, off the plan, or repeating one already asked. The paper **streams** one
+question per frame (the learner starts on question 1 while the rest are
+written); whatever the stream drops is topped up by one retried single-shot call
+for exactly the missing questions. Answers are addressed by question id
+(`pick`), because an own-words answer is judged after the learner may have moved
+on. The paper being sat and the finished papers' scores (`examHistory.ts`, the
+exam _book_) live in this device's `localStorage` per topic (`lib/examStore.ts`)
+— a reload resumes the paper, and the setup page shows the score trend. They are
+a rehearsal on one screen, not mastery or content, so they are not part of the
+synced run.
 Every per-node generation also carries the **map around the concept**
 (`conceptBoundary` in `lib/curriculum.ts` → `boundaryNote` in `generate.ts`):
 the labels of every ancestor (already taught — build on it, never re-teach it)

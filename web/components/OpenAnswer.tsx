@@ -101,22 +101,26 @@ export function OpenAnswer({
   rows = 3,
   accent = color.accent,
   submitLabel,
+  initialText = "",
 }: {
   topic: string;
   nodeLabel?: string;
   question: string;
   /** The closed-form labels the answer is mapped onto. */
   options: string[];
-  /** Called with the matched option index and the judge's one-line read. */
-  onResolve: (index: number, response: string) => void;
+  /** Called with the matched option index, the judge's one-line read, and
+   *  the answer exactly as it was judged. */
+  onResolve: (index: number, response: string, answer: string) => void;
   placeholder?: string;
   rows?: number;
   accent?: string;
   submitLabel?: string;
+  /** A draft to open with — an earlier answer being changed. */
+  initialText?: string;
 }) {
   const t = useT(ANSWER_STRINGS);
   const { language } = useLanguage();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [judging, setJudging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resolvedPlaceholder = placeholder ?? t.placeholder;
@@ -128,7 +132,7 @@ export function OpenAnswer({
     setJudging(true);
     setError(null);
     fetchJudgeChoice({ topic, nodeLabel, question, options, answer, language })
-      .then((j) => onResolve(j.index, j.response))
+      .then((j) => onResolve(j.index, j.response, answer))
       .catch((e: Error) => setError(e.message))
       .finally(() => setJudging(false));
   };

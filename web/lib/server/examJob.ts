@@ -4,7 +4,7 @@
 
 import { asExamDifficulty, asExamSize, type GoalKind } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
-import { generateExam } from "@/lib/server/generate/exam";
+import { generateExam, generateExamStream } from "@/lib/server/generate/exam";
 import { badRequest, poolOf, s, type GenerateBody } from "./jobInput";
 import type { Job } from "./job";
 
@@ -29,5 +29,10 @@ export function examJob(
     kind: "exam",
     key: null,
     run: async () => ({ questions: await generateExam(params) }),
+    // One frame per question, so the learner starts on question 1 while the
+    // rest are written. The generator tops up whatever its stream dropped, so
+    // a complete paper is exactly the size asked for.
+    stream: () => generateExamStream(params),
+    shape: { questions: { min: params.count, max: params.count } },
   };
 }

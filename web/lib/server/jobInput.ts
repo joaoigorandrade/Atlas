@@ -347,4 +347,9 @@ export const poolOf = (body: GenerateBody): Array<{ id: string; label: string }>
             typeof p.label === "string",
         )
         .slice(0, CAPS.listItems)
+        // Every label reaches a prompt — capped like any other node label.
+        .map((p) => ({
+          id: p.id.slice(0, CAPS.nodeLabel),
+          label: p.label.slice(0, CAPS.nodeLabel),
+        }))
     : [];

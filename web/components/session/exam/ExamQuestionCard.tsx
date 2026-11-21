@@ -5,7 +5,7 @@
 // the choices are one toggle away. Nothing says right or wrong here — a mock
 // exam shows the key at the end, the way the real one does.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ExamQuestion } from "@/lib/curriculum";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import Button from "@/components/ui/Button";
@@ -20,8 +20,10 @@ const STRINGS = {
     placeholder: "Your answer, in your own words…",
     submit: "Record answer →",
     readAs: "Read as:",
+    yourChoice: "Your choice:",
     noMatch: "None of the choices — this will count as a miss.",
     next: "Next question →",
+    waiting: "Writing the next question…",
     finish: "Finish exam →",
     previous: "← Previous",
     change: "Change answer",
@@ -31,8 +33,10 @@ const STRINGS = {
     placeholder: "Sua resposta, com suas palavras…",
     submit: "Registrar resposta →",
     readAs: "Entendida como:",
+    yourChoice: "Sua escolha:",
     noMatch: "Nenhuma das alternativas — vai contar como erro.",
     next: "Próxima questão →",
+    waiting: "Escrevendo a próxima questão…",
     finish: "Terminar simulado →",
     previous: "← Anterior",
     change: "Mudar resposta",
@@ -48,6 +52,8 @@ export default function ExamQuestionCard({
   index,
   total,
   pick,
+  written,
+  waiting,
   accent,
   onPick,
   onNext,
@@ -60,8 +66,14 @@ export default function ExamQuestionCard({
   total: number;
   /** The option recorded for this question, -1 for no match, undefined if unanswered. */
   pick: number | undefined;
+  /** What the learner wrote, when the pick came from their own words. */
+  written: string | undefined;
+  /** The next question is still being written — "next" has to wait for it. */
+  waiting: boolean;
   accent: string;
-  onPick: (choice: number) => void;
+  /** Records an answer on the question with this id — addressed by id, since
+   *  an own-words answer is read after the learner may have moved on. */
+  onPick: (id: string, choice: number, text?: string) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -69,10 +81,17 @@ export default function ExamQuestionCard({
   // Kept across questions: a learner who switched to the choices meant it.
   const [mode, setMode] = useState<AnswerMode>("open");
   // An own-words answer is recorded, then shown as the option it was read as;
-  // "Change answer" reopens the box without losing the recorded pick.
+  // "Change answer" reopens the box on their draft, without losing the pick.
   const [rewriting, setRewriting] = useState(false);
+  // Which question is on screen now, for a judged answer that comes back late.
+  const current = useRef(question.id);
+  useEffect(() => {
+    current.current = question.id;
+    setRewriting(false);
+  }, [question.id]);
   const last = index + 1 >= total;
   const showOpen = mode === "open" && (pick === undefined || rewriting);
+  const switchMode = (m: AnswerMode) => (setMode(m), setRewriting(false));
 
   return (
     <Plate style={{ padding: "26px 28px 24px" }}>
@@ -86,7 +105,7 @@ export default function ExamQuestionCard({
         }}
       >
         <span style={kicker(10.5, "0.12em", accent)}>{t.of(index + 1, total)}</span>
-        <AnswerModeToggle mode={mode} onMode={setMode} accent={accent} />
+        <AnswerModeToggle mode={mode} onMode={switchMode} accent={accent} />
       </div>
       {conceptLabel && (
         <div style={{ ...kicker(9.5, "0.1em"), marginBottom: 8 }}>{conceptLabel}</div>
@@ -114,16 +133,18 @@ export default function ExamQuestionCard({
           accent={accent}
           placeholder={t.placeholder}
           submitLabel={t.submit}
-          onResolve={(i) => {
-            setRewriting(false);
-            onPick(i);
+          initialText={written}
+          onResolve={(i, _read, text) => {
+            // Recorded on the question it answers, wherever the learner is now.
+            onPick(question.id, i, text);
+            if (current.current === question.id) setRewriting(false);
           }}
         />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {mode === "open" && (
             <div style={{ fontSize: 13, color: color.inkMuted }}>
-              {pick === -1 ? t.noMatch : t.readAs}
+              {pick === -1 ? t.noMatch : written ? t.readAs : t.yourChoice}
             </div>
           )}
           {question.opts.map((opt, i) => {
@@ -136,7 +157,11 @@ export default function ExamQuestionCard({
                 className="at-press"
                 data-testid={`action-pick-${i}`}
                 aria-pressed={chosen}
-                onClick={() => mode === "choices" && onPick(i)}
+                onClick={() => {
+                  if (mode !== "choices") return;
+                  setRewriting(false);
+                  onPick(question.id, i);
+                }}
                 style={{
                   display: "flex",
                   gap: 12,
@@ -168,7 +193,11 @@ export default function ExamQuestionCard({
             );
           })}
           {mode === "open" && (
-            <Button variant="quiet" onClick={() => setRewriting(true)}>
+            <Button
+              variant="quiet"
+              data-testid="action-exam-change"
+              onClick={() => setRewriting(true)}
+            >
               {t.change}
             </Button>
           )}
@@ -177,11 +206,7 @@ export default function ExamQuestionCard({
 
       <div style={{ display: "flex", gap: 10, marginTop: 22, alignItems: "center" }}>
         {index > 0 && (
-          <Button
-            variant="quiet"
-            data-testid="action-exam-back"
-            onClick={() => (setRewriting(false), onBack())}
-          >
+          <Button variant="quiet" data-testid="action-exam-back" onClick={onBack}>
             {t.previous}
           </Button>
         )}
@@ -189,10 +214,10 @@ export default function ExamQuestionCard({
           <Button
             data-testid="action-exam-next"
             accent={accent}
-            disabled={pick === undefined || rewriting}
-            onClick={() => (setRewriting(false), onNext())}
+            disabled={pick === undefined || rewriting || waiting}
+            onClick={onNext}
           >
-            {last ? t.finish : t.next}
+            {waiting ? t.waiting : last ? t.finish : t.next}
           </Button>
         </div>
       </div>

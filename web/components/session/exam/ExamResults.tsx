@@ -3,7 +3,7 @@
 // The exam's last page: the score, the concepts it found weak, and the key —
 // every question with what they answered, what was right, and why.
 
-import type { ExamQuestion, ExamScore } from "@/lib/curriculum";
+import type { ExamAttempt, ExamQuestion, ExamScore } from "@/lib/curriculum";
 import { EXAM_PASS_PCT, STATE_COLOR } from "@/lib/curriculum";
 import Button from "@/components/ui/Button";
 import Plate from "@/components/ui/Plate";
@@ -23,6 +23,11 @@ const STRINGS = {
     open: "Open on map →",
     key: "The key",
     yours: "Your answer",
+    wrote: "You wrote",
+    since: (delta: number, pct: number) =>
+      delta === 0
+        ? `Same as your last paper (${pct}%).`
+        : `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} points on your last paper (${pct}%).`,
     noAnswer: "No matching choice",
     right: "Correct answer",
     retake: "New paper, same settings",
@@ -40,6 +45,11 @@ const STRINGS = {
     open: "Abrir no mapa →",
     key: "O gabarito",
     yours: "Sua resposta",
+    wrote: "Você escreveu",
+    since: (delta: number, pct: number) =>
+      delta === 0
+        ? `Igual à sua última prova (${pct}%).`
+        : `${delta > 0 ? "Subiu" : "Caiu"} ${Math.abs(delta)} pontos desde a última prova (${pct}%).`,
     noAnswer: "Nenhuma alternativa correspondente",
     right: "Resposta correta",
     retake: "Nova prova, mesmas configurações",
@@ -52,6 +62,8 @@ export default function ExamResults({
   score,
   questions,
   picks,
+  written,
+  previous,
   labelOf,
   accent,
   onOpenNode,
@@ -62,6 +74,10 @@ export default function ExamResults({
   score: ExamScore;
   questions: ExamQuestion[];
   picks: Record<string, number>;
+  /** What the learner wrote, by question id, for answers in their own words. */
+  written: Record<string, string>;
+  /** The paper finished before this one, to read the trend against. */
+  previous?: ExamAttempt;
   labelOf: (nodeId: string) => string;
   accent: string;
   onOpenNode: (nodeId: string) => void;
@@ -96,6 +112,14 @@ export default function ExamResults({
         >
           {score.passed ? t.passed(EXAM_PASS_PCT) : t.notPassed(EXAM_PASS_PCT)}
         </p>
+        {previous && (
+          <p
+            data-testid="exam-trend"
+            style={{ margin: "8px auto 0", fontSize: 14, color: color.inkMuted }}
+          >
+            {t.since(score.pct - previous.pct, previous.pct)}
+          </p>
+        )}
       </Plate>
 
       <Plate style={{ padding: "22px 24px" }}>
@@ -168,6 +192,11 @@ export default function ExamResults({
                   </div>
                 </div>
                 <div style={{ margin: "10px 0 0 25px", fontSize: 14.5, lineHeight: 1.5 }}>
+                  {written[q.id] && (
+                    <div style={{ color: color.inkMuted, fontStyle: "italic" }}>
+                      {t.wrote}: “{written[q.id]}”
+                    </div>
+                  )}
                   {!right && (
                     <div style={{ color: STATE_COLOR.gap }}>
                       {t.yours}: {pick >= 0 ? <Rich text={q.opts[pick]} /> : t.noAnswer}

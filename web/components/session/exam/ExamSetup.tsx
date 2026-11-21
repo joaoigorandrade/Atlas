@@ -7,6 +7,7 @@ import {
   EXAM_DIFFICULTIES,
   EXAM_SIZES,
   type ExamDifficulty,
+  type ExamError,
   type ExamSize,
 } from "@/lib/curriculum";
 import Button from "@/components/ui/Button";
@@ -32,6 +33,7 @@ const STRINGS = {
     start: "Write my exam →",
     writing: "Writing your paper…",
     failed: "That paper didn't come through. Try again.",
+    empty: "That paper came back with no questions. Try again.",
   },
   "pt-BR": {
     title: "Simulado",
@@ -49,6 +51,7 @@ const STRINGS = {
     start: "Gerar meu simulado →",
     writing: "Escrevendo sua prova…",
     failed: "A prova não chegou. Tente de novo.",
+    empty: "A prova veio sem questões. Tente de novo.",
   },
 } as const;
 
@@ -104,7 +107,7 @@ export default function ExamSetup({
   count,
   difficulty,
   writing,
-  failed,
+  error,
   accent,
   onConfigure,
   onStart,
@@ -113,12 +116,15 @@ export default function ExamSetup({
   count: ExamSize;
   difficulty: ExamDifficulty;
   writing: boolean;
-  failed: boolean;
+  /** Why the last paper did not come — shown under the start button. */
+  error?: ExamError;
   accent: string;
   onConfigure: (patch: { count?: ExamSize; difficulty?: ExamDifficulty }) => void;
   onStart: () => void;
 }) {
   const t = useT(STRINGS);
+  // A short paper is sat, not retried — only a paper that never came is news here.
+  const failed = error === "write" || error === "empty";
   return (
     <Plate style={{ padding: "30px 30px 26px" }}>
       <div style={{ fontFamily: font.display, fontSize: 30, lineHeight: 1.1 }}>
@@ -188,7 +194,11 @@ export default function ExamSetup({
           {writing ? (
             <InkDots />
           ) : failed ? (
-            t.failed
+            error === "empty" ? (
+              t.empty
+            ) : (
+              t.failed
+            )
           ) : (
             t.minutes(Math.max(1, Math.round(count * MIN_PER_QUESTION[difficulty])))
           )}
