@@ -9,7 +9,10 @@ function download(name: string, text: string, mime: string) {
   a.href = URL.createObjectURL(new Blob([text], { type: mime }));
   a.download = name;
   a.click();
-  URL.revokeObjectURL(a.href);
+  // Not straight away: Safari can abort a download whose URL is revoked in the
+  // same task as the click. ponytail: 40 s is FileSaver.js's figure; the blob is
+  // a few KB, so holding it that long costs nothing.
+  setTimeout(() => URL.revokeObjectURL(a.href), 40_000);
 }
 
 const slug = (topic: string) =>

@@ -251,12 +251,6 @@ export function forecastRows(
   ];
 }
 
-/**
- * Today's honest queue as the Retain surface's content shape: due cards
- * budgeted to the learner's daily minutes, grade buttons carrying the
- * scheduler's real intervals. Review states (State.Review with a miss risk)
- * keep the alive-loop wiring (`fails`).
- */
 /** Which of Anki's three queues a card is in: never seen, still on its
  *  learning (or relearning) steps, or a graduated review. */
 export function queueOf(card: StoredCard): ReviewQueue {
@@ -302,6 +296,12 @@ export function returnsThisPass(card: StoredCard, now: Date = new Date()): boole
   return Date.parse(card.fsrs.due) - now.getTime() <= LEARN_AHEAD_MS;
 }
 
+/**
+ * Today's honest queue as the Retain surface's content shape: due cards
+ * budgeted to the learner's daily minutes, grade buttons carrying the
+ * scheduler's real intervals. Every card keeps the alive-loop wiring (`fails`):
+ * a miss flags its node Shaky whatever queue the card was in.
+ */
 export function retainContentFromStore(
   cards: StoredCard[],
   budgetMin: number,

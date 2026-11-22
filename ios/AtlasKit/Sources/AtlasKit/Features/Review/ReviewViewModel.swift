@@ -48,6 +48,14 @@ public final class ReviewViewModel {
     }
 
     public var card: ReviewCard? { deck[safe: index] }
+
+    /// The interval a grade would schedule for the card on screen — none on a
+    /// requeued card's second trip, which schedules nothing: the labels it
+    /// carries were worked out before the miss.
+    public func interval(for grade: ReviewGrade) -> String? {
+        guard let card, !requeued.contains(card.id) else { return nil }
+        return card.label(for: grade)
+    }
     public var hasCard: Bool { card != nil && !finished }
     /// Cards still to answer, this one included — the deck count in the header.
     public var remaining: Int { max(0, deck.count - index) }
@@ -234,7 +242,11 @@ public final class ReviewViewModel {
         // Real review history is what earns "Retido ✓" — mastered alone doesn't,
         // and neither does a Good on a card seen this week: it has to survive
         // `retainedMinDays` unseen.
-        if earnsRetained(grade, lastSeen: store.cards.first(where: { $0.id == card.id })?.lastSeen) {
+        // Never on the second trip: the first answer was a miss, and the copy's
+        // `lastSeen` is still the old one until (or unless) that grade lands —
+        // a Good here earned Retido for a card just failed.
+        if !requeued.contains(card.id),
+           earnsRetained(grade, lastSeen: store.cards.first(where: { $0.id == card.id })?.lastSeen) {
             store.reviewed.insert(card.node)
         }
         guard grade == .again else { return advance() }

@@ -350,7 +350,7 @@ public struct ReviewView: View {
                                     // scheduler that will apply it. A card that
                                     // arrived without one shows the grade alone
                                     // rather than a made-up number.
-                                    if let interval = card.label(for: grade) {
+                                    if let interval = model.interval(for: grade) {
                                         Text(verbatim: interval).font(.atlas(.caps, 11))
                                     }
                                 }
