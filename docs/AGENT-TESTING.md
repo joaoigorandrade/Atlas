@@ -99,7 +99,7 @@ fade at all.
 | dashboard                                         | `new-continent` · `found-continent` · `open-continent` (`data-continent`)                                                                                                                                                                                                                                                                                                       |
 | continent                                         | `open-map` (`data-subject`) · `chart-scope` (`data-scope`) · `leave-continent` · `add-to-continent` · `rename-continent` · `dissolve-continent` · `dissolve-confirm` · `back-dashboard`                                                                                                                                                                                         |
 | map                                               | `primary` · `phase-<i>` · `skip-confirm` · `skip-cancel`                                                                                                                                                                                                                                                                                                                        |
-| Consume                                           | `check-<i>` · `continue` · `finish` · `begin-socratic`                                                                                                                                                                                                                                                                                                                          |
+| Consume                                           | `check-<i>` · `continue` · `finish` · `begin-socratic` — and, in the reels, `next-card` · `lens-<simpler\|example\|analogy\|deeper>` · `ask` · `listen` · `skip-section` · `autoplay` · `view-page` (the page view's way back is `view-reels`)                                                                                                                                  |
 | Explain                                           | `reveal` · `mode-<open\|choices>` · `reply-<i>` · `finish` (hands on to the owed rung)                                                                                                                                                                                                                                                                                          |
 | Socratic                                          | `submit`                                                                                                                                                                                                                                                                                                                                                                        |
 | Feynman                                           | `begin` · `next` · `submit` · `advance`                                                                                                                                                                                                                                                                                                                                         |
@@ -109,7 +109,15 @@ fade at all.
 | Retain                                            | `sure-<i>` (turns the card) · `grade-<again\|hard\|good\|easy>` · `continue`                                                                                                                                                                                                                                                                                                    |
 | Mock exam (`screen-exam`, finished map only)      | `exam-open` (on the map) · `exam-size-<n>` · `exam-difficulty-<level>` · `exam-start` · `mode-<open\|choices>` · `pick-<i>` · `exam-next` · `exam-back` · `exam-retake` · `exam-setup` · `exam-change` · `exam-node-<id>` · `exit` — and, not actions, `exam-history` (past papers, setup page), `exam-trend` (vs the last paper), `exam-short` (a paper that stopped part-way) |
 
-Two things that catch people out:
+Three things that catch people out:
+
+- **Consume opens as reels** (`phase-consume` carries `data-layout="reels"`):
+  the reading is dealt as full-screen cards (`[data-reel]`, each with
+  `data-reel-kind` — `pretest` `beat` `example` `figure` `check` `takeaway`
+  `writing`), and nothing past an unanswered pretest or check exists yet.
+  Continue and Finish sit on a section's last card. `action-view-page`
+  switches to the page view, remembered per device (`localStorage`
+  `atlas.consumeLayout`); `tests/e2e/consume_reels.spec.ts` covers the feed.
 
 - **A section check only mounts once the end of its section is on screen** (an
   IntersectionObserver, `components/session/consume/SectionCheck.tsx`).

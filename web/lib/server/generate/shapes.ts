@@ -30,7 +30,7 @@ export const CONSUME_SECTION_SHAPE = `{
       "kicker": "1 · What it is",                        // number · 2-4 words naming this section's job
       "takeaway": "…",                                   // written FIRST; one precise sentence
       "terms": [{"t": "…", "d": "…"}],                   // 0-3
-      "body": ["…", "…"],                                // 2-5 paragraphs, 3-6 sentences each
+      "body": ["…", "…"],                                // 2-5 beats, one card each: 1-3 sentences, ≤ ~50 words
       "example": {
         "title": "…",
         "steps": ["**Label:** the actual work", "…"]     // 2-6 steps, each led by its bold purpose label

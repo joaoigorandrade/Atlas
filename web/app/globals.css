@@ -754,3 +754,37 @@ html[data-turn="back"]::view-transition-new(root) {
     }
   }
 }
+
+/* Consume as reels (components/session/ConsumeReels.tsx): one card per
+   screen, snapped, one card per swipe. The action rail sits beside the
+   column on a wide screen and over the card's lower right on a phone, where a
+   reel keeps it; the column gives up that strip so the rail never covers text. */
+.at-reel-feed {
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.at-reel-feed::-webkit-scrollbar {
+  display: none;
+}
+.at-reel-card {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.at-reel-rail {
+  position: absolute;
+  right: max(16px, calc(50% - 372px));
+  top: 50%;
+  transform: translateY(-50%);
+}
+@media (max-width: 767px) {
+  .at-reel-rail {
+    right: 6px;
+    top: auto;
+    bottom: 64px;
+    transform: none;
+  }
+  .at-reel-col {
+    padding-right: 50px !important;
+  }
+}

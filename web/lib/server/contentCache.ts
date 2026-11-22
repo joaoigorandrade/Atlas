@@ -80,9 +80,11 @@ const VERSION = process.env.CONTENT_CACHE_VERSION || "13";
  *    case the example did not work; a concrete Explain problem and the
  *    standard misconception; Perform's lesson first; Retain cards grounded in
  *    the reading's takeaways and typed by kind.
+ * 4: consume only — the reading is written as beats, one phone card each, for
+ *    the reels (`docs/RESEARCH-PHASES.md` §8).
  */
 export const PROMPT_REV: Readonly<Partial<Record<CacheableKind, number>>> = {
-  consume: 3,
+  consume: 4,
   explain: 3,
   perform: 3,
   retain: 3,

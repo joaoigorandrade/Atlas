@@ -100,10 +100,12 @@ describe("Consume", () => {
     await generateConsume(params);
     const prompt = promptOf("consume");
     expect(prompt).toMatch(/names the prerequisite this concept builds on/);
-    expect(prompt).toMatch(/2-4 paragraphs of 2-5 sentences/);
+    // Beats sized for one phone card each — the reels deal one per screen.
+    expect(prompt).toMatch(/2-5 beats — each string is one card on a phone screen/);
+    expect(prompt).toMatch(/at most about 50 words/);
     expect(prompt).toMatch(/Its case is NOT the worked example's/);
     // What the screen actually does after a pretest miss — not a gate.
-    expect(prompt).toMatch(/answer the same check again, once/);
+    expect(prompt).toMatch(/the same one, answered again, once/);
     expect(prompt).not.toMatch(/Continuing is gated/);
   });
 });

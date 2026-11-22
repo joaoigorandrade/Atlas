@@ -8,8 +8,8 @@ aspect by aspect (§5). It then proposes how to restructure the phases
 themselves (§6), which means changing shapes, plans and the generation pipeline
 where the evidence says the learner's minutes are being spent badly.
 
-**Status.** §7 is implemented in the commit that adds this file. §6 is a
-proposal and is not implemented. Paths are relative to `web/` unless they start
+**Status.** §7 is implemented in the commit that adds this file, and §8 (Consume
+as reels) in the one after it. §6 is a proposal and is not implemented. Paths are relative to `web/` unless they start
 with `docs/` or `ios/`.
 
 ---
@@ -760,6 +760,96 @@ panel against the previous prompts, and read:
 - pretest-collapse rate;
 - on fact nodes: `consume_stream_fallback` and uncached single-section passes,
   which should go to zero.
+
+## 8. Consume as reels
+
+Consume is now read as a vertical feed of full-screen cards, one idea per
+screen, swiped through, the way a phone already reads short video. The page
+view is one tap away and is remembered per device.
+
+### 8.1 Why this shape teaches better, not only differently
+
+- **One idea per screen is segmenting, at its finest grain.** Segmented
+  material has small-to-medium effects on retention and transfer (§3.2.8,
+  Rey et al. 2019). A section used to arrive as 2-5 paragraphs at once, and the
+  three readings in the database averaged about 180 words of prose plus
+  about 100 of worked example per section.
+- **A question every few cards is interpolated testing.** Tests between
+  segments halved mind-wandering (§3.2.8, Szpunar et al. 2013). In the reels
+  the check is one card in six or seven, not the end of a long scroll.
+- **The check now comes before the takeaway.** On the page the takeaway sat
+  above the check, so the check could be answered by reading the summary just
+  above it. In the feed the learner answers from the beats and the example,
+  which is retrieval, and the takeaway card then confirms and closes the
+  section.
+- **The first beat is a hook.** It poses the problem the section answers
+  (Merrill's problem-centred start, §3.2.2), so the first screen earns the
+  swipe.
+- **Read-aloud has word-by-word captions.** Each card can be heard, with the
+  word being spoken marked, and auto-play reads card after card hands-free.
+  It stops at any card that asks something: the voice never answers for the
+  learner.
+
+### 8.2 What the learner sees
+
+| Card       | What it holds                                                               | Rail |
+| ---------- | --------------------------------------------------------------------------- | :--: |
+| `pretest`  | the section's check, answered cold; nothing is dealt past it until answered |  —   |
+| `beat`     | one beat of the prose in large type; the first carries the terms            |  ✓   |
+| `example`  | the worked example; its steps land one after another                        |  ✓   |
+| `figure`   | the diagram and its caption                                                 |  ✓   |
+| `check`    | the post-read check, answered once; nothing past it until answered          |  —   |
+| `takeaway` | the one line to keep, with Continue / Finish                                |  ✓   |
+
+- **The rail** (right edge, where a reel keeps it): the four lenses, "Ask"
+  (seeded with the card's own text and opened as a bottom sheet), "Listen",
+  and "Skip" (folds the section to its takeaway; its check is still owed).
+- **The story bar**: a segment per section, filling card by card. A reached
+  segment jumps to its section.
+- **Navigation**: swipe, the arrow under each card, or the keyboard (arrows,
+  Page keys, Space, j/k).
+- **Continue** carries the learner to where the next section starts.
+
+### 8.3 What did not change
+
+The reels are a view, not a second state. `consumeReel` deals cards from the
+same `ConsumeProgress`, and the screen drives the same callbacks, so these all
+behave as before:
+
+- the pretest collapse;
+- the answered-once check;
+- the gates;
+- `pretestClean` and the proof gate;
+- the recap (now `ConsumeRecap`, shared by both views);
+- saved progress and the node's ledger.
+
+Every e2e spec that walks through Consume passes unchanged against the reels,
+through the same test ids.
+
+### 8.4 The content
+
+The prompt now asks for the body as 2-5 beats of 1-3 sentences, at most about
+50 words each, the first one a hook. Worked-example steps are one line each.
+`PROMPT_REV.consume` moves to 4.
+
+A reading cached before this change is split on the client, at sentence ends,
+into cards of at most 60 words (`reelBeats`), so it reads in the feed without
+regenerating.
+
+### 8.5 Open
+
+- **iOS** still reads the pass as a page. The beats read well there as short
+  paragraphs, and nothing breaks. A native feed is a paging `ScrollView` over
+  the same deck logic, ported to Swift.
+- **Measure before tuning:**
+  - seconds per card and per section (add a per-card timer to
+    `phase_seconds`);
+  - reading completion;
+  - pretest-collapse rate;
+  - post-read check accuracy, now that it precedes the takeaway;
+  - how often learners switch to the page view.
+- **The confirming pretest item (§6.2)** fits the feed as one more card.
+  Without it, a lucky guess still folds a section.
 
 ---
 

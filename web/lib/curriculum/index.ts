@@ -11,6 +11,7 @@ export * from "./answerCheck";
 export * from "./diagnostic";
 export * from "./types";
 export * from "./consume";
+export * from "./consumeReel";
 export * from "./explain";
 export * from "./socratic";
 export * from "./feynman";

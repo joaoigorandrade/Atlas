@@ -14,7 +14,7 @@
     "components/map/StreakFlame.tsx": 422,
     "components/onboarding/DiagnosticPanel.tsx": 423,
     "components/session/ConnectView.tsx": 831,
-    "components/session/ConsumeView.tsx": 1164,
+    "components/session/ConsumeView.tsx": 977,
     "components/session/CrucibleView.tsx": 763,
     "components/session/FeynmanView.tsx": 1235,
     "components/session/PerformView.tsx": 411,

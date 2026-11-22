@@ -33,7 +33,7 @@ import ContinentScreen from "@/components/ContinentScreen";
 import { useContinents } from "@/components/atlas/useContinents";
 import ProfileScreen from "@/components/ProfileScreen";
 import SettingsScreen from "@/components/SettingsScreen";
-import ConsumeView from "@/components/session/ConsumeView";
+import ConsumeScreen from "@/components/session/ConsumeScreen";
 import SocraticView from "@/components/session/SocraticView";
 import FeynmanView from "@/components/session/FeynmanView";
 import CrucibleView from "@/components/session/CrucibleView";
@@ -801,7 +801,7 @@ export default function AtlasApp({
         consume &&
         consumeChunks &&
         sheetBoundary(
-          <ConsumeView
+          <ConsumeScreen
             topic={form.topic}
             title={nodeOf(consume.nodeId)?.label ?? "Concept"}
             plan={planOf(consume.nodeId)}

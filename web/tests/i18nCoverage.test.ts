@@ -8,6 +8,7 @@ import { STRINGS as CRUCIBLE_STRINGS } from "@/components/session/crucibleCopy";
 import { STRINGS as DASHBOARD_SCREEN_STRINGS } from "@/components/dashboardScreenCopy";
 import { STRINGS as SOCRATIC_STRINGS } from "@/components/session/socraticCopy";
 import { STRINGS as NODE_DETAIL_STRINGS } from "@/components/map/nodeDetailCopy";
+import { STRINGS as CONSUME_STRINGS } from "@/components/session/consume/shared";
 import {
   EXPLAIN_COPY,
   GOAL_DATE_COPY,
@@ -86,6 +87,7 @@ describe("i18n coverage", () => {
     ["dashboard screen", DASHBOARD_SCREEN_STRINGS],
     ["socratic", SOCRATIC_STRINGS],
     ["node detail", NODE_DETAIL_STRINGS],
+    ["consume", CONSUME_STRINGS],
     ["explain", EXPLAIN_COPY],
     ["provenance", PROVENANCE_COPY],
     ["steelman", STEELMAN_COPY],
