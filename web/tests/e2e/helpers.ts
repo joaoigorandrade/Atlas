@@ -212,6 +212,10 @@ export async function openRun(
     await page.getByText(/Open the map →|Abrir o mapa →/).click();
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
   await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
+  // From the dashboard that was a page turn: until its crossfade ends
+  // (`html[data-turn]`, see usePageTurn) the browser hit-tests every tap and
+  // click to <html>, so a raw `touchscreen.tap` on the map would land on nothing.
+  await expect(page.locator("html[data-turn]")).toHaveCount(0);
   return (await readRun(page.request))!;
 }
 

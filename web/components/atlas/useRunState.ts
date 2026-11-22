@@ -381,29 +381,36 @@ export function useRunState(opts: {
     setRetainContent(null);
   }, [clearContentCaches]);
 
+  /** Drop the run's content, and set its progress and readings to `t`'s — a
+   *  loaded topic's, or none for a new map. One list: load and clear were the
+   *  same thirteen names twice, and one missing from either survives a wipe. */
+  const resetRun = useCallback((t: Partial<Topic>) => {
+    clearCaches();
+    setLitToday(t.litToday ?? []);
+    setCalibSamples(t.calibSamples ?? []);
+    setShakyReasons(t.shakyReasons ?? {});
+    setPhasesDone(t.phasesDone ?? {});
+    setReviewedNodes(t.reviewedNodes ?? []);
+    setCards(t.cards ?? []);
+    setConsumeProgress(t.consumeProgress ?? {});
+    setModalityTally(t.modalityTally ?? {});
+    setSocraticProgress(t.socraticProgress ?? {});
+    setFeynmanProgress(t.feynmanProgress ?? {});
+    setConnectProgress(t.connectProgress ?? {});
+    setPhaseProgress(t.phaseProgress ?? {});
+    setMisconceptions(t.misconceptions ?? []);
+  }, [clearCaches]);
+
   /** Everything a brand-new map has to wipe: the previous run's content, the
    *  previous run's progress, and the previous run's readings. Shared by "build
    *  a new map" and "exclude this topic". */
   const clearRun = useCallback(() => {
-    clearCaches();
-    setConsumeProgress({});
-    setModalityTally({});
-    setSocraticProgress({});
-    setFeynmanProgress({});
-    setConnectProgress({});
-    setPhaseProgress({});
-    setMisconceptions([]);
-    setCalibSamples([]);
-    setShakyReasons({});
-    setPhasesDone({});
-    setReviewedNodes([]);
-    setCards([]);
-    setLitToday([]);
+    resetRun({});
     setSummaryFailed({});
     savedNodesRef.current = {};
     savedCardsRef.current = {};
     savedTopicRef.current = "";
-  }, [clearCaches]);
+  }, [resetRun]);
 
   // ---- persistence (§17) -----------------------------------------------
   // One coarse snapshot per (user, subject) in Supabase `run_states`.
@@ -436,8 +443,7 @@ export function useRunState(opts: {
       warm.clear();
       resetSessions();
       resetTransient();
-      clearContentCaches();
-      setRetainContent(null);
+      resetRun(topic);
 
       // The run's language wins over the device's. UI language is detected
       // per-browser (`navigator.language`), so the same pt-BR map opened on an
@@ -460,19 +466,6 @@ export function useRunState(opts: {
       setStates(topic.states);
       setPositions(topic.positions);
       setSpawnedIds(new Set(topic.graph.nodes.filter((n) => n.gap).map((n) => n.id)));
-      setLitToday(topic.litToday);
-      setCalibSamples(topic.calibSamples);
-      setShakyReasons(topic.shakyReasons);
-      setPhasesDone(topic.phasesDone);
-      setReviewedNodes(topic.reviewedNodes);
-      setCards(topic.cards);
-      setConsumeProgress(topic.consumeProgress);
-      setModalityTally(topic.modalityTally);
-      setSocraticProgress(topic.socraticProgress);
-      setFeynmanProgress(topic.feynmanProgress);
-      setConnectProgress(topic.connectProgress);
-      setPhaseProgress(topic.phaseProgress);
-      setMisconceptions(topic.misconceptions);
       setScreen("map");
       // What the server already has, so the first debounce after a load sends
       // nothing — without it every open re-uploads the map it just read.
@@ -484,7 +477,7 @@ export function useRunState(opts: {
       // network. Never written back — see `hydrateContent`.
       void hydrateContent(topic.id, applyCaches);
     },
-    [warm, applyCaches, clearContentCaches, resetSessions, resetTransient, setScreen],
+    [warm, applyCaches, resetRun, resetSessions, resetTransient, setScreen],
   );
 
   /** One request for everything: profile and library together. It used to be

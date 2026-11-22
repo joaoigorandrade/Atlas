@@ -42,7 +42,7 @@ import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import ExamView from "@/components/session/ExamView";
 import ExamInvite from "@/components/map/ExamInvite";
-import GeneratingOverlay from "@/components/GeneratingOverlay";
+import GeneratingOverlay, { type Loading } from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas from "@/components/map/MapCanvas";
 import { useToast } from "@/components/atlas/useToast";
@@ -99,12 +99,9 @@ export default function AtlasApp({
   const setScreen = usePageTurn(screen, setScreenNow);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // The "AI is writing this" overlay, or null.
-  const [loading, setLoading] = useState<{
-    phase: string;
-    message: string;
-  } | null>(null);
+  const [loading, setLoading] = useState<Loading | null>(null);
   // Held so the overlay has copy to render while it fades out.
-  const lastLoading = useRef<{ phase: string; message: string } | null>(null);
+  const lastLoading = useRef<Loading | null>(null);
   if (loading) lastLoading.current = loading;
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
