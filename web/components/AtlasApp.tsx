@@ -725,7 +725,9 @@ export default function AtlasApp({
           form={form}
           onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           onBuild={build}
-          onBack={mapCards.length ? enterDashboard : undefined}
+          // Any saved map — continents included — or a library that failed to
+          // load (the dashboard is where its retry is) is somewhere to go back to.
+          onBack={run.maps.length || mapsFailed ? enterDashboard : undefined}
           upload={upload}
           scopes={scopes}
           onPickScope={pickScope}

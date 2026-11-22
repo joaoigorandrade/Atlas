@@ -204,6 +204,12 @@ export async function openRun(
   tables.topics = (tables.topics ?? []).map((t) => ({ ...t, ...topic }));
   await writeTables(page.request, tables);
   await page.goto("/");
+  await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
+  // A fresh tab arrives on the dashboard (lib/landing.ts); a tab that already
+  // built the run above reloads onto the map.
+  const app = page.getByTestId("app");
+  if ((await app.getAttribute("data-screen")) === "dashboard")
+    await page.getByText(/Open the map →|Abrir o mapa →/).click();
   await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
   await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
   return (await readRun(page.request))!;

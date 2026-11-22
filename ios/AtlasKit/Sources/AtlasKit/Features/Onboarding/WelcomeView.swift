@@ -15,6 +15,14 @@ struct WelcomeView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // A learner who already has maps came here from "Novo
+                    // mapa" — this is the way back to them.
+                    if onboarding.canLeave {
+                        BackButton { onboarding.leave() }
+                            .padding(.leading, -12)
+                            .padding(.top, -12)
+                            .padding(.bottom, 8)
+                    }
                     Kicker("Atlas · aprenda qualquer coisa, a fundo", size: 11)
                     Text("O que você quer aprender?")
                         .font(.atlas(.display, 34))

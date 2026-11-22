@@ -31,7 +31,9 @@ export default async function Home() {
   // Skipped in fixture mode: the tables live in the test process's memory, and
   // `initial` is left off entirely rather than passed as null — null means "the
   // server looked and there is nothing", and the client takes it at its word.
-  let initial: { profile: Profile; topics: Topic[] } | null = null;
+  // `undefined` when the query fails, never null: null tells the client "this
+  // learner has no maps" and opens map creation over a library that exists.
+  let initial: { profile: Profile; topics: Topic[] } | undefined;
   if (FIXTURES) return <AtlasApp userEmail={FIXTURE_EMAIL} />;
   try {
     const [profile, topics] = await Promise.all([
