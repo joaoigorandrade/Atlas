@@ -333,7 +333,9 @@ how content is stored, addressed or read on either client.
   straight into the new renderer. A bump abandons every row in the table, and
   the TTL prune drops cold ones: neither may cost a learner their content, which
   is why `node_content` keeps the payload beside the pointer and the prune skips
-  addressed rows. `docs/CONTENT-STORAGE.md` is the contract.
+  addressed rows. A prompt change that leaves the shape alone moves one kind,
+  not the table: bump that kind's entry in `PROMPT_REV` (same file), and every
+  other kind keeps its address. `docs/CONTENT-STORAGE.md` is the contract.
 - **`lib/server/job.ts`** — normalization, cache key, and generation resolved in
   one place, so `/api/generate` and the `/api/content` batch read address the
   same row. A new kind goes here, not in a route.

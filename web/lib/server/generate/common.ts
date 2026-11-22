@@ -30,6 +30,16 @@ export function str(v: unknown, name: string): string {
   return v.trim();
 }
 
+/** A required string that is not a shape's own placeholder. Shapes show "…"
+ *  where the prompt's rules ask for content; a "…" passes `str` and would
+ *  reach the learner as the content itself. */
+export function filled(v: unknown, name: string): string {
+  const s = str(v, name);
+  if (/^[.…\s]+$/.test(s))
+    fail(`${name} is the shape's placeholder — write the content itself`);
+  return s;
+}
+
 /** A node id as the map stores it, and how every echoed id is matched back.
  *  Accents are folded, not dashed: "joão-batista" and "joao-batista" must be
  *  one id, or a pt-BR map carries the same concept twice. */
@@ -121,7 +131,10 @@ export const SYSTEM: ChatMessage = {
     "You are the content engine of Atlas, a mastery-learning platform built on a living concept map. " +
     "You produce rigorous, honest pedagogy: precise definitions, desirable difficulties, anti-sycophancy " +
     "(wrong reasoning is caught and named, never smoothed over). " +
-    "Reply with ONLY one valid JSON object — no markdown fences, no prose before or after. " +
+    // Format-neutral on purpose: the streamed kinds ask for a SEQUENCE of
+    // top-level objects, and a system line saying "ONLY one object" handed
+    // the model a contradiction it resolved a different way each time.
+    "Reply with JSON only — no markdown fences, no prose before, after or between. The request says whether that is one object or a sequence of separate objects. " +
     MATH_RULE,
 };
 
@@ -270,6 +283,8 @@ const KIND_NOTES: Record<
   Partial<Record<PhaseId, string>>
 > = {
   fact: {
+    explain:
+      "THIS CONCEPT IS A FACT. The problem card says why it is worth having at hand; the analogy is a memory hook rather than a mechanism, and its breaks says what the hook gets wrong; the order is short — the fact, then where it turns up.",
     consume:
       // Not "no worked example": `validateConsumeSection` requires one on every
       // section, so a model that obeyed had every section dropped, the stream
@@ -279,6 +294,8 @@ const KIND_NOTES: Record<
       "THIS CONCEPT IS A FACT — an arbitrary association with nothing to reason from. Write 1-2 short sections and a hook that makes it stick. NO figure: there is no structure to draw. Keep the worked example to the shortest thing that shows the fact in use. Explanation is wasted here; the learner's job is to remember it.",
   },
   procedure: {
+    explain:
+      "THIS CONCEPT IS A PROCEDURE. The order is the procedure's own steps, each named by the purpose it serves, and the check-back asks the listener which step comes next on a case they have not seen.",
     consume:
       "THIS CONCEPT IS A PROCEDURE — an ordered sequence the learner must be able to carry out. The WORKED EXAMPLE is the material, not an illustration hung off it: show the steps being run, in order, on a real case, and say what each step is for. A figure is worth it only if it carries the order.",
     connect:
@@ -287,6 +304,8 @@ const KIND_NOTES: Record<
       "THIS CONCEPT IS A PROCEDURE. The problem must require the learner to SELECT this procedure, not merely run it: give a situation where choosing correctly is the hard part, not the arithmetic.",
   },
   principle: {
+    explain:
+      "THIS CONCEPT IS A PRINCIPLE. The order is the causal chain, one link per idea, and the check-back asks the listener to predict what changes when one link changes.",
     consume:
       "THIS CONCEPT IS A PRINCIPLE — a causal relation or multi-stage mechanism. Give the mechanism and its derivation, not just the statement. A FIGURE IS REQUIRED and must carry the causal chain: each node a stage, each edge what that stage hands the next.",
     connect:

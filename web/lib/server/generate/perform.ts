@@ -15,18 +15,18 @@ import {
   arr,
   boundaryNote,
   fail,
-  interestNote,
+  filled,
   domainNote,
   kindNote,
   languageNote,
   obj,
   rejectEcho,
-  str,
   user,
 } from "./common";
 import {
   JUDGE_SYSTEM,
   judgeStream,
+  learnerText,
   verdictPrefix,
   VERDICT_FIRST_SHAPE,
   validateFeynmanJudgement,
@@ -52,9 +52,12 @@ export function validatePerform(nodeId: string, nodeLabel: string) {
       const s = obj(v, `steps[${i}]`);
       return {
         id: `pf-${nodeId}-${i + 1}`,
-        step: str(s.step, `steps[${i}].step`),
+        step: filled(s.step, `steps[${i}].step`),
         mustShow: arr(s.mustShow, `steps[${i}].mustShow`, 1, 3).map((m, j) =>
-          rejectEcho(str(m, `steps[${i}].mustShow[${j}]`), `steps[${i}].mustShow[${j}]`),
+          rejectEcho(
+            filled(m, `steps[${i}].mustShow[${j}]`),
+            `steps[${i}].mustShow[${j}]`,
+          ),
         ),
         loadBearing: s.loadBearing !== false,
       };
@@ -66,8 +69,8 @@ export function validatePerform(nodeId: string, nodeLabel: string) {
     return {
       nodeId,
       nodeLabel,
-      task: str(root.task, "task"),
-      scaffold: str(root.scaffold, "scaffold"),
+      task: filled(root.task, "task"),
+      scaffold: filled(root.scaffold, "scaffold"),
       steps,
     };
   };
@@ -77,7 +80,6 @@ export interface PerformParams extends Boundary {
   topic: string;
   nodeId: string;
   nodeLabel: string;
-  interests: string;
   language?: Language;
   nodeKind?: NodeKind;
   domain?: Domain;
@@ -98,35 +100,55 @@ export async function generatePerform(params: PerformParams): Promise<PerformCon
   );
 }
 
+/**
+ * The case and its hidden answer key, structured around what the run is for.
+ *
+ * - The steps are the procedure's SUBGOALS, named in the lesson's vocabulary:
+ *   the learner only sees them in the report afterwards, so the report is
+ *   where the procedure's shape is learned — the same labels Consume's worked
+ *   example leads its steps with.
+ * - `mustShow` carries the correct VALUE wherever a step produces one, so the
+ *   judge compares against a key instead of re-deriving the case under a
+ *   verdict-first deadline (reference-guided grading).
+ * - The case is sized in minutes, with clean numbers: an oversized case spends
+ *   the learner's time on arithmetic, which is not what this rung measures.
+ *
+ * No `interestNote`: a run has no analogy to flavour, and the prompt never
+ * used the interests for anything else (they are also out of the key; job.ts).
+ */
 async function writePerform(params: PerformParams): Promise<PerformContent> {
-  const { topic, nodeLabel, interests, language = "en" } = params;
+  const { topic, nodeLabel, language = "en" } = params;
   return generateJson(
     user(
-      `Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real.
-${interestNote(interests)}
-${boundaryNote(params)}${kindNote(params.nodeKind, "perform")}${domainNote(params.domain, "perform")}${cellNote(params.cell, "perform")}
+      `Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real. Nobody tells them the steps — working out what to do is part of the test.
 
-The case must be self-contained and specific — real values, real units, or a real situation — and must NOT say which steps to use or in what order. Working it out is the test.
-Its method is the one "${nodeLabel}" names and nothing lighter: the case must be UNSOLVABLE without this procedure as its own summary states it. A case a prerequisite's method already cracks (two unknowns solved by substitution when the node is row reduction) is the wrong case — size it until only this method works (three unknowns, a free variable, an inconsistency).${
+THE CASE ("task"):
+- Self-contained and specific: real values and units, or a real situation, with everything needed to work it, in a sentence or two.
+- It never names the steps, their order or the method.
+- Its method is the one "${nodeLabel}" names and nothing lighter. A case a prerequisite's method already cracks (two unknowns solved by substitution when the node is row reduction) is the wrong case — size it until only this method works (three unknowns, a free variable, an inconsistency).
+- Sized to be worked in about 5-10 minutes by someone who has the procedure: a run, not a project. Choose values that keep the arithmetic clean, so that the hard part is the procedure, not the sums.${
         params.rerun
-          ? `\nThe learner has already run this procedure on a case like this ${params.rerun} time(s) and seen the report. Same procedure, different values and a different surface — nothing from an earlier case may carry over as an answer.`
+          ? `\n- The learner has already run this procedure on a case like this ${params.rerun} time(s) and seen the report. Same procedure, different values and a different surface — nothing from an earlier case may carry over as an answer.`
           : ""
       }${lessonNote(params.lesson)}
 
-The learner never sees the steps below. A step is a thing their WORK has to show on this case, not a thing they should understand.
+THE STEPS are the hidden answer key the run is graded against. The learner never sees them before the run; afterwards each one is a line of their report.
+- One step per subgoal of the procedure, in order. "step" names the subgoal in 3-6 words, in the vocabulary the lesson used ("Form the augmented matrix", never "Step 2"), so that the report teaches the procedure's shape.
+- "mustShow": 1-3 specific, checkable things the work must contain at this step, each with its correct value on THIS case wherever the step produces one ("the pivot in row 1 is 2", "the net force, 14 N") — so the run is checked against a key, not re-derived. Never "understands" or "explains".
+- "loadBearing": false only when everything after the step would still be correct without it — a units check, a plausibility check, a stated assumption. Every step that feeds the next is load-bearing, and at least one must be.
+
+"scaffold" is offered ONLY if they stall: one sentence naming the first subgoal to reach, never its result.
+${boundaryNote(params)}${kindNote(params.nodeKind, "perform")}${domainNote(params.domain, "perform")}${cellNote(params.cell, "perform")}
+Where a note about this concept's kind, domain or weight differs from the rules above, the note wins.
 
 Return JSON:
 {
-  "task": "the concrete case, stated in a sentence or two, with everything needed to work it and nothing that gives away the method",
-  "scaffold": "one sentence offered ONLY if they stall — what to establish first, never a step's result",
+  "task": "…",
+  "scaffold": "…",
   "steps": [
-    { "step": "what this stage of the run produces (3-6 words)",
-      "mustShow": ["1-3 specific, checkable things the work has to show here — an intermediate value, a ratio applied, a check performed. Concrete to THIS case"],
-      "loadBearing": true },
+    { "step": "…", "mustShow": ["…"], "loadBearing": true },
     ...
-  ]   // ${PERFORM_STEP_BOUNDS.min}-${PERFORM_STEP_BOUNDS.max} steps
-}
-Mark a step "loadBearing": false only when everything after it would still be correct without it — a units check, a plausibility check, a stated assumption. Every step that feeds the next is load-bearing, and at least one step must be.${languageNote(language)}`,
+  ]   // ${PERFORM_STEP_BOUNDS.min}-${PERFORM_STEP_BOUNDS.max} steps${languageNote(language)}`,
     ),
     validatePerform(params.nodeId, nodeLabel),
     { label: "perform" },
@@ -171,23 +193,23 @@ function performJudgeMessages(params: JudgePerformParams): ChatMessage[] {
 
 The case: """${task}"""
 
-The steps a correct run shows:
+The answer key — what a correct run shows at each step, with the correct values where a step produces one:
 ${rows}
 
-Their work, verbatim: """${work}"""
+Their work:
+${learnerText("work", work)}
 
-Rule every step, by index:
-- "good": the work genuinely carries this step out and its result is right. A different but valid method that produces the correct result for this step is "good" — you are checking the run, not a preferred route.
-- "skipped": the step is simply missing from the run.
-- "confused": the step was carried out and its result is WRONG.
-Check the arithmetic and the units yourself before ruling. A correct method with a wrong number is "confused", not "good" — and a right final answer reached through a wrong intermediate value is still a wrong intermediate value.
-On "skipped" and "confused", quote the learner's own work that earned it in \`quote\` — the exact fragment, under 20 words.
+Rule every step, by index. Compare the work against the key, and check the arithmetic and the units yourself: where the key gives a value, the learner's must equal it (an equivalent form — 0.5 for 1/2, a different but valid order of operations — still matches).
+- "good": the work carries this step out and its result is right. A different valid method that reaches the right result is "good" — you are checking the run, not a preferred route.
+- "skipped": the step is missing from the run.
+- "confused": the step was carried out and its result is WRONG. A correct method with a wrong number is "confused", and a right final answer reached through a wrong intermediate value is still a wrong intermediate value.
+In each row, write \`quote\` BEFORE \`verdict\`: for a step you are about to rule "confused", the exact fragment of their work, under 20 words, that the ruling rests on; for "skipped" and "good", leave it empty.
 
 Return \`jargon\` as an empty array.
 
-In \`response\`, 2-4 sentences, as someone checking the work. Say where the run holds and where it breaks, naming the step and what it produced. Never smooth over a wrong result.
+In \`response\`, 2-4 sentences, as someone checking the work. Say where the run holds and where it breaks, naming the step. For the first broken step, say what went wrong and the rule that fixes it — what to do differently next time — without writing out the corrected value: the learner may come back to this same case. On a clean run, name what made it clean. Never smooth over a wrong result.
 
-Return JSON: {"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one per step], "response": "...", "jargon": []}${languageNote(language)}`,
+Return JSON: {"verdicts": [{"i": 0, "quote": "...", "verdict": "good" | "skipped" | "confused"}, ...one per step], "response": "...", "jargon": []}${languageNote(language)}`,
     },
   ];
 }

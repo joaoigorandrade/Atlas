@@ -29,6 +29,7 @@ import {
 import {
   JUDGE_SYSTEM,
   judgeStream,
+  learnerText,
   verdictPrefix,
   VERDICT_FIRST_SHAPE,
   validateFeynmanJudgement,
@@ -146,7 +147,8 @@ They were NOT shown the rubric below.${cued ? "\nThey took a one-sentence cue be
 Rubric — what a complete retrieval brings back:
 ${rows}
 
-What they wrote, verbatim: """${written}"""
+What they wrote, verbatim:
+${learnerText("answer", written)}
 
 Rule every row, by index:
 - "good": their own words genuinely deliver it. Their wording and order are their own — this is NOT a keyword match, and a spelling or accent difference in a name is not a miss.
@@ -158,7 +160,7 @@ Return \`jargon\` as an empty array. Unpacked terminology is Feynman's finding, 
 
 In \`response\`, 2-4 sentences to the learner, quoting their actual words. Retrieval is the signal, not eloquence: a terse correct answer is a good one, and a fluent answer missing a row is still missing it. Name what came back and what did not.
 
-Return JSON: {"verdicts": [{"i": 0, "verdict": "good" | "skipped" | "confused", "quote": "..."}, ...one per rubric row], "response": "...", "jargon": []}${languageNote(language)}`,
+Return JSON: {"verdicts": [{"i": 0, "quote": "...", "verdict": "good" | "skipped" | "confused"}, ...one per rubric row], "response": "...", "jargon": []}${languageNote(language)}`,
     },
   ];
 }

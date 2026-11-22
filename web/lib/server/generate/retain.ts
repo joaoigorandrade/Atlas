@@ -2,13 +2,12 @@
 import {
   arr,
   fail,
-  interestNote,
+  filled,
   languageNote,
   obj,
   oneOf,
   sizeRule,
   slug,
-  str,
   user,
 } from "./common";
 import { RETAIN_DRAFT_NODES, RetainContent, ReviewCard } from "@/lib/curriculum";
@@ -17,11 +16,15 @@ import { generateJson } from "@/lib/server/openrouter";
 
 const CARD_TYPES = ["recall", "why", "apply"] as const;
 
-/** The phases a card can be attributed to. Constrained rather than free text:
- *  the provenance line reads "from your {source} session", so a model that
- *  answers with a sentence ("your reading pass on Foundations") writes the
- *  learner a line with "your" in it twice. */
-const CARD_SOURCES = ["Consume", "Socratic", "Feynman", "Connect", "Crucible"] as const;
+/** The session a card is attributed to — the provenance line reads "from your
+ *  {source} session". Stamped here, no longer asked for: the model was told to
+ *  pick "which phase plausibly drafted it", which is metadata it could only
+ *  invent, and a card attributed to a Socratic session on a procedure (whose
+ *  plan has none) told the learner something false. Every plan opens with
+ *  Consume, and a card asks only what the node's reading taught, so this one
+ *  is true of every card. A truthful finer line needs the client to send the
+ *  phases each node actually ran. */
+const CARD_SOURCE = "Consume";
 
 /** How many cards one Retain draft may carry, whatever the rotation looks like.
  *  The band the prompt asks for is narrower and derived per request — see
@@ -86,22 +89,22 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
       const card: ReviewCard = {
         id: `r${i + 1}`,
         type,
-        source: oneOf(c.source, CARD_SOURCES, `cards[${i}].source`),
+        source: CARD_SOURCE,
         node,
         // A cloze card's answer IS its back; models routinely omit `back`
         // there, and rejecting that blocked the whole Review queue.
-        back: str(hasCloze ? (c.back ?? c.answer) : c.back, `cards[${i}].back`),
+        back: filled(hasCloze ? (c.back ?? c.answer) : c.back, `cards[${i}].back`),
         fails: true,
-        reExplain: str(c.reExplain, `cards[${i}].reExplain`),
+        reExplain: filled(c.reExplain, `cards[${i}].reExplain`),
       };
       if (hasCloze) {
         const cloze = arr(c.cloze, `cards[${i}].cloze`, 2, 2).map((s, j) =>
-          str(s, `cards[${i}].cloze[${j}]`),
+          filled(s, `cards[${i}].cloze[${j}]`),
         );
         card.cloze = [cloze[0], cloze[1]];
-        card.answer = str(c.answer, `cards[${i}].answer`);
+        card.answer = filled(c.answer, `cards[${i}].answer`);
       } else {
-        card.front = str(c.front, `cards[${i}].front`);
+        card.front = filled(c.front, `cards[${i}].front`);
       }
       return card;
     });
@@ -109,23 +112,53 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
   };
 }
 
+/**
+ * The card factory's prompt, organised around what a card has to survive:
+ * months of reviews, weeks apart, by someone who has not seen the material
+ * since. So it carries the card-writing rules a person would learn the hard
+ * way (focused, precise, consistent, effortful, standing alone), picks the
+ * card TYPE by what the node is rather than as a quota, and says plainly that
+ * `back` is the grading key — a typed answer is judged against all of it
+ * (`retainFlip` in `useRetain`), so anything extra written there becomes
+ * something the learner is marked down for not reproducing.
+ *
+ * `budgetMin` and `interests` are not in the prompt: the daily budget sizes
+ * the queue (`lib/fsrs.ts`), never a card, and a flash card has no analogy to
+ * flavour. Interests are out of the cache key too (job.ts).
+ */
 export async function generateRetain(params: {
   topic: string;
   budgetMin: number;
   nodes: Array<{ id: string; label: string; state: string; summary?: string }>;
-  interests: string;
   language?: Language;
 }): Promise<RetainContent> {
-  const { topic, budgetMin, nodes, interests, language = "en" } = params;
+  const { topic, budgetMin, nodes, language = "en" } = params;
   const band = retainCardBounds(nodes.length);
   return generateJson(
     user(
-      `Draft the review cards for the topic "${topic}".
-Cards are atomic — one fact each — and varied by type. Daily budget: ~${budgetMin} minutes.
-The learner's nodes in rotation (id: label — state — what it taught):
+      `Write the review cards for the topic "${topic}": the spaced-repetition cards that keep these concepts alive for months. Each card will be answered many times, weeks apart, by someone who has not looked at the material since — so a card is a small retrieval task you are designing for that future learner.
+
+The concepts in rotation (id: label — state — what it taught):
 ${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}${n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}`).join("\n")}
-Every card asks only for what its node teaches, as summarised here. Never a real-world spec, typical value, date or name the node does not cover: a card about a fact the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
-${interestNote(interests)}
+
+Every card asks only for what its node teaches, as summarised here. Never a real-world spec, typical value, date or name the node does not cover: a card about something the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
+
+WHAT MAKES A CARD WORK:
+- Focused: one detail per card. Never a list or a set on one card.
+- Precise: exactly one answer counts, so any careful reviewer would mark the same answer right.
+- Consistent: the same answer on every review.
+- Effortful: the answer has to be retrieved, not recognised — no yes/no, nothing readable off the question's own wording.
+- Standing alone: weeks from now, out of context, the learner must know what it asks, so name the topic or the case on the card itself.
+- Distinct: no two cards share a cue, and no card is answered by another concept's answer.
+- Short: a question under about 20 words, an answer of a few words.
+
+PICK THE TYPE BY WHAT THE CONCEPT IS:
+- "recall" for a definition, a name, a value, a symbol or a condition. A cloze: "cloze" is one sentence split around ONE blank, and "answer" fills it. The blank is the meaningful term — the quantity, the name, the relation — never a function word, and the words around it leave only one possible fill.
+- "why" for a cause, a mechanism or a reason the concept rests on: "front" asks why or how; "back" is the reason, in one sentence.
+- "apply" for a method or a rule: "front" gives a small concrete case, with any values it needs, and asks for the result or the next move; "back" is that result.
+
+"back" is the key a typed answer is graded against. For "why" and "apply", put in it only what the learner must produce — the one sentence that counts, nothing added to explain it. For "recall", "back" is the answer alone: the filled blank already shows the whole sentence, and both apps hide a back that only repeats it.
+"reExplain" is shown when the card is missed: under 60 words, it points at what forces the answer — the earlier idea it rests on, or one concrete case traced through — rather than restating the back, and it ends with one question.
 
 ${sizeRule({
   unit: "cards",
@@ -135,24 +168,26 @@ ${sizeRule({
   atMax: "a rotation where a node genuinely holds two separate facts",
 })} A node earns a second card only when it carries two facts that can be missed independently — never a second cut at the same one.
 
-Write the cards only. Scheduling — when each card is next due, and what each
-grade button is worth — is the scheduler's job, not yours.
+Write the cards only. Scheduling — when each card is next due, and what each grade button is worth — is the scheduler's job, not yours.
 
 Return JSON:
 {
-  "cards": [   // ${band.min}-${band.max} cards; mix of types; "recall" cards use cloze, "why"/"apply" use front
+  "cards": [   // ${band.min}-${band.max} cards
     {
       "type": "recall" | "why" | "apply",
-      "source": "Consume" | "Socratic" | "Feynman" | "Connect" | "Crucible",   // exactly one of these five words — which phase plausibly drafted it
       "node": "a node id from the list",
-      "cloze": ["text before the blank ", " text after the blank"],   // recall only
-      "answer": "what fills the blank",                                 // recall only
-      "front": "the question",                                          // why/apply only
-      "back": "the full answer revealed on flip, 1-2 sentences",
-      "reExplain": "the 30-second Socratic re-explanation shown if this card is missed"
+      "cloze": ["text before the blank", "text after the blank"],   // recall only
+      "answer": "…",                                                // recall only
+      "front": "…",                                                 // why / apply only
+      "back": "…",
+      "reExplain": "…"
     }, ...
   ]
-}${languageNote(language)}`,
+}
+
+Two filled-in cards from an unrelated concept (reading a 24-hour clock), to show the precision expected — copy their FORM, never their content:
+{"type": "recall", "node": "…", "cloze": ["On a 24-hour clock, an hour past 12 becomes the 12-hour time when you", "from it."], "answer": "subtract 12", "back": "subtract 12", "reExplain": "The 24-hour clock keeps counting after noon instead of starting again at 1. So 13 is one hour past noon. What do you take away from 13 to land back on 1?"}
+{"type": "why", "node": "…", "front": "On a 24-hour clock, why is 00:30 just after midnight rather than just after noon?", "back": "Because the 24-hour day starts counting at midnight, so hour 00 is the first hour after it.", "reExplain": "Noon is halfway through the count, at 12. Where does a count of 24 hours have to start for 12 to land in the middle?"}${languageNote(language)}`,
     ),
     validateRetain(budgetMin, new Set(nodes.map((n) => n.id))),
     { label: "retain" },

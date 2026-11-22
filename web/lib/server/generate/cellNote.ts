@@ -24,7 +24,7 @@ const BAR_NOTE = {
 const BLACK_BOX =
   " It is also genuinely hard, and deliberately taught as a BLACK BOX: say what it does and when it comes up, never how it works inside.";
 
-/** The reading teaches; every other phase tests. Difficulty asks different
+/** The reading teaches (and Explain models teaching); every other phase tests. Difficulty asks different
  *  things of each: more explanation in the one, a gentler climb in the other. */
 const DIFFICULTY_NOTE = {
   hard: {
@@ -41,6 +41,10 @@ const DIFFICULTY_NOTE = {
   },
 } as const;
 
+/** The phases that teach rather than test. Explain models an explanation, so
+ *  a hard concept wants its smaller steps there too, not "make the items climb". */
+const TEACHING: ReadonlySet<PhaseId> = new Set<PhaseId>(["consume", "explain"]);
+
 /** The prompt note for a node's cell in one phase — "" for the default cell. */
 export function cellNote(cell: Cell | undefined, phase: PhaseId): string {
   if (!cell || cell === DEFAULT_CELL) return "";
@@ -53,7 +57,7 @@ export function cellNote(cell: Cell | undefined, phase: PhaseId): string {
     );
   // A black box has no inside to scaffold, so its difficulty says nothing more.
   if (difficulty !== "medium" && !(bar === "recognise" && difficulty === "hard"))
-    notes.push(DIFFICULTY_NOTE[difficulty][phase === "consume" ? "reading" : "practice"]);
+    notes.push(DIFFICULTY_NOTE[difficulty][TEACHING.has(phase) ? "reading" : "practice"]);
   return notes.length ? `\n${notes.join("\n")}` : "";
 }
 

@@ -8,6 +8,10 @@ is known about prompting LLMs, and what is known about writing learning content.
 Paths are relative to `web/` unless they start with `docs/`. Line numbers are
 from the commit this file landed in.
 
+**Status.** §8 records the restructure of Consume, Explain, Perform and
+Retain that followed this review, and it is implemented. Where §5–§6 and §8
+differ on those four, §8 is current.
+
 **How to read it.** §1 is the short list. §2 and §3 are the research, each rule
 paired with what it means for Atlas. §4 is what the prompts already get right,
 which is a lot. §5 covers the problems that cut across many prompts. §6 goes
@@ -21,18 +25,18 @@ away the content cache.
 Ranked by expected effect on learning quality and gate integrity, divided by
 effort.
 
-| #   | Change                                                                                                                                                                                                                          | Where                                                                    | Effort |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------ |
-| 1   | **Shuffle every closed item's options on the server**, as `consume.ts` and `exam.ts` already do. Six kinds ship the answer wherever the model put it, after a schema that shows `"answerIndex": 0`.                           | discriminate, predict, trace, drill, diagnostic, explain                 | S      |
-| 2   | **Put the justification before the key** in every closed-item schema (`decidedBy` / `because` / `handsOn` / `rule` before `answerIndex`), so the key follows from written reasoning instead of the reasoning defending a key. | same six                                                                 | S      |
-| 3   | **Ground every practice phase in the lesson that was read**, not only Perform. Today ten phases write their items from the concept's label, so they can test what the reading never taught.                                   | jobInput `lessonAxis` → all per-node kinds                               | M      |
-| 4   | **Fix the contradictions the model is handed**: the system message says "ONLY one JSON object" while seven streamed prompts ask for many; `glance` and the domain rows each claim to override the other.                    | `common.ts:124`, `judge.ts:23`, `mapPrompt.ts:26,208`                    | S      |
-| 5   | **Fix the shell-quote leak**: three prompt sentences send `TOPIC'"'"'s` and `B'"'"'s` to the model.                                                                                                                            | `mapPrompt.ts:196,211`                                                   | XS     |
-| 6   | **Guard the judges against instructions in learner text**: say in `JUDGE_SYSTEM` that the learner's words are data, and wrap them in tags they cannot close.                                                                  | `judge.ts:17`, every judge                                               | S      |
-| 7   | **Give the Crucible judge a reference solution**. It grades transfer with only the hint in hand, while Perform's judge has checkable `mustShow` rows.                                                                          | `crucible.ts`, `judge.ts:267`                                            | S      |
-| 8   | **Stop the gears example from leaking**: Socratic, Feynman and the model view all use one bicycle-gears worked example, which bleeds into any mechanics, cycling or energy topic.                                               | `shapes.ts:63`, `socratic.ts:85`, `feynman.ts:119`                       | S      |
-| 9   | **Send the map only the chosen domain's row.** Jev can pick the domain in ~0.5 s, which removes the latency reason for sending all seven rows. The map prompt is the densest instruction set in the app.                       | `mapPrompt.ts`, `map.ts`                                                 | M      |
-| 10  | **Version prompts per kind in the cache key**, so improving one prompt refreshes that kind's rows without a global `VERSION` bump.                                                                                             | `contentCache.ts:153`                                                    | S      |
+| #   | Change                                                                                                                                                                                                                        | Where                                                 | Effort |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------ |
+| 1   | **Shuffle every closed item's options on the server**, as `consume.ts` and `exam.ts` already do. Five kinds ship the answer wherever the model put it, after a schema that shows `"answerIndex": 0`.                          | discriminate, predict, trace, drill, diagnostic       | S      |
+| 2   | **Put the justification before the key** in every closed-item schema (`decidedBy` / `because` / `handsOn` / `rule` before `answerIndex`), so the key follows from written reasoning instead of the reasoning defending a key. | same six                                              | S      |
+| 3   | **Ground every practice phase in the lesson that was read**, not only Perform. Today ten phases write their items from the concept's label, so they can test what the reading never taught.                                   | jobInput `lessonAxis` → all per-node kinds            | M      |
+| 4   | **Fix the contradictions the model is handed**: the system message says "ONLY one JSON object" while seven streamed prompts ask for many; `glance` and the domain rows each claim to override the other.                      | `common.ts:124`, `judge.ts:23`, `mapPrompt.ts:26,208` | S      |
+| 5   | **Fix the shell-quote leak**: three prompt sentences send `TOPIC'"'"'s` and `B'"'"'s` to the model.                                                                                                                           | `mapPrompt.ts:196,211`                                | XS     |
+| 6   | **Guard the judges against instructions in learner text**: say in `JUDGE_SYSTEM` that the learner's words are data, and wrap them in tags they cannot close.                                                                  | `judge.ts:17`, every judge                            | S      |
+| 7   | **Give the Crucible judge a reference solution**. It grades transfer with only the hint in hand, while Perform's judge has checkable `mustShow` rows.                                                                         | `crucible.ts`, `judge.ts:267`                         | S      |
+| 8   | **Stop the gears example from leaking**: Socratic, Feynman and the model view all use one bicycle-gears worked example, which bleeds into any mechanics, cycling or energy topic.                                             | `shapes.ts:63`, `socratic.ts:85`, `feynman.ts:119`    | S      |
+| 9   | **Send the map only the chosen domain's row.** Jev can pick the domain in ~0.5 s, which removes the latency reason for sending all seven rows. The map prompt is the densest instruction set in the app.                      | `mapPrompt.ts`, `map.ts`                              | M      |
+| 10  | **Version prompts per kind in the cache key**, so improving one prompt refreshes that kind's rows without a global `VERSION` bump.                                                                                            | `contentCache.ts:153`                                 | S      |
 
 Every one of these can be checked with the eval harness that already exists
 (`tests/content.eval.test.ts`, `tests/judge.eval.test.ts`). §7 lists the numbers
@@ -456,16 +460,16 @@ rewrites. Keep all of the following:
 
 ## 5. Cross-cutting findings
 
-### 5.1 Answer position is not randomised on six kinds
+### 5.1 Answer position is not randomised on five kinds
 
 **Evidence.** `discriminate.ts:107`, `predict.ts:97`, `trace.ts:95` and
 `drill.ts:101` show `"answerIndex": 0` in the schema and then say "Vary which
 index is correct". The validators reject only the case where every item has
 the same index (`discriminate.ts:71`, etc.). The diagnostic (`summary.ts:73`)
-shows `"correctIndex": 0` with no shuffle. Explain rotates by a hash of the
-node id (`explain.ts:48`), so the slot is fixed per node, and the model's
-favoured slot moves with it. Consume measured 73% / 27% / 0% across three
-slots before it shuffled.
+shows `"correctIndex": 0` with no shuffle. (Explain is already covered: it
+rotates the replies by a hash of the node id, `explain.ts:48`, which spreads
+the model's favoured slot evenly across nodes, so no learner can exploit it.)
+Consume measured 73% / 27% / 0% across three slots before it shuffled.
 
 **Why it matters.** A learner who notices "it's usually the first one" passes
 Discriminate, Predict, Trace and Drill without the concept. Those are gates.
@@ -479,8 +483,6 @@ exactly as `exam.ts:49` (`shuffled`) does. Then:
   the anchor entirely.
 - For Trace, every stage is independent in its options, so a per-stage
   shuffle is safe.
-- Explain can keep its deterministic rotation if it is applied after an
-  actual shuffle.
 
 The payload shape does not change, so no `VERSION` bump is needed. New rows
 are fixed as they are written.
@@ -745,12 +747,12 @@ validation, so only new rows are affected.
 
 ### 5.11 Hallucination surfaces
 
-| Field                                 | Risk                                                                | Today                                                                           | Next step                                                                                                                                                                                                                                 |
-| ------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Consume `cite`                        | Invented book or lecture; real work, wrong author                   | "OMIT if not sure"                                                              | Verify through the `search` role in the background after caching, and drop the field on a miss. Or restrict it to a curated list per topic.                                                                                               |
-| Provenance `source.excerpt`           | A quote invented inside a real document                             | "summarise it and say so"; `quoteHolds` only when a URL on `SOURCE_HOSTS` is given | Add `"verbatim": true/false` so a paraphrase is labelled as one on screen, never shown as a quote. Prefer the `search` role for this kind, as `withSyllabus` does for named parts.                                                         |
-| Steelman `heldBy`                     | A real historian named for a view they never held                   | "Name an individual only when you are certain"                                  | Same pattern: a `"confidence": "school" \| "named"` field, and a Jev noul question ("Did X argue Y?") before showing a personal name. Fall back to the school.                                                                             |
-| Map `PART_OF_WORK` with no web search | A wrong chapter's sections (5 in 12 per the comment)                | Search role for named parts                                                     | Already fixed; keep it.                                                                                                                                                                                                                   |
+| Field                                 | Risk                                                 | Today                                                                              | Next step                                                                                                                                                                          |
+| ------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Consume `cite`                        | Invented book or lecture; real work, wrong author    | "OMIT if not sure"                                                                 | Verify through the `search` role in the background after caching, and drop the field on a miss. Or restrict it to a curated list per topic.                                        |
+| Provenance `source.excerpt`           | A quote invented inside a real document              | "summarise it and say so"; `quoteHolds` only when a URL on `SOURCE_HOSTS` is given | Add `"verbatim": true/false` so a paraphrase is labelled as one on screen, never shown as a quote. Prefer the `search` role for this kind, as `withSyllabus` does for named parts. |
+| Steelman `heldBy`                     | A real historian named for a view they never held    | "Name an individual only when you are certain"                                     | Same pattern: a `"confidence": "school" \| "named"` field, and a Jev noul question ("Did X argue Y?") before showing a personal name. Fall back to the school.                     |
+| Map `PART_OF_WORK` with no web search | A wrong chapter's sections (5 in 12 per the comment) | Search role for named parts                                                        | Already fixed; keep it.                                                                                                                                                            |
 
 ### 5.12 Register and persona
 
@@ -916,7 +918,8 @@ prompt in the set.
 1. Wire `kindNote`, `domainNote` and `cellNote`, which it receives and
    drops (§5.9). A procedure's explanation should be ordered by steps, and a
    principle's by its causal chain.
-2. Replace "Vary its position" with a server shuffle (§5.1).
+2. Drop "Vary its position". The server's rotation already owns the
+   position (§5.1), so the line is only one more instruction.
 3. The listener's misconception and `misconception.belief` should be **the
    same** misconception. The prompt implies it ("voicing that
    misconception") but doesn't require it, and the validator can't check
@@ -1158,8 +1161,8 @@ own verdict. The judge rule on low-confidence ASR spans is excellent.
 **Improve.**
 
 1. `targetForms` are free text, and the judge interprets them. Ask for a
-   **concrete exemplar** per form ("subjunctive after *ojalá* — e.g. *ojalá
-   que venga*"). It doesn't change the learner's view, and it makes `good`
+   **concrete exemplar** per form ("subjunctive after _ojalá_ — e.g. _ojalá
+   que venga_"). It doesn't change the learner's view, and it makes `good`
    vs `thin` checkable.
 2. `seconds` is model-chosen, then clamped. Tie it to the cue: "~3 s per
    target-language word a natural answer needs".
@@ -1448,16 +1451,16 @@ design, but it's a reason to shrink the map prompt (§5.8).
 **Measure first.** The eval harness exists. Before and after each change,
 record per kind:
 
-| Metric                    | Source                                                               | Target                                                 |
-| ------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------ |
-| Key position distribution | count `answerIndex` / `correctIndex` per slot over the eval panel    | uniform ±10% (automatic once §5.1 lands)               |
-| Key-is-longest rate       | correct option is the strictly longest option                        | ≤ 1/n                                                  |
-| Disputed-key rate         | `verify_dropped` + `verify_disputed` log events / items              | down after §5.2                                        |
-| Validation-fail rate      | `generate` log lines with `outcome: "validation-fail"`, `attempts: 2` | down after §5.4                                        |
-| Echo rate                 | `rejectEcho` failures                                                | down after §5.7                                        |
-| Off-lesson items          | Jev noul per item: "Is this answerable from the lesson digest?"     | new metric, once §5.3 lands                            |
-| Injection resistance      | one adversarial case per judge in `judge.eval.test.ts`              | 0 rows flipped                                         |
-| Overlap uncached          | `overlap_uncached` log events                                        | down after the boundary feedback (§6.25)              |
+| Metric                    | Source                                                                | Target                                   |
+| ------------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
+| Key position distribution | count `answerIndex` / `correctIndex` per slot over the eval panel     | uniform ±10% (automatic once §5.1 lands) |
+| Key-is-longest rate       | correct option is the strictly longest option                         | ≤ 1/n                                    |
+| Disputed-key rate         | `verify_dropped` + `verify_disputed` log events / items               | down after §5.2                          |
+| Validation-fail rate      | `generate` log lines with `outcome: "validation-fail"`, `attempts: 2` | down after §5.4                          |
+| Echo rate                 | `rejectEcho` failures                                                 | down after §5.7                          |
+| Off-lesson items          | Jev noul per item: "Is this answerable from the lesson digest?"       | new metric, once §5.3 lands              |
+| Injection resistance      | one adversarial case per judge in `judge.eval.test.ts`                | 0 rows flipped                           |
+| Overlap uncached          | `overlap_uncached` log events                                         | down after the boundary feedback (§6.25) |
 
 **Then ship in this order.**
 
@@ -1481,6 +1484,202 @@ Remember the `docs/CONTENT-STORAGE.md` contract: a payload **shape** change
 needs a `VERSION` bump. None of the above changes a shape except raising the
 Drill and Predict floor to three options, and cached rows skip validation,
 so even that one only affects new generations.
+
+---
+
+## 8. Consume, Explain, Perform and Retain, restructured
+
+These four phases are the spine every plan shares: the first reading, a model
+of how to explain the concept, carrying it out, and keeping it. This section
+records how their prompts were rebuilt to maximise learning per minute of
+the learner's time, and what that costs.
+
+**Scope.** Prompt text and validators only. No payload shape changed, so
+neither client needs a change and no `VERSION` bump is owed. A per-kind
+prompt revision (`PROMPT_REV` in `lib/server/contentCache.ts`) moves only
+these four kinds' cache addresses.
+
+### 8.1 The principle: write for the path the learner actually takes
+
+The old prompts described what each field _is_. The new ones open with how
+the learner _meets_ the content, then ask for each field in the form that use
+needs. Tracing each phase from prompt to screen to grade showed that several
+fields were written for one job and used for another:
+
+| Field                     | What the prompt asked for                               | What the screen does with it                                                                                               | Now asked for                                                                               |
+| ------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Consume `check`           | "a receipt for reading"                                 | Asked **before** the section, open-answer first; a right answer **collapses the section to its takeaway** (`afterPretest`) | A stand-alone, open-answerable question on the takeaway                                     |
+| Consume `takeaway`        | "the one sentence to carry out", written last           | **All** a learner who passed the pretest sees of the section                                                               | Written first, complete and precise enough to stand in for the section                      |
+| Consume `ask`             | "a mini-Socratic prompt that answers … with a question" | The suggested question in "ask about this" (`PassagePanel`)                                                                | The question a learner is most likely left with, in their words                             |
+| Perform `step`            | "what this stage produces (3-6 words)"                  | The line of the run report the learner reads after grading                                                                 | The subgoal's name, in the lesson's vocabulary, so the report teaches the procedure's shape |
+| Perform `mustShow`        | "an intermediate value, a ratio applied…"               | The judge's key, under a verdict-first deadline                                                                            | The checkable item **with its correct value**                                               |
+| Retain `back` (why/apply) | "the full answer revealed on flip, 1-2 sentences"       | The **grading key** for a typed answer (`retainFlip` → the Recall judge's one row)                                         | Only what the learner must produce; anything extra was being graded too                     |
+| Retain `back` (cloze)     | the full answer                                         | Hidden by both clients when it equals the answer                                                                           | The answer alone, so the card doesn't show the same sentence twice (Mayer's redundancy)     |
+| Retain `source`           | "which phase plausibly drafted it"                      | "from your {source} session"                                                                                               | Stamped by the server; never asked                                                          |
+
+### 8.2 Consume (`consume.ts`, `shapes.ts`)
+
+- **Pretest-aware.** The prompt now says the check is answered cold before the
+  section, and that a right answer collapses it to the takeaway. So the check
+  tests the takeaway, which is the narrow effect prequestions actually have
+  (§3.2), and the takeaway carries the idea on its own. A learner who
+  already knows a section now gets a takeaway written to replace it, not a
+  summary of it.
+- **Open-answerable check.** The question states its case, asks for something
+  sayable in a phrase, and never says "which of the following", because it is
+  put to the learner as an open question first.
+- **`right` gives the reason**, so a learner who guessed the pretest right
+  still leaves with the idea (§3.9).
+- **The takeaway is written first** (field order in the shape), so the
+  section's prose, example and check are written to serve one decided idea.
+  Drafts are unaffected: they are assembled by `draftConsumeSection` and
+  always carry an empty takeaway.
+- **Refutation, once, where it bites**: state the belief, say it is wrong, say
+  why it is tempting, show where it fails (§3.3). This replaces "name the
+  misconception and say why it is wrong".
+- **Subgoal-labelled worked examples**: every step opens with a bold
+  purpose label (`**Set up:** …`). Both clients render the bold (§3.6), and
+  Perform's step names now use the same vocabulary.
+- **Register**: second person, conversational (Mayer's personalization
+  principle, §3.7). An analogy must say where it stops holding (§3.8).
+- **One language note** (the stream variant used to append it twice), one
+  statement of each rule (the shape's comments now carry only counts), and an
+  explicit precedence: kind, domain and cell notes win over the general rules.
+- **A three-field filled example** (takeaway, labelled steps, check), off-topic
+  by design. The validator now refuses the shape's "…" placeholder in any
+  required field (`filled` in `common.ts`).
+
+### 8.3 Explain (`explain.ts`)
+
+- **What it is for, stated**: this is the one worked example of an
+  explanation the learner sees before Feynman asks for their own. The prompt
+  says so, and the cards are capped at 1–3 sentences: a model to hold in
+  mind, not a second reading.
+- **One thread**: the listener voices exactly the card's `belief`, and the
+  right reply attacks its tempting root using a move the cards modelled.
+- **Wrong replies fail for named reasons** (restating the definition,
+  correcting a side detail, appeal to authority, unexplained jargon), and each
+  `why` names the move. The learner leaves with a principle of explaining
+  that transfers to Feynman, not only this answer.
+- **`checkBack` must make the listener use the idea** on a new case. Never
+  "does that make sense?", never "repeat it".
+- **The levers it was dropping are wired**:
+  - kind rows for `explain` (a procedure's order is its steps, a principle's
+    is its causal chain, a fact's analogy is a memory hook);
+  - the cell note in the teaching register (`TEACHING` in `cellNote.ts`), so a
+    peripheral concept gets a shorter model and a hard one smaller steps;
+  - `domainNote`.
+- **Deliberately not done: grounding in the lesson.** Explain is warmed the
+  moment Consume opens (`warmNext(node, "consume")` in `useSpiral`), often
+  before the reading has been recorded. A lesson-keyed Explain would hash
+  differently at warm time and at click time, so every node would be paid
+  for twice. The fix is to warm Explain after the Consume payload commits,
+  on both clients. Then stamp a digest of the lesson (takeaways and terms)
+  the way `withNodeCell` stamps `lesson` for Perform.
+
+### 8.4 Perform (`perform.ts`)
+
+- **Steps are subgoals**, named in the lesson's vocabulary, because the report
+  is where the learner sees them. It now teaches the procedure's structure,
+  in the same words as Consume's labelled example.
+- **`mustShow` carries the correct values** (reference-guided grading, §2.6).
+  The judge compares against a key rather than re-solving the case while
+  committing to a verdict first.
+- **The case is sized in time** (5–10 minutes) **with clean numbers**: a run,
+  not a project. The hard part is the procedure, not the arithmetic.
+- **The scaffold names the first subgoal**, never its result.
+- **No interests**: the prompt never had anything for them to flavour. They
+  are out of the cache key too, so learners who typed different interests now
+  share one case.
+- **The judge**:
+  - fences the learner's work (`learnerText`) and compares it to the key,
+    allowing equivalent forms;
+  - writes the quote **before** the verdict, so a "confused" ruling rests on
+    the cited fragment (§2.5);
+  - gives process-level feed-forward: what went wrong at the first broken
+    step and the rule that fixes it, **without** the corrected value. A
+    failed run can be parked and reopened on the same case (`exitPerform`),
+    so naming the value would hand over the answer.
+
+### 8.5 Retain (`retain.ts`)
+
+- **Card-writing rules** from the spaced-repetition literature (§3.11):
+  focused, precise, consistent, effortful, standing alone, distinct, short.
+  A cloze blanks the meaningful term, with only one possible fill.
+- **Type by what the concept is**, not as a mix: recall for definitions,
+  names and values; why for causes; apply for methods.
+- **`back` is the grading key**, and the prompt says so. For why/apply it holds
+  only what must be produced. For a cloze it is the answer alone.
+- **`reExplain`**: under 60 words, points at what forces the answer, ends with
+  a question. This is the 30-second aside the type was always described as.
+- **`source` is stamped** "Consume". Every plan opens with it, and a card asks
+  only what the reading taught. The model's guess could name a session the
+  node's plan never had.
+- **No budget or interests in the prompt**: the budget sizes the queue
+  (`lib/fsrs.ts`), never a card. Interests are out of the key.
+- Two filled cards, off-topic.
+- **Not done:** the card type would be sharper with each node's `kind`, but
+  both clients would have to send it in `nodes`.
+
+### 8.6 What the four needed from the shared code
+
+- `PROMPT_REV` (`contentCache.ts`): `consume`, `explain`, `perform`, `retain`
+  at 2. Every other kind hashes exactly as before, and `tests/contentCache`
+  pins both forms.
+- `SYSTEM` is format-neutral: no "ONLY one JSON object" under prompts that
+  ask for a sequence (§5.4). This reaches every kind's new generations but
+  moves no other kind's cache address.
+- `JUDGE_SYSTEM`: learner text is data, never instructions; length is not
+  evidence; credit by naming, never praise words. `learnerText` fences
+  Perform's work and the Recall judge's answer, which is also what grades a
+  Retain card typed before flipping.
+- `VERDICT_FIRST_SHAPE` rows are `{"i", "quote", "verdict"}`. The validators
+  don't depend on order, and the Feynman and Recall judges read the same
+  shape.
+- `filled()` refuses a shape's "…" placeholder wherever these four kinds
+  require text.
+
+### 8.7 Cost, and what is still unmeasured
+
+**Prompt length** (words, rendered for one procedure node, before → after):
+
+| Prompt        | Before | After | Change |
+| ------------- | -----: | ----: | -----: |
+| consume       |   1127 |  1557 |   +38% |
+| explain       |    637 |   833 |   +31% |
+| perform       |    613 |   694 |   +13% |
+| retain        |    479 |   935 |   +95% |
+| perform judge |    367 |   559 |   +52% |
+
+The prompts are longer. Input tokens are the cheaper side of a call, and a
+Consume pass's output is several times its input. The bets on the learner's
+time are:
+
+- sections a learner already knows collapse to a takeaway designed to stand
+  alone;
+- Explain cards are capped at three sentences;
+- cards are short, and their backs minimal;
+- a Perform case is sized to minutes.
+
+None of that is measured yet. There was no model key in the environment
+where this was written, so no live generation or eval ran.
+
+**Before deploying**, run `npm run eval` and the content eval panel, and read
+these against the previous prompts:
+
+- validation-fail rate per kind (the placeholder guard can add retries);
+- `verify_dropped` on Consume checks;
+- section count, and words per section;
+- pretest-collapse rate (`ConsumeProgress.pretest`);
+- the Retain flip suggestion's agreement with the learner's own grade (a
+  minimal `back` should raise it);
+- Perform `confused` rows that carry a quote.
+
+**Re-billing.** The revision bump means the next learner to open an
+unvisited node on these four kinds pays for a generation. Nobody loses
+content they already have: `node_content` keeps it. Dropping `interests` from
+the Perform and Retain keys works the other way: more learners now share each
+row.
 
 ---
 
