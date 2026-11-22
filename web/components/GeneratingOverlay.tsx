@@ -11,6 +11,9 @@ const STRINGS = {
   "pt-BR": { generating: "gerando", back: "Cancelar" },
 } as const;
 
+/** What the overlay says — AtlasApp's `loading` state, while it is up. */
+export type Loading = { phase: string; message: string };
+
 /**
  * The full-screen "the AI is writing this" moment shown while a session's
  * content is generated. Blocks interaction — content arrives in one piece.
@@ -20,11 +23,9 @@ export default function GeneratingOverlay({
   phase,
   message,
   onCancel,
-}: {
+}: Loading & {
   /** False fades the scrim out; content behind it shouldn't snap into view. */
   open: boolean;
-  phase: string;
-  message: string;
   /** A slow model can hold this for minutes; the learner is never trapped. */
   onCancel: () => void;
 }) {

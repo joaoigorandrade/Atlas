@@ -71,7 +71,10 @@ A change of screen is a crossfade (View Transitions, ~340ms). `data-screen` and
 `data-sheet` update one frame after the old page is snapshotted, and the fade is
 purely visual — the new page is live under it — so assert on the attributes,
 not on a screenshot taken mid-fade. Under `reducedMotion: "reduce"` there is no
-fade at all.
+fade at all. Input is the exception: while the fade runs (`html[data-turn]` is
+set) the browser hit-tests every pointer and touch event to `<html>`. A locator
+`click()` waits that out by itself; a raw `page.mouse` or `page.touchscreen`
+event must wait for `html[data-turn]` to clear first (`openRun` does).
 
 | Selector                                                                         | What it addresses                                                                   |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |

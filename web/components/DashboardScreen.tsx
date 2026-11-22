@@ -86,6 +86,9 @@ const excludeButtonStyle = {
   cursor: "pointer",
 } as const;
 
+/** The gilt light beside the streak, and on the frontier card. */
+const giltDot = { background: "#b0852c", boxShadow: "0 0 8px rgba(176,133,44,0.6)" };
+
 const confirmButtonBase = {
   padding: "7px 13px",
   borderRadius: 3,
@@ -143,15 +146,7 @@ export default function DashboardScreen({
             color: color.inkMuted,
           }}
         >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#b0852c",
-              boxShadow: "0 0 8px rgba(176,133,44,0.6)",
-            }}
-          />
+          <span style={{ width: 8, height: 8, borderRadius: "50%", ...giltDot }} />
           <span style={{ fontWeight: 600, color: color.ink }}>{streak}</span>{" "}
           {t.dayStreak(streak)}
         </div>
@@ -234,7 +229,7 @@ export default function DashboardScreen({
               onOpen={onOpenMap}
               frame={color.gilt}
               ink={color.amberInk}
-              dot={{ background: "#b0852c", boxShadow: "0 0 8px rgba(176,133,44,0.6)" }}
+              dot={giltDot}
               label={t.yourFrontier}
               title={frontierConcept ?? t.allCaughtUp}
               body={
