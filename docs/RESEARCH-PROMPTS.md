@@ -10,7 +10,10 @@ from the commit this file landed in.
 
 **Status.** §8 records the restructure of Consume, Explain, Perform and
 Retain that followed this review, and it is implemented. Where §5–§6 and §8
-differ on those four, §8 is current.
+differ on those four, §8 is current. `docs/RESEARCH-PHASES.md` is the second
+pass over the same four. It adds research, fixes in §7 what this review left
+open (the fact and principle notes, Retain's grounding), and proposes how to
+restructure the phases themselves.
 
 **How to read it.** §1 is the short list. §2 and §3 are the research, each rule
 paired with what it means for Atlas. §4 is what the prompts already get right,

@@ -75,12 +75,17 @@ const VERSION = process.env.CONTENT_CACHE_VERSION || "13";
  *
  * 2: the learning-structure rewrite of Consume, Explain, Perform and Retain
  *    (`docs/RESEARCH-PROMPTS.md`, section 8).
+ * 3: the second pass over the same four (`docs/RESEARCH-PHASES.md` §7): a
+ *    reading that starts from a prerequisite, shorter prose, a check on a
+ *    case the example did not work; a concrete Explain problem and the
+ *    standard misconception; Perform's lesson first; Retain cards grounded in
+ *    the reading's takeaways and typed by kind.
  */
 export const PROMPT_REV: Readonly<Partial<Record<CacheableKind, number>>> = {
-  consume: 2,
-  explain: 2,
-  perform: 2,
-  retain: 2,
+  consume: 3,
+  explain: 3,
+  perform: 3,
+  retain: 3,
 };
 
 const revOf = (kind: CacheableKind): string => {

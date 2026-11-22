@@ -10,7 +10,12 @@ import {
   slug,
   user,
 } from "./common";
-import { RETAIN_DRAFT_NODES, RetainContent, ReviewCard } from "@/lib/curriculum";
+import {
+  RETAIN_DRAFT_NODES,
+  RetainContent,
+  ReviewCard,
+  type NodeKind,
+} from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
 
@@ -126,10 +131,33 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
  * the queue (`lib/fsrs.ts`), never a card, and a flash card has no analogy to
  * flavour. Interests are out of the cache key too (job.ts).
  */
+export interface RetainNode {
+  id: string;
+  label: string;
+  /** The map's one-sentence summary — the grounding before a reading exists. */
+  summary?: string;
+  /** The reading's takeaways, server-stamped (`withNodeCell`). */
+  taught?: string;
+  /** What kind of concept it is, server-stamped — decides the card type. */
+  nodeKind?: NodeKind;
+}
+
+/** One concept as the prompt lists it: what the learner READ, where there is a
+ *  reading, else the map's summary of it. */
+function retainLine(n: RetainNode): string {
+  const kind = n.nodeKind ? ` (a ${n.nodeKind})` : "";
+  const grounding = n.taught
+    ? ` — the reading taught: ${n.taught}`
+    : n.summary
+      ? ` — ${n.summary.slice(0, 400)}`
+      : "";
+  return `- ${n.id}: ${n.label}${kind}${grounding}`;
+}
+
 export async function generateRetain(params: {
   topic: string;
   budgetMin: number;
-  nodes: Array<{ id: string; label: string; state: string; summary?: string }>;
+  nodes: RetainNode[];
   language?: Language;
 }): Promise<RetainContent> {
   const { topic, budgetMin, nodes, language = "en" } = params;
@@ -138,10 +166,10 @@ export async function generateRetain(params: {
     user(
       `Write the review cards for the topic "${topic}": the spaced-repetition cards that keep these concepts alive for months. Each card will be answered many times, weeks apart, by someone who has not looked at the material since — so a card is a small retrieval task you are designing for that future learner.
 
-The concepts in rotation (id: label — state — what it taught):
-${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}${n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}`).join("\n")}
+The concepts in rotation (id: label (kind) — what the learner was taught):
+${nodes.map(retainLine).join("\n")}
 
-Every card asks only for what its node teaches, as summarised here. Never a real-world spec, typical value, date or name the node does not cover: a card about something the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
+Every card asks only for what its node taught, as stated here, and in the same terms and notation: where a node lists what the reading taught, a card keeps one of those ideas alive. Never a real-world spec, typical value, date or name the node does not cover: a card about something the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
 
 WHAT MAKES A CARD WORK:
 - Focused: one detail per card. Never a list or a set on one card.
@@ -152,10 +180,11 @@ WHAT MAKES A CARD WORK:
 - Distinct: no two cards share a cue, and no card is answered by another concept's answer.
 - Short: a question under about 20 words, an answer of a few words.
 
-PICK THE TYPE BY WHAT THE CONCEPT IS:
-- "recall" for a definition, a name, a value, a symbol or a condition. A cloze: "cloze" is one sentence split around ONE blank, and "answer" fills it. The blank is the meaningful term — the quantity, the name, the relation — never a function word, and the words around it leave only one possible fill.
-- "why" for a cause, a mechanism or a reason the concept rests on: "front" asks why or how; "back" is the reason, in one sentence.
-- "apply" for a method or a rule: "front" gives a small concrete case, with any values it needs, and asks for the result or the next move; "back" is that result.
+PICK THE TYPE BY WHAT THE CONCEPT IS — where a concept's kind is given, it decides:
+- "recall" for a definition, a name, a value, a symbol or a condition — the type for a fact. A cloze: "cloze" is one sentence split around ONE blank, and "answer" fills it. The blank is the meaningful term — the quantity, the name, the relation — never a function word, and the words around it leave only one possible fill.
+- "why" for a cause, a mechanism or a reason the concept rests on — the type for a principle: "front" asks why or how; "back" is the reason, in one sentence.
+- "apply" for a method or a rule — the type for a procedure, and for a concept: "front" gives a small concrete case, with any values it needs, and asks for the result or the next move (for a concept: which concept the case is an instance of, or which feature of it decides that — never a yes/no); "back" is that result.
+Only a fact is kept alive by recall alone: recalling a definition does not keep the ability to use it, so a card on any other kind asks the learner to use the idea, not to recite it.
 
 "back" is the key a typed answer is graded against. For "why" and "apply", put in it only what the learner must produce — the one sentence that counts, nothing added to explain it. For "recall", "back" is the answer alone: the filled blank already shows the whole sentence, and both apps hide a back that only repeats it.
 "reExplain" is shown when the card is missed: under 60 words, it points at what forces the answer — the earlier idea it rests on, or one concrete case traced through — rather than restating the back, and it ends with one question.

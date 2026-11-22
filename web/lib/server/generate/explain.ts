@@ -91,8 +91,11 @@ export interface ExplainParams extends Boundary {
 
 /**
  * The prompt is built around what this phase is FOR: it is the one worked
- * example of an explanation the learner sees before Feynman asks them to give
- * one from a blank page. So the cards are short (a model to hold in mind, not
+ * example of an explanation the learner sees. On a core concept Feynman later
+ * asks for one from a blank page; on a fact, a working tool or a peripheral
+ * concept nothing does (those plans carry no Feynman), so the prompt promises
+ * no particular phase — it used to say "later they will explain it themselves"
+ * on every node. So the cards are short (a model to hold in mind, not
  * a second reading), the check is one thread with the cards (the listener
  * voices the very misconception card four named, and the right reply uses a
  * move the cards modelled), and every wrong reply fails for a NAMED reason, so
@@ -102,13 +105,13 @@ export async function generateExplain(params: ExplainParams): Promise<ExplainCon
   const { topic, nodeLabel, interests, language = "en" } = params;
   return generateJson(
     user(
-      `The learner has just finished the reading on "${nodeLabel}" within "${topic}". Now show them HOW TO EXPLAIN it to someone who has never heard of it: a worked example of a good explanation, broken into its moves, and then one check of whether they can pick the reply that actually clears up a listener's confusion. Later they will explain the concept themselves, from a blank page; this is the model they will have seen.
+      `The learner has just finished the reading on "${nodeLabel}" within "${topic}". Now show them HOW TO EXPLAIN it to someone who has never heard of it: a worked example of a good explanation, broken into its moves, and then one check of whether they can pick the reply that actually clears up a listener's confusion. They already have the content; what this adds is the moves of putting it across — the model they will have in mind whenever they have to explain it, unaided, later on.
 
 THE FIVE CARDS are shown one at a time, in this order. Keep each to 1-3 sentences — a model they can hold in mind, not a second reading.
-- "problem": the question or problem this concept answers. A good explanation starts here, before any definition.
+- "problem": the question or problem this concept answers, as a concrete situation the listener could actually be in — a case with something at stake, not an abstract question. A good explanation starts here, before any definition.
 - "analogy": "text" is one concrete analogy that carries the core of it; "breaks" is where it stops being true, and what a listener would wrongly conclude if they pushed it too far. ${interestNote(interests)}
 - "order": ${EXPLAIN_ORDER_BOUNDS.min}-${EXPLAIN_ORDER_BOUNDS.max} short ideas, in the order to introduce them, each needing only the ones before it. Only ideas THIS concept introduces: a concept the map already taught is mentioned in passing, never re-taught, and one the map teaches later is never explained.
-- "misconception": "belief" is the typical wrong idea a listener forms, stated the way they would believe it; "tempting" is the true thing it grows out of.
+- "misconception": "belief" is the wrong idea most people actually form about this concept — the standard one a good teacher warns about, which the reading just corrected, not a rare one — stated the way a listener would believe it; "tempting" is the true thing it grows out of.
 - "checkBack": "question" makes the listener USE the idea on a case they have not heard — never "does that make sense?" and never "can you repeat it?"; "rightAnswer" is what a right answer contains.
 
 THE CHECK. "listener.says" voices exactly the "belief" above, in one or two natural sentences of their own. Then write 3 replies the learner could give back:

@@ -964,7 +964,12 @@ describe("kindNote", () => {
   it("tells a fact not to explain, and a principle to draw the mechanism", () => {
     expect(kindNote("fact", "consume")).toMatch(/FACT/);
     expect(kindNote("fact", "consume")).toMatch(/NO figure/i);
-    expect(kindNote("principle", "consume")).toMatch(/FIGURE IS REQUIRED/i);
+    // Required where the mechanism is explained — not on every section, where
+    // "the note wins" forced invented boxes onto a definition.
+    expect(kindNote("principle", "consume")).toMatch(
+      /mechanism MUST carry .* in a figure/,
+    );
+    expect(kindNote("principle", "consume")).toMatch(/general figure rule/);
     expect(kindNote("procedure", "consume")).toMatch(/WORKED EXAMPLE/i);
   });
 

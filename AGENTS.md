@@ -220,7 +220,13 @@ applied rung by kind via `appliedRung`, Retain), `peripheral` recognises
 `cellNote`, `consumeBand`), never the bar. The goal decides which cells a map
 may hold (`GOAL_CELLS`; `clampCell` backs up the prompt). The cell is a cache-key
 axis stamped **by the server** from the stored row (`withNodeCell`), like
-`neighbours`; core/medium is omitted so it keys to the pre-grid row. Both
+`neighbours`; core/medium is omitted so it keys to the pre-grid row. The same
+hook grounds later phases in the reading: Perform gets the whole `lesson`, and
+each Retain node gets its reading's takeaways (`taught`) and its stored
+`nodeKind`, which types the card. A client's copy of any of these is dropped.
+Counts live in code, never in a note: a kind or cell note that states a number
+the validator does not allow is the failure `consumeBand` was fixed for
+(`docs/RESEARCH-PHASES.md`). Both
 clients post active seconds per phase to `/api/v1/topics/:id/time`
 (`nodes.phase_seconds`) — tune the budgets from that, not from intuition.
 

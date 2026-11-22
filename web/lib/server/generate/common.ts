@@ -181,6 +181,8 @@ export function sizeRule(p: {
   /** What genuinely earns the large end. */
   atMax: string;
 }): string {
+  // One count has no ends to explain: as a range it read "write 2-2 … earns 2".
+  if (p.min === p.max) return `SIZE: write exactly ${p.min} ${p.unit}.`;
   return `SIZE — read it off the material, never off a quota: write ${p.min}-${p.max} ${p.unit}. ${p.min} is the right answer for ${p.atMin}; only ${p.atMax} earns ${p.max}. Add one only when it carries something none of the others do. Covering the material in ${p.min} and stopping is a correct answer, not a shortfall — padding to reach ${p.max} makes this worse, not more thorough.`;
 }
 
@@ -267,9 +269,8 @@ export const GIVENS_NOTE =
  * rows stay valid. That is also why `nodeKind` is omitted from the cache key
  * when it is `concept` (see `job.ts`) — no VERSION bump, no abandoned table.
  *
- * ponytail: Retain is missing on purpose. One deck spans many nodes, so a
- * single `nodeKind` cannot describe it — wire it when `retain`'s `nodes` list
- * carries a kind per node.
+ * Retain is missing on purpose: one deck spans many nodes, so the server stamps
+ * a kind on each of its `nodes` (`withNodeCell`) and its prompt types by it.
  */
 export function kindNote(kind: NodeKind | undefined, phase: PhaseId): string {
   const note = kind && kind !== "concept" ? (KIND_NOTES[kind][phase] ?? "") : "";
@@ -291,7 +292,7 @@ const KIND_NOTES: Record<
       // emptied, the single-shot fallback failed twice, and the learner got a
       // 502 on four billed calls. The figure half is safe — that one really is
       // optional. Keep the example small rather than asking for it to be gone.
-      "THIS CONCEPT IS A FACT — an arbitrary association with nothing to reason from. Write 1-2 short sections and a hook that makes it stick. NO figure: there is no structure to draw. Keep the worked example to the shortest thing that shows the fact in use. Explanation is wasted here; the learner's job is to remember it.",
+      "THIS CONCEPT IS A FACT — an association to remember rather than a mechanism to reason through. Keep both sections short: the fact itself, stated so it can be recalled exactly, then where it turns up and a hook that makes it stick (a reason it is this way if there genuinely is one, otherwise a memorable association). NO figure: there is no structure to draw. Keep the worked example to the shortest thing that shows the fact in use.",
   },
   procedure: {
     explain:
@@ -307,7 +308,7 @@ const KIND_NOTES: Record<
     explain:
       "THIS CONCEPT IS A PRINCIPLE. The order is the causal chain, one link per idea, and the check-back asks the listener to predict what changes when one link changes.",
     consume:
-      "THIS CONCEPT IS A PRINCIPLE — a causal relation or multi-stage mechanism. Give the mechanism and its derivation, not just the statement. A FIGURE IS REQUIRED and must carry the causal chain: each node a stage, each edge what that stage hands the next.",
+      "THIS CONCEPT IS A PRINCIPLE — a causal relation or multi-stage mechanism. Give the mechanism and its derivation, not just the statement. The section that explains the mechanism MUST carry its causal chain in a figure: each node a stage, each edge what that stage hands the next. Every other section follows the general figure rule.",
     connect:
       "THIS CONCEPT IS A PRINCIPLE. Link on COMPOSITION — which principles combine with this one, and which appear to contradict it and why they don't.",
     crucible:

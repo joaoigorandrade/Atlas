@@ -118,9 +118,12 @@ export async function generatePerform(params: PerformParams): Promise<PerformCon
  */
 async function writePerform(params: PerformParams): Promise<PerformContent> {
   const { topic, nodeLabel, language = "en" } = params;
+  // The lesson (up to 16k characters) goes FIRST, before any instruction: a
+  // long document placed between the case rules and the step rules sat in the
+  // part of the prompt models use worst, and pushed the step rules after it.
   return generateJson(
     user(
-      `Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real. Nobody tells them the steps — working out what to do is part of the test.
+      `${lessonBlock(params.lesson)}Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real. Nobody tells them the steps — working out what to do is part of the test.
 
 THE CASE ("task"):
 - Self-contained and specific: real values and units, or a real situation, with everything needed to work it, in a sentence or two.
@@ -130,7 +133,7 @@ THE CASE ("task"):
         params.rerun
           ? `\n- The learner has already run this procedure on a case like this ${params.rerun} time(s) and seen the report. Same procedure, different values and a different surface — nothing from an earlier case may carry over as an answer.`
           : ""
-      }${lessonNote(params.lesson)}
+      }${lessonRule(params.lesson)}
 
 THE STEPS are the hidden answer key the run is graded against. The learner never sees them before the run; afterwards each one is a line of their report.
 - One step per subgoal of the procedure, in order. "step" names the subgoal in 3-6 words, in the vocabulary the lesson used ("Form the augmented matrix", never "Step 2"), so that the report teaches the procedure's shape.
@@ -156,16 +159,23 @@ Return JSON:
 }
 
 /** The run tests what the lesson taught. Without this the case was written
- *  from the label alone, and graded commands and options the lesson never showed. */
-function lessonNote(lesson: string | undefined): string {
+ *  from the label alone, and graded commands and options the lesson never showed.
+ *  Split in two: the document opens the prompt (`lessonBlock`), and the rule
+ *  that binds the case to it sits with the case rules (`lessonRule`). */
+function lessonBlock(lesson: string | undefined): string {
+  if (!lesson) return "";
+  return `WHAT THE LEARNER READ on this concept — the whole lesson, verbatim:
+<lesson>
+${lesson.split("</lesson>").join("")}
+</lesson>
+
+`;
+}
+
+function lessonRule(lesson: string | undefined): string {
   if (!lesson) return "";
   return `
-
-WHAT THE LEARNER READ on this concept — the whole lesson, verbatim:
-"""
-${lesson}
-"""
-The run tests THIS lesson. The case must be workable with the commands, operations, rules and notation the lesson (or a concept already taught) actually showed, and every mustShow must be something it taught them to do or read. Never require a command, option, flag, formula or technique it never showed — a run that turns on one grades outside knowledge, not the concept. Change the values and the situation, not the toolkit.`;
+- The run tests the lesson above. The case must be workable with the commands, operations, rules and notation the lesson (or a concept already taught) actually showed, and every mustShow must be something it taught them to do or read. Never require a command, option, flag, formula or technique it never showed — a run that turns on one grades outside knowledge, not the concept. Change the values and the situation, not the toolkit: the same moves as the lesson's worked example, on a case the learner has not already seen worked.`;
 }
 
 // ---- the grader ------------------------------------------------------------

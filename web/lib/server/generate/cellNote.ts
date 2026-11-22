@@ -10,7 +10,7 @@
 // its prompts are byte-identical to the ones written before the grid existed,
 // and `nodeAxes` omits it from the cache key for the same reason.
 
-import { BAR, type Cell, type PhaseId } from "@/lib/curriculum";
+import { BAR, type Cell, type NodeKind, type PhaseId } from "@/lib/curriculum";
 
 /** The cell the key and the prompt treat as "no cell at all". */
 export const DEFAULT_CELL: Cell = "12";
@@ -66,8 +66,19 @@ export function cellNote(cell: Cell | undefined, phase: PhaseId): string {
  * so a peripheral concept gets two short ones rather than one; a working tool
  * gets at most three; a hard core concept at least three. The default is the
  * band every reading was written to before the grid.
+ *
+ * A `fact` is two short sections whatever its cell. Its kind note used to say
+ * "1-2 sections" against a size rule of 2-5 and a validator floor of 2, and
+ * told the model the note wins — so the obedient answer, one section, failed
+ * the shape: the single-shot path retried, and a streamed pass of one section
+ * was never cached, so every learner on that node paid for it again. The count
+ * now lives here alone.
  */
-export function consumeBand(cell: Cell | undefined): { min: number; max: number } {
+export function consumeBand(
+  cell: Cell | undefined,
+  kind?: NodeKind,
+): { min: number; max: number } {
+  if (kind === "fact") return { min: 2, max: 2 };
   if (!cell || cell === DEFAULT_CELL) return { min: 2, max: 5 };
   if (cell[0] === "3") return { min: 2, max: 2 };
   if (cell[0] === "2") return { min: 2, max: 3 };

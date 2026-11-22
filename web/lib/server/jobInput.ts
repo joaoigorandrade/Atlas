@@ -86,7 +86,16 @@ export interface GenerateBody {
   takeaway?: string;
   masteredLabels?: string[];
   pool?: Array<{ id: string; label: string }>;
-  nodes?: Array<{ id: string; label: string; state: string }>;
+  /** retain: the nodes a draft covers. `taught` (the reading's takeaways) and
+   *  `nodeKind` are stamped by the server (`withNodeCell`), never a client's. */
+  nodes?: Array<{
+    id: string;
+    label: string;
+    state: string;
+    summary?: string;
+    taught?: string;
+    nodeKind?: string;
+  }>;
   budgetMin?: number;
   // diagnosticQuestion fields (`difficulty` is the exam's too)
   difficulty?: string;
@@ -244,6 +253,33 @@ export const lessonAxis = (body: GenerateBody): { lesson?: string } => {
   const lesson = s(body.lesson).slice(0, CAPS.lesson);
   return lesson ? { lesson } : {};
 };
+
+/**
+ * Retain's nodes, as they are hashed and written into the prompt. `state` is
+ * required (both clients send it) but not kept: the prompt has no use for it,
+ * and in the key it forked one node's cards by whether it was learning or
+ * mastered the day its draft was written. `taught` and `nodeKind` are the
+ * server's (`withNodeCell`), never a client's.
+ */
+export function retainNodes(body: GenerateBody) {
+  const optional = (v: unknown) => v === undefined || typeof v === "string";
+  return (Array.isArray(body.nodes) ? body.nodes : [])
+    .filter(
+      (n) =>
+        typeof n === "object" &&
+        n !== null &&
+        [n.id, n.label, n.state].every((v) => typeof v === "string") &&
+        [n.summary, n.taught, n.nodeKind].every(optional),
+    )
+    .slice(0, CAPS.listItems)
+    .map((n) => ({
+      id: n.id,
+      label: n.label,
+      ...(n.summary ? { summary: n.summary } : null),
+      ...(n.taught ? { taught: n.taught } : null),
+      ...(n.nodeKind ? { nodeKind: asNodeKind(n.nodeKind) } : null),
+    }));
+}
 
 /** The axes a node is written on, each omitted when it is the default —
  *  same trick as `boundary`, and for the same reason: `concept` and `general`

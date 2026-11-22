@@ -157,6 +157,7 @@ export async function withNodeCell<T extends GenerateBody>(
   body: T,
   memo?: Map<string, Promise<CellRows>>,
 ): Promise<T> {
+  if (body.kind === "retain") return withRetainNodes(db, body);
   const { importance: _i, nodeDifficulty: _d, rerun: _r, lesson: _l, ...rest } = body;
   if (!body.topicId || !body.nodeId) return rest as T;
   const lesson =
@@ -176,6 +177,82 @@ export async function withNodeCell<T extends GenerateBody>(
     ...(rerun ? { rerun } : null),
     ...(lesson ? { lesson } : null),
   } as T;
+}
+
+/** How much of one node's takeaways a Retain draft carries. Eight nodes ride
+ *  in one draft (`RETAIN_DRAFT_NODES`); a reading has at most six sections. */
+const TAUGHT_CAP = 700;
+
+/**
+ * Retain's nodes, each with what its reading taught and what kind of concept
+ * it is — read from the stored rows, never from the client.
+ *
+ * The card factory used to write from a node's label and a 400-character map
+ * summary, written before any lesson existed, so a card could ask for
+ * something the reading never said, in words it never used. The takeaways are
+ * the reading's own one-idea-per-section sentences — exactly what a card
+ * should keep alive — and the kind decides the card type (a fact is recalled,
+ * a procedure applied, a principle explained), which closes the ponytail on
+ * `kindNote`. Both are stamped here, like a cell, so the browser, the phone
+ * and any warm hash the same row; whatever a client sent under these names is
+ * dropped. A node with no reading yet keeps its summary.
+ */
+async function withRetainNodes<T extends GenerateBody>(
+  db: SupabaseClient,
+  body: T,
+): Promise<T> {
+  type Node = NonNullable<GenerateBody["nodes"]>[number];
+  const nodes: Node[] = (Array.isArray(body.nodes) ? body.nodes : []).map((n) => {
+    if (typeof n !== "object" || n === null) return n;
+    const { taught: _t, nodeKind: _k, ...own } = n;
+    return own;
+  });
+  const ids = nodes
+    .map((n) => n?.id)
+    .filter((id): id is string => typeof id === "string");
+  if (!body.topicId || !ids.length) return { ...body, nodes };
+  const [lessons, kinds] = await Promise.all([
+    db
+      .from("node_content")
+      .select("node_id, payload")
+      .eq("topic_id", body.topicId)
+      .eq("kind", "consume")
+      .eq("variant", "")
+      .in("node_id", ids),
+    db.from("nodes").select("id, kind").eq("topic_id", body.topicId).in("id", ids),
+  ]);
+  if (lessons.error) fail("read retain lessons", lessons.error);
+  if (kinds.error) fail("read retain kinds", kinds.error);
+  const taught = new Map<string, string>();
+  for (const row of (lessons.data ?? []) as Array<{
+    node_id: string;
+    payload: unknown;
+  }>) {
+    const chunks = (row.payload as { chunks?: ConsumeChunk[] } | null)?.chunks;
+    const text = Array.isArray(chunks)
+      ? chunks
+          .map((c) => (typeof c?.takeaway === "string" ? c.takeaway.trim() : ""))
+          .filter(Boolean)
+          .join(" ")
+          .slice(0, TAUGHT_CAP)
+      : "";
+    if (text) taught.set(row.node_id, text);
+  }
+  const kindOf = new Map(
+    ((kinds.data ?? []) as Array<{ id: string; kind?: string | null }>).map((r) => [
+      r.id,
+      r.kind,
+    ]),
+  );
+  return {
+    ...body,
+    nodes: nodes.map((n) => {
+      if (typeof n?.id !== "string") return n;
+      const t = taught.get(n.id);
+      const k = kindOf.get(n.id);
+      return { ...n, ...(t ? { taught: t } : null), ...(k ? { nodeKind: k } : null) };
+    }),
+  };
 }
 
 /** The lesson this learner read for a node, as text — "" before there is one. */
