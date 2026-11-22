@@ -531,12 +531,12 @@ function buildJob(body: GenerateBody): Job {
       }));
 
     case "perform": {
+      // No `interests`: unread by the prompt, so they only forked rows per learner.
+      const { interests: _unread, ...item } = itemParams();
       return cacheable(
         "perform",
-        { ...itemParams(), ...(rerun ? { rerun } : {}) },
-        async (p) => ({
-          content: await generatePerform(p),
-        }),
+        { ...item, ...(rerun ? { rerun } : {}) },
+        async (p) => ({ content: await generatePerform(p) }),
       );
     }
 
@@ -559,7 +559,7 @@ function buildJob(body: GenerateBody): Job {
           : 8;
       return cacheable(
         "retain",
-        { topic, budgetMin, nodes, interests, language },
+        { topic, budgetMin, nodes, language }, // no `interests`: unread, as for perform
         async (p) => ({ content: await generateRetain(p) }),
       );
     }

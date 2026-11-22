@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { DIFFICULTIES, IMPORTANCES } from "@/lib/curriculum";
 import { cellNote, consumeBand } from "@/lib/server/generate/cellNote";
 import { describe, expect, it } from "vitest";
-import { contentKey } from "@/lib/server/contentCache";
+import { PROMPT_REV, contentKey } from "@/lib/server/contentCache";
 import { resolveJob } from "@/lib/server/job";
 
 // The cache key is the whole mechanism: a warm and the click that follows it
@@ -22,15 +22,26 @@ describe("contentKey", () => {
   const version = process.env.CONTENT_CACHE_VERSION || "13";
   const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 
-  it("hashes exactly v{VERSION}\\0{kind}\\0{stable(params)}", () => {
-    const params = {
-      topic: "Rust",
-      nodeLabel: "Ownership",
-      interests: "game dev",
-    };
-    const stable = '{"interests":"game dev","nodeLabel":"Ownership","topic":"Rust"}';
+  const params = {
+    topic: "Rust",
+    nodeLabel: "Ownership",
+    interests: "game dev",
+  };
+  const stable = '{"interests":"game dev","nodeLabel":"Ownership","topic":"Rust"}';
+
+  it("hashes exactly v{VERSION}\\0{kind}\\0{stable(params)} for a kind with no prompt revision", () => {
+    expect(PROMPT_REV.socratic).toBeUndefined();
+    expect(contentKey("socratic", params)).toBe(
+      digest(`v${version}${NUL}socratic${NUL}${stable}`),
+    );
+  });
+
+  // A prompt revision moves ONE kind's rows: the kind carries `@rev`, inside
+  // the same NUL-separated shape, and every other kind keeps its address.
+  it("hashes v{VERSION}\\0{kind}@{rev}\\0{stable(params)} for a revised kind", () => {
+    expect(PROMPT_REV.consume).toBeGreaterThan(1);
     expect(contentKey("consume", params)).toBe(
-      digest(`v${version}${NUL}consume${NUL}${stable}`),
+      digest(`v${version}${NUL}consume@${PROMPT_REV.consume}${NUL}${stable}`),
     );
   });
 
@@ -71,6 +82,28 @@ describe("contentKey", () => {
     const base = { topic: "Rust", nodeLabel: "Borrowing" };
     expect(contentKey("consume", { ...base, interests: "game dev" })).not.toBe(
       contentKey("consume", { ...base, interests: "web servers" }),
+    );
+  });
+
+  // Perform and Retain no longer read interests (a run and a review card have
+  // no analogy to flavour), so keying on them would only fork rows per learner.
+  it("shares a Perform case and a Retain draft across learners whose interests differ", () => {
+    const perform = {
+      kind: "perform" as const,
+      topic: "Linear algebra",
+      nodeId: "row-reduction",
+      nodeLabel: "Row reduction",
+    };
+    expect(resolveJob({ ...perform, interests: "chess" }).key).toBe(
+      resolveJob({ ...perform, interests: "cooking" }).key,
+    );
+    const retain = {
+      kind: "retain" as const,
+      topic: "Linear algebra",
+      nodes: [{ id: "row-reduction", label: "Row reduction", state: "mastered" }],
+    };
+    expect(resolveJob({ ...retain, interests: "chess" }).key).toBe(
+      resolveJob({ ...retain, interests: "cooking" }).key,
     );
   });
 

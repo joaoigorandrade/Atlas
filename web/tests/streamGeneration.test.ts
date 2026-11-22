@@ -118,7 +118,7 @@ let splitDeltas = false;
 
 const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
 const isPassage = (prompt: string) => prompt.includes("They highlighted a passage");
-const isConsume = (prompt: string) => prompt.includes("Consume (first reading) pass");
+const isConsume = (prompt: string) => prompt.includes("Write the Consume pass");
 
 /** The "ask about this" answer, one top-level object per paragraph. */
 const passageObjs = [

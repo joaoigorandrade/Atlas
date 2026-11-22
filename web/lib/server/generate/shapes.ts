@@ -12,36 +12,56 @@
 // `tests/stream.test.ts` pins that every field a validator requires is still
 // asked for.
 
-/** Everything a section always has, from its kicker through its closing check. */
+/**
+ * Everything a section always has, in the order the model should WRITE it —
+ * which is not the order the learner reads it.
+ *
+ * The takeaway comes first on purpose: it is the section's one idea, decided
+ * before the prose that teaches it, and it is also all a learner sees when they
+ * answer the check right before reading (the section collapses to it). Writing
+ * it last made it a summary of whatever the prose happened to cover. Field
+ * order on the wire is free: the validator builds the section explicitly, and
+ * a streamed draft is assembled by `draftConsumeSection`, never read off this.
+ *
+ * The comments carry counts and limits only. The rules for each field live
+ * once, in the prompt (`consumeContext`), rather than half here and half there.
+ */
 export const CONSUME_SECTION_SHAPE = `{
-      "kicker": "1 · What it is",                         // segment label: number · 2-4 words
-      "terms": [{"t": "term", "d": "its pre-taught one-line definition"}],   // 0-3 key terms this section uses, defined before use
-      "body": ["paragraph 1", "paragraph 2", "paragraph 3"],   // 2-5 paragraphs of 3-6 sentences — as many as the idea needs, never padding
-      "example": {                                         // worked inline, part of the material
-        "title": "what this example demonstrates",
-        "steps": ["step 1 with the actual work shown", "step 2", "..."]   // 2-6 steps
+      "kicker": "1 · What it is",                        // number · 2-4 words naming this section's job
+      "takeaway": "…",                                   // written FIRST; one precise sentence
+      "terms": [{"t": "…", "d": "…"}],                   // 0-3
+      "body": ["…", "…"],                                // 2-5 paragraphs, 3-6 sentences each
+      "example": {
+        "title": "…",
+        "steps": ["**Label:** the actual work", "…"]     // 2-6 steps, each led by its bold purpose label
       },
-      "takeaway": "the one sentence to carry out of this section",
-      "cite": "one real, well-known work a learner could go read next on this — title and author, or a named lecture series. NOT a citation of any sentence above: name only works you are confident exist, and never invent a page, section or chapter number to look precise. OMIT the field if no work you are sure of fits",
-      "diagram": "one-line caption for the figure below, OMIT (with figure) if this section isn't structural",
-      "figure": {                                          // OMIT both "diagram" and "figure" entirely when the section is a
-                                                            // definition, a comparison, or anything else that isn't a process,
-                                                            // hierarchy, or relationship — never invent boxes to fill the slot
-        "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8 boxes
-        "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12 arrows; ids must exist above
+      "diagram": "…",                                    // a one-line caption; OMIT together with "figure"
+      "figure": {
+        "nodes": [{"id": "a", "label": "≤4 words"}, {"id": "b", "label": "≤4 words"}],   // 2-8
+        "edges": [{"from": "a", "to": "b", "label": "≤3 words, optional"}]               // 1-12; ids from nodes
       },
-      "ask": "a mini-Socratic prompt that answers a likely question with a question",
-      "check": {                                           // EVERY SECTION — the comprehension check that closes it
-        "q": "a question answerable only by someone who read THIS section — never general knowledge, never guessable from the kicker. It is ALSO shown BEFORE the section is read, so it must stand alone: state the case, value or reading it asks about inside the question itself, and never point at the material ('in the example', 'this section', 'as shown above')",
-        "opts": [{"label": "...", "correct": false}, {"label": "...", "correct": true}, {"label": "...", "correct": false}],
-                                                             // all three within a few words of the same length, and each as specific as
-                                                             // the others: the longest, most-qualified option must not be the answer,
-                                                             // or the check is answerable without reading. The slot is shuffled after
-                                                             // you write it, so which one you mark correct here carries no information.
-        "right": "one line confirming what they got right",
-        "wrong": "one line naming what they missed and where in the section it was — no new material"
-      }
+      "ask": "…",
+      "check": {
+        "q": "…",
+        "opts": [{"label": "…", "correct": false}, {"label": "…", "correct": true}, {"label": "…", "correct": false}],
+        "right": "…",
+        "wrong": "…"
+      },
+      "cite": "Title — Author"                           // OPTIONAL: omit unless you are certain the work exists
     }`;
+
+/**
+ * Pieces of a filled-in section, on a deliberately unrelated everyday concept.
+ *
+ * The rules describe a takeaway, a labelled step and a stand-alone check; they
+ * cannot show the register. Only the three hardest fields are shown, so the
+ * example costs little and has no body to imitate. Off-topic on purpose, like
+ * every example here: copying its content would be obviously wrong.
+ */
+export const CONSUME_SECTION_EXAMPLE = `Three fields of a filled-in section, from an unrelated concept (reading a 24-hour clock), to show the precision expected — copy their FORM, never their content:
+  "takeaway": "On a 24-hour clock, an hour from 13 to 23 is afternoon or evening: subtract 12 from it to get the familiar time, and keep the minutes as they are."
+  "steps": ["**Read the hour:** in 17:40 the hour is 17, which is past 12, so this is after noon.", "**Subtract 12:** 17 − 12 = 5, so the hour is 5.", "**Keep the minutes:** 40 stays 40, giving 5:40 in the afternoon."]
+  "check": {"q": "A train leaves at 19:15 on a 24-hour clock. What time is that on a 12-hour clock?", "opts": [{"label": "7:15 in the evening", "correct": true}, {"label": "9:15 in the evening", "correct": false}, {"label": "7:15 in the morning", "correct": false}], "right": "Yes — 19 is past 12, and 19 − 12 = 7, so it is 7:15 pm.", "wrong": "Subtracting 12 from 19 gives 7, not 9, and any hour past 12 is after noon — the second step settles it."}`;
 
 /** One beat of a model view — the unit the four lens controls open. */
 export const MODEL_BEAT_SHAPE = `{
