@@ -137,7 +137,8 @@ struct ConsumeView: View {
             Kicker(verbatim: chunk.kicker)
             // The section's check comes first (W3.3); the prose waits behind it.
             if model.pretesting, let check = chunk.check {
-                pretest(check, model).padding(.top, 14)
+                PretestCard(check: check, held: model.held, guess: model.guess, bet: model.bet)
+                    .padding(.top, 14)
             } else {
                 reading(chunk, model)
             }
@@ -149,11 +150,8 @@ struct ConsumeView: View {
     @ViewBuilder
     private func reading(_ chunk: ConsumeChunk, _ model: ConsumeViewModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.knewIt {
-                Text("Você já sabia isto — pode seguir, ou ler mesmo assim.")
-                    .font(.atlas(.caps, 12.5))
-                    .foregroundStyle(Palette.accent)
-                    .padding(.top, 10)
+            if model.knewIt || model.guessMissed {
+                PretestMark(known: model.knewIt, stake: model.stake).padding(.top, 10)
             }
             ForEach(Array(chunk.body.enumerated()), id: \.offset) { index, paragraph in
                 // The last paragraph of a section still being written ends
@@ -263,39 +261,6 @@ struct ConsumeView: View {
         }
         // Prose read while it was still being written is never pretested.
         .task(id: chunk.settled) { if !chunk.settled { model.sawWriting(chunk.id) } }
-    }
-
-    /// The check before the section: one guess, and the answer is never shown —
-    /// a miss opens the prose, and the same check waits at its end.
-    private func pretest(_ check: ConsumePrediction, _ model: ConsumeViewModel) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Kicker("Antes de ler", tint: Palette.inkMuted)
-            Text(Markdown.rich(check.q))
-                .font(.atlas(.serif, 18.5))
-                .lineSpacing(4)
-                .foregroundStyle(Palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 10)
-            Text("Arrisque primeiro — uma tentativa. Se você já sabe, pode seguir; errar faz a leitura fixar.")
-                .font(.atlas(.serif, 14))
-                .lineSpacing(2)
-                .foregroundStyle(Palette.inkFaint)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 6)
-            VStack(spacing: 9) {
-                ForEach(Array(check.opts.enumerated()), id: \.offset) { option, opt in
-                    ChoiceRow(Markdown.plain(opt.label)) { model.guess(option) }
-                }
-            }
-            .padding(.top, 14)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.accentBg, in: .rect(cornerRadius: Metrics.cardRadius))
-        .overlay {
-            RoundedRectangle(cornerRadius: Metrics.cardRadius)
-                .strokeBorder(Palette.accent.opacity(0.18), lineWidth: 1)
-        }
     }
 
     /// The notice under the last section that landed, and the retry.

@@ -18,6 +18,8 @@ public enum AtlasRoute: @preconcurrency ModalRoute {
     /// learner steps back out of, not a mode the app enters.
     case settings
     case calibration
+    /// The Frontier Feed — pushed from the map's foot, like a session.
+    case feed
 
     public var presentationStyle: ModalPresentation {
         switch self {
@@ -25,7 +27,7 @@ public enum AtlasRoute: @preconcurrency ModalRoute {
         // Only read by `Navigator.present(_:)`, which this app never calls —
         // these three are pushed. Declared honestly so the first `present(_:)`
         // does not put a full session inside a half sheet.
-        case .session, .settings, .calibration: .fullScreenCover
+        case .session, .settings, .calibration, .feed: .fullScreenCover
         }
     }
 
@@ -38,6 +40,7 @@ public enum AtlasRoute: @preconcurrency ModalRoute {
         case .session(let node, let phase, let resumed): SessionView(node: node, phase: phase, resumed: resumed)
         case .settings: SettingsView()
         case .calibration: CalibrationView()
+        case .feed: FeedView()
         }
     }
 }

@@ -302,6 +302,36 @@ public struct MapView: View {
             .accessibilityLabel(Text("Território dominado"))
             .accessibilityValue(Text(verbatim: store.mastered.formatted(.percent.precision(.fractionLength(0)))))
 
+            // The Frontier Feed, once a reading on the frontier has been written
+            // (`MapInvite`). The mock exam it offers on a finished web map has
+            // no screen here yet.
+            if !store.feedReady.isEmpty {
+                Button { navigator.navigate(to: .feed) } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "safari")
+                            .font(.system(size: 22, weight: .light))
+                            .foregroundStyle(Palette.gilt)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Kicker("Feed da fronteira · \(store.ink) de tinta", tint: Palette.gilt, size: 9.5)
+                            Text("Aposte sua tinta no que as próximas leituras perguntam")
+                                .font(.atlas(.serif, 15.5))
+                                .foregroundStyle(Palette.ink)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        Text("Distribuir →").font(.atlas(.caps, 14)).foregroundStyle(Palette.gilt)
+                    }
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: Metrics.tap)
+                    .background(Palette.card)
+                    .plate()
+                }
+                .pressable()
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
             if let next = store.frontier.first {
                 Button { open(next) } label: {
                     HStack(spacing: 10) {

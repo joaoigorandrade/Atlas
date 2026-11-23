@@ -366,8 +366,12 @@ public extension AtlasStore {
         let pretest = (record["pretest"]?.fields ?? [:]).compactMapValues { value -> Bool? in
             if case .bool(let right) = value { right } else { nil }
         }
+        let stakes = (record["stakes"]?.fields ?? [:]).compactMapValues { value -> Int? in
+            if case .number(let n) = value { Int(n) } else { nil }
+        }
         return ReadingProgress(
             idx: count("idx"), total: count("total"), checks: Set(passed), pretest: pretest,
+            stakes: stakes, answered: Set((record["checks"]?.fields ?? [:]).keys),
             finished: flag("finished"), handedOff: flag("handedOff")
         )
     }
@@ -389,7 +393,7 @@ public extension AtlasStore {
     func note(
         reading id: String, idx: Int? = nil, total: Int? = nil,
         finished: Bool? = nil, handedOff: Bool? = nil, passed chunk: String? = nil,
-        option: Int = -1, guess: (section: String, right: Bool)? = nil
+        option: Int = -1, guess: (section: String, right: Bool)? = nil, stake: Int? = nil
     ) {
         var record = consumeProgress[id]?.fields ?? [:]
         if let idx { record["idx"] = .number(Double(idx)) }
@@ -409,6 +413,18 @@ public extension AtlasStore {
             var guesses = record["pretest"]?.fields ?? [:]
             guesses[guess.section] = .bool(guess.right)
             record["pretest"] = .object(guesses)
+            // `afterPretest`: the bet rides beside the guess, and a section the
+            // learner already had is folded to its takeaway in the browser.
+            if let stake {
+                var stakes = record["stakes"]?.fields ?? [:]
+                stakes[guess.section] = .number(Double(stake))
+                record["stakes"] = .object(stakes)
+            }
+            if guess.right {
+                var collapsed = record["collapsed"]?.fields ?? [:]
+                collapsed[guess.section] = .bool(true)
+                record["collapsed"] = .object(collapsed)
+            }
         }
         if let finished { record["finished"] = .bool(finished) }
         if let handedOff { record["handedOff"] = .bool(handedOff) }
@@ -416,7 +432,8 @@ public extension AtlasStore {
         // creates has to be a whole `ConsumeProgress`.
         for (key, fallback): (String, JSONValue) in [
             ("idx", .number(0)), ("variant", .object([:])), ("collapsed", .object([:])),
-            ("checks", .object([:])), ("pretest", .object([:])), ("termsSeen", .array([])),
+            ("checks", .object([:])), ("pretest", .object([:])), ("stakes", .object([:])),
+            ("termsSeen", .array([])),
             ("total", .number(0)),
             ("finished", .bool(false)), ("handedOff", .bool(false)),
         ] {
@@ -517,6 +534,42 @@ public extension AtlasStore {
         guard var record = consumeProgress[id]?.fields else { return }
         record["collapsed"] = .object([:])
         consumeProgress[id] = .object(record)
+    }
+
+    // MARK: The Frontier Feed (`useFeed`)
+
+    /// The map's ink — every pretest bet over every reading (`inkBalance`).
+    var ink: Int { inkBalance(consumeProgress.keys.compactMap(reading)) }
+
+    /// The concepts a feed round deals from: readings already begun first —
+    /// finishing what is started — then the frontier in goal order. Empty
+    /// until one of them has a written reading with a card left in it.
+    var feedReady: [String] {
+        let begun = graph.nodes.filter { display[$0.id] == .learning && consumeProgress[$0.id] != nil }
+        let order = (begun + frontier).map(\.id)
+        let (cache, progress) = feedInputs(order)
+        return feedConcepts(order, cache, progress)
+    }
+
+    /// The round's next card, over the live reading records.
+    func feedCard(_ concepts: [String]) -> (node: ConceptNode, chunk: ConsumeChunk)? {
+        let (cache, progress) = feedInputs(concepts)
+        guard let card = nextFeedCard(concepts, cache, progress),
+              let node = graph.nodes.first(where: { $0.id == card.nodeId }) else { return nil }
+        return (node, card.chunk)
+    }
+
+    /// The written sections and the reading record of each concept. A section
+    /// still being written has no check yet, so it deals nothing.
+    private func feedInputs(_ ids: [String]) -> ([String: [ConsumeChunk]], [String: ReadingProgress]) {
+        var cache: [String: [ConsumeChunk]] = [:]
+        var progress: [String: ReadingProgress] = [:]
+        for id in ids {
+            let chunks: [ConsumeChunk]? = warm.content(address("consume", id))
+            cache[id] = chunks?.filter(\.settled)
+            progress[id] = reading(id)
+        }
+        return (cache, progress)
     }
 }
 

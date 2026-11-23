@@ -8698,6 +8698,336 @@
           }
         }
       }
+    },
+    "Feed da fronteira" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frontier feed"
+          }
+        }
+      }
+    },
+    "%lld de tinta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld ink"
+          }
+        }
+      }
+    },
+    "Você já sabia isto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You already had this"
+          }
+        }
+      }
+    },
+    "Desta vez não" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not this time"
+          }
+        }
+      }
+    },
+    "A resposta está na leitura: a seção abre por inteiro, com esta pergunta esperando no final." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The answer is in the reading: the section opens in full, with this question waiting at its end."
+          }
+        }
+      }
+    },
+    "Próxima carta →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next card →"
+          }
+        }
+      }
+    },
+    "Ler agora →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read it now →"
+          }
+        }
+      }
+    },
+    "As próximas leituras ainda estão sendo escritas, ou todas as seções delas já foram perguntadas. Volte quando a próxima abrir." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next readings are still being written, or every section in them has been asked. Come back after the next one opens."
+          }
+        }
+      }
+    },
+    "Rodada concluída" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round complete"
+          }
+        }
+      }
+    },
+    "−%lld de tinta nesta rodada" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%lld ink this round"
+          }
+        }
+      }
+    },
+    "+%lld de tinta nesta rodada" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld ink this round"
+          }
+        }
+      }
+    },
+    "Todas as cartas acertaram — nada pendente desta rodada." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every card landed — nothing owed from this round."
+          }
+        }
+      }
+    },
+    "Ler em seguida" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read next"
+          }
+        }
+      }
+    },
+    "Nada para distribuir ainda" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to deal yet"
+          }
+        }
+      }
+    },
+    "Ler →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read →"
+          }
+        }
+      }
+    },
+    "carta %lld de até %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "card %lld of up to %lld"
+          }
+        }
+      }
+    },
+    "Distribuir →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deal →"
+          }
+        }
+      }
+    },
+    "Aposte sua tinta no que as próximas leituras perguntam" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet your ink on what the next readings ask"
+          }
+        }
+      }
+    },
+    "Feed da fronteira · %lld de tinta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frontier feed · %lld ink"
+          }
+        }
+      }
+    },
+    "Sua resposta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your answer"
+          }
+        }
+      }
+    },
+    "Aposte sua tinta — quão seguro você está dessa resposta?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet your ink — how sure are you of that answer?"
+          }
+        }
+      }
+    },
+    "Sem certeza não arrisca nada · bastante seguro ganha 2, perde 1 · muito seguro ganha 3, perde 3" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not sure risks nothing · fairly sure wins 2, loses 1 · very sure wins 3, loses 3"
+          }
+        }
+      }
+    },
+    "Bastante seguro" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fairly sure"
+          }
+        }
+      }
+    },
+    "Muito seguro" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Very sure"
+          }
+        }
+      }
+    },
+    "Seu palpite antes da leitura errou — a resposta está aqui" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your guess before reading missed — the answer is in here"
+          }
+        }
+      }
+    },
+    "+%lld de tinta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld ink"
+          }
+        }
+      }
+    },
+    "−%lld de tinta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%lld ink"
+          }
+        }
+      }
+    },
+    "nenhuma tinta perdida" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no ink lost"
+          }
+        }
+      }
+    },
+    "Você estava muito seguro. Um erro com certeza é o que mais fixa quando você lê a correção." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You were very sure. A miss you were sure of is the one that sticks once you read the fix."
+          }
+        }
+      }
+    },
+    "%lld cartas respondidas" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card answered"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards answered"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld carta respondida"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cartas respondidas"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

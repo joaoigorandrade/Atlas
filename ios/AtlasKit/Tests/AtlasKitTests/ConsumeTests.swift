@@ -318,12 +318,20 @@ struct MarkdownTests {
     #expect(model.pretesting)
 
     model.guess(1)
+    // The guess is held for its ink bet: nothing counts until it is placed.
+    #expect(model.held == 1)
+    #expect(model.passed == false)
+    model.bet(2)
+    #expect(model.held == nil)
     #expect(model.passed)
     #expect(model.knewIt)
+    #expect(model.stake == 2)
     #expect(model.pretesting == false)
     // Written in the web's shape, so the browser reads the section as passed.
     #expect(store.reading("lat")?.pretest["c1"] == true)
+    #expect(store.reading("lat")?.stakes["c1"] == 2)
     #expect(store.reading("lat")?.checks.contains("c1") == true)
+    #expect(store.ink == 3)
     // A re-entry does not ask again.
     #expect(consume(store).pretesting == false)
 }
@@ -335,6 +343,7 @@ struct MarkdownTests {
     let model = consume(store)
 
     model.guess(0)
+    model.bet(1)
     // Nothing is marked: the check at the end of the section is still a question.
     #expect(model.passed == false)
     #expect(model.grade == nil)
@@ -342,6 +351,7 @@ struct MarkdownTests {
     #expect(model.pretesting == false)
     #expect(model.guessMissed)
     #expect(store.reading("lat")?.pretest["c1"] == false)
+    #expect(store.ink == -1)
     // A second guess would be elimination.
     model.guess(1)
     #expect(model.passed == false)
@@ -410,12 +420,48 @@ struct MarkdownTests {
     let model = ConsumeViewModel(session: session, api: store.api)
     await model.load()
     model.guess(0)
+    model.bet(0)
     model.advance()
     model.guess(0)
+    model.bet(0)
     #expect(model.knewAll)
 
     model.prove()
     #expect(store.phasesDone["lat"]?.contains(.consume) == true)
     #expect(session.phase == proofGate(store.graph.nodes[0].plan))
     #expect(store.challenge == "lat")
+}
+
+// The Frontier Feed — pretest cards dealt from the frontier's written readings.
+
+@MainActor
+@Test func aFeedRoundDealsPretestsAndAMissStopsThatConcept() {
+    let store = store()
+    reading(store, [
+        section("c1", check: check(correct: [true, false])),
+        section("c2", check: check(correct: [true, false])),
+        section("c3", check: check(correct: [true, false])),
+    ])
+    #expect(store.feedReady == ["lat"])
+    let feed = FeedViewModel(store: store)
+    #expect(feed.card?.chunk.id == "c1")
+
+    feed.guess(0)
+    feed.bet(1)
+    #expect(feed.last?.correct == true)
+    #expect(feed.roundInk == 2)
+    // The answer lands in the reading the pass resumes from.
+    #expect(store.reading("lat")?.pretest["c1"] == true)
+    #expect(store.reading("lat")?.checks.contains("c1") == true)
+
+    feed.next()
+    #expect(feed.card?.chunk.id == "c2")
+    feed.guess(1)
+    feed.bet(2)
+    #expect(feed.missed.map(\.id) == ["lat"])
+    #expect(feed.roundInk == -1)
+    // The sections after a missed one build on it: no card until it is read.
+    feed.next()
+    #expect(feed.card == nil)
+    #expect(store.feedReady.isEmpty)
 }

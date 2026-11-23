@@ -50,6 +50,8 @@ final class ConsumeViewModel {
     /// reads as going forward.
     private(set) var goingBack = false
     private(set) var message = ""
+    /// A pretest guess waiting on its ink bet: given, but not yet counted.
+    private(set) var held: Int?
     /// Which lens is open over the prose, if any. Bound by the sheet.
     var lens: LensRequest?
     let speaker = Speaker()
@@ -66,6 +68,8 @@ final class ConsumeViewModel {
     /// The check asked before each section (W3.3): `true` the learner had it,
     /// `false` the guess missed. Mirrors the web's `ConsumeProgress.pretest`.
     private var guesses: [String: Bool]
+    /// The ink bet beside each guess — `ConsumeProgress.stakes`.
+    private var stakes: [String: Int]
     /// Sections whose prose was on screen while still being written. The check
     /// landing must not put a pretest over what the learner is already reading.
     private var readBare: Set<String> = []
@@ -85,6 +89,7 @@ final class ConsumeViewModel {
         index = max(0, progress?.idx ?? 0)
         passedChecks = progress?.checks ?? []
         guesses = progress?.pretest ?? [:]
+        stakes = progress?.stakes ?? [:]
         seenTotal = progress?.total ?? 0
     }
 
@@ -229,19 +234,30 @@ final class ConsumeViewModel {
     /// The section on screen is still being written — its prose is being read.
     func sawWriting(_ id: String) { readBare.insert(id) }
 
-    /// The pretest's one answer. Right passes the check on the spot; a miss
-    /// reveals nothing, so the check at the end of the section is still real.
+    /// The ink bet on this section's guess, if one was placed.
+    var stake: Int? { chunk.flatMap { stakes[$0.id] } }
+
+    /// The pretest's one answer, held for its ink bet before it counts.
     func guess(_ option: Int) {
-        guard pretesting, let chunk, let check = chunk.check else { return }
+        guard pretesting, held == nil else { return }
+        held = option
+    }
+
+    /// The bet on the held guess. Right passes the check on the spot; a miss
+    /// reveals nothing, so the check at the end of the section is still real.
+    func bet(_ stake: Int) {
+        guard pretesting, let option = held, let chunk, let check = chunk.check else { return }
+        held = nil
         let right = check.opts[safe: option]?.correct == true
         guesses[chunk.id] = right
+        stakes[chunk.id] = stake
         if right {
             picked = option
             grade = CheckGrade(correct: true, attempt: 1)
             passedChecks.insert(chunk.id)
             session.markWorked()
         }
-        note(passed: right ? chunk.id : nil, option: option, guess: (chunk.id, right))
+        note(passed: right ? chunk.id : nil, option: option, guess: (chunk.id, right), stake: stake)
     }
 
     /// Back to a section already read. The rail is the way back: the web keeps
@@ -258,6 +274,7 @@ final class ConsumeViewModel {
             // The check on a section already answered stays answered — that
             // lives in `passedChecks`, not in these.
             picked = nil
+            held = nil
             missed = []
             grade = nil
             reachedEnd = false
@@ -271,6 +288,7 @@ final class ConsumeViewModel {
             goingBack = false
             index += 1
             picked = nil
+            held = nil
             missed = []
             grade = nil
             reachedEnd = false
@@ -310,7 +328,7 @@ final class ConsumeViewModel {
     /// refuses to tick Consume off a pass left part-way through, and "3 de 5"
     /// is the same two numbers. Mirrors the web's `ConsumeProgress`.
     private func note(passed chunk: String? = nil, option: Int = -1,
-                      guess: (section: String, right: Bool)? = nil) {
+                      guess: (section: String, right: Bool)? = nil, stake: Int? = nil) {
         seenTotal = max(seenTotal, landed)
         session.store.note(
             reading: node.id, idx: index, total: seenTotal,
@@ -324,7 +342,7 @@ final class ConsumeViewModel {
             // last section *in hand* is not the last one while the stream is
             // still going.
             finished: !chunks.isEmpty && index >= chunks.count - 1 && !writing && passed,
-            passed: chunk, option: option, guess: guess
+            passed: chunk, option: option, guess: guess, stake: stake
         )
     }
 

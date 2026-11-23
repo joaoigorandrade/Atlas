@@ -400,15 +400,24 @@ public struct ReadingProgress: Sendable {
     /// already had it, `false` when the guess missed. Mirrors the web's
     /// `ConsumeProgress.pretest`.
     public var pretest: [String: Bool]
+    /// The ink bet on each pretest answer, an index into `inkStakes`. The map's
+    /// ink is summed from these (`inkBalance`), never stored as a total.
+    public var stakes: [String: Int]
+    /// Chunk ids whose check was answered either way — every key of the web's
+    /// `checks`, a recorded miss included. What `needsPretest` reads.
+    public var answered: Set<String>
     public var finished: Bool
     public var handedOff: Bool
 
     public init(idx: Int = 0, total: Int = 0, checks: Set<String> = [],
-                pretest: [String: Bool] = [:], finished: Bool, handedOff: Bool) {
+                pretest: [String: Bool] = [:], stakes: [String: Int] = [:],
+                answered: Set<String>? = nil, finished: Bool, handedOff: Bool) {
         self.idx = idx
         self.total = total
         self.checks = checks
         self.pretest = pretest
+        self.stakes = stakes
+        self.answered = answered ?? checks
         self.finished = finished
         self.handedOff = handedOff
     }
