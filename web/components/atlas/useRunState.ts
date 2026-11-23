@@ -316,12 +316,11 @@ export function useRunState(opts: {
       setGraph((g) => removeNode(g, gapId));
       setPositions(omitKey(gapId));
       setStates(omitKey(gapId));
-      setSpawnedIds((prev) => {
-        if (!prev.has(gapId)) return prev;
-        const nextIds = new Set(prev);
-        nextIds.delete(gapId);
-        return nextIds;
-      });
+      // Its cards go too, or they are dealt for a node the map no longer has.
+      setCards((prev) => prev.filter((c) => c.nodeId !== gapId));
+      setSpawnedIds((prev) =>
+        prev.has(gapId) ? new Set([...prev].filter((id) => id !== gapId)) : prev,
+      );
     },
     [graphRef],
   );

@@ -557,11 +557,11 @@ function buildJob(body: GenerateBody): Job {
         typeof body.budgetMin === "number" && body.budgetMin >= 3
           ? Math.min(30, Math.round(body.budgetMin))
           : 8;
-      return cacheable(
-        "retain",
-        { topic, budgetMin, nodes, language }, // no `interests`: unread, as for perform
-        async (p) => ({ content: await generateRetain(p) }),
-      );
+      // Keyed without `budgetMin` (or `interests`): neither reaches the prompt,
+      // and keying on them paid twice for the same cards.
+      return cacheable("retain", { topic, nodes, language }, async (p) => ({
+        content: await generateRetain({ ...p, budgetMin }),
+      }));
     }
 
     case "judge": {

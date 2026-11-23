@@ -11,9 +11,8 @@
 // map, so retention failure re-enters Phase 1. Content ships the Linear
 // Transformations rotation of cards so the tap → flip → grade → alive-loop is
 // real, not decorative.
-import { CONNECT_COLOR } from "./connect";
-import { CRUCIBLE_COLOR } from "./crucible";
 import { STATE_COLOR } from "./types";
+import type { ReviewCardType, ReviewGrade, ReviewQueue } from "./retainMeta";
 import { Language } from "@/lib/i18n";
 
 /**
@@ -27,75 +26,6 @@ import { Language } from "@/lib/i18n";
  * covers the nodes it was given and the next pass picks up the rest.
  */
 export const RETAIN_DRAFT_NODES = 8;
-
-/** The three card kinds — review isn't only fill-in-the-blank. */
-export type ReviewCardType = "recall" | "why" | "apply";
-
-/** Each type's label + accent (recall = learning, why = Connect, apply = Crucible). */
-export const REVIEW_TYPE_META: Record<ReviewCardType, { label: string; color: string }> =
-  {
-    recall: { label: "Recall", color: STATE_COLOR.learning },
-    why: { label: "Explain why", color: CONNECT_COLOR.accent },
-    apply: { label: "Application", color: CRUCIBLE_COLOR.accent },
-  };
-
-const REVIEW_TYPE_LABEL_PT: Record<ReviewCardType, string> = {
-  recall: "Recordar",
-  why: "Explicar por quê",
-  apply: "Aplicação",
-};
-
-/** Language-aware review-card type label + color. */
-export function reviewTypeMeta(
-  type: ReviewCardType,
-  lang: Language = "en",
-): { label: string; color: string } {
-  return lang === "pt-BR"
-    ? { label: REVIEW_TYPE_LABEL_PT[type], color: REVIEW_TYPE_META[type].color }
-    : REVIEW_TYPE_META[type];
-}
-
-/** Anki's three queues: never seen, on its learning steps, graduated. */
-export type ReviewQueue = "new" | "learning" | "review";
-
-/** The queue counts' colours, in Anki's order and Anki's sense: new is blue,
- *  learning is red, review is green — borrowed from the states that echo them. */
-export const QUEUE_COLOR: Record<ReviewQueue, string> = {
-  new: STATE_COLOR.learning,
-  learning: STATE_COLOR.gap,
-  review: STATE_COLOR.mastered,
-};
-
-/** The FSRS grade after reveal — sets the next interval. */
-export type ReviewGrade = "again" | "hard" | "good" | "easy";
-
-/** The grade buttons, worst → best, each colored by the state it echoes. */
-export const REVIEW_GRADES: ReadonlyArray<{
-  key: ReviewGrade;
-  label: string;
-  color: string;
-}> = [
-  { key: "again", label: "Again", color: STATE_COLOR.gap },
-  { key: "hard", label: "Hard", color: STATE_COLOR.shaky },
-  { key: "good", label: "Good", color: STATE_COLOR.learning },
-  { key: "easy", label: "Easy", color: STATE_COLOR.mastered },
-];
-
-const REVIEW_GRADE_LABEL_PT: Record<ReviewGrade, string> = {
-  again: "De novo",
-  hard: "Difícil",
-  good: "Bom",
-  easy: "Fácil",
-};
-
-/** Language-aware grade buttons. */
-export function reviewGrades(
-  lang: Language = "en",
-): ReadonlyArray<{ key: ReviewGrade; label: string; color: string }> {
-  return lang === "pt-BR"
-    ? REVIEW_GRADES.map((g) => ({ ...g, label: REVIEW_GRADE_LABEL_PT[g.key] }))
-    : REVIEW_GRADES;
-}
 
 /** Retention-health forecast tone: due now, softening, or rock-solid. */
 export type ForecastTone = "due" | "soft" | "solid";
@@ -164,18 +94,6 @@ export interface RetainContent {
   remaining?: number;
 }
 
-/** The micro-Socratic aside "Explain" opens on any revealed card. */
-export const REVIEW_ASIDE =
-  "A 30-second Socratic aside: don’t restate the answer — ask what forces it. Which earlier concept makes this true? Trace one concrete example through and watch where the rule takes it.";
-
-const REVIEW_ASIDE_PT =
-  "Uma pausa Socrática de 30 segundos: não repita a resposta — pergunte o que a obriga a ser verdadeira. Que conceito anterior torna isso verdadeiro? Percorra um exemplo concreto e veja até onde a regra leva.";
-
-/** Language-aware micro-Socratic aside. */
-export function reviewAside(lang: Language = "en"): string {
-  return lang === "pt-BR" ? REVIEW_ASIDE_PT : REVIEW_ASIDE;
-}
-
 /** The stages of one card: question → flip → grade, or the fail aside. */
 export type RetainStage = "question" | "reveal" | "aside" | "failed";
 
@@ -239,7 +157,12 @@ export type RetainAction =
    *  today. */
   | { type: "grade"; grade: ReviewGrade; returns?: ReviewCard }
   | { type: "toggleAside" }
-  | { type: "continue" };
+  | { type: "continue" }
+  /** Take the card on screen out of rotation (suspended) and move on without
+   *  grading it; any later copy of it in this pass goes too. */
+  | { type: "skip" }
+  /** New cards drafted while the pass was open, dealt at its end. */
+  | { type: "deal"; cards: ReviewCard[] };
 
 /**
  * Today's deck: the budgeted cards, then the ones whose learning step brought
@@ -333,9 +256,37 @@ export function retainReducer(
       // "Schedule re-teach · continue" — leave the fail stage and move on.
       if (session.stage !== "failed") return session;
       return retainAdvance(session, session.done, content);
+    case "skip": {
+      if (session.finished) return session;
+      const deck = retainDeck(session, content);
+      const id = deck[session.idx]?.id;
+      // Later copies are unanswered (only positions up to `idx` are), so
+      // dropping them moves nothing that has a grade recorded against it.
+      const base = content.cards.length;
+      const requeued = session.requeued.filter(
+        (c, i) => base + i <= session.idx || c.id !== id,
+      );
+      return retainAdvance({ ...session, requeued }, session.done, content);
+    }
+    case "deal":
+      // A finished pass stays finished: the cards wait for the next open.
+      if (session.finished || action.cards.length === 0) return session;
+      return { ...session, requeued: [...session.requeued, ...action.cards] };
     default:
       return session;
   }
+}
+
+/**
+ * Undo: the pass as it stood before its latest grade or skip, back on that
+ * card's question (or its fail stage, for a skip made there). `dealt` is what arrived since (`deal`), which the undo
+ * keeps — it came from the store, not from the answer being taken back.
+ */
+export function retainRewind(before: RetainSession, dealt: ReviewCard[]): RetainSession {
+  const requeued = [...before.requeued, ...dealt];
+  // A skip from the fail stage goes back to the fail stage: its grade stands.
+  if (before.stage === "failed") return { ...before, requeued };
+  return { ...before, stage: "question", finished: false, requeued, ...CLEARED };
 }
 
 /** The card on screen (clamped to today's deck). */

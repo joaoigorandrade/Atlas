@@ -143,10 +143,22 @@ describe("projectNodes", () => {
 });
 
 describe("projectCards and projectTopic", () => {
-  it("keys cards by id and notices a graded one", () => {
+  it("keys cards by id, and a grade alone does not rewrite the card", () => {
+    // Scheduler state is server-owned: a grade travels as a grade
+    // (`gradeSync`), and re-sending it in the card diff is what let a stale
+    // tab overwrite a newer review.
     const before = projectCards([card("c1")]);
     const after = projectCards([card("c1", "2027-06-01T00:00:00.000Z")]);
     expect(Object.keys(before)).toEqual(["c1"]);
+    expect(before.c1).toBe(after.c1);
+    expect(before.c1).not.toContain("fsrs");
+  });
+
+  it("notices a card whose content changed", () => {
+    const before = projectCards([card("c1")]);
+    const after = projectCards([
+      { ...(card("c1") as object), back: "a better back" } as never,
+    ]);
     expect(before.c1).not.toBe(after.c1);
   });
 

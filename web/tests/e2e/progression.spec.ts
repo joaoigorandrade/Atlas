@@ -40,6 +40,23 @@ async function persisted(page: Page, until: (run: Run) => boolean = () => true) 
 const nodeState = (page: Page, id: string) =>
   expect(page.getByTestId(`node-${id}`)).toHaveAttribute("data-state", /./);
 
+/**
+ * The pass's length once it has settled. Opening Review drafts cards for the
+ * newest concepts behind the queue and deals them in as they land, so the
+ * length is read only after it has held still for a moment.
+ */
+async function settledDeck(sheet: ReturnType<Page["getByTestId"]>): Promise<number> {
+  const rail = sheet.getByText(/Card \d+ (of|de) \d+/);
+  let last = -1;
+  let n = -2;
+  await expect(async () => {
+    last = n;
+    n = Number((await rail.innerText()).match(/(\d+)$/)?.[1]);
+    expect(n).toBe(last);
+  }).toPass({ intervals: [1000], timeout: 15_000 });
+  return n;
+}
+
 test("consume: reading the pass through moves the node off unknown", async ({ page }) => {
   await openRun(page, { [FIRST_NODE]: "frontier" });
   await openPhase(page, FIRST_NODE, "consume");
@@ -225,7 +242,34 @@ test("retain: grading the day's queue writes the card store", async ({ page }) =
   await expect(good).toBeVisible({ timeout: 20_000 });
   await good.click();
 
-  await persisted(page, (s) => ((s.cards ?? []) as unknown[]).length > 0);
+  // The grade reaches the server's copy: it travels as a grade (POST /review),
+  // not in the card diff, which no longer carries scheduler state.
+  await persisted(page, (s) =>
+    ((s.cards ?? []) as Array<{ fsrs?: { reps?: number } }>).some(
+      (c) => (c.fsrs?.reps ?? 0) > 0,
+    ),
+  );
+});
+
+test("retain: a mis-tapped Again can be taken back", async ({ page }) => {
+  await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });
+  await openPhase(page, FIRST_NODE, "retain");
+
+  const sheet = page.getByTestId("phase-retain");
+  await sheet.getByTestId("action-sure-1").click();
+  await expect(sheet.getByTestId("action-grade-again")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(sheet.getByTestId("action-undo")).toBeDisabled();
+  const n = await settledDeck(sheet);
+  await sheet.getByTestId("action-grade-again").click();
+  await expect(sheet.getByTestId("action-continue")).toBeVisible();
+  await expect(sheet.getByText(new RegExp(`Card 1 (of|de) ${n + 1}$`))).toBeVisible();
+
+  // Undo: back on the same card's question, and the miss no longer requeues it.
+  await sheet.getByTestId("action-undo").click();
+  await expect(sheet.getByText(new RegExp(`Card 1 (of|de) ${n}$`))).toBeVisible();
+  await expect(sheet.getByTestId("action-sure-1")).toBeVisible();
 });
 
 test("retain: a missed card comes back at the end of the same pass", async ({ page }) => {
@@ -239,19 +283,19 @@ test("retain: a missed card comes back at the end of the same pass", async ({ pa
     timeout: 20_000,
   });
 
-  // Two cards in the fixture deck; missing the first makes it three.
-  await expect(sheet.getByText(/Card 1 of 2|Card 1 de 2/)).toBeVisible();
+  // Missing the first card deals it again at the end: one more card.
+  const n = await settledDeck(sheet);
   await sheet.getByTestId("action-grade-again").click();
   await sheet.getByTestId("action-continue").click();
-  await expect(sheet.getByText(/Card 2 of 3|Card 2 de 3/)).toBeVisible();
+  await expect(sheet.getByText(new RegExp(`Card 2 (of|de) ${n + 1}$`))).toBeVisible();
 
   // The second card is new: Good puts it on its 10-minute learning step,
   // which lands inside the pass, so it is dealt again too — as in Anki.
   await sheet.getByTestId("action-sure-1").click();
   await sheet.getByTestId("action-grade-good").click();
-  await expect(sheet.getByText(/Card 3 of 4|Card 3 de 4/)).toBeVisible();
-  // The new/learning/review counts move with it: nothing new is left.
-  await expect(sheet.getByTestId("queue-counts")).toContainText("0");
+  await expect(sheet.getByText(new RegExp(`Card 3 (of|de) ${n + 2}$`))).toBeVisible();
+  // The new/learning/review counts move with it: two cards now on a step.
+  await expect(sheet.getByLabel(/^(Learning|Aprendendo): 2$/)).toBeVisible();
 });
 
 test("persistence: a reload restores the run exactly", async ({ page }) => {

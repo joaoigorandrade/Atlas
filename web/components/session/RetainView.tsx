@@ -10,6 +10,7 @@ import {
   reviewCard,
   reviewGrades,
   type AdherenceState,
+  type ReviewCard,
   type ReviewQueue,
   type RetainContent,
   type ReviewGrade,
@@ -22,6 +23,7 @@ import Sheet from "@/components/Sheet";
 import Masthead from "@/components/ui/Masthead";
 
 import ActiveCard from "@/components/session/RetainCard";
+import CardTools from "@/components/session/retain/CardTools";
 import { STRINGS } from "@/components/session/retainCopy";
 import Finished from "@/components/session/RetainFinished";
 import Sidebar from "@/components/session/RetainSidebar";
@@ -52,6 +54,13 @@ interface RetainViewProps {
   onReteach: () => void;
   /** Failed card → schedule the re-teach and continue the queue. */
   onContinue: () => void;
+  /** The dealt card with its grade buttons read off the store as of now. */
+  relabel?: (card: ReviewCard) => ReviewCard;
+  /** Is there a grade or suspension to take back? */
+  canUndo?: boolean;
+  onUndo?: () => void;
+  /** Take the card on screen out of rotation. */
+  onSuspend?: () => void;
 }
 
 export default function RetainView({
@@ -68,10 +77,18 @@ export default function RetainView({
   onToggleAside,
   onReteach,
   onContinue,
+  relabel,
+  canUndo = false,
+  onUndo,
+  onSuspend,
 }: RetainViewProps) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
-  const card = reviewCard(session, content);
+  // Re-read when the tab comes back, so a pass left open overnight doesn't
+  // print yesterday's intervals on its buttons.
+  useVisibleTick();
+  const dealt = reviewCard(session, content);
+  const card = relabel ? relabel(dealt) : dealt;
   const budget = retainBudget(session, content);
   const narrow = useNarrow();
 
@@ -126,14 +143,20 @@ export default function RetainView({
         >
           <div style={{ minWidth: 0 }}>
             {session.finished ? (
-              <Finished
-                remaining={content.remaining ?? 0}
-                litNodes={litNodes}
-                adherence={adherence}
-                litToday={litToday}
-                onToggleReminder={onToggleReminder}
-                onExit={onExit}
-              />
+              <>
+                <Finished
+                  remaining={content.remaining ?? 0}
+                  litNodes={litNodes}
+                  adherence={adherence}
+                  litToday={litToday}
+                  onToggleReminder={onToggleReminder}
+                  onExit={onExit}
+                />
+                {/* The last answer of the pass can be taken back too. */}
+                {canUndo && onUndo && onSuspend && (
+                  <CardTools canUndo onUndo={onUndo} onSuspend={onSuspend} />
+                )}
+              </>
             ) : (
               <>
                 <QueueRail session={session} content={content} />
@@ -148,6 +171,9 @@ export default function RetainView({
                   onReteach={onReteach}
                   onContinue={onContinue}
                 />
+                {onUndo && onSuspend && (
+                  <CardTools canUndo={canUndo} onUndo={onUndo} onSuspend={onSuspend} />
+                )}
               </>
             )}
           </div>
@@ -157,6 +183,18 @@ export default function RetainView({
       </div>
     </Sheet>
   );
+}
+
+/** Re-render when the page becomes visible again. */
+function useVisibleTick(): void {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const on = () => {
+      if (document.visibilityState === "visible") setTick((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, []);
 }
 
 /** Below the phone breakpoint — the layout stacks and the card tightens. */

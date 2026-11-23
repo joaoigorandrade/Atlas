@@ -9,6 +9,7 @@
 // sample streak history so the flame → popover → forgiving-freeze story reads as
 // designed; in the final product these aggregate the learner's real active days.
 import { RetainContent } from "./retain";
+import { uncoveredNodes } from "./cardSources";
 import { Language } from "@/lib/i18n";
 
 /** How one day sits in the streak: target met, absorbed by a freeze, missed, or today's pending day. */
@@ -155,14 +156,12 @@ export interface DailyQueue {
 export function freshConcepts(
   graph: { nodes: ReadonlyArray<{ id: string; gap?: boolean }> },
   states: Record<string, string | undefined>,
-  cards: ReadonlyArray<{ nodeId: string }>,
+  cards: ReadonlyArray<{ nodeId: string; source: string }>,
 ): number {
   const touched = ["learning", "shaky", "mastered"];
-  return graph.nodes.filter(
-    (n) =>
-      !n.gap &&
-      touched.includes(states[n.id] ?? "") &&
-      !cards.some((c) => c.nodeId === n.id),
+  return uncoveredNodes(
+    graph.nodes.filter((n) => !n.gap && touched.includes(states[n.id] ?? "")),
+    cards,
   ).length;
 }
 

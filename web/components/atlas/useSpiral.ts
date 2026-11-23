@@ -1184,17 +1184,7 @@ export function useSpiral(deps: {
   });
 
   // ---- Retain (Phase 6 · Review queue / FSRS) — see `useRetain` -----------
-  const {
-    retainPlan,
-    warmRetain,
-    enterReview,
-    retainFlip,
-    retainToggleAside,
-    retainContinue,
-    retainGrade,
-    retainReteach,
-    exitReview,
-  } = useRetain({
+  const { retainPlan, warmRetain, enterReview, reviewActions } = useRetain({
     run,
     sessions,
     gen,
@@ -1596,12 +1586,7 @@ export function useSpiral(deps: {
     domainPhases,
     retainPlan,
     enterReview,
-    retainFlip,
-    retainToggleAside,
-    retainContinue,
-    retainGrade,
-    retainReteach,
-    exitReview,
+    reviewActions,
     enterCalib,
     exitCalib,
     closeCalibGap,

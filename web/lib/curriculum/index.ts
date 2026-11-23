@@ -29,6 +29,8 @@ export * from "./exam";
 export * from "./examHistory";
 export * from "./recall";
 export * from "./retain";
+export * from "./retainMeta";
+export * from "./cardSources";
 export * from "./adherence";
 export * from "./calibration";
 export * from "./goalDate";

@@ -50,9 +50,15 @@ const EN = {
   queueClear: "Queue clear — nothing due right now. Cards resurface as memories fade.",
   nothingToReview:
     "Nothing to review yet — learn your first concept and cards draft themselves",
-  draftFailedReviewing:
-    "Couldn’t draft cards for your newest concepts — reviewing what’s due, and they’ll be drafted next time",
   thisNode: "This node",
+  newLimitReached:
+    "Today’s new cards are in — the rest join the queue tomorrow, so the reviews they bring stay manageable.",
+  cardsDealt: (n: number) =>
+    `${n} new card${n === 1 ? "" : "s"} for your newest concepts — added to the end of this pass`,
+  cardLeech: (label: string) =>
+    `This card keeps slipping — suspended. Re-learn “${label}” rather than drilling it again.`,
+  cardSuspended: "Card suspended — it won’t come up again",
+  gradeUndone: "Undone — the card is back as it was",
   cardFlaggedShaky: (label: string) =>
     `“${label}” flagged Shaky — retention failure re-enters the loop`,
   reEnteringLoop: (label: string) =>
@@ -154,9 +160,15 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
       "Fila zerada — nada pendente agora. Os cards voltam conforme a memória enfraquece.",
     nothingToReview:
       "Nada para revisar ainda — aprenda seu primeiro conceito e os cards se escrevem sozinhos",
-    draftFailedReviewing:
-      "Não deu para escrever cards dos conceitos mais novos — revisando os vencidos, e eles ficam para a próxima",
     thisNode: "Este nó",
+    newLimitReached:
+      "Os cartões novos de hoje já entraram — os outros chegam amanhã, para as revisões não se acumularem.",
+    cardsDealt: (n: number) =>
+      `${n} ${n === 1 ? "cartão novo" : "cartões novos"} dos conceitos mais recentes — no fim desta rodada`,
+    cardLeech: (label: string) =>
+      `Este cartão continua escapando — suspenso. Reaprenda “${label}” em vez de repeti-lo.`,
+    cardSuspended: "Cartão suspenso — ele não volta mais",
+    gradeUndone: "Desfeito — o cartão voltou ao que era",
     cardFlaggedShaky: (label: string) =>
       `“${label}” marcado como Instável — a falha de retenção reentra no ciclo`,
     reEnteringLoop: (label: string) =>
