@@ -14,7 +14,12 @@
 import type { PhaseId } from "@/lib/curriculum";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import {
+  expect,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 /** Mirrors DIAGNOSTIC_COUNT in lib/curriculum.ts. */
 const DIAGNOSTIC_COUNT = 5;
@@ -280,4 +285,21 @@ export async function answerCheck(page: Page, option = 1): Promise<void> {
     .locator(`[data-testid="action-check-${option}"]:not([disabled])`)
     .last()
     .click();
+  await placeBet(sheet);
+}
+
+/**
+ * A pretest answer is held for an ink bet before it counts (`SectionCheck`);
+ * an end-of-section check takes none. Place `stake` if the bet is asked.
+ */
+export async function placeBet(scope: Locator, stake = 0): Promise<void> {
+  const bet = scope.getByTestId("consume-bet");
+  // The bet mounts on the click's own render, so a short wait tells the two apart.
+  if (
+    await bet.waitFor({ timeout: 1500 }).then(
+      () => true,
+      () => false,
+    )
+  )
+    await bet.getByTestId(`action-sure-${stake}`).click();
 }

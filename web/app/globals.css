@@ -690,6 +690,12 @@ html[data-turn="back"]::view-transition-new(root) {
   .at-mast-end > :not(button) {
     display: none;
   }
+  /* A reading section's figure stacks under its prose — beside it, the prose
+     column squeezes to a word a line and the figure runs off the screen. The
+     grid is the prose block's parent (ConsumeView, at its line ceiling). */
+  div:has(> [data-chunk-id]) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
 
 /* The map on a phone (below `layout.phone`): the top bar keeps the wordmark's

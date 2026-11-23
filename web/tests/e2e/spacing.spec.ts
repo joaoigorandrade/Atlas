@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openPhase, openRun, passExplain } from "./helpers";
+import { openPhase, openRun, passExplain, placeBet } from "./helpers";
 
 // W4.1 — every plan's last gate opens a night after the last thing studied,
 // so no node goes green on the day it was learned. `edge-cases` is a working
@@ -14,6 +14,7 @@ async function readKnowingEverySection(page: Page) {
   for (let i = 0; i < 3; i++) {
     await sheet.getByTestId("action-mode-choices").last().click();
     await sheet.locator('[data-testid="action-check-1"]:not([disabled])').last().click();
+    await placeBet(sheet);
     await sheet.getByTestId(i === 2 ? "action-finish" : "action-continue").click();
   }
   return page.getByTestId("phase-consume-recap");

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { FIRST_NODE, openPhase, openRun } from "./helpers";
+import { FIRST_NODE, openPhase, openRun, placeBet } from "./helpers";
 
 /** Answer the open pretest by choice. Option 1 is right in the fixture pass. */
 async function guess(page: import("@playwright/test").Page, option: number) {
@@ -9,6 +9,7 @@ async function guess(page: import("@playwright/test").Page, option: number) {
     .locator(`[data-testid="action-check-${option}"]:not([disabled])`)
     .last()
     .click();
+  await placeBet(sheet);
 }
 
 test("consume: a section opens on its pretest, and a miss opens the reading", async ({

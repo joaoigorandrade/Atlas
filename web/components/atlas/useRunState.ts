@@ -372,34 +372,33 @@ export function useRunState(opts: {
     ...domainCaches.contentTables,
   ] as const).current;
 
-  const clearContentCaches = useCallback(() => {
-    for (const [set] of contentCaches) (set as (v: object) => void)({});
-  }, [contentCaches]);
-
   const clearCaches = useCallback(() => {
-    clearContentCaches();
+    for (const [set] of contentCaches) (set as (v: object) => void)({});
     setRetainContent(null);
-  }, [clearContentCaches]);
+  }, [contentCaches]);
 
   /** Drop the run's content, and set its progress and readings to `t`'s — a
    *  loaded topic's, or none for a new map. One list: load and clear were the
    *  same thirteen names twice, and one missing from either survives a wipe. */
-  const resetRun = useCallback((t: Partial<Topic>) => {
-    clearCaches();
-    setLitToday(t.litToday ?? []);
-    setCalibSamples(t.calibSamples ?? []);
-    setShakyReasons(t.shakyReasons ?? {});
-    setPhasesDone(t.phasesDone ?? {});
-    setReviewedNodes(t.reviewedNodes ?? []);
-    setCards(t.cards ?? []);
-    setConsumeProgress(t.consumeProgress ?? {});
-    setModalityTally(t.modalityTally ?? {});
-    setSocraticProgress(t.socraticProgress ?? {});
-    setFeynmanProgress(t.feynmanProgress ?? {});
-    setConnectProgress(t.connectProgress ?? {});
-    setPhaseProgress(t.phaseProgress ?? {});
-    setMisconceptions(t.misconceptions ?? []);
-  }, [clearCaches]);
+  const resetRun = useCallback(
+    (t: Partial<Topic>) => {
+      clearCaches();
+      setLitToday(t.litToday ?? []);
+      setCalibSamples(t.calibSamples ?? []);
+      setShakyReasons(t.shakyReasons ?? {});
+      setPhasesDone(t.phasesDone ?? {});
+      setReviewedNodes(t.reviewedNodes ?? []);
+      setCards(t.cards ?? []);
+      setConsumeProgress(t.consumeProgress ?? {});
+      setModalityTally(t.modalityTally ?? {});
+      setSocraticProgress(t.socraticProgress ?? {});
+      setFeynmanProgress(t.feynmanProgress ?? {});
+      setConnectProgress(t.connectProgress ?? {});
+      setPhaseProgress(t.phaseProgress ?? {});
+      setMisconceptions(t.misconceptions ?? []);
+    },
+    [clearCaches],
+  );
 
   /** Everything a brand-new map has to wipe: the previous run's content, the
    *  previous run's progress, and the previous run's readings. Shared by "build
