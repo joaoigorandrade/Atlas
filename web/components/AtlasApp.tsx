@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useLive } from "@/components/atlas/useLive";
 import { useDayRollover } from "@/components/atlas/useDayRollover";
 import { useExam } from "@/components/atlas/useExam";
+import { useFeed } from "@/components/atlas/useFeed";
+import { useLanguageSwitch } from "@/components/atlas/useLanguageSwitch";
 import { usePhaseParking } from "@/components/atlas/phaseParking";
 import {
   calibOverCount,
@@ -19,7 +21,7 @@ import {
 } from "@/lib/curriculum";
 import { dailyPlan } from "@/lib/dailyPlan";
 import { createWarmQueue } from "@/lib/warm";
-import { type Language, languageAction, useLanguage } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n";
 import AppGate from "@/components/AppGate";
 import { color, font, layout } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
@@ -41,7 +43,8 @@ import { phaseSheets } from "@/components/session/PhaseSheets";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import ExamView from "@/components/session/ExamView";
-import ExamInvite from "@/components/map/ExamInvite";
+import FeedView from "@/components/session/FeedView";
+import MapInvite from "@/components/map/MapInvite";
 import GeneratingOverlay, { type Loading } from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
 import MapCanvas from "@/components/map/MapCanvas";
@@ -86,7 +89,7 @@ export default function AtlasApp({
   // The learner's chosen UI language — threaded into every generation/judge
   // call so AI content comes back in it too (a ref, like `formRef` below, so
   // stable callbacks can read it without widening their dependency arrays).
-  const { language, adoptLanguage, settled, explicit } = useLanguage();
+  const { language } = useLanguage();
   // The background warm queue: content for the phases just ahead is fetched
   // while the learner works, so entering them is a state change, not a wait.
   // A foreground click on something already warming joins that request rather
@@ -127,11 +130,6 @@ export default function AtlasApp({
    *  the failed bubble can offer it, not just the toast. */
   const [socraticRetry, setSocraticRetry] = useState<(() => void) | null>(null);
   const languageRef = useLive(language);
-  // Generated content carries the language of the prompt that wrote it and
-  // nothing else, so switching language mid-run must drop every cached
-  // surface — otherwise the learner keeps reading the old language back out
-  // of memory (and out of the saved snapshot) forever.
-  const contentLanguageRef = useRef(language);
 
   const toastChannel = useToast(supabase, languageRef);
   const { toast, dismissToast, showToast, showError } = toastChannel;
@@ -198,8 +196,6 @@ export default function AtlasApp({
     positions,
     setPositions,
     positionsRef,
-    runLanguage,
-    setRunLanguage,
     feynmanCache,
     retainContent,
     consumeProgress,
@@ -217,7 +213,6 @@ export default function AtlasApp({
     mapsFailed,
     refreshMaps,
     switchMap,
-    clearCaches,
   } = run;
 
   useDayRollover(setAdherence, retain?.finished);
@@ -229,45 +224,7 @@ export default function AtlasApp({
     { setSelectedId, displayRef, showToast, positionsRef, setPositions },
   );
 
-  // Which language wins, and whether a change is a *switch* (regenerate) or
-  // merely the app working out where it is (leave everything alone).
-  //
-  // `settled` is what makes this correct: detection needs `window`, so the
-  // first render is always the "pt-BR" placeholder and the real language lands
-  // an effect later — after this component has already hydrated the run. Acting
-  // on that transition treated every device whose locale disagreed with the run
-  // as a deliberate language switch, and dropped the caches mid-load.
-  useEffect(() => {
-    const action = languageAction({
-      settled,
-      explicit,
-      runLanguage,
-      language,
-      contentLanguage: contentLanguageRef.current,
-    });
-    if (action === "wait" || action === "none") return;
-    if (action === "adopt") {
-      // `runLanguage` is defined whenever the decision is "adopt".
-      contentLanguageRef.current = runLanguage as Language;
-      adoptLanguage(runLanguage as Language);
-      return;
-    }
-    contentLanguageRef.current = language;
-    // Everything is about to be regenerated in the new language, so from here
-    // the run's language is known — whatever it was before.
-    setRunLanguage(language);
-    warm.clear();
-    clearCaches();
-  }, [
-    language,
-    settled,
-    explicit,
-    runLanguage,
-    adoptLanguage,
-    warm,
-    clearCaches,
-    setRunLanguage,
-  ]);
+  useLanguageSwitch(run, warm);
 
   // Every live session mirrored into the record that gets saved.
   usePhaseParking({ run, sessions });
@@ -513,6 +470,7 @@ export default function AtlasApp({
     isMap,
     warmRetain,
   });
+  const feed = useFeed({ ...run, display, frontier: allFrontier, setScreen });
 
   // Hold the paper blank until the saved-run fetch settles — a resumed run
   // must open on the map, never flash the welcome screen first. The mark is
@@ -690,9 +648,10 @@ export default function AtlasApp({
             onPhaseAction={onPhaseAction}
             onSkipKnown={skipKnown}
           />
-          {mapFinished(graph, display) && (
-            <ExamInvite
-              onOpen={() => setScreen("exam")}
+          {(feed.ready.length > 0 || mapFinished(graph, display)) && (
+            <MapInvite
+              feedInk={feed.ready.length ? feed.ink : undefined}
+              onOpen={feed.ready.length ? feed.open : () => setScreen("exam")}
               insetLeft={!narrow || railOpen ? layout.leftRail : 0}
               insetRight={selectedNode && (!narrow || detailOpen) ? layout.nodePanel : 0}
             />
@@ -942,6 +901,10 @@ export default function AtlasApp({
             onExit={() => setScreen("map")}
             onOpenNode={(id) => (setScreen("map"), pickNode(id))}
           />,
+        )}
+      {openSheet === "feed" &&
+        sheetBoundary(
+          <FeedView feed={feed} topic={form.topic} onRead={spiral.enterSession} />,
         )}
 
       {/* Mounted through its own fade-out; `loading` is already null by then,

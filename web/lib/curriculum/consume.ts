@@ -193,6 +193,12 @@ export interface ConsumeProgress {
    *  the section collapses to its takeaway — `false` when the guess missed,
    *  and the section is read in full and asked again at its end. */
   pretest: Record<string, boolean>;
+  /** The ink bet on each pretest answer, keyed by chunk id: the confidence tap
+   *  (an index into `INK_STAKES`, the `CONFIDENCE_FELT` order) placed after the
+   *  guess and before its verdict. The map's ink is derived from these and
+   *  `pretest` (`inkBalance`), never stored as a total. Absent on rows saved
+   *  before bets existed, and on a guess made without one. */
+  stakes: Record<string, number>;
   /** `chunkId:term` keys the learner expanded — the recap lists them back. */
   termsSeen: string[];
   /** Sections in the pass as last seen. With `idx`, the honest "3 of 5" — a
@@ -213,6 +219,7 @@ export const emptyConsumeProgress = (): ConsumeProgress => ({
   collapsed: {},
   checks: {},
   pretest: {},
+  stakes: {},
   termsSeen: [],
   total: 0,
   finished: false,
@@ -247,23 +254,27 @@ export function needsPretest(
  * section collapses — the learner had it, and re-reading it is the time this
  * exists to save. Wrong: only the miss is recorded, never the answer, so the
  * section is read in full and its check at the end is still a real question.
+ * The ink bet on the guess, if one was placed, is kept beside it.
  */
 export function afterPretest<P extends ConsumeProgress>(
   p: P,
   chunkId: string,
   oi: number,
   correct: boolean,
+  stake?: number,
 ): P {
   if (p.pretest?.[chunkId] !== undefined || p.checks[chunkId]) return p;
   const pretest = { ...p.pretest, [chunkId]: correct };
+  const stakes = stake === undefined ? p.stakes : { ...p.stakes, [chunkId]: stake };
   return correct
     ? {
         ...p,
         pretest,
+        stakes,
         checks: { ...p.checks, [chunkId]: { oi, correct: true } },
         collapsed: { ...p.collapsed, [chunkId]: true },
       }
-    : { ...p, pretest };
+    : { ...p, pretest, stakes };
 }
 
 /**

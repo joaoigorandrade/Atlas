@@ -28,7 +28,8 @@ export type Screen =
   | "recall"
   | "review"
   | "calibration"
-  | "exam";
+  | "exam"
+  | "feed";
 
 /** Screens that render as a full-screen `Sheet` over the map. */
 export const SHEET_SCREENS = new Set<Screen>([
@@ -50,5 +51,6 @@ export const SHEET_SCREENS = new Set<Screen>([
   "review",
   "calibration",
   "exam",
+  "feed",
   "settings",
 ]);

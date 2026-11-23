@@ -8,13 +8,19 @@
 // The same card is also the pretest (W3.3): the check asked *before* its
 // section, on screen at once, and never revealing the answer — a right guess
 // passes the check, a miss opens the reading and the check waits at its end.
+//
+// A pretest answer is held for an ink bet before it counts (`INK_STAKES`): the
+// confidence is placed on *this* answer, after it is given and before anything
+// says whether it was right — the order that makes a confident miss the one
+// that sticks.
 
 import { BLUE, RIGHT, STRINGS, WRONG } from "./shared";
 import { ConsumePrediction } from "@/lib/curriculum";
 import { useT } from "@/lib/i18n";
-import { color, font, transition } from "@/lib/theme";
+import { color, font, kicker, transition } from "@/lib/theme";
 import { useEffect, useRef, useState } from "react";
 import Rich from "@/components/Rich";
+import ConfidenceGate from "@/components/session/parts/ConfidenceGate";
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 
 export function SectionCheck({
@@ -30,7 +36,8 @@ export function SectionCheck({
   nodeLabel: string;
   check: ConsumePrediction;
   answer?: { oi: number; correct: boolean };
-  onAnswer: (oi: number, correct: boolean) => void;
+  /** `stake` is the ink bet — a pretest's answer only, an index into `INK_STAKES`. */
+  onAnswer: (oi: number, correct: boolean, stake?: number) => void;
   /** Asked before the section is read: shown at once, answer never revealed. */
   pretest?: boolean;
   /** The pretest guess on this section missed — the hint says so. */
@@ -57,6 +64,10 @@ export function SectionCheck({
 
   const passed = !!answer?.correct;
   const missed = !!answer && !passed;
+  // A pretest guess waiting on its bet; the end-of-section check takes none.
+  const [held, setHeld] = useState<{ oi: number; correct: boolean } | null>(null);
+  const resolve = (oi: number, correct: boolean) =>
+    pretest ? setHeld({ oi, correct }) : onAnswer(oi, correct);
 
   return (
     <div ref={slot} style={{ minHeight: 1, marginTop: 30 }}>
@@ -115,7 +126,7 @@ export function SectionCheck({
           >
             <Rich text={check.q} />
           </div>
-          {!answer && (
+          {!answer && !held && (
             <div style={{ fontSize: 13, color: color.inkFaint, marginBottom: 14 }}>
               {pretest ? t.pretestHint : guessMissed ? t.pretestAgain : t.checkHint}
               <div style={{ marginTop: 10 }}>
@@ -123,7 +134,23 @@ export function SectionCheck({
               </div>
             </div>
           )}
-          {!answer && mode === "open" ? (
+          {held ? (
+            <div data-testid="consume-bet" style={{ animation: "softIn .3s both" }}>
+              <div style={{ ...kicker(9.5, "0.12em", BLUE), margin: "10px 0 4px" }}>
+                {t.yourAnswer}
+              </div>
+              <div style={{ fontFamily: font.serif, fontSize: 16, color: color.inkSoft }}>
+                <Rich text={check.opts[held.oi]?.label ?? ""} />
+              </div>
+              <ConfidenceGate
+                question={t.betQuestion}
+                onPick={(stake) => onAnswer(held.oi, held.correct, stake)}
+              />
+              <div style={{ fontSize: 12, color: color.inkFaint, marginTop: 10 }}>
+                {t.betLegend}
+              </div>
+            </div>
+          ) : !answer && mode === "open" ? (
             <OpenAnswer
               topic={topic}
               nodeLabel={nodeLabel}
@@ -131,7 +158,7 @@ export function SectionCheck({
               options={check.opts.map((o) => o.label)}
               accent={BLUE}
               rows={2}
-              onResolve={(oi) => onAnswer(oi, !!check.opts[oi]?.correct)}
+              onResolve={(oi) => resolve(oi, !!check.opts[oi]?.correct)}
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
@@ -147,7 +174,7 @@ export function SectionCheck({
                     // keeps its options on screen, and carrying the same testid
                     // there made every `action-check-N` match twice.
                     data-testid={answer ? undefined : `action-check-${oi}`}
-                    onClick={answer ? undefined : () => onAnswer(oi, o.correct)}
+                    onClick={answer ? undefined : () => resolve(oi, o.correct)}
                     disabled={!!answer}
                     style={{
                       textAlign: "left",

@@ -28,6 +28,7 @@ import { SpeakerButton, sectionName } from "./consume/SpeakerButton";
 import { WorkedExample } from "./consume/WorkedExample";
 import { PassagePanel } from "./consume/PassagePanel";
 import { SectionCheck } from "./consume/SectionCheck";
+import { PretestMark } from "./consume/PretestMark";
 import { TermPills } from "./consume/TermPills";
 import { ModelView } from "./consume/ModelView";
 export type { ConsumeSession, PassageAsk } from "./consume/shared";
@@ -53,8 +54,8 @@ interface ConsumeViewProps {
   topic: string;
   /** The end-of-section check was answered — right or wrong. */
   onCheck: (chunkId: string, oi: number, correct: boolean) => void;
-  /** The same check, answered before its section was read (W3.3). */
-  onPretest: (chunkId: string, oi: number, correct: boolean) => void;
+  /** The same check, answered before its section was read (W3.3), with its ink bet. */
+  onPretest: (chunkId: string, oi: number, correct: boolean, stake?: number) => void;
   onContinue: (chunkIndex: number) => void;
   /** The last section is done — show the recap. */
   onFinish: () => void;
@@ -714,7 +715,7 @@ export default function ConsumeView({
                     topic={topic}
                     nodeLabel={title}
                     check={c.check}
-                    onAnswer={(oi, correct) => onPretest(c.id, oi, correct)}
+                    onAnswer={(oi, correct, stake) => onPretest(c.id, oi, correct, stake)}
                   />
                 )}
 
@@ -729,11 +730,7 @@ export default function ConsumeView({
                     }}
                   >
                     {session.pretest[c.id] && (
-                      <div
-                        style={{ ...kicker(9.5, "0.1em"), color: BLUE, marginBottom: 6 }}
-                      >
-                        {t.pretestKnown}
-                      </div>
+                      <PretestMark known stake={session.stakes[c.id]} />
                     )}
                     <Rich text={c.takeaway} />
                   </div>
@@ -742,6 +739,9 @@ export default function ConsumeView({
                 {/* Pre-taught terms */}
                 {!collapsed && !pretesting && (
                   <>
+                    {session.pretest[c.id] === false && !session.checks[c.id] && (
+                      <PretestMark known={false} stake={session.stakes[c.id]} />
+                    )}
                     <TermPills
                       chunkId={c.id}
                       terms={c.terms}

@@ -104,6 +104,16 @@ export const STRINGS = {
       "Guess first — one try. If you already have it, this section folds away; a miss makes the reading stick.",
     pretestAgain: "Your guess before reading missed — now answer from what you read.",
     pretestKnown: "You already had this — the full section is one tap away",
+    pretestMissedMark: "Your guess before reading missed — the answer is in here",
+    // ---- the ink bet on a pretest answer
+    yourAnswer: "Your answer",
+    betQuestion: "Bet your ink — how sure are you of that answer?",
+    betLegend:
+      "Not sure risks nothing · fairly sure wins 2, loses 1 · very sure wins 3, loses 3",
+    inkWon: (n: number) => `+${n} ink`,
+    inkLost: (n: number) => (n > 0 ? `−${n} ink` : "no ink lost"),
+    confidentMiss:
+      "You were very sure. A miss you were sure of is the one that sticks once you read the fix.",
   },
   "pt-BR": {
     back: "← Mapa",
@@ -197,6 +207,15 @@ export const STRINGS = {
       "Arrisque primeiro — uma tentativa. Se você já sabe, esta seção se recolhe; errar faz a leitura fixar.",
     pretestAgain: "Seu palpite antes da leitura errou — agora responda com o que leu.",
     pretestKnown: "Você já sabia isto — a seção completa está a um toque",
+    pretestMissedMark: "Seu palpite antes da leitura errou — a resposta está aqui",
+    yourAnswer: "Sua resposta",
+    betQuestion: "Aposte sua tinta — quão seguro você está dessa resposta?",
+    betLegend:
+      "Sem certeza não arrisca nada · bastante seguro ganha 2, perde 1 · muito seguro ganha 3, perde 3",
+    inkWon: (n: number) => `+${n} de tinta`,
+    inkLost: (n: number) => (n > 0 ? `−${n} de tinta` : "nenhuma tinta perdida"),
+    confidentMiss:
+      "Você estava muito seguro. Um erro com certeza é o que mais fixa quando você lê a correção.",
   },
 } as const;
 

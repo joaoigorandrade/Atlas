@@ -1,13 +1,17 @@
 "use client";
 
-// The finished map's invitation: once every concept is mastered, a seal at the
-// foot of the chart offers the mock exam. It appears nowhere else — before the
-// map is done there is a frontier to work, and the exam would test unlearned
-// ground.
+// The plate at the foot of the chart that offers the one thing worth doing from
+// the whole map rather than from a node.
+//
+// While there is a frontier it offers the Frontier Feed, a round of the next
+// readings' pretests bet in ink, and only once a reading on it has been written.
+// Once every concept is mastered it offers the mock exam instead, and nowhere
+// before: until the map is done there is a frontier to work, and the exam would
+// test unlearned ground.
 
 import { pressable } from "@/components/ui/Button";
 import { plateStyle } from "@/components/ui/Plate";
-import { WaxSeal } from "@/components/ui/Ornaments";
+import { CompassRose, WaxSeal } from "@/components/ui/Ornaments";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
@@ -16,25 +20,35 @@ const STRINGS = {
     done: "Map complete",
     line: "Test the whole map with a mock exam",
     cta: "Start →",
+    feedKicker: (ink: number) => `Frontier feed · ${ink} ink`,
+    feedLine: "Bet your ink on what the next readings ask",
+    feedCta: "Deal →",
   },
   "pt-BR": {
     done: "Mapa concluído",
     line: "Teste o mapa inteiro com um simulado",
     cta: "Começar →",
+    feedKicker: (ink: number) => `Feed da fronteira · ${ink} de tinta`,
+    feedLine: "Aposte sua tinta no que as próximas leituras perguntam",
+    feedCta: "Distribuir →",
   },
 } as const;
 
-export default function ExamInvite({
+export default function MapInvite({
+  feedInk,
   onOpen,
   insetLeft,
   insetRight,
 }: {
+  /** The map's ink when this plate offers the feed; absent for the exam. */
+  feedInk?: number;
   onOpen: () => void;
   /** The rails over the canvas, so the seal centres on the chart itself. */
   insetLeft: number;
   insetRight: number;
 }) {
   const t = useT(STRINGS);
+  const feed = feedInk !== undefined;
   return (
     <div
       style={{
@@ -50,7 +64,7 @@ export default function ExamInvite({
     >
       <div
         className="at-lift"
-        data-testid="action-exam-open"
+        data-testid={feed ? "action-feed-open" : "action-exam-open"}
         {...pressable(onOpen)}
         style={{
           ...plateStyle,
@@ -64,11 +78,13 @@ export default function ExamInvite({
           maxWidth: "100%",
         }}
       >
-        <WaxSeal size={30} />
+        {feed ? <CompassRose size={30} /> : <WaxSeal size={30} />}
         <div style={{ minWidth: 0 }}>
-          <div style={kicker(9.5, "0.12em", color.gilt)}>{t.done}</div>
+          <div style={kicker(9.5, "0.12em", color.gilt)}>
+            {feed ? t.feedKicker(feedInk) : t.done}
+          </div>
           <div style={{ fontFamily: font.serif, fontSize: 15.5, color: color.ink }}>
-            {t.line}
+            {feed ? t.feedLine : t.line}
           </div>
         </div>
         <span
@@ -79,7 +95,7 @@ export default function ExamInvite({
             whiteSpace: "nowrap",
           }}
         >
-          {t.cta}
+          {feed ? t.feedCta : t.cta}
         </span>
       </div>
     </div>

@@ -408,9 +408,8 @@ export function useSpiral(deps: {
 
   /** The same check, asked before its section (W3.3): a right answer passes
    *  it and collapses the section; a miss only opens the reading in full. */
-  const consumePretest = (chunkId: string, oi: number, correct: boolean) => {
-    setConsume((prev) => (prev ? afterPretest(prev, chunkId, oi, correct) : prev));
-  };
+  const consumePretest = (id: string, oi: number, correct: boolean, stake?: number) =>
+    setConsume((prev) => (prev ? afterPretest(prev, id, oi, correct, stake) : prev));
 
   const consumeContinue = (chunkIndex: number) => {
     setConsume((prev) =>
@@ -578,6 +577,7 @@ export function useSpiral(deps: {
         collapsed: s.collapsed,
         checks: s.checks,
         pretest: s.pretest,
+        stakes: s.stakes,
         termsSeen: s.termsSeen,
         // A pass still streaming has fewer sections in hand than it will end
         // up with; never let a mid-stream count shrink a known total.
