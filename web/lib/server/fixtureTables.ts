@@ -122,7 +122,7 @@ export function fixtureTable(name: string) {
           if ([...doomed].some((c) => c.id === topic.continent_id))
             topic.continent_id = null;
       if (name === "topics")
-        for (const child of ["nodes", "edges", "cards", "node_content"]) {
+        for (const child of ["nodes", "edges", "cards", "card_reviews", "node_content"]) {
           const ids = new Set([...doomed].map((row) => row.id));
           seededTables.set(
             child,

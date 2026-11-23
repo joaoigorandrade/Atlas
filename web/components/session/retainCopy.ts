@@ -46,6 +46,10 @@ export const STRINGS = {
     cardOf: (i: number, n: number) => `Card ${i} of ${n}`,
     fsrsNote:
       "FSRS predicts recall per card and surfaces each at its optimal spacing — not fixed SM-2 steps.",
+    undo: "Undo",
+    undoHint: "Take back the last answer",
+    suspend: "Suspend card",
+    suspendHint: "Wrong or useless? Take it out of rotation",
   },
   "pt-BR": {
     map: "← Mapa",
@@ -94,5 +98,9 @@ export const STRINGS = {
     cardOf: (i: number, n: number) => `Card ${i} de ${n}`,
     fsrsNote:
       "O FSRS prevê a lembrança de cada card e o mostra no seu espaçamento ideal — não em passos fixos do SM-2.",
+    undo: "Desfazer",
+    undoHint: "Voltar atrás na última resposta",
+    suspend: "Suspender cartão",
+    suspendHint: "Errado ou inútil? Tire-o da rotação",
   },
 } as const;

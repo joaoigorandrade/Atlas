@@ -15,9 +15,9 @@ import {
   type RetainSession,
   type ReviewCard,
 } from "@/lib/curriculum";
+import { forecastRows, retainContentFromStore } from "@/lib/fsrsQueue";
 import {
   dueCards,
-  forecastRows,
   gradeStoredCard,
   intervalLabels,
   newStoredCard,
@@ -25,7 +25,6 @@ import {
   RETENTION_TARGET,
   fmtInterval,
   queueOf,
-  retainContentFromStore,
   returnsThisPass,
   withSchedule,
 } from "@/lib/fsrs";

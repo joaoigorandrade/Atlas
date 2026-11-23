@@ -19,12 +19,17 @@ import {
   createTopic,
   deleteNodes,
   deleteTopic,
+  gradeCard,
+  loadCards,
   loadLibrary,
   loadTopic,
   putCards,
   putContent,
   readContentRows,
+  setSuspended,
+  undoGrade,
 } from "@/lib/server/store";
+import { newStoredCard } from "@/lib/fsrs";
 import type { ConceptGraph } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
 
@@ -154,20 +159,29 @@ describe("cards, stored by topic", () => {
   it("round-trips one card without touching the deck around it", async () => {
     const topic = await makeTopic();
     await putCards(db(), FIXTURE_USER_ID, topic.id, [card("c1", "a"), card("c2", "b")]);
-    const graded = {
-      ...card("c1", "a"),
-      fsrs: { due: "2027-06-01T00:00:00.000Z" },
-    } as StoredCard;
-    await putCards(db(), FIXTURE_USER_ID, topic.id, [graded]);
+    const reworded = { ...card("c1", "a"), back: "reworded" } as StoredCard;
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [reworded]);
 
     const loaded = await loadTopic(db(), topic.id);
     expect(loaded?.cards).toHaveLength(2);
-    expect(loaded?.cards.find((c) => c.id === "c1")?.fsrs.due).toBe(
-      "2027-06-01T00:00:00.000Z",
-    );
-    expect(loaded?.cards.find((c) => c.id === "c2")?.fsrs.due).toBe(
-      "2026-01-01T00:00:00.000Z",
-    );
+    expect(loaded?.cards.find((c) => c.id === "c1")?.back).toBe("reworded");
+    expect(loaded?.cards.find((c) => c.id === "c2")?.back).toBe("…");
+  });
+
+  it("keeps a held card's scheduler state whatever a card write says", async () => {
+    // A tab loaded this morning re-sending its copy must not undo a review
+    // the phone made at noon: only a grade moves `fsrs`.
+    const topic = await makeTopic();
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [card("c1", "a")]);
+    const stale = {
+      ...card("c1", "a"),
+      suspended: true,
+      fsrs: { due: "2027-06-01T00:00:00.000Z" },
+    } as StoredCard;
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [stale]);
+    const [held] = await loadCards(db(), topic.id);
+    expect(held.fsrs.due).toBe("2026-01-01T00:00:00.000Z");
+    expect(held.suspended).toBeUndefined();
   });
 
   it("rewrites a card in place rather than stacking a duplicate", async () => {
@@ -178,6 +192,72 @@ describe("cards, stored by topic", () => {
     await putCards(db(), FIXTURE_USER_ID, topic.id, [card("a-connect-b", "a")]);
     const loaded = await loadTopic(db(), topic.id);
     expect(loaded?.cards).toHaveLength(1);
+  });
+});
+
+describe("grading, through the server", () => {
+  const at = new Date("2026-07-20T12:00:00Z");
+  const fresh = (id: string) =>
+    newStoredCard(
+      { id, nodeId: "a", type: "why", source: "Consume", front: "?", back: "!" },
+      at,
+    );
+  const reviews = () => seededTables.get("card_reviews") ?? [];
+
+  it("schedules the card and logs the review", async () => {
+    const topic = await makeTopic();
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [fresh("c1")]);
+    const out = await gradeCard(db(), FIXTURE_USER_ID, topic.id, "c1", "good", {
+      now: at,
+      durationMs: 4200,
+      expectReps: 0,
+    });
+    expect(out?.kind).toBe("graded");
+    const [held] = await loadCards(db(), topic.id);
+    expect(held.fsrs.reps).toBe(1);
+    expect(held.fsrs.introduced).toBe(at.toISOString());
+    expect(reviews()).toHaveLength(1);
+    expect(reviews()[0]).toMatchObject({
+      card_id: "c1",
+      rating: "good",
+      duration_ms: 4200,
+    });
+  });
+
+  it("refuses a grade made on a copy the store has moved past", async () => {
+    const topic = await makeTopic();
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [fresh("c1")]);
+    await gradeCard(db(), FIXTURE_USER_ID, topic.id, "c1", "good", { now: at });
+    const out = await gradeCard(db(), FIXTURE_USER_ID, topic.id, "c1", "again", {
+      now: at,
+      expectReps: 0,
+    });
+    expect(out?.kind).toBe("conflict");
+    expect(out?.card.fsrs.reps).toBe(1);
+    expect(reviews()).toHaveLength(1);
+  });
+
+  it("undoes the latest review exactly, and only that one", async () => {
+    const topic = await makeTopic();
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [fresh("c1")]);
+    const [before] = await loadCards(db(), topic.id);
+    await gradeCard(db(), FIXTURE_USER_ID, topic.id, "c1", "again", { now: at });
+    const undone = await undoGrade(db(), topic.id, "c1");
+    expect(undone?.fsrs).toEqual(before.fsrs);
+    const [held] = await loadCards(db(), topic.id);
+    expect(held.fsrs).toEqual(before.fsrs);
+    expect(reviews()).toHaveLength(0);
+    // Nothing left to take back.
+    expect(await undoGrade(db(), topic.id, "c1")).toBeNull();
+  });
+
+  it("suspends and restores a card", async () => {
+    const topic = await makeTopic();
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [fresh("c1")]);
+    await setSuspended(db(), topic.id, ["c1"], true);
+    expect((await loadCards(db(), topic.id))[0].suspended).toBe(true);
+    await setSuspended(db(), topic.id, ["c1"], false);
+    expect((await loadCards(db(), topic.id))[0].suspended).toBeUndefined();
   });
 });
 
@@ -195,7 +275,14 @@ describe("deleting a topic", () => {
 
     await deleteTopic(db(), topic.id);
 
-    for (const table of ["topics", "nodes", "edges", "cards", "node_content"]) {
+    for (const table of [
+      "topics",
+      "nodes",
+      "edges",
+      "cards",
+      "card_reviews",
+      "node_content",
+    ]) {
       const rows = (seededTables.get(table) ?? []).filter(
         (r) => r.topic_id === topic.id || r.id === topic.id,
       );

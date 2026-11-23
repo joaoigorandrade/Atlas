@@ -7,62 +7,36 @@
 import {
   createEmptyCard,
   fsrs,
+  GenSeedStrategyWithCardId,
   generatorParameters,
   Rating,
   State,
+  StrategyMode,
   type Card as FsrsCard,
   type Grade,
 } from "ts-fsrs";
 import { CARD_MINUTES } from "@/lib/curriculum";
 import type {
-  ForecastRow,
-  RetainContent,
   ReviewCard,
   ReviewCardType,
   ReviewGrade,
   ReviewQueue,
 } from "@/lib/curriculum";
+import { fmtInterval } from "@/lib/fsrsCopy";
 import type { Language } from "@/lib/i18n";
 
-/** The forecast's own copy — three fixed rows, so it lives here rather than in
- *  a component: `retainContentFromStore` builds them before any render. */
-const FORECAST_STRINGS = {
-  en: {
-    dueNow: "Due in all — today’s deck included",
-    thisWeek: "Coming up this week",
-    rockSolid: "Rock-solid",
-    cards: (n: number) => `${n} card${n === 1 ? "" : "s"}`,
-    minutes: (n: number) => `~${n} min`,
-    onSchedule: "recall lifting as scheduled",
-    farOut: "next lift 30 d+ out",
-    hours: (n: number) => `${n} h`,
-    months: (n: number) => `${n} mo`,
-    years: (n: number) => `${n} y`,
-  },
-  "pt-BR": {
-    dueNow: "Vencidos ao todo — a fila de hoje inclusa",
-    thisWeek: "Chegando esta semana",
-    rockSolid: "Consolidado",
-    cards: (n: number) => `${n} ${n === 1 ? "cartão" : "cartões"}`,
-    minutes: (n: number) => `~${n} min`,
-    onSchedule: "a lembrança sobe conforme o previsto",
-    farOut: "próxima revisão em 30 d+",
-    hours: (n: number) => `${n} h`,
-    months: (n: number) => (n === 1 ? "1 mês" : `${n} meses`),
-    years: (n: number) => (n === 1 ? "1 ano" : `${n} anos`),
-  },
-} as const;
+export { fmtInterval };
 
-/** The copy for a language — falling back to English for anything else, so a
- *  client sending an unknown `lang` gets English rather than a 500. */
-function stringsFor(lang: Language | string | null | undefined) {
-  return FORECAST_STRINGS[lang as Language] ?? FORECAST_STRINGS.en;
-}
-
-/** ts-fsrs card state with dates as ISO strings — JSON-snapshot safe. */
+/** ts-fsrs card state with dates as ISO strings — JSON-snapshot safe.
+ *
+ *  `introduced` is ours, not ts-fsrs's: when the card was first reviewed. It
+ *  rides in the scheduler state because, like the rest of it, only a grade may
+ *  set it — that is what lets the queue cap how many new cards a day brings in
+ *  (`NEW_PER_DAY`) without a second column a client could overwrite. */
 export type StoredFsrsState = Omit<FsrsCard, "due" | "last_review"> & {
   due: string;
   last_review?: string;
+  introduced?: string;
 };
 
 /** One persisted review card: content + provenance + scheduler state. */
@@ -80,11 +54,23 @@ export interface StoredCard {
   back: string;
   /** The 30-second Socratic re-explanation shown on a miss. */
   reExplain?: string;
+  /** Out of rotation: suspended by hand (a wrong or useless card) or by the
+   *  scheduler once it became a leech (`LEECH_LAPSES`). Never dealt, never in
+   *  the forecast. Server-owned, like `fsrs`: only a grade or the suspend
+   *  route changes it. */
+  suspended?: boolean;
   fsrs: StoredFsrsState;
 }
 
-// ponytail: default parameters, no fuzz — tune when real retention data exists.
-const scheduler = fsrs(generatorParameters({ enable_fuzz: false }));
+// Default parameters until the review log (`card_reviews`) holds enough
+// history to fit them. Fuzz is on — without it a draft's cards, all minted in
+// the same second and graded alike, stayed due on the same days forever. It is
+// seeded by card id and rep count (not the clock), so the interval printed on
+// a button is the interval that grade really schedules.
+const scheduler = fsrs(generatorParameters({ enable_fuzz: true })).useStrategy(
+  StrategyMode.SEED,
+  GenSeedStrategyWithCardId("cid"),
+);
 
 const RATING: Record<ReviewGrade, Grade> = {
   again: Rating.Again,
@@ -93,20 +79,34 @@ const RATING: Record<ReviewGrade, Grade> = {
   easy: Rating.Easy,
 };
 
-function toStored(card: FsrsCard): StoredFsrsState {
+/** Exactly ts-fsrs's fields — named rather than spread, so the seed's `cid`
+ *  and anything else riding on the scheduler's card never lands in storage. */
+function toStored(card: FsrsCard, introduced?: string): StoredFsrsState {
   return {
-    ...card,
     due: card.due.toISOString(),
-    last_review: card.last_review?.toISOString(),
+    stability: card.stability,
+    difficulty: card.difficulty,
+    elapsed_days: card.elapsed_days,
+    scheduled_days: card.scheduled_days,
+    learning_steps: card.learning_steps,
+    reps: card.reps,
+    lapses: card.lapses,
+    state: card.state,
+    ...(card.last_review ? { last_review: card.last_review.toISOString() } : null),
+    ...(introduced ? { introduced } : null),
   };
 }
 
-function fromStored(state: StoredFsrsState): FsrsCard {
+/** The scheduler's card, carrying the id its fuzz is seeded with. */
+function fromStored(state: StoredFsrsState, id = ""): FsrsCard {
+  // `introduced` rides along untouched; `toStored` names its fields, so
+  // nothing the scheduler carries through comes back out unasked.
   return {
     ...state,
+    cid: id,
     due: new Date(state.due),
     last_review: state.last_review ? new Date(state.last_review) : undefined,
-  };
+  } as FsrsCard;
 }
 
 /**
@@ -121,7 +121,7 @@ export function nodeRetention(
   const sums: Record<string, [number, number]> = {};
   for (const c of cards) {
     if (!c.fsrs.reps || !c.fsrs.last_review) continue;
-    const r = scheduler.get_retrievability(fromStored(c.fsrs), now, false);
+    const r = scheduler.get_retrievability(fromStored(c.fsrs, c.id), now, false);
     if (!Number.isFinite(r)) continue;
     const s = (sums[c.nodeId] ??= [0, 0]);
     s[0] += r;
@@ -158,21 +158,89 @@ export function withSchedule(
   );
 }
 
+/** Lapses at which a card is pulled from rotation as a leech — Anki's default.
+ *  A card forgotten this often is not being learned by repetition; it needs
+ *  re-teaching or rewriting, so the learner is sent back to its node. */
+export const LEECH_LAPSES = 8;
+
+/** One review, as the log keeps it: enough for the FSRS optimizer (card, time,
+ *  rating, state, elapsed days, duration) and for an exact undo (`before`). */
+export interface CardReview {
+  cardId: string;
+  rating: ReviewGrade;
+  reviewedAt: string;
+  /** How long the card was on screen, when the client measured it. */
+  durationMs?: number;
+  /** The card's state before this review (ts-fsrs `State`). */
+  state: number;
+  elapsedDays: number;
+  scheduledDays: number;
+  stability: number;
+  difficulty: number;
+  /** The card's scheduler state and suspension before the review — what an
+   *  undo puts back. */
+  before: { fsrs: StoredFsrsState; suspended: boolean };
+  /** Reps after the review: orders a card's log without trusting a clock. */
+  reps: number;
+}
+
+/**
+ * Grade a card through the real scheduler: the card with its next due date,
+ * the log row of the review, and whether it just became a leech (in which
+ * case it comes back suspended).
+ */
+export function reviewStoredCard(
+  card: StoredCard,
+  grade: ReviewGrade,
+  now: Date = new Date(),
+  durationMs?: number,
+): { card: StoredCard; review: CardReview; leech: boolean } {
+  const { card: next, log } = scheduler.next(
+    fromStored(card.fsrs, card.id),
+    now,
+    RATING[grade],
+  );
+  const introduced =
+    card.fsrs.introduced ?? (card.fsrs.reps ? undefined : now.toISOString());
+  const leech = grade === "again" && !card.suspended && next.lapses >= LEECH_LAPSES;
+  const graded: StoredCard = {
+    ...card,
+    fsrs: toStored(next, introduced),
+    ...(leech ? { suspended: true } : null),
+  };
+  return {
+    card: graded,
+    leech,
+    review: {
+      cardId: card.id,
+      rating: grade,
+      reviewedAt: now.toISOString(),
+      ...(durationMs !== undefined ? { durationMs } : null),
+      state: log.state,
+      elapsedDays: log.elapsed_days,
+      scheduledDays: log.scheduled_days,
+      stability: next.stability,
+      difficulty: next.difficulty,
+      before: { fsrs: card.fsrs, suspended: !!card.suspended },
+      reps: next.reps,
+    },
+  };
+}
+
 /** Grade a card through the real scheduler — returns it with its next due date. */
 export function gradeStoredCard(
   card: StoredCard,
   grade: ReviewGrade,
   now: Date = new Date(),
 ): StoredCard {
-  const { card: next } = scheduler.next(fromStored(card.fsrs), now, RATING[grade]);
-  return { ...card, fsrs: toStored(next) };
+  return reviewStoredCard(card, grade, now).card;
 }
 
 export function isDue(card: StoredCard, now: Date = new Date()): boolean {
-  return Date.parse(card.fsrs.due) <= now.getTime();
+  return !card.suspended && Date.parse(card.fsrs.due) <= now.getTime();
 }
 
-/** Cards due now, most overdue first. */
+/** Cards due now, most overdue first. Suspended cards are never due. */
 export function dueCards(cards: StoredCard[], now: Date = new Date()): StoredCard[] {
   return cards
     .filter((c) => isDue(c, now))
@@ -183,24 +251,6 @@ export function dueCards(cards: StoredCard[], now: Date = new Date()): StoredCar
 // and is re-exported here because every scheduling caller reaches for it.
 export { CARD_MINUTES };
 
-/** The interval on a grade button, in the learner's language.
- *
- *  Localized because it is the one number the phone no longer computes: the
- *  scheduler runs here, so these words are written here too, and an app whose
- *  source language is pt-BR would otherwise show "2 mo" under "Fácil". */
-export function fmtInterval(ms: number, lang: Language = "en"): string {
-  const t = stringsFor(lang);
-  const min = ms / 60_000;
-  // Anki's own reading of a learning step: "<10m" means "within ten minutes".
-  if (min < 60) return `<${Math.max(1, Math.ceil(min))} min`;
-  const hours = ms / 3_600_000;
-  if (hours < 22) return t.hours(Math.round(hours));
-  const days = ms / 86_400_000;
-  if (days < 30) return `${Math.max(1, Math.round(days))} d`;
-  if (days < 365) return t.months(Math.round(days / 30));
-  return t.years(Math.round(days / 365));
-}
-
 /** What each grade would schedule for this card — real intervals on the buttons. */
 export function intervalLabels(
   card: StoredCard,
@@ -209,46 +259,14 @@ export function intervalLabels(
 ): Record<ReviewGrade, string> {
   const out = {} as Record<ReviewGrade, string>;
   for (const grade of Object.keys(RATING) as ReviewGrade[]) {
-    const { card: next } = scheduler.next(fromStored(card.fsrs), now, RATING[grade]);
+    const { card: next } = scheduler.next(
+      fromStored(card.fsrs, card.id),
+      now,
+      RATING[grade],
+    );
     out[grade] = fmtInterval(next.due.getTime() - now.getTime(), lang);
   }
   return out;
-}
-
-/** The retention-health forecast, read from the real card table. */
-export function forecastRows(
-  cards: StoredCard[],
-  now: Date = new Date(),
-  lang: Language = "en",
-): ForecastRow[] {
-  const t = stringsFor(lang);
-  const due = cards.filter((c) => isDue(c, now)).length;
-  const week = cards.filter(
-    (c) => !isDue(c, now) && Date.parse(c.fsrs.due) <= now.getTime() + 7 * 86_400_000,
-  ).length;
-  const solid = cards.filter(
-    (c) => Date.parse(c.fsrs.due) > now.getTime() + 30 * 86_400_000,
-  ).length;
-  return [
-    {
-      label: t.dueNow,
-      count: t.cards(due),
-      sub: t.minutes(Math.ceil(due * CARD_MINUTES)),
-      tone: "due",
-    },
-    {
-      label: t.thisWeek,
-      count: t.cards(week),
-      sub: t.onSchedule,
-      tone: "soft",
-    },
-    {
-      label: t.rockSolid,
-      count: t.cards(solid),
-      sub: t.farOut,
-      tone: "solid",
-    },
-  ];
 }
 
 /** Which of Anki's three queues a card is in: never seen, still on its
@@ -294,27 +312,4 @@ export const LEARN_AHEAD_MS = 20 * 60_000;
 /** Does this just-graded card come back before today's pass ends? */
 export function returnsThisPass(card: StoredCard, now: Date = new Date()): boolean {
   return Date.parse(card.fsrs.due) - now.getTime() <= LEARN_AHEAD_MS;
-}
-
-/**
- * Today's honest queue as the Retain surface's content shape: due cards
- * budgeted to the learner's daily minutes, grade buttons carrying the
- * scheduler's real intervals. Every card keeps the alive-loop wiring (`fails`):
- * a miss flags its node Shaky whatever queue the card was in.
- */
-export function retainContentFromStore(
-  cards: StoredCard[],
-  budgetMin: number,
-  now: Date = new Date(),
-  lang: Language = "en",
-): RetainContent {
-  const due = dueCards(cards, now);
-  const budgeted = due.slice(0, Math.max(1, Math.floor(budgetMin / CARD_MINUTES)));
-  const deck: ReviewCard[] = budgeted.map((c) => toReviewCard(c, now, lang));
-  return {
-    budgetMin,
-    forecast: forecastRows(cards, now, lang),
-    cards: deck,
-    remaining: due.length - budgeted.length,
-  };
 }

@@ -34,7 +34,6 @@ import type {
   ModalityTally,
   ProgressState,
   RetainContent,
-  ReviewGrade,
   PhaseProgress,
   PhasesDoneMap,
   PhaseId,
@@ -183,10 +182,12 @@ async function failure(res: Response, op: string): Promise<AtlasError> {
 export async function call<T>(
   op: string,
   path: string,
-  init?: { method?: string; body?: unknown },
+  init?: { method?: string; body?: unknown; keepalive?: boolean },
 ): Promise<T> {
   const res = await fetch(`${V1}${path}`, {
     method: init?.method,
+    // A grade sent as the page hides must outlive the page.
+    ...(init?.keepalive ? { keepalive: true } : null),
     ...(init?.body !== undefined
       ? {
           headers: { "Content-Type": "application/json" },
@@ -273,19 +274,6 @@ export function loadReview(
     "loadReview",
     `/topics/${id}/review?budgetMin=${at.budgetMin}&lang=${encodeURIComponent(at.lang)}`,
   );
-}
-
-/** Grade one card through the real scheduler and get it back with its next due
- *  date. One row, one round trip — never the whole deck. */
-export function gradeCard(
-  id: string,
-  cardId: string,
-  grade: ReviewGrade,
-): Promise<{ card: StoredCard }> {
-  return call("gradeCard", `/topics/${id}/review`, {
-    method: "POST",
-    body: { cardId, grade },
-  });
 }
 
 export function patchProfile(patch: ProfilePatch): Promise<Profile> {

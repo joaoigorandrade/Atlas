@@ -137,8 +137,18 @@ function chunks<T>(list: T[], size = CARD_BATCH): T[][] {
   return out;
 }
 
+/** A card's content, as the diff compares it. Its scheduler state and its
+ *  suspension are left out on purpose: those are server-owned and travel as a
+ *  grade (`gradeSync`) or a suspend call, so a grade no longer re-uploads the
+ *  card — and a stale tab can no longer overwrite a newer review. A card new
+ *  to the server still carries its minted `fsrs` in the write itself. */
 export function projectCards(cards: StoredCard[]): Record<string, string> {
-  return Object.fromEntries(cards.map((c) => [c.id, JSON.stringify(c)]));
+  return Object.fromEntries(
+    cards.map(({ fsrs: _fsrs, suspended: _sus, ...content }) => [
+      content.id,
+      JSON.stringify(content),
+    ]),
+  );
 }
 
 export function projectTopic(topic: {

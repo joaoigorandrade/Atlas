@@ -110,12 +110,15 @@ export type CardRow = {
   source: string;
   content: Record<string, unknown>;
   fsrs: StoredCard["fsrs"];
+  /** Absent on fixture rows seeded before the column existed. */
+  suspended?: boolean;
 };
 
 const TOPIC_COLUMNS = `id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at, ${AXIS_COLUMNS}, continent:continents(id, name, scopes)`;
 const NODE_COLUMNS =
   "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, importance, difficulty, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress, phase_closed_at";
-export const CARD_COLUMNS = "topic_id, id, node_id, type, source, content, fsrs";
+export const CARD_COLUMNS =
+  "topic_id, id, node_id, type, source, content, fsrs, suspended";
 
 /** A card row as the screens hold it. The content fields travel as one object
  *  rather than five nullable columns, so this is where they come back apart. */
@@ -126,6 +129,8 @@ export function toCard(row: CardRow): StoredCard {
     type: row.type,
     source: row.source,
     ...(row.content as Partial<StoredCard>),
+    // The column, never a content field a client wrote.
+    suspended: row.suspended ? true : undefined,
     fsrs: row.fsrs,
   } as StoredCard;
 }

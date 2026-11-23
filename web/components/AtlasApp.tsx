@@ -383,12 +383,7 @@ export default function AtlasApp({
     advanceFromCrucible,
     exitCrucible,
     enterReview,
-    retainFlip,
-    retainToggleAside,
-    retainContinue,
-    retainGrade,
-    retainReteach,
-    exitReview,
+    reviewActions,
     enterCalib,
     exitCalib,
     closeCalibGap,
@@ -880,12 +875,7 @@ export default function AtlasApp({
             adherence={adherence}
             litToday={litToday}
             onToggleReminder={onToggleReminder}
-            onExit={exitReview}
-            onFlip={retainFlip}
-            onGrade={retainGrade}
-            onToggleAside={retainToggleAside}
-            onReteach={retainReteach}
-            onContinue={retainContinue}
+            {...reviewActions}
           />,
         )}
 

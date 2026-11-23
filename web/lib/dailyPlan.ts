@@ -24,7 +24,7 @@ import {
   type GoalKind,
   type PhaseId,
 } from "@/lib/curriculum";
-import { dueCards } from "@/lib/fsrs";
+import { dealableCount } from "@/lib/fsrsQueue";
 import type { Topic } from "@/lib/persistence";
 
 export interface DayItem {
@@ -52,7 +52,7 @@ type PlanTopic = Pick<
 >;
 
 function itemFor(t: PlanTopic, now: Date): DayItem {
-  const due = dueCards(t.cards ?? [], now).length;
+  const due = dealableCount(t.cards ?? [], now);
   const display = displayStates(t.states, t.graph);
   const inFlight = t.graph.nodes.filter(
     (n) => !n.gap && (display[n.id] === "learning" || display[n.id] === "shaky"),

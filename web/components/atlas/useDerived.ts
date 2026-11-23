@@ -22,7 +22,7 @@ import {
   type StateMap,
   freshConcepts,
 } from "@/lib/curriculum";
-import { dueCards } from "@/lib/fsrs";
+import { dealableCount } from "@/lib/fsrsQueue";
 import { useLanguage, useT } from "@/lib/i18n";
 import { STRINGS } from "@/components/atlas/dashboardCopy";
 import { useEarned } from "@/lib/motion";
@@ -280,7 +280,7 @@ export function useDerived(deps: {
 
   // The honest queue chip, read from the real card store (#21): cards
   // actually due now, in minutes.
-  const dueNow = useMemo(() => dueCards(cards).length, [cards]);
+  const dueNow = useMemo(() => dealableCount(cards), [cards]);
   const fresh = useMemo(
     () => freshConcepts(graph, states, cards),
     [graph, states, cards],
