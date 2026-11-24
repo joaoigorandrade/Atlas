@@ -831,8 +831,11 @@ public extension AtlasStore {
     /// The local calendar day — the streak rolls over at the learner's
     /// midnight, not at GMT's.
     static func day(_ date: Date) -> String {
+        // Zero-padded, as the web's `localDay` ("en-CA") writes it: "2026-9-29"
+        // never equalled the web's "2026-09-29", so a streak kept on both
+        // clients reset on every single-digit month or day.
         let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 }
 

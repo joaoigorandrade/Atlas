@@ -22,6 +22,10 @@ function plausibleFsrs(v: unknown): boolean {
   if (v === undefined || v === null) return true; // the server starts it
   if (typeof v !== "object") return false;
   const f = v as Record<string, unknown>;
+  // The phone mints a card with `fsrs: {}` — no scheduler state yet — and
+  // `withSchedule` starts any card without a `due`, so an empty object is the
+  // same as none. Refusing it failed every card the phone drafted.
+  if (Object.keys(f).length === 0) return true;
   if (typeof f.due !== "string" || !Number.isFinite(Date.parse(f.due))) return false;
   return ["stability", "difficulty", "reps", "lapses", "state"].every(
     (k) => typeof f[k] === "number" && Number.isFinite(f[k]),

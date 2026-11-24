@@ -25,7 +25,7 @@ final class HomeViewModel {
         }
     }
 
-    var today: String { Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) }
+    var today: String { Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)) }
 
     // MARK: - Revisar — the whole account's day, one tile
 

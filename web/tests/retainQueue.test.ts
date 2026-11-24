@@ -258,6 +258,7 @@ describe("card writes, checked at the door", () => {
   it("takes a well-formed card, with or without scheduler state", () => {
     expect(cardProblem(ok)).toBeNull();
     expect(cardProblem(fresh("c"))).toBeNull();
+    expect(cardProblem({ ...ok, fsrs: {} })).toBeNull();
     expect(
       cardProblem({ ...ok, front: undefined, cloze: ["a", "b"], answer: "x" }),
     ).toBeNull();

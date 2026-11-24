@@ -375,6 +375,9 @@ public struct HomeView: View {
                     .foregroundStyle(Palette.inkMuted)
                     .lineLimit(1)
                 }
+                // The row's 8 trailing is for the menu's own hit area; the body
+                // needs the 20 the leading edge has, or its last word met the rule.
+                .padding(.trailing, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)
             }

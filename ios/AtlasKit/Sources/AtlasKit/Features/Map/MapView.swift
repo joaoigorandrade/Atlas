@@ -214,11 +214,9 @@ public struct MapView: View {
                             .font(.system(size: 17))
                             .foregroundStyle(Palette.inkSoft)
                             .frame(width: Metrics.tap, height: Metrics.tap)
-                            .background(Palette.card, in: .circle)
-                            .overlay { Circle().strokeBorder(Palette.rule, lineWidth: 1) }
-                            .shadow(color: Palette.shade(0.12), radius: 6, y: 2)
+                            .glassEffect(.regular.interactive(), in: .circle)
                     }
-                    .pressable()
+                    .buttonStyle(.plain)
                     .padding(14)
                     .accessibilityLabel("Ir para o próximo conceito")
                 }
@@ -414,35 +412,37 @@ private struct NodeMark: View {
                 // A fixed zone, so every disc on a level sits on the same line
                 // whatever size its state gives it.
                 disc.frame(height: 52)
-                Text(verbatim: node.label)
-                    .font(.atlas(.serif, state == .frontier ? 16 : 15))
-                    .italic(town)
-                    .foregroundStyle(state == .unknown ? Palette.inkMuted : Palette.ink)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    // Fell's italic leans past the width it measures at, and
-                    // the neighbour's label covered the overhang ("Funçõe"):
-                    // a narrower measure makes it wrap before it spills.
-                    .frame(maxWidth: town ? TrailMap.slot - 34 : nil)
-                    // A name is never printed over an edge, only in the paper
-                    // around one: an edge from three levels up runs straight
-                    // through the middle of this level on its way past.
-                    .padding(.horizontal, 5)
-                    .background(Palette.paper.opacity(0.92), in: .rect(cornerRadius: 3))
-                // Untouched territory says nothing: the pale disc is the whole
-                // message, and a grid of "Desconhecido" under the half of the
-                // map nobody has reached is noise. Nor does the frontier: its
-                // pulse says it, and sixteen "Fronteira · pronto" in a row was
-                // the loudest thing on the map. The legend names both.
-                if state != .unknown && state != .frontier {
-                    Text(state.legend)
-                        .font(.atlas(.serif, 12.5))
-                        .foregroundStyle(state == .frontier ? Palette.amberInk : Palette.inkMuted)
-                        .lineLimit(1)
-                        .padding(.horizontal, 5)
-                        .background(Palette.paper.opacity(0.92), in: .capsule)
+                // Name and state on one ground: two grounds left a gap between
+                // them that the edge leaving this disc showed through.
+                VStack(spacing: 2) {
+                    Text(verbatim: node.label)
+                        .font(.atlas(.serif, state == .frontier ? 16 : 15))
+                        .italic(town)
+                        .foregroundStyle(state == .unknown ? Palette.inkMuted : Palette.ink)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        // Fell's italic leans past the width it measures at, and
+                        // the neighbour's label covered the overhang ("Funçõe"):
+                        // a narrower measure makes it wrap before it spills.
+                        .frame(maxWidth: town ? TrailMap.slot - 34 : nil)
+                    // Untouched territory says nothing: the pale disc is the whole
+                    // message, and a grid of "Desconhecido" under the half of the
+                    // map nobody has reached is noise. Nor does the frontier: its
+                    // pulse says it, and sixteen "Fronteira · pronto" in a row was
+                    // the loudest thing on the map. The legend names both.
+                    if state != .unknown && state != .frontier {
+                        Text(state.legend)
+                            .font(.atlas(.serif, 12.5))
+                            .foregroundStyle(Palette.inkMuted)
+                            .lineLimit(1)
+                    }
                 }
+                // A name is never printed over an edge, only in the paper
+                // around one: an edge from three levels up runs straight
+                // through the middle of this level on its way past.
+                .padding(.horizontal, 5)
+                .background(Palette.paper.opacity(0.92), in: .rect(cornerRadius: 3))
             }
             .contentShape(.rect)
         }
@@ -500,11 +500,13 @@ private struct NodeMark: View {
         .task { pulsing = true }
     }
 
-    /// What the disc carries: a tick for a concept already learned, a pip for
+    /// What the disc carries: a tick for a concept already finished, a pip for
     /// one the learner can start now, nothing at all for territory ahead.
     @ViewBuilder
     private var glyph: some View {
-        if state.isLearned {
+        // A tick once the pass is finished — not for `learning`, which is a
+        // pass barely started and read as done beside its own "Aprendendo".
+        if state.meetsPrereq {
             Image(systemName: "checkmark")
                 .font(.system(size: diameter * 0.44, weight: .bold))
                 .foregroundStyle(Palette.accentInk)

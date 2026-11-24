@@ -42,7 +42,7 @@ final class ProfileViewModel {
         let due = store.dueToday
         return due == 0
             ? "Fila limpa hoje"
-            : "\(due) pendentes · ~\(Int((Double(due) * cardMinutes).rounded())) min hoje"
+            : "\(due) para revisar · ~\(Int((Double(due) * cardMinutes).rounded())) min hoje"
     }
 
     /// The sign-out dialog is up.

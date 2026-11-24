@@ -1,112 +1,6 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
-    "A analogia" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The analogy"
-          }
-        }
-      }
-    },
-    "A ordem" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The order"
-          }
-        }
-      }
-    },
-    "Até onde você quer ir?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How far do you want to go?"
-          }
-        }
-      }
-    },
-    "Comece pelo problema" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start with the problem"
-          }
-        }
-      }
-    },
-    "Como você explicaria isso para alguém que nunca ouviu falar?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How would you explain this to someone who has never heard of it?"
-          }
-        }
-      }
-    },
-    "Confira se ele entendeu" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Check they got it"
-          }
-        }
-      }
-    },
-    "De uma a três paradas. Leia, veja como explicar, tente uma vez." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "One to three stops. Read it, see how to explain it, try it once."
-          }
-        }
-      }
-    },
-    "Domínio" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mastery"
-          }
-        }
-      }
-    },
-    "Direto para o mapa — sem nivelamento, nada para configurar" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Straight to the map — no placement, nothing to set up"
-          }
-        }
-      }
-    },
-    "Explain · como explicar" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Explain · how to explain it"
-          }
-        }
-      }
-    },
     "Falta muito da execução." : {
       "localizations" : {
         "en" : {
@@ -117,216 +11,12 @@
         }
       }
     },
-    "Isso deixa o erro de pé" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That leaves it standing"
-          }
-        }
-      }
-    },
-    "Isso desfaz o erro" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That defuses it"
-          }
-        }
-      }
-    },
-    "Me mostre →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show me →"
-          }
-        }
-      }
-    },
-    "Montando como explicar isso…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drafting how to explain this…"
-          }
-        }
-      }
-    },
-    "O atlas completo: teste de nivelamento e uma escada funda em cada conceito." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The full atlas: a placement test, a deep ladder on every concept."
-          }
-        }
-      }
-    },
-    "O que seu ouvinte vai entender errado" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "What your listener will get wrong"
-          }
-        }
-      }
-    },
-    "O que você responde?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "What do you say back?"
-          }
-        }
-      }
-    },
-    "Onde ela falha" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Where it breaks"
-          }
-        }
-      }
-    },
     "Os passos" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The steps"
-          }
-        }
-      }
-    },
-    "Por que é tentador" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Why it is tempting"
-          }
-        }
-      }
-    },
-    "Próximo cartão →" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next card →"
-          }
-        }
-      }
-    },
-    "Seu ouvinte diz" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your listener says"
-          }
-        }
-      }
-    },
-    "Só quero saber" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Just want to know"
-          }
-        }
-      }
-    },
-    "Tente outra resposta." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try another reply."
-          }
-        }
-      }
-    },
-    "Uma resposta certa contém" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A right answer contains"
-          }
-        }
-      }
-    },
-    "Ver como explicar isso a outra pessoa" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "See how to explain this to someone else"
-          }
-        }
-      }
-    },
-    "Você ainda não viu como explicar isso — quer ver?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You haven't seen how to explain this yet — want to?"
-          }
-        }
-      }
-    },
-    "minutos · sem teste" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "minutes · no test"
-          }
-        }
-      }
-    },
-    "montar a explicação" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "draft the explanation"
-          }
-        }
-      }
-    },
-    "semanas · no ritmo do seu objetivo" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "weeks · paced to your goal"
           }
         }
       }
@@ -525,6 +215,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@s a call, typically."
+          }
+        }
+      }
+    },
+    "%lld cartas respondidas" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card answered"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards answered"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld carta respondida"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cartas respondidas"
+                }
+              }
+            }
           }
         }
       }
@@ -822,6 +553,17 @@
         }
       }
     },
+    "%lld de tinta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld ink"
+          }
+        }
+      }
+    },
     "%lld dias até sua data" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -829,6 +571,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld days to your date"
+          }
+        }
+      }
+    },
+    "%lld dias de sequência" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day streak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day streak"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld dia de sequência"
+                }
+              },
+              "zero" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld dias de sequência"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld dias de sequência"
+                }
+              }
+            }
           }
         }
       }
@@ -844,6 +633,47 @@
         }
       }
     },
+    "%lld na fronteira" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld on the frontier"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld on the frontier"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld na fronteira"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld na fronteira"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld para revisar" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -855,13 +685,35 @@
         }
       }
     },
-    "%lld pendentes · ~%lld min hoje" : {
+    "%lld para revisar · ~%lld min hoje" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld due · ~%lld min today"
+          }
+        }
+      }
+    },
+    "%lld%% dominado" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% mastered"
+          }
+        }
+      }
+    },
+    "← Mapa" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← Map"
           }
         }
       }
@@ -884,6 +736,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "+ New map"
+          }
+        }
+      }
+    },
+    "+%lld de tinta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld ink"
+          }
+        }
+      }
+    },
+    "+%lld de tinta nesta rodada" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld ink this round"
           }
         }
       }
@@ -932,6 +806,28 @@
         }
       }
     },
+    "−%lld de tinta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%lld ink"
+          }
+        }
+      }
+    },
+    "−%lld de tinta nesta rodada" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%lld ink this round"
+          }
+        }
+      }
+    },
     "1 cartão vencido" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -961,6 +857,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The claim"
+          }
+        }
+      }
+    },
+    "A analogia" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analogy"
           }
         }
       }
@@ -1237,6 +1144,17 @@
         }
       }
     },
+    "A ordem" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The order"
+          }
+        }
+      }
+    },
     "A questão" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1277,6 +1195,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The answer — a number, a fraction, a percentage…"
+          }
+        }
+      }
+    },
+    "A resposta está na leitura: a seção abre por inteiro, com esta pergunta esperando no final." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The answer is in the reading: the section opens in full, with this question waiting at its end."
           }
         }
       }
@@ -1387,6 +1316,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open the concept"
+          }
+        }
+      }
+    },
+    "Abrir o mapa →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the map →"
           }
         }
       }
@@ -1809,6 +1749,28 @@
         }
       }
     },
+    "Aposte sua tinta — quão seguro você está dessa resposta?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet your ink — how sure are you of that answer?"
+          }
+        }
+      }
+    },
+    "Aposte sua tinta no que as próximas leituras perguntam" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bet your ink on what the next readings ask"
+          }
+        }
+      }
+    },
     "Aprenda isso primeiro" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1897,6 +1859,17 @@
         }
       }
     },
+    "As próximas leituras ainda estão sendo escritas, ou todas as seções delas já foram perguntadas. Volte quando a próxima abrir." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The next readings are still being written, or every section in them has been asked. Come back after the next one opens."
+          }
+        }
+      }
+    },
     "as seções do Consume podem ser ouvidas" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1915,6 +1888,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Placing the foundations…"
+          }
+        }
+      }
+    },
+    "Até onde você quer ir?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How far do you want to go?"
           }
         }
       }
@@ -2014,6 +1998,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fairly confident"
+          }
+        }
+      }
+    },
+    "Bastante seguro" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fairly sure"
           }
         }
       }
@@ -2146,6 +2141,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "load your review"
+          }
+        }
+      }
+    },
+    "carta %lld de até %lld" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "card %lld of up to %lld"
           }
         }
       }
@@ -2293,6 +2299,17 @@
         }
       }
     },
+    "Comece pelo problema" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with the problem"
+          }
+        }
+      }
+    },
     "Como %@ se relaciona com %@?" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2315,6 +2332,17 @@
         }
       }
     },
+    "Como você explicaria isso para alguém que nunca ouviu falar?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How would you explain this to someone who has never heard of it?"
+          }
+        }
+      }
+    },
     "Compare com a versão do mapa para %@: “%@”" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2322,6 +2350,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compare with the map’s version for %1$@: “%2$@”"
+          }
+        }
+      }
+    },
+    "Completo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete"
           }
         }
       }
@@ -2487,6 +2526,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Check the email and password, then try again."
+          }
+        }
+      }
+    },
+    "Confira se ele entendeu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check they got it"
           }
         }
       }
@@ -2663,6 +2713,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Continue · %@"
+          }
+        }
+      }
+    },
+    "Continuar →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue →"
           }
         }
       }
@@ -2895,6 +2956,17 @@
         }
       }
     },
+    "De uma a três paradas. Leia, veja como explicar, tente uma vez." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One to three stops. Read it, see how to explain it, try it once."
+          }
+        }
+      }
+    },
     "De volta ao ciclo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3012,6 +3084,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dissolve the continent"
+          }
+        }
+      }
+    },
+    "Desta vez não" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not this time"
           }
         }
       }
@@ -3159,6 +3242,17 @@
         }
       }
     },
+    "Direto para o mapa — sem nivelamento, nada para configurar" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Straight to the map — no placement, nothing to set up"
+          }
+        }
+      }
+    },
     "Discriminate · fronteira" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3166,6 +3260,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Discriminate · boundary"
+          }
+        }
+      }
+    },
+    "Distribuir →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deal →"
           }
         }
       }
@@ -3232,6 +3337,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Master all of it"
+          }
+        }
+      }
+    },
+    "Domínio" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mastery"
           }
         }
       }
@@ -4017,6 +4133,17 @@
         }
       }
     },
+    "Explain · como explicar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explain · how to explain it"
+          }
+        }
+      }
+    },
     "Explicação limpa — você cobriu cada parte." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4256,6 +4383,28 @@
         }
       }
     },
+    "Feed da fronteira" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frontier feed"
+          }
+        }
+      }
+    },
+    "Feed da fronteira · %lld de tinta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frontier feed · %lld ink"
+          }
+        }
+      }
+    },
     "Feynman · ensine de volta" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4443,6 +4592,17 @@
         }
       }
     },
+    "Iniciar revisão →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start review →"
+          }
+        }
+      }
+    },
     "Início" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4516,6 +4676,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This isn't in your review rotation yet — want to?"
+          }
+        }
+      }
+    },
+    "Isso deixa o erro de pé" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That leaves it standing"
+          }
+        }
+      }
+    },
+    "Isso desfaz o erro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That defuses it"
           }
         }
       }
@@ -4773,6 +4955,17 @@
         }
       }
     },
+    "Ler →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read →"
+          }
+        }
+      }
+    },
     "Ler a explicação, seção por seção" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4791,6 +4984,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Read the full source →"
+          }
+        }
+      }
+    },
+    "Ler agora →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read it now →"
+          }
+        }
+      }
+    },
+    "Ler em seguida" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read next"
           }
         }
       }
@@ -5026,6 +5241,17 @@
         }
       }
     },
+    "Me mostre →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show me →"
+          }
+        }
+      }
+    },
     "Média" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5114,6 +5340,17 @@
         }
       }
     },
+    "minutos · sem teste" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minutes · no test"
+          }
+        }
+      }
+    },
     "Montando a cadeia, estágio por estágio…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5121,6 +5358,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Building the chain, one stage at a time…"
+          }
+        }
+      }
+    },
+    "Montando como explicar isso…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafting how to explain this…"
           }
         }
       }
@@ -5165,6 +5413,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "setting the scene"
+          }
+        }
+      }
+    },
+    "montar a explicação" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "draft the explanation"
           }
         }
       }
@@ -5323,6 +5582,17 @@
         }
       }
     },
+    "Muito seguro" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Very sure"
+          }
+        }
+      }
+    },
     "Nada na fronteira agora" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5330,6 +5600,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing on the frontier right now"
+          }
+        }
+      }
+    },
+    "Nada para distribuir ainda" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to deal yet"
           }
         }
       }
@@ -5532,6 +5813,17 @@
         }
       }
     },
+    "nenhuma tinta perdida" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no ink lost"
+          }
+        }
+      }
+    },
     "Nível de apoio" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5594,6 +5886,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The strongest case for"
+          }
+        }
+      }
+    },
+    "O atlas completo: teste de nivelamento e uma escada funda em cada conceito." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The full atlas: a placement test, a deep ladder on every concept."
           }
         }
       }
@@ -5807,6 +6110,17 @@
         }
       }
     },
+    "O que seu ouvinte vai entender errado" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What your listener will get wrong"
+          }
+        }
+      }
+    },
     "O que você ensinou" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5825,6 +6139,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "What do you want to learn?"
+          }
+        }
+      }
+    },
+    "O que você responde?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What do you say back?"
           }
         }
       }
@@ -5902,6 +6227,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Where it has got to"
+          }
+        }
+      }
+    },
+    "Onde ela falha" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where it breaks"
           }
         }
       }
@@ -6280,6 +6616,17 @@
         }
       }
     },
+    "Por que é tentador" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why it is tempting"
+          }
+        }
+      }
+    },
     "Por que tinha de ser assim" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6533,6 +6880,17 @@
         }
       }
     },
+    "Próxima carta →" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next card →"
+          }
+        }
+      }
+    },
     "Próxima pergunta →" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6595,6 +6953,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next card %@."
+          }
+        }
+      }
+    },
+    "Próximo cartão →" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next card →"
           }
         }
       }
@@ -6749,6 +7118,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Recall · memory"
+          }
+        }
+      }
+    },
+    "Recém-iniciado" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just started"
           }
         }
       }
@@ -7072,6 +7452,17 @@
         }
       }
     },
+    "Revisão de hoje" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's review"
+          }
+        }
+      }
+    },
     "Revisar agora" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7090,6 +7481,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Review at the right moment so it sticks"
+          }
+        }
+      }
+    },
+    "Rodada concluída" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round complete"
           }
         }
       }
@@ -7248,6 +7650,17 @@
         }
       }
     },
+    "Sem certeza não arrisca nada · bastante seguro ganha 2, perde 1 · muito seguro ganha 3, perde 3" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not sure risks nothing · fairly sure wins 2, loses 1 · very sure wins 3, loses 3"
+          }
+        }
+      }
+    },
     "Sem pânico de tela em branco. Comece pelo mais simples: que problema esse conceito realmente resolve? Ensine-me isso primeiro — o resto sai sozinho." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7277,6 +7690,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not linked"
+          }
+        }
+      }
+    },
+    "semanas · no ritmo do seu objetivo" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weeks · paced to your goal"
           }
         }
       }
@@ -7380,6 +7804,17 @@
         }
       }
     },
+    "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your map is fully mastered. Keep the memories fresh with review."
+          }
+        }
+      }
+    },
     "Seu mapa não ficou pronto. Tente de novo." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7420,6 +7855,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your map, your progress and your cards are deleted from the server. This can't be undone."
+          }
+        }
+      }
+    },
+    "Seu ouvinte diz" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your listener says"
+          }
+        }
+      }
+    },
+    "Seu palpite antes da leitura errou — a resposta está aqui" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your guess before reading missed — the answer is in here"
           }
         }
       }
@@ -7490,6 +7947,17 @@
         }
       }
     },
+    "Só quero saber" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just want to know"
+          }
+        }
+      }
+    },
     "Socratic · sessão" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7541,6 +8009,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your preference"
+          }
+        }
+      }
+    },
+    "Sua resposta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your answer"
           }
         }
       }
@@ -7721,6 +8200,17 @@
         }
       }
     },
+    "Tente outra resposta." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try another reply."
+          }
+        }
+      }
+    },
     "Terminado por hoje" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7772,6 +8262,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Test my knowledge →"
+          }
+        }
+      }
+    },
+    "Todas as cartas acertaram — nada pendente desta rodada." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every card landed — nothing owed from this round."
+          }
+        }
+      }
+    },
+    "Todo conceito do seu mapa está em andamento. Retome um deles pelo mapa." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every concept on your map is under way. Pick one up from the map."
           }
         }
       }
@@ -7985,6 +8497,17 @@
         }
       }
     },
+    "Uma resposta certa contém" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A right answer contains"
+          }
+        }
+      }
+    },
     "unidade de sequência" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7992,6 +8515,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "streak unit"
+          }
+        }
+      }
+    },
+    "Ver como explicar isso a outra pessoa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See how to explain this to someone else"
           }
         }
       }
@@ -8227,6 +8761,17 @@
         }
       }
     },
+    "Você ainda não viu como explicar isso — quer ver?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't seen how to explain this yet — want to?"
+          }
+        }
+      }
+    },
     "Você atravessou, com a dica aberta. A leitura guardada desconta essa ajuda: confiança e resultado só se encontram de verdade quando o enquadramento vem de você." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8348,6 +8893,47 @@
         }
       }
     },
+    "Você está na fronteira de %lld conceitos. Continue de onde parou." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're on the frontier of %lld concept. Pick up where you left off."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're on the frontier of %lld concepts. Pick up where you left off."
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Você está na fronteira de %lld conceito. Continue de onde parou."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Você está na fronteira de %lld conceitos. Continue de onde parou."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Você está sem conexão. Verifique e tente de novo." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8370,6 +8956,17 @@
         }
       }
     },
+    "Você estava muito seguro. Um erro com certeza é o que mais fixa quando você lê a correção." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You were very sure. A miss you were sure of is the one that sticks once you read the fix."
+          }
+        }
+      }
+    },
     "Você hesitou nisso no nivelamento — provavelmente é frágil. Uma tentativa em %@ mostra se resiste." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8388,6 +8985,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You knew every section — prove it in %@"
+          }
+        }
+      }
+    },
+    "Você já sabia isto" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You already had this"
           }
         }
       }
@@ -8619,556 +9227,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voice"
-          }
-        }
-      }
-    },
-    "Feed da fronteira" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Frontier feed"
-          }
-        }
-      }
-    },
-    "%lld de tinta" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld ink"
-          }
-        }
-      }
-    },
-    "Você já sabia isto" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You already had this"
-          }
-        }
-      }
-    },
-    "Desta vez não" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not this time"
-          }
-        }
-      }
-    },
-    "A resposta está na leitura: a seção abre por inteiro, com esta pergunta esperando no final." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The answer is in the reading: the section opens in full, with this question waiting at its end."
-          }
-        }
-      }
-    },
-    "Próxima carta →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next card →"
-          }
-        }
-      }
-    },
-    "Ler agora →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read it now →"
-          }
-        }
-      }
-    },
-    "As próximas leituras ainda estão sendo escritas, ou todas as seções delas já foram perguntadas. Volte quando a próxima abrir." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The next readings are still being written, or every section in them has been asked. Come back after the next one opens."
-          }
-        }
-      }
-    },
-    "Rodada concluída" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Round complete"
-          }
-        }
-      }
-    },
-    "−%lld de tinta nesta rodada" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "−%lld ink this round"
-          }
-        }
-      }
-    },
-    "+%lld de tinta nesta rodada" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "+%lld ink this round"
-          }
-        }
-      }
-    },
-    "Todas as cartas acertaram — nada pendente desta rodada." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every card landed — nothing owed from this round."
-          }
-        }
-      }
-    },
-    "Ler em seguida" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read next"
-          }
-        }
-      }
-    },
-    "Nada para distribuir ainda" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing to deal yet"
-          }
-        }
-      }
-    },
-    "Ler →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read →"
-          }
-        }
-      }
-    },
-    "carta %lld de até %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "card %lld of up to %lld"
-          }
-        }
-      }
-    },
-    "Distribuir →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deal →"
-          }
-        }
-      }
-    },
-    "Aposte sua tinta no que as próximas leituras perguntam" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bet your ink on what the next readings ask"
-          }
-        }
-      }
-    },
-    "Feed da fronteira · %lld de tinta" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Frontier feed · %lld ink"
-          }
-        }
-      }
-    },
-    "Sua resposta" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your answer"
-          }
-        }
-      }
-    },
-    "Aposte sua tinta — quão seguro você está dessa resposta?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bet your ink — how sure are you of that answer?"
-          }
-        }
-      }
-    },
-    "Sem certeza não arrisca nada · bastante seguro ganha 2, perde 1 · muito seguro ganha 3, perde 3" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not sure risks nothing · fairly sure wins 2, loses 1 · very sure wins 3, loses 3"
-          }
-        }
-      }
-    },
-    "Bastante seguro" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fairly sure"
-          }
-        }
-      }
-    },
-    "Muito seguro" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Very sure"
-          }
-        }
-      }
-    },
-    "Seu palpite antes da leitura errou — a resposta está aqui" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your guess before reading missed — the answer is in here"
-          }
-        }
-      }
-    },
-    "+%lld de tinta" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "+%lld ink"
-          }
-        }
-      }
-    },
-    "−%lld de tinta" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "−%lld ink"
-          }
-        }
-      }
-    },
-    "nenhuma tinta perdida" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "no ink lost"
-          }
-        }
-      }
-    },
-    "Você estava muito seguro. Um erro com certeza é o que mais fixa quando você lê a correção." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You were very sure. A miss you were sure of is the one that sticks once you read the fix."
-          }
-        }
-      }
-    },
-    "%lld cartas respondidas" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld card answered"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld cards answered"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld carta respondida"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld cartas respondidas"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld dias de sequência" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld day streak"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld day streak"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld dia de sequência"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld dias de sequência"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "Você está na fronteira de %lld conceitos. Continue de onde parou." : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You're on the frontier of %lld concept. Pick up where you left off."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You're on the frontier of %lld concepts. Pick up where you left off."
-                }
-              }
-            }
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Você está na fronteira de %lld conceito. Continue de onde parou."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Você está na fronteira de %lld conceitos. Continue de onde parou."
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your map is fully mastered. Keep the memories fresh with review."
-          }
-        }
-      }
-    },
-    "Todo conceito do seu mapa está em andamento. Retome um deles pelo mapa." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Every concept on your map is under way. Pick one up from the map."
-          }
-        }
-      }
-    },
-    "Revisão de hoje" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today's review"
-          }
-        }
-      }
-    },
-    "Iniciar revisão →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start review →"
-          }
-        }
-      }
-    },
-    "Abrir o mapa →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open the map →"
-          }
-        }
-      }
-    },
-    "Continuar →" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Continue →"
-          }
-        }
-      }
-    },
-    "Completo" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Complete"
-          }
-        }
-      }
-    },
-    "Recém-iniciado" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Just started"
-          }
-        }
-      }
-    },
-    "%lld%% dominado" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld%% mastered"
-          }
-        }
-      }
-    },
-    "%lld na fronteira" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld on the frontier"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld on the frontier"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld na fronteira"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld na fronteira"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "← Mapa" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "← Map"
           }
         }
       }

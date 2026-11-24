@@ -645,7 +645,10 @@ public struct Avatar: View {
     private var initials: String {
         let name = email?.split(separator: "@").first.map(String.init) ?? ""
         let parts = name.split(whereSeparator: { ".-_+".contains($0) }).prefix(2)
-        let letters = parts.compactMap(\.first).map { String($0) }.joined()
+        // One word takes its first two letters, as the web does (`useDerived`).
+        let letters = parts.count >= 2
+            ? parts.compactMap(\.first).map { String($0) }.joined()
+            : String(name.prefix(2))
         return letters.isEmpty ? "A" : letters.uppercased()
     }
 }

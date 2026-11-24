@@ -15,10 +15,6 @@ public struct RootView: View {
     /// happens to be rebuilt — signing out and back in starts a new session,
     /// and that one leaves from the map like any other.
     @State private var resumed = false
-    /// The engraved tab bar's height, measured. The `TabView` underneath lays
-    /// its tabs out above an outer inset but never hands it to their scroll
-    /// views, so the last row of a long tab sat under the bar, unreachable.
-    @State private var barHeight: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     public init(store: AtlasStore) {
@@ -190,12 +186,22 @@ public struct RootView: View {
     }
 
     private var shell: some View {
-        NavigationTabView(tabs)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                AtlasTabBar(tabs: tabs).onGeometryChange(for: CGFloat.self, of: \.size.height) { barHeight = $0 }
+        // The save banner sits *above* the tabs in a stack, not as an inset:
+        // the `TabView` never hands an outer inset to its tabs, so the inset
+        // banner drew straight over every header underneath it.
+        VStack(spacing: 0) {
+            if store.saveFailed {
+                Chip("Não salvo · tentando de novo", dot: Palette.amberInk, background: .clear)
+                    .glassEffect(.regular, in: .capsule)
+                    .padding(.vertical, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .contentMargins(.bottom, barHeight, for: .scrollContent)
-            .environmentObject(tabs)
+            NavigationTabView(tabs)
+                // Over the tabs, not an inset: each tab root reserves the room
+                // (`AtlasTab.tabContent`) so its content can scroll under the glass.
+                .overlay(alignment: .bottom) { AtlasTabBar(tabs: tabs) }
+        }
+        .environmentObject(tabs)
             // A pass the app was killed in the middle of. Everything in it is
             // on the server — the reading's place, the transcript, the mastery
             // — so all that was lost was the screen, and a learner who left
@@ -203,26 +209,13 @@ public struct RootView: View {
             .task { resume() }
             .tint(Palette.accent)
             // A save that never landed looks exactly like one that did. It says
-            // so, permanently, until the retry gets through.
-            //
-            // An inset rather than an overlay: as an overlay pinned to the top
-            // of the whole shell it drew straight over whatever header was
-            // underneath — on a phase screen it covered the node's title. This
-            // makes room for itself instead, which is what a banner that stays
-            // until it is fixed should do.
+            // so, permanently, until the retry gets through (the chip above).
             //
             // The copy names no cause. It used to say "sem conexão", which was
             // a guess and usually the wrong one: the failure that produced it
             // in production was a 404 on a topic row that no longer existed,
             // with four bars of signal. Saying what is true — not saved, still
             // trying — is the one sentence that holds for every cause.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if store.saveFailed {
-                    Chip("Não salvo · tentando de novo", dot: Palette.amberInk)
-                        .padding(.bottom, 6)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
             .animation(Motion.enter, value: store.saveFailed)
             // What a pass or a card just did to the map, said once. Over the
             // content rather than an inset: it is gone in a few seconds, and a
@@ -237,12 +230,11 @@ public struct RootView: View {
                         .padding(.horizontal, 18)
                         .padding(.vertical, 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.card)
-                        .plate()
-                        .shadow(color: Palette.shade(0.12), radius: 10, y: 4)
+                        // Glass reads as a pane at a real radius; the engraved 3pt is for paper.
+                        .glassEffect(.regular.tint(Palette.card.opacity(0.5)), in: .rect(cornerRadius: 18))
                         .padding(.horizontal, Metrics.gutter)
                         // Above the tab bar.
-                        .padding(.bottom, 84)
+                        .padding(.bottom, AtlasTabBar.reserve + 4)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .onAppear { AccessibilityNotification.Announcement(toast).post() }
                         .id(toast)

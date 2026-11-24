@@ -82,7 +82,7 @@ public struct AuthView: View {
     private func form(_ model: AuthViewModel) -> some View {
         @Bindable var model = model
         return VStack(spacing: 12) {
-            AuthField(placeholder: "voce@exemplo.com", text: $model.email)
+            AuthField(placeholder: String(localized: "voce@exemplo.com"), text: $model.email)
                 .autocorrectionDisabled()
                 // `.username`, not `.emailAddress`: it is what pairs the field
                 // with the password below for iCloud Keychain autofill.
@@ -93,7 +93,7 @@ public struct AuthView: View {
                 .submitLabel(.next)
                 .onSubmit { focus = .password }
 
-            AuthField(placeholder: "Senha", text: $model.password, secure: !model.revealPassword) {
+            AuthField(placeholder: String(localized: "Senha"), text: $model.password, secure: !model.revealPassword) {
                 Button {
                     model.revealPassword.toggle()
                 } label: {
@@ -179,7 +179,9 @@ public struct AuthView: View {
 
 /// The design's field: a shadowed card holding one serif 20pt line, 52pt tall.
 private struct AuthField<Accessory: View>: View {
-    let placeholder: LocalizedStringKey
+    /// A `String`, not a key: a key is parsed as Markdown, which turned the
+    /// e-mail placeholder into a tinted link.
+    let placeholder: String
     @Binding var text: String
     var secure: Bool = false
     @ViewBuilder var accessory: () -> Accessory
@@ -188,9 +190,9 @@ private struct AuthField<Accessory: View>: View {
         HStack(spacing: 12) {
             Group {
                 if secure {
-                    SecureField(placeholder, text: $text)
+                    SecureField(text: $text, prompt: Text(verbatim: placeholder)) { Text(verbatim: placeholder) }
                 } else {
-                    TextField(placeholder, text: $text)
+                    TextField(text: $text, prompt: Text(verbatim: placeholder)) { Text(verbatim: placeholder) }
                 }
             }
             .font(.atlas(.display, 20))
@@ -209,7 +211,7 @@ private struct AuthField<Accessory: View>: View {
 }
 
 extension AuthField where Accessory == EmptyView {
-    init(placeholder: LocalizedStringKey, text: Binding<String>, secure: Bool = false) {
+    init(placeholder: String, text: Binding<String>, secure: Bool = false) {
         self.init(placeholder: placeholder, text: text, secure: secure) { EmptyView() }
     }
 }

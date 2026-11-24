@@ -30,48 +30,62 @@ public enum AtlasTab: String, TabRoute, CaseIterable {
             }
         }
         .toolbar(.hidden, for: .tabBar)
+        // The glass bar floats over the root; this is the room it needs, as
+        // safe area, so a scroll runs on under it and a fixed footer (the
+        // map's) stops above it. A pushed session is another view and gets none.
+        .safeAreaPadding(.bottom, AtlasTabBar.reserve)
     }
 }
 
-/// The tab bar, engraved: the web's segmented Map · Session · Review control
-/// (`components/map/TopBar.tsx`) moved to the thumb. Fell small capitals on a
-/// chip track, the active tab a vellum chip with a hairline ring, a double rule
-/// along the top — no SF Symbols, no glass. The system bar underneath is
-/// hidden; this one keeps its rule that a session is never under a tab bar.
+/// The tab bar: the web's segmented Map · Session · Review control
+/// (`components/map/TopBar.tsx`) moved to the thumb and floated on Liquid
+/// Glass, so the page scrolls on underneath it. Fell small capitals; the
+/// active tab a vellum capsule that slides between them. The system bar
+/// underneath is hidden; this one keeps its rule that a session is never
+/// under a tab bar.
 public struct AtlasTabBar: View {
     @ObservedObject var tabs: AtlasTabNavigator
+    @Namespace private var pill
     public init(tabs: AtlasTabNavigator) { self.tabs = tabs }
+
+    /// What a tab's root leaves clear at the bottom: the capsule and the gap
+    /// above it. Its scroll content runs on under the glass.
+    static let reserve: CGFloat = Metrics.tap + 8 + 12
 
     public var body: some View {
         Gate(navigator: tabs.navigator(for: tabs.selectedTab)) {
-            HStack(spacing: 3) {
+            HStack(spacing: 2) {
                 ForEach(AtlasTab.allCases, id: \.self) { tab in
                     let on = tab == tabs.selectedTab
-                    Button { tabs.handleSelection(tab, popToRootOnReselect: true, onReselect: nil) } label: {
+                    Button {
+                        withAnimation(Motion.standard) {
+                            tabs.handleSelection(tab, popToRootOnReselect: true, onReselect: nil)
+                        }
+                    } label: {
                         Text(tab.title)
                             .font(.atlas(.caps, 15))
                             .tracking(0.4)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                             .foregroundStyle(on ? Palette.ink : Palette.inkMuted)
                             .frame(maxWidth: .infinity, minHeight: Metrics.tap)
-                            .background(on ? Palette.card : .clear, in: .rect(cornerRadius: 2))
-                            .overlay {
-                                if on { RoundedRectangle(cornerRadius: 2).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                            .background {
+                                if on {
+                                    Capsule().fill(Palette.card.opacity(0.85))
+                                        .overlay { Capsule().strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+                                        .matchedGeometryEffect(id: "on", in: pill)
+                                }
                             }
-                            .contentShape(.rect)
+                            .contentShape(.capsule)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
-            .padding(3)
-            .background(Palette.chipBg, in: .rect(cornerRadius: 3))
-            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
+            .padding(4)
+            .glassEffect(.regular.tint(Palette.paper.opacity(0.35)).interactive(), in: .capsule)
             .padding(.horizontal, Metrics.gutter)
-            .padding(.top, 10)
             .padding(.bottom, 4)
-            .frame(maxWidth: .infinity)
-            .paper()
-            .overlay(alignment: .top) { DoubleRule() }
         }
     }
 
