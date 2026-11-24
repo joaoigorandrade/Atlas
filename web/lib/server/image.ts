@@ -56,7 +56,13 @@ export async function generateImage(
   const m = /^data:([^;]+);base64,(.+)$/.exec(url);
   if (!m) throw new OpenRouterError("OpenRouter returned no image", 502);
   console.log(
-    JSON.stringify({ evt: "generate", kind: "image", model, ms: Date.now() - started, cost: data.usage?.cost ?? null }),
+    JSON.stringify({
+      evt: "generate",
+      kind: "image",
+      model,
+      ms: Date.now() - started,
+      cost: data.usage?.cost ?? null,
+    }),
   );
   return { mime: m[1], bytes: Buffer.from(m[2], "base64") };
 }

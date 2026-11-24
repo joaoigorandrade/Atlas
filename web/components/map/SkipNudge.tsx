@@ -24,7 +24,7 @@ export function SkipNudge({
     <div
       style={{
         background: color.amberBg,
-        border: "1px solid rgba(160,106,48,0.25)",
+        border: "1px solid rgba(var(--amber-ink),.25)",
         borderRadius: 3,
         padding: "13px 15px",
         marginTop: -8,

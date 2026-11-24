@@ -19,7 +19,7 @@ struct ConsumeView: View {
                 Waiting("Escrevendo sua leitura…")
             }
         }
-        .background(Palette.paper)
+        .paper()
         // The wait and the pass are one screen arriving, not two screens
         // swapping: the shape fades out under the prose that lands over it.
         .animation(Motion.enter, value: model == nil)
@@ -101,6 +101,7 @@ struct ConsumeView: View {
         .sheet(item: $model.lens) { request in
             ModelLensView(request: request, node: model.node)
                 .presentationDetents([.medium, .large])
+                .drawer()
                 .environment(store)
         }
     }
@@ -165,7 +166,7 @@ struct ConsumeView: View {
                 let caret = chunk.settled || index < chunk.body.count - 1
                     ? Text(verbatim: "")
                     : Text(verbatim: "\u{258C}").foregroundStyle(Palette.accent)
-                Text("\(Text(Markdown.rich(paragraph)))\(caret)")
+                Text("\(Text(index == 0 ? Self.rubricated(paragraph) : Markdown.rich(paragraph)))\(caret)")
                     .font(.atlas(.serif, 18.5))
                     .lineSpacing(6)
                     .foregroundStyle(Palette.ink)
@@ -254,6 +255,17 @@ struct ConsumeView: View {
                     .padding(.top, 22)
             }
 
+            // A section ends on a printer's flower, not a rule (`.at-flowerbreak`).
+            if chunk.settled {
+                HStack(spacing: 12) {
+                    Rectangle().fill(Palette.ink.opacity(0.2)).frame(height: 1)
+                    Text(verbatim: "❦").font(.atlas(.display, 18)).foregroundStyle(Palette.ink.opacity(0.55))
+                    Rectangle().fill(Palette.ink.opacity(0.2)).frame(height: 1)
+                }
+                .padding(.top, 32)
+                .accessibilityHidden(true)
+            }
+
             // What landed stays on screen when the stream dies — but the pass
             // is short, and the only way to ask for the rest used to be the
             // back arrow, which threw away everything already read.
@@ -261,6 +273,18 @@ struct ConsumeView: View {
         }
         // Prose read while it was still being written is never pretested.
         .task(id: chunk.settled) { if !chunk.settled { model.sawWriting(chunk.id) } }
+    }
+
+    /// A reading opens on a rubricated initial (`.at-dropcap`).
+    // ponytail: a raised initial, not a dropped one — `Text` can't float a
+    // letter beside two lines of reflowing markdown. Overlay + indent if the
+    // tall first line reads wrong.
+    private static func rubricated(_ paragraph: String) -> AttributedString {
+        guard let first = paragraph.first, first.isLetter else { return Markdown.rich(paragraph) }
+        var initial = AttributedString(String(first))
+        initial.font = .atlas(.display, 40)
+        initial.foregroundColor = Palette.rubric
+        return initial + Markdown.rich(String(paragraph.dropFirst()))
     }
 
     /// The notice under the last section that landed, and the retry.

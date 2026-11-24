@@ -240,7 +240,7 @@ export function ModelView({
                       style={{
                         flex: 1,
                         width: 1,
-                        background: "rgba(63,95,134,0.32)",
+                        background: "rgba(var(--state-learning),.32)",
                       }}
                     />
                   )}

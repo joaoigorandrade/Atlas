@@ -25,7 +25,7 @@ struct PlacementView: View {
                 fork.transition(.opacity)
             }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: onboarding.takingPlacement)
         .animation(Motion.enter, value: onboarding.placementDone)
         // The screen changes under VoiceOver with focus wherever it was, and the

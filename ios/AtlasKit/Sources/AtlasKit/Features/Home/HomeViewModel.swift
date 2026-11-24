@@ -71,6 +71,15 @@ final class HomeViewModel {
 
     var frontier: [ConceptNode] { store.frontier }
 
+    /// The line under the greeting (`intro` in the web's dashboard copy).
+    var lede: String {
+        let count = store.frontier.count
+        if count > 0 { return String(localized: "Você está na fronteira de \(count) conceitos. Continue de onde parou.") }
+        return store.mastered >= 1
+            ? String(localized: "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão.")
+            : String(localized: "Todo conceito do seu mapa está em andamento. Retome um deles pelo mapa.")
+    }
+
     // MARK: - Continuar
 
     /// What "continue where you left off" opens: a concept already under way —

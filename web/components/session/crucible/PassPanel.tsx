@@ -34,7 +34,7 @@ export default function PassPanel({
           alignItems: "flex-start",
           gap: 13,
           background: color.successBg,
-          border: `1px solid rgba(74,117,82,0.34)`,
+          border: `1px solid rgba(var(--state-mastered),.34)`,
           borderRadius: 3,
           padding: "15px 18px",
           marginBottom: 18,
@@ -85,7 +85,7 @@ export default function PassPanel({
           fontFamily: font.caps,
           letterSpacing: "0.06em",
           cursor: "pointer",
-          boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+          boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
         }}
       >
         {cta}

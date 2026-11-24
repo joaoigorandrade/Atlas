@@ -13,7 +13,7 @@ struct ExplainView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Montando como explicar isso…") }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .task {
             let model = model ?? ExplainViewModel(session: session)

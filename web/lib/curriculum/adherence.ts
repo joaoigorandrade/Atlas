@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Adherence (§13) — the wrapper that decides whether any of this fires ---
 // Spacing is worthless unopened and the spiral only spins on return, so this is
 // a first-class system, not polish. The #1 quit trigger is breaking a streak and
@@ -17,9 +18,9 @@ export type StreakDayStatus = "hit" | "freeze" | "miss" | "today";
 
 /** The flame + freeze palette — the streak borrows the design's amber, the freeze a cool slate, a miss the ghost ink. */
 export const STREAK_COLOR = {
-  flame: "#b0852c",
-  freeze: "#6f8fa6",
-  miss: "rgba(43,33,24,0.16)",
+  flame: color.stateFrontier,
+  freeze: color.freeze,
+  miss: "rgba(var(--ink),.16)",
 } as const;
 
 /** One day in the recent streak strip, oldest → newest, ending on today. */

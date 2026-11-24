@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase 4 · Connect (the Elaboration station) --------------------------
 // Durable encoding through *elaboration*: the learner wires the new node into
 // concepts they already own. The links are real — candidates are pulled from
@@ -16,10 +17,10 @@ import { Language } from "@/lib/i18n";
 
 /** The Connect phase's violet palette (its accent everywhere it appears). */
 export const CONNECT_COLOR = {
-  accent: "#7a5a82",
-  soft: "rgba(122,90,130,0.08)",
-  border: "rgba(122,90,130,0.35)",
-  glow: "rgba(122,90,130,0.26)",
+  accent: color.phaseConnect,
+  soft: "rgba(var(--phase-connect),.08)",
+  border: "rgba(var(--phase-connect),.35)",
+  glow: "rgba(var(--phase-connect),.26)",
 } as const;
 
 /** How the app encodes a node — the auto-detected choice the whole phase turns on. */

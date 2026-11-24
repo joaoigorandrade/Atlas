@@ -1,60 +1,113 @@
 // Design tokens. The app is drawn as an old atlas: rag paper, iron-gall ink,
 // engraved type, and a colourist's washes over it.
 
-export const color = {
+// Every token is a [light, dark] pair. The dark half is the iOS app's own
+// (`Palette` in ios/.../Core/Theme.swift): the atlas read by lamplight, a warm
+// dark built from ink's hue — the two platforms carry the same values.
+const PAIRS = {
   // An old sheet: rag paper gone warm with age, and vellum for the plates
   // pasted onto it.
-  paper: "#efe6d2",
-  card: "#f6efdf",
-  cardAlt: "#f2e9d6",
-  chipBg: "#e7dcc4",
+  paper: ["#efe6d2", "#15130f"],
+  card: ["#f6efdf", "#1e1b16"],
+  cardAlt: ["#f2e9d6", "#232019"],
+  chipBg: ["#e7dcc4", "#2a261e"],
   // Iron-gall ink, from the fresh stroke down to the ghost of one.
-  ink: "#2b2118",
-  inkSoft: "#46382a",
-  inkMuted: "#6a5a47",
-  inkFaint: "#8c7a63",
-  inkGhost: "#ab9b84",
+  ink: ["#2b2118", "#f1ede3"],
+  inkSoft: ["#46382a", "#d6d1c5"],
+  inkMuted: ["#6a5a47", "#b0aa9c"],
+  inkFaint: ["#8c7a63", "#8e887b"],
+  inkGhost: ["#ab9b84", "#6f6a60"],
   // Verdigris: the one green an engraver's colourist had to hand.
-  accent: "#3a6a55",
-  accentBg: "#e6eadc",
+  accent: ["#3a6a55", "#6fb98e"],
+  accentBg: ["#e6eadc", "#1b2a22"],
   // The read-along mark: the accent at a weight that reads as ink on paper
-  // rather than as a selection. It sits *inside* an already-washed paragraph
-  // (`accentBg`), so it has to be the darker of the two without becoming a
-  // second colour.
-  accentWash: "rgba(58,106,85,0.16)",
-  accentInk: "#f6efdf",
+  // rather than as a selection, inside an already-washed paragraph.
+  accentWash: ["rgba(58,106,85,0.16)", "rgba(111,185,142,0.22)"],
+  /** The label *on* an accent fill — comes back down to ink in the dark. */
+  accentInk: ["#f6efdf", "#12180f"],
   /** Vermilion rubrication: drop caps, the marks a scribe put in red. */
-  rubric: "#b03a22",
+  rubric: ["#b03a22", "#e08a6e"],
   /** Gilt: the frontier, the cartouche's ornament. */
-  gilt: "#a8843a",
+  gilt: ["#a8843a", "#d4b26a"],
   /** The engraved rule — double borders on plates and mastheads. */
-  rule: "rgba(43,33,24,0.5)",
-  amberInk: "#94602a",
-  amberBg: "#f2e4c8",
-  successBg: "#e4ead8",
-  // The failure pair, built the way the amber one is: a desaturated ink at the
-  // same lightness over a paper-tinted ground, so an error reads as urgent
-  // without leaving the palette. Nothing else in the app is this red.
-  dangerInk: "#983224",
-  dangerBg: "#f4e2da",
-  hairline: "rgba(43,33,24,0.12)",
-  hairlineStrong: "rgba(43,33,24,0.18)",
-} as const;
+  rule: ["rgba(43,33,24,0.5)", "rgba(241,237,227,0.4)"],
+  amberInk: ["#94602a", "#e0a860"],
+  amberBg: ["#f2e4c8", "#2a2116"],
+  successBg: ["#e4ead8", "#1a241c"],
+  // The failure pair: a desaturated ink over a paper-tinted ground.
+  dangerInk: ["#983224", "#e08c7e"],
+  dangerBg: ["#f4e2da", "#2c1a16"],
+  hairline: ["rgba(43,33,24,0.12)", "rgba(241,237,227,0.14)"],
+  hairlineStrong: ["rgba(43,33,24,0.18)", "rgba(241,237,227,0.2)"],
+  /** The fill of a control that can't be pressed yet. */
+  inkWash: ["rgba(43,33,24,0.07)", "rgba(241,237,227,0.08)"],
+  /** What a raised surface casts. Never `ink`, which inverts: a shadow in a
+   *  light ink is a glow. Use as `rgba(var(--shade), a)`. */
+  shade: ["#2b2118", "#000000"],
+  // Mastery (`STATE_COLOR`) and the streak.
+  stateUnknown: ["#a99f8c", "#6a655c"],
+  stateFrontier: ["#b0852c", "#e3bc5f"],
+  stateLearning: ["#3f5f86", "#8aa8e0"],
+  stateShaky: ["#a9602e", "#de9a61"],
+  stateMastered: ["#4a7552", "#74c08f"],
+  stateGap: ["#a8412f", "#e0887a"],
+  freeze: ["#6f8fa6", "#9fb8cc"],
+  // Each phase's accent (its module's `<PHASE>_COLOR`).
+  phaseConnect: ["#7a5a82", "#bfa0d0"],
+  phaseExplain: ["#6b6a2e", "#c4c27a"],
+  phaseDiscriminate: ["#4a5d70", "#8fafcf"],
+  phaseProvenance: ["#7d6243", "#cfaf86"],
+  phaseSteelman: ["#4d5b94", "#9fade0"],
+  phaseProduce: ["#a45a3a", "#e0a184"],
+  phasePredict: ["#5a4f7d", "#a79fd0"],
+  phaseTrace: ["#3d6e62", "#74bfa9"],
+  phasePerform: ["#4b6b3a", "#74bf96"],
+  phaseDrill: ["#8e5a2b", "#d89f63"],
+  phaseRecall: ["#56657a", "#9aabc6"],
+  phaseCrucible: ["#962c22", "#e08078"],
+  // The map's veil over the unreached (see `map.fog`).
+  fog: ["rgba(239,230,210,0.66)", "rgba(21,19,15,0.7)"],
+} as const satisfies Record<string, readonly [string, string]>;
+
+type Token = keyof typeof PAIRS;
+const kebab = (k: string) => k.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase());
+const cssName = (k: string) => `--at-${kebab(k)}`;
 
 /**
- * The few tokens `app/globals.css` needs, as custom properties on `<html>`.
- * Everything else reads the raw values above — the worker, the canvas
- * painters and the `${color}33` alpha suffixes can't take a `var()`.
+ * Every hex token also declares its bare channels as `--<token>` (no `at-`, so
+ * an inline string is no longer than the literal it replaced): `rgba(var(--ink),.07)`.
+ *
+ * Every colour as a `var()`, so the scheme flips without a re-render. A value
+ * that needs an alpha goes through `alpha()`; one that needs the raw value (a
+ * baked bitmap, a worker) reads `raw(scheme)`.
  */
-export const cssVars = {
-  "--at-paper": color.paper,
-  "--at-card": color.card,
-  "--at-ink": color.ink,
-  "--at-accent": color.accent,
-  "--at-rubric": color.rubric,
-  "--at-gilt": color.gilt,
-  "--at-rule": color.rule,
-} as Record<string, string>;
+export const color = Object.fromEntries(
+  Object.keys(PAIRS).map((k) => [k, `var(${cssName(k)})`]),
+) as Record<Token, string>;
+
+/** A token at an opacity, `pct` 0–100. Works on a `var()`, unlike `${c}33`. */
+export const alpha = (c: string, pct: number) =>
+  `color-mix(in srgb, ${c} ${pct}%, transparent)`;
+
+export type Scheme = "light" | "dark";
+/** The raw values of one scheme, for what can't resolve a `var()`. */
+export const raw = (scheme: Scheme) =>
+  Object.fromEntries(
+    Object.entries(PAIRS).map(([k, v]) => [k, v[scheme === "light" ? 0 : 1]]),
+  ) as Record<Token, string>;
+
+const declare = (scheme: Scheme) =>
+  Object.entries(raw(scheme))
+    .map(([k, v]) => {
+      const hex = /^#([0-9a-f]{6})$/.exec(v)?.[1];
+      const rgb =
+        hex && [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(",");
+      return `${cssName(k)}:${v};` + (rgb ? `--${kebab(k)}:${rgb};` : "");
+    })
+    .join("");
+
+/** The custom properties for both schemes; `app/layout.tsx` inlines it. */
+export const themeCss = `:root{color-scheme:light dark;${declare("light")}}@media (prefers-color-scheme:dark){:root{${declare("dark")}}}`;
 
 /**
  * The map screen's fixed furniture. The top bar, the plan rail and the node
@@ -79,28 +132,45 @@ export const layout = {
  * Mastery colours stay `STATE_COLOR`; these are the cartography around them.
  */
 export const map = {
-  road: "rgba(43,33,24,0.38)",
-  track: "rgba(43,33,24,0.16)",
-  trail: "#a8843a",
-  gapInk: "#b2472f",
-  fog: "rgba(239,230,210,0.66)",
-  graticule: "rgba(43,33,24,0.08)",
-  meridian: "rgba(43,33,24,0.1)",
-  /** The generated atlas (`atlasTerrain.ts`) paints pixels, so these are RGB. */
-  countryInk: "rgba(52,40,29,0.62)",
+  road: "rgba(var(--ink),.38)",
+  track: "rgba(var(--ink),.16)",
+  trail: "var(--at-gilt)",
+  gapInk: "var(--at-state-gap)",
+  /** Baked into a bitmap, so it can't take a `var()`: read `raw(scheme).fog`. */
+  fog: "var(--at-fog)",
+  graticule: "rgba(var(--ink),.08)",
+  meridian: "rgba(var(--ink),.1)",
+  countryInk: "rgba(var(--ink),.62)",
+  /** The generated atlas (`atlasTerrain.ts`) paints pixels, so these are RGB,
+   *  one set per scheme. */
   atlas: {
-    paper: [239, 230, 210],
-    ink: [52, 40, 29],
-    // The colourist's box: rose madder, sap green, gamboge, a Prussian wash,
-    // lilac and ochre.
-    regions: [
-      [214, 150, 146],
-      [158, 184, 132],
-      [222, 196, 120],
-      [148, 170, 196],
-      [190, 160, 190],
-      [220, 168, 120],
-    ],
+    light: {
+      paper: [239, 230, 210],
+      ink: [52, 40, 29],
+      // The colourist's box: rose madder, sap green, gamboge, a Prussian wash,
+      // lilac and ochre.
+      regions: [
+        [214, 150, 146],
+        [158, 184, 132],
+        [222, 196, 120],
+        [148, 170, 196],
+        [190, 160, 190],
+        [220, 168, 120],
+      ],
+    },
+    // The same box by lamplight: the washes sunk toward the dark ground.
+    dark: {
+      paper: [21, 19, 15],
+      ink: [214, 205, 188],
+      regions: [
+        [92, 58, 56],
+        [62, 80, 52],
+        [96, 82, 46],
+        [52, 66, 86],
+        [78, 62, 80],
+        [96, 70, 46],
+      ],
+    },
   },
 } as const;
 

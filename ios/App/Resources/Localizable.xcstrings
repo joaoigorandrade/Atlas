@@ -399,28 +399,6 @@
         }
       }
     },
-    "%@ · %lld na fronteira" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · %lld on the frontier"
-          }
-        }
-      }
-    },
-    "%@ · %lld na fronteira · %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · %lld on the frontier · %@"
-          }
-        }
-      }
-    },
     "%@ · ~%lld min" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -820,47 +798,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld of %lld forecasts held."
-          }
-        }
-      }
-    },
-    "%lld dias" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld day"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld days"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld dia"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld dias"
-                }
-              }
-            }
           }
         }
       }
@@ -1430,17 +1367,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open the concept"
-          }
-        }
-      }
-    },
-    "Abrir o mapa" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open the map"
           }
         }
       }
@@ -7126,17 +7052,6 @@
         }
       }
     },
-    "Revisar" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Review"
-          }
-        }
-      }
-    },
     "Revisar agora" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9025,6 +8940,226 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld dias de sequência" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day streak"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day streak"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld dia de sequência"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld dias de sequência"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Você está na fronteira de %lld conceitos. Continue de onde parou." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're on the frontier of %lld concept. Pick up where you left off."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You're on the frontier of %lld concepts. Pick up where you left off."
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Você está na fronteira de %lld conceito. Continue de onde parou."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Você está na fronteira de %lld conceitos. Continue de onde parou."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your map is fully mastered. Keep the memories fresh with review."
+          }
+        }
+      }
+    },
+    "Todo conceito do seu mapa está em andamento. Retome um deles pelo mapa." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every concept on your map is under way. Pick one up from the map."
+          }
+        }
+      }
+    },
+    "Revisão de hoje" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's review"
+          }
+        }
+      }
+    },
+    "Iniciar revisão →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start review →"
+          }
+        }
+      }
+    },
+    "Abrir o mapa →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the map →"
+          }
+        }
+      }
+    },
+    "Continuar →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue →"
+          }
+        }
+      }
+    },
+    "Completo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete"
+          }
+        }
+      }
+    },
+    "Recém-iniciado" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just started"
+          }
+        }
+      }
+    },
+    "%lld%% dominado" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% mastered"
+          }
+        }
+      }
+    },
+    "%lld na fronteira" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld on the frontier"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld on the frontier"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld na fronteira"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld na fronteira"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "← Mapa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← Map"
           }
         }
       }

@@ -11,7 +11,7 @@ import type { ConceptNode, NodeState } from "@/lib/curriculum";
 import { STATE_COLOR, stateLabel } from "@/lib/curriculum";
 import { useLanguage } from "@/lib/i18n";
 import { RETENTION_TARGET } from "@/lib/fsrs";
-import { color, font, map, motion, transition } from "@/lib/theme";
+import { color, font, map, motion, transition, alpha } from "@/lib/theme";
 import { WaxSeal } from "@/components/ui/Ornaments";
 import { CityMark, Relief, rankOf } from "@/components/map/Relief";
 
@@ -241,7 +241,7 @@ export default function MapNode({
                 textTransform: "uppercase",
                 color: map.gapInk,
                 background: color.paper,
-                border: `1px solid ${map.gapInk}66`,
+                border: `1px solid ${alpha(map.gapInk, 40)}`,
                 borderRadius: 2,
                 padding: "1px 5px",
                 textShadow: "none",

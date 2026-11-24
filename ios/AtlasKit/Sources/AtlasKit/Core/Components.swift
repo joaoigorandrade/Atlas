@@ -93,6 +93,33 @@ public struct DoubleRule: View {
     }
 }
 
+public extension View {
+    /// `.at-paper` — the sheet itself: the paper colour under the static grain
+    /// (`paper-grain.png`, a light and a dark one in the asset catalogue). An
+    /// image tiled once, never a filter: the same bargain the web makes.
+    func paper() -> some View {
+        background {
+            Image("PaperGrain").resizable(resizingMode: .tile)
+                .background(Palette.paper)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+public extension View {
+    /// A bottom sheet drawn as the web's phone drawer (`NodeDetail` under
+    /// 768px): the sheet's paper, a double rule along its top edge, corners
+    /// at 10, and no system grabber.
+    func drawer() -> some View {
+        presentationBackground {
+            Color.clear.paper().overlay(alignment: .top) { DoubleRule() }
+        }
+        .presentationCornerRadius(10)
+        .presentationDragIndicator(.hidden)
+    }
+}
+
 /// `.card` — a plate pasted onto the page: vellum inside an engraved double
 /// rule (`Plate` on the web). `border` tints the outer rule for a card that
 /// carries a state.
@@ -222,8 +249,8 @@ public struct Dock<Content: View>: View {
             .padding(.horizontal, Metrics.gutter)
             .padding(.top, 12)
             .padding(.bottom, 10)
-            .background(Palette.card.opacity(0.96))
-            .overlay(alignment: .top) { Divider().overlay(Palette.hairline) }
+            .paper()
+            .overlay(alignment: .top) { DoubleRule() }
     }
 }
 
@@ -244,7 +271,8 @@ public struct Chip: View {
     public var body: some View {
         HStack(spacing: 6) {
             if let dot { Circle().fill(dot).frame(width: 6, height: 6) }
-            text.font(.atlas(.sans, 12.5))
+            // Engraved small capitals, like the web's state pills.
+            text.font(.atlas(.caps, 13)).tracking(0.6)
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 11)
@@ -429,21 +457,31 @@ public struct PhaseBar<Trailing: View>: View {
     }
 
     public var body: some View {
+        // The web's phone masthead (`PhaseShell` under 768px): "← Mapa", a gilt
+        // lozenge, the phase's kicker in its own ink. The phone web drops the
+        // concept's name from the bar; VoiceOver still hears it.
         TopBar {
             HStack(spacing: 10) {
-                BackButton(action: back)
-                VStack(alignment: .leading, spacing: 2) {
-                    Kicker(phase.kicker, tint: phase.tint, size: 9.5)
-                    Text(title)
-                        .font(.atlas(.serif, 17))
-                        .foregroundStyle(Palette.ink)
-                        // Two lines, not one: `TopBar`'s height is a floor, and
-                        // a concept whose name is four words truncated to
-                        // "Regra da c…" at the accessibility sizes.
-                        .lineLimit(2)
+                Button(action: back) {
+                    HStack(spacing: 10) {
+                        Text("← Mapa")
+                            .font(.atlas(.display, 15.5))
+                            .italic()
+                            .foregroundStyle(Palette.inkMuted)
+                        Text(verbatim: "◆")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Palette.gilt)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: Metrics.tap)
+                    .contentShape(.rect)
                 }
+                .pressable()
+                .accessibilityLabel("Voltar")
+                Kicker(phase.kicker, tint: phase.tint, size: 12)
+                    .lineLimit(1)
+                    .accessibilityValue(Text(verbatim: title))
             }
-            .padding(.leading, -12)
         } trailing: {
             trailing
         }
@@ -566,15 +604,16 @@ public struct MicButton: View {
     }
 }
 
-/// The chevron every pushed screen wears — settings, calibration, and the phase
+/// The back arrow every pushed screen wears — settings, calibration, and the phase
 /// bar. Icon-only, so it carries its own label.
 public struct BackButton: View {
     private let action: () -> Void
     public init(action: @escaping () -> Void) { self.action = action }
     public var body: some View {
         Button(action: action) {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 17, weight: .medium))
+            // The web masthead's engraved arrow, not a system chevron.
+            Text(verbatim: "←")
+                .font(.atlas(.display, 22))
                 .foregroundStyle(Palette.inkMuted)
                 .frame(width: Metrics.tap, height: Metrics.tap)
         }
@@ -608,5 +647,76 @@ public struct Avatar: View {
         let parts = name.split(whereSeparator: { ".-_+".contains($0) }).prefix(2)
         let letters = parts.compactMap(\.first).map { String($0) }.joined()
         return letters.isEmpty ? "A" : letters.uppercased()
+    }
+}
+
+/// A hairline of progress — `ProgressView` draws a 4pt capsule that reads as a
+/// control; a row (or the map's mastered reading) only needs the proportion.
+public struct ProgressBar: View {
+    let value: Double
+    public init(value: Double) { self.value = value }
+    public var body: some View {
+        Rectangle().fill(Palette.hairlineStrong)
+            .frame(height: 2)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    Rectangle().fill(Palette.accent).frame(width: geo.size.width * min(max(value, 0), 1))
+                }
+            }
+            .padding(.trailing, 4)
+            .animation(Motion.reward, value: value)
+            .accessibilityHidden(true)
+    }
+}
+
+/// `.at-endpaper` — the marbled paper inside an atlas's cover, darkened toward
+/// its edges. The same in both schemes: it is a printed sheet, not a surface.
+public struct Endpaper: View {
+    public init() {}
+    public var body: some View {
+        Image("Endpaper").interpolation(.high).resizable(resizingMode: .tile)
+            .overlay(Color(red: 30 / 255, green: 22 / 255, blue: 16 / 255).opacity(0.32))
+            .overlay(RadialGradient(colors: [.clear, Color(red: 20 / 255, green: 14 / 255, blue: 10 / 255).opacity(0.55)],
+                                    center: .center, startRadius: 120, endRadius: 520))
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+    }
+}
+
+/// The torn top edge of hand-made paper (`deckle.svg`): a ragged strip that
+/// repeats every 120pt. Flip it for the bottom edge.
+public struct DeckleEdge: Shape {
+    public init() {}
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        // A hash, not a generator: the same rag on every redraw.
+        for x in stride(from: 0, through: rect.width, by: 2) {
+            let n = sin(x.truncatingRemainder(dividingBy: 120) * 12.9898) * 43758.5453
+            let depth = 1 + 4.5 * (n - n.rounded(.down))
+            path.addLine(to: CGPoint(x: rect.minX + x, y: rect.minY + depth * rect.height / 8))
+        }
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+public extension View {
+    /// `Plate deckle` — a leaf of vellum with its top and bottom edges torn,
+    /// lifted off whatever it lies on.
+    func leaf() -> some View {
+        background {
+            Image("PaperGrain").resizable(resizingMode: .tile).background(Palette.card)
+        }
+        .overlay(alignment: .top) {
+            DeckleEdge().fill(Palette.card).frame(height: 7).offset(y: -6)
+        }
+        .overlay(alignment: .bottom) {
+            DeckleEdge().fill(Palette.card).frame(height: 7).scaleEffect(y: -1).offset(y: 6)
+        }
+        // Flattened first, or every field on the leaf casts its own shadow.
+        .compositingGroup()
+        .shadow(color: Palette.shade(0.45), radius: 30, y: 30)
     }
 }

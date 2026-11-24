@@ -17,7 +17,7 @@ struct ProduceView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Preparando uma cena…") }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .task {
             let model = model ?? ProduceViewModel(session: session, api: store.api)
@@ -43,8 +43,7 @@ struct ProduceView: View {
                     keyboard: { speaking = false }
                 )
                 .presentationDetents([.height(VoiceSheet.height), .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Palette.paper)
+                .drawer()
             }
         }
     }
@@ -88,7 +87,7 @@ struct ProduceView: View {
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
-                .background(Palette.paper)
+                .paper()
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 6) {

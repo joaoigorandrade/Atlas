@@ -69,7 +69,7 @@ export function TermPills({
                   lineHeight: 1.5,
                   color: color.inkSoft,
                   background: color.amberBg,
-                  border: "1px solid rgba(160,106,48,0.2)",
+                  border: "1px solid rgba(var(--amber-ink),.2)",
                   borderRadius: 3,
                   padding: "9px 12px",
                   animation: "fadeUp .25s both",

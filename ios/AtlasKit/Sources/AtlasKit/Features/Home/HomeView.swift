@@ -1,14 +1,12 @@
 import Navigation
 import SwiftUI
 
-/// "Início" — the day's two decisions and every map, on one screen. The
-/// greeting is the title bar rather than a hero block, continue and review are
-/// two tiles side by side, and the maps are ruled rows in one plate — a map
-/// card used to be 180pt, and the first screen showed none of them.
+/// "Início" — the web dashboard at phone width (`DashboardScreen`): the
+/// greeting and a line on the frontier, the day's two decisions as stacked hero
+/// plates, today across every map, then each map as a plate of its own.
 public struct HomeView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var tabs: AtlasTabNavigator
-    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var model: HomeViewModel?
 
     public init() {}
@@ -17,7 +15,7 @@ public struct HomeView: View {
         Group {
             if let model { content(model) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         .task {
             if model == nil { model = HomeViewModel(store: store) }
             model?.warm()
@@ -26,20 +24,23 @@ public struct HomeView: View {
 
     private func content(_ model: HomeViewModel) -> some View {
         VStack(spacing: 0) {
+            // The web's masthead: the atlas's name, the streak in words, the
+            // avatar. The greeting moved down into the page, as it is there.
+            // ponytail: the web's compass rose isn't drawn; port `CompassRose`
+            // if the bare title reads as missing something.
             TopBar {
-                VStack(alignment: .leading, spacing: 1) {
-                    Kicker(verbatim: model.today)
-                    Text(model.greeting).font(.atlas(.display, 21)).foregroundStyle(Palette.ink)
-                }
+                Text(verbatim: "Atlas").font(.atlas(.display, 21)).foregroundStyle(Palette.ink)
             } trailing: {
                 HStack(spacing: 10) {
-                    if model.streak > 0 {
-                        Chip("\(model.streak) dias", dot: NodeState.frontier.color,
-                             tint: Palette.amberInk, background: Palette.amberBg)
+                    HStack(spacing: 7) {
+                        Circle().fill(Palette.gilt).frame(width: 8, height: 8)
+                            .shadow(color: Palette.gilt.opacity(0.6), radius: 4)
+                        Text("\(model.streak) dias de sequência")
+                            .font(.atlas(.serif, 14))
+                            .foregroundStyle(Palette.inkMuted)
                             // A day landing on the streak is a reward moment,
                             // and the design's one springy token pays for it.
                             .contentTransition(.numericText())
-                            .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                     Button { tabs.switchTab(to: .profile) } label: { Avatar(model.email) }
                         .accessibilityLabel("Abrir o perfil")
@@ -48,38 +49,47 @@ public struct HomeView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Side by side at the ordinary sizes; stacked when the type
-                    // is too large for two columns to hold a title each.
-                    let tiles = typeSize.isAccessibilitySize
-                        ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
-                    tiles {
-                        continueTile(model)
+                    Kicker(verbatim: model.today, size: 11)
+                    Text(model.greeting)
+                        .font(.atlas(.display, 38))
+                        .foregroundStyle(Palette.ink)
+                        .padding(.top, 8)
+                    Text(verbatim: model.lede)
+                        .font(.atlas(.serif, 16))
+                        .foregroundStyle(Palette.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+
+                    // The web's two hero plates, stacked as they are under
+                    // 768px: today's review in verdigris, the frontier in gilt.
+                    VStack(spacing: 16) {
                         reviewTile(model)
+                        continueTile(model)
                     }
+                    .padding(.top, 28)
                     .animation(Motion.standard, value: model.next?.id)
 
                     if !model.dayPlan.isEmpty { todayPlan(model).padding(.top, 24) }
 
                     if model.hasRun {
-                        Kicker("Seus mapas").padding(.top, 24)
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Seus mapas").font(.atlas(.serif, 22)).foregroundStyle(Palette.ink)
+                            Spacer(minLength: 8)
+                            newMapButton(model)
+                        }
+                        .padding(.top, 32)
                         ForEach(model.continents) { group in
                             continentPlate(group, model).padding(.top, 8)
                         }
-                        if !model.looseMaps.isEmpty {
-                            VStack(spacing: 0) {
-                                ForEach(Array(model.looseMaps.enumerated()), id: \.element.id) { index, map in
-                                    if index > 0 { Divider().overlay(Palette.hairline) }
-                                    mapRow(map, model)
-                                        // Switching maps re-sorts this list; the rows
-                                        // slide rather than teleport past each other.
-                                        .transition(.opacity.combined(with: .move(edge: .top)))
-                                }
-                            }
-                            .background(Palette.card)
-                            .plate()
-                            .padding(.top, 8)
+                        // One plate per map, as the web's map cards; the open
+                        // one framed in gilt.
+                        ForEach(model.looseMaps) { map in
+                            Card(border: model.isOpen(map) ? Palette.gilt : Palette.rule) { mapRow(map, model) }
+                                .padding(.top, 12)
+                                // Switching maps re-sorts this list; the plates
+                                // slide rather than teleport past each other.
+                                .transition(.opacity.combined(with: .move(edge: .top)))
                         }
-                        newMapButton(model).padding(.top, 4)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -185,11 +195,11 @@ public struct HomeView: View {
         .plate()
     }
 
-    // MARK: - Today: two tiles
+    // MARK: - Today: two hero plates (`HeroCard` on the web)
 
-    /// "Continuar": the concept under way, the phase it opens on and what it
-    /// still costs — one tap into the pass, pushed over the map so that
-    /// finishing it lands where the change can be seen.
+    /// The frontier plate: the concept under way, the phase it opens on and
+    /// what it still costs — one tap into the pass, pushed over the map so
+    /// that finishing it lands where the change can be seen.
     private func continueTile(_ model: HomeViewModel) -> some View {
         Button {
             if let node = model.next {
@@ -199,21 +209,19 @@ public struct HomeView: View {
             }
         } label: {
             if let node = model.next {
-                tile(kicker: Kicker(model.continueKicker, tint: Palette.amberInk),
-                     title: node.label, note: model.continueNote ?? "",
-                     border: NodeState.frontier.color.opacity(0.6))
+                hero(label: model.continueKicker, title: node.label, body: model.continueNote ?? "",
+                     cta: "Continuar →", frame: Palette.gilt, ink: Palette.amberInk, dot: Palette.gilt)
             } else {
-                tile(kicker: Kicker("Sua fronteira", tint: Palette.amberInk),
-                     title: model.frontierHeadline, note: String(localized: "Abrir o mapa"),
-                     border: NodeState.frontier.color.opacity(0.6))
+                hero(label: "Sua fronteira", title: model.frontierHeadline, body: "",
+                     cta: "Abrir o mapa →", frame: Palette.gilt, ink: Palette.amberInk, dot: Palette.gilt)
             }
         }
         .buttonStyle(Pressable())
     }
 
-    /// "Revisar": every map's due cards added up. Review deals one map at a
-    /// time, so the tap opens the map with the most waiting — switching to it
-    /// first when it is not the open one.
+    /// Today's review: every map's due cards added up. Review deals one map
+    /// at a time, so the tap opens the map with the most waiting — switching
+    /// to it first when it is not the open one.
     private func reviewTile(_ model: HomeViewModel) -> some View {
         Button {
             Task {
@@ -221,12 +229,42 @@ public struct HomeView: View {
                 tabs.switchTab(to: .review)
             }
         } label: {
-            tile(kicker: Kicker("Revisar", tint: Palette.accent),
-                 title: model.reviewTitle, note: model.reviewNote,
-                 border: Palette.accent.opacity(0.45))
+            hero(label: "Revisão de hoje", title: model.reviewTitle, body: model.reviewNote,
+                 cta: "Iniciar revisão →", frame: Palette.accent, ink: Palette.accent, dot: Palette.accent)
         }
         .buttonStyle(Pressable())
         .disabled(model.switching != nil)
+    }
+
+    /// One hero plate: a dotted kicker, a Garamond title, a line, and the call
+    /// to action written out as a link line — the web's `HeroCard`.
+    private func hero(label: LocalizedStringKey, title: String, body: String, cta: LocalizedStringKey,
+                      frame: Color, ink: Color, dot: Color) -> some View {
+        Card(border: frame) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Circle().fill(dot).frame(width: 7, height: 7)
+                    Kicker(label, tint: ink, size: 10.5)
+                }
+                .padding(.bottom, 14)
+                Text(verbatim: title)
+                    .font(.atlas(.serif, 28))
+                    .foregroundStyle(Palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 6)
+                if !body.isEmpty {
+                    Text(verbatim: body)
+                        .font(.atlas(.serif, 15))
+                        .foregroundStyle(Palette.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 16)
+                }
+                Text(cta).font(.atlas(.serif, 15, weight: .semibold)).foregroundStyle(ink)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Today across every map (W4.6): each row opens its map.
@@ -283,64 +321,72 @@ public struct HomeView: View {
         }
     }
 
-    // MARK: - One map, one row
+    // MARK: - One map
 
-    /// One saved run as a ruled row: its name, a hairline of progress, and one
-    /// line of what it holds. The open map carries a gilt rule down its edge
-    /// instead of a chip; its goal lives in the "…" and on the profile.
+    /// One saved map, laid out as the web's map card: its goal and state over
+    /// its name, a hairline of progress, and what it holds. Loose maps get a
+    /// plate each; a continent's members sit as rows inside its plate.
     /// Tapping the open one goes to its map; tapping another switches the whole
     /// store onto it first, which is a round trip, so the row says so.
     private func mapRow(_ map: AtlasRun, _ model: HomeViewModel) -> some View {
         let open = model.isOpen(map)
         let due = model.dueCount(map)
-        let share = map.mastered.formatted(.percent.precision(.fractionLength(0)))
-        return HStack(spacing: 0) {
+        let pct = Int((map.mastered * 100).rounded())
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Kicker(map.goal.label)
+                Spacer(minLength: 4)
+                Chip(pct >= 100 ? "Completo" : pct > 0 ? "Em andamento" : "Recém-iniciado",
+                     tint: Palette.accent, background: Palette.accentBg)
+                Menu { mapActions(map, model) } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(Palette.inkMuted)
+                        .frame(width: 36, height: Metrics.tap)
+                }
+                .accessibilityLabel(Text("Opções do mapa"))
+            }
             Button {
                 Task {
                     await model.open(map)
                     tabs.switchTab(to: .map)
                 }
             } label: {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         Text(verbatim: map.subject)
-                            .font(.atlas(.display, 17))
+                            .font(.atlas(.serif, 20))
                             .foregroundStyle(Palette.ink)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
                         if model.switching == map.id { ProgressView().controlSize(.mini) }
                     }
-                    ProgressBar(value: map.mastered)
-                    Group {
+                    .padding(.bottom, 14)
+                    ProgressBar(value: map.mastered).padding(.bottom, 9)
+                    HStack {
+                        Text("\(pct)% dominado")
+                        Spacer(minLength: 8)
                         if due > 0 {
-                            Text("\(share) · \(model.frontierCount(map)) na fronteira · \(Text("\(due) para revisar").foregroundStyle(Palette.accent))")
+                            Text("\(due) para revisar").foregroundStyle(Palette.accent)
                         } else {
-                            Text("\(share) · \(model.frontierCount(map)) na fronteira")
+                            Text("\(model.frontierCount(map)) na fronteira")
                         }
                     }
                     .font(.atlas(.serif, 14))
-                    .foregroundStyle(Palette.inkFaint)
+                    .foregroundStyle(Palette.inkMuted)
                     .lineLimit(1)
                 }
-                .padding(.leading, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)
             }
             .buttonStyle(Pressable())
             .disabled(model.switching != nil)
             .contextMenu { mapActions(map, model) }
             .accessibilityValue(open ? Text("Em andamento") : Text(verbatim: ""))
-
-            Menu { mapActions(map, model) } label: {
-                Image(systemName: "ellipsis")
-                    .foregroundStyle(Palette.inkMuted)
-                    .frame(width: Metrics.tap, height: Metrics.tap)
-            }
-            .accessibilityLabel(Text("Opções do mapa"))
         }
-        .overlay(alignment: .leading) {
-            if open { Rectangle().fill(Palette.gilt).frame(width: 3) }
-        }
+        .padding(.leading, 20)
+        .padding(.trailing, 8)
+        .padding(.bottom, 18)
+        .padding(.top, 6)
     }
 
     @ViewBuilder
@@ -365,35 +411,16 @@ public struct HomeView: View {
     }
 
     /// Clearing the run is what shows onboarding, so there is nowhere to
-    /// navigate to — the shell swaps itself out from under this screen. A quiet
-    /// line under the list, the web's italic `quiet` button: it is the rarest
-    /// thing done here, and a full-width button was the loudest.
+    /// navigate to — the shell swaps itself out from under this screen. A link
+    /// beside the "Seus mapas" heading, where the web keeps it.
     private func newMapButton(_ model: HomeViewModel) -> some View {
         Button { Task { await model.newMap() } } label: {
             Text("+ Novo mapa")
-                .font(.atlas(.display, 16).italic())
-                .foregroundStyle(Palette.inkMuted)
+                .font(.atlas(.serif, 15))
+                .foregroundStyle(Palette.accent)
                 .frame(minHeight: Metrics.tap)
                 .contentShape(.rect)
         }
         .pressable()
-    }
-}
-
-/// A hairline of progress — `ProgressView` draws a 4pt capsule that reads as a
-/// control; a row only needs the proportion.
-private struct ProgressBar: View {
-    let value: Double
-    var body: some View {
-        Rectangle().fill(Palette.hairlineStrong)
-            .frame(height: 2)
-            .overlay(alignment: .leading) {
-                GeometryReader { geo in
-                    Rectangle().fill(Palette.accent).frame(width: geo.size.width * min(max(value, 0), 1))
-                }
-            }
-            .padding(.trailing, 4)
-            .animation(Motion.reward, value: value)
-            .accessibilityHidden(true)
     }
 }

@@ -9,7 +9,7 @@ import {
   reminderCopy,
   type AdherenceState,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, alpha } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import { STRINGS } from "@/components/session/retainCopy";
 
@@ -37,7 +37,7 @@ export default function Finished({
     <div
       style={{
         background: color.card,
-        border: "1px solid rgba(74,117,82,0.3)",
+        border: "1px solid rgba(var(--state-mastered),.3)",
         borderRadius: 3,
         padding: "40px 40px 32px",
         textAlign: "center",
@@ -79,7 +79,7 @@ export default function Finished({
             alignItems: "center",
             gap: 9,
             background: color.successBg,
-            border: "1px solid rgba(74,117,82,0.32)",
+            border: "1px solid rgba(var(--state-mastered),.32)",
             borderRadius: 3,
             padding: "9px 15px",
             margin: "0 auto 24px",
@@ -104,8 +104,8 @@ export default function Finished({
       <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
         <div
           style={{
-            background: "rgba(176,133,44,0.1)",
-            border: `1px solid ${STREAK_COLOR.flame}44`,
+            background: "rgba(var(--state-frontier),.1)",
+            border: `1px solid ${alpha(STREAK_COLOR.flame, 27)}`,
             borderRadius: 3,
             padding: "14px 22px",
           }}
@@ -126,7 +126,7 @@ export default function Finished({
         <div
           style={{
             background: color.accentBg,
-            border: "1px solid rgba(58,106,85,0.22)",
+            border: "1px solid rgba(var(--accent),.22)",
             borderRadius: 3,
             padding: "14px 22px",
           }}
@@ -204,7 +204,7 @@ export default function Finished({
             fontFamily: font.caps,
             letterSpacing: "0.06em",
             cursor: "pointer",
-            boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+            boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
           }}
         >
           {t.backToMap}

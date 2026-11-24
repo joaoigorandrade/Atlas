@@ -135,7 +135,7 @@ export function InlineError({
         padding: "11px 14px",
         borderRadius: 3,
         background: color.dangerBg,
-        border: "1px solid rgba(154,64,52,0.2)",
+        border: "1px solid rgba(var(--danger-ink),.2)",
         color: color.dangerInk,
         fontSize: 13.5,
         lineHeight: 1.45,
@@ -150,7 +150,7 @@ export function InlineError({
             flexShrink: 0,
             padding: "6px 11px",
             borderRadius: 3,
-            border: "1px solid rgba(154,64,52,0.3)",
+            border: "1px solid rgba(var(--danger-ink),.3)",
             background: "transparent",
             color: color.dangerInk,
             fontFamily: font.sans,
@@ -176,7 +176,7 @@ const primaryButton = {
   fontSize: 15.5,
   letterSpacing: "0.06em",
   cursor: "pointer",
-  boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+  boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
 } as const;
 
 const secondaryButton = {

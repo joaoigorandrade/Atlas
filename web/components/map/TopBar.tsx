@@ -228,7 +228,7 @@ export default memoLatest(function TopBar({
             alignItems: "center",
             gap: 7,
             background: color.accentBg,
-            border: "1px solid rgba(58,106,85,0.22)",
+            border: "1px solid rgba(var(--accent),.22)",
             borderRadius: 20,
             padding: "6px 13px",
             fontSize: 13,

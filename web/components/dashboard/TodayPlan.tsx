@@ -56,10 +56,25 @@ export function TodayPlan({
             cursor: "pointer",
           }}
         >
-          <span style={{ fontFamily: font.serif, fontSize: 18, flex: "0 1 auto", minWidth: 0, overflowWrap: "anywhere" }}>
+          <span
+            style={{
+              fontFamily: font.serif,
+              fontSize: 18,
+              flex: "0 1 auto",
+              minWidth: 0,
+              overflowWrap: "anywhere",
+            }}
+          >
             {i.subject}
           </span>
-          <span style={{ fontSize: 13.5, color: color.inkMuted, flex: "1 1 12rem", minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: 13.5,
+              color: color.inkMuted,
+              flex: "1 1 12rem",
+              minWidth: 0,
+            }}
+          >
             {[
               i.due > 0 ? t.cards(i.due) : null,
               i.next ? t.then(phaseLabel(i.next.phase), i.next.label) : null,
@@ -68,7 +83,14 @@ export function TodayPlan({
               .filter(Boolean)
               .join(" · ")}
           </span>
-          <span style={{ fontFamily: font.caps, fontSize: 12, color: color.inkFaint, marginLeft: "auto" }}>
+          <span
+            style={{
+              fontFamily: font.caps,
+              fontSize: 12,
+              color: color.inkFaint,
+              marginLeft: "auto",
+            }}
+          >
             {t.minutes(i.minutes)}
           </span>
         </div>

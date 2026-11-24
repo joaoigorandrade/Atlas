@@ -201,7 +201,7 @@ export default function PerformView({
               disabled={busy || !session.work.trim()}
               style={{
                 padding: "12px 20px",
-                background: busy || !session.work.trim() ? "rgba(43,33,24,0.07)" : accent,
+                background: busy || !session.work.trim() ? color.inkWash : accent,
                 color: busy || !session.work.trim() ? color.inkGhost : color.accentInk,
                 border: "none",
                 borderRadius: 3,
@@ -221,7 +221,7 @@ export default function PerformView({
                 style={{
                   padding: "11px 15px",
                   background: color.card,
-                  border: "1px solid rgba(160,106,48,0.4)",
+                  border: "1px solid rgba(var(--amber-ink),.4)",
                   borderRadius: 3,
                   fontSize: 13,
                   color: color.amberInk,

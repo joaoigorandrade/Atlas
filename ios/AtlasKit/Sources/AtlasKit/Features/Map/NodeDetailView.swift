@@ -29,9 +29,8 @@ struct NodeDetailView: View {
         // drawing over the header is fixed below; whether the header can still
         // be scrolled off at AX sizes is a separate question and still open.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Palette.cardAlt)
         .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .drawer()
         // Keyed on the node: SwiftUI reuses a sheet's view across two
         // presentations of the same route, and a stale model would draw the
         // previous node's spiral against this one's name.

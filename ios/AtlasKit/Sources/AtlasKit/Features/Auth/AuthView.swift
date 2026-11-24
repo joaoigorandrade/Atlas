@@ -17,7 +17,7 @@ public struct AuthView: View {
         Group {
             if let model { content(model) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         .dismissesKeyboardOnTap()
         .task { if model == nil { model = AuthViewModel(store: store, notice: notice) } }
         // A link can come back while this screen is already on screen, and the
@@ -50,14 +50,20 @@ public struct AuthView: View {
                         .foregroundStyle(Palette.amberInk)
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .boxed(Palette.amberBg, border: Palette.amberInk.opacity(0.2), radius: 10)
+                        .boxed(Palette.amberBg, border: Palette.amberInk.opacity(0.2))
                         .padding(.top, 16)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .padding(.horizontal, Metrics.gutter)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 36)
+            // The atlas's cover opened, as on the web's login.
+            .leaf()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 40)
         }
+        .background { Endpaper() }
         // Entrar ⇄ Criar conta is one screen changing its mind, and the failure
         // sentence lands under the form rather than replacing it.
         .animation(Motion.standard, value: model.mode)

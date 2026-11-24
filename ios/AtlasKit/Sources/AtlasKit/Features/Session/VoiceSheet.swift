@@ -116,7 +116,7 @@ struct VoiceSheet: View {
             .padding(.bottom, 8)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background(Palette.paper)
+        .paper()
         // The mic is what this sheet is. Opening it opens the mic, so the
         // learner talks instead of hunting for a second button — and closing it
         // hands the audio session back, whichever way it was closed.

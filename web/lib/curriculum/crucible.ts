@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase 5 · Crucible (application / transfer) — the depth engine --------
 // Force the knowledge into a *novel* context it wasn't taught in — the truest
 // signal of mastery, far better than card recall. A confidence prompt comes
@@ -17,10 +18,10 @@ import { Language } from "@/lib/i18n";
 
 /** The Crucible's deep-rust palette (its accent everywhere it appears). */
 export const CRUCIBLE_COLOR = {
-  accent: "#962c22",
-  soft: "rgba(150,44,34,0.08)",
-  border: "rgba(150,44,34,0.28)",
-  glow: "rgba(150,44,34,0.24)",
+  accent: color.phaseCrucible,
+  soft: "rgba(var(--phase-crucible),.08)",
+  border: "rgba(var(--phase-crucible),.28)",
+  glow: "rgba(var(--phase-crucible),.24)",
 } as const;
 
 /** The stated-confidence levels captured before the problem is revealed. */

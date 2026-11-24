@@ -14,7 +14,7 @@ struct PerformView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Montando um caso real…") }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .dismissesKeyboardOnTap()
         .task {

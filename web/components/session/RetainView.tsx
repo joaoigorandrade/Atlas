@@ -107,7 +107,7 @@ export default function RetainView({
             alignItems: "center",
             gap: 7,
             background: color.accentBg,
-            border: "1px solid rgba(58,106,85,0.22)",
+            border: "1px solid rgba(var(--accent),.22)",
             borderRadius: 20,
             padding: narrow ? "5px 10px" : "6px 14px",
             fontSize: narrow ? 12 : 13,
@@ -281,7 +281,7 @@ function QueueRail({
                   ? grades[graded]
                   : current
                     ? color.accent
-                    : "rgba(43,33,24,0.12)",
+                    : "rgba(var(--ink),.12)",
                 transition: transition(["background", "opacity"], "slow", "enter"),
                 animation: current ? "railPulse 2.2s ease-in-out infinite" : undefined,
               }}

@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Steelman (holding a contested position) ------------------------
 // A question honest readers disagree about, and both answers. The learner
 // builds the strongest case for EACH side — including the one they reject —
@@ -16,9 +17,9 @@ import { Language } from "@/lib/i18n";
 
 /** Steelman's accent: a contested indigo. */
 export const STEELMAN_COLOR = {
-  accent: "#4d5b94",
-  soft: "rgba(77,91,148,0.08)",
-  border: "rgba(77,91,148,0.32)",
+  accent: color.phaseSteelman,
+  soft: "rgba(var(--phase-steelman),.08)",
+  border: "rgba(var(--phase-steelman),.32)",
 } as const;
 
 /** One side of the question, named by who actually held it — a position with

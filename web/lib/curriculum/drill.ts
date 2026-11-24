@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Drill (speed and automaticity) --------------------------------
 // The same small call, made over and over until it stops being derived and
 // starts being known. The only phase that measures *how long* an answer took,
@@ -13,9 +14,9 @@ import { Language } from "@/lib/i18n";
 
 /** Drill's accent: a warm copper — something being worn smooth. */
 export const DRILL_COLOR = {
-  accent: "#8e5a2b",
-  soft: "rgba(142,90,43,0.08)",
-  border: "rgba(142,90,43,0.32)",
+  accent: color.phaseDrill,
+  soft: "rgba(var(--phase-drill),.08)",
+  border: "rgba(var(--phase-drill),.32)",
 } as const;
 
 /** What "without stopping to derive it" means, in milliseconds per call.

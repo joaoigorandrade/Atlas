@@ -35,13 +35,20 @@ public enum AtlasRoute: @preconcurrency ModalRoute {
     /// `Routable` predates that annotation, hence the `@preconcurrency`.
     @MainActor @ViewBuilder
     public var destination: some View {
-        switch self {
-        case .nodeDetail(let node): NodeDetailView(node: node)
-        case .session(let node, let phase, let resumed): SessionView(node: node, phase: phase, resumed: resumed)
-        case .settings: SettingsView()
-        case .calibration: CalibrationView()
-        case .feed: FeedView()
+        Group {
+            switch self {
+            // Neither has a tab bar to clear (`RootView`'s scroll margin).
+            case .nodeDetail(let node): NodeDetailView(node: node).contentMargins(.bottom, 0, for: .scrollContent)
+            case .session(let node, let phase, let resumed):
+                SessionView(node: node, phase: phase, resumed: resumed).contentMargins(.bottom, 0, for: .scrollContent)
+            case .settings: SettingsView()
+            case .calibration: CalibrationView()
+            case .feed: FeedView()
+            }
         }
+        // The system bar stays hidden on every pushed screen too: `AtlasTabBar`
+        // is the one the learner sees.
+        .toolbar(.hidden, for: .tabBar)
     }
 }
 

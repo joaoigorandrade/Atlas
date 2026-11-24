@@ -284,7 +284,7 @@ export default function PredictView({
                           isAnswer
                             ? accent
                             : isPick
-                              ? "rgba(160,106,48,0.45)"
+                              ? "rgba(var(--amber-ink),.45)"
                               : color.hairline
                         }`,
                         color: isAnswer || isPick ? color.ink : color.inkMuted,

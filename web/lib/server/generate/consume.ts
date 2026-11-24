@@ -187,7 +187,7 @@ export function oneVisual(): (c: ConsumeChunk) => ConsumeChunk {
   let seen = false;
   return (c) => {
     if (!c.example?.visual) return c;
-    if (!seen) return (seen = true), c;
+    if (!seen) return ((seen = true), c);
     return { ...c, example: { ...c.example, visual: undefined } };
   };
 }

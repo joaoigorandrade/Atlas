@@ -142,7 +142,7 @@ export function SkeletonBars({
             height: Array.isArray(heights) ? heights[i] : heights,
             width: w,
             borderRadius: 2,
-            background: "rgba(43,33,24,0.07)",
+            background: color.inkWash,
           }}
         >
           {/* The wash is a strip sliding on `transform` — animating the
@@ -154,7 +154,7 @@ export function SkeletonBars({
                 inset: 0,
                 width: "36%",
                 background:
-                  "linear-gradient(90deg, transparent, rgba(43,33,24,0.08), transparent)",
+                  "linear-gradient(90deg, transparent, rgba(var(--ink),.08), transparent)",
                 animation: `inkSweep 1.8s ${motion.ease.standard} infinite`,
                 // Staggered so the stack reads as one sweep down the page
                 // rather than five bars blinking in unison.

@@ -14,7 +14,7 @@ struct RecallView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Preparando a página em branco…") }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .dismissesKeyboardOnTap()
         .task {

@@ -16,7 +16,7 @@ public struct ReviewView: View {
         Group {
             if let model { content(model) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         // Keyed on the tab, because the tab is the one thing that changes when
         // the learner comes back and never while the deck is being built. It
         // used to be keyed on `store.cards.count` — but drafting cards *is*
@@ -143,8 +143,8 @@ public struct ReviewView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(Palette.card, in: .rect(cornerRadius: 3))
-        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card)
+        .plate()
     }
 
     /// The FSRS forecast the deck endpoint already answers with, and which this
@@ -170,8 +170,8 @@ public struct ReviewView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.cardAlt, in: .rect(cornerRadius: 3))
-        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairline, lineWidth: 1) }
+        .background(Palette.cardAlt)
+        .plate()
     }
 
     // MARK: - The deck
@@ -224,7 +224,7 @@ public struct ReviewView: View {
             }
             VStack(alignment: .leading, spacing: 0) {
                 question(model, card)
-                    .font(.atlas(.display, 22))
+                    .font(.atlas(.display, 21))
                     .foregroundStyle(Palette.ink)
                     .lineSpacing(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -267,11 +267,11 @@ public struct ReviewView: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 26)
+            // The web's compact `RetainCard`: 18 all round, on a plate.
+            .padding(18)
             .frame(maxWidth: .infinity, minHeight: 230, alignment: .top)
-            .background(Palette.card, in: .rect(cornerRadius: 3))
-            .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+            .background(Palette.card)
+            .plate()
             .shadow(color: Palette.shade(0.07), radius: 15, y: 10)
         }
         .animation(Motion.standard, value: model.stage)

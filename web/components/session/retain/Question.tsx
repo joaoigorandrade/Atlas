@@ -34,7 +34,7 @@ export function Question({
         style={{
           display: "inline-block",
           minWidth: 96,
-          borderBottom: `2px solid ${filled ? STATE_COLOR.mastered : "rgba(43,33,24,0.28)"}`,
+          borderBottom: `2px solid ${filled ? STATE_COLOR.mastered : "rgba(var(--ink),.28)"}`,
           textAlign: "center",
         }}
       >

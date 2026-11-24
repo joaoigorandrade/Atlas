@@ -24,7 +24,7 @@ import {
   type NodeState,
   type ShakyReason,
 } from "@/lib/curriculum";
-import { color, font, kicker, layout, motion, transition } from "@/lib/theme";
+import { color, font, kicker, layout, motion, transition, alpha } from "@/lib/theme";
 import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -327,7 +327,7 @@ function NodeDetailBody({
               gap: 12,
               padding: "13px 15px",
               background: color.card,
-              border: `1px solid ${stateColor}33`,
+              border: `1px solid ${alpha(stateColor, 20)}`,
               borderRadius: 3,
               marginBottom: 22,
             }}
@@ -342,7 +342,7 @@ function NodeDetailBody({
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 12,
-                background: `${stateColor}22`,
+                background: `${alpha(stateColor, 13)}`,
                 border: `1px solid ${stateColor}`,
                 color: stateColor,
               }}
@@ -413,7 +413,7 @@ function NodeDetailBody({
                   ? STATE_COLOR.mastered
                   : isCurrent
                     ? stateColor
-                    : "#c3bdb2";
+                    : color.inkGhost;
               // Done phases re-open, the current one starts, and later ones can
               // be jumped to (after the nudge). Only a locked node stays inert.
               const clickable = currentPhase >= 0;
@@ -550,7 +550,7 @@ function NodeDetailBody({
           locked
             ? {
                 cursor: "default",
-                background: "rgba(43,33,24,0.07)",
+                background: color.inkWash,
                 color: color.inkGhost,
                 boxShadow: "none",
               }

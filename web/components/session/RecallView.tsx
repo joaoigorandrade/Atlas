@@ -197,8 +197,7 @@ export default function RecallView({
               disabled={busy || !session.written.trim()}
               style={{
                 padding: "12px 20px",
-                background:
-                  busy || !session.written.trim() ? "rgba(43,33,24,0.07)" : accent,
+                background: busy || !session.written.trim() ? color.inkWash : accent,
                 color: busy || !session.written.trim() ? color.inkGhost : color.accentInk,
                 border: "none",
                 borderRadius: 3,
@@ -218,7 +217,7 @@ export default function RecallView({
                 style={{
                   padding: "11px 15px",
                   background: color.card,
-                  border: "1px solid rgba(160,106,48,0.4)",
+                  border: "1px solid rgba(var(--amber-ink),.4)",
                   borderRadius: 3,
                   fontSize: 13,
                   color: color.amberInk,
