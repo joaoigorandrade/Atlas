@@ -23,12 +23,16 @@ struct WelcomeView: View {
                             .padding(.top, -12)
                             .padding(.bottom, 8)
                     }
-                    Kicker("Atlas · aprenda qualquer coisa, a fundo", size: 11)
-                    Text("O que você quer aprender?")
-                        .font(.atlas(.display, 34))
-                        .foregroundStyle(Palette.ink)
-                        .padding(.top, 16)
-                        .padding(.bottom, 28)
+                    // Centred, as the web's leaf sets its head.
+                    VStack(spacing: 12) {
+                        Kicker("Atlas · aprenda qualquer coisa, a fundo", size: 11)
+                        Text("O que você quer aprender?")
+                            .font(.atlas(.display, 34))
+                            .foregroundStyle(Palette.ink)
+                    }
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 28)
 
                     topicField
                     if !onboarding.scopes.isEmpty {
@@ -61,10 +65,14 @@ struct WelcomeView: View {
                     if !quick { masterySetup.transition(.opacity.combined(with: .move(edge: .top))) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Metrics.gutter)
-                .padding(.top, 28)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 20)
+                .padding(.top, 36)
+                .padding(.bottom, 32)
+                .leaf()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 40)
             }
+            .background { Endpaper() }
             .scrollDismissesKeyboard(.interactively)
             .dismissesKeyboardOnTap()
 

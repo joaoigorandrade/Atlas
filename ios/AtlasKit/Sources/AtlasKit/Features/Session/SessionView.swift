@@ -34,6 +34,7 @@ struct SessionView: View {
                     // Past the Crucible there is no next phase — the pass is
                     // over and the map takes the screen back.
                     .onChange(of: session.finished) { _, over in if over { navigator.pop() } }
+                    .safeAreaInset(edge: .bottom, spacing: 0) { ladder }
             } else {
                 Color.clear
             }
@@ -64,6 +65,20 @@ struct SessionView: View {
             guard let shown = session?.phase else { return }
             if now == .active { clockStart = .now } else { stopClock(shown) }
         }
+    }
+
+    /// The node's ladder along the foot of every phase — `PhaseShell`'s footer.
+    private var ladder: some View {
+        Text(verbatim: planGates(node.plan).map(\.label).joined(separator: " · "))
+            .font(.atlas(.caps, 12))
+            .tracking(0.7)
+            .foregroundStyle(Palette.inkGhost)
+            .lineLimit(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Metrics.gutter)
+            .padding(.vertical, 8)
+            .paper()
+            .overlay(alignment: .top) { Rectangle().fill(Palette.hairline).frame(height: 1) }
     }
 
     private func stopClock(_ phase: Phase) {

@@ -9153,6 +9153,16 @@
           }
         }
       }
+    },
+    "← Mapa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← Map"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

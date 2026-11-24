@@ -55,9 +55,15 @@ public struct AuthView: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .padding(.horizontal, Metrics.gutter)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 36)
+            // The atlas's cover opened, as on the web's login.
+            .leaf()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 40)
         }
+        .background { Endpaper() }
         // Entrar ⇄ Criar conta is one screen changing its mind, and the failure
         // sentence lands under the form rather than replacing it.
         .animation(Motion.standard, value: model.mode)

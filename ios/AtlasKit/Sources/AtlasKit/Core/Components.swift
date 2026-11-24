@@ -457,21 +457,31 @@ public struct PhaseBar<Trailing: View>: View {
     }
 
     public var body: some View {
+        // The web's phone masthead (`PhaseShell` under 768px): "← Mapa", a gilt
+        // lozenge, the phase's kicker in its own ink. The phone web drops the
+        // concept's name from the bar; VoiceOver still hears it.
         TopBar {
             HStack(spacing: 10) {
-                BackButton(action: back)
-                VStack(alignment: .leading, spacing: 2) {
-                    Kicker(phase.kicker, tint: phase.tint, size: 9.5)
-                    Text(title)
-                        .font(.atlas(.serif, 17))
-                        .foregroundStyle(Palette.ink)
-                        // Two lines, not one: `TopBar`'s height is a floor, and
-                        // a concept whose name is four words truncated to
-                        // "Regra da c…" at the accessibility sizes.
-                        .lineLimit(2)
+                Button(action: back) {
+                    HStack(spacing: 10) {
+                        Text("← Mapa")
+                            .font(.atlas(.display, 15.5))
+                            .italic()
+                            .foregroundStyle(Palette.inkMuted)
+                        Text(verbatim: "◆")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Palette.gilt)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: Metrics.tap)
+                    .contentShape(.rect)
                 }
+                .pressable()
+                .accessibilityLabel("Voltar")
+                Kicker(phase.kicker, tint: phase.tint, size: 12)
+                    .lineLimit(1)
+                    .accessibilityValue(Text(verbatim: title))
             }
-            .padding(.leading, -12)
         } trailing: {
             trailing
         }
@@ -656,5 +666,57 @@ public struct ProgressBar: View {
             .padding(.trailing, 4)
             .animation(Motion.reward, value: value)
             .accessibilityHidden(true)
+    }
+}
+
+/// `.at-endpaper` — the marbled paper inside an atlas's cover, darkened toward
+/// its edges. The same in both schemes: it is a printed sheet, not a surface.
+public struct Endpaper: View {
+    public init() {}
+    public var body: some View {
+        Image("Endpaper").interpolation(.high).resizable(resizingMode: .tile)
+            .overlay(Color(red: 30 / 255, green: 22 / 255, blue: 16 / 255).opacity(0.32))
+            .overlay(RadialGradient(colors: [.clear, Color(red: 20 / 255, green: 14 / 255, blue: 10 / 255).opacity(0.55)],
+                                    center: .center, startRadius: 120, endRadius: 520))
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+    }
+}
+
+/// The torn top edge of hand-made paper (`deckle.svg`): a ragged strip that
+/// repeats every 120pt. Flip it for the bottom edge.
+public struct DeckleEdge: Shape {
+    public init() {}
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        // A hash, not a generator: the same rag on every redraw.
+        for x in stride(from: 0, through: rect.width, by: 2) {
+            let n = sin(x.truncatingRemainder(dividingBy: 120) * 12.9898) * 43758.5453
+            let depth = 1 + 4.5 * (n - n.rounded(.down))
+            path.addLine(to: CGPoint(x: rect.minX + x, y: rect.minY + depth * rect.height / 8))
+        }
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+public extension View {
+    /// `Plate deckle` — a leaf of vellum with its top and bottom edges torn,
+    /// lifted off whatever it lies on.
+    func leaf() -> some View {
+        background {
+            Image("PaperGrain").resizable(resizingMode: .tile).background(Palette.card)
+        }
+        .overlay(alignment: .top) {
+            DeckleEdge().fill(Palette.card).frame(height: 7).offset(y: -6)
+        }
+        .overlay(alignment: .bottom) {
+            DeckleEdge().fill(Palette.card).frame(height: 7).scaleEffect(y: -1).offset(y: 6)
+        }
+        // Flattened first, or every field on the leaf casts its own shadow.
+        .compositingGroup()
+        .shadow(color: Palette.shade(0.45), radius: 30, y: 30)
     }
 }
