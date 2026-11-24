@@ -60,7 +60,7 @@ export default function GeneratingOverlay({
         justifyContent: "center",
         // A flat wash of paper, not a blur: the map under it is still moving.
         // Near-opaque: at 0.9 the sheet's text read through the title.
-        background: "rgba(239,230,210,0.97)",
+        background: "rgba(var(--paper),.97)",
         padding: "0 24px",
         animation:
           state === "in"

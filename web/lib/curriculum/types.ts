@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // The concept-map vocabulary, mastery-state machine, and the pure session
 // engines (Socratic, Feynman, Connect, Crucible, Retain reducers).
 // All *content* — the graph, the diagnostic, and every phase's material — is
@@ -121,12 +122,12 @@ export function graphFromMapNodes(mapNodes: MapNode[]): ConceptGraph {
 }
 
 export const STATE_COLOR: Record<NodeState, string> = {
-  unknown: "#a99f8c",
-  frontier: "#b0852c",
-  learning: "#3f5f86",
-  shaky: "#a9602e",
-  mastered: "#4a7552",
-  gap: "#a8412f",
+  unknown: color.stateUnknown,
+  frontier: color.stateFrontier,
+  learning: color.stateLearning,
+  shaky: color.stateShaky,
+  mastered: color.stateMastered,
+  gap: color.stateGap,
 };
 
 export const STATE_LABEL: Record<NodeState, string> = {

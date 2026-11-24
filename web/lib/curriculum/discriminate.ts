@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Discriminate (the boundary) -----------------------------------
 // Case by case: is this an instance of the concept, and if not, which
 // neighbour is it? A concept IS a classification, so telling instances from
@@ -12,9 +13,9 @@ import { Language } from "@/lib/i18n";
 
 /** Discriminate's accent: a boundary-drawing slate blue. */
 export const DISCRIMINATE_COLOR = {
-  accent: "#4a5d70",
-  soft: "rgba(74,93,112,0.08)",
-  border: "rgba(74,93,112,0.32)",
+  accent: color.phaseDiscriminate,
+  soft: "rgba(var(--phase-discriminate),.08)",
+  border: "rgba(var(--phase-discriminate),.32)",
 } as const;
 
 /** One candidate case, described without naming any concept. */

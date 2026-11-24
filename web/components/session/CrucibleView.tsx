@@ -199,7 +199,7 @@ export default function CrucibleView({
                       disabled={judging}
                       style={{
                         padding: "14px 26px",
-                        background: judging ? "rgba(43,33,24,0.07)" : RUST,
+                        background: judging ? color.inkWash : RUST,
                         color: judging ? color.inkGhost : color.accentInk,
                         border: "none",
                         borderRadius: 3,
@@ -481,8 +481,8 @@ function Diagnostic({
               display: "flex",
               alignItems: "flex-start",
               gap: 13,
-              background: "#fbeeeb",
-              border: `1px solid rgba(168,65,47,0.32)`,
+              background: color.dangerBg,
+              border: `1px solid rgba(var(--state-gap),.32)`,
               borderRadius: 3,
               padding: "15px 18px",
               marginBottom: 18,
@@ -639,7 +639,7 @@ function Sidebar({
                 ? TRANSFER_COLOR.good
                 : status === "current"
                   ? RUST
-                  : "#c3bdb2";
+                  : color.inkGhost;
             return (
               <div
                 key={rung.label}
@@ -657,7 +657,7 @@ function Sidebar({
                     fontSize: 12,
                     background:
                       status === "done"
-                        ? "rgba(74,117,82,0.14)"
+                        ? "rgba(var(--state-mastered),.14)"
                         : status === "current"
                           ? CRUCIBLE_COLOR.soft
                           : "transparent",

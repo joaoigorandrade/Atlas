@@ -12,7 +12,8 @@
 //   looking at: the hovered chain, the locked path, the search matches.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { color, font, map } from "@/lib/theme";
+import { color, font, map, raw } from "@/lib/theme";
+import { useScheme } from "@/components/atlas/useScheme";
 import { useT } from "@/lib/i18n";
 import { type AtlasInput, type Spot } from "@/components/map/atlasTerrain";
 import { type Bounds, type Pt } from "@/components/map/mapGeometry";
@@ -162,6 +163,7 @@ export function Land({
   const [spots, setSpots] = useState<Record<string, Spot>>({});
   const w = Math.round(r.width * LAND_RES);
   const h = Math.round(r.height * LAND_RES);
+  const scheme = useScheme();
   useEffect(
     () => () => {
       worker.current?.terminate();
@@ -179,6 +181,7 @@ export function Land({
       input.edges,
       input.region,
       names,
+      scheme,
     ]);
     if (key === sent.current) return;
     sent.current = key;
@@ -195,7 +198,16 @@ export function Land({
         return i < 0 || j < 0 || i >= w || j >= h ? undefined : lit[prov[j * w + i]];
       };
     };
-    worker.current.postMessage({ key, input, x0: r.x, y0: r.y, w, h, res: LAND_RES });
+    worker.current.postMessage({
+      key,
+      input,
+      x0: r.x,
+      y0: r.y,
+      w,
+      h,
+      res: LAND_RES,
+      scheme,
+    });
   });
   return (
     <>
@@ -254,6 +266,7 @@ export function Fog({
   frozen: boolean;
 }) {
   const whole = region(bounds, MARGIN);
+  const fog = raw(useScheme()).fog; // baked: a `var()` won't resolve in the bitmap
   return (
     <Baked box={whole} res={0.25} frozen={frozen}>
       <defs>
@@ -272,7 +285,7 @@ export function Fog({
           })}
         </mask>
       </defs>
-      <rect {...whole} fill={map.fog} mask="url(#atlas-fog)" />
+      <rect {...whole} fill={fog} mask="url(#atlas-fog)" />
     </Baked>
   );
 }

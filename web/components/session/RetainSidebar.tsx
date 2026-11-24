@@ -36,7 +36,7 @@ export default function Sidebar({
         <div
           style={{
             height: 8,
-            background: "rgba(43,33,24,0.1)",
+            background: "rgba(var(--ink),.1)",
             borderRadius: 4,
             overflow: "hidden",
           }}

@@ -13,7 +13,7 @@ import {
 import { color, font } from "@/lib/theme";
 import { useLanguage } from "@/lib/i18n";
 
-const GREEN = "#3a6a55";
+const GREEN = color.accent;
 
 /**
  * What this probe has already established, and what is still open.
@@ -45,7 +45,7 @@ export function Ledger({
         marginBottom: 13,
         padding: "10px 13px",
         borderRadius: 3,
-        background: "rgba(43,33,24,0.035)",
+        background: "rgba(var(--ink),.035)",
         border: `1px solid ${color.hairline}`,
       }}
     >
@@ -111,7 +111,7 @@ export function HelpDial({
         display: "flex",
         gap: 3,
         background: color.chipBg,
-        border: `1px solid rgba(43,33,24,0.09)`,
+        border: `1px solid rgba(var(--ink),.09)`,
         borderRadius: 3,
         padding: 3,
       }}

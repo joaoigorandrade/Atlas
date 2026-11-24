@@ -137,7 +137,7 @@ export default function DiagnosticPanel({
         // behind it cost a full re-blur on every frame of the build.
         background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
         borderLeft: `3px double ${color.rule}`,
-        boxShadow: "-12px 0 30px rgba(43,33,24,0.12)",
+        boxShadow: "-12px 0 30px rgba(var(--shade),.12)",
         padding: "52px 44px",
         display: "flex",
         flexDirection: "column",
@@ -155,7 +155,7 @@ export default function DiagnosticPanel({
                 flex: 1,
                 height: 4,
                 borderRadius: 3,
-                background: i < answered ? color.accent : "rgba(43,33,24,0.12)",
+                background: i < answered ? color.accent : "rgba(var(--ink),.12)",
                 transition: transition("background"),
               }}
             />

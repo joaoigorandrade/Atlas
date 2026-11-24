@@ -76,7 +76,7 @@ export default function LinkConfirm({
           fontSize: 14.5,
           fontWeight: 600,
           cursor: ready ? "pointer" : "default",
-          background: linked ? soft : ready ? accent : "rgba(43,33,24,0.07)",
+          background: linked ? soft : ready ? accent : color.inkWash,
           color: linked ? accent : ready ? color.accentInk : color.inkGhost,
           border: linked ? `1px solid ${border}` : "none",
           boxShadow: linked || !ready ? "none" : `0 8px 20px ${glow}`,

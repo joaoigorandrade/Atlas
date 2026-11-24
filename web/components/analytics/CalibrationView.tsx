@@ -13,7 +13,7 @@ import {
   calibVerdictLabel,
   type CalibItem,
 } from "@/lib/curriculum";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, alpha } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import Sheet from "@/components/Sheet";
 import Masthead from "@/components/ui/Masthead";
@@ -176,7 +176,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
         border: `1px solid ${color.hairline}`,
         borderRadius: 3,
         padding: "26px 26px 22px",
-        boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
+        boxShadow: "0 4px 18px rgba(var(--shade),.05)",
       }}
     >
       <div style={{ ...kicker(10, "0.14em"), marginBottom: 4 }}>{t.calibrationCurve}</div>
@@ -198,11 +198,11 @@ function CurveCard({ items }: { items: CalibItem[] }) {
         {/* Overconfident (below diagonal) / underconfident (above) regions */}
         <polygon
           points={`${X0},${YB} ${X1},${YB} ${X1},${YT}`}
-          fill="rgba(169,96,46,0.07)"
+          fill="rgba(var(--state-shaky),.07)"
         />
         <polygon
           points={`${X0},${YB} ${X0},${YT} ${X1},${YT}`}
-          fill="rgba(63,95,134,0.07)"
+          fill="rgba(var(--state-learning),.07)"
         />
         {grid.map((g, i) => (
           <line
@@ -211,7 +211,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
             y1={g.y1}
             x2={g.x2}
             y2={g.y2}
-            stroke="rgba(43,33,24,0.07)"
+            stroke={color.inkWash}
             strokeWidth={1}
           />
         ))}
@@ -221,7 +221,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           y1={YB}
           x2={X1}
           y2={YT}
-          stroke="rgba(43,33,24,0.4)"
+          stroke="rgba(var(--ink),.4)"
           strokeWidth={1.5}
           strokeDasharray="5 5"
         />
@@ -295,7 +295,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           y1={26}
           x2={60}
           y2={400}
-          stroke="rgba(43,33,24,0.28)"
+          stroke="rgba(var(--ink),.28)"
           strokeWidth={1.5}
         />
         <line
@@ -303,7 +303,7 @@ function CurveCard({ items }: { items: CalibItem[] }) {
           y1={400}
           x2={438}
           y2={400}
-          stroke="rgba(43,33,24,0.28)"
+          stroke="rgba(var(--ink),.28)"
           strokeWidth={1.5}
         />
         <text
@@ -427,7 +427,7 @@ function Readout({
       <div
         style={{
           background: color.card,
-          border: `1px solid rgba(169,96,46,0.28)`,
+          border: `1px solid rgba(var(--state-shaky),.28)`,
           borderLeft: `3px solid ${OVER}`,
           borderRadius: 3,
           padding: "20px 22px",
@@ -468,8 +468,8 @@ function Readout({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <div
           style={{
-            background: "#f2f4f8",
-            border: `1px solid rgba(63,95,134,0.22)`,
+            background: color.cardAlt,
+            border: `1px solid rgba(var(--state-learning),.22)`,
             borderRadius: 3,
             padding: "17px 19px",
           }}
@@ -569,7 +569,7 @@ function CalibRow({
             letterSpacing: "0.08em",
             textTransform: "uppercase",
             color: CALIB_COLOR[item.verdict],
-            border: `1px solid ${CALIB_COLOR[item.verdict]}55`,
+            border: `1px solid ${alpha(CALIB_COLOR[item.verdict], 33)}`,
             borderRadius: 2,
             padding: "3px 8px",
             whiteSpace: "nowrap",
@@ -579,7 +579,7 @@ function CalibRow({
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <Bar label={t.felt} pct={item.felt} fill="rgba(43,33,24,0.34)" />
+        <Bar label={t.felt} pct={item.felt} fill="rgba(var(--ink),.34)" />
         <Bar label={t.real} pct={item.real} fill={CALIB_COLOR[item.verdict]} />
       </div>
       <div
@@ -623,7 +623,7 @@ function Bar({ label, pct, fill }: { label: string; pct: number; fill: string })
         style={{
           flex: 1,
           height: 7,
-          background: "rgba(43,33,24,0.08)",
+          background: "rgba(var(--ink),.08)",
           borderRadius: 3,
           overflow: "hidden",
         }}

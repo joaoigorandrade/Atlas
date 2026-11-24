@@ -244,7 +244,7 @@ export default function DiscriminateView({
                           isAnswer
                             ? accent
                             : isCall
-                              ? "rgba(160,106,48,0.45)"
+                              ? "rgba(var(--amber-ink),.45)"
                               : color.hairline
                         }`,
                         color: isAnswer || isCall ? color.ink : color.inkMuted,

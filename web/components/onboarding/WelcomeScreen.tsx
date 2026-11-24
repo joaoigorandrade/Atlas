@@ -7,7 +7,7 @@ import ScopeOffers from "@/components/onboarding/ScopeOffers";
 import TopicComposer from "@/components/onboarding/TopicComposer";
 import type { OutlineUpload } from "@/components/atlas/outlineUpload";
 import { CompassRose, Fleuron } from "@/components/ui/Ornaments";
-import { color, font, kicker, motion } from "@/lib/theme";
+import { color, font, kicker, motion, alpha } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { useT } from "@/lib/i18n";
 
@@ -93,7 +93,7 @@ function ModeCard(props: {
         background: active ? color.accentBg : color.card,
         border: `1px solid ${active ? color.accent : color.hairlineStrong}`,
         boxShadow: active
-          ? `inset 0 0 0 3px ${color.card}, inset 0 0 0 4px ${color.accent}55`
+          ? `inset 0 0 0 3px ${color.card}, inset 0 0 0 4px ${alpha(color.accent, 33)}`
           : "none",
         borderRadius: 3,
         cursor: "pointer",

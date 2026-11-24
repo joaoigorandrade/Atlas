@@ -203,7 +203,7 @@ export default function ExplainView({
                 marginTop: 14,
                 padding: "12px 15px",
                 borderRadius: 3,
-                border: `1px solid ${picked.correct ? accent : "rgba(160,106,48,0.45)"}`,
+                border: `1px solid ${picked.correct ? accent : "rgba(var(--amber-ink),.45)"}`,
                 background: color.card,
               }}
             >

@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Predict (forecast before the answer) --------------------------
 // A situation the principle governs, and one question: what happens? Said
 // before being shown, and committed — a forecast you can read off the screen
@@ -16,9 +17,9 @@ import { Language } from "@/lib/i18n";
 
 /** Predict's accent: a forecasting indigo. */
 export const PREDICT_COLOR = {
-  accent: "#5a4f7d",
-  soft: "rgba(90,79,125,0.08)",
-  border: "rgba(90,79,125,0.32)",
+  accent: color.phasePredict,
+  soft: "rgba(var(--phase-predict),.08)",
+  border: "rgba(var(--phase-predict),.32)",
 } as const;
 
 /** How sure the learner is, taken before the outcome is revealed. Held against

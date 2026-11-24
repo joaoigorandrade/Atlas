@@ -197,7 +197,7 @@ export default function SocraticView({
               flex: "0 0 auto",
               borderTop: `1px solid ${color.hairline}`,
               padding: "16px 32px 38px",
-              background: "rgba(246,239,223,0.55)",
+              background: "rgba(var(--card),.55)",
             }}
           >
             <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -226,7 +226,7 @@ export default function SocraticView({
                   <Button
                     onClick={onAdvance}
                     style={{
-                      boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+                      boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
                     }}
                   >
                     {advanceLabel}
@@ -294,8 +294,7 @@ export default function SocraticView({
                       style={{
                         flex: "0 0 auto",
                         padding: "12px 17px",
-                        background:
-                          busy || !draft.trim() ? "rgba(43,33,24,0.07)" : color.accent,
+                        background: busy || !draft.trim() ? color.inkWash : color.accent,
                         color: busy || !draft.trim() ? color.inkGhost : color.accentInk,
                         border: "none",
                         borderRadius: 3,
@@ -316,7 +315,7 @@ export default function SocraticView({
                       style={{
                         padding: "9px 14px",
                         background: color.card,
-                        border: "1px solid rgba(160,106,48,0.4)",
+                        border: "1px solid rgba(var(--amber-ink),.4)",
                         borderRadius: 3,
                         fontSize: 13,
                         color: color.amberInk,

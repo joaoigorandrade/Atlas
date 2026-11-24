@@ -200,7 +200,7 @@ function Body({
           outlineOffset: -4,
           borderTop: `3px solid ${stateColor}`,
           borderRadius: 3,
-          boxShadow: "0 16px 40px rgba(43,33,24,0.17)",
+          boxShadow: "0 16px 40px rgba(var(--shade),.17)",
           padding: "12px 14px 11px",
           transformOrigin: above ? "50% 100%" : "50% 0",
           animation: presence

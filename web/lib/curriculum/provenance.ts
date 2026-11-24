@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Provenance (evidence quality) ---------------------------------
 // One real source, and the question a historian asks before "is this true?":
 // what is this document FOR? A learner is handed an excerpt and rules each
@@ -16,9 +17,9 @@ import { Language } from "@/lib/i18n";
 
 /** Provenance's accent: an archival sepia. */
 export const PROVENANCE_COLOR = {
-  accent: "#7d6243",
-  soft: "rgba(125,98,67,0.08)",
-  border: "rgba(125,98,67,0.32)",
+  accent: color.phaseProvenance,
+  soft: "rgba(var(--phase-provenance),.08)",
+  border: "rgba(var(--phase-provenance),.32)",
 } as const;
 
 /**

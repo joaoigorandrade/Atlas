@@ -8,7 +8,7 @@
 // held against whether the grade that follows is a miss. Keys 1–3 do the same
 // from the keyboard; space still turns it without a rating.
 
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, alpha } from "@/lib/theme";
 import { useLanguage } from "@/lib/i18n";
 import type { CSSProperties } from "react";
 
@@ -44,7 +44,7 @@ export default function TurnOver({
             ...kicker(12, "0.1em", color.accent),
             fontFamily: font.caps,
             background: "none",
-            border: `1px solid ${color.accent}47`,
+            border: `1px solid ${alpha(color.accent, 28)}`,
           }}
         >
           <span aria-hidden style={{ fontSize: 14 }}>

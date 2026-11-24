@@ -1,7 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, CSSProperties, KeyboardEvent } from "react";
-import { color, font } from "@/lib/theme";
+import { color, font, alpha } from "@/lib/theme";
 
 /**
  * The atlas's buttons. There used to be none — the same full-width filled CTA
@@ -58,14 +58,14 @@ const VARIANT: Record<"primary" | "secondary" | "quiet", (ink: string) => CSSPro
       background: ink,
       color: color.accentInk,
       // The engraved rule: a hairline of paper set in from the plate's edge.
-      boxShadow: `inset 0 0 0 3px ${ink}, inset 0 0 0 4px rgba(246,239,223,0.34), 0 1px 0 rgba(43,33,24,0.25)`,
+      boxShadow: `inset 0 0 0 3px ${ink}, inset 0 0 0 4px rgba(var(--accent-ink),.34), 0 1px 0 rgba(var(--shade),.25)`,
     }),
     secondary: (ink) => ({
       padding: "12px 18px",
       border: `1px solid ${ink}`,
       background: "transparent",
       color: ink,
-      boxShadow: `inset 0 0 0 2px ${color.card}, inset 0 0 0 3px ${ink}33`,
+      boxShadow: `inset 0 0 0 2px ${color.card}, inset 0 0 0 3px ${alpha(ink, 20)}`,
     }),
     quiet: () => ({
       padding: "6px 4px",

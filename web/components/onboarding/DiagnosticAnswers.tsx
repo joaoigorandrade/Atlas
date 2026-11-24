@@ -328,7 +328,7 @@ export default function DiagnosticAnswer({
                       ? color.accent
                       : isWrongPick
                         ? color.amberInk
-                        : "rgba(43,33,24,0.16)"
+                        : "rgba(var(--ink),.16)"
                   }`,
                   borderRadius: 3,
                   fontSize: 15,

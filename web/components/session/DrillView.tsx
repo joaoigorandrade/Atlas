@@ -29,7 +29,7 @@ import {
 import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/OpenAnswer";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import ConfidenceGate from "@/components/session/parts/ConfidenceGate";
-import { color, font } from "@/lib/theme";
+import { color, font, alpha } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
 
@@ -252,7 +252,7 @@ export default function DrillView({
                     padding: "10px 14px",
                     borderRadius: 3,
                     background: soft,
-                    border: `1px solid ${accent}55`,
+                    border: `1px solid ${alpha(accent, 33)}`,
                     fontSize: 15,
                   }}
                 >

@@ -7,7 +7,7 @@ import {
   streakStatus,
   type AdherenceState,
 } from "@/lib/curriculum";
-import { color, font, kicker, motion, transition } from "@/lib/theme";
+import { color, font, kicker, motion, transition, alpha } from "@/lib/theme";
 import { useCelebrate, usePresence, type PresenceState } from "@/lib/motion";
 import { useLanguage, useT } from "@/lib/i18n";
 import SwitchMark from "@/components/ui/SwitchMark";
@@ -102,7 +102,7 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
             height: 10,
             borderRadius: "50%",
             background: STREAK_COLOR.flame,
-            boxShadow: `0 0 ${lit ? 12 : 8}px rgba(176,133,44,${lit ? 0.85 : 0.6})`,
+            boxShadow: `0 0 ${lit ? 12 : 8}px rgba(var(--state-frontier),${lit ? 0.85 : 0.6})`,
             // Grows on the compositor; it used to animate width and height.
             transform: `scale(${lit ? 1 : 0.8})`,
             transition: transition("transform", "base", "spring"),
@@ -138,8 +138,8 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
               fontFamily: font.mono,
               fontSize: 10.5,
               color: STREAK_COLOR.freeze,
-              background: "rgba(111,143,166,0.12)",
-              border: `1px solid ${STREAK_COLOR.freeze}44`,
+              background: "rgba(var(--freeze),.12)",
+              border: `1px solid ${alpha(STREAK_COLOR.freeze, 27)}`,
               borderRadius: 2,
               padding: "2px 6px",
             }}
@@ -191,7 +191,7 @@ function Popover({
         background: color.card,
         border: `1px solid ${color.hairlineStrong}`,
         borderRadius: 3,
-        boxShadow: "0 16px 40px rgba(43,33,24,0.18)",
+        boxShadow: "0 16px 40px rgba(var(--shade),.18)",
         padding: 18,
         zIndex: 41,
         animation:
@@ -254,10 +254,10 @@ function Popover({
                 day.status === "today"
                   ? "transparent"
                   : day.status === "hit"
-                    ? "rgba(176,133,44,0.16)"
+                    ? "rgba(var(--state-frontier),.16)"
                     : day.status === "freeze"
-                      ? "rgba(111,143,166,0.16)"
-                      : "rgba(43,33,24,0.05)",
+                      ? "rgba(var(--freeze),.16)"
+                      : "rgba(var(--ink),.05)",
               border:
                 day.status === "today"
                   ? `1.5px dashed ${adherence.metToday ? STREAK_COLOR.flame : color.inkGhost}`
