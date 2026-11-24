@@ -31,7 +31,7 @@ struct NodeDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.cardAlt)
         .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .drawer()
         // Keyed on the node: SwiftUI reuses a sheet's view across two
         // presentations of the same route, and a stale model would draw the
         // previous node's spiral against this one's name.

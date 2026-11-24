@@ -14,7 +14,7 @@ struct CrucibleView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Escrevendo um problema novo…") }
         }
-        .background(Palette.paper)
+        .paper()
         // The wait and the pass are one screen arriving, not two screens
         // swapping: the shape fades out under the prose that lands over it.
         .animation(Motion.enter, value: model == nil)

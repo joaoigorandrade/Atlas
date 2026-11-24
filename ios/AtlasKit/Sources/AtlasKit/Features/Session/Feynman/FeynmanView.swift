@@ -19,7 +19,7 @@ struct FeynmanView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .dismissesKeyboardOnTap()
         .task {
@@ -104,8 +104,7 @@ struct FeynmanView: View {
                 keyboard: { speaking = false }
             )
             .presentationDetents([.height(VoiceSheet.height), .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(Palette.paper)
+            .drawer()
         }
     }
 

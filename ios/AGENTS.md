@@ -88,8 +88,10 @@ and a kind that matters more than a laptop build should stay there.
 
 ## The design is the source of truth
 
-`Learning Platform Mobile.dc.html` in the Claude Design project. Match it through
-`Theme.swift`, never by eyeballing.
+The web app at phone width (below 768px) is the reference: iOS reads as the same
+engraved atlas — paper grain, double rules, Fell small capitals — in both
+schemes. `Learning Platform Mobile.dc.html` in the Claude Design project is the
+older mobile mock. Match through `Theme.swift`, never by eyeballing.
 
 - **Never hard-code a colour, a face, a duration or a gutter that has a token.**
   `Palette`, `Face`, `Motion`, `Metrics`. A new token is added to `Theme.swift`
@@ -103,9 +105,12 @@ and a kind that matters more than a laptop build should stay there.
   which is where a phase accent lives there — so there is nothing in
   `lib/theme.ts` to mirror, and `Palette` carries the pair.
 - **The mobile design's own decisions, which are not negotiable per screen:**
-  side rails become bottom sheets; every two-column desktop grid stacks; a screen
-  has at most one `Dock`; the tab bar is Início · Mapa · Revisão · Perfil and
-  Session is never a tab.
+  side rails become bottom sheets (`.drawer()`); every two-column desktop grid
+  stacks; a screen has at most one `Dock`; the tab bar is Início · Mapa · Revisão ·
+  Perfil, drawn as `AtlasTabBar` (the system bar stays hidden), and Session is
+  never a tab.
+- **Every sheet of paper is `.paper()`**, never a flat `Palette.paper`: the
+  colour under the static grain (`PaperGrain` in the asset catalogue).
 
 ## Layout
 
@@ -169,7 +174,7 @@ phase's own input sheet (`VoiceSheet`, the Consume lens): it is bound to the
 live view model a route cannot carry, and it lives and dies with the phase.
 
 - `AtlasTab` is the tab bar (Início · Mapa · Revisão · Perfil). `NavigationTabView`
-  renders it from `AtlasTabNavigator` and gives each tab its own `Navigator`, so
+  holds the stacks (its system bar hidden; `AtlasTabBar` is drawn instead) from `AtlasTabNavigator` and gives each tab its own `Navigator`, so
   a stack survives a trip through another tab. Session is never a tab.
 - `AtlasRoute` is every other destination — a `Routable` enum, one case per
   screen, so a destination is named rather than built at the call site. A new

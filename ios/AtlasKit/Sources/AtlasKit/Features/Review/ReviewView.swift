@@ -16,7 +16,7 @@ public struct ReviewView: View {
         Group {
             if let model { content(model) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         // Keyed on the tab, because the tab is the one thing that changes when
         // the learner comes back and never while the deck is being built. It
         // used to be keyed on `store.cards.count` — but drafting cards *is*

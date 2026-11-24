@@ -1,0 +1,10 @@
+{
+  "images" : [
+    { "filename" : "paper-grain.png", "idiom" : "universal", "scale" : "1x" },
+    {
+      "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
+      "filename" : "paper-grain-dark.png", "idiom" : "universal", "scale" : "1x"
+    }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

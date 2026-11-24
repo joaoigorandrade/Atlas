@@ -13,7 +13,7 @@ struct FeedView: View {
         Group {
             if let model { content(model) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         .navigationBarBackButtonHidden()
         .toolbar(.hidden, for: .navigationBar)
         .task { if model == nil { model = FeedViewModel(store: store) } }

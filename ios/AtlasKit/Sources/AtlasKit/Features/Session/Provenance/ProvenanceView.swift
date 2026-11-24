@@ -19,7 +19,7 @@ struct ProvenanceView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Procurando uma fonte…") }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .task {
             let model = model ?? ProvenanceViewModel(session: session)
@@ -67,7 +67,7 @@ struct ProvenanceView: View {
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
-                .background(Palette.paper)
+                .paper()
             // The ruling is the beat of this screen, and "por quê" is the whole
             // teaching moment — the line between what a source asserts and what
             // it proves. It lands below the fold on a phone, with the now-live

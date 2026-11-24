@@ -85,7 +85,7 @@ struct WelcomeView: View {
                 .multilineTextAlignment(.center)
             }
         }
-        .background(Palette.paper)
+        .paper()
         // Both of these are answers to the topic field — a scope fork or an
         // honest failure — and both appear directly under it.
         .animation(Motion.standard, value: onboarding.scopes.count)

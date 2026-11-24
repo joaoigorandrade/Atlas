@@ -47,7 +47,7 @@ struct BuildingView: View {
             .accessibilityLabel(Text(verbatim: "\(lines[line]) \(count)"))
             .accessibilityAddTraits(.updatesFrequently)
         }
-        .background(Palette.paper)
+        .paper()
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1.4))

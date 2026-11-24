@@ -13,7 +13,7 @@ struct TraceView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Montando a cadeia, estágio por estágio…") }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .task {
             let model = model ?? TraceViewModel(session: session)
@@ -64,7 +64,7 @@ struct TraceView: View {
                 // a rendering fault rather than as scrolling. The gap below keeps
                 // the first line from being sheared off flush (ConsumeView §rail).
                 .padding(.bottom, 8)
-                .background(Palette.paper)
+                .paper()
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // The one running case the whole chain walks. It stays at

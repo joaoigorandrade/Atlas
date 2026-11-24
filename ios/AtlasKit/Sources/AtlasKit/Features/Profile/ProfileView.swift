@@ -13,7 +13,7 @@ struct ProfileView: View {
         Group {
             if let model { content(model) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         .task { if model == nil { model = ProfileViewModel(store: store) } }
     }
 

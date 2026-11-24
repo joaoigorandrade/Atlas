@@ -52,7 +52,7 @@ public struct RootView: View {
         .animation(Motion.enter, value: store.libraryFailed)
         .animation(Motion.enter, value: store.signedIn)
         .animation(Motion.enter, value: store.graph.nodes.isEmpty)
-        .background(Palette.paper)
+        .paper()
         .environment(store)
         .task { await launch.restore(store) }
         // The debounce sleeps two seconds and a suspended process does not
@@ -130,7 +130,7 @@ public struct RootView: View {
             AtlasPulse(tint: Palette.inkGhost, size: 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Palette.paper)
+        .paper()
         .scaleEffect(settled ? 1 : 0.96)
         .opacity(settled ? 1 : 0)
         .task { withAnimation(Motion.enter) { settled = true } }
@@ -164,7 +164,7 @@ public struct RootView: View {
         }
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Palette.paper)
+        .paper()
     }
 
     /// Onboarding, in the order the design draws it: the form, the assembly
@@ -187,6 +187,7 @@ public struct RootView: View {
 
     private var shell: some View {
         NavigationTabView(tabs)
+            .safeAreaInset(edge: .bottom, spacing: 0) { AtlasTabBar(tabs: tabs) }
             .environmentObject(tabs)
             // A pass the app was killed in the middle of. Everything in it is
             // on the server — the reading's place, the transcript, the mastery
@@ -233,8 +234,8 @@ public struct RootView: View {
                         .plate()
                         .shadow(color: Palette.shade(0.12), radius: 10, y: 4)
                         .padding(.horizontal, Metrics.gutter)
-                        // Above the floating tab bar.
-                        .padding(.bottom, 92)
+                        // Above the tab bar.
+                        .padding(.bottom, 84)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .onAppear { AccessibilityNotification.Announcement(toast).post() }
                         .id(toast)

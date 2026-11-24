@@ -19,7 +19,7 @@ struct ConsumeView: View {
                 Waiting("Escrevendo sua leitura…")
             }
         }
-        .background(Palette.paper)
+        .paper()
         // The wait and the pass are one screen arriving, not two screens
         // swapping: the shape fades out under the prose that lands over it.
         .animation(Motion.enter, value: model == nil)
@@ -101,6 +101,7 @@ struct ConsumeView: View {
         .sheet(item: $model.lens) { request in
             ModelLensView(request: request, node: model.node)
                 .presentationDetents([.medium, .large])
+                .drawer()
                 .environment(store)
         }
     }

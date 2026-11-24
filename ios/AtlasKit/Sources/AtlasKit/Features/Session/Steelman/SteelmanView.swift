@@ -17,7 +17,7 @@ struct SteelmanView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Procurando o que se disputa…") }
         }
-        .background(Palette.paper)
+        .paper()
         .animation(Motion.enter, value: model == nil)
         .task {
             let model = model ?? SteelmanViewModel(session: session, api: store.api)
@@ -49,8 +49,7 @@ struct SteelmanView: View {
                     keyboard: { model.commit() }
                 )
                 .presentationDetents([.height(VoiceSheet.height), .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Palette.paper)
+                .drawer()
             }
         }
     }

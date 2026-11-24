@@ -46,7 +46,7 @@ public struct MapView: View {
             trail
             footer
         }
-        .background(Palette.paper)
+        .paper()
         // A pass ending changes the trail underneath this screen: the frontier
         // count moves, a step's disc fills, the footer's next node changes.
         .animation(Motion.standard, value: store.frontier.count)
@@ -294,7 +294,7 @@ public struct MapView: View {
                         .font(.atlas(.display, 20)).foregroundStyle(Palette.accent)
                         .contentTransition(.numericText())
                 }
-                ProgressView(value: store.mastered).tint(Palette.accent)
+                ProgressBar(value: store.mastered)
             }
             // The label, the figure and the bar are one reading, not three —
             // the bar alone has no name at all.

@@ -17,7 +17,7 @@ public struct HomeView: View {
         Group {
             if let model { content(model) } else { Color.clear }
         }
-        .background(Palette.paper)
+        .paper()
         .task {
             if model == nil { model = HomeViewModel(store: store) }
             model?.warm()
@@ -377,23 +377,5 @@ public struct HomeView: View {
                 .contentShape(.rect)
         }
         .pressable()
-    }
-}
-
-/// A hairline of progress — `ProgressView` draws a 4pt capsule that reads as a
-/// control; a row only needs the proportion.
-private struct ProgressBar: View {
-    let value: Double
-    var body: some View {
-        Rectangle().fill(Palette.hairlineStrong)
-            .frame(height: 2)
-            .overlay(alignment: .leading) {
-                GeometryReader { geo in
-                    Rectangle().fill(Palette.accent).frame(width: geo.size.width * min(max(value, 0), 1))
-                }
-            }
-            .padding(.trailing, 4)
-            .animation(Motion.reward, value: value)
-            .accessibilityHidden(true)
     }
 }

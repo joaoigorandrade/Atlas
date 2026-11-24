@@ -93,6 +93,33 @@ public struct DoubleRule: View {
     }
 }
 
+public extension View {
+    /// `.at-paper` — the sheet itself: the paper colour under the static grain
+    /// (`paper-grain.png`, a light and a dark one in the asset catalogue). An
+    /// image tiled once, never a filter: the same bargain the web makes.
+    func paper() -> some View {
+        background {
+            Image("PaperGrain").resizable(resizingMode: .tile)
+                .background(Palette.paper)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+public extension View {
+    /// A bottom sheet drawn as the web's phone drawer (`NodeDetail` under
+    /// 768px): the sheet's paper, a double rule along its top edge, corners
+    /// at 10, and no system grabber.
+    func drawer() -> some View {
+        presentationBackground {
+            Color.clear.paper().overlay(alignment: .top) { DoubleRule() }
+        }
+        .presentationCornerRadius(10)
+        .presentationDragIndicator(.hidden)
+    }
+}
+
 /// `.card` — a plate pasted onto the page: vellum inside an engraved double
 /// rule (`Plate` on the web). `border` tints the outer rule for a card that
 /// carries a state.
@@ -222,8 +249,8 @@ public struct Dock<Content: View>: View {
             .padding(.horizontal, Metrics.gutter)
             .padding(.top, 12)
             .padding(.bottom, 10)
-            .background(Palette.card.opacity(0.96))
-            .overlay(alignment: .top) { Divider().overlay(Palette.hairline) }
+            .paper()
+            .overlay(alignment: .top) { DoubleRule() }
     }
 }
 
@@ -244,7 +271,8 @@ public struct Chip: View {
     public var body: some View {
         HStack(spacing: 6) {
             if let dot { Circle().fill(dot).frame(width: 6, height: 6) }
-            text.font(.atlas(.sans, 12.5))
+            // Engraved small capitals, like the web's state pills.
+            text.font(.atlas(.caps, 13)).tracking(0.6)
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 11)
@@ -566,15 +594,16 @@ public struct MicButton: View {
     }
 }
 
-/// The chevron every pushed screen wears — settings, calibration, and the phase
+/// The back arrow every pushed screen wears — settings, calibration, and the phase
 /// bar. Icon-only, so it carries its own label.
 public struct BackButton: View {
     private let action: () -> Void
     public init(action: @escaping () -> Void) { self.action = action }
     public var body: some View {
         Button(action: action) {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 17, weight: .medium))
+            // The web masthead's engraved arrow, not a system chevron.
+            Text(verbatim: "←")
+                .font(.atlas(.display, 22))
                 .foregroundStyle(Palette.inkMuted)
                 .frame(width: Metrics.tap, height: Metrics.tap)
         }
@@ -608,5 +637,24 @@ public struct Avatar: View {
         let parts = name.split(whereSeparator: { ".-_+".contains($0) }).prefix(2)
         let letters = parts.compactMap(\.first).map { String($0) }.joined()
         return letters.isEmpty ? "A" : letters.uppercased()
+    }
+}
+
+/// A hairline of progress — `ProgressView` draws a 4pt capsule that reads as a
+/// control; a row (or the map's mastered reading) only needs the proportion.
+public struct ProgressBar: View {
+    let value: Double
+    public init(value: Double) { self.value = value }
+    public var body: some View {
+        Rectangle().fill(Palette.hairlineStrong)
+            .frame(height: 2)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    Rectangle().fill(Palette.accent).frame(width: geo.size.width * min(max(value, 0), 1))
+                }
+            }
+            .padding(.trailing, 4)
+            .animation(Motion.reward, value: value)
+            .accessibilityHidden(true)
     }
 }

@@ -24,7 +24,7 @@ struct SocraticView: View {
         Group {
             if let model { content(model).transition(.arrival) } else { Waiting("Escrevendo a primeira pergunta…") }
         }
-        .background(Palette.paper)
+        .paper()
         // The wait and the pass are one screen arriving, not two screens
         // swapping: the shape fades out under the prose that lands over it.
         .animation(Motion.enter, value: model == nil)
@@ -122,8 +122,7 @@ struct SocraticView: View {
                 keyboard: { close(); typing = true; Defaults.prefersVoice = false }
             )
                 .presentationDetents([.height(VoiceSheet.height), .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Palette.paper)
+                .drawer()
                 // The conversation stays live behind it — the learner can scroll
                 // back to what they are answering without giving up the mic.
                 .presentationBackgroundInteraction(.enabled(upThrough: .height(VoiceSheet.height)))

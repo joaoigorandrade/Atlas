@@ -38,7 +38,7 @@ struct SessionView: View {
                 Color.clear
             }
         }
-        .background(Palette.paper)
+        .paper()
         // A pass owns the whole screen, tab bar included: it has its own top bar
         // and its own way back.
         .toolbar(.hidden, for: .tabBar)
