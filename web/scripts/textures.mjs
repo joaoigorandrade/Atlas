@@ -88,10 +88,10 @@ function periodicNoise(period, seed) {
 
 // ---- paper grain: iron-gall specks, fibres and mottling over transparency --
 
-function paperGrain() {
+// `ink` is the speck colour; the dark sheet takes bone specks at `weight`.
+function paperGrain(INK = [43, 33, 24], weight = 1) {
   const N = 128;
   const px = new Uint8Array(N * N * 4);
-  const INK = [43, 33, 24];
   const alpha = new Float32Array(N * N);
   const mottle = [periodicNoise(4, 11), periodicNoise(16, 12)];
   for (let y = 0; y < N; y++)
@@ -128,7 +128,7 @@ function paperGrain() {
   for (let i = 0; i < N * N; i++) {
     px.set(INK, i * 4);
     // Quantise: fewer distinct alphas, smaller file, no visible difference.
-    px[i * 4 + 3] = Math.round(Math.min(255, alpha[i]) / 3) * 3;
+    px[i * 4 + 3] = Math.round(Math.min(255, alpha[i] * weight) / 3) * 3;
   }
   return png(N, N, 4, px);
 }
@@ -210,18 +210,27 @@ function endpaper() {
 
 // ---- deckle: the torn edge of hand-made paper, as a tiling SVG strip -------
 
-function deckle() {
+function deckle(fill = "#f6efdf") {
   const r = rng(31);
   const W = 120;
   const pts = [];
   for (let x = 0; x <= W; x += 2) pts.push(`${x} ${(1 + r() * 4.5).toFixed(1)}`);
   // Start and end at the same height so the strip tiles without a step.
   pts[pts.length - 1] = `${W} ${pts[0].split(" ")[1]}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} 8" width="${W}" height="8" preserveAspectRatio="none"><path fill="#f6efdf" d="M0 8L${pts.join("L")}L${W} 8Z"/></svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} 8" width="${W}" height="8" preserveAspectRatio="none"><path fill="${fill}" d="M0 8L${pts.join("L")}L${W} 8Z"/></svg>\n`;
 }
 
 fs.writeFileSync(new URL("paper-grain.png", OUT), paperGrain());
 fs.writeFileSync(new URL("endpaper.png", OUT), endpaper());
 fs.writeFileSync(new URL("deckle.svg", OUT), deckle());
-for (const f of ["paper-grain.png", "endpaper.png", "deckle.svg"])
+// The lamplit sheet (lib/theme.ts dark `ink` and `card`); same seeds, same shapes.
+fs.writeFileSync(new URL("paper-grain-dark.png", OUT), paperGrain([241, 237, 227], 0.55));
+fs.writeFileSync(new URL("deckle-dark.svg", OUT), deckle("#1e1b16"));
+for (const f of [
+  "paper-grain.png",
+  "endpaper.png",
+  "deckle.svg",
+  "paper-grain-dark.png",
+  "deckle-dark.svg",
+])
   console.log(f, fs.statSync(new URL(f, OUT)).size, "bytes");

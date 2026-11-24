@@ -51,7 +51,7 @@ export default function RailToggle({
         fontSize: 12.5,
         color: color.inkMuted,
         cursor: "pointer",
-        boxShadow: "0 4px 14px rgba(43,33,24,0.08)",
+        boxShadow: "0 4px 14px rgba(var(--shade),.08)",
       }}
     >
       {plan ? (open ? t.hidePlan : t.showPlan) : open ? t.hideNode : t.showNode}

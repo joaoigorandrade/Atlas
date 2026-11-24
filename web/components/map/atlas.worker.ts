@@ -1,6 +1,6 @@
 // Bakes the atlas off the main thread, so releasing a drag never stalls a frame.
 import { paintAtlas, type AtlasInput } from "@/components/map/atlasTerrain";
-import { map } from "@/lib/theme";
+import { map, type Scheme } from "@/lib/theme";
 
 export interface AtlasJob {
   key: string;
@@ -10,6 +10,7 @@ export interface AtlasJob {
   w: number;
   h: number;
   res: number;
+  scheme: Scheme;
 }
 
 self.onmessage = ({ data: job }: MessageEvent<AtlasJob>) => {
@@ -20,7 +21,7 @@ self.onmessage = ({ data: job }: MessageEvent<AtlasJob>) => {
     job.x0,
     job.y0,
     job.res,
-    map.atlas,
+    map.atlas[job.scheme],
   );
   self.postMessage(
     { key: job.key, img, spots, prov, lit },

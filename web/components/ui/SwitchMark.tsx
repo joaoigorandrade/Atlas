@@ -18,8 +18,8 @@ export default function SwitchMark({ on, width = 34 }: { on: boolean; width?: nu
         width,
         height: 20,
         borderRadius: 2,
-        background: on ? color.accent : "rgba(43,33,24,0.14)",
-        boxShadow: "inset 0 1px 2px rgba(43,33,24,0.25)",
+        background: on ? color.accent : "rgba(var(--ink),.14)",
+        boxShadow: "inset 0 1px 2px rgba(var(--ink),.25)",
         transition: transition("background"),
       }}
     >
@@ -32,7 +32,7 @@ export default function SwitchMark({ on, width = 34 }: { on: boolean; width?: nu
           height: 16,
           borderRadius: 1.5,
           background: color.card,
-          boxShadow: "0 1px 2px rgba(43,33,24,0.35)",
+          boxShadow: "0 1px 2px rgba(var(--shade),.35)",
           transform: `translateX(${on ? width - 20 : 0}px)`,
           transition: transition("transform", "base", "enter"),
         }}

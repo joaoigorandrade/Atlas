@@ -13,7 +13,7 @@ import {
   type PlanEntry,
   goalCountdown,
 } from "@/lib/curriculum";
-import { color, font, kicker, layout, transition } from "@/lib/theme";
+import { color, font, kicker, layout, transition, alpha } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import { useCountUp } from "@/lib/motion";
 import HoverHint from "@/components/HoverHint";
@@ -196,13 +196,13 @@ function LeftRail({
               fontSize: 12.5,
               color: color.amberInk,
               background: color.amberBg,
-              border: "1px solid rgba(160,106,48,0.24)",
+              border: "1px solid rgba(var(--amber-ink),.24)",
               borderRadius: 2,
               padding: "4px 9px",
             }}
           >
             <span
-              style={{ width: 5, height: 5, borderRadius: "50%", background: "#b0852c" }}
+              style={{ width: 5, height: 5, borderRadius: "50%", background: color.gilt }}
             />
             {goalCountdown(goal, pace.daysLeft, language)}
           </div>
@@ -322,7 +322,7 @@ function LeftRail({
             position: "relative",
             height: 8,
             border: `1px solid ${color.rule}`,
-            background: "rgba(43,33,24,0.05)",
+            background: "rgba(var(--ink),.05)",
             overflow: "hidden",
           }}
         >
@@ -359,7 +359,7 @@ function LeftRail({
               fontFamily: font.mono,
               fontSize: 10.5,
               color: STATE_COLOR.shaky,
-              border: `1px solid ${STATE_COLOR.shaky}66`,
+              border: `1px solid ${alpha(STATE_COLOR.shaky, 40)}`,
               borderRadius: 2,
               padding: "2px 7px",
             }}

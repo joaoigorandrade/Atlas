@@ -47,7 +47,14 @@ describe("atlas terrain", () => {
       height: 100,
       data: new Uint8ClampedArray(175 * 100 * 4),
     } as ImageData;
-    const { spots, prov, lit } = paintAtlas(img, input, -200, -200, 0.25, map.atlas);
+    const { spots, prov, lit } = paintAtlas(
+      img,
+      input,
+      -200,
+      -200,
+      0.25,
+      map.atlas.light,
+    );
     expect(lit[prov[50 * 175 + 50]]).toBe("a"); // a's city at (0,0)
     expect(lit[prov[50 * 175 + 125]]).toBe("b");
     expect(prov[0]).toBe(-1); // the corner is sea

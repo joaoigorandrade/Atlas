@@ -6,12 +6,10 @@ import UIKit
 /// colourist's washes. Never hard-code a colour, a font or a duration that has
 /// a token here — the two platforms drift the moment someone eyeballs a hex.
 ///
-/// Every colour is a *pair*: the light value is the one `lib/theme.ts` mirrors,
-/// and the dark one beside it is iOS-only on purpose. The web has no dark mode,
-/// so there is nothing over there to keep in step with yet; when it grows one,
-/// these are the values to carry across. The dark half is a warm dark built out
-/// of `ink`'s own hue rather than a neutral grey — the atlas read by lamplight,
-/// not a different app.
+/// Every colour is a *pair*, and `lib/theme.ts` (`PAIRS`) carries the same two
+/// halves — a change to either is made on both. The dark half is a warm dark
+/// built out of `ink`'s own hue rather than a neutral grey: the atlas read by
+/// lamplight, not a different app.
 public enum Palette {
     // An old sheet: rag paper gone warm with age, and vellum for the plates.
     public static let paper = adaptive(0xEFE6D2, 0x15130F)

@@ -434,7 +434,7 @@ export default function ConsumeView({
                 cursor: "pointer",
                 boxShadow: knewAll
                   ? "none"
-                  : `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+                  : `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
               }}
             >
               {t.recapBegin(nextLabel)}
@@ -533,7 +533,7 @@ export default function ConsumeView({
                     width: "100%",
                     height: 3,
                     borderRadius: 2,
-                    background: reachable ? color.accent : "rgba(43,33,24,0.12)",
+                    background: reachable ? color.accent : "rgba(var(--ink),.12)",
                     transition: transition("background"),
                   }}
                 />
@@ -834,7 +834,7 @@ export default function ConsumeView({
                             gap: 12,
                             alignItems: "baseline",
                             background: color.accentBg,
-                            border: "1px solid rgba(58,106,85,0.18)",
+                            border: "1px solid rgba(var(--accent),.18)",
                             borderRadius: 3,
                             padding: "13px 16px",
                           }}
@@ -1077,7 +1077,7 @@ export default function ConsumeView({
                 alignItems: "center",
                 gap: 18,
                 background: color.amberBg,
-                border: "1px solid rgba(160,106,48,0.28)",
+                border: "1px solid rgba(var(--amber-ink),.28)",
                 borderRadius: 3,
                 padding: "18px 22px",
                 animation: "fadeUp .4s both",
@@ -1105,7 +1105,7 @@ export default function ConsumeView({
                   padding: "12px 18px",
                   background: color.card,
                   color: color.amberInk,
-                  border: "1px solid rgba(160,106,48,0.4)",
+                  border: "1px solid rgba(var(--amber-ink),.4)",
                   borderRadius: 3,
                   fontSize: 14,
                   fontWeight: 600,

@@ -81,7 +81,7 @@ export function SectionCheck({
         <div
           style={{
             background: color.card,
-            border: `1px solid ${passed ? "rgba(74,117,82,0.4)" : "rgba(63,95,134,0.28)"}`,
+            border: `1px solid ${passed ? "rgba(var(--state-mastered),.4)" : "rgba(var(--state-learning),.28)"}`,
             borderRadius: 3,
             padding: "18px 20px",
             animation: "fadeUp .45s both",

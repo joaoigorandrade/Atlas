@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Explain (explanation design) ----------------------------------
 // Straight after the reading: not what the concept is, but how to put it
 // across to someone else. Consume teaches the content and Feynman, rungs
@@ -15,9 +16,9 @@ import { Language } from "@/lib/i18n";
 
 /** Explain's accent: a schoolroom olive. */
 export const EXPLAIN_COLOR = {
-  accent: "#6b6a2e",
-  soft: "rgba(107,106,46,0.08)",
-  border: "rgba(107,106,46,0.32)",
+  accent: color.phaseExplain,
+  soft: "rgba(var(--phase-explain),.08)",
+  border: "rgba(var(--phase-explain),.32)",
 } as const;
 
 /** One reply to the listener. Exactly one per check defuses the misconception. */

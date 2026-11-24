@@ -119,7 +119,7 @@ export default function ProfileScreen({
                 height: 78,
                 borderRadius: "50%",
                 background: color.ink,
-                color: "#f6efdf",
+                color: color.card,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -261,7 +261,7 @@ export default function ProfileScreen({
                       style={{
                         padding: "7px 14px",
                         background: color.accentBg,
-                        border: "1px solid rgba(58,106,85,0.22)",
+                        border: "1px solid rgba(var(--accent),.22)",
                         borderRadius: 20,
                         fontSize: 13.5,
                         color: color.accent,
@@ -326,8 +326,8 @@ export default function ProfileScreen({
               <span style={{ color: color.inkGhost }}>&rarr;</span>
             </div>
             <div className="at-press at-tint" {...pressable(onSignOut)} style={rowStyle}>
-              <div style={{ fontSize: 15, color: "#a8412f" }}>{t.signOut}</div>
-              <span style={{ color: "#a8412f" }}>&rarr;</span>
+              <div style={{ fontSize: 15, color: color.stateGap }}>{t.signOut}</div>
+              <span style={{ color: color.stateGap }}>&rarr;</span>
             </div>
           </div>
         </div>

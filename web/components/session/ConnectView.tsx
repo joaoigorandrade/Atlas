@@ -351,9 +351,9 @@ export default function ConnectView({
                 fontWeight: 600,
                 cursor: ready ? "pointer" : "default",
                 border: "none",
-                background: ready ? color.accent : "rgba(43,33,24,0.08)",
+                background: ready ? color.accent : "rgba(var(--ink),.08)",
                 color: ready ? color.accentInk : color.inkGhost,
-                boxShadow: ready ? "0 8px 22px rgba(58,106,85,0.26)" : "none",
+                boxShadow: ready ? "0 8px 22px rgba(var(--accent),.26)" : "none",
               }}
             >
               {t.ctaFinish}
@@ -415,7 +415,7 @@ function ConceptWeb({
               y1={cy}
               x2={c.x}
               y2={c.y}
-              stroke={on ? VIOLET : "rgba(43,33,24,0.2)"}
+              stroke={on ? VIOLET : "rgba(var(--ink),.2)"}
               strokeWidth={on ? 2.2 : 1.2}
               strokeDasharray={on ? "0" : "5 6"}
               strokeLinecap="round"
@@ -479,7 +479,7 @@ function ConceptWeb({
               gap: 7,
               padding: "8px 12px",
               background: color.card,
-              border: `1px solid ${active ? VIOLET : on ? "rgba(74,117,82,0.55)" : color.hairlineStrong}`,
+              border: `1px solid ${active ? VIOLET : on ? "rgba(var(--state-mastered),.55)" : color.hairlineStrong}`,
               borderRadius: 3,
               whiteSpace: "nowrap",
               cursor: "pointer",
@@ -489,7 +489,7 @@ function ConceptWeb({
               color: color.ink,
               boxShadow: active
                 ? `0 8px 20px ${CONNECT_COLOR.glow}`
-                : "0 2px 7px rgba(43,33,24,0.06)",
+                : "0 2px 7px rgba(var(--ink),.06)",
               zIndex: 3,
             }}
           >

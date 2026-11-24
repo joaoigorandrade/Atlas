@@ -74,7 +74,7 @@ export default function MapInvite({
           gap: 14,
           padding: "11px 18px 11px 14px",
           cursor: "pointer",
-          boxShadow: "0 6px 22px rgba(43,33,24,0.14)",
+          boxShadow: "0 6px 22px rgba(var(--shade),.14)",
           maxWidth: "100%",
         }}
       >

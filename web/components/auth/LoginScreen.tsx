@@ -203,7 +203,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
           <div
             style={{
               background: color.successBg,
-              border: "1px solid rgba(58,106,85,0.22)",
+              border: "1px solid rgba(var(--accent),.22)",
               borderRadius: 3,
               padding: "22px 20px",
               fontSize: 15,
@@ -228,7 +228,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                 borderRadius: 3,
                 padding: 6,
                 marginBottom: 12,
-                boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
+                boxShadow: "0 4px 18px rgba(var(--shade),.05)",
               }}
             >
               <input
@@ -249,7 +249,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
                 borderRadius: 3,
                 padding: 6,
                 marginBottom: 14,
-                boxShadow: "0 4px 18px rgba(43,33,24,0.05)",
+                boxShadow: "0 4px 18px rgba(var(--shade),.05)",
               }}
             >
               <input
@@ -330,7 +330,7 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
               fontSize: 13.5,
               color: color.amberInk,
               background: color.amberBg,
-              border: "1px solid rgba(160,106,48,0.2)",
+              border: "1px solid rgba(var(--amber-ink),.2)",
               borderRadius: 3,
               padding: "10px 14px",
             }}

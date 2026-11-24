@@ -8,7 +8,7 @@
 import { useRef, useState, type CSSProperties } from "react";
 import type { OutlineUpload } from "@/components/atlas/outlineUpload";
 import { InkDots } from "@/components/Pending";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, alpha } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -101,7 +101,7 @@ export default function TopicComposer({
           background: color.card,
           border: `1px ${dragging ? "dashed" : "solid"} ${dragging ? color.accent : color.hairlineStrong}`,
           borderRadius: 3,
-          boxShadow: "0 4px 18px rgba(43,33,24,0.06)",
+          boxShadow: "0 4px 18px rgba(var(--shade),.06)",
         }}
       >
         <textarea
@@ -213,7 +213,7 @@ export default function TopicComposer({
               inset: 0,
               display: "grid",
               placeItems: "center",
-              background: `${color.accentBg}ee`,
+              background: `${alpha(color.accentBg, 93)}`,
               color: color.accent,
               fontFamily: font.display,
               fontStyle: "italic",

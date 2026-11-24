@@ -10,7 +10,7 @@ import {
   type ReviewGrade,
   type RetainSession,
 } from "@/lib/curriculum";
-import { color, figures, font, kicker, motion } from "@/lib/theme";
+import { color, figures, font, kicker, motion, alpha } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
 import { useEffect, useState, type CSSProperties } from "react";
 
@@ -134,9 +134,9 @@ export default function ActiveCard({
         style={{
           position: "relative",
           background: `url(/paper-grain.png) 0 0 / 128px, ${color.card}`,
-          border: "1px solid rgba(43,33,24,0.26)",
+          border: "1px solid rgba(var(--ink),.26)",
           borderRadius: 4,
-          boxShadow: "0 1px 0 rgba(43,33,24,0.08), 0 14px 34px rgba(43,33,24,0.1)",
+          boxShadow: "0 1px 0 rgba(var(--shade),.08), 0 14px 34px rgba(var(--shade),.1)",
           overflow: "hidden",
           animation: failed
             ? `nudge .42s ${motion.ease.standard} both`
@@ -214,8 +214,8 @@ export default function ActiveCard({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  background: session.stage === "aside" ? `${ASIDE_ACCENT}12` : "none",
-                  border: `1px solid ${session.stage === "aside" ? `${ASIDE_ACCENT}55` : "transparent"}`,
+                  background: session.stage === "aside" ? alpha(ASIDE_ACCENT, 7) : "none",
+                  border: `1px solid ${session.stage === "aside" ? alpha(ASIDE_ACCENT, 33) : "transparent"}`,
                   borderRadius: 3,
                   padding: "6px 10px",
                   marginLeft: -10,
@@ -255,7 +255,7 @@ export default function ActiveCard({
             style={{
               borderTop: `1px solid ${color.hairline}`,
               padding: `14px ${pad}px 16px`,
-              background: "rgba(43,33,24,0.025)",
+              background: "rgba(var(--ink),.025)",
             }}
           >
             {card.type !== "why" && <CardAnswer value={said} onChange={setSaid} />}
@@ -298,7 +298,7 @@ export default function ActiveCard({
                   onClick={() => onGrade(g.key)}
                   style={
                     {
-                      "--g-wash": `${g.color}24`,
+                      "--g-wash": `${alpha(g.color, 14)}`,
                       flex: 1,
                       minWidth: 0,
                       display: "flex",
@@ -376,8 +376,8 @@ export default function ActiveCard({
                 display: "flex",
                 alignItems: "flex-start",
                 gap: 13,
-                background: "#fbeeeb",
-                border: "1px solid rgba(169,96,46,0.35)",
+                background: color.dangerBg,
+                border: "1px solid rgba(var(--state-shaky),.35)",
                 borderRadius: 3,
                 padding: "15px 18px",
                 marginBottom: 16,
@@ -419,7 +419,7 @@ export default function ActiveCard({
                 fontFamily: font.caps,
                 letterSpacing: "0.06em",
                 cursor: "pointer",
-                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
               }}
             >
               {t.reteachNow}

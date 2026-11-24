@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Trace (following a mechanism step by step) --------------------
 // One case, walked stage by stage: given where it has got to, what does this
 // stage hand the next? The links of a single chain, in order — not independent
@@ -13,9 +14,9 @@ import { Language } from "@/lib/i18n";
 
 /** Trace's accent: a following-the-thread teal. */
 export const TRACE_COLOR = {
-  accent: "#3d6e62",
-  soft: "rgba(61,110,98,0.08)",
-  border: "rgba(61,110,98,0.32)",
+  accent: color.phaseTrace,
+  soft: "rgba(var(--phase-trace),.08)",
+  border: "rgba(var(--phase-trace),.32)",
 } as const;
 
 /** One link of the chain. */

@@ -6,7 +6,7 @@ import {
   Instrument_Sans,
 } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
-import { cssVars } from "@/lib/theme";
+import { themeCss } from "@/lib/theme";
 import "./globals.css";
 
 // The atlas's three hands: Fell for what is engraved, Garamond for what is
@@ -46,7 +46,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" style={cssVars}>
+    <html lang="pt-BR">
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+      </head>
       <body
         className={`${fell.variable} ${fellCaps.variable} ${garamond.variable} ${instrumentSans.variable}`}
       >

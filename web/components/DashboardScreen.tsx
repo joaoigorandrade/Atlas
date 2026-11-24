@@ -87,7 +87,7 @@ const excludeButtonStyle = {
 } as const;
 
 /** The gilt light beside the streak, and on the frontier card. */
-const giltDot = { background: "#b0852c", boxShadow: "0 0 8px rgba(176,133,44,0.6)" };
+const giltDot = { background: color.gilt, boxShadow: "0 0 8px rgba(var(--gilt),.6)" };
 
 const confirmButtonBase = {
   padding: "7px 13px",
@@ -160,7 +160,7 @@ export default function DashboardScreen({
             height: 34,
             borderRadius: "50%",
             background: color.ink,
-            color: "#f6efdf",
+            color: color.card,
             border: "none",
             display: "flex",
             alignItems: "center",
@@ -335,9 +335,9 @@ function MapCard({
         background: color.card,
         border: `1px solid ${
           confirming
-            ? "rgba(168,65,47,0.45)"
+            ? "rgba(var(--state-gap),.45)"
             : active
-              ? "rgba(176,133,44,0.35)"
+              ? "rgba(var(--state-frontier),.35)"
               : color.hairlineStrong
         }`,
         borderRadius: 3,
@@ -383,7 +383,7 @@ function MapCard({
               disabled={excluding}
               style={{
                 ...confirmButtonBase,
-                color: "#f6efdf",
+                color: color.card,
                 background: STATE_COLOR.gap,
                 border: `1px solid ${STATE_COLOR.gap}`,
                 opacity: excluding ? 0.6 : 1,
@@ -427,7 +427,7 @@ function MapCard({
                   textTransform: "uppercase",
                   color: color.accent,
                   background: color.accentBg,
-                  border: "1px solid rgba(58,106,85,0.2)",
+                  border: "1px solid rgba(var(--accent),.2)",
                   borderRadius: 20,
                   padding: "3px 9px",
                 }}
@@ -463,7 +463,7 @@ function MapCard({
           <div
             style={{
               height: 6,
-              background: "#efe9df",
+              background: color.cardAlt,
               borderRadius: 5,
               overflow: "hidden",
               marginBottom: 9,

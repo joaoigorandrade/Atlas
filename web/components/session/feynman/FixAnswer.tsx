@@ -110,7 +110,7 @@ export default function FixAnswer({
           fontSize: 13.5,
           fontWeight: 600,
           cursor: judging || !text.trim() ? "default" : "pointer",
-          background: judging || !text.trim() ? "rgba(43,33,24,0.07)" : accent,
+          background: judging || !text.trim() ? color.inkWash : accent,
           color: judging || !text.trim() ? color.inkGhost : color.accentInk,
         }}
       >

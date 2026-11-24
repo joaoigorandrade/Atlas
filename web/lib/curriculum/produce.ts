@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase · Produce (real-time production) ---------------------------------
 // The learner says it. Out loud, unscripted, against the clock.
 //
@@ -17,9 +18,9 @@ import { Language } from "@/lib/i18n";
 
 /** Produce's accent: a spoken terracotta. */
 export const PRODUCE_COLOR = {
-  accent: "#a45a3a",
-  soft: "rgba(164,90,58,0.08)",
-  border: "rgba(164,90,58,0.32)",
+  accent: color.phaseProduce,
+  soft: "rgba(var(--phase-produce),.08)",
+  border: "rgba(var(--phase-produce),.32)",
 } as const;
 
 export interface ProduceTurn {

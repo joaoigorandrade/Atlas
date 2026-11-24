@@ -11,7 +11,7 @@ import { AnswerModeToggle, OpenAnswer, type AnswerMode } from "@/components/Open
 import Button from "@/components/ui/Button";
 import Plate from "@/components/ui/Plate";
 import Rich from "@/components/Rich";
-import { color, font, kicker } from "@/lib/theme";
+import { color, font, kicker, alpha } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
 const STRINGS = {
@@ -171,7 +171,7 @@ export default function ExamQuestionCard({
                   borderRadius: 3,
                   cursor: mode === "choices" ? "pointer" : "default",
                   border: `1px solid ${chosen ? accent : color.hairlineStrong}`,
-                  background: chosen ? `${accent}1f` : color.card,
+                  background: chosen ? `${alpha(accent, 12)}` : color.card,
                   color: color.ink,
                   fontFamily: font.serif,
                   fontSize: 16,

@@ -313,7 +313,7 @@ function StudentChip() {
         alignItems: "center",
         gap: 8,
         background: color.chipBg,
-        border: `1px solid rgba(43,33,24,0.09)`,
+        border: `1px solid rgba(var(--ink),.09)`,
         borderRadius: 3,
         padding: "5px 11px",
       }}
@@ -399,7 +399,7 @@ function Prompt({
             fontFamily: font.caps,
             letterSpacing: "0.06em",
             cursor: "pointer",
-            boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+            boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
           }}
         >
           {t.startTeaching}
@@ -426,7 +426,7 @@ function Prompt({
               marginTop: 20,
               textAlign: "left",
               background: color.amberBg,
-              border: "1px solid rgba(160,106,48,0.25)",
+              border: "1px solid rgba(var(--amber-ink),.25)",
               borderRadius: 3,
               padding: "13px 15px",
               fontSize: 13.5,
@@ -546,7 +546,7 @@ function TeachPage({
                   border: "none",
                   cursor: "pointer",
                   borderRadius: 2,
-                  background: i === at ? BLUE : done ? GREEN : "rgba(43,33,24,0.12)",
+                  background: i === at ? BLUE : done ? GREEN : "rgba(var(--ink),.12)",
                   opacity: i === at ? 1 : done ? 0.55 : 1,
                   transform: i === at ? "scaleY(1.9)" : "scaleY(1)",
                   transition: transition(
@@ -587,7 +587,7 @@ function TeachPage({
             borderRadius: 3,
             background: color.card,
             padding: "22px 22px 18px",
-            boxShadow: "0 1px 2px rgba(43,33,24,0.04), 0 10px 30px rgba(43,33,24,0.05)",
+            boxShadow: "0 10px 30px rgba(var(--shade),.05)", // ponytail: the border draws the edge
             animation: `${dir === "next" ? "stepInNext" : "stepInPrev"} ${motion.duration.slow}ms ${motion.ease.enter} both`,
           }}
         >
@@ -722,7 +722,7 @@ function Advance({
       disabled={blocked}
       style={{
         padding: "13px 20px",
-        background: blocked ? "rgba(43,33,24,0.07)" : color.accent,
+        background: blocked ? color.inkWash : color.accent,
         color: blocked ? color.inkGhost : color.accentInk,
         border: "none",
         borderRadius: 3,
@@ -732,7 +732,7 @@ function Advance({
         display: "inline-flex",
         alignItems: "center",
         gap: 9,
-        boxShadow: blocked ? "none" : "0 6px 18px rgba(58,106,85,0.22)",
+        boxShadow: blocked ? "none" : "0 6px 18px rgba(var(--accent),.22)",
         transition: transition(["background", "color", "box-shadow"], "fast"),
       }}
     >
@@ -863,7 +863,7 @@ function GapReport({
         {session.jargon.length > 0 && (
           <div
             style={{
-              border: `1px solid rgba(160,106,48,0.25)`,
+              border: `1px solid rgba(var(--amber-ink),.25)`,
               background: color.amberBg,
               borderRadius: 3,
               padding: "12px 15px",
@@ -894,7 +894,7 @@ function GapReport({
                     padding: "4px 10px",
                     borderRadius: 2,
                     background: color.card,
-                    border: `1px solid rgba(160,106,48,0.3)`,
+                    border: `1px solid rgba(var(--amber-ink),.3)`,
                     fontFamily: font.mono,
                     fontSize: 12,
                     color: color.amberInk,
@@ -1068,7 +1068,7 @@ function GapReport({
               style={{
                 marginTop: 10,
                 background: color.accentBg,
-                border: `1px solid rgba(58,106,85,0.18)`,
+                border: `1px solid rgba(var(--accent),.18)`,
                 borderRadius: 3,
                 padding: "12px 15px",
                 fontFamily: font.serif,
@@ -1107,7 +1107,7 @@ function GapReport({
             data-testid="action-advance"
             onClick={onAdvance}
             style={{
-              boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
+              boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(var(--accent-ink),.34)`,
             }}
           >
             {clean ? t.cleanAdvance : t.attachGaps(gapCount)}

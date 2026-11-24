@@ -1,3 +1,4 @@
+import { color } from "@/lib/theme";
 // ---- Phase 6 · Retain (Review queue / FSRS) — the daily spine -------------
 // Keep mastered knowledge alive with optimally-spaced retrieval. This is the
 // habit surface — designed for adherence as much as scheduling. Cards are
@@ -32,7 +33,7 @@ export type ForecastTone = "due" | "soft" | "solid";
 
 /** The forecast bar colors — due borrows the accent, soft/solid the states. */
 export const FORECAST_COLOR: Record<ForecastTone, string> = {
-  due: "#3a6a55", // color.accent — surfaced now
+  due: color.accent, // color.accent — surfaced now
   soft: STATE_COLOR.shaky,
   solid: STATE_COLOR.mastered,
 };
