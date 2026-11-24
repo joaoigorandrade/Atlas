@@ -37,8 +37,10 @@ public enum AtlasRoute: @preconcurrency ModalRoute {
     public var destination: some View {
         Group {
             switch self {
-            case .nodeDetail(let node): NodeDetailView(node: node)
-            case .session(let node, let phase, let resumed): SessionView(node: node, phase: phase, resumed: resumed)
+            // Neither has a tab bar to clear (`RootView`'s scroll margin).
+            case .nodeDetail(let node): NodeDetailView(node: node).contentMargins(.bottom, 0, for: .scrollContent)
+            case .session(let node, let phase, let resumed):
+                SessionView(node: node, phase: phase, resumed: resumed).contentMargins(.bottom, 0, for: .scrollContent)
             case .settings: SettingsView()
             case .calibration: CalibrationView()
             case .feed: FeedView()

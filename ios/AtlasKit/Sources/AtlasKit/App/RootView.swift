@@ -15,6 +15,10 @@ public struct RootView: View {
     /// happens to be rebuilt — signing out and back in starts a new session,
     /// and that one leaves from the map like any other.
     @State private var resumed = false
+    /// The engraved tab bar's height, measured. The `TabView` underneath lays
+    /// its tabs out above an outer inset but never hands it to their scroll
+    /// views, so the last row of a long tab sat under the bar, unreachable.
+    @State private var barHeight: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     public init(store: AtlasStore) {
@@ -187,7 +191,10 @@ public struct RootView: View {
 
     private var shell: some View {
         NavigationTabView(tabs)
-            .safeAreaInset(edge: .bottom, spacing: 0) { AtlasTabBar(tabs: tabs) }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                AtlasTabBar(tabs: tabs).onGeometryChange(for: CGFloat.self, of: \.size.height) { barHeight = $0 }
+            }
+            .contentMargins(.bottom, barHeight, for: .scrollContent)
             .environmentObject(tabs)
             // A pass the app was killed in the middle of. Everything in it is
             // on the server — the reading's place, the transcript, the mastery
