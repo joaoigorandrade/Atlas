@@ -38,8 +38,13 @@ export function validateExplain(nodeId: string, nodeLabel: string) {
     const listener = obj(root.listener, "listener");
     const replies = arr(listener.replies, "listener.replies", 2, 3).map((r, i) => {
       const rep = obj(r, `listener.replies[${i}]`);
+      const label = field(rep, "label", `listener.replies[${i}]`);
+      // Prod served "Resposta correta" / "Termo técnico" as the options: the
+      // model named each reply's role instead of writing the reply.
+      if (label.trim().split(/\s+/).length < 4)
+        fail(`listener.replies[${i}].label must be the reply itself, not a name for it`);
       return {
-        label: field(rep, "label", `listener.replies[${i}]`),
+        label,
         correct: rep.correct === true,
         why: field(rep, "why", `listener.replies[${i}]`),
       };
@@ -111,7 +116,7 @@ THE FIVE CARDS are shown one at a time, in this order. Keep each to 1-3 sentence
 - "misconception": "belief" is the typical wrong idea a listener forms, stated the way they would believe it; "tempting" is the true thing it grows out of.
 - "checkBack": "question" makes the listener USE the idea on a case they have not heard — never "does that make sense?" and never "can you repeat it?"; "rightAnswer" is what a right answer contains.
 
-THE CHECK. "listener.says" voices exactly the "belief" above, in one or two natural sentences of their own. Then write 3 replies the learner could give back:
+THE CHECK. "listener.says" voices exactly the "belief" above, in one or two natural sentences of their own. Then write 3 replies the learner could give back. Each "label" IS the reply, word for word, as the learner would say it to the listener (one full sentence) — never a name for the kind of reply ("correct answer", "technical term", "Reply 1"):
 - exactly one is correct: it goes after the tempting root of the belief, not only its conclusion, using a move the cards modelled — the analogy and where it breaks, the order, or a case where the belief fails;
 - the other two are replies a well-meaning explainer really gives that leave the belief standing, each failing for a different reason — restating the definition louder, correcting a side detail, appealing to authority ("that's just how it works"), or leaning on a term the listener does not have.
 Each "why" names the move that works or fails, in one sentence, so the learner leaves with a principle of explaining, not only this answer. All three replies are within a few words of the same length; the right one is never the longest, the most hedged, or the only one that sounds technical.

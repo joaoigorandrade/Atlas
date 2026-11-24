@@ -48,6 +48,10 @@ export async function POST() {
     const admin = createAdminClient(supabaseUrl(), secret, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    // Worked-example images live under the learner's folder; no FK reaches them.
+    const images = admin.storage.from("example-images");
+    const { data: files } = await images.list(userId, { limit: 1000 });
+    if (files?.length) await images.remove(files.map((f) => `${userId}/${f.name}`));
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) logError("account_delete_auth_failed", error, { req: requestId });
     else authDeleted = true;

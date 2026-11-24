@@ -126,7 +126,7 @@ export default function StreakFlame({ adherence, onToggleReminder }: StreakFlame
         </span>
         <span>
           <span style={{ fontWeight: 600, color: color.ink }}>{adherence.streak}</span>{" "}
-          {t.dayStreak(adherence.streak)}
+          <span className="at-top-word">{t.dayStreak(adherence.streak)}</span>
         </span>
         {adherence.freezes > 0 && (
           <span

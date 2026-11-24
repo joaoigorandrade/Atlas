@@ -240,6 +240,14 @@ describe("Consume pretest", () => {
     expect(p.collapsed.c1).toBe(true);
   });
 
+  it("a right guess bet 'not sure' keeps its ink but the section is still read", () => {
+    const p = afterPretest(emptyConsumeProgress(), "c1", 2, true, 0);
+    expect(p.pretest).toEqual({ c1: true });
+    expect(p.stakes).toEqual({ c1: 0 });
+    expect(p.checks.c1).toBeUndefined();
+    expect(p.collapsed.c1).toBeUndefined();
+  });
+
   it("a miss records only the miss — the check at the end is still a real question", () => {
     const p = afterPretest(emptyConsumeProgress(), "c1", 0, false);
     expect(p.pretest).toEqual({ c1: false });
@@ -290,6 +298,9 @@ describe("prove it on sight", () => {
     expect(pretestClean(clean, 4)).toBe(false);
     expect(pretestClean({ ...clean, total: 1, pretest: { a: true } })).toBe(false);
     expect(pretestClean(undefined)).toBe(false);
+    // A lucky "not sure" guess is not knowing it.
+    expect(pretestClean({ ...clean, stakes: { b: 0 } })).toBe(false);
+    expect(pretestClean({ ...clean, stakes: { b: 1 } })).toBe(true);
   });
 
   it("offers the proof gate once — not after it was tried, nor on a Shaky node", () => {
@@ -300,5 +311,17 @@ describe("prove it on sight", () => {
       false,
     );
     expect(provesOnSight(plan, ["consume"], "frontier", clean)).toBe(false);
+  });
+});
+
+// ---- example images: billed per draw, so one per pass ---------------------
+
+describe("oneVisual", () => {
+  it("keeps the first visual and strips every later one", async () => {
+    const { oneVisual } = await import("@/lib/server/generate/consume");
+    const pic = (id: string, visual?: string) =>
+      chunk({ id, example: { title: "t", steps: ["a", "b"], visual } });
+    const out = [pic("c1"), pic("c2", "circuit A"), pic("c3", "circuit B")].map(oneVisual());
+    expect(out.map((c) => c.example.visual)).toEqual([undefined, "circuit A", undefined]);
   });
 });

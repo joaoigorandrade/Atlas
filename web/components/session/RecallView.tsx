@@ -8,6 +8,7 @@
 // different reading and the report says so rather than quietly counting it the
 // same.
 
+import KbdHint from "@/components/ui/KbdHint";
 import { useState } from "react";
 import {
   RECALL_COLOR,
@@ -227,11 +228,7 @@ export default function RecallView({
                 {t.stuck}
               </button>
             )}
-            <span
-              style={{ fontFamily: font.mono, fontSize: 10.5, color: color.inkGhost }}
-            >
-              {t.hint}
-            </span>
+            <KbdHint>{t.hint}</KbdHint>
           </div>
         </div>
       )}

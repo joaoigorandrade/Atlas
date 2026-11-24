@@ -8,6 +8,7 @@
 // load-bearing step that never happened from a check they skipped — which is
 // exactly the distinction `performPassed` gates on.
 
+import KbdHint from "@/components/ui/KbdHint";
 import {
   PERFORM_COLOR,
   performBroken,
@@ -165,7 +166,7 @@ export default function PerformView({
               borderRadius: 3,
               fontSize: 14.5,
               lineHeight: 1.6,
-              fontFamily: font.mono,
+              fontFamily: font.serif,
               border: `1px solid ${color.hairlineStrong}`,
               background: color.card,
               color: color.ink,
@@ -230,11 +231,7 @@ export default function PerformView({
                 {t.stuck}
               </button>
             )}
-            <span
-              style={{ fontFamily: font.mono, fontSize: 10.5, color: color.inkGhost }}
-            >
-              {t.hint}
-            </span>
+            <KbdHint>{t.hint}</KbdHint>
           </div>
         </div>
       )}

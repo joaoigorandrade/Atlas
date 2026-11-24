@@ -65,9 +65,15 @@ export function SectionCheck({
   const passed = !!answer?.correct;
   const missed = !!answer && !passed;
   // A pretest guess waiting on its bet; the end-of-section check takes none.
-  const [held, setHeld] = useState<{ oi: number; correct: boolean } | null>(null);
-  const resolve = (oi: number, correct: boolean) =>
-    pretest ? setHeld({ oi, correct }) : onAnswer(oi, correct);
+  // `said` is what they typed: the bet shows their words, not the option the
+  // judge mapped them onto (which read as words put in their mouth).
+  const [held, setHeld] = useState<{
+    oi: number;
+    correct: boolean;
+    said?: string;
+  } | null>(null);
+  const resolve = (oi: number, correct: boolean, said?: string) =>
+    pretest ? setHeld({ oi, correct, said }) : onAnswer(oi, correct);
 
   return (
     <div ref={slot} style={{ minHeight: 1, marginTop: 30 }}>
@@ -140,7 +146,7 @@ export function SectionCheck({
                 {t.yourAnswer}
               </div>
               <div style={{ fontFamily: font.serif, fontSize: 16, color: color.inkSoft }}>
-                <Rich text={check.opts[held.oi]?.label ?? ""} />
+                {held.said ?? <Rich text={check.opts[held.oi]?.label ?? ""} />}
               </div>
               <ConfidenceGate
                 question={t.betQuestion}
@@ -158,7 +164,7 @@ export function SectionCheck({
               options={check.opts.map((o) => o.label)}
               accent={BLUE}
               rows={2}
-              onResolve={(oi) => resolve(oi, !!check.opts[oi]?.correct)}
+              onResolve={(oi, _r, said) => resolve(oi, !!check.opts[oi]?.correct, said)}
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>

@@ -132,6 +132,7 @@ function validateConsumeSection(raw: unknown, i: number): ConsumeChunk {
       steps: arr(ex.steps, `chunks[${i}].example.steps`, 2, 6).map((s, j) =>
         filled(s, `chunks[${i}].example.steps[${j}]`),
       ),
+      visual: ex.visual ? str(ex.visual, `chunks[${i}].example.visual`) : undefined,
     },
     takeaway: filled(c.takeaway, `chunks[${i}].takeaway`),
     // Optional on purpose: the shape tells the model never to invent a work,
@@ -180,6 +181,17 @@ function draftConsumeSection(raw: unknown, i: number): ConsumeChunk | null {
   } as unknown as ConsumeChunk;
 }
 
+/** Images cost money per draw: one `visual` per pass, the first one wins.
+ *  Returns a filter that strips the field from every later section. */
+export function oneVisual(): (c: ConsumeChunk) => ConsumeChunk {
+  let seen = false;
+  return (c) => {
+    if (!c.example?.visual) return c;
+    if (!seen) return (seen = true), c;
+    return { ...c, example: { ...c.example, visual: undefined } };
+  };
+}
+
 export function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
   return arr(
@@ -187,7 +199,9 @@ export function validateConsume(raw: unknown): ConsumeChunk[] {
     "chunks",
     CONSUME_SECTION_BOUNDS.min,
     CONSUME_SECTION_BOUNDS.max,
-  ).map(validateConsumeSection);
+  )
+    .map(validateConsumeSection)
+    .map(oneVisual());
 }
 
 function consumeContext(
@@ -225,6 +239,7 @@ WRITE EACH SECTION'S FIELDS IN THIS ORDER:
 - "terms": only the terms the prose below uses that the learner does not already have, each defined in one line, before the paragraph that first uses it. None is a fine answer.
 - "body": 2-5 paragraphs of 3-6 sentences, each paragraph with one job. Open on the problem or question the idea answers; give a concrete case before the general statement; then the mechanism — why it works, not only that it does. Real numbers and real cases throughout. No restating the kicker, no "it can be shown that", no bullet-point skeletons, and no paragraph that repeats the one before it.
 - "example": one worked case, with real values, that applies this section's takeaway. Lead every step with a bold label of 1-3 words naming what the step is for, a colon, then the actual work ("**Set up:** …", "**Check:** …"), so the learner sees the moves and not only the result.
+- "example.visual": write it in exactly ONE section of the pass whenever any worked case is spatial — an electric circuit, a geometry construction, a free-body or force diagram, a molecule, a graph to sketch. Pick the section whose example most needs the picture. It is an image prompt, in English, describing exactly that setup with the example's own values: every component and how it connects, labels only as short tags ("R1 = 4 Ω", "12 V", "A"). If no example in the pass is spatial, omit it everywhere.
 - "diagram" and "figure", together: only for a process, a hierarchy or a causal relationship, drawn as its stages and what passes between them. Omit both for a definition, a comparison or anything else — never invent boxes to fill the slot.
 - "ask": the question a learner is most likely left with after this section, phrased as they would ask it. It is offered as a suggestion when they highlight a passage to ask about.
 - "check": answerable by someone who understood THIS section's takeaway, and not by someone who only knows the topic in general or read the kicker. Because it is also asked before the section, and asked first as an open question, the question must stand alone: state the case or the values inside it, ask for something they can answer in a phrase, never "which of the following", and never point at the material ("in the example", "this section", "as shown above"). Write three options, all within a few words of the same length and equally specific, so the longest or most qualified one is never the answer; the two wrong ones are plausible misreadings of this section — one of them the misconception, if this section is where it bites. The options are shuffled after you write them, so the slot you mark correct carries no information. "right": one line that confirms the answer and gives its reason, since a learner who guessed should still leave with it. "wrong": one line naming the misreading and where the section settles it — no new material.
@@ -329,6 +344,7 @@ ${CONSUME_SECTION_EXAMPLE}${languageNote(params.language)}`,
     // same index once blind-solved (W2.1), while the next section is written.
     const checked: StreamFrame[] = [];
     const pending: Promise<void>[] = [];
+    const capVisual = oneVisual();
     for await (const chunk of stream) {
       while (checked.length) yield checked.shift()!;
       // Past the cap the payload fails its shape and is never cached, so every
@@ -339,6 +355,7 @@ ${CONSUME_SECTION_EXAMPLE}${languageNote(params.language)}`,
         continue;
       }
       const i = yielded++;
+      chunk.value = capVisual(chunk.value);
       yield { p: "chunks", i, v: withoutCheck(chunk.value) };
       if (chunk.value.check)
         pending.push(

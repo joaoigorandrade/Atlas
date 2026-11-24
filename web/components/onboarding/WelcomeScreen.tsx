@@ -285,7 +285,12 @@ export default function WelcomeScreen({
             data-testid="action-build"
             type="submit"
             disabled={!ready}
-            style={{ marginTop: 32 }}
+            // Pinned while the form scrolls (on a phone it sat a screen below the
+            // field) — once it can be pressed; a faded one would sit over the cards.
+            style={{
+              marginTop: 32,
+              ...(ready && { position: "sticky", bottom: 12, zIndex: 2 }),
+            }}
           >
             {quick ? t.buildGlance : t.buildMastery}
           </Button>

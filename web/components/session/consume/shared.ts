@@ -11,7 +11,7 @@ export const STRINGS = {
     back: "← Map",
     sessionLabel: "Session · Consume",
     iKnowThis: "I know this →",
-    kicker: "Grounded, dual-coded reading",
+    kicker: "The reading",
     // A diagram is not promised unless the sections actually carry one: a
     // `procedure` gets a figure only when it carries the order, and a `fact`
     // gets none at all (`kindNote`), so the old unconditional sentence
@@ -105,11 +105,12 @@ export const STRINGS = {
     pretestAgain: "Your guess before reading missed — now answer from what you read.",
     pretestKnown: "You already had this — the full section is one tap away",
     pretestMissedMark: "Your guess before reading missed — the answer is in here",
+    pretestGuessed: "Your guess was right, but you weren't sure — read it to be sure",
     // ---- the ink bet on a pretest answer
     yourAnswer: "Your answer",
     betQuestion: "Bet your ink — how sure are you of that answer?",
     betLegend:
-      "Not sure risks nothing · fairly sure wins 2, loses 1 · very sure wins 3, loses 3",
+      "Not sure wins 1, risks nothing · fairly sure wins 2, loses 1 · very sure wins 3, loses 3",
     inkWon: (n: number) => `+${n} ink`,
     inkLost: (n: number) => (n > 0 ? `−${n} ink` : "no ink lost"),
     confidentMiss:
@@ -119,7 +120,7 @@ export const STRINGS = {
     back: "← Mapa",
     sessionLabel: "Sessão · Consume",
     iKnowThis: "Já sei isso →",
-    kicker: "Leitura fundamentada, com dupla codificação",
+    kicker: "A leitura",
     intro: (n: number, figures = true) =>
       n > 0
         ? `Esta é a leitura. ${n} seções, cada uma com um exemplo resolvido${figures ? " e um diagrama" : ""} — leia-as em sequência.`
@@ -208,10 +209,11 @@ export const STRINGS = {
     pretestAgain: "Seu palpite antes da leitura errou — agora responda com o que leu.",
     pretestKnown: "Você já sabia isto — a seção completa está a um toque",
     pretestMissedMark: "Seu palpite antes da leitura errou — a resposta está aqui",
+    pretestGuessed: "Seu palpite acertou, mas sem certeza — leia para ter certeza",
     yourAnswer: "Sua resposta",
     betQuestion: "Aposte sua tinta — quão seguro você está dessa resposta?",
     betLegend:
-      "Sem certeza não arrisca nada · bastante seguro ganha 2, perde 1 · muito seguro ganha 3, perde 3",
+      "Sem certeza ganha 1, não arrisca nada · bastante seguro ganha 2, perde 1 · muito seguro ganha 3, perde 3",
     inkWon: (n: number) => `+${n} de tinta`,
     inkLost: (n: number) => (n > 0 ? `−${n} de tinta` : "nenhuma tinta perdida"),
     confidentMiss:

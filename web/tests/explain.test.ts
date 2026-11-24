@@ -77,6 +77,12 @@ describe("validateExplain", () => {
     expect(() => validate(two)).toThrow(/exactly one correct/);
   });
 
+  it("rejects a reply that names its role instead of being the reply", () => {
+    const named = raw();
+    named.listener.replies[0].label = "Resposta correta";
+    expect(() => validate(named)).toThrow(/the reply itself/);
+  });
+
   it("rejects a field that echoes the prompt template", () => {
     const echoed = raw();
     echoed.listener.replies[0].why = "That would be a hand-wave.";

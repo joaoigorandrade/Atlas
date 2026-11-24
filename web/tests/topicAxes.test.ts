@@ -7,6 +7,7 @@ import { resolveJob } from "@/lib/server/job";
 import { fixtureSupabase } from "@/lib/server/fixtures";
 import { resetTables, seedTable } from "@/lib/server/fixtureTables";
 import { withTopicAxes } from "@/lib/server/store/topicAxes";
+import { topicNote } from "@/lib/server/generate/topicNote";
 
 const consume = {
   kind: "consume",
@@ -48,6 +49,8 @@ describe("withTopicAxes", () => {
     seedTable("topics", [
       { id: "t", subject: "S", target_language: "es-ES", shape: "scenarios", lens: null },
       { id: "u", subject: "U", shape: "hierarchy" },
+      { id: "g", subject: "G", goal: "glance" },
+      { id: "e", subject: "E", goal: "exam" },
     ]);
   });
 
@@ -68,5 +71,16 @@ describe("withTopicAxes", () => {
     expect(resolveJob(stamped).key).toBe(plain);
     const spanish = await withTopicAxes(db, { ...consume, topicId: "t" } as never);
     expect(resolveJob(spanish).key).not.toBe(plain);
+  });
+
+  it("a quick look keys its own rows and says so in the prompt; other goals don't", async () => {
+    const plain = resolveJob(consume as never).key;
+    const exam = await withTopicAxes(db, { ...consume, topicId: "e" } as never);
+    expect((exam as { quickLook?: boolean }).quickLook).toBeUndefined();
+    expect(resolveJob(exam).key).toBe(plain);
+    const quick = await withTopicAxes(db, { ...consume, topicId: "g" } as never);
+    expect((quick as { quickLook?: boolean }).quickLook).toBe(true);
+    expect(resolveJob(quick).key).not.toBe(plain);
+    expect(topicNote(quick as never)).toContain("QUICK LOOK");
   });
 });

@@ -108,7 +108,9 @@ export default function TopicComposer({
           data-testid="field-topic"
           aria-label={label}
           autoFocus
-          rows={2}
+          // The placeholder is three lines on a phone; two cut it mid-word.
+          rows={3}
+          enterKeyHint="go"
           value={topic}
           onChange={(e) => onTopic(e.target.value)}
           onPaste={(e) => {
@@ -132,7 +134,7 @@ export default function TopicComposer({
             resize: "none",
             outline: "none",
             fontFamily: font.serif,
-            fontSize: 22,
+            fontSize: "clamp(18px, 5vw, 22px)",
             lineHeight: 1.35,
             color: color.ink,
             padding: "16px 18px 10px",

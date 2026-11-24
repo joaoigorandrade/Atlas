@@ -24,6 +24,10 @@ export function topicNote(p: Boundary): string {
     lines.push(
       `- What the learner is ultimately preparing to DO: "${p.target.text}" (${p.target.kind}${p.target.date ? `, by ${p.target.date}` : ""}). Make examples and cases serve that performance.`,
     );
+  if (p.quickLook)
+    lines.push(
+      `- This is a QUICK LOOK: the learner asked the topic as a question and wants the answer in minutes, not a course. Every section, example, case and question serves answering that question — no side topics (how the thing is measured, its history, its units) unless the question asks for them, and no calculations unless the question itself asks for a number. A case is an everyday situation described in words.`,
+    );
   return lines.length ? `\nTHE TOPIC AS A WHOLE:\n${lines.join("\n")}\n` : "";
 }
 

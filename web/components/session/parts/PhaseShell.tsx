@@ -55,15 +55,15 @@ export default function PhaseShell({
         {headerRight}
       </Masthead>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "26px 32px 90px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "26px 32px 40px" }}>
         <div style={{ maxWidth: 620, margin: "0 auto" }}>{children}</div>
       </div>
 
+      {/* In flow, not floating: an absolute ladder sat on top of the text. */}
       <div
         style={{
-          position: "absolute",
-          bottom: 10,
-          left: 24,
+          padding: "8px 24px calc(8px + env(safe-area-inset-bottom))",
+          borderTop: `1px solid ${color.hairline}`,
           fontFamily: font.caps,
           fontSize: 12,
           letterSpacing: "0.06em",

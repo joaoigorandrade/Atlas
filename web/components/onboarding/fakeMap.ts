@@ -56,3 +56,32 @@ export const FAKE_MAP_CENTER = {
       Math.max(...FAKE_MAP_NODES.map((n) => n.y))) /
     2,
 };
+
+const QUICK = new Set(["a1", "b1", "b2"]);
+const QUICK_NODES = FAKE_MAP_NODES.filter((n) => QUICK.has(n.id));
+const QUICK_MAP = {
+  nodes: QUICK_NODES,
+  edges: FAKE_MAP_EDGES.filter(([a, b]) => QUICK.has(a) && QUICK.has(b)),
+  positions: Object.fromEntries(QUICK_NODES.map((n) => [n.id, { x: n.x, y: n.y }])),
+  center: {
+    x: (QUICK_NODES[0].x + QUICK_NODES[1].x) / 2,
+    y: (QUICK_NODES[1].y + QUICK_NODES[2].y) / 2,
+  },
+};
+const FULL_MAP = {
+  nodes: FAKE_MAP_NODES,
+  edges: FAKE_MAP_EDGES,
+  positions: FAKE_MAP_POSITIONS,
+  center: FAKE_MAP_CENTER,
+};
+
+/** A quick look builds 1-3 concepts; its placeholder must not promise nine. */
+export const placeholderMap = (goal: string) =>
+  goal === "glance" ? QUICK_MAP : FULL_MAP;
+
+/** The building screen's opening view: the placeholder centred, at 0.72. */
+export function placeholderView(goal: string, width: number, height: number) {
+  const { center } = placeholderMap(goal);
+  const scale = 0.72;
+  return { x: width / 2 - center.x * scale, y: height / 2 - center.y * scale, scale };
+}

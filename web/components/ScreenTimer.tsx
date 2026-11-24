@@ -27,6 +27,7 @@ export default function ScreenTimer() {
   return (
     <div
       title={t.title}
+      className="at-screen-timer"
       style={{
         position: "absolute",
         right: 16,

@@ -200,7 +200,9 @@ export function OpenAnswer({
           {t.errorSuffix}
         </div>
       )}
-      <div style={{ ...kicker(9.5, "0.1em"), marginTop: 10 }}>{t.hint}</div>
+      <div className="at-kbd-hint" style={{ ...kicker(9.5, "0.1em"), marginTop: 10 }}>
+        {t.hint}
+      </div>
     </div>
   );
 }

@@ -17,7 +17,7 @@ import * as json from "@/lib/server/streamingJson";
  *  flagship chat model — cheap and strong at structured JSON. */
 export const DEFAULT_MODEL = "deepseek/deepseek-chat";
 
-const BASE_URL = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
+export const BASE_URL = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 
 /**
  * Nothing may run unbounded. Two separate bounds, because the two failures
@@ -32,7 +32,7 @@ const BASE_URL = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v
  * Both are well inside the route's `maxDuration`, so a timeout surfaces as our
  * own error rather than a platform-level 504.
  */
-const REQUEST_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 90_000);
+export const REQUEST_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 90_000);
 const FIRST_TOKEN_MS = Number(process.env.OPENROUTER_FIRST_TOKEN_MS || 25_000);
 
 /** User-facing copy for transient upstream failures — never raw provider JSON. */
@@ -93,7 +93,7 @@ interface ChatResult {
 /** The provider's own error body, bounded — the same failure on both paths.
  *  Returned rather than thrown so the `throw` stays at the call site, where it
  *  is what narrows `res.body` for the reader below. */
-async function providerError(res: Response): Promise<OpenRouterError> {
+export async function providerError(res: Response): Promise<OpenRouterError> {
   const body = await res.text().catch(() => "");
   return new OpenRouterError(
     `OpenRouter ${res.status}: ${body.slice(0, 600)}`,
@@ -103,7 +103,7 @@ async function providerError(res: Response): Promise<OpenRouterError> {
 
 /** Auth plus OpenRouter's optional attribution headers. Both call paths send
  *  exactly these, so they are written once. */
-const authHeaders = (key: string) => ({
+export const authHeaders = (key: string) => ({
   Authorization: `Bearer ${key}`,
   "Content-Type": "application/json",
   "HTTP-Referer": "https://atlas.local",
@@ -151,7 +151,7 @@ const isTimeout = (err: unknown): boolean =>
     ? err.status === 504
     : err instanceof DOMException && err.name === "TimeoutError";
 
-function apiKey(): string {
+export function apiKey(): string {
   const key = process.env.OPENROUTER_API_KEY;
   if (key) return key;
   throw new OpenRouterError("OPENROUTER_API_KEY is not set — add it to .env.local", 500);

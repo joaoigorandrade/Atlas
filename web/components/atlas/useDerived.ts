@@ -41,7 +41,7 @@ export function useDerived(deps: {
   run: RunState;
   sessions: SessionState;
   screen: Screen;
-  userEmail: string;
+  user: { email: string; name?: string };
   selectedId: string | null;
   /** Concept generations revealed so far during onboarding's staged reveal. */
   reveal: number;
@@ -60,7 +60,7 @@ export function useDerived(deps: {
     run,
     sessions,
     screen,
-    userEmail,
+    user,
     selectedId,
     reveal,
     momentumPlaying,
@@ -256,12 +256,13 @@ export function useDerived(deps: {
 
   // ---- Home (dashboard) + profile derived ------------------------------
 
-  // The account, read into an avatar initial and a friendly display name —
-  // honest, derived from the email, never a fabricated identity.
-  const emailLocal = (userEmail.split("@")[0] ?? "").replace(/[._-]+/g, " ").trim();
-  const nameParts = emailLocal.split(/\s+/).filter(Boolean);
+  // The account as an initial and a name: sign-in's first name, else the email's words.
+  const emailLocal = (user.email.split("@")[0] ?? "").replace(/[._-]+/g, " ").trim();
+  const nameParts = (user.name?.trim() || emailLocal).split(/\s+/).filter(Boolean);
   const displayName =
-    nameParts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") || t.there;
+    (user.name ? nameParts[0] : "") ||
+    nameParts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") ||
+    t.there;
   const initials =
     (nameParts.length >= 2
       ? nameParts[0][0] + nameParts[1][0]

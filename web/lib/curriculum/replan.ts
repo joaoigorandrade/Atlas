@@ -322,6 +322,19 @@ export function neighboursOf(graph: ConceptGraph, node: ConceptNode) {
   };
 }
 
+/** Where a mastered node's button walks on to: the first concept it unlocks
+ *  that is open to start or already under way. None on any other state. */
+export function nextStopOf(
+  state: NodeState,
+  dependentIds: string[],
+  display: Record<string, NodeState>,
+): string | undefined {
+  if (state !== "mastered") return undefined;
+  return dependentIds.find(
+    (id) => display[id] === "frontier" || display[id] === "learning",
+  );
+}
+
 /** The node a gap hangs off, while it still does. */
 export function gapParentOf(graph: ConceptGraph, gapId: string): string | undefined {
   return graph.edges.find(([, to]) => to === gapId)?.[0];

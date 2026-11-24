@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { GLANCE_PLAN, PHASE_ORDER, lastGate, withGoalPlan } from "@/lib/curriculum";
+import {
+  GLANCE_PLAN,
+  PHASE_ORDER,
+  lastGate,
+  nextStopOf,
+  withGoalPlan,
+} from "@/lib/curriculum";
 import { mapNodeBounds } from "@/lib/server/generate";
 import { fixturePayload } from "@/lib/server/fixtures";
 
@@ -35,5 +41,12 @@ describe("just want to know", () => {
     };
     expect(map.nodes.length).toBeLessThanOrEqual(3);
     expect(map.nodes.every((n) => n.phasePlan === GLANCE_PLAN)).toBe(true);
+  });
+
+  it("a learned stop walks on to what it opened, not into reviewing itself", () => {
+    const display = { a: "mastered", b: "frontier", c: "unknown" } as const;
+    expect(nextStopOf("mastered", ["c", "b"], display)).toBe("b");
+    expect(nextStopOf("mastered", ["c"], display)).toBeUndefined();
+    expect(nextStopOf("learning", ["b"], display)).toBeUndefined();
   });
 });

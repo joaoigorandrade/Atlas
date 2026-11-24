@@ -207,7 +207,7 @@ In each row, write \`quote\` BEFORE \`verdict\`: for a step you are about to rul
 
 Return \`jargon\` as an empty array.
 
-In \`response\`, 2-4 sentences, as someone checking the work. Say where the run holds and where it breaks, naming the step. For the first broken step, say what went wrong and the rule that fixes it — what to do differently next time — without writing out the corrected value: the learner may come back to this same case. On a clean run, name what made it clean. Never smooth over a wrong result.
+In \`response\`, 2-4 sentences, as someone checking the work. Say where the run holds and where it breaks, naming the step by its name — never by its index or number (the indices above are for the verdicts only; the learner sees no step 0). For the first broken step, say what went wrong and the rule that fixes it — what to do differently next time — without writing out the corrected value: the learner may come back to this same case. On a clean run, name what made it clean. Never smooth over a wrong result.
 
 Return JSON: {"verdicts": [{"i": 0, "quote": "...", "verdict": "good" | "skipped" | "confused"}, ...one per step], "response": "...", "jargon": []}${languageNote(language)}`,
     },

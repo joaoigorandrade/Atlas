@@ -58,7 +58,9 @@ export function regionsOf(nodes: ConceptNode[], edges: ConceptEdge[]) {
       (degree[n.id] ?? 0) > (degree[best.id] ?? 0) ? n : best,
     );
     for (const n of members) of[n.id] = capital.id;
-    name[capital.id] = capital.label;
+    // The name is the capital's own label: on a country of a few cities it only
+    // repeats a name the map already prints, set big over the top of it.
+    if (members.length > 3) name[capital.id] = capital.label;
   }
   return { of, name };
 }
@@ -297,7 +299,8 @@ export function paintAtlas(
             Math.abs(t.x - x) < t.hw + label.hw + 12 &&
             Math.abs(t.y - y) < t.hh + label.hh + 8,
         );
-        if (clash) continue;
+        // Nor over a city: its name is set just under it.
+        if (clash || near[k] / res < label.hh + 28) continue;
         // The whole baseline must lie in this country; a name spilling over a
         // border reads as the neighbour's.
         fitted = [-1, -0.5, 0.5, 1].every((f) => {
@@ -305,7 +308,7 @@ export function paintAtlas(
           return i >= 0 && i < w && keys[country(prov[k - (k % w) + i])] === key;
         });
         const spot = { x, y, size: label.size, spacing: label.spacing };
-        if (fitted || !placed) placed = { spot, hw: label.hw, hh: label.hh };
+        if (fitted) placed = { spot, hw: label.hw, hh: label.hh };
         if (fitted) break;
       }
       if (fitted) break;

@@ -77,6 +77,8 @@ export interface GenerateBody {
   readingLens?: string;
   shape?: string;
   target?: { kind: string; text: string; date?: string };
+  /** The topic is a quick look ("glance"): the passes answer its question. */
+  quickLook?: boolean;
   /** continentLinks: the continent's maps, each with its concept labels. */
   maps?: Array<{ subject?: unknown; labels?: unknown }>;
   // model fields — the section a lens was opened over, as it is on screen
@@ -261,6 +263,7 @@ export const topicAxes = (body: GenerateBody) => {
       : {}),
     ...(body.locale ? { locale: s(body.locale).slice(0, 8) } : {}),
     ...(body.readingLens ? { readingLens: s(body.readingLens).slice(0, 80) } : {}),
+    ...(body.quickLook === true ? { quickLook: true } : {}),
     ...(body.shape && body.shape !== "hierarchy"
       ? { shape: s(body.shape).slice(0, 12) }
       : {}),

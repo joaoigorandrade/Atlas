@@ -696,6 +696,11 @@ html[data-turn="back"]::view-transition-new(root) {
   div:has(> [data-chunk-id]) {
     grid-template-columns: minmax(0, 1fr) !important;
   }
+  /* A small-caps label beside its sentence squeezes the sentence to a column. */
+  .at-side-label {
+    flex-direction: column;
+    gap: 6px !important;
+  }
 }
 
 /* The map on a phone (below `layout.phone`): the top bar keeps the wordmark's
@@ -708,11 +713,13 @@ html[data-turn="back"]::view-transition-new(root) {
   }
   .at-top-word,
   .at-top-search,
-  .at-top-review {
+  .at-top-review,
+  .at-screen-timer {
     display: none !important;
   }
   .at-top-tab {
     padding: 5px 9px !important;
+    min-height: 40px;
     font-size: 14px !important;
   }
   .at-plan-rail {
@@ -758,5 +765,12 @@ html[data-turn="back"]::view-transition-new(root) {
       opacity: 0;
       transform: translateY(40px);
     }
+  }
+}
+
+/* "⌘↵ to submit" names keys a touchscreen doesn't have. */
+@media (hover: none) and (pointer: coarse) {
+  .at-kbd-hint {
+    display: none !important;
   }
 }

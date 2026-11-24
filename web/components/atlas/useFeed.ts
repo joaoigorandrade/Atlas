@@ -41,6 +41,8 @@ interface Round {
 }
 
 export function useFeed(deps: {
+  /** A quick look ("glance") promised no test, so it deals no feed. */
+  form: { goal: string };
   graph: ConceptGraph;
   display: Record<string, NodeState>;
   /** The frontier in the plan's goal order — the same list the rail shows. */
@@ -52,19 +54,20 @@ export function useFeed(deps: {
   >;
   setScreen: (s: Screen) => void;
 }) {
-  const { graph, display, frontier, consumeCache, consumeProgress } = deps;
+  const { form, graph, display, frontier, consumeCache, consumeProgress } = deps;
   const { setConsumeProgress, setScreen } = deps;
   const [round, setRound] = useState<Round | null>(null);
 
   // Readings already begun come first — finishing what is started — then the
   // frontier in goal order. A finished reading has no card left (`feedSection`).
   const ready = useMemo(() => {
+    if (form.goal === "glance") return [];
     const begun = graph.nodes
       .filter((n) => display[n.id] === "learning" && consumeProgress[n.id])
       .map((n) => n.id);
     const order = [...begun, ...frontier.map((e) => e.node.id)];
     return feedConcepts(order, consumeCache, consumeProgress);
-  }, [graph, display, frontier, consumeCache, consumeProgress]);
+  }, [form.goal, graph, display, frontier, consumeCache, consumeProgress]);
 
   const ink = useMemo(() => inkBalance(consumeProgress), [consumeProgress]);
 

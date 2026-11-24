@@ -34,7 +34,7 @@ export default async function Home() {
   // `undefined` when the query fails, never null: null tells the client "this
   // learner has no maps" and opens map creation over a library that exists.
   let initial: { profile: Profile; topics: Topic[] } | undefined;
-  if (FIXTURES) return <AtlasApp userEmail={FIXTURE_EMAIL} />;
+  if (FIXTURES) return <AtlasApp user={{ email: FIXTURE_EMAIL }} />;
   try {
     const [profile, topics] = await Promise.all([
       getProfile(supabase as never, data.claims.sub as string),
@@ -45,10 +45,16 @@ export default async function Home() {
     console.warn("server-side bootstrap failed", err);
   }
 
-  return (
-    <AtlasApp
-      userEmail={(data.claims.email as string | undefined) ?? ""}
-      initial={initial}
-    />
-  );
+  return <AtlasApp user={accountOf(data.claims)} initial={initial} />;
+}
+
+/** The account as the app greets it: the email, and the name the identity
+ *  provider put in `user_metadata` (Google's `full_name`), when there is one. */
+function accountOf(claims: Record<string, unknown>): { email: string; name?: string } {
+  const meta = (claims.user_metadata ?? {}) as { full_name?: unknown; name?: unknown };
+  const name = [meta.full_name, meta.name].find((n) => typeof n === "string" && n.trim());
+  return {
+    email: (claims.email as string | undefined) ?? "",
+    ...(name ? { name: name as string } : {}),
+  };
 }

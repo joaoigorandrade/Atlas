@@ -7,13 +7,21 @@ export const STRINGS = {
   en: {
     dayStreak: (n: number) => (n === 1 ? "day streak" : "day streak"),
     profile: "Profile",
-    frontierIntro: (n: number) =>
-      `You're on the frontier of ${n} concept${n === 1 ? "" : "s"}. Pick up where you left off.`,
-    fullyMastered: "Your map is fully mastered. Keep the memories fresh with review.",
+    // An empty frontier means mastered only when the map is at 100%.
+    intro: (n: number, mastered: boolean) =>
+      n > 0
+        ? `You're on the frontier of ${n} concept${n === 1 ? "" : "s"}. Pick up where you left off.`
+        : mastered
+          ? "Your map is fully mastered. Keep the memories fresh with review."
+          : "Every concept on your map is under way. Pick one back up from the map.",
     todaysReview: "Today’s review",
     queueClear: "Queue clear ✓",
     cardsDue: (n: number) => `${n} card${n === 1 ? "" : "s"} due`,
-    nothingDueYet: "Nothing due yet",
+    // `fresh` concepts wait on a first review: "nothing" would contradict the body.
+    nothingDueYet: (fresh = 0) =>
+      fresh
+        ? `${fresh} concept${fresh === 1 ? "" : "s"} awaiting a first review`
+        : "Nothing due yet",
     metTodayBody:
       "You've met today's target. New cards surface as memories start to fade.",
     metTodayWaiting: (n: number) =>
@@ -24,21 +32,21 @@ export const STRINGS = {
     nothingDueBody: (fresh = 0) =>
       fresh
         ? `${fresh} newly learned concept${fresh === 1 ? "" : "s"} waiting for a first review — that is what keeps ${fresh === 1 ? "it" : "them"} from fading.`
-        : "Learn a concept to the end and it starts feeding the review queue.",
+        : "Nothing is due. Cards come due as you finish concepts and as memories start to fade.",
     startReview: "Start review →",
     yourFrontier: "Your frontier",
     allCaughtUp: "All caught up",
     frontierBody: (subject: string) =>
       `The next concept you're ready to learn in ${subject}.`,
-    frontierDoneBody: (subject: string) => `Every concept in ${subject} is under way.`,
+    frontierDoneBody: (subject: string) =>
+      `Every concept in ${subject} is learned or under way.`,
     openMap: "Open the map →",
     yourMaps: "Your maps",
     newMap: "+ New map",
     mapsFailed: "Couldn’t load your maps — they’re safe, this is just the list.",
     mapsRetry: "Try again",
-    complete: "Complete",
-    inProgress: "In progress",
-    justStarted: "Just started",
+    mapStatus: (pct: number) =>
+      pct >= 100 ? "Complete" : pct > 0 ? "In progress" : "Just started",
     masteredPct: (pct: number) => `${pct}% mastered`,
     onFrontier: (n: number) => `${n} on frontier`,
     exclude: "Exclude this topic",
@@ -52,14 +60,21 @@ export const STRINGS = {
   "pt-BR": {
     dayStreak: (n: number) => (n === 1 ? "dia de sequência" : "dias de sequência"),
     profile: "Perfil",
-    frontierIntro: (n: number) =>
-      `Você está na fronteira de ${n} conceito${n === 1 ? "" : "s"}. Continue de onde parou.`,
-    fullyMastered:
-      "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão.",
+    intro: (n: number, mastered: boolean) =>
+      n > 0
+        ? `Você está na fronteira de ${n} conceito${n === 1 ? "" : "s"}. Continue de onde parou.`
+        : mastered
+          ? "Seu mapa está totalmente dominado. Mantenha as memórias frescas com revisão."
+          : "Todo conceito do seu mapa está em andamento. Retome um deles pelo mapa.",
     todaysReview: "Revisão de hoje",
     queueClear: "Fila limpa ✓",
     cardsDue: (n: number) => (n === 1 ? "1 cartão pendente" : `${n} cartões pendentes`),
-    nothingDueYet: "Nada pendente ainda",
+    nothingDueYet: (fresh = 0) =>
+      fresh
+        ? fresh === 1
+          ? "1 conceito aguarda a primeira revisão"
+          : `${fresh} conceitos aguardam a primeira revisão`
+        : "Nada pendente ainda",
     metTodayBody:
       "Você cumpriu a meta de hoje. Novos cartões surgem à medida que as memórias começam a desvanecer.",
     metTodayWaiting: (n: number) =>
@@ -71,23 +86,22 @@ export const STRINGS = {
         ? "1 conceito recém-aprendido espera a primeira revisão — é isso que evita que ele se apague."
         : fresh
           ? `${fresh} conceitos recém-aprendidos esperam a primeira revisão — é isso que evita que eles se apaguem.`
-          : "Aprenda um conceito até o fim e ele passa a alimentar a fila de revisão.",
+          : "Nada vence agora. Os cartões vencem conforme você conclui conceitos e as memórias começam a desvanecer.",
     startReview: "Iniciar revisão →",
     yourFrontier: "Sua fronteira",
     allCaughtUp: "Tudo em dia",
     frontierBody: (subject: string) =>
       `O próximo conceito que você está pronto para aprender em ${subject}.`,
     frontierDoneBody: (subject: string) =>
-      `Todo conceito em ${subject} está em andamento.`,
+      `Todo conceito em ${subject} já foi aprendido ou está em andamento.`,
     openMap: "Abrir o mapa →",
     yourMaps: "Seus mapas",
     newMap: "+ Novo mapa",
     mapsFailed:
       "Não deu para carregar seus mapas — eles estão seguros, isto é só a lista.",
     mapsRetry: "Tentar de novo",
-    complete: "Completo",
-    inProgress: "Em andamento",
-    justStarted: "Novo",
+    mapStatus: (pct: number) =>
+      pct >= 100 ? "Completo" : pct > 0 ? "Em andamento" : "Recém-iniciado",
     masteredPct: (pct: number) => `${pct}% dominado`,
     onFrontier: (n: number) => `${n} na fronteira`,
     exclude: "Excluir este tópico",

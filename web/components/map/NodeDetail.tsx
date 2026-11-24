@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   STATE_COLOR,
   neighboursOf,
+  nextStopOf,
   phaseIndex,
   phaseLabel,
   phasePlan,
@@ -199,6 +200,8 @@ function NodeDetailBody({
   );
   // A finished ladder that open gaps hold off green: the button closes one.
   const gapCta = !ctaPhase && displayState === "learning" ? gapIds[0] : undefined;
+  // A node just learned walks on to what it opened, not into a review of itself.
+  const walkOn = nextStopOf(displayState, dependentIds, display);
 
   const chipStyle = {
     display: "inline-flex",
@@ -497,32 +500,16 @@ function NodeDetailBody({
                       {t.readingProgress(reading.read, reading.total)}
                     </span>
                   )}
-                  {isCurrent && !(i === 0 && reading) && (
+                  {((isCurrent && !(i === 0 && reading)) || status === "done") && (
                     <span
                       style={{
-                        marginLeft: "auto",
-                        fontFamily: font.mono,
-                        fontSize: 10,
+                        ...TAG,
                         letterSpacing: "0.1em",
                         textTransform: "uppercase",
-                        color: stateColor,
+                        color: isCurrent ? stateColor : color.inkGhost,
                       }}
                     >
-                      {t.next}
-                    </span>
-                  )}
-                  {status === "done" && (
-                    <span
-                      style={{
-                        marginLeft: "auto",
-                        fontFamily: font.mono,
-                        fontSize: 10,
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        color: color.inkGhost,
-                      }}
-                    >
-                      {t.redo}
+                      {isCurrent ? t.next : t.redo}
                     </span>
                   )}
                 </button>
@@ -552,7 +539,11 @@ function NodeDetailBody({
       <Button
         data-testid="action-primary"
         onClick={() =>
-          proving ? onSkipKnown(node) : onPrimaryAction(node, displayState)
+          proving
+            ? onSkipKnown(node)
+            : walkOn
+              ? onSelect(walkOn)
+              : onPrimaryAction(node, displayState)
         }
         accent={isGap ? stateColor : color.accent}
         style={
@@ -574,7 +565,9 @@ function NodeDetailBody({
             ? t.resumeReading
             : gapCta
               ? t.closeGap(labelOf(gapCta))
-              : t.cta[displayState](ctaPhaseLabel)}
+              : walkOn
+                ? t.walkOn(labelOf(walkOn))
+                : t.cta[displayState](ctaPhaseLabel)}
       </Button>
 
       {(displayState === "frontier" || proving) && (

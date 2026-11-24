@@ -10,6 +10,7 @@ import {
   type AltKey,
   type ConsumeChunk,
   type ConsumeModelBeat,
+  type OnboardingForm,
   needsPretest,
   pretestClean,
   proofGate,
@@ -50,8 +51,8 @@ interface ConsumeViewProps {
   /** More beats are still on the way for the open view. */
   modelStreaming?: boolean;
   onExit: () => void;
-  /** The map's subject — context for judging a check answered in own words. */
-  topic: string;
+  /** Subject (context for own-words judging); goal "glance" = no guessing, question on top. */
+  form: Pick<OnboardingForm, "topic" | "goal">;
   /** The end-of-section check was answered — right or wrong. */
   onCheck: (chunkId: string, oi: number, correct: boolean) => void;
   /** The same check, answered before its section was read (W3.3), with its ink bet. */
@@ -84,7 +85,7 @@ interface ConsumeViewProps {
 }
 
 export default function ConsumeView({
-  topic,
+  form: { topic, goal },
   title,
   plan,
   chunks,
@@ -155,11 +156,13 @@ export default function ConsumeView({
   // Only sections up to the deepest revealed one are on screen — the pass
   // unfolds in segments, never as a wall.
   const visible = chunks.slice(0, session.idx + 1);
+  const goTo = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   // A section whose prose was on screen while it was still being written (no
   // check yet) is never pretested: the check landing would hide what the
-  // learner is already reading.
+  // learner is already reading. Nor is anything on a quick look.
   const readBare = useRef(new Set<string>());
-  for (const c of visible) if (!c.check) readBare.current.add(c.id);
+  for (const c of visible) if (goal === "glance" || !c.check) readBare.current.add(c.id);
 
   // The section the open lens belongs to, looked up rather than carried in
   // session state: while the pass is still streaming a section can be replaced
@@ -321,7 +324,7 @@ export default function ConsumeView({
               marginBottom: 38,
             }}
           >
-            {stat(t.recapSections(chunks.length))}
+            {stat(t.recapSections(chunks.filter((c) => !session.collapsed[c.id]).length))}
             {stat(t.recapMinutes(readMinutes))}
             {termLabels.length > 0 && stat(t.recapTerms(termLabels.length))}
           </div>
@@ -510,11 +513,7 @@ export default function ConsumeView({
                 disabled={!reachable}
                 aria-label={t.jumpTo(i + 1, sectionName(c.kicker))}
                 aria-current={i === session.idx ? "step" : undefined}
-                onClick={() =>
-                  document
-                    .getElementById(c.id)
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
+                onClick={() => goTo(c.id)}
                 style={{
                   flex: 1,
                   // The bar is 3px; the button is tall enough to hit, with the
@@ -565,7 +564,9 @@ export default function ConsumeView({
             padding: "40px 32px 120px",
           }}
         >
-          <div style={{ ...kicker(11), marginBottom: 10 }}>{t.kicker}</div>
+          <div style={{ ...kicker(11), marginBottom: 10 }}>
+            {goal === "glance" ? topic : t.kicker}
+          </div>
           <h1
             style={{
               fontFamily: font.display,
@@ -578,6 +579,7 @@ export default function ConsumeView({
             {title}
           </h1>
           <p
+            hidden={goal === "glance"}
             style={{
               fontSize: 14.5,
               color: color.inkMuted,
@@ -729,9 +731,7 @@ export default function ConsumeView({
                       borderLeft: `3px solid ${color.hairlineStrong}`,
                     }}
                   >
-                    {session.pretest[c.id] && (
-                      <PretestMark known stake={session.stakes[c.id]} />
-                    )}
+                    <PretestMark folded p={session} id={c.id} />
                     <Rich text={c.takeaway} />
                   </div>
                 )}
@@ -739,9 +739,7 @@ export default function ConsumeView({
                 {/* Pre-taught terms */}
                 {!collapsed && !pretesting && (
                   <>
-                    {session.pretest[c.id] === false && !session.checks[c.id] && (
-                      <PretestMark known={false} stake={session.stakes[c.id]} />
-                    )}
+                    <PretestMark p={session} id={c.id} />
                     <TermPills
                       chunkId={c.id}
                       terms={c.terms}
@@ -829,6 +827,7 @@ export default function ConsumeView({
                         <WorkedExample example={c.example} />
 
                         <div
+                          className="at-side-label"
                           style={{
                             marginTop: 22,
                             display: "flex",
@@ -869,6 +868,7 @@ export default function ConsumeView({
                         model-written reference as one buys trust it hasn't
                         earned. Named as what it is. */}
                         <div
+                          className="at-side-label"
                           style={{
                             display: "flex",
                             alignItems: "baseline",
@@ -1021,41 +1021,22 @@ export default function ConsumeView({
                   checkDone &&
                   (nextArrived || isLast ? (
                     <div style={{ marginTop: 30 }}>
-                      <button
-                        className="at-press"
+                      <Button
                         data-testid={isLast ? "action-finish" : "action-continue"}
-                        onClick={() => (isLast ? onFinish() : onContinue(i))}
-                        style={
-                          isLast
-                            ? {
-                                padding: "14px 24px",
-                                background: color.accent,
-                                color: color.accentInk,
-                                border: "none",
-                                borderRadius: 12,
-                                fontSize: 15,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                                boxShadow: `inset 0 0 0 3px ${color.accent}, inset 0 0 0 4px rgba(246,239,223,0.34)`,
-                              }
-                            : {
-                                padding: "12px 20px",
-                                background: color.card,
-                                color: color.ink,
-                                border: `1px solid ${color.hairlineStrong}`,
-                                borderRadius: 11,
-                                fontSize: 14,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }
-                        }
+                        variant={isLast ? "primary" : "secondary"}
+                        full={false}
+                        accent={isLast ? color.accent : color.inkMuted}
+                        onClick={() => {
+                          if (isLast) return onFinish();
+                          onContinue(i);
+                          // The section it opens lands below the fold: go to it.
+                          setTimeout(() => goTo(chunks[i + 1].id), 60);
+                        }}
                       >
                         {isLast
                           ? t.finishBegin(nextLabel)
                           : t.continueSection(sectionName(chunks[i + 1].kicker))}
-                      </button>
+                      </Button>
                     </div>
                   ) : (
                     // Caught up to the writer — the next section is still

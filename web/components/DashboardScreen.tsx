@@ -123,6 +123,7 @@ export default function DashboardScreen({
   continents,
 }: DashboardScreenProps) {
   const t = useT(STRINGS);
+  const activePct = maps.find((m) => m.subject === activeSubject)?.masteryPct ?? 0;
 
   return (
     <div
@@ -187,10 +188,10 @@ export default function DashboardScreen({
               margin: "0 0 6px",
             }}
           >
-            {greeting}, {name}
+            {/\d/.test(name) ? greeting : `${greeting}, ${name}`}
           </h1>
           <div style={{ fontSize: 15, color: color.inkMuted, marginBottom: 36 }}>
-            {frontierTotal > 0 ? t.frontierIntro(frontierTotal) : t.fullyMastered}
+            {t.intro(frontierTotal, activePct >= 100)}
           </div>
 
           <div
@@ -212,7 +213,7 @@ export default function DashboardScreen({
                   ? t.cardsDue(queue.cards)
                   : metToday
                     ? t.queueClear
-                    : t.nothingDueYet
+                    : t.nothingDueYet(queue.fresh)
               }
               body={
                 metToday && queue.cards > 0
@@ -322,12 +323,7 @@ function MapCard({
   // outside this card ever reads it, so it stays out of AtlasApp's state
   // machine.
   const [confirming, setConfirming] = useState(false);
-  const mapStatus =
-    map.masteryPct >= 100
-      ? t.complete
-      : map.masteryPct > 0
-        ? t.inProgress
-        : t.justStarted;
+  const mapStatus = t.mapStatus(map.masteryPct);
 
   return (
     <div

@@ -1,5 +1,6 @@
 "use client";
 
+import { ExampleImage } from "./ExampleImage";
 import { BLUE, STRINGS } from "./shared";
 import { ConsumeExample } from "@/lib/curriculum";
 import { useT } from "@/lib/i18n";
@@ -34,6 +35,7 @@ export function WorkedExample({ example }: { example: ConsumeExample }) {
       <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
         <Rich text={example.title} />
       </div>
+      {example.visual && <ExampleImage prompt={example.visual} alt={example.title} />}
       <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
         {(example?.steps ?? []).map((s, i) => (
           <li

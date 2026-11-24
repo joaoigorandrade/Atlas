@@ -202,6 +202,7 @@ export interface Boundary {
   locale?: string;
   readingLens?: string;
   target?: { kind: string; text: string; date?: string };
+  quickLook?: boolean;
 }
 
 // The topic-level notes (language, country, target, lens) live in

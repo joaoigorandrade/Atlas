@@ -23,6 +23,8 @@ export const TOPIC_AXIS_COLUMNS = {
   lens: "readingLens",
   shape: "shape",
   target: "target",
+  // Stamped only on a quick look ("glance"): every other goal keys as before.
+  goal: "quickLook",
 } as const satisfies Record<string, keyof GenerateBody>;
 
 type Axes = Partial<Pick<GenerateBody, "neighbours">> & Record<string, unknown>;
@@ -50,7 +52,9 @@ async function axesOf(db: Db, topicId: string): Promise<Axes> {
   ][]) {
     const v = row[column];
     // `hierarchy` is what every map was before shapes: it keys to the old row.
-    if (v != null && v !== "" && !(field === "shape" && v === "hierarchy"))
+    if (field === "quickLook") {
+      if (v === "glance") out[field] = true;
+    } else if (v != null && v !== "" && !(field === "shape" && v === "hierarchy"))
       out[field] = v;
   }
   return out;

@@ -33,7 +33,8 @@ export const CONSUME_SECTION_SHAPE = `{
       "body": ["…", "…"],                                // 2-5 paragraphs, 3-6 sentences each
       "example": {
         "title": "…",
-        "steps": ["**Label:** the actual work", "…"]     // 2-6 steps, each led by its bold purpose label
+        "steps": ["**Label:** the actual work", "…"],    // 2-6 steps, each led by its bold purpose label
+        "visual": "…"                                    // ONE section only, when its case is spatial (circuit, geometry); else omit
       },
       "diagram": "…",                                    // a one-line caption; OMIT together with "figure"
       "figure": {

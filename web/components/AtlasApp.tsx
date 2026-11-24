@@ -76,10 +76,10 @@ import { logWarning } from "@/lib/log";
 import { useOnline } from "@/lib/online";
 
 export default function AtlasApp({
-  userEmail,
+  user,
   initial,
 }: {
-  userEmail: string;
+  user: { email: string; name?: string }; // name: what sign-in gave, if anything
   /** The saved run's core, already read on the server (see app/page.tsx).
    *  `undefined` means "not provided" — fall back to loading it here; `null`
    *  means "read, and there is no saved run". */
@@ -408,7 +408,7 @@ export default function AtlasApp({
     run,
     sessions,
     screen,
-    userEmail,
+    user,
     selectedId,
     reveal,
     momentumPlaying,
@@ -539,15 +539,15 @@ export default function AtlasApp({
       {showCanvas && (
         <MapCanvas
           screen={screen as "map" | "building" | "diagnostic"}
-          nodes={usingFakeMap ? fake.FAKE_MAP_NODES : graph.nodes}
-          edges={usingFakeMap ? fake.FAKE_MAP_EDGES : graph.edges}
+          nodes={usingFakeMap ? fake.placeholderMap(form.goal).nodes : graph.nodes}
+          edges={usingFakeMap ? fake.placeholderMap(form.goal).edges : graph.edges}
           spawnedIds={spawnedIds}
           staggered={usingFakeMap}
           display={display}
           cards={run.cards}
           lockedPath={lockedPath}
           earned={earnedNodes}
-          positions={usingFakeMap ? fake.FAKE_MAP_POSITIONS : positions}
+          positions={usingFakeMap ? fake.placeholderMap(form.goal).positions : positions}
           view={view}
           selectedId={selectedId}
           hoverId={hoverId}
@@ -594,7 +594,7 @@ export default function AtlasApp({
             adherence={adherence}
             queue={queue}
             onToggleReminder={onToggleReminder}
-            userEmail={userEmail}
+            userEmail={user.email}
             onHome={enterDashboard}
             onProfile={enterProfile}
           />
@@ -638,7 +638,7 @@ export default function AtlasApp({
               online &&
               !summaryFailed[selectedNode.id]
             }
-            onSelect={setSelectedId}
+            onSelect={pickNode}
             onPrimaryAction={onPrimaryAction}
             onPhaseAction={onPhaseAction}
             onSkipKnown={skipKnown}
@@ -735,7 +735,7 @@ export default function AtlasApp({
       {screen === "profile" && (
         <ProfileScreen
           name={displayName}
-          userEmail={userEmail}
+          userEmail={user.email}
           initials={initials}
           stats={profileStats}
           goalLabel={goalLabel}
@@ -753,7 +753,7 @@ export default function AtlasApp({
         consumeChunks &&
         sheetBoundary(
           <ConsumeView
-            topic={form.topic}
+            form={form}
             title={nodeOf(consume.nodeId)?.label ?? "Concept"}
             plan={planOf(consume.nodeId)}
             chunks={consumeChunks}

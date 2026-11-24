@@ -108,7 +108,7 @@ export function ComputeAnswer({
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && value.trim() && onAnswer(value)}
         placeholder={t.computePlaceholder}
-        style={{ ...box, fontFamily: font.mono }}
+        style={{ ...box, fontFamily: font.serif }}
       />
       <Submit
         disabled={!value.trim()}

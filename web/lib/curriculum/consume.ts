@@ -62,6 +62,9 @@ export interface ConsumeExample {
   title: string;
   /** The worked steps, in order. */
   steps: string[];
+  /** English image prompt for a spatial example (a circuit, a geometry
+   *  setup). Drawn only when the learner taps for it — see ExampleImage. */
+  visual?: string;
 }
 
 /** A schematic figure: labeled boxes wired by directed arrows. */
@@ -266,7 +269,9 @@ export function afterPretest<P extends ConsumeProgress>(
   if (p.pretest?.[chunkId] !== undefined || p.checks[chunkId]) return p;
   const pretest = { ...p.pretest, [chunkId]: correct };
   const stakes = stake === undefined ? p.stakes : { ...p.stakes, [chunkId]: stake };
-  return correct
+  // A right answer bet "not sure" is a guess (1 in 3 on a three-way check),
+  // not knowing: it keeps its ink, but the section is read and checked.
+  return correct && stake !== 0
     ? {
         ...p,
         pretest,
@@ -288,8 +293,11 @@ export function pretestClean(
   sections = p?.total ?? 0,
 ): boolean {
   if (!p?.finished) return false;
-  const guesses = Object.values(p.pretest ?? {});
-  return guesses.length >= Math.max(2, sections) && guesses.every(Boolean);
+  const guesses = Object.entries(p.pretest ?? {});
+  return (
+    guesses.length >= Math.max(2, sections) &&
+    guesses.every(([id, right]) => right && p.stakes?.[id] !== 0)
+  );
 }
 
 /** Sections read out of sections there are — never claiming past what exists,

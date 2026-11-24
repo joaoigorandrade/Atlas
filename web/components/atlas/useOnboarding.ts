@@ -32,7 +32,7 @@ import {
   fetchDiagnosticQuestion,
   type ScopeOffer,
 } from "@/lib/api";
-import { FAKE_MAP_CENTER } from "@/components/onboarding/fakeMap";
+import { placeholderView } from "@/components/onboarding/fakeMap";
 import type { ViewTransform } from "@/components/map/MapCanvas";
 import type { Language } from "@/lib/i18n";
 import { openTopic } from "@/components/atlas/topicLifecycle";
@@ -180,12 +180,7 @@ export function useOnboarding(deps: {
     setReveal(0);
     setScopes(null);
     setBuildNote(null);
-    const scale = 0.72;
-    setView({
-      x: window.innerWidth / 2 - FAKE_MAP_CENTER.x * scale,
-      y: window.innerHeight / 2 - FAKE_MAP_CENTER.y * scale,
-      scale,
-    });
+    setView(placeholderView(formRef.current.goal, window.innerWidth, window.innerHeight));
     // The previous map is not this topic's map, and everything below is keyed
     // to its node ids. Clearing it up front stops the assembly beat animating
     // over the *old* territory, and stops a failed build persisting those nodes

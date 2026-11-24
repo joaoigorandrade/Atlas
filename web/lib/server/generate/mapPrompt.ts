@@ -23,7 +23,7 @@ const GOAL_HINT: Record<GoalKind, string> = {
     "The learner wants deep general mastery — favor the conceptual foundations of exactly what the topic names.",
   pareto: "", // supplied per-request by `paretoNote` — it depends on the chosen share.
   glance:
-    "The learner just wants to KNOW what this is and use it once — a quick first look, not a course. Build the smallest map that answers that: ONE concept when the topic is one idea, never more than THREE, each one the learner can understand and try on a real case in minutes. This overrides every concept count below, the domain rows included.",
+    "The learner just wants to KNOW what this is and use it once — a quick first look, not a course. Build the smallest map that answers that: ONE concept when the topic is one idea, never more than THREE, each one the learner can understand and try on a real case in minutes. ANSWER FIRST: the first concept IS the direct answer to what the learner asked (for 'why is the sea salty?', the origin of sea salt — not the water cycle), with NO prerequisites; any further concept only deepens or applies it and lists the first one as its prerequisite. Never put background the learner did not ask about in front of the answer. This overrides every concept count and ordering rule below, the domain rows included.",
 };
 
 export interface MapParams {
@@ -114,9 +114,11 @@ export function mapContext(params: MapParams): string {
   // A quick look never bounces back with offers: the learner asked to know
   // what the thing is, and "pick a narrower topic" is not an answer to that.
   const escape =
-    params.scoped || goal === "glance"
-      ? `This topic is ALREADY a scoped sub-topic the learner chose from a list of offers. Build the map for it. Do NOT return "tooBroad" — narrow the treatment instead, and if the label is missing the period or qualifier that bounds it, pick the reading its offer plainly meant and say so in the first concept's summary.`
-      : `If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
+    goal === "glance" && !params.scoped
+      ? `Do NOT return "tooBroad", however wide the topic is: answer the question the learner asked at the level of a quick first look, and build the map for that.`
+      : params.scoped
+        ? `This topic is ALREADY a scoped sub-topic the learner chose from a list of offers. Build the map for it. Do NOT return "tooBroad" — narrow the treatment instead, and if the label is missing the period or qualifier that bounds it, pick the reading its offer plainly meant and say so in the first concept's summary.`
+        : `If (and only if) the topic is far too broad for one coherent concept map (e.g. "science", "math", "history"), instead return ONE object and nothing else:
 {"tooBroad": true, "scopes": [{"label": "a focused sub-topic (2-4 words)", "note": "one sentence on what this scoped map covers"}, ...]}   // exactly 2-3 offers`;
   // One country of a continent: its neighbours are whole maps of their own,
   // and a concept both of them carry is a lesson the learner sits twice.

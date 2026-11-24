@@ -292,7 +292,8 @@ export async function answerCheck(page: Page, option = 1): Promise<void> {
  * A pretest answer is held for an ink bet before it counts (`SectionCheck`);
  * an end-of-section check takes none. Place `stake` if the bet is asked.
  */
-export async function placeBet(scope: Locator, stake = 0): Promise<void> {
+// "Fairly sure" by default: a right guess bet "not sure" is read, not folded.
+export async function placeBet(scope: Locator, stake = 1): Promise<void> {
   const bet = scope.getByTestId("consume-bet");
   // The bet mounts on the click's own render, so a short wait tells the two apart.
   if (
