@@ -6,20 +6,23 @@ import { createClient } from "@/lib/supabase/server";
 /** Magic-link landing: verify the emailed token, set the session, enter the app. */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
 
   // Every failure used to collapse into `?error=link`, which tells a learner
   // whose link was fine but whose network wasn't that their link expired.
   // The two cases are different sentences, so they travel as different reasons.
-  if (!tokenHash || !type)
+  if (!code && (!tokenHash || !type))
     return NextResponse.redirect(new URL("/login?error=link", request.url));
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({
-    type,
-    token_hash: tokenHash,
-  });
+  // `@supabase/ssr` signs up with PKCE, so the default email template's link
+  // comes back as `?code=` — the only shape this route used to reject. The
+  // `token_hash` branch stays for a template that links here directly.
+  const { error } = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await supabase.auth.verifyOtp({ type: type!, token_hash: tokenHash! });
   if (!error) return NextResponse.redirect(new URL("/", request.url));
 
   logWarning("confirm_failed", error, { type });
