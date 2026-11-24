@@ -15,6 +15,15 @@ import Testing
     // Confirmation required: a user, no tokens.
     let pending = Data(#"{"id":"u1","email":"a@b.c","confirmation_sent_at":"2026-08-19T00:00:00Z"}"#.utf8)
     #expect(throws: AtlasError.self) { try AtlasAuth.session(from: pending) }
+
+    // Address already registered: GoTrue fakes the 200, sends nothing.
+    let repeated = Data(#"{"id":"u1","email":"a@b.c","identities":[]}"#.utf8)
+    do {
+        _ = try AtlasAuth.session(from: repeated)
+        Issue.record("repeated sign-up decoded as a session")
+    } catch {
+        #expect((error as? AtlasError)?.code == "user_already_exists")
+    }
 }
 
 @Test func gotrueErrorCodeSurvives() {

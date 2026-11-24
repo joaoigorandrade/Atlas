@@ -153,9 +153,17 @@ public actor AtlasAuth {
             let refresh_token: String?
             let expires_in: Double?
             let user: User?
+            /// Top level: an unconfirmed sign-up answers with the user itself.
+            let identities: [Identity]?
+            struct Identity: Decodable {}
         }
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         guard let accessToken = payload.access_token, let refreshToken = payload.refresh_token else {
+            // An address that already has an account gets a fake 200 with no
+            // identities and no email sent — screen 3 would promise a link.
+            if payload.identities?.isEmpty == true {
+                throw AtlasError(code: "user_already_exists", message: "repeated signup", status: 200)
+            }
             throw AtlasError(code: "confirm_email", message: "signup awaiting email confirmation", status: 200)
         }
         return AuthSession(

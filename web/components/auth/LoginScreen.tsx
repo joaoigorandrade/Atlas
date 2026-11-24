@@ -18,6 +18,7 @@ const STRINGS = {
       "We couldn't check that link just now — nothing is wrong with your account. Try the link again, or sign in below.",
     enterEmail: "Enter the email for your account.",
     passwordMin: "Password must be at least 6 characters.",
+    accountExists: "There's already an account with this email — sign in instead.",
     signInTitle: "Sign in to your map",
     signUpTitle: "Create your account",
     subtitleBase: "Your map, streak, and progress live in your account",
@@ -45,6 +46,7 @@ const STRINGS = {
       "Não conseguimos verificar esse link agora — não há nada de errado com sua conta. Tente o link de novo, ou entre abaixo.",
     enterEmail: "Digite o e-mail da sua conta.",
     passwordMin: "A senha precisa ter pelo menos 6 caracteres.",
+    accountExists: "Já existe uma conta com esse e-mail — entre por ela.",
     signInTitle: "Entre no seu mapa",
     signUpTitle: "Crie sua conta",
     subtitleBase: "Seu mapa, sequência e progresso ficam na sua conta",
@@ -142,6 +144,11 @@ export default function LoginScreen({ notice }: LoginScreenProps) {
           if (error) {
             setStatus("error");
             setMessage(error.message);
+          } else if (data.user?.identities?.length === 0) {
+            // GoTrue's answer for an address that already has an account: a
+            // fake 200 and no email, so "we sent a link" would be a lie.
+            setStatus("error");
+            setMessage(t.accountExists);
           } else if (data.session) {
             // Email confirmation disabled — signed in immediately.
             forgetTab();
