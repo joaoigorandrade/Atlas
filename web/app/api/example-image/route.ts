@@ -58,8 +58,7 @@ export async function POST(request: Request) {
   const model = imageModel();
   const secret = process.env.SUPABASE_SECRET_KEY;
   // Without the cache every view would re-bill, so no secret means no images.
-  if (!model || !secret)
-    return apiError("notfound", { requestId, reason: "images_off" });
+  if (!model || !secret) return apiError("notfound", { requestId, reason: "images_off" });
 
   const body = (await request.json().catch(() => null)) as { prompt?: unknown } | null;
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";

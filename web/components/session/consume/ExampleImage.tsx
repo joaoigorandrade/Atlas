@@ -79,5 +79,11 @@ export function ExampleImage({ prompt, alt }: { prompt: string; alt: string }) {
       </div>
     );
   // eslint-disable-next-line @next/next/no-img-element -- a signed, per-learner URL; no optimizer
-  return <img src={state} alt={alt} style={{ ...frame, objectFit: "contain", display: "block" }} />;
+  return (
+    <img
+      src={state}
+      alt={alt}
+      style={{ ...frame, objectFit: "contain", display: "block" }}
+    />
+  );
 }

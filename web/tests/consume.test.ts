@@ -321,7 +321,9 @@ describe("oneVisual", () => {
     const { oneVisual } = await import("@/lib/server/generate/consume");
     const pic = (id: string, visual?: string) =>
       chunk({ id, example: { title: "t", steps: ["a", "b"], visual } });
-    const out = [pic("c1"), pic("c2", "circuit A"), pic("c3", "circuit B")].map(oneVisual());
+    const out = [pic("c1"), pic("c2", "circuit A"), pic("c3", "circuit B")].map(
+      oneVisual(),
+    );
     expect(out.map((c) => c.example.visual)).toEqual([undefined, "circuit A", undefined]);
   });
 });
