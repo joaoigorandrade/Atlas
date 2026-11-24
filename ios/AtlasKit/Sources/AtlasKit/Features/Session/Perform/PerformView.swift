@@ -73,6 +73,21 @@ struct PerformView: View {
                         .padding(.top, 8)
                 }
 
+                // A first run shows the step names (never their results);
+                // re-runs hide them.
+                if !model.rerunning {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Kicker("Os passos", tint: Palette.performInk)
+                        ForEach(Array(content.steps.enumerated()), id: \.element.id) { i, step in
+                            Text(verbatim: "\(i + 1). \(step.step)")
+                                .font(.atlas(.serif, 15))
+                                .foregroundStyle(Palette.inkSoft)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.top, 14)
+                }
+
                 if model.nudged {
                     Text(verbatim: content.scaffold)
                         .font(.atlas(.serif, 15.5))
@@ -139,7 +154,7 @@ struct PerformView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                     } else if !model.skipped.isEmpty {
-                        Text("Um passo essencial não chegou a ser executado.")
+                        Text("Falta muito da execução.")
                             .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)

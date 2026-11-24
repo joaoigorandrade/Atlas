@@ -123,22 +123,28 @@ export function performBroken(
   return content.steps.filter((s) => session.ran[s.id] === "confused");
 }
 
+/** How many steps a run may leave out and still pass. */
+export const PERFORM_SKIP_ALLOWANCE = 2;
+
+/** Steps the run never carried out — absent, not wrong. */
+export function performSkipped(
+  session: PerformSession,
+  content: PerformContent,
+): PerformStep[] {
+  return content.steps.filter((s) => !session.ran[s.id] || session.ran[s.id] === "skipped");
+}
+
 /**
- * Perform's gate, and deliberately not Recall's.
- *
- * Retrieval takes partial credit because memory is partial. Execution does
- * not: a run with a wrong intermediate result is a failed run of that step,
- * however much of the rest was right, so *any* wrong step fails — and every
- * load-bearing step must actually have been carried out. A step the learner
- * skipped that nothing downstream depends on (a sanity check, a units note)
- * is a thinner run, not a wrong one, so it is allowed through.
+ * Perform's gate. Only a mistake fails: any step carried out with a wrong
+ * result is a failed run. A right run that leaves out one or two steps
+ * passes (ponytail: flat allowance; scale it with step count if 6-step runs
+ * prove too loose), as long as something was actually run.
  */
 export function performPassed(session: PerformSession, content: PerformContent): boolean {
   if (!content.steps.length) return session.reported;
   if (performBroken(session, content).length) return false;
-  return content.steps
-    .filter((s) => s.loadBearing)
-    .every((s) => session.ran[s.id] === "good");
+  if (!content.steps.some((s) => session.ran[s.id] === "good")) return false;
+  return performSkipped(session, content).length <= PERFORM_SKIP_ALLOWANCE;
 }
 
 const PERFORM_COPY = {
@@ -150,7 +156,8 @@ const PERFORM_COPY = {
     placeholder: "Work it through — show each step and what it gives you…",
     passed: "Executed under real conditions — the procedure is yours.",
     brokeAt: "The run breaks at a step. A wrong result is a failed run of it.",
-    thin: "A load-bearing step was never carried out.",
+    thin: "Too much of the run is missing.",
+    steps: "The steps",
     rerun: "Run it again →",
     lastBroke: (steps: string) => `A new case. Last run broke at: ${steps}.`,
   },
@@ -162,7 +169,8 @@ const PERFORM_COPY = {
     placeholder: "Resolva — mostre cada passo e o que ele produz…",
     passed: "Executado em condições reais — o procedimento é seu.",
     brokeAt: "A execução quebra num passo. Resultado errado é passo falhado.",
-    thin: "Um passo essencial não chegou a ser executado.",
+    thin: "Falta muito da execução.",
+    steps: "Os passos",
     rerun: "Executar de novo →",
     lastBroke: (steps: string) => `Um caso novo. A última execução quebrou em: ${steps}.`,
   },

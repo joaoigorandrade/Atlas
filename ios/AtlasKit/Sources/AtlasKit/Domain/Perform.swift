@@ -55,23 +55,21 @@ public struct PerformSession: Sendable {
         content.steps.filter { ran[$0.id] == .confused }
     }
 
-    /// Load-bearing steps that were never carried out at all — a thin run, and
-    /// the other half of the gate.
+    /// Steps the run never carried out — absent, not wrong.
     public func skipped(_ content: PerformContent) -> [PerformStep] {
-        content.steps.filter { $0.loadBearing && ran[$0.id] != .good && ran[$0.id] != .confused }
+        content.steps.filter { ran[$0.id] != .good && ran[$0.id] != .confused }
     }
 
-    /// Perform's gate, and deliberately not Recall's.
-    ///
-    /// Retrieval takes partial credit because memory is partial. Execution does
-    /// not: a run with a wrong intermediate result is a failed run of that step,
-    /// however much of the rest was right, so *any* wrong step fails — and every
-    /// load-bearing step must actually have been carried out. A step the learner
-    /// skipped that nothing downstream depends on (a sanity check, a units note)
-    /// is a thinner run, not a wrong one, so it is allowed through.
+    /// How many steps a run may leave out and still pass.
+    public static let skipAllowance = 2
+
+    /// Perform's gate. Only a mistake fails: any step carried out with a wrong
+    /// result is a failed run. A right run that leaves out one or two steps
+    /// passes, as long as something was actually run.
     public func passed(_ content: PerformContent) -> Bool {
         guard !content.steps.isEmpty else { return reported }
         guard broken(content).isEmpty else { return false }
-        return content.steps.filter(\.loadBearing).allSatisfy { ran[$0.id] == .good }
+        guard content.steps.contains(where: { ran[$0.id] == .good }) else { return false }
+        return skipped(content).count <= Self.skipAllowance
     }
 }

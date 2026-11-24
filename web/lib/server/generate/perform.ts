@@ -120,7 +120,7 @@ async function writePerform(params: PerformParams): Promise<PerformContent> {
   const { topic, nodeLabel, language = "en" } = params;
   return generateJson(
     user(
-      `Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real. Nobody tells them the steps — working out what to do is part of the test.
+      `Write an EXECUTION pass for the procedure "${nodeLabel}" within "${topic}": the learner is given ONE concrete case and carries the procedure out on it end to end, showing their work the way they would for real. On a first run they see the step NAMES (never what each must show); on a re-run they see nothing.
 
 THE CASE ("task"):
 - Self-contained and specific: real values and units, or a real situation, with everything needed to work it, in a sentence or two.
@@ -132,7 +132,7 @@ THE CASE ("task"):
           : ""
       }${lessonNote(params.lesson)}
 
-THE STEPS are the hidden answer key the run is graded against. The learner never sees them before the run; afterwards each one is a line of their report.
+THE STEPS are the answer key the run is graded against. A first run shows only each "step" name up front, so a name must never give away its result; afterwards each one is a line of their report.
 - One step per subgoal of the procedure, in order. "step" names the subgoal in 3-6 words, in the vocabulary the lesson used ("Form the augmented matrix", never "Step 2"), so that the report teaches the procedure's shape.
 - "mustShow": 1-3 specific, checkable things the work must contain at this step, each with its correct value on THIS case wherever the step produces one ("the pivot in row 1 is 2", "the net force, 14 N") — so the run is checked against a key, not re-derived. Never "understands" or "explains".
 - "loadBearing": false only when everything after the step would still be correct without it — a units check, a plausibility check, a stated assumption. Every step that feeds the next is load-bearing, and at least one must be.

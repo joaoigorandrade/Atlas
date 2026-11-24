@@ -69,6 +69,8 @@ final class PerformViewModel {
 
     /// Where the last run broke, quoted on the re-run (W1.4).
     private(set) var previous: [String] = []
+    /// True once this learner has re-run the case, even when nothing broke.
+    private(set) var rerunning = false
 
     /// Run it again — on a new case. Re-running the case whose report just
     /// named the wrong step tests reading the report, not the procedure. The
@@ -76,6 +78,7 @@ final class PerformViewModel {
     /// case that arrives is one this learner has not seen.
     func rerun() {
         previous = broken.map(\.step)
+        rerunning = true
         work = ""
         withAnimation(Motion.enter) { session = PerformSession(nodeId: node.id) }
         Task {

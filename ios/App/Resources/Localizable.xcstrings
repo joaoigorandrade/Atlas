@@ -107,6 +107,16 @@
         }
       }
     },
+    "Falta muito da execução." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too much of the run is missing."
+          }
+        }
+      }
+    },
     "Isso deixa o erro de pé" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -189,6 +199,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Where it breaks"
+          }
+        }
+      }
+    },
+    "Os passos" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The steps"
           }
         }
       }
@@ -7906,17 +7926,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A strawman"
-          }
-        }
-      }
-    },
-    "Um passo essencial não chegou a ser executado." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A load-bearing step was never carried out."
           }
         }
       }

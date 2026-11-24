@@ -127,31 +127,28 @@ private func runCase(_ steps: [(id: String, loadBearing: Bool)]) -> PerformConte
     return try! JSONDecoder().decode(PerformContent.self, from: Data(json.utf8))
 }
 
-@Test func performFailsOnAnyWrongStepAndOnASkippedLoadBearingOne() {
-    let content = runCase([("a", true), ("b", true), ("c", false)])
+@Test func performFailsOnlyOnAWrongStep() {
+    let content = runCase([("a", true), ("b", true), ("c", true), ("d", false)])
 
-    // Everything load-bearing carried out, and the optional check skipped: a
-    // thinner run, not a wrong one.
+    // Right, with two steps left out: passes.
     var thin = PerformSession(nodeId: "n")
     thin.ran = ["a": .good, "b": .good]
     thin.reported = true
     #expect(thin.passed(content))
-    #expect(thin.skipped(content).isEmpty)
+    #expect(thin.skipped(content).map(\.id) == ["c", "d"])
 
-    // One wrong result fails the run however much of the rest was right — this
-    // is exactly where Perform and Recall part company.
+    // One wrong result fails the run however much of the rest was right.
     var broken = PerformSession(nodeId: "n")
-    broken.ran = ["a": .good, "b": .confused, "c": .good]
+    broken.ran = ["a": .good, "b": .confused, "c": .good, "d": .good]
     broken.reported = true
     #expect(!broken.passed(content))
     #expect(broken.broken(content).map(\.id) == ["b"])
 
-    // A load-bearing step that never happened is a run that never happened.
+    // Three left out is too little of a run.
     var missing = PerformSession(nodeId: "n")
-    missing.ran = ["a": .good, "c": .good]
+    missing.ran = ["a": .good]
     missing.reported = true
     #expect(!missing.passed(content))
-    #expect(missing.skipped(content).map(\.id) == ["b"])
 }
 
 @Test func recallTakesPartialCreditWherePerformDoesNot() {

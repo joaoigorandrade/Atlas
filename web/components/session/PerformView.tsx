@@ -4,9 +4,8 @@
 //
 // The case stays visible (unlike Recall's blank page) because this is not a
 // memory test: the learner is allowed to look at what they are working on. The
-// run report is ordered as a run, marks where it broke, and distinguishes a
-// load-bearing step that never happened from a check they skipped — which is
-// exactly the distinction `performPassed` gates on.
+// run report is ordered as a run and marks where it broke. On a first run the
+// step names (never their results) are shown up front; re-runs hide them.
 
 import KbdHint from "@/components/ui/KbdHint";
 import {
@@ -14,6 +13,7 @@ import {
   performBroken,
   performCopy,
   performPassed,
+  performSkipped,
   verdictLabel,
   VERDICT_COLOR,
   type PerformContent,
@@ -81,9 +81,7 @@ export default function PerformView({
   const busy = judging || session.pending;
   const passed = performPassed(session, content);
   const broken = performBroken(session, content);
-  const missedLoadBearing = content.steps.filter(
-    (s) => s.loadBearing && session.ran[s.id] === "skipped",
-  );
+  const missed = performSkipped(session, content);
 
   return (
     <PhaseShell
@@ -134,6 +132,18 @@ export default function PerformView({
             {copy.lastBroke(session.previous.join(" · "))}
           </div>
         ) : null}
+        {!session.reported && !session.previous && (
+          <div data-testid="perform-steps" style={{ marginTop: 14 }}>
+            <div style={{ ...kicker(10, "0.12em", color.inkGhost), marginBottom: 6 }}>
+              {copy.steps}
+            </div>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14.5, color: color.inkSoft }}>
+              {content.steps.map((s) => (
+                <li key={s.id}>{s.step}</li>
+              ))}
+            </ol>
+          </div>
+        )}
       </div>
 
       {!session.reported && (
@@ -395,9 +405,9 @@ export default function PerformView({
           >
             {passed ? copy.passed : broken.length ? copy.brokeAt : copy.thin}
           </div>
-          {!passed && !broken.length && missedLoadBearing.length > 0 && (
+          {!passed && !broken.length && missed.length > 0 && (
             <div style={{ marginTop: 6, fontSize: 13, color: color.inkGhost }}>
-              {missedLoadBearing.map((s) => s.step).join(" · ")}
+              {missed.map((s) => s.step).join(" · ")}
             </div>
           )}
         </div>
