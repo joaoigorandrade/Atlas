@@ -11,6 +11,12 @@ final class ProfileViewModel {
     init(store: AtlasStore) { self.store = store }
 
     var email: String { store.session?.email ?? "" }
+    /// The address's words, capitalised — the web's `displayName` when sign-in
+    /// gave no name, which on iOS it never does.
+    var name: String {
+        let local = email.split(separator: "@").first.map(String.init) ?? ""
+        return local.split(whereSeparator: { "._-".contains($0) }).map(\.capitalized).joined(separator: " ")
+    }
     var streak: String { "\(store.streak)" }
     var masteredShare: String { store.mastered.formatted(.percent.precision(.fractionLength(0))) }
     var masteredCount: String { "\(store.masteredCount)" }

@@ -23,13 +23,21 @@ struct ProfileView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // The web's header: the avatar, the name in Fell, the
+                    // address under it.
                     HStack(spacing: 18) {
-                        Avatar(model.email, size: 66)
-                        Text(verbatim: model.email)
-                            .font(.atlas(.serif, 15))
-                            .foregroundStyle(Palette.inkMuted)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        Avatar(model.email, size: 78)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(verbatim: model.name)
+                                .font(.atlas(.display, 30))
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                            Text(verbatim: model.email)
+                                .font(.atlas(.serif, 14))
+                                .foregroundStyle(Palette.inkMuted)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
 
                     if let mapKicker = model.mapKicker {
@@ -68,8 +76,8 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
-        .background(Palette.card, in: .rect(cornerRadius: 3))
-        .overlay { RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card)
+        .plate()
     }
 
     // MARK: - What the run is for
@@ -97,8 +105,8 @@ struct ProfileView: View {
         .padding(.horizontal, 22)
         .padding(.vertical, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.card, in: .rect(cornerRadius: Metrics.cardRadius))
-        .overlay { RoundedRectangle(cornerRadius: Metrics.cardRadius).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card)
+        .plate()
     }
 
     // MARK: - The way out
@@ -129,8 +137,8 @@ struct ProfileView: View {
             }
         }
         .buttonStyle(Pressable())
-        .background(Palette.card, in: .rect(cornerRadius: Metrics.cardRadius))
-        .overlay { RoundedRectangle(cornerRadius: Metrics.cardRadius).strokeBorder(Palette.hairlineStrong, lineWidth: 1) }
+        .background(Palette.card)
+        .plate()
     }
 
     private func row(_ title: LocalizedStringKey, _ note: LocalizedStringKey?, tint: Color = Palette.ink) -> some View {
