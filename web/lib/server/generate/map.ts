@@ -67,27 +67,30 @@ const evidence = (n: RawConcept) => ({
   individual: n.individual,
 });
 
-/** Column layout from topological depth — deterministic, draggable afterwards. */
-function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[] {
-  const ids = new Set(rawNodes.map((n) => n.id));
-  const indeg: Record<string, number> = {};
+/** Kahn's longest-path depth over `ids` (the queue is read as it grows), and
+ *  how many nodes it consumed — fewer than all of them means a cycle. */
+function kahn(ids: string[], edges: ConceptEdge[]) {
+  const indeg: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
   const fwd: Record<string, string[]> = {};
-  for (const id of ids) indeg[id] = 0;
   for (const [a, b] of edges) {
     (fwd[a] = fwd[a] ?? []).push(b);
     indeg[b] += 1;
   }
-  // Kahn longest-path depth; cyclic leftovers land in the last column.
-  const depth: Record<string, number> = {};
-  const queue = [...ids].filter((id) => indeg[id] === 0);
-  for (const id of queue) depth[id] = 0;
-  while (queue.length) {
-    const cur = queue.shift()!;
+  const queue = ids.filter((id) => indeg[id] === 0);
+  const depth: Record<string, number> = Object.fromEntries(queue.map((id) => [id, 0]));
+  for (const cur of queue)
     for (const next of fwd[cur] ?? []) {
       depth[next] = Math.max(depth[next] ?? 0, depth[cur] + 1);
       if (--indeg[next] === 0) queue.push(next);
     }
-  }
+  return { depth, visited: queue.length };
+}
+
+/** Column layout from topological depth — deterministic, draggable afterwards. */
+function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[] {
+  const ids = rawNodes.map((n) => n.id);
+  // Kahn longest-path depth; cyclic leftovers land in the last column.
+  const { depth } = kahn(ids, edges);
   let maxDepth = 0;
   for (const id of ids) {
     if (depth[id] === undefined) depth[id] = maxDepth + 1; // cycle leftover
@@ -177,24 +180,13 @@ export function validateGraphPart(
     fail("too few valid edges — every node needs prerequisites wired");
   // A prerequisite cycle would permanently lock those nodes on the map —
   // Kahn must consume every node or the payload is rejected (#16).
-  {
-    const indeg: Record<string, number> = {};
-    const fwd: Record<string, string[]> = {};
-    for (const n of nodes) indeg[n.id] = 0;
-    for (const [a, b] of edges) {
-      (fwd[a] = fwd[a] ?? []).push(b);
-      indeg[b] += 1;
-    }
-    const queue = nodes.map((n) => n.id).filter((id) => indeg[id] === 0);
-    let visited = 0;
-    while (queue.length) {
-      const cur = queue.shift()!;
-      visited += 1;
-      for (const next of fwd[cur] ?? []) if (--indeg[next] === 0) queue.push(next);
-    }
-    if (visited < nodes.length)
-      fail("edges contain a prerequisite cycle — the map must be a DAG");
-  }
+  if (
+    kahn(
+      nodes.map((n) => n.id),
+      edges,
+    ).visited < nodes.length
+  )
+    fail("edges contain a prerequisite cycle — the map must be a DAG");
   return { nodes, edges, meta };
 }
 
