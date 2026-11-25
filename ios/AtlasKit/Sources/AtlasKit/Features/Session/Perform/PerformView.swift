@@ -73,6 +73,14 @@ struct PerformView: View {
                         .padding(.top, 8)
                 }
 
+                if !model.fixing.isEmpty {
+                    Text("Corrija o que quebrou e envie de novo: \(model.fixing.joined(separator: " · ")).")
+                        .font(.atlas(.serif, 14.5))
+                        .foregroundStyle(Palette.amberInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 8)
+                }
+
                 // A first run shows the step names (never their results);
                 // re-runs hide them.
                 if !model.rerunning {
@@ -181,7 +189,11 @@ struct PerformView: View {
             }
             Dock {
                 CTAButton(model.handOffLabel, tint: model.handOffTint) { model.advance() }
-                GhostButton("Executar de novo") { model.rerun() }
+                if model.canFix {
+                    GhostButton("Corrigir neste caso") { model.fix() }
+                } else {
+                    GhostButton("Executar de novo") { model.rerun() }
+                }
             }
         }
         .sensoryFeedback(model.passed ? .success : .warning, trigger: model.reported)

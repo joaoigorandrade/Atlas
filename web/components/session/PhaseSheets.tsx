@@ -267,6 +267,7 @@ export function phaseSheets(p: {
             onNudge={() => dispatchPerform({ type: "nudge" })}
             onSubmit={performSubmit}
             onRerun={performRerun}
+            onFix={(steps) => dispatchPerform({ type: "fix", steps })}
             onAdvance={advanceFromPerform}
           />,
         )}

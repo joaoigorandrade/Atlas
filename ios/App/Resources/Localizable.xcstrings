@@ -1,6 +1,26 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
+    "Corrigir neste caso" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix it on this case"
+          }
+        }
+      }
+    },
+    "Corrija o que quebrou e envie de novo: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix what broke, then submit again: %@."
+          }
+        }
+      }
+    },
     "Falta muito da execução." : {
       "localizations" : {
         "en" : {

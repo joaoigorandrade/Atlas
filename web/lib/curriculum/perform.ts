@@ -59,6 +59,10 @@ export interface PerformSession {
   /** The steps the previous run broke at, quoted on the re-run's report
    *  (W1.4). Absent on a first run, and on every session saved before it. */
   previous?: string[];
+  /** Set once a failed run is being fixed in place: the steps it broke at.
+   *  One fix per case — a second failure gets a new case. Absent on every
+   *  session saved before it. */
+  fixing?: string[];
 }
 
 export function performStart(nodeId: string): PerformSession {
@@ -84,6 +88,7 @@ export type PerformAction =
       ran: Record<string, TeachVerdict>;
       quotes: Record<string, string>;
     }
+  | { type: "fix"; steps: string[] }
   | { type: "rerun" };
 
 export function performReducer(
@@ -105,6 +110,18 @@ export function performReducer(
         response: action.response,
         ran: action.ran,
         quotes: action.quotes,
+      };
+    // Fixing keeps the case and the work, and clears the report: the learner
+    // corrects the broken steps and submits again.
+    case "fix":
+      return {
+        ...session,
+        pending: false,
+        reported: false,
+        response: "",
+        ran: {},
+        quotes: {},
+        fixing: action.steps,
       };
     // A re-run keeps the case and clears the work: running it again is the
     // point, and the case is the same case.
@@ -159,6 +176,8 @@ const PERFORM_COPY = {
     thin: "Too much of the run is missing.",
     steps: "The steps",
     rerun: "Run it again →",
+    fix: "Fix it on this case →",
+    fixing: (steps: string) => `Fix what broke, then submit again: ${steps}.`,
     lastBroke: (steps: string) => `A new case. Last run broke at: ${steps}.`,
   },
   "pt-BR": {
@@ -172,6 +191,8 @@ const PERFORM_COPY = {
     thin: "Falta muito da execução.",
     steps: "Os passos",
     rerun: "Executar de novo →",
+    fix: "Corrigir neste caso →",
+    fixing: (steps: string) => `Corrija o que quebrou e envie de novo: ${steps}.`,
     lastBroke: (steps: string) => `Um caso novo. A última execução quebrou em: ${steps}.`,
   },
 } as const;

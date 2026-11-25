@@ -60,6 +60,7 @@ export default function PerformView({
   onNudge,
   onSubmit,
   onRerun,
+  onFix,
   onAdvance,
 }: {
   title: string;
@@ -72,6 +73,7 @@ export default function PerformView({
   onNudge: () => void;
   onSubmit: () => void;
   onRerun: () => void;
+  onFix: (steps: string[]) => void;
   onAdvance: () => void;
 }) {
   const t = useT(STRINGS);
@@ -82,6 +84,8 @@ export default function PerformView({
   const passed = performPassed(session, content);
   const broken = performBroken(session, content);
   const missed = performSkipped(session, content);
+  // One fix in place per case; after that a failure gets a new case.
+  const canFix = session.reported && !passed && !session.fixing;
 
   return (
     <PhaseShell
@@ -130,6 +134,11 @@ export default function PerformView({
         {session.previous?.length ? (
           <div style={{ marginTop: 10, fontSize: 14, color: color.inkSoft }}>
             {copy.lastBroke(session.previous.join(" · "))}
+          </div>
+        ) : null}
+        {session.fixing?.length && !session.reported ? (
+          <div data-testid="perform-fixing" style={{ marginTop: 10, fontSize: 14, color: color.amberInk }}>
+            {copy.fixing(session.fixing.join(" · "))}
           </div>
         ) : null}
         {!session.reported && !session.previous && (
@@ -378,8 +387,12 @@ export default function PerformView({
             </button>
             <button
               className="at-press"
-              data-testid="action-rerun"
-              onClick={onRerun}
+              data-testid={canFix ? "action-fix" : "action-rerun"}
+              onClick={() =>
+                canFix
+                  ? onFix((broken.length ? broken : missed).map((s) => s.step))
+                  : onRerun()
+              }
               style={{
                 flex: "0 0 auto",
                 padding: "15px 18px",
@@ -391,7 +404,7 @@ export default function PerformView({
                 cursor: "pointer",
               }}
             >
-              {copy.rerun}
+              {canFix ? copy.fix : copy.rerun}
             </button>
           </div>
 

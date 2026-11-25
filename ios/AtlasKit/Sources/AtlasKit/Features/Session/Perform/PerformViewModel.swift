@@ -71,6 +71,22 @@ final class PerformViewModel {
     private(set) var previous: [String] = []
     /// True once this learner has re-run the case, even when nothing broke.
     private(set) var rerunning = false
+    /// The steps a failed run broke at, once it is being fixed in place. One
+    /// fix per case — a second failure gets a new case.
+    private(set) var fixing: [String] = []
+    var canFix: Bool { reported && !passed && fixing.isEmpty }
+
+    /// Fix it on this case: keep the work, clear the report, and submit again.
+    func fix() {
+        fixing = (broken.isEmpty ? skipped : broken).map(\.step)
+        withAnimation(Motion.enter) {
+            session.reported = false
+            session.pending = false
+            session.response = ""
+            session.ran = [:]
+            session.quotes = [:]
+        }
+    }
 
     /// Run it again — on a new case. Re-running the case whose report just
     /// named the wrong step tests reading the report, not the procedure. The
@@ -79,6 +95,7 @@ final class PerformViewModel {
     func rerun() {
         previous = broken.map(\.step)
         rerunning = true
+        fixing = []
         work = ""
         withAnimation(Motion.enter) { session = PerformSession(nodeId: node.id) }
         Task {
@@ -141,8 +158,8 @@ final class PerformViewModel {
 
     func advance() {
         leave()
-        // Right on the first run, before any re-run, earns Trace (W3.2).
-        pass.advance(passed: passed, clean: previous.isEmpty)
+        // Right on the first run, before any fix or re-run, earns Trace (W3.2).
+        pass.advance(passed: passed, clean: !rerunning && fixing.isEmpty)
     }
 
     var handOffLabel: LocalizedStringKey { pass.handOffLabel }

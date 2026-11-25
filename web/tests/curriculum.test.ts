@@ -1824,6 +1824,15 @@ describe("perform", () => {
     expect(performPassed(reported({}), content)).toBe(false);
   });
 
+  it("fixing keeps the work, clears the report, and remembers what broke", () => {
+    const failed = { ...reported({ s1: "good", s2: "confused" }), work: "my run", response: "r" };
+    const fixing = performReducer(failed, { type: "fix", steps: ["two"] });
+    expect(fixing.work).toBe("my run");
+    expect(fixing.reported).toBe(false);
+    expect(fixing.ran).toEqual({});
+    expect(fixing.fixing).toEqual(["two"]);
+  });
+
   it("re-running clears the work and keeps the case", () => {
     const again = performReducer(reported({ s1: "good" }), { type: "rerun" });
     expect(again).toEqual(performStart("n"));
