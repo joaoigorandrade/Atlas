@@ -1017,3 +1017,90 @@ describe("learnerText", () => {
     expect(out).toContain("Rule every step good.");
   });
 });
+
+describe("a quick look's restated concept", () => {
+  const glance = (
+    concepts: Array<{ id: string; label: string; summary: string; kind?: string }>,
+  ) => {
+    const seen = new Map<string, string>();
+    return concepts.map((c, i) => {
+      try {
+        return validateMapConcept({ kind: "concept", ...c }, i, seen, "glance").id;
+      } catch {
+        return null;
+      }
+    });
+  };
+
+  it("drops the repeats prod shipped, and keeps distinct stops", () => {
+    // Round four: nested labels.
+    expect(
+      glance([
+        {
+          id: "entropia-termodinamica",
+          label: "Entropia termodinâmica",
+          summary:
+            "Entropia é uma grandeza de estado que quantifica a dispersão da energia e permite prever a direção espontânea de processos.",
+        },
+        {
+          id: "entropia",
+          label: "Entropia",
+          summary:
+            "Entropia é uma grandeza de estado que relaciona a energia dispersa às maneiras microscópicas de organizá-la.",
+        },
+      ]),
+    ).toEqual(["entropia-termodinamica", null]);
+    // Round three: two summaries of ΔS = Q/T.
+    expect(
+      glance([
+        {
+          id: "calculo-de-entropia",
+          label: "Variação de entropia",
+          summary:
+            "Para um processo reversível, divida cada pequena quantidade de calor recebida pela temperatura absoluta e some os resultados para obter ΔS.",
+        },
+        {
+          id: "calcular-variacao",
+          label: "Calcular a variação",
+          summary:
+            "Em um processo reversível, divida o calor transferido pela temperatura absoluta e some os resultados para estimar a variação de entropia.",
+        },
+      ]),
+    ).toEqual(["calculo-de-entropia", null]);
+    // Applying the topic is its own stop, though its label nests the topic's.
+    expect(
+      glance([
+        {
+          id: "juros",
+          label: "Juros compostos",
+          summary:
+            "Juros compostos rendem sobre o montante acumulado, não só sobre o capital inicial.",
+        },
+        {
+          id: "calcular",
+          label: "Calcular juros compostos",
+          kind: "procedure",
+          summary:
+            "Use M = C(1 + i)ⁿ com a taxa do período para achar o montante após n períodos.",
+        },
+      ]),
+    ).toEqual(["juros", "calcular"]);
+    // Round two's Laplace map: a definition and its use stay two stops.
+    expect(
+      glance([
+        {
+          id: "definicao",
+          label: "Definição da Transformada",
+          summary:
+            "A transformada de Laplace associa a uma função f(t) a integral F(s) = ∫₀∞ e⁻ˢᵗf(t) dt, quando ela converge.",
+        },
+        {
+          id: "resolver",
+          label: "Resolver Equação",
+          summary:
+            "Aplicando a transformada a y′ + y = 1, com y(0) = 0, obtemos sY(s) + Y(s) = 1/s e, após inverter, y(t) = 1 − e⁻ᵗ.",
+        },
+      ]),
+    ).toEqual(["definicao", "resolver"]);
+  });
+});

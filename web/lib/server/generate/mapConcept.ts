@@ -42,6 +42,64 @@ export function claim(seen: SeenConcepts, id: string, label: string): string | n
   return kept ?? null;
 }
 
+/** Content words, accents folded: what two labels or sentences share. */
+const STOP = new Set(
+  "uma que para com por dos das nos nas pelo pela sua seu como mais the and for with from that this into".split(
+    " ",
+  ),
+);
+const words = (s = "") =>
+  new Set(
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 2 && !STOP.has(w)),
+  );
+const nests = (a: Set<string>, b: Set<string>) =>
+  a.size > 0 &&
+  b.size > 0 &&
+  ([...a].every((w) => b.has(w)) || [...b].every((w) => a.has(w)));
+const overlap = (a: Set<string>, b: Set<string>) =>
+  [...a].filter((w) => b.has(w)).length / (new Set([...a, ...b]).size || 1);
+
+/** What a quick look has written so far, per map (keyed by its `seen`). */
+const written = new WeakMap<
+  SeenConcepts,
+  Array<{ id: string; kind: string; label: Set<string>; summary: Set<string> }>
+>();
+
+/**
+ * A quick look's 1-3 concepts padded to a set size restate one another under
+ * new words ("Entropia" beside "Entropia termodinâmica"; two summaries of
+ * ΔS = Q/T). On a map that small, nested label words on the same kind, or a
+ * mostly shared summary, is the same concept ("Calcular juros compostos", a
+ * procedure, still applies "Juros compostos"); a full map keeps "Derivada"
+ * and "Derivada parcial" apart, so only a glance is checked. ponytail: word overlap, not
+ * meaning — a Jev "same concept?" question if it misses rewordings.
+ */
+export function restates(
+  seen: SeenConcepts,
+  c: { id: string; kind?: string; label: string; summary?: string },
+): string | null {
+  const mine = {
+    id: c.id,
+    kind: c.kind ?? "",
+    label: words(c.label),
+    summary: words(c.summary),
+  };
+  const prior = written.get(seen) ?? [];
+  const twin = prior.find(
+    (p) =>
+      (p.kind === mine.kind && nests(p.label, mine.label)) ||
+      overlap(p.summary, mine.summary) >= 0.4,
+  );
+  if (twin) return twin.id;
+  written.set(seen, [...prior, mine]);
+  return null;
+}
+
 /** One streamed concept, before layout: its id, its label, and the concepts it
  *  depends on — which must already have been written, so a forward reference is
  *  dropped rather than believed. That one rule is what makes a prerequisite
@@ -68,6 +126,19 @@ export function validateMapConcept(
     : [];
   const kept = claim(seen, id, label);
   if (kept) fail(`duplicate concept "${label}" — already written as "${kept}"`);
+  const twin =
+    goal === "glance"
+      ? restates(seen, {
+          id,
+          label,
+          kind: String(c.kind ?? ""),
+          summary: String(c.summary ?? ""),
+        })
+      : null;
+  if (twin) {
+    seen.set(id, twin).set(slug(label, "label"), twin); // later prereqs fold onto it
+    fail(`duplicate concept "${label}" — already written as "${twin}"`);
+  }
   return {
     id,
     label,
