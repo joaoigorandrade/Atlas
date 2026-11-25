@@ -155,11 +155,18 @@ export function useToast(
         dismissLabel: strings.dismiss,
         action:
           opts.retry && atlas.retryable
-            ? { label: strings.retry, onClick: opts.retry }
+            ? {
+                label: strings.retry,
+                // Retrying answers the error: it must not stay up over the result.
+                onClick: () => {
+                  dismissToast();
+                  opts.retry?.();
+                },
+              }
             : undefined,
       });
     },
-    [postToast, supabase, languageRef],
+    [postToast, dismissToast, supabase, languageRef],
   );
 
   const tc = useCallback(() => TOAST_STRINGS[languageRef.current], [languageRef]);

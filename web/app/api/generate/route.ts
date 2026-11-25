@@ -177,7 +177,10 @@ export async function POST(request: Request) {
   // predictable — and the learner is about to spend half a minute on the
   // placement questions. Fill the frontier behind the response.
   const onPayload = (payload: Record<string, unknown>) => {
+    // Not for a client that warms its own frontier, nor a quick look: its map
+    // opens at once and both clients warm it there, so this only raced them.
     if (job.kind !== "curriculum" || !Array.isArray(payload.nodes)) return;
+    if (body.clientWarms || body.goal === "glance") return;
     // Same derivation the client uses — the map travels as a flat node list and
     // the graph is derived from it on both sides (see `graphFromMapNodes`).
     const graph = graphFromMapNodes(payload.nodes as MapNode[]);

@@ -59,7 +59,7 @@ export function useWarming(deps: {
   warmRetain: () => void;
 }) {
   const { run, gen, display, allFrontier, selectedId, isMap, warmRetain } = deps;
-  const { graph, states, cards, hydrated, phasesDone } = run;
+  const { graph, states, cards, hydrated, phasesDone, consumeCache } = run;
   // A quick look promised minutes: its 1-3 concepts are all walked, in order,
   // so every rung of every one of them is worth having before the first click —
   // locked ones included, or the next stop's reading starts only as it unlocks.
@@ -102,11 +102,23 @@ export function useWarming(deps: {
       // explanation — ask for nothing.
       const kinds: WarmKind[] = node.summary || node.gap ? [] : ["summary"];
       const state = quick && display[id] === "unknown" ? "frontier" : display[id];
-      kinds.push(...warmKindsFor(node, state, phasesDone[id], quick ? Infinity : 2));
+      // Perform's case is cut against the reading this learner got (the server
+      // stamps it as `lesson`): warmed before the reading exists, it ignored it.
+      const ahead = warmKindsFor(node, state, phasesDone[id], quick ? Infinity : 2);
+      kinds.push(...ahead.filter((k) => k !== "perform" || !!consumeCache[node.id]));
       if (kinds.length) targets.push({ node, kinds });
     }
     return targets;
-  }, [hydrated, graph, display, phasesDone, selectedId, allFrontier, quick]);
+  }, [
+    hydrated,
+    graph,
+    display,
+    phasesDone,
+    selectedId,
+    allFrontier,
+    quick,
+    consumeCache,
+  ]);
 
   // A signature over the plan, so the pass runs when the plan really changes
   // rather than on every render that touches the graph.

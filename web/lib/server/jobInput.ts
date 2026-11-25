@@ -29,6 +29,10 @@ export type GenerateKind =
 
 export interface GenerateBody {
   kind: GenerateKind;
+  /** A build from a client that warms its own frontier the moment the map
+   *  lands (the web): the post-build warm would generate the same readings
+   *  alongside it. Never a key input. */
+  clientWarms?: boolean;
   /** The learner's chosen UI language — content comes back in it too.
    *  Defaults to "en" when absent (older clients, or judge calls that predate
    *  this field). Part of the cache key, so en/pt-BR generations never

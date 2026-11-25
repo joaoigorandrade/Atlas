@@ -179,9 +179,8 @@ export interface CurriculumParams {
  * node so far, so `build()` can paint a real (if partial) map instead of
  * waiting on the last edge of the last node.
  *
- * A node can arrive twice: once as it is written, and again in the settling
- * pass that re-centres each column now that its height is known. `collectFrames`
- * replaces by index, so the second arrival patches the first.
+ * A node can arrive twice (re-sent by the settling pass; `collectFrames` replaces by
+ * index). `clientWarms`: this client warms the new frontier itself (route.ts).
  */
 export async function fetchCurriculumMapStream(
   params: CurriculumParams,
@@ -190,7 +189,8 @@ export async function fetchCurriculumMapStream(
   // Replace by index, never append — the settling pass re-sends slots that
   // already landed, and a fresh array each time is what React re-renders on.
   const live: MapNode[] = [];
-  const frames = await fetchStream({ kind: "curriculum", ...params }, (frame) => {
+  const body = { kind: "curriculum", clientWarms: true, ...params };
+  const frames = await fetchStream(body, (frame) => {
     if (frame.p !== "nodes" || !("i" in frame)) return;
     live[frame.i] = frame.v as MapNode;
     onNodes(live.filter((n) => n !== undefined));

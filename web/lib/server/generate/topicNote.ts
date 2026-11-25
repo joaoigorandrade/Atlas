@@ -26,7 +26,7 @@ export function topicNote(p: Boundary): string {
     );
   if (p.quickLook)
     lines.push(
-      `- This is a QUICK LOOK: the learner asked the topic as a question and wants the answer in minutes, not a course. The reading opens on what the thing is FOR — the problem it solves for someone, in one concrete case — before how it works. Every section, example, case and question serves answering that question — no side topics (how the thing is measured, its history, its units) unless the question asks for them, and no calculations unless the question asks for a number or the topic is itself a way of calculating (a formula, a transform, a procedure), where the simplest calculation that shows it IS the answer. A case is an everyday situation described in words.`,
+      `- This is a QUICK LOOK: the learner asked the topic as a question and wants the answer in minutes, not a course. The reading's first paragraph says what the thing is FOR — the problem it solves for someone, in plain words — before how it works, even when a later concept on the map works that use in full (name it, don't teach it). Every section, example, case and question serves answering that question — no side topics (how the thing is measured, its history, its units) unless the question asks for them, and no calculations unless the question asks for a number or the topic is itself a way of calculating (a formula, a transform, a procedure), where the simplest calculation that shows it IS the answer. A case is an everyday situation described in words.`,
     );
   return lines.length ? `\nTHE TOPIC AS A WHOLE:\n${lines.join("\n")}\n` : "";
 }
