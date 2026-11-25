@@ -253,7 +253,7 @@ export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a
  *  domain rows each claim to override the size rule, so this overrides them. */
 const sizeSet = ([lo, hi]: [number, number], goal: GoalKind) =>
   goal === "glance"
-    ? `\nSIZE IS SET: write exactly ${lo} concept${lo > 1 ? "s" : ""}. This overrides every count above, the quick-look rule included.`
+    ? `\nSIZE IS SET: write at most ${lo} concept${lo > 1 ? "s" : ""} — fewer when the topic's distinct ideas run out, never a reworded repeat to reach the count. This overrides every count above, the quick-look rule included.`
     : `\nSIZE IS SET for this topic: ${lo}-${hi} concepts. This overrides every range above, the domain row's included.`;
 
 export const mapRules = (ask: [number, number], goal: GoalKind, sized = false) =>

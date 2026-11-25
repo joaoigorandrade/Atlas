@@ -229,10 +229,10 @@ function buildJob(body: GenerateBody): Job {
         ...(topicAxes(body).target ? { target: topicAxes(body).target } : {}),
         outline: s(body.outline).slice(0, CAPS.outline),
         language,
-        // The map kind's own version, so a map-prompt change never re-bills
-        // every kind through `VERSION`. 2: the "about" header (W1.1, W2.3);
-        // 3: one named chapter maps that chapter; 4: a glance ends on its use.
-        mapV: 4,
+        // The map kind's own version, so a map-prompt change never re-bills every
+        // kind through `VERSION`. 2: "about" header (W1.1); 3: one named chapter
+        // maps that chapter; 4: a glance ends on its use; 5: its size caps, never pads.
+        mapV: 5,
       };
       return {
         kind: "curriculum",

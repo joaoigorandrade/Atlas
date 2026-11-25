@@ -348,8 +348,8 @@ least one. ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`
       // re-space and never cross.
       const node: MapNode = {
         ...item,
-        // Provisional: the neighbour count Connect is rationed on is only known
-        // once the map is whole, so the settling pass resolves it again.
+        // Provisional (Connect's ration needs the whole map); the frame below
+        // carries the goal's plan, or a quick look warms the kind's whole ladder.
         phasePlan: resolvePlan(
           item.kind,
           item.domain,
@@ -364,7 +364,7 @@ least one. ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`
         y: 440 + i * 140,
       };
       accepted.push(node);
-      yield { p: "nodes", i: yielded++, v: node };
+      yield { p: "nodes", i: yielded++, v: withGoalPlan([node], params.goal)[0] };
     }
 
     const laid = layoutMapNodes(await backstopAxes(accepted, params));
