@@ -110,7 +110,7 @@ public struct MapView: View {
                         .lineLimit(1)
                 }
                 if model.switching != nil {
-                    ProgressView().controlSize(.small)
+                    ChartingMark(compact: true)
                 } else if store.maps.count > 1 {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .semibold))

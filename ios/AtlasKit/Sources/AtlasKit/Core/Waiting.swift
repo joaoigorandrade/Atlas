@@ -6,9 +6,10 @@ import SwiftUI
 /// rhythm of a reading, the web of a Connect answer. Screens compose `Waiting`;
 /// the pieces below are what it is made of.
 
-/// The app's own indeterminate wait — three ink dots riding a wave. It is the
-/// beat under every "still working" sentence, and the same one the launch
-/// screen and the two inline "judging" rows wear.
+/// The app's own indeterminate wait — a compass needle seeking north in its
+/// ring, the small cousin of the launch screen's rose (`Engravings.swift`). It
+/// is the beat under every "still working" sentence, and the one the two
+/// inline "judging" rows wear.
 public struct AtlasPulse: View {
     private let tint: Color
     private let size: CGFloat
@@ -19,41 +20,33 @@ public struct AtlasPulse: View {
     }
 
     public var body: some View {
-        let dot = size * 0.27
         Group {
             if reduceMotion {
-                // The wave is the whole animation, so Reduce Motion gets the
-                // dots at rest rather than a slower wave.
-                HStack(spacing: dot * 0.8) {
-                    ForEach(0..<3, id: \.self) { _ in circle(dot, lift: 0, amount: 0.55) }
-                }
+                // The swing is the whole animation, so Reduce Motion gets the
+                // needle at rest, pointing north.
+                needle(0)
             } else {
                 TimelineView(.animation) { context in
-                    let t = context.date.timeIntervalSinceReferenceDate
-                    HStack(spacing: dot * 0.8) {
-                        ForEach(0..<3, id: \.self) { index in
-                            // Each dot is the same swell, a fifth of a turn
-                            // behind the one to its left — a wave travelling
-                            // the row, not three lights blinking together.
-                            let phase = sin((t / 1.05 - Double(index) * 0.16) * 2 * .pi)
-                            let amount = max(0, phase)
-                            circle(dot, lift: -dot * 0.42 * amount, amount: 0.3 + 0.7 * amount)
-                        }
-                    }
+                    needle(Engrave.seek(context.date.timeIntervalSinceReferenceDate, period: 1.8))
                 }
             }
         }
-        .frame(height: size)
+        .frame(width: size, height: size)
         .accessibilityLabel("Carregando")
     }
 
-    private func circle(_ dot: CGFloat, lift: CGFloat, amount: Double) -> some View {
-        Circle()
-            .fill(tint)
-            .frame(width: dot, height: dot)
-            .scaleEffect(0.74 + 0.26 * amount)
-            .opacity(amount)
-            .offset(y: lift)
+    private func needle(_ degrees: Double) -> some View {
+        Canvas { context, canvas in
+            context.scaleBy(x: canvas.width / 20, y: canvas.height / 20)
+            context.stroke(Path(ellipseIn: CGRect(x: 1.4, y: 1.4, width: 17.2, height: 17.2)), with: .color(tint), lineWidth: 1.1)
+            context.translateBy(x: 10, y: 10)
+            context.rotate(by: .degrees(degrees))
+            var north = Path(), south = Path()
+            north.addLines([CGPoint(x: 0, y: -7), CGPoint(x: 2, y: 0), CGPoint(x: -2, y: 0)]); north.closeSubpath()
+            south.addLines([CGPoint(x: 0, y: 7), CGPoint(x: 2, y: 0), CGPoint(x: -2, y: 0)]); south.closeSubpath()
+            context.fill(north, with: .color(tint))
+            context.stroke(south, with: .color(tint), lineWidth: 0.9)
+        }
     }
 }
 
@@ -237,48 +230,6 @@ struct SkeletonWeb: View {
                 with: .color(index == 0 ? Palette.accent.opacity(0.55) : Palette.inkGhost.opacity(0.45 + 0.35 * swell))
             )
         }
-    }
-}
-
-/// The app's own indeterminate bar — a hairline rule with a lit segment
-/// travelling it, brightest at its head. `ProgressView(.linear)` is UIKit's,
-/// and it reads as a system alert in the middle of paper.
-public struct AtlasProgressBar: View {
-    @State private var travelling = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    public init() {}
-    public var body: some View {
-        GeometryReader { geo in
-            Capsule()
-                .fill(Palette.hairline)
-                .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Palette.accent.opacity(0.12), Palette.accent.opacity(0.55),
-                                    Palette.accent,
-                                ],
-                                startPoint: .leading, endPoint: .trailing
-                            )
-                        )
-                        // Under Reduce Motion the segment holds still rather
-                        // than pacing the width for as long as the wait lasts.
-                        .frame(width: geo.size.width * (reduceMotion ? 1 : 0.34))
-                        .opacity(reduceMotion ? 0.35 : 1)
-                        .offset(x: travelling && !reduceMotion ? geo.size.width * 0.66 : 0)
-                        .animation(
-                            reduceMotion
-                                ? nil
-                                : .easeInOut(duration: 1.3).repeatForever(autoreverses: true),
-                            value: travelling
-                        )
-                }
-                .clipShape(Capsule())
-        }
-        .frame(height: 3)
-        .task { travelling = true }
-        .accessibilityHidden(true)
     }
 }
 

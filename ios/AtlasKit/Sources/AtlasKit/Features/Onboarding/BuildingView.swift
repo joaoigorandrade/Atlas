@@ -28,9 +28,9 @@ struct BuildingView: View {
                     .padding(.top, 10)
                     .padding(.bottom, 20)
                 // Indeterminate on purpose: the map's length isn't known until
-                // it ends, and a bar that pretends otherwise stalls at 90%.
-                AtlasProgressBar()
-                    .frame(maxWidth: 260)
+                // it ends, and a bar that pretends otherwise stalls at 90%. A coast
+                // being charted promises the map, not a percentage.
+                ChartingMark()
                 Text(verbatim: count)
                     .font(.atlas(.caps, 12.5))
                     .tracking(0.9)
@@ -42,7 +42,7 @@ struct BuildingView: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 56)
             // VoiceOver gets the count, which is the only honest signal here:
-            // the bar is indeterminate and the numeric transition is visual.
+            // the chart is indeterminate and the numeric transition is visual.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: "\(lines[line]) \(count)"))
             .accessibilityAddTraits(.updatesFrequently)

@@ -1,6 +1,6 @@
 "use client";
 
-import { InkDots, InkRule } from "@/components/Pending";
+import { QuillMark } from "@/components/Engravings";
 import { color, font, kicker, motion } from "@/lib/theme";
 import { usePresence } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
@@ -80,7 +80,7 @@ export default function GeneratingOverlay({
         >
           {message}
         </div>
-        <InkRule />
+        <QuillMark />
         <div
           style={{
             marginTop: 14,
@@ -96,7 +96,6 @@ export default function GeneratingOverlay({
           }}
         >
           {t.generating}
-          <InkDots size={3} />
         </div>
         {slow && (
           <div style={{ marginTop: 12, fontSize: 14, color: color.inkMuted }}>

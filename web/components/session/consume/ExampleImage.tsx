@@ -1,5 +1,6 @@
 "use client";
 
+import { QuillMark } from "@/components/Engravings";
 import { useState } from "react";
 import { BLUE } from "./shared";
 import { ConsumeExample } from "@/lib/curriculum";
@@ -80,11 +81,14 @@ export function ExampleImage({ example }: { example: ConsumeExample }) {
         style={{
           ...frame,
           display: "grid",
-          placeItems: "center",
+          placeContent: "center",
+          gap: 10,
           fontSize: 13,
           color: color.inkGhost,
+          textAlign: "center",
         }}
       >
+        <QuillMark width={110} />
         {t.drawing}
       </div>
     );

@@ -127,7 +127,7 @@ public struct RootView: View {
             Text(verbatim: "Atlas")
                 .font(.atlas(.display, 34))
                 .foregroundStyle(Palette.ink)
-            AtlasPulse(tint: Palette.inkGhost, size: 16)
+            CompassRose(size: 72)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .paper()

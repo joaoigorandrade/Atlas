@@ -4,8 +4,9 @@ import { color, motion } from "@/lib/theme";
 import { useReducedMotion } from "@/lib/motion";
 
 /**
- * The app's one loading mark: three ink dots keeping time. Sits inline in
- * buttons and captions wherever work is in flight.
+ * The app's inline loading mark: a compass needle seeking north in its ring.
+ * Sits in buttons and captions wherever work is in flight — the small cousin
+ * of the compass rose on the boot screen (components/Engravings.tsx).
  */
 export function InkDots({
   size = 4,
@@ -14,29 +15,26 @@ export function InkDots({
   size?: number;
   tone?: string;
 }) {
+  const box = size * 3.5;
   return (
-    <span
+    <svg
       aria-hidden
-      style={{
-        display: "inline-flex",
-        gap: size,
-        alignItems: "center",
-        verticalAlign: "middle",
-      }}
+      width={box}
+      height={box}
+      viewBox="0 0 20 20"
+      style={{ display: "inline-block", verticalAlign: "middle" }}
     >
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: "50%",
-            background: tone,
-            animation: `inkDot 1.2s ${(i * 0.16).toFixed(2)}s ease-in-out infinite`,
-          }}
-        />
-      ))}
-    </span>
+      <circle cx={10} cy={10} r={8.6} fill="none" stroke={tone} strokeWidth={1.1} />
+      <g
+        style={{
+          transformOrigin: "10px 10px",
+          animation: "needleSeek 1.8s ease-out infinite both",
+        }}
+      >
+        <path d="M10 3L12 10H8Z" fill={tone} />
+        <path d="M10 17L12 10H8Z" fill="none" stroke={tone} strokeWidth={0.9} />
+      </g>
+    </svg>
   );
 }
 

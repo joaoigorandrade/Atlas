@@ -358,7 +358,7 @@ public struct HomeView: View {
                             .foregroundStyle(Palette.ink)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                        if model.switching == map.id { ProgressView().controlSize(.mini) }
+                        if model.switching == map.id { AtlasPulse(size: 14) }
                     }
                     .padding(.bottom, 14)
                     ProgressBar(value: map.mastered).padding(.bottom, 9)

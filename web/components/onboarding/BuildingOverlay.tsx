@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { InkRule } from "@/components/Pending";
+import { ChartingMark } from "@/components/Engravings";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 
@@ -68,7 +68,7 @@ export default function BuildingOverlay({ note }: { note?: string | null }) {
         >
           {t.body[line]}
         </div>
-        <InkRule width={260} />
+        <ChartingMark width={260} />
         {note && (
           <div
             role="status"
