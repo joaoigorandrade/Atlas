@@ -7,6 +7,7 @@
 // run report is ordered as a run and marks where it broke. On a first run the
 // step names (never their results) are shown up front; re-runs hide them.
 
+import { useEffect, useRef } from "react";
 import KbdHint from "@/components/ui/KbdHint";
 import {
   PERFORM_COLOR,
@@ -49,6 +50,24 @@ const STRINGS = {
   },
 } as const;
 
+/** The run's small uppercase mono labels. */
+const mono = (fontSize: number, letterSpacing: string, ink: string) =>
+  ({ fontFamily: font.mono, fontSize, letterSpacing, textTransform: "uppercase", color: ink }) as const;
+
+/** A report button: filled when it is the move the run calls for. */
+const action = (strong: boolean, accent: string) =>
+  ({
+    flex: "1 1 auto",
+    padding: "15px 18px",
+    background: strong ? accent : color.card,
+    color: strong ? color.accentInk : color.inkMuted,
+    border: strong ? "none" : `1px solid ${color.hairlineStrong}`,
+    borderRadius: 3,
+    fontSize: 15,
+    fontWeight: strong ? 600 : 400,
+    cursor: "pointer",
+  }) as const;
+
 export default function PerformView({
   title,
   plan,
@@ -86,6 +105,24 @@ export default function PerformView({
   const missed = performSkipped(session, content);
   // One fix in place per case; after that a failure gets a new case.
   const canFix = session.reported && !passed && !session.fixing;
+  const field = useRef<HTMLTextAreaElement>(null);
+
+  // Fixing lands on the line the report quoted — no new information, just
+  // no hunting for it. Falls back to the end when the quote isn't verbatim.
+  const fixingKey = session.reported ? "" : (session.fixing ?? []).join("\n");
+  useEffect(() => {
+    const el = field.current;
+    if (!fixingKey || !el) return;
+    const step = content.steps.find((s) => s.step === fixingKey.split("\n")[0]);
+    const quote = (step && session.quotes[step.id]) || "";
+    const at = quote ? el.value.indexOf(quote) : -1;
+    el.focus({ preventScroll: true });
+    if (at >= 0) el.setSelectionRange(at, at + quote.length);
+    else el.setSelectionRange(el.value.length, el.value.length);
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    // Once per fix: the quote and work are read at the moment it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixingKey]);
 
   return (
     <PhaseShell
@@ -97,18 +134,7 @@ export default function PerformView({
       lang={lang}
       onExit={onExit}
     >
-      <div
-        style={{
-          fontFamily: font.mono,
-          fontSize: 10.5,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: color.inkFaint,
-          marginBottom: 14,
-        }}
-      >
-        {copy.lead}
-      </div>
+      <div style={{ ...mono(10.5, "0.14em", color.inkFaint), marginBottom: 14 }}>{copy.lead}</div>
 
       {/* The case stays on screen for the whole run — this is not a memory test. */}
       <div
@@ -166,6 +192,7 @@ export default function PerformView({
             {copy.yourWork}
           </div>
           <textarea
+            ref={field}
             data-testid="field-answer"
             value={session.work}
             disabled={busy}
@@ -257,18 +284,7 @@ export default function PerformView({
 
       {session.reported && (
         <div style={{ marginTop: 26, animation: "fadeUp .4s both" }}>
-          <div
-            style={{
-              fontFamily: font.mono,
-              fontSize: 10.5,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: accent,
-              marginBottom: 14,
-            }}
-          >
-            {t.report}
-          </div>
+          <div style={{ ...mono(10.5, "0.14em", accent), marginBottom: 14 }}>{t.report}</div>
 
           {/* Ordered as a run, numbered as a run. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -288,55 +304,23 @@ export default function PerformView({
                     borderLeft: `3px solid ${VERDICT_COLOR[verdict]}`,
                   }}
                 >
-                  <span
-                    style={{
-                      fontFamily: font.mono,
-                      fontSize: 12,
-                      color: color.inkGhost,
-                      marginTop: 2,
-                    }}
-                  >
+                  <span style={{ fontFamily: font.mono, fontSize: 12, color: color.inkGhost, marginTop: 2 }}>
                     {i + 1}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14.5 }}>
                       {step.step}
                       {step.loadBearing && (
-                        <span
-                          style={{
-                            marginLeft: 8,
-                            fontFamily: font.mono,
-                            fontSize: 9.5,
-                            letterSpacing: "0.1em",
-                            textTransform: "uppercase",
-                            color: color.inkGhost,
-                          }}
-                        >
+                        <span style={{ ...mono(9.5, "0.1em", color.inkGhost), marginLeft: 8 }}>
                           {t.loadBearing}
                         </span>
                       )}
                     </div>
-                    <div
-                      style={{
-                        fontFamily: font.mono,
-                        fontSize: 10,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: VERDICT_COLOR[verdict],
-                        marginTop: 3,
-                      }}
-                    >
+                    <div style={{ ...mono(10, "0.08em", VERDICT_COLOR[verdict]), marginTop: 3 }}>
                       {verdictLabel(verdict, lang)}
                     </div>
                     {session.quotes[step.id] && (
-                      <div
-                        style={{
-                          marginTop: 6,
-                          fontFamily: font.mono,
-                          fontSize: 13,
-                          color: color.inkMuted,
-                        }}
-                      >
+                      <div style={{ marginTop: 6, fontFamily: font.mono, fontSize: 13, color: color.inkMuted }}>
                         {session.quotes[step.id]}
                       </div>
                     )}
@@ -366,43 +350,29 @@ export default function PerformView({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          {/* A failed run leads with fixing or re-running: staying on the
+              case is the move, leaving is the alternative. Nothing is
+              pressable until the checker has finished its read. */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 20 }}>
             <button
               className="at-press"
               data-testid="action-finish"
               onClick={onAdvance}
-              style={{
-                flex: 1,
-                padding: 15,
-                background: passed ? color.accent : color.card,
-                color: passed ? color.accentInk : color.ink,
-                border: passed ? "none" : `1px solid ${color.hairlineStrong}`,
-                borderRadius: 3,
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
+              disabled={session.pending}
+              style={action(passed, color.accent)}
             >
               {t.advance}
             </button>
             <button
               className="at-press"
               data-testid={canFix ? "action-fix" : "action-rerun"}
+              disabled={session.pending}
               onClick={() =>
                 canFix
                   ? onFix((broken.length ? broken : missed).map((s) => s.step))
                   : onRerun()
               }
-              style={{
-                flex: "0 0 auto",
-                padding: "15px 18px",
-                background: color.card,
-                border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 3,
-                fontSize: 14,
-                color: color.inkMuted,
-                cursor: "pointer",
-              }}
+              style={action(!passed, accent)}
             >
               {canFix ? copy.fix : copy.rerun}
             </button>

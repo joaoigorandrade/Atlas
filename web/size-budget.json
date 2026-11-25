@@ -17,7 +17,7 @@
     "components/session/ConsumeView.tsx": 1145,
     "components/session/CrucibleView.tsx": 763,
     "components/session/FeynmanView.tsx": 1235,
-    "components/session/PerformView.tsx": 408,
+    "components/session/PerformView.tsx": 401,
     "components/session/RecallView.tsx": 413,
     "components/session/RetainCard.tsx": 450,
     "components/session/SocraticView.tsx": 452,

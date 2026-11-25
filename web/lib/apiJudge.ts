@@ -191,8 +191,9 @@ export function fetchJudgePerform(
     language?: Language;
   },
   onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
+  onDraft?: (draft: Partial<FeynmanJudgement>) => void,
 ): Promise<FeynmanJudgement> {
-  return judge({ kind: "judge", mode: "perform", ...params }, onVerdict);
+  return judge({ kind: "judge", mode: "perform", ...params }, onVerdict, onDraft);
 }
 
 /** Rules BOTH cases of a contested question in one call — the phase's standard

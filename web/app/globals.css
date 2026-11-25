@@ -38,6 +38,15 @@ textarea {
   font-family: inherit;
 }
 
+/* iOS Safari zooms the page into any field under 16px on focus, and the zoom
+   stays after blur. Fields set their sizes inline, so only !important wins. */
+@media (pointer: coarse) {
+  input,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Focus is removed only for pointer interaction — keyboard focus keeps a ring.
    Nothing in the app had one before; inline styles can't express the selector. */
 :focus:not(:focus-visible) {

@@ -21,7 +21,7 @@ import {
   type PerformSession,
   type TeachVerdict,
 } from "@/lib/curriculum";
-import { fetchJudgePerform } from "@/lib/api";
+import { fetchJudgePerform, type FeynmanJudgement } from "@/lib/api";
 import { dropParked, parkedSession } from "@/components/atlas/phaseParking";
 import type { Language } from "@/lib/i18n";
 import type { Screen } from "@/components/atlas/screen";
@@ -128,7 +128,8 @@ export function usePerform(deps: {
     if (!content || !node) return;
     setJudging(true);
     dispatchPerform({ type: "pending" });
-    fetchJudgePerform({
+    fetchJudgePerform(
+      {
       topic: formRef.current.topic,
       nodeLabel: node.label,
       task: content.task,
@@ -138,24 +139,40 @@ export function usePerform(deps: {
       })),
       answer: cur.work,
       language: languageRef.current,
-    })
-      .then((j) => {
-        const ran: Record<string, TeachVerdict> = {};
-        const quotes: Record<string, string> = {};
-        for (const row of j.verdicts) {
-          const st = content.steps[row.i];
-          if (!st) continue;
-          ran[st.id] = row.verdict;
-          if (row.quote) quotes[st.id] = row.quote;
-        }
-        dispatchPerform({ type: "report", response: j.response, ran, quotes });
+    },
+      // The verdicts stream first: the report opens on them while the
+      // checker's comment is still being written, instead of after it.
+      (partial) => {
+        if (partial.verdicts?.length)
+          dispatchPerform({ type: "report", response: "", pending: true, ...byStep(partial.verdicts) });
+      },
+      (draft) => {
+        if (draft.response) dispatchPerform({ type: "stream", text: draft.response });
+      },
+    )
+      .then((j) => dispatchPerform({ type: "report", response: j.response, ...byStep(j.verdicts) }))
+      .catch((err: unknown) => {
+        // Settle first: a stream that died mid-comment must not leave the
+        // pass pending, which is what parking waits on.
+        setPerform((p) => (p?.pending ? { ...p, pending: false } : p));
+        showError(err, { context: "judge", retry: () => performSubmitRef.current?.() });
       })
-      .catch((err: unknown) =>
-        showError(err, { context: "judge", retry: () => performSubmitRef.current?.() }),
-      )
       .finally(() => setJudging(false));
+
+    function byStep(rows: FeynmanJudgement["verdicts"]) {
+      const ran: Record<string, TeachVerdict> = {};
+      const quotes: Record<string, string> = {};
+      for (const row of rows) {
+        const st = content!.steps[row.i];
+        if (!st) continue;
+        ran[st.id] = row.verdict;
+        if (row.quote) quotes[st.id] = row.quote;
+      }
+      return { ran, quotes };
+    }
   };
   const performSubmitRef = useRef(performSubmit);
+  const rerunningRef = useRef(false);
   performSubmitRef.current = performSubmit;
 
   const leaveTo = (nodeId: string | undefined) => {
@@ -199,23 +216,27 @@ export function usePerform(deps: {
     const cur = performRef.current;
     const node = cur && graphRef.current.nodes.find((n) => n.id === cur.nodeId);
     const content = cur && performCacheRef.current[cur.nodeId];
-    if (!cur || !node || !content) return;
+    // A second tap would log a second failed attempt and start a second case.
+    if (!cur || !node || !content || rerunningRef.current) return;
+    rerunningRef.current = true;
     const previous = performBroken(cur, content).map((s) => s.step);
     // The loader keeps a node's first case; this one replaces it.
     const open = (fresh: PerformContent) => {
       setPerformCache((p) => ({ ...p, [node.id]: fresh }));
       setPerform({ ...performStart(node.id), previous });
     };
-    void postAttempt({ nodeId: node.id, phase: "perform", passed: false }).then(() =>
-      generate(
-        warmKey("perform", node.id),
-        phaseLabel("perform"),
-        tc().settingCase(node.label),
-        () => loadPerform(node),
-        open,
-        true,
-      ),
-    );
+    void postAttempt({ nodeId: node.id, phase: "perform", passed: false })
+      .then(() =>
+        generate(
+          warmKey("perform", node.id),
+          phaseLabel("perform"),
+          tc().settingCase(node.label),
+          () => loadPerform(node),
+          open,
+          true,
+        ),
+      )
+      .finally(() => (rerunningRef.current = false));
   };
 
   const exitPerform = () => leaveTo(performRef.current?.nodeId);

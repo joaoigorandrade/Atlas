@@ -87,7 +87,11 @@ export type PerformAction =
       response: string;
       ran: Record<string, TeachVerdict>;
       quotes: Record<string, string>;
+      /** True on the streamed verdict frame: the report shows while the
+       *  checker's comment is still being written. */
+      pending?: boolean;
     }
+  | { type: "stream"; text: string }
   | { type: "fix"; steps: string[] }
   | { type: "rerun" };
 
@@ -105,14 +109,17 @@ export function performReducer(
     case "report":
       return {
         ...session,
-        pending: false,
+        pending: !!action.pending,
         reported: true,
         response: action.response,
         ran: action.ran,
         quotes: action.quotes,
       };
+    case "stream":
+      return { ...session, response: action.text };
     // Fixing keeps the case and the work, and clears the report: the learner
-    // corrects the broken steps and submits again.
+    // corrects the broken steps and submits again. The quotes stay so the view
+    // can put the cursor on the line the report already pointed at.
     case "fix":
       return {
         ...session,
@@ -120,7 +127,6 @@ export function performReducer(
         reported: false,
         response: "",
         ran: {},
-        quotes: {},
         fixing: action.steps,
       };
     // A re-run keeps the case and clears the work: running it again is the

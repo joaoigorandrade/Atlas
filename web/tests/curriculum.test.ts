@@ -1833,6 +1833,22 @@ describe("perform", () => {
     expect(fixing.fixing).toEqual(["two"]);
   });
 
+  it("fixing keeps the quotes so the view can land on the broken line", () => {
+    const failed = { ...reported({ s2: "confused" }), quotes: { s2: "x = 4" } };
+    expect(performReducer(failed, { type: "fix", steps: ["two"] }).quotes).toEqual({ s2: "x = 4" });
+  });
+
+  it("opens the report on the streamed verdicts and settles on the final one", () => {
+    const ran = { s1: "good" as const };
+    let s = performReducer({ ...performStart("n"), work: "w" }, { type: "pending" });
+    s = performReducer(s, { type: "report", response: "", pending: true, ran, quotes: {} });
+    expect(s.reported && s.pending).toBe(true);
+    s = performReducer(s, { type: "stream", text: "half" });
+    expect(s.response).toBe("half");
+    s = performReducer(s, { type: "report", response: "whole", ran, quotes: {} });
+    expect(s).toMatchObject({ reported: true, pending: false, response: "whole" });
+  });
+
   it("re-running clears the work and keeps the case", () => {
     const again = performReducer(reported({ s1: "good" }), { type: "rerun" });
     expect(again).toEqual(performStart("n"));

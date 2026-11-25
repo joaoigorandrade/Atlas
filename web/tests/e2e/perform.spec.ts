@@ -63,6 +63,11 @@ test("perform: a re-run asks for a new case and quotes where the last one broke"
   await sheet.getByTestId("field-answer").fill("Step one holds, so step two applies.");
   await sheet.getByTestId("action-submit").click();
   await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
+  // One fix in place per case: the first failure offers it, the second only a
+  // new case.
+  await sheet.getByTestId("action-fix").click();
+  await sheet.getByTestId("action-submit").click();
+  await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
 
   const fetched = page.waitForRequest(
     (r) => r.url().includes("/api/generate") && r.postDataJSON()?.kind === "perform",
@@ -71,4 +76,26 @@ test("perform: a re-run asks for a new case and quotes where the last one broke"
   await fetched;
   await expect(sheet.getByText(/Last run broke at/)).toBeVisible();
   await expect(sheet.getByTestId("field-answer")).toHaveValue("");
+});
+
+test("perform: a failed run leads with the fix, and the fix lands in the work", async ({ page }) => {
+  await openRun(page, {
+    "worked-cases": { state: "learning", phases_done: ["consume", "trace", "feynman"] },
+    "core-rule": "mastered",
+    foundations: "mastered",
+    notation: "mastered",
+  });
+  await openPhase(page, "worked-cases", "perform");
+  const sheet = page.getByTestId("phase-perform");
+  await sheet.getByTestId("field-answer").fill("Step one holds, so step two applies.");
+  await sheet.getByTestId("action-submit").click();
+  await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
+
+  // The fixture fails the run, so staying on the case is the filled button.
+  const fix = sheet.getByTestId("action-fix");
+  await expect(fix).toHaveCSS("font-weight", "600");
+  await expect(sheet.getByTestId("action-finish")).toHaveCSS("font-weight", "400");
+  await fix.click();
+  await expect(sheet.getByTestId("field-answer")).toBeFocused();
+  await expect(sheet.getByTestId("field-answer")).toHaveValue("Step one holds, so step two applies.");
 });
