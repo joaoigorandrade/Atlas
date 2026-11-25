@@ -9,7 +9,7 @@ import { sectionText } from "@/lib/curriculum";
 import { clampCell } from "@/lib/curriculum/cells";
 import { logEvent } from "@/lib/log";
 import { choice, decide, noul, sureChoice, sureNoul, type Answer } from "../decide";
-import { KIND_RULE } from "./mapPrompt";
+import { KIND_RULE, type MapParams } from "./mapPrompt";
 
 // ---- 2. blind-solve verification --------------------------------------------
 
@@ -218,4 +218,62 @@ export async function placeInContinent(
   );
   const pick = sureChoice(a?.continent);
   return pick && pick !== "none" ? continents[Number(pick)]?.id : undefined;
+}
+
+// ---- 11. map size -----------------------------------------------------------
+
+const GLANCE_SIZE = {
+  "1": "The question is one idea: its direct answer is the whole of it.",
+  "2": "The answer plus one concept that deepens or applies it, without which the answer stays hollow.",
+  "3": "The answer genuinely has separate parts a newcomer needs before using it once.",
+};
+const MAP_SIZE = {
+  "5-7": "One technique or one mechanism.",
+  "8-11": "A focused subtopic with a few connected ideas.",
+  "12-16": "A standard course unit.",
+  "17-24": "A broad field with several branches a learner must cross.",
+  "25-36": "A very wide span: a language's competencies, centuries of history.",
+};
+
+/** The concept-count band Jev is sure of, else undefined and the prompt's own
+ *  band stands. Pareto is sized by its share and a named part by its sections. */
+export async function sizeMap(
+  p: Pick<MapParams, "topic" | "goal" | "outline" | "neighbours" | "part">,
+): Promise<[number, number] | undefined> {
+  if (p.goal === "pareto" || p.part) return undefined;
+  const glance = p.goal === "glance";
+  const a = await decide(
+    glance
+      ? {
+          learners_question: p.topic,
+          mode: "a quick first look: know what it is and use it once",
+        }
+      : {
+          topic: p.topic,
+          learner_goal: p.goal,
+          ...(p.outline?.trim() ? { outline: p.outline.trim().slice(0, 2000) } : null),
+          ...(p.neighbours?.length ? { neighbouring_maps: p.neighbours } : null),
+        },
+    {
+      size: glance
+        ? choice(
+            "How many concepts does the SHORTEST map need that answers what the learner asked, so they can understand it and try it once?",
+            GLANCE_SIZE,
+          )
+        : choice(
+            "How many DISTINCT concepts must a learner cross to reach this goal on exactly this topic? Count the separate ideas it genuinely holds, not a syllabus quota.",
+            MAP_SIZE,
+          ),
+    },
+    "map-size",
+  );
+  // ponytail: top pick, not `sureChoice` — Jev's confidence on an ordinal
+  // size rarely clears SURE (live: P(1)=.43 at confidence .14), and a wrong
+  // size costs one node either way since the validator band stays wide.
+  const size = a?.size;
+  const pick = size?.type === "choice" ? size.choice : undefined;
+  if (!pick) return undefined;
+  const [lo, hi = lo] = pick.split("-").map(Number);
+  logEvent("map_size", { topic: p.topic, goal: p.goal, band: pick });
+  return [lo, hi];
 }

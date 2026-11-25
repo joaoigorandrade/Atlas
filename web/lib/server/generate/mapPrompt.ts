@@ -249,7 +249,14 @@ For this goal, every node's importance/difficulty pair must be one of: ${pairs}.
  *  teach the gist rather than restate the label. */
 export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a learner who has never met this concept what it actually is and what it lets them do — concrete and specific to this topic. Never restate the label ("Gradient Descent is about gradient descent"), never describe the concept's role in the map or its difficulty, never start with "This concept".`;
 
-export const mapRules = (ask: [number, number], goal: GoalKind) =>
+/** Jev's size pick (`sizeMap`) is the last word: the quick-look hint and the
+ *  domain rows each claim to override the size rule, so this overrides them. */
+const sizeSet = ([lo, hi]: [number, number], goal: GoalKind) =>
+  goal === "glance"
+    ? `\nSIZE IS SET: write exactly ${lo} concept${lo > 1 ? "s" : ""}. This overrides every count above, the quick-look rule included.`
+    : `\nSIZE IS SET for this topic: ${lo}-${hi} concepts. This overrides every range above, the domain row's included.`;
+
+export const mapRules = (ask: [number, number], goal: GoalKind, sized = false) =>
   `Rules: labels are 1-3 words, capitalized the way the output language capitalizes a heading — English title case, but sentence case in languages that do not title-case (pt-BR: "Reações dependentes da luz", never "Reações Dependentes Da Luz"). ${SUMMARY_RULE}
 ${KIND_RULE}
 ${DOMAIN_RULE}
@@ -267,4 +274,4 @@ ${sizeRule({
 A prerequisite edge means "B cannot be UNDERSTOOD without A" — never "A came earlier" or "A is usually taught first". Concepts that do not need each other are siblings, not a chain.
 The map must read left-to-right from true foundations to the topic's capstone ideas. Every node is a CONCEPT the learner can be taught and then tested on — never a chapter heading or a container: no "Introduction", "Overview", "Fundamentals", "Advanced Topics", "Applications", "Conclusion". Each concept appears ONCE: never write it again under a reworded label or a synonym ("Ministério Galileu" and "Ministério na Galileia" are one node) — when the distinct concepts run out, stop. Ids are plain ASCII kebab-case, accents dropped ("joao-batista").
 
-${DOMAIN_MAP_RULE}`;
+${DOMAIN_MAP_RULE}${sized ? sizeSet(ask, goal) : ""}`;

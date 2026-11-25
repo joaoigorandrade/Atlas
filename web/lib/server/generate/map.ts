@@ -23,7 +23,15 @@ import {
   type MapMeta,
 } from "@/lib/curriculum";
 import { noteChain, withSyllabus } from "./mapSyllabus";
-import { backstopAxes } from "./jev";
+import { backstopAxes, sizeMap } from "./jev";
+
+/** The request's band, its asked range narrowed to Jev's pick when it is sure.
+ *  The validator bounds stay wide, so a wrong pick can never fail a map. */
+async function sizedBounds(params: MapParams) {
+  const bounds = boundsFor(params);
+  const ask = await sizeMap(params);
+  return ask ? { bounds: { ...bounds, ask }, sized: true } : { bounds, sized: false };
+}
 import {
   claim,
   inherit,
@@ -230,7 +238,7 @@ export async function generateMap(
 ): Promise<CurriculumMapPayload | { scopes: ScopeOffer[] }> {
   params = await withSyllabus(params);
   const { language = "en" } = params;
-  const bounds = boundsFor(params);
+  const { bounds, sized } = await sizedBounds(params);
   const raw = await generateJson<
     | { scopes: ScopeOffer[] }
     | { nodes: RawConcept[]; edges: ConceptEdge[]; meta?: MapMeta }
@@ -241,7 +249,7 @@ export async function generateMap(
 Otherwise return JSON:
 ${graphShape(bounds.ask)}
 
-${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
+${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`,
     ),
     (r) => {
       const scopes = validateScopeOffer(r);
@@ -277,7 +285,7 @@ ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
 export async function* generateMapStream(params: MapParams): AsyncGenerator<StreamFrame> {
   params = await withSyllabus(params);
   const { language = "en" } = params;
-  const bounds = boundsFor(params);
+  const { bounds, sized } = await sizedBounds(params);
   let yielded = 0;
   try {
     const seen: SeenConcepts = new Map();
@@ -310,7 +318,7 @@ written above it. Each object has this shape:
 ${NODE_SHAPE.slice(0, -1)}, "prereqs": ["ids of concepts already written above"]}
 
 "prereqs" is empty only for true foundations — every other concept names at
-least one. ${mapRules(bounds.ask, params.goal)}${languageNote(language)}`,
+least one. ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`,
       ),
       (raw, index) => {
         // The too-broad answer is a single object and comes before any
