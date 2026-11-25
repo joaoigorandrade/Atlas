@@ -54,6 +54,10 @@ struct PerformView: View {
     private func run(_ content: PerformContent, _ model: PerformViewModel) -> some View {
         @Bindable var model = model
         return VStack(spacing: 0) {
+            // The brief scrolls on its own above the editor: with the figure,
+            // the steps and the nudge it outgrows a phone, and the editor must
+            // not sit inside a scroll (`AnswerEditor`'s `fills`).
+            ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Kicker("O caso", tint: Palette.performInk)
                 // The whole brief, with its real values. What is graded is what
@@ -65,6 +69,8 @@ struct PerformView: View {
                     .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 10)
+
+                ExampleImage(task: content.task).id(content.task).padding(.top, 12)
 
                 if !model.previous.isEmpty {
                     Text("Um caso novo. A última execução quebrou em: \(model.previous.joined(separator: " · ")).")
@@ -108,11 +114,21 @@ struct PerformView: View {
                         .padding(.top, 14)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Metrics.gutter)
+            .padding(.top, 18)
+            .padding(.bottom, 8)
+            }
+            .scrollBounceBehavior(.basedOnSize)
 
+            VStack(alignment: .leading, spacing: 0) {
                 AnswerEditor(text: $model.work,
                              placeholder: String(localized: "Resolva — mostre cada passo e o que ele produz…"),
-                             dictation: model.dictation, fills: true, tint: Palette.performInk)
-                    .padding(.top, 16)
+                             dictation: model.dictation, minHeight: 150, tint: Palette.performInk)
+                    // `TextEditor` takes every point it is offered; the brief
+                    // above is what the learner reads while writing.
+                    .frame(maxHeight: 220)
 
                 if !model.message.isEmpty {
                     Text(verbatim: model.message)
@@ -124,7 +140,6 @@ struct PerformView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Metrics.gutter)
-            .padding(.top, 18)
             .padding(.bottom, 12)
 
             Dock {
@@ -152,29 +167,41 @@ struct PerformView: View {
                         .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
-                    // The two failures, said apart. A wrong result is a failed
-                    // run of that step; a load-bearing step nobody carried out
-                    // is a run that never happened.
-                    if !model.broken.isEmpty {
-                        Text("A execução quebra num passo. Resultado errado é passo falhado.")
+                    // The two failures, said apart — and only on a run that
+                    // failed: a pass may leave a step or two out.
+                    if !model.passed, !model.pending {
+                        Text(model.broken.isEmpty
+                             ? "Falta muito da execução."
+                             : "A execução quebra num passo. Resultado errado é passo falhado.")
                             .font(.atlas(.serif, 15))
                             .foregroundStyle(Palette.amberInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
-                    } else if !model.skipped.isEmpty {
-                        Text("Falta muito da execução.")
-                            .font(.atlas(.serif, 15))
-                            .foregroundStyle(Palette.amberInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 10)
+                        if model.broken.isEmpty, !model.skipped.isEmpty {
+                            Text(verbatim: model.skipped.map(\.step).joined(separator: " · "))
+                                .font(.atlas(.serif, 14))
+                                .foregroundStyle(Palette.inkGhost)
+                                .padding(.top, 4)
+                        }
                     }
-                    if !model.response.isEmpty {
-                        Text(verbatim: model.response)
-                            .font(.atlas(.serif, 16.5))
-                            .lineSpacing(5)
-                            .foregroundStyle(Palette.inkSoft)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 16)
+                    // The verdicts land first; the checker's comment types in
+                    // under them (the web's `StreamingText`).
+                    if model.pending || !model.response.isEmpty {
+                        Group {
+                            if model.response.isEmpty {
+                                AtlasPulse(tint: Palette.performInk)
+                            } else {
+                                Text(verbatim: model.response)
+                                    .font(.atlas(.serif, 16.5))
+                                    .lineSpacing(5)
+                                    .foregroundStyle(Palette.inkSoft)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .boxed(Palette.performBg, border: Palette.performBorder, radius: Metrics.panelRadius)
+                        .padding(.top, 16)
                     }
 
                     VStack(spacing: 2) {
@@ -187,16 +214,22 @@ struct PerformView: View {
                 .padding(.top, 20)
                 .padding(.bottom, 24)
             }
+            // A failed run leads with fixing or re-running: staying on the case
+            // is the move, leaving the alternative. Nothing is pressable until
+            // the checker has finished its read.
             Dock {
-                CTAButton(model.handOffLabel, tint: model.handOffTint) { model.advance() }
-                if model.canFix {
-                    GhostButton("Corrigir neste caso") { model.fix() }
-                } else {
+                if model.passed {
+                    CTAButton(model.handOffLabel, tint: model.handOffTint) { model.advance() }
                     GhostButton("Executar de novo") { model.rerun() }
+                } else {
+                    CTAButton(model.canFix ? "Corrigir neste caso →" : "Executar de novo →",
+                              tint: Palette.performInk) { model.canFix ? model.fix() : model.rerun() }
+                    GhostButton(model.handOffLabel) { model.advance() }
                 }
             }
+            .disabled(model.pending)
         }
-        .sensoryFeedback(model.passed ? .success : .warning, trigger: model.reported)
+        .sensoryFeedback(model.passed ? .success : .warning, trigger: model.pending == false && model.reported)
     }
 
     private func row(_ step: PerformStep, _ model: PerformViewModel) -> some View {

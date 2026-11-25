@@ -86,7 +86,7 @@ public final class OnboardingViewModel {
     /// The run has been handed to the store. `finish()` is reachable from more
     /// than one dock button, and the second call must not upsert a second time
     /// over a run the learner has already started working in.
-    private var committed = false
+    public private(set) var committed = false
     /// A set, not a list: the pool filter below asks it once per node on the
     /// map, after every answer.
     private var asked: Set<String> = []
@@ -128,6 +128,51 @@ public final class OnboardingViewModel {
     }
 
     public var masteryGoal: GoalKind { store.goal == .glance ? .exam : store.goal }
+
+    // MARK: - A source to ground the map (`outlineUpload.ts`)
+
+    /// What the source row says: reading, grounded, or nothing attached.
+    public private(set) var sourceNote: String?
+    public private(set) var readingSource = false
+    private var reading: Task<Void, Never>?
+
+    /// Read a picked file and hand its text to the map prompt, in either mode.
+    public func attach(_ url: URL) {
+        // A re-pick must not ground the map in the old source while the new
+        // one is still being read.
+        reading?.cancel()
+        form.outline = nil
+        let name = url.lastPathComponent
+        sourceNote = String(localized: "Lendo \(name)…")
+        readingSource = true
+        message = ""
+        reading = Task {
+            defer { readingSource = false }
+            do {
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                let text = try await store.api.extract(try Data(contentsOf: url), name: name)
+                guard !Task.isCancelled else { return }
+                form.outline = text
+                sourceNote = String(localized: "Baseado em \(name) ✓ — o mapa vai seguir esse roteiro")
+            } catch {
+                guard !Task.isCancelled else { return }
+                sourceNote = nil
+                message = Self.sourceSentence(error)
+            }
+        }
+    }
+
+    private static func sourceSentence(_ error: Error) -> String {
+        switch (error as? AtlasError)?.reason {
+        case "file_too_big": String(localized: "Esse arquivo passa de 10 MB — corte para as páginas do sumário e tente de novo.")
+        case "unsupported_type": String(localized: "Só PDF ou texto simples — ou cole o sumário direto como seu tópico.")
+        case "no_text": String(localized: "Nenhum texto nesse arquivo — um PDF escaneado é só imagem. O tópico digitado ainda funciona.")
+        default: (error as? AtlasError) == nil
+            ? String(localized: "Não deu para ler esse arquivo — o tópico digitado ainda funciona.")
+            : ErrorCopy.sentence(for: error, doing: String(localized: "ler esse arquivo"))
+        }
+    }
 
     /// Minimum time the assembly beat plays. A floor, not a target: SPEC §2
     /// calls it a deliberate "this is mine" moment, not a spinner to minimise.

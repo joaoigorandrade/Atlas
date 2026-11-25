@@ -545,6 +545,8 @@ public extension AtlasStore {
     /// finishing what is started — then the frontier in goal order. Empty
     /// until one of them has a written reading with a card left in it.
     var feedReady: [String] {
+        // A quick look promised no test, so it deals no feed.
+        guard goal != .glance else { return [] }
         let begun = graph.nodes.filter { display[$0.id] == .learning && consumeProgress[$0.id] != nil }
         let order = (begun + frontier).map(\.id)
         let (cache, progress) = feedInputs(order)

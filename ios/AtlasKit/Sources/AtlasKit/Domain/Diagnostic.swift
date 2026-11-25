@@ -49,6 +49,8 @@ public struct OnboardingForm: Sendable {
     /// name predates that and is kept for the wire. "" = not set, so the pace
     /// surface shows no countdown instead of a fabricated one.
     public var examDate = ""
+    /// Text extracted from a source the learner attached; the map follows it.
+    public var outline: String?
 
     public init() {}
 }

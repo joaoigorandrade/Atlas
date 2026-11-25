@@ -116,6 +116,15 @@ public struct RootView: View {
         // machine rebuilt rather than the finished one re-shown.
         .onChange(of: store.graph.nodes.isEmpty) { _, empty in
             if empty { launch.restartOnboarding(store) }
+            // "Direto para o mapa": a quick look that just built opens on it.
+            else if launch.onboarding?.committed == true, store.goal == .glance {
+                tabs.switchTab(to: .map)
+            }
+        }
+        // A quick look warms every rung of every stop, whichever screen is
+        // open — the web's warm pass runs regardless of screen too.
+        .task(id: store.goal == .glance ? "\(store.topicId ?? "")·\(store.graph.nodes.count)" : "") {
+            if store.goal == .glance, !store.graph.nodes.isEmpty { store.warmQuickLook() }
         }
     }
 

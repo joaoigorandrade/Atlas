@@ -20,6 +20,26 @@ enum AtlasEndpoint {
             .bearer(token)
     }
 
+    /// The figure for a worked example or a Perform case, drawn on a tap.
+    static func exampleImage(_ prompt: String, token: String?) throws -> HTTPRequestData {
+        try HTTPRequestData(path: "api/example-image", method: .post)
+            .jsonBody(["prompt": prompt])
+            .bearer(token)
+    }
+
+    /// A source to ground a map in (#30): one PDF or text file as multipart
+    /// `file`, its extracted text back.
+    static func extract(_ file: Data, name: String, token: String?) -> HTTPRequestData {
+        let boundary = "atlas-\(UUID().uuidString)"
+        let safeName = name.replacingOccurrences(of: "\"", with: "")
+        var body = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(safeName)\"\r\nContent-Type: application/octet-stream\r\n\r\n".utf8)
+        body.append(file)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        return HTTPRequestData(path: "api/extract", method: .post)
+            .body(body, contentType: "multipart/form-data; boundary=\(boundary)")
+            .bearer(token)
+    }
+
     /// Delete the account and every row behind it. No body — the bearer is the
     /// whole request.
     static func deleteAccount(token: String?) -> HTTPRequestData {

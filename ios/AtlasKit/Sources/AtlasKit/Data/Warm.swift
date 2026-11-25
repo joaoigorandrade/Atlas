@@ -566,6 +566,25 @@ public extension AtlasStore {
         }
     }
 
+    /// A quick look's 1-3 stops are all walked, in order, so every rung of
+    /// every one is warmed up front — locked ones included (`useWarming`'s
+    /// `quick`). Perform waits on its node's reading: the server cuts its case
+    /// against the lesson this learner got.
+    func warmQuickLook() {
+        let topic = topicId
+        for node in graph.nodes {
+            let done = phasesDone[node.id] ?? []
+            for phase in planGates(node.plan) where !done.contains(phase) && phase != .consume && phase != .perform {
+                warmUp(phase, for: node)
+            }
+            Task {
+                _ = await bearer()
+                guard topicId == topic, await consume(node) == nil, !done.contains(.perform) else { return }
+                warmUp(.perform, for: node)
+            }
+        }
+    }
+
     // MARK: - Retain
 
     /// The day's cards for the nodes that have none. A card factory, not a

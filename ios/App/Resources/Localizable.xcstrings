@@ -1,12 +1,42 @@
 {
   "sourceLanguage" : "pt-BR",
   "strings" : {
-    "Corrigir neste caso" : {
+    "Corrigir neste caso →" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fix it on this case"
+            "value" : "Fix it on this case →"
+          }
+        }
+      }
+    },
+    "Desenhando a figura…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drawing the figure…"
+          }
+        }
+      }
+    },
+    "Ver figura" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show figure"
+          }
+        }
+      }
+    },
+    "Executar de novo →" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run it again →"
           }
         }
       }
@@ -8473,13 +8503,162 @@
         }
       }
     },
-    "Um tema, uma ementa colada…" : {
-      "extractionState" : "stale",
+    "Lendo %@…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A topic, a pasted syllabus…"
+            "value" : "Reading %@…"
+          }
+        }
+      }
+    },
+    "Baseado em %@ ✓ — o mapa vai seguir esse roteiro" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grounded in %@ ✓ — the map will follow its outline"
+          }
+        }
+      }
+    },
+    "Esse arquivo passa de 10 MB — corte para as páginas do sumário e tente de novo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That file is over 10 MB — trim it to the contents pages and try again."
+          }
+        }
+      }
+    },
+    "Só PDF ou texto simples — ou cole o sumário direto como seu tópico." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF or plain text only — or paste the contents straight in as your topic."
+          }
+        }
+      }
+    },
+    "Nenhum texto nesse arquivo — um PDF escaneado é só imagem. O tópico digitado ainda funciona." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No text in that file — a scanned PDF is only images. The typed topic still works."
+          }
+        }
+      }
+    },
+    "Não deu para ler esse arquivo — o tópico digitado ainda funciona." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read that file — the typed topic still works."
+          }
+        }
+      }
+    },
+    "ler esse arquivo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "read that file"
+          }
+        }
+      }
+    },
+    "Um tema, uma pergunta, algo de que você sempre ouve falar…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A topic, a question, a thing you keep hearing about…"
+          }
+        }
+      }
+    },
+    "PDF ou ementa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF or outline"
+          }
+        }
+      }
+    },
+    "trocar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "replace"
+          }
+        }
+      }
+    },
+    "+ Adicionar fonte" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+ Add a source"
+          }
+        }
+      }
+    },
+    "Experimente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try"
+          }
+        }
+      }
+    },
+    "Como as vacinas treinam o sistema imune" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How vaccines train the immune system"
+          }
+        }
+      }
+    },
+    "Pensamento bayesiano" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bayesian thinking"
+          }
+        }
+      }
+    },
+    "A queda da República Romana" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The fall of the Roman Republic"
+          }
+        }
+      }
+    },
+    "Teoria musical para violonistas" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Music theory for guitarists"
           }
         }
       }

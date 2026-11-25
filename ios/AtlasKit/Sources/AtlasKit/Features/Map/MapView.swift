@@ -62,6 +62,7 @@ public struct MapView: View {
         // The whole frontier: a hit is a local read from the mirror, then a
         // shared-cache read, and only a genuine miss reaches a model.
         .task(id: store.frontier.map(\.id).joined()) {
+            guard store.goal != .glance else { return } // warmed from the shell
             // The head of each frontier node's *own* plan — the day a ladder
             // starts elsewhere this warms the phase the node actually opens on.
             for node in store.frontier {

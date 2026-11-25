@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Screen 5 — Boas-vindas. A topic and how far to take it. "Só quero saber" is
 /// the default and asks nothing more — a 1-3 stop map on the quick ladder,
@@ -7,6 +8,7 @@ import SwiftUI
 struct WelcomeView: View {
     @Bindable var onboarding: OnboardingViewModel
     @FocusState private var editing: Bool
+    @State private var pickingSource = false
     /// At an accessibility size the labels are longer than any fixed column, so
     /// both option groups halve their columns rather than truncate.
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -77,10 +79,9 @@ struct WelcomeView: View {
             .dismissesKeyboardOnTap()
 
             Dock {
-                CTAButton(quick ? "Me mostre →" : "Montar meu mapa →", hero: true) {
-                    editing = false
-                    onboarding.buildMap()
-                }
+                CTAButton(quick ? "Me mostre →" : "Montar meu mapa →", hero: true) { build() }
+                    // The web keeps it disabled until there is a topic.
+                    .disabled(onboarding.form.topic.trimmed.isEmpty)
                 Group {
                     if quick {
                         Text("Direto para o mapa — sem nivelamento, nada para configurar")
@@ -167,22 +168,113 @@ struct WelcomeView: View {
 
     // MARK: - Pieces
 
+    /// The one field for *what* (`TopicComposer`): the topic, and a source to
+    /// ground it in either mode. Return builds; while empty, a few starts.
     private var topicField: some View {
-        TextField("Um tema, uma ementa colada…", text: $onboarding.form.topic, axis: .vertical)
-            .font(.atlas(.display, 20))
-            .foregroundStyle(Palette.ink)
-            .focused($editing)
-            .submitLabel(.done)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 16)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(spacing: 0) {
+                TextField("Um tema, uma pergunta, algo de que você sempre ouve falar…",
+                          text: $onboarding.form.topic, axis: .vertical)
+                    .font(.atlas(.display, 20))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(3...)
+                    .focused($editing)
+                    .submitLabel(.go)
+                    .onSubmit { if !onboarding.form.topic.trimmed.isEmpty { build() } }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 16)
+                    // A vertical field takes Return as a newline; the web's
+                    // Enter builds, so a typed trailing newline does here.
+                    .onChange(of: onboarding.form.topic) { old, new in
+                        guard new.hasSuffix("\n"), new.dropLast() == old else { return }
+                        onboarding.form.topic = old
+                        if !old.trimmed.isEmpty { build() }
+                    }
+                Rectangle().fill(Palette.hairline).frame(height: 1)
+                sourceRow
+            }
             .background(Palette.card, in: .rect(cornerRadius: 3))
             .overlay {
                 RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
             }
             .shadow(color: Palette.shade(0.05), radius: 9, y: 4)
-        // ponytail: no PDF/ementa upload — it needs a document picker and a
-        // multipart POST to /api/extract. Add it when a learner actually has a
-        // syllabus on their phone.
+
+            if onboarding.form.topic.trimmed.isEmpty { starters }
+        }
+        .fileImporter(isPresented: $pickingSource,
+                      allowedContentTypes: [.pdf, .plainText, UTType(filenameExtension: "md") ?? .plainText]) { result in
+            if case .success(let url) = result { onboarding.attach(url) }
+        }
+    }
+
+    private var sourceRow: some View {
+        HStack(spacing: 10) {
+            if let note = onboarding.sourceNote {
+                Text(verbatim: note)
+                    .font(.atlas(.serif, 13.5))
+                    .foregroundStyle(Palette.accent)
+                    .padding(.horizontal, 9).padding(.vertical, 3)
+                    .background(Palette.accentBg, in: .rect(cornerRadius: 3))
+                if onboarding.readingSource {
+                    ProgressView().controlSize(.small).tint(Palette.accent)
+                } else {
+                    Button("trocar") { pickingSource = true }
+                        .font(.atlas(.sans, 12.5))
+                        .underline()
+                        .foregroundStyle(Palette.inkSoft)
+                        .frame(minHeight: Metrics.tap)
+                }
+            } else {
+                Button { pickingSource = true } label: {
+                    Text("+ Adicionar fonte")
+                        .font(.atlas(.sans, 12.5))
+                        .foregroundStyle(Palette.inkSoft)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 3).strokeBorder(Palette.hairlineStrong, lineWidth: 1)
+                        }
+                        .frame(minHeight: Metrics.tap)
+                }
+                .pressable()
+                Text("PDF ou ementa")
+                    .font(.atlas(.serif, 13))
+                    .foregroundStyle(Palette.inkFaint)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: Metrics.tap + 8)
+    }
+
+    /// Starting points while the field is empty — the web's "Experimente".
+    private var starters: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Kicker("Experimente", size: 11)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(starterTopics, id: \.key) { example in
+                    Button { onboarding.form.topic = String(localized: example) } label: {
+                        Text(example)
+                            .font(.atlas(.serif, 14))
+                            .foregroundStyle(Palette.inkSoft)
+                            .padding(.horizontal, 12).padding(.vertical, 5)
+                            .background(Palette.chipBg, in: .capsule)
+                    }
+                    .pressable()
+                }
+            }
+        }
+    }
+
+    private let starterTopics: [LocalizedStringResource] = [
+        "Como as vacinas treinam o sistema imune",
+        "Pensamento bayesiano",
+        "A queda da República Romana",
+        "Teoria musical para violonistas",
+    ]
+
+    private func build() {
+        editing = false
+        onboarding.buildMap()
     }
 
     /// The topic was a continent, not a map: pick a territory (#30).

@@ -42,6 +42,8 @@ public enum AltKey: String, Codable, Sendable, CaseIterable, Identifiable {
 public struct ConsumeExample: Decodable, Sendable {
     public let title: String
     public let steps: [String]
+    /// The pass's hint for the example's figure, when it wrote one.
+    public let visual: String?
 }
 
 /// A schematic figure: labelled boxes wired by directed arrows.

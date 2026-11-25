@@ -206,7 +206,8 @@ final class ConsumeViewModel {
     /// The section's check comes first, before its prose (W3.3): once, and only
     /// on a section never answered either way nor read while being written.
     var pretesting: Bool {
-        guard let chunk, chunk.settled, chunk.check != nil else { return false }
+        // Nothing on a quick look is pretested: it promised no test.
+        guard let chunk, chunk.settled, chunk.check != nil, session.store.goal != .glance else { return false }
         return guesses[chunk.id] == nil && !passedChecks.contains(chunk.id)
             && !readBare.contains(chunk.id)
     }

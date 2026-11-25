@@ -135,6 +135,16 @@ struct ConsumeView: View {
     @ViewBuilder
     private func section(_ chunk: ConsumeChunk, _ model: ConsumeViewModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            // A quick look opens on its question: the topic over the concept,
+            // as the web's phone reading does (`goal === "glance"`).
+            if store.goal == .glance, model.index == 0 {
+                Kicker(verbatim: store.subject, size: 11)
+                Text(verbatim: model.node.label)
+                    .font(.atlas(.display, 32))
+                    .foregroundStyle(Palette.ink)
+                    .padding(.top, 8)
+                    .padding(.bottom, 18)
+            }
             Kicker(verbatim: chunk.kicker)
             // The section's check comes first (W3.3); the prose waits behind it.
             if model.pretesting, let check = chunk.check {
@@ -181,6 +191,7 @@ struct ConsumeView: View {
             if let example = chunk.example {
                 Kicker("Exemplo").padding(.top, 22)
                 Text(Markdown.rich(example.title)).font(.atlas(.serif, 17)).foregroundStyle(Palette.ink).padding(.top, 8)
+                if chunk.settled { ExampleImage(example: example).padding(.top, 10) }
                 ForEach(Array(example.steps.enumerated()), id: \.offset) { step, text in
                     HStack(alignment: .top, spacing: 10) {
                         Text(verbatim: "\(step + 1)").font(.atlas(.caps, 12.5)).foregroundStyle(Palette.inkFaint)

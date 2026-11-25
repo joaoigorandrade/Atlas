@@ -172,6 +172,7 @@ public actor AtlasAPI {
             "language": .string(language),
         ]
         if form.goal == .pareto { context["paretoPct"] = .number(Double(form.paretoPct)) }
+        if let outline = form.outline { context["outline"] = .string(outline) }
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -397,9 +398,14 @@ public actor AtlasAPI {
     /// lands first and the critique is written into the same slot after it —
     /// so the answer is the *last* complete frame, never the first.
     ///
-    /// ponytail: the screen waits for that last frame rather than painting the
-    /// draft. Feed the partials through if the wait ever reads as a hang.
-    public func judge<T: Decodable & Sendable>(_ mode: String, _ context: [String: JSONValue]) async throws -> T {
+    ///
+    /// `onDraft` sees every judgement frame as it lands — the verdict prefix
+    /// first, then the critique being written — for a screen that paints the
+    /// report while it is still arriving (Perform, as the web's `judge` does).
+    public func judge<T: Decodable & Sendable>(
+        _ mode: String, _ context: [String: JSONValue],
+        onDraft: (@Sendable (JSONValue) async -> Void)? = nil
+    ) async throws -> T {
         var body = context
         body["mode"] = .string(mode)
         await refresh()
@@ -411,7 +417,9 @@ public actor AtlasAPI {
         // keep the last one that does, the same way the list collector above
         // does. Decoding it with `try` failed every Socratic, Feynman and
         // Crucible answer with "we couldn't grade your answer".
-        for try await frame in stream("judge", body) where frame.p == "judgement" && frame.partial != true {
+        for try await frame in stream("judge", body) where frame.p == "judgement" {
+            if let onDraft { await onDraft(frame.v) }
+            guard frame.partial != true else { continue }
             verdict = (try? frame.v.decode(T.self)) ?? verdict
         }
         guard let verdict else {
@@ -456,6 +464,23 @@ public actor AtlasAPI {
     public func deleteAccount() async throws {
         await refresh()
         _ = try await send(AtlasEndpoint.deleteAccount(token: accessToken))
+    }
+
+    /// The text of a source file the map prompt is grounded in (`/api/extract`).
+    public func extract(_ file: Data, name: String) async throws -> String {
+        struct Extracted: Decodable { let text: String }
+        await refresh()
+        let response = try await send(AtlasEndpoint.extract(file, name: name, token: accessToken))
+        return try JSONDecoder().decode(Extracted.self, from: response.data).text
+    }
+
+    /// A signed URL for a figure drawn from `prompt` (`/api/example-image`).
+    /// Billed per draw and cached per learner on the server.
+    public func exampleImage(_ prompt: String) async throws -> URL {
+        struct Drawn: Decodable { let url: URL }
+        await refresh()
+        let response = try await send(try AtlasEndpoint.exampleImage(prompt, token: accessToken))
+        return try JSONDecoder().decode(Drawn.self, from: response.data).url
     }
 
     // MARK: - Read-aloud
