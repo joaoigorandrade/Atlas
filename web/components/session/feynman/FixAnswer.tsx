@@ -14,6 +14,7 @@ import { fetchJudgeFeynman } from "@/lib/api";
 import { MicButton } from "@/components/VoiceInput";
 import { useLanguage, useT } from "@/lib/i18n";
 import { color } from "@/lib/theme";
+import { InkDots } from "@/components/Pending";
 
 const STRINGS = {
   en: {
@@ -114,7 +115,13 @@ export default function FixAnswer({
           color: judging || !text.trim() ? color.inkGhost : color.accentInk,
         }}
       >
-        {judging ? t.reading : t.submit}
+        {judging ? (
+          <>
+            <InkDots size={3.5} /> {t.reading}
+          </>
+        ) : (
+          t.submit
+        )}
       </button>
       {error && (
         <div style={{ marginTop: 8, fontSize: 12.5, color: color.amberInk }}>

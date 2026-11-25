@@ -19,6 +19,7 @@ import {
 } from "@/lib/curriculum";
 import { useT } from "@/lib/i18n";
 import { color, font } from "@/lib/theme";
+import { InkDots } from "@/components/Pending";
 
 const STRINGS = {
   en: {
@@ -82,7 +83,15 @@ export default function LinkConfirm({
           boxShadow: linked || !ready ? "none" : `0 8px 20px ${glow}`,
         }}
       >
-        {judging ? t.checking : linked ? t.update : t.confirm}
+        {judging ? (
+          <>
+            <InkDots size={3.5} /> {t.checking}
+          </>
+        ) : linked ? (
+          t.update
+        ) : (
+          t.confirm
+        )}
       </button>
       {ruling && ruling.verdict !== "true" && (
         <div

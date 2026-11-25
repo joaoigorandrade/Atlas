@@ -13,6 +13,7 @@ import { useLanguage } from "@/lib/i18n";
 import { color, font, kicker } from "@/lib/theme";
 import { STATE_COLOR, type RetainSession } from "@/lib/curriculum";
 import { MicButton } from "@/components/VoiceInput";
+import { InkDots } from "@/components/Pending";
 
 const STRINGS = {
   en: {
@@ -90,7 +91,15 @@ export function Suggestion({ session }: { session: RetainSession }) {
       }}
     >
       <div style={{ ...kicker(9.5, "0.1em"), color: tint, marginBottom: 3 }}>
-        {!s ? t.judging : s.grade === "good" ? t.came : t.missed}
+        {!s ? (
+          <>
+            <InkDots size={3} tone={tint} /> {t.judging}
+          </>
+        ) : s.grade === "good" ? (
+          t.came
+        ) : (
+          t.missed
+        )}
       </div>
       <div style={{ fontStyle: "italic" }}>“{session.said}”</div>
       {s?.read && <div style={{ marginTop: 3 }}>{s.read}</div>}

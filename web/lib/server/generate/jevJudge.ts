@@ -31,7 +31,7 @@ export async function decideChoice(p: {
     },
     {
       index: choice(
-        "Which candidate does the learner's answer actually express — what they SAID, not what they should have said? Match on meaning, not wording: the same quantity in another unit or notation is the same answer; a candidate that only shares their words while meaning something else is not.",
+        "Which candidate does the learner's answer actually express — what they SAID, not what they should have said? Match on meaning, not wording: the same quantity in another unit or notation is the same answer; a candidate that only shares their words while meaning something else is not, and neither is one whose part the question explicitly asks for (a condition, a unit, a second quantity) the answer leaves out.",
         {
           ...Object.fromEntries(p.options.map((o, i) => [String(i), o])),
           none: NONE,

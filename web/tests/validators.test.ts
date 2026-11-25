@@ -12,6 +12,7 @@ import {
   validateMapConcept,
   RETAIN_CARD_BOUNDS,
   retainCardBounds,
+  retainNodes,
   validateRetain,
   validateScopeOffer,
   validateSocratic,
@@ -918,6 +919,19 @@ describe("retainCardBounds", () => {
     expect(retainCardBounds(1)).toEqual({ min: 1, max: 2 });
     expect(retainCardBounds(2)).toEqual({ min: 1, max: 3 });
     expect(retainCardBounds(30)).toEqual({ min: 7, max: 8 });
+  });
+});
+
+describe("retainNodes", () => {
+  it("keys a node without ideas exactly as before, and caps the ideas", () => {
+    const plain = { id: "a", label: "A", state: "learning", summary: "s" };
+    expect(retainNodes([plain, { id: 1 }], 40)).toEqual([plain]);
+    const [n] = retainNodes(
+      [{ ...plain, takeaways: ["x", 3, " ", "y", "z", "w", "v"] }],
+      40,
+    );
+    expect(n.takeaways).toEqual(["x", "y", "z", "w"]);
+    expect(retainNodes([{ ...plain, takeaways: [] }], 40)[0]).toEqual(plain);
   });
 });
 

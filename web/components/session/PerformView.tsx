@@ -27,32 +27,7 @@ import { MicButton } from "@/components/VoiceInput";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { color, font, kicker } from "@/lib/theme";
-import { useLanguage, useT } from "@/lib/i18n";
-
-const STRINGS = {
-  en: {
-    submit: "Submit the run →",
-    stuck: "Where do I start?",
-    report: "The run",
-    advance: "Continue →",
-    hint: "⌘↵ to submit",
-    judging: "Checking your work…",
-    loadBearing: "load-bearing",
-  },
-  "pt-BR": {
-    submit: "Enviar a execução →",
-    stuck: "Por onde começo?",
-    report: "A execução",
-    advance: "Continuar →",
-    hint: "⌘↵ para enviar",
-    judging: "Conferindo sua execução…",
-    loadBearing: "essencial",
-  },
-} as const;
-
-/** The run's small uppercase mono labels. */
-const mono = (fontSize: number, letterSpacing: string, ink: string) =>
-  ({ fontFamily: font.mono, fontSize, letterSpacing, textTransform: "uppercase", color: ink }) as const;
+import { useLanguage } from "@/lib/i18n";
 
 /** A report button: filled when it is the move the run calls for. */
 const action = (strong: boolean, accent: string) =>
@@ -95,7 +70,6 @@ export default function PerformView({
   onFix: (steps: string[]) => void;
   onAdvance: () => void;
 }) {
-  const t = useT(STRINGS);
   const lang = useLanguage().language;
   const copy = performCopy(lang);
   const { accent, soft, border } = PERFORM_COLOR;
@@ -134,7 +108,9 @@ export default function PerformView({
       lang={lang}
       onExit={onExit}
     >
-      <div style={{ ...mono(10.5, "0.14em", color.inkFaint), marginBottom: 14 }}>{copy.lead}</div>
+      <div style={{ ...kicker(10.5, "0.14em", color.inkFaint), marginBottom: 14 }}>
+        {copy.lead}
+      </div>
 
       {/* The case stays on screen for the whole run — this is not a memory test. */}
       <div
@@ -146,12 +122,7 @@ export default function PerformView({
           border: `1px solid ${border}`,
         }}
       >
-        <div
-          style={{
-            ...kicker(10, "0.12em", color.inkGhost),
-            marginBottom: 8,
-          }}
-        >
+        <div style={{ ...kicker(10, "0.12em", color.inkGhost), marginBottom: 8 }}>
           {copy.theCase}
         </div>
         <div style={{ fontFamily: font.serif, fontSize: 17, lineHeight: 1.5 }}>
@@ -163,7 +134,10 @@ export default function PerformView({
           </div>
         ) : null}
         {session.fixing?.length && !session.reported ? (
-          <div data-testid="perform-fixing" style={{ marginTop: 10, fontSize: 14, color: color.amberInk }}>
+          <div
+            data-testid="perform-fixing"
+            style={{ marginTop: 10, fontSize: 14, color: color.amberInk }}
+          >
             {copy.fixing(session.fixing.join(" · "))}
           </div>
         ) : null}
@@ -172,7 +146,9 @@ export default function PerformView({
             <div style={{ ...kicker(10, "0.12em", color.inkGhost), marginBottom: 6 }}>
               {copy.steps}
             </div>
-            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14.5, color: color.inkSoft }}>
+            <ol
+              style={{ margin: 0, paddingLeft: 20, fontSize: 14.5, color: color.inkSoft }}
+            >
               {content.steps.map((s) => (
                 <li key={s.id}>{s.step}</li>
               ))}
@@ -183,12 +159,7 @@ export default function PerformView({
 
       {!session.reported && (
         <div style={{ marginTop: 22 }}>
-          <div
-            style={{
-              ...kicker(10, "0.1em", color.inkGhost),
-              marginBottom: 9,
-            }}
-          >
+          <div style={{ ...kicker(10, "0.1em", color.inkGhost), marginBottom: 9 }}>
             {copy.yourWork}
           </div>
           <textarea
@@ -203,7 +174,7 @@ export default function PerformView({
                 if (session.work.trim() && !busy) onSubmit();
               }
             }}
-            placeholder={busy ? t.judging : copy.placeholder}
+            placeholder={busy ? copy.judging : copy.placeholder}
             rows={12}
             style={{
               width: "100%",
@@ -256,7 +227,7 @@ export default function PerformView({
                 cursor: busy || !session.work.trim() ? "default" : "pointer",
               }}
             >
-              {busy ? <InkDots size={3.5} /> : t.submit}
+              {busy ? <InkDots size={3.5} /> : copy.submit}
             </button>
             {!session.nudged && (
               <button
@@ -274,17 +245,19 @@ export default function PerformView({
                   cursor: "pointer",
                 }}
               >
-                {t.stuck}
+                {copy.stuck}
               </button>
             )}
-            <KbdHint>{t.hint}</KbdHint>
+            <KbdHint>{copy.hint}</KbdHint>
           </div>
         </div>
       )}
 
       {session.reported && (
         <div style={{ marginTop: 26, animation: "fadeUp .4s both" }}>
-          <div style={{ ...mono(10.5, "0.14em", accent), marginBottom: 14 }}>{t.report}</div>
+          <div style={{ ...kicker(10.5, "0.14em", accent), marginBottom: 14 }}>
+            {copy.report}
+          </div>
 
           {/* Ordered as a run, numbered as a run. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -304,23 +277,41 @@ export default function PerformView({
                     borderLeft: `3px solid ${VERDICT_COLOR[verdict]}`,
                   }}
                 >
-                  <span style={{ fontFamily: font.mono, fontSize: 12, color: color.inkGhost, marginTop: 2 }}>
+                  <span style={{ ...kicker(12, "0", color.inkGhost), marginTop: 2 }}>
                     {i + 1}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14.5 }}>
                       {step.step}
                       {step.loadBearing && (
-                        <span style={{ ...mono(9.5, "0.1em", color.inkGhost), marginLeft: 8 }}>
-                          {t.loadBearing}
+                        <span
+                          style={{
+                            ...kicker(9.5, "0.1em", color.inkGhost),
+                            marginLeft: 8,
+                          }}
+                        >
+                          {copy.loadBearing}
                         </span>
                       )}
                     </div>
-                    <div style={{ ...mono(10, "0.08em", VERDICT_COLOR[verdict]), marginTop: 3 }}>
+                    <div
+                      style={{
+                        ...kicker(10, "0.08em", VERDICT_COLOR[verdict]),
+                        marginTop: 3,
+                      }}
+                    >
                       {verdictLabel(verdict, lang)}
                     </div>
                     {session.quotes[step.id] && (
-                      <div style={{ marginTop: 6, fontFamily: font.mono, fontSize: 13, color: color.inkMuted }}>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontFamily: font.serif,
+                          fontStyle: "italic",
+                          fontSize: 14,
+                          color: color.inkMuted,
+                        }}
+                      >
                         {session.quotes[step.id]}
                       </div>
                     )}
@@ -361,7 +352,7 @@ export default function PerformView({
               disabled={session.pending}
               style={action(passed, color.accent)}
             >
-              {t.advance}
+              {copy.advance}
             </button>
             <button
               className="at-press"

@@ -4,7 +4,12 @@ import { FIXTURE_USER_ID, fixtureSupabase } from "@/lib/server/fixtures";
 import { resetTables } from "@/lib/server/fixtureTables";
 import { resolveJob } from "@/lib/server/job";
 import { frontierWarmBody } from "@/lib/server/afterBuild";
-import { applyNodeDeltas, createTopic, withNodeCell } from "@/lib/server/store";
+import {
+  applyNodeDeltas,
+  createTopic,
+  withNodeCell,
+  withTopicAxes,
+} from "@/lib/server/store";
 import type { ConceptGraph } from "@/lib/curriculum";
 
 // The cell reaches every per-node prompt, so it is a cache-key axis — and the
@@ -64,7 +69,6 @@ describe("withNodeCell", () => {
       { kind: "curriculum", topic: "Calculus", interests: "", language: "en" },
       graph,
       graph.nodes[1],
-      "consume",
     );
     const click = await withNodeCell(db(), { ...warm, topicId: topic.id });
     expect(resolveJob(click).key).toBe(resolveJob(warm).key);
@@ -72,6 +76,29 @@ describe("withNodeCell", () => {
     expect(resolveJob(click).key).not.toBe(
       resolveJob({ ...warm, importance: undefined, nodeDifficulty: undefined }).key,
     );
+  });
+
+  it("keys a quick look's warm with the axes its click is stamped with", async () => {
+    // Prod: the warm carried no `quickLook`, the click did, so every glance
+    // map's first reading was generated twice.
+    const topic = await createTopic(db(), FIXTURE_USER_ID, {
+      subject: "Laplace",
+      goal: "glance",
+    });
+    await applyNodeDeltas(db(), FIXTURE_USER_ID, topic.id, graph.nodes);
+    const bare = frontierWarmBody(
+      { kind: "curriculum", topic: "Laplace", interests: "", language: "en" },
+      graph,
+      graph.nodes[1],
+    );
+    const warm = await withTopicAxes(db(), { ...bare, topicId: topic.id });
+    const click = await withNodeCell(
+      db(),
+      await withTopicAxes(db(), { ...bare, topicId: topic.id }),
+    );
+    expect(warm.quickLook).toBe(true);
+    expect(resolveJob(warm).key).toBe(resolveJob(click).key);
+    expect(resolveJob(bare).key).not.toBe(resolveJob(click).key);
   });
 });
 

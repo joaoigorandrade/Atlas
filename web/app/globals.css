@@ -795,6 +795,9 @@ html[data-turn="back"]::view-transition-new(root) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* Tighter, so the phase name survives beside the back link and an action. */
+    font-size: 11.5px !important;
+    letter-spacing: 0.05em !important;
   }
   /* The right slot keeps its controls; a breadcrumb or count drops. */
   .at-mast-end {
@@ -860,6 +863,11 @@ html[data-turn="back"]::view-transition-new(root) {
     padding: 22px 18px calc(22px + env(safe-area-inset-bottom)) !important;
     box-shadow: 0 -10px 28px rgba(var(--shade), 0.14);
     overscroll-behavior: contain;
+  }
+  /* The map's invite sits at the chart's foot, which the open sheet covers. */
+  .at-node-panel:not([data-node=""]) ~ .at-map-invite {
+    bottom: calc(56dvh + 10px) !important;
+    z-index: 16 !important;
   }
   /* The detail is the only drawer: on a phone it rises instead of sliding. */
   @keyframes drawerIn {

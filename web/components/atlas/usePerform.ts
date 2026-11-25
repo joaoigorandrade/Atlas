@@ -130,27 +130,34 @@ export function usePerform(deps: {
     dispatchPerform({ type: "pending" });
     fetchJudgePerform(
       {
-      topic: formRef.current.topic,
-      nodeLabel: node.label,
-      task: content.task,
-      rubric: content.steps.map((st) => ({
-        subPoint: st.step,
-        mustConvey: st.mustShow,
-      })),
-      answer: cur.work,
-      language: languageRef.current,
-    },
+        topic: formRef.current.topic,
+        nodeLabel: node.label,
+        task: content.task,
+        rubric: content.steps.map((st) => ({
+          subPoint: st.step,
+          mustConvey: st.mustShow,
+        })),
+        answer: cur.work,
+        language: languageRef.current,
+      },
       // The verdicts stream first: the report opens on them while the
       // checker's comment is still being written, instead of after it.
       (partial) => {
         if (partial.verdicts?.length)
-          dispatchPerform({ type: "report", response: "", pending: true, ...byStep(partial.verdicts) });
+          dispatchPerform({
+            type: "report",
+            response: "",
+            pending: true,
+            ...byStep(partial.verdicts),
+          });
       },
       (draft) => {
         if (draft.response) dispatchPerform({ type: "stream", text: draft.response });
       },
     )
-      .then((j) => dispatchPerform({ type: "report", response: j.response, ...byStep(j.verdicts) }))
+      .then((j) =>
+        dispatchPerform({ type: "report", response: j.response, ...byStep(j.verdicts) }),
+      )
       .catch((err: unknown) => {
         // Settle first: a stream that died mid-comment must not leave the
         // pass pending, which is what parking waits on.

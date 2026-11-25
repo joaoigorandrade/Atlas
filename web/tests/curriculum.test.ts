@@ -1825,7 +1825,11 @@ describe("perform", () => {
   });
 
   it("fixing keeps the work, clears the report, and remembers what broke", () => {
-    const failed = { ...reported({ s1: "good", s2: "confused" }), work: "my run", response: "r" };
+    const failed = {
+      ...reported({ s1: "good", s2: "confused" }),
+      work: "my run",
+      response: "r",
+    };
     const fixing = performReducer(failed, { type: "fix", steps: ["two"] });
     expect(fixing.work).toBe("my run");
     expect(fixing.reported).toBe(false);
@@ -1835,13 +1839,21 @@ describe("perform", () => {
 
   it("fixing keeps the quotes so the view can land on the broken line", () => {
     const failed = { ...reported({ s2: "confused" }), quotes: { s2: "x = 4" } };
-    expect(performReducer(failed, { type: "fix", steps: ["two"] }).quotes).toEqual({ s2: "x = 4" });
+    expect(performReducer(failed, { type: "fix", steps: ["two"] }).quotes).toEqual({
+      s2: "x = 4",
+    });
   });
 
   it("opens the report on the streamed verdicts and settles on the final one", () => {
     const ran = { s1: "good" as const };
     let s = performReducer({ ...performStart("n"), work: "w" }, { type: "pending" });
-    s = performReducer(s, { type: "report", response: "", pending: true, ran, quotes: {} });
+    s = performReducer(s, {
+      type: "report",
+      response: "",
+      pending: true,
+      ran,
+      quotes: {},
+    });
     expect(s.reported && s.pending).toBe(true);
     s = performReducer(s, { type: "stream", text: "half" });
     expect(s.response).toBe("half");

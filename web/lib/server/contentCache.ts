@@ -75,9 +75,12 @@ const VERSION = process.env.CONTENT_CACHE_VERSION || "13";
  *
  * 2: the learning-structure rewrite of Consume, Explain, Perform and Retain
  *    (`docs/RESEARCH-PROMPTS.md`, section 8).
+ * consume 3, curriculum 1: nothing used before it is shown, checks on a new
+ *    case, and a quick look opens on its use and ends on applying it.
  */
 export const PROMPT_REV: Readonly<Partial<Record<CacheableKind, number>>> = {
-  consume: 2,
+  curriculum: 1,
+  consume: 3,
   explain: 2,
   perform: 2,
   retain: 2,

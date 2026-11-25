@@ -270,13 +270,11 @@ export function useDerived(deps: {
     ).toUpperCase() || "A";
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? t.morning : hour < 18 ? t.afternoon : t.evening;
+  // Before five is still the night before, not "good morning".
+  const greeting =
+    hour < 5 || hour >= 18 ? t.evening : hour < 12 ? t.morning : t.afternoon;
   const dateLabel = new Date()
-    .toLocaleDateString(language, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    })
+    .toLocaleDateString(language, { weekday: "long", month: "long", day: "numeric" })
     .toUpperCase();
 
   // The honest queue chip, read from the real card store (#21): cards
@@ -315,13 +313,15 @@ export function useDerived(deps: {
             .length,
         };
       });
-    return graph.nodes.length && !liveGrouped
+    // Blank topic: "+ New map" leaving — its card is in `others`, no phantom.
+    return graph.nodes.length && !liveGrouped && form.topic.trim()
       ? [{ subject, goalLabel, masteryPct, frontierTotal }, ...others]
       : others;
   }, [
     maps,
     runSubject,
     graph,
+    form.topic,
     subject,
     goalLabel,
     language,

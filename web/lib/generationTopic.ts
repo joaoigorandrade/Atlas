@@ -36,12 +36,15 @@ export function generationTopic(): string | null {
   return openTopicId;
 }
 
-/** A generation body, stamped with where it belongs. */
+/** A generation body, stamped with where it belongs. A body that names its own
+ *  topic keeps it: a new map's build is sent in the same tick its topic row is
+ *  created, before the render that moves `openTopicId` off the previous map —
+ *  stamping over it filed the new map's frontier warm under the old map. */
 export const addressed = (
   body: Record<string, unknown>,
   prefetch = false,
 ): Record<string, unknown> => ({
-  ...body,
   ...(openTopicId ? { topicId: openTopicId } : null),
+  ...body,
   ...(prefetch ? { prefetch: true } : null),
 });

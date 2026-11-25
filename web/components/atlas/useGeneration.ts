@@ -87,8 +87,8 @@ export type WarmKind = "summary" | Exclude<PhaseId, "retain">;
 
 /**
  * What to have ready for a node, in the order the learner will reach it. Two
- * kinds deep is the useful window: far enough ahead that the next two clicks
- * are instant, near enough that a warm is rarely wasted.
+ * kinds deep (`depth`) is the useful window: far enough ahead that the next two
+ * clicks are instant, near enough that a warm is rarely wasted.
  *
  * Reads the node's own plan rather than mapping state → a fixed pair off the
  * legacy ladder. That mapping pre-generated a Socratic pass for every frontier
@@ -98,6 +98,7 @@ export function warmKindsFor(
   node: { kind?: NodeKind; phasePlan?: readonly PhaseId[] },
   state: NodeState | undefined,
   done: readonly PhaseId[] = [],
+  depth = 2,
 ): WarmKind[] {
   // A gap runs no plan of its own — one targeted Socratic pass closes it.
   if (state === "gap") return ["socratic"];
@@ -105,11 +106,9 @@ export function warmKindsFor(
   if (state === undefined || state === "unknown") return [];
   const plan = phasePlan(node);
   const next = primaryPhase(plan, done, state);
-  if (!next) return [];
-  return plan
-    .slice(plan.indexOf(next))
+  return (next ? plan.slice(plan.indexOf(next)) : [])
     .filter((p): p is Exclude<PhaseId, "retain"> => p !== "retain")
-    .slice(0, 2);
+    .slice(0, depth);
 }
 
 export type Generation = ReturnType<typeof useGeneration>;

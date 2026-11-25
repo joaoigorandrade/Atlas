@@ -16,7 +16,7 @@ import {
 } from "@/lib/curriculum";
 import { logError, logEvent } from "@/lib/log";
 import { CACHEABLE_KINDS, readContent, writeContent } from "@/lib/server/contentCache";
-import { ownsTopic, putContent } from "@/lib/server/store";
+import { ownsTopic, putContent, withTopicAxes } from "@/lib/server/store";
 import { shareable } from "@/lib/server/generate/jev";
 import { resolveJob, type GenerateBody, type Job } from "@/lib/server/job";
 import type { createClient } from "@/lib/supabase/server";
@@ -161,7 +161,6 @@ export function frontierWarmBody(
   body: GenerateBody,
   graph: ConceptGraph,
   node: ConceptNode,
-  kind: "consume" | "socratic",
 ): GenerateBody {
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   /** A node's solid prerequisites — `consume` alone takes them. */
@@ -170,7 +169,7 @@ export function frontierWarmBody(
     .map(([from]) => byId.get(from)?.label)
     .filter((label): label is string => !!label);
   return {
-    kind,
+    kind: "consume",
     topic: body.topic,
     interests: body.interests,
     language: body.language,
@@ -187,9 +186,11 @@ export function frontierWarmBody(
     // yet this early, so the warm reads the node it already holds.
     importance: node.importance,
     nodeDifficulty: node.difficulty,
-    ...(kind === "consume" ? { prereqLabels } : null),
-    // Already stamped by the route (`withTopicAxes`) for this same topic.
-    ...(body.neighbours ? { neighbours: body.neighbours } : null),
+    prereqLabels,
+    // The topic axes (neighbours, quick look, language, …) are stamped by
+    // `startCurriculumWarm` from the topic row, exactly as the click's route
+    // stamps them — carrying only `neighbours` keyed every quick look's warm
+    // to a row no click asks for.
   };
 }
 
@@ -227,9 +228,14 @@ export function startCurriculumWarm(
     .slice(0, CURRICULUM_WARM_NODES);
   if (frontier.length === 0) return;
 
+  // Read once, after the build's `stampTopicMeta` landed (it is awaited before
+  // the response closes, and this runs after it).
+  const axes = new Map();
   after(async () => {
-    // The warm is real spend — six calls at the default depth — and nothing
-    // stops it any more: `CURRICULUM_WARM_NODES` is the only dial on it.
+    // The warm is real spend and nothing stops it: `CURRICULUM_WARM_NODES` is
+    // the only dial on it. Consume only — every plan opens there, and the
+    // Socratic pass this also wrote is never a plan's second rung (Explain is),
+    // so it was paid for on every build and most often never read.
     for (const node of frontier) {
       // A learner who deleted the topic while this was running must stop being
       // billed for it. The row is gone the moment the DELETE lands, so asking
@@ -238,42 +244,44 @@ export function startCurriculumWarm(
         logEvent("curriculum_warm_cancelled", { user: userId, topic: topicId });
         return;
       }
-      for (const kind of ["consume", "socratic"] as const) {
-        try {
-          // Through resolveJob, so these hash to the row the learner's own
-          // request will later address.
-          const wb = frontierWarmBody(body, graph, node, kind);
-          const warm = resolveJob(wb);
-          if (!warm.key) continue;
-          const record = (payload: unknown) =>
-            topicId
-              ? putContent(
-                  supabase as never,
-                  userId,
-                  topicId,
-                  { nodeId: node.id, kind },
-                  { cacheKey: warm.key!, payload },
-                )
-              : Promise.resolve();
-          // Already generated — by an earlier warm, or by another learner on
-          // the same topic. Still record it: the payload exists, so this topic
-          // should own it rather than re-deriving the address on the learner's
-          // click.
-          const hit = await readContent(warm.key);
-          if (hit) {
-            await record(hit);
-            continue;
-          }
-          const jobId = crypto.randomUUID();
-          await logGenerationCalls(supabase, warm, { jobId, topicId });
-          const payload = await warm.run();
-          if (await shareable(kind, wb, payload))
-            await writeContent(warm.key, warm.kind, payload);
-          await record(payload);
-          logEvent("curriculum_warm", { user: userId, kind, node: node.id });
-        } catch (err) {
-          logError("curriculum_warm_failed", err, { kind, node: node.id });
+      const kind = "consume";
+      try {
+        // Through the same axis stamp and resolveJob as the click, so these
+        // hash to the row the learner's own request will later address.
+        const bare = frontierWarmBody(body, graph, node);
+        const wb = topicId
+          ? await withTopicAxes(supabase as never, { ...bare, topicId }, axes)
+          : bare;
+        const warm = resolveJob(wb);
+        if (!warm.key) continue;
+        const record = (payload: unknown) =>
+          topicId
+            ? putContent(
+                supabase as never,
+                userId,
+                topicId,
+                { nodeId: node.id, kind },
+                { cacheKey: warm.key!, payload },
+              )
+            : Promise.resolve();
+        // Already generated — by an earlier warm, or by another learner on
+        // the same topic. Still record it: the payload exists, so this topic
+        // should own it rather than re-deriving the address on the learner's
+        // click.
+        const hit = await readContent(warm.key);
+        if (hit) {
+          await record(hit);
+          continue;
         }
+        const jobId = crypto.randomUUID();
+        await logGenerationCalls(supabase, warm, { jobId, topicId });
+        const payload = await warm.run();
+        if (await shareable(kind, wb, payload))
+          await writeContent(warm.key, warm.kind, payload);
+        await record(payload);
+        logEvent("curriculum_warm", { user: userId, kind, node: node.id });
+      } catch (err) {
+        logError("curriculum_warm_failed", err, { kind, node: node.id });
       }
     }
   });

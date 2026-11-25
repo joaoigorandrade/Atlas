@@ -25,6 +25,7 @@ import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
+import { InkDots } from "@/components/Pending";
 
 const STRINGS = {
   en: {
@@ -290,7 +291,13 @@ export default function SteelmanView({
               cursor: ready && !judging ? "pointer" : "default",
             }}
           >
-            {judging ? t.judging : t.submit}
+            {judging ? (
+              <>
+                <InkDots size={3.5} /> {t.judging}
+              </>
+            ) : (
+              t.submit
+            )}
           </button>
         </div>
       )}

@@ -28,6 +28,7 @@ import Rich from "@/components/Rich";
 import { color, font } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { useLanguage, useT } from "@/lib/i18n";
+import { InkDots } from "@/components/Pending";
 
 const STRINGS = {
   en: {
@@ -127,7 +128,7 @@ function SayIt({
           cursor: blocked ? "default" : "pointer",
         }}
       >
-        {submitLabel}
+        {judging && <InkDots size={3.5} />} {submitLabel}
       </button>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SkeletonBars } from "@/components/Pending";
+import { InkDots, SkeletonBars } from "@/components/Pending";
 import { InlineError } from "@/components/ErrorState";
 import {
   type PhaseId,
@@ -363,18 +363,10 @@ export default function ConsumeView({
                   >
                     <Rich text={c.takeaway} />
                   </span>
-                  {session.collapsed[c.id] && (
-                    <span
-                      style={{
-                        marginLeft: 9,
-                        fontFamily: font.mono,
-                        fontSize: 9.5,
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        color: color.inkGhost,
-                      }}
-                    >
-                      {t.recapSkipped}
+                  {(session.collapsed[c.id] ||
+                    session.checks[c.id]?.correct === false) && (
+                    <span style={{ ...kicker(9.5, "0.1em"), marginLeft: 9 }}>
+                      {session.collapsed[c.id] ? t.recapSkipped : t.recapMissed}
                     </span>
                   )}
                 </span>
@@ -1049,7 +1041,7 @@ export default function ConsumeView({
                         fontStyle: "italic",
                       }}
                     >
-                      {t.writingNext}
+                      <InkDots size={3.5} /> {t.writingNext}
                     </div>
                   ))}
               </div>

@@ -60,6 +60,10 @@ export function useWarming(deps: {
 }) {
   const { run, gen, display, allFrontier, selectedId, isMap, warmRetain } = deps;
   const { graph, states, cards, hydrated, phasesDone } = run;
+  // A quick look promised minutes: its 1-3 concepts are all walked, in order,
+  // so every rung of every one of them is worth having before the first click —
+  // locked ones included, or the next stop's reading starts only as it unlocks.
+  const quick = run.form.goal === "glance";
   const { isCached, requestFor, applyWarmHit, warmOne } = gen;
 
   // ---- the warm pass ----------------------------------------------------
@@ -82,7 +86,8 @@ export function useWarming(deps: {
     for (const { node } of allFrontier) ids.push(node.id);
     for (const n of graph.nodes) {
       const state = display[n.id];
-      if (state === "learning" || state === "shaky" || state === "gap") ids.push(n.id);
+      if (quick || state === "learning" || state === "shaky" || state === "gap")
+        ids.push(n.id);
     }
     const seen = new Set<string>();
     const targets: Array<{ node: ConceptNode; kinds: WarmKind[] }> = [];
@@ -96,11 +101,12 @@ export function useWarming(deps: {
       // whose map already wrote one — and gap sub-nodes, which are their own
       // explanation — ask for nothing.
       const kinds: WarmKind[] = node.summary || node.gap ? [] : ["summary"];
-      kinds.push(...warmKindsFor(node, display[id], phasesDone[id]));
+      const state = quick && display[id] === "unknown" ? "frontier" : display[id];
+      kinds.push(...warmKindsFor(node, state, phasesDone[id], quick ? Infinity : 2));
       if (kinds.length) targets.push({ node, kinds });
     }
     return targets;
-  }, [hydrated, graph, display, phasesDone, selectedId, allFrontier]);
+  }, [hydrated, graph, display, phasesDone, selectedId, allFrontier, quick]);
 
   // A signature over the plan, so the pass runs when the plan really changes
   // rather than on every render that touches the graph.

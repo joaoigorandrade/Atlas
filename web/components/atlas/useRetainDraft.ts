@@ -41,6 +41,7 @@ export function useRetainDraft(deps: {
     formRef,
     graphRef,
     statesRef,
+    consumeCacheRef,
     cardsRef,
     topicIdRef,
     setCards,
@@ -85,13 +86,15 @@ export function useRetainDraft(deps: {
             label: n.label,
             state: statesRef.current[n.id]!,
             ...(n.summary ? { summary: n.summary } : null),
+            // What the reading taught, so each key idea gets its own card.
+            takeaways: consumeCacheRef.current[n.id]?.map((c) => c.takeaway),
           })),
           interests: formRef.current.interests,
           language: languageRef.current,
         },
       };
     },
-    [cardsRef, formRef, graphRef, statesRef, languageRef],
+    [cardsRef, formRef, graphRef, statesRef, consumeCacheRef, languageRef],
   );
 
   /** Draft the day's new cards ahead of the click. The result is discarded —

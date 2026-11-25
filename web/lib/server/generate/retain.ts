@@ -112,6 +112,37 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
   };
 }
 
+/** A draft's nodes as keyed: learned nodes only, each with at most four of its
+ *  reading's key ideas — a card per idea (`retainCardBounds` counts them). A
+ *  node sent without ideas keys exactly as it did before they existed. */
+export function retainNodes(raw: unknown, cap: number): RetainNode[] {
+  return (Array.isArray(raw) ? raw : [])
+    .filter(
+      (n): n is RetainNode & { takeaways?: unknown } =>
+        typeof n === "object" &&
+        n !== null &&
+        [n.id, n.label, n.state].every((v) => typeof v === "string") &&
+        (!("summary" in n) || typeof n.summary === "string"),
+    )
+    .slice(0, cap)
+    .map(({ takeaways, ...rest }) => {
+      const ideas = (Array.isArray(takeaways) ? takeaways : [])
+        .filter((x): x is string => typeof x === "string" && !!x.trim())
+        .slice(0, 4)
+        .map((x) => x.slice(0, 300));
+      return ideas.length ? { ...rest, takeaways: ideas } : rest;
+    });
+}
+
+type RetainNode = {
+  id: string;
+  label: string;
+  state: string;
+  summary?: string;
+  /** The reading's key ideas — each one a fact that can be missed alone. */
+  takeaways?: string[];
+};
+
 /**
  * The card factory's prompt, organised around what a card has to survive:
  * months of reviews, weeks apart, by someone who has not seen the material
@@ -129,17 +160,21 @@ export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
 export async function generateRetain(params: {
   topic: string;
   budgetMin: number;
-  nodes: Array<{ id: string; label: string; state: string; summary?: string }>;
+  nodes: RetainNode[];
   language?: Language;
 }): Promise<RetainContent> {
   const { topic, budgetMin, nodes, language = "en" } = params;
-  const band = retainCardBounds(nodes.length);
+  // One card per thing the learner was taught: a reading's key ideas when the
+  // client sent them, else the node's one sentence.
+  const band = retainCardBounds(
+    nodes.reduce((n, node) => n + Math.max(1, node.takeaways?.length ?? 0), 0),
+  );
   return generateJson(
     user(
       `Write the review cards for the topic "${topic}": the spaced-repetition cards that keep these concepts alive for months. Each card will be answered many times, weeks apart, by someone who has not looked at the material since — so a card is a small retrieval task you are designing for that future learner.
 
 The concepts in rotation (id: label — state — what it taught):
-${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}${n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}`).join("\n")}
+${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}${n.takeaways?.length ? `\n${n.takeaways.map((k) => `    · ${k}`).join("\n")}` : n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}`).join("\n")}
 
 Every card asks only for what its node teaches, as summarised here. Never a real-world spec, typical value, date or name the node does not cover: a card about something the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
 
@@ -166,7 +201,7 @@ ${sizeRule({
   max: band.max,
   atMin: "a rotation whose nodes each carry one fact worth being asked for",
   atMax: "a rotation where a node genuinely holds two separate facts",
-})} A node earns a second card only when it carries two facts that can be missed independently — never a second cut at the same one.
+})} A node earns a second card only when it carries two facts that can be missed independently — never a second cut at the same one. Where a node lists its key ideas (·), each idea is such a fact and earns its own card, as far as the count allows.
 
 Write the cards only. Scheduling — when each card is next due, and what each grade button is worth — is the scheduler's job, not yours.
 

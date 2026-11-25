@@ -88,6 +88,7 @@ export const STRINGS = {
     recapTerms: (n: number) => `${n} term${n === 1 ? "" : "s"} met`,
     recapTakeaways: "What you took away",
     recapSkipped: "skipped",
+    recapMissed: "check missed · review this",
     recapTermsHeading: "Terms you opened",
     recapBegin: (phase?: string) =>
       phase ? `Begin ${phase} →` : "Done — back to the map →",
@@ -95,7 +96,7 @@ export const STRINGS = {
     recapBackToMap: "Back to the map",
     recapReread: "↑ Re-read",
     checkKicker: "Before you continue",
-    checkHint: "Answer from what you just read — one try, then the next section opens.",
+    checkHint: "Answer from what you just read — one try, then the reading goes on.",
     checkAgain: "The right answer is marked above — the recap will name this one.",
     checkPassed: "Understood",
     checkMissed: "Not quite",
@@ -191,6 +192,7 @@ export const STRINGS = {
     recapTerms: (n: number) => `${n} ${n === 1 ? "termo visto" : "termos vistos"}`,
     recapTakeaways: "O que você leva daqui",
     recapSkipped: "pulada",
+    recapMissed: "pergunta errada · revise esta",
     recapTermsHeading: "Termos que você abriu",
     recapBegin: (phase?: string) =>
       phase ? `Começar ${phase} →` : "Pronto — voltar ao mapa →",
@@ -199,7 +201,7 @@ export const STRINGS = {
     recapReread: "↑ Reler",
     checkKicker: "Antes de continuar",
     checkHint:
-      "Responda com o que você acabou de ler — uma tentativa, e a próxima seção se abre.",
+      "Responda com o que você acabou de ler — uma tentativa, e a leitura segue.",
     checkAgain: "A resposta certa está marcada acima — o resumo vai lembrar desta.",
     checkPassed: "Entendido",
     checkMissed: "Ainda não",

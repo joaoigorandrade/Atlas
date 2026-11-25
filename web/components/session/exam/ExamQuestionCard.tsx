@@ -13,6 +13,7 @@ import Plate from "@/components/ui/Plate";
 import Rich from "@/components/Rich";
 import { color, font, kicker, alpha } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
+import { InkDots } from "@/components/Pending";
 
 const STRINGS = {
   en: {
@@ -217,7 +218,15 @@ export default function ExamQuestionCard({
             disabled={pick === undefined || rewriting || waiting}
             onClick={onNext}
           >
-            {waiting ? t.waiting : last ? t.finish : t.next}
+            {waiting ? (
+              <>
+                <InkDots size={3.5} /> {t.waiting}
+              </>
+            ) : last ? (
+              t.finish
+            ) : (
+              t.next
+            )}
           </Button>
         </div>
       </div>

@@ -51,6 +51,8 @@ export default function MapInvite({
   const feed = feedInk !== undefined;
   return (
     <div
+      // A phone lifts it over the node sheet (globals.css).
+      className="at-map-invite"
       style={{
         position: "absolute",
         bottom: 22,

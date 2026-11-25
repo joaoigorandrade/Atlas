@@ -55,7 +55,13 @@ export default function PhaseShell({
         {headerRight}
       </Masthead>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "26px clamp(16px, 5vw, 32px) 40px" }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "26px clamp(16px, 5vw, 32px) 40px",
+        }}
+      >
         <div style={{ maxWidth: 620, margin: "0 auto" }}>{children}</div>
       </div>
 

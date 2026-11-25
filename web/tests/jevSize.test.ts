@@ -24,14 +24,23 @@ describe("sizeMap", () => {
 
   it("a quick look takes the top pick as an exact count", async () => {
     answering("1", 0.95);
-    expect(await sizeMap({ topic: "why is the sea salty?", goal: "glance" })).toEqual([1, 1]);
+    expect(await sizeMap({ topic: "why is the sea salty?", goal: "glance" })).toEqual([
+      1, 1,
+    ]);
   });
 
   it("no answer leaves the prompt's band", async () => {
     answering("1", 0.14);
-    expect(await sizeMap({ topic: "why is the sea salty?", goal: "glance" })).toEqual([1, 1]);
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 502 })));
-    expect(await sizeMap({ topic: "why is the sea salty?", goal: "glance" })).toBeUndefined();
+    expect(await sizeMap({ topic: "why is the sea salty?", goal: "glance" })).toEqual([
+      1, 1,
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("boom", { status: 502 })),
+    );
+    expect(
+      await sizeMap({ topic: "why is the sea salty?", goal: "glance" }),
+    ).toBeUndefined();
   });
 
   it("a full map gets a range", async () => {

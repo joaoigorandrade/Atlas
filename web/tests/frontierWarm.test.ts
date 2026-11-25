@@ -37,20 +37,20 @@ const built: GenerateBody = {
 
 /** What the clients send for one node — `consumeParams` on the web,
  *  `context(for:)` on iOS. Both derive it exactly this way. */
-const fromClient = (kind: "consume" | "socratic", nodeId: string): GenerateBody => {
+const fromClient = (nodeId: string): GenerateBody => {
   const node = graph.nodes.find((n) => n.id === nodeId)!;
   const prereqLabels = graph.edges
     .filter(([, to, dashed]) => to === nodeId && !dashed)
     .map(([from]) => graph.nodes.find((n) => n.id === from)!.label);
   return {
-    kind,
+    kind: "consume",
     topic: built.topic,
     nodeId,
     nodeLabel: node.label,
     interests: built.interests,
     language: built.language,
     ...conceptBoundary(graph, nodeId),
-    ...(kind === "consume" ? { prereqLabels } : null),
+    prereqLabels,
   };
 };
 
@@ -58,13 +58,9 @@ const keyOf = (body: GenerateBody): string | null => resolveJob(body).key;
 
 describe("the post-build frontier warm", () => {
   it("addresses the row the learner's own click asks for", () => {
-    for (const kind of ["consume", "socratic"] as const) {
-      for (const nodeId of ["a", "b", "c"]) {
-        const node = graph.nodes.find((n) => n.id === nodeId)!;
-        expect(keyOf(frontierWarmBody(built, graph, node, kind))).toBe(
-          keyOf(fromClient(kind, nodeId)),
-        );
-      }
+    for (const nodeId of ["a", "b", "c"]) {
+      const node = graph.nodes.find((n) => n.id === nodeId)!;
+      expect(keyOf(frontierWarmBody(built, graph, node))).toBe(keyOf(fromClient(nodeId)));
     }
   });
 
@@ -73,7 +69,7 @@ describe("the post-build frontier warm", () => {
     // missing, and because dropping it again would still pass every other
     // test in the suite.
     const node = graph.nodes.find((n) => n.id === "a")!;
-    const warm = frontierWarmBody(built, graph, node, "consume");
+    const warm = frontierWarmBody(built, graph, node);
     expect(warm.laterLabels).toEqual(["Continuidade", "Derivada"]);
     expect(keyOf(warm)).not.toBe(
       keyOf({ ...warm, priorLabels: undefined, laterLabels: undefined }),

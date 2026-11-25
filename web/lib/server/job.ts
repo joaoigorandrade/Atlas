@@ -31,6 +31,7 @@ import {
   generateRecall,
   generateTrace,
   generateRetain,
+  retainNodes,
   generateSocratic,
   generateSocraticStream,
   generateSummary,
@@ -541,17 +542,7 @@ function buildJob(body: GenerateBody): Job {
     }
 
     case "retain": {
-      const nodes = Array.isArray(body.nodes)
-        ? body.nodes
-            .filter(
-              (n): n is { id: string; label: string; state: string; summary?: string } =>
-                typeof n === "object" &&
-                n !== null &&
-                [n.id, n.label, n.state].every((v) => typeof v === "string") &&
-                (!("summary" in n) || typeof n.summary === "string"),
-            )
-            .slice(0, CAPS.listItems)
-        : [];
+      const nodes = retainNodes(body.nodes, CAPS.listItems);
       if (nodes.length === 0) throw badRequest("nodes must list learned nodes");
       const budgetMin =
         typeof body.budgetMin === "number" && body.budgetMin >= 3

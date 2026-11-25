@@ -78,7 +78,9 @@ test("perform: a re-run asks for a new case and quotes where the last one broke"
   await expect(sheet.getByTestId("field-answer")).toHaveValue("");
 });
 
-test("perform: a failed run leads with the fix, and the fix lands in the work", async ({ page }) => {
+test("perform: a failed run leads with the fix, and the fix lands in the work", async ({
+  page,
+}) => {
   await openRun(page, {
     "worked-cases": { state: "learning", phases_done: ["consume", "trace", "feynman"] },
     "core-rule": "mastered",
@@ -97,5 +99,7 @@ test("perform: a failed run leads with the fix, and the fix lands in the work", 
   await expect(sheet.getByTestId("action-finish")).toHaveCSS("font-weight", "400");
   await fix.click();
   await expect(sheet.getByTestId("field-answer")).toBeFocused();
-  await expect(sheet.getByTestId("field-answer")).toHaveValue("Step one holds, so step two applies.");
+  await expect(sheet.getByTestId("field-answer")).toHaveValue(
+    "Step one holds, so step two applies.",
+  );
 });

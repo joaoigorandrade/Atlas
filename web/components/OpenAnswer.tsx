@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { MicButton } from "@/components/VoiceInput";
+import { InkDots } from "@/components/Pending";
 import { fetchJudgeChoice } from "@/lib/api";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -185,7 +186,13 @@ export function OpenAnswer({
           color: judging || !text.trim() ? color.inkGhost : color.accentInk,
         }}
       >
-        {judging ? t.reading : resolvedSubmitLabel}
+        {judging ? (
+          <>
+            <InkDots size={3.5} /> {t.reading}
+          </>
+        ) : (
+          resolvedSubmitLabel
+        )}
       </button>
       {error && (
         <div

@@ -154,7 +154,9 @@ export function performSkipped(
   session: PerformSession,
   content: PerformContent,
 ): PerformStep[] {
-  return content.steps.filter((s) => !session.ran[s.id] || session.ran[s.id] === "skipped");
+  return content.steps.filter(
+    (s) => !session.ran[s.id] || session.ran[s.id] === "skipped",
+  );
 }
 
 /**
@@ -185,6 +187,13 @@ const PERFORM_COPY = {
     fix: "Fix it on this case →",
     fixing: (steps: string) => `Fix what broke, then submit again: ${steps}.`,
     lastBroke: (steps: string) => `A new case. Last run broke at: ${steps}.`,
+    submit: "Submit the run →",
+    stuck: "Where do I start?",
+    report: "The run",
+    advance: "Continue →",
+    hint: "⌘↵ to submit",
+    judging: "Checking your work…",
+    loadBearing: "load-bearing",
   },
   "pt-BR": {
     kicker: "Perform",
@@ -200,6 +209,13 @@ const PERFORM_COPY = {
     fix: "Corrigir neste caso →",
     fixing: (steps: string) => `Corrija o que quebrou e envie de novo: ${steps}.`,
     lastBroke: (steps: string) => `Um caso novo. A última execução quebrou em: ${steps}.`,
+    submit: "Enviar a execução →",
+    stuck: "Por onde começo?",
+    report: "A execução",
+    advance: "Continuar →",
+    hint: "⌘↵ para enviar",
+    judging: "Conferindo sua execução…",
+    loadBearing: "essencial",
   },
 } as const;
 

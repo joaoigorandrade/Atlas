@@ -28,7 +28,7 @@ export const STRINGS = {
       "A failed card doesn’t just reschedule — a 30-second Socratic re-explanation, right here:",
     nodeFlaggedShaky: (nodeLabel: string) => `“${nodeLabel}” flagged Shaky on your map.`,
     retentionFailureBody:
-      "Retention failure re-enters the loop — the node pulls attention back until it’s re-taught. This is what separates the app from Anki plus a chatbot.",
+      "Retention failure re-enters the loop — the node pulls attention back until it’s re-taught.",
     reteachNow: "Re-teach now →",
     scheduleReteach: "Schedule re-teach · continue",
     todaysBudget: "Today’s budget",
@@ -80,7 +80,7 @@ export const STRINGS = {
     nodeFlaggedShaky: (nodeLabel: string) =>
       `“${nodeLabel}” foi marcado como Instável no seu mapa.`,
     retentionFailureBody:
-      "Uma falha de retenção reentra no ciclo — o nó volta a puxar atenção até ser reensinado. É isso que separa o app de um Anki com chatbot.",
+      "Uma falha de retenção reentra no ciclo — o nó volta a puxar atenção até ser reensinado.",
     reteachNow: "Reensinar agora →",
     scheduleReteach: "Agendar reensino · continuar",
     todaysBudget: "Orçamento de hoje",

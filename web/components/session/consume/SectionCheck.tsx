@@ -74,6 +74,9 @@ export function SectionCheck({
   } | null>(null);
   const resolve = (oi: number, correct: boolean, said?: string) =>
     pretest ? setHeld({ oi, correct, said }) : onAnswer(oi, correct);
+  // The judge's read of the learner's own words: the canned line under an
+  // option praised whatever that option says — a condition they never wrote.
+  const [read, setRead] = useState("");
 
   return (
     <div ref={slot} style={{ minHeight: 1, marginTop: 30 }}>
@@ -164,7 +167,10 @@ export function SectionCheck({
               options={check.opts.map((o) => o.label)}
               accent={BLUE}
               rows={2}
-              onResolve={(oi, _r, said) => resolve(oi, !!check.opts[oi]?.correct, said)}
+              onResolve={(oi, r, said) => {
+                if (!pretest) setRead(r);
+                resolve(oi, !!check.opts[oi]?.correct, said);
+              }}
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
@@ -213,6 +219,7 @@ export function SectionCheck({
                 animation: "softIn .3s both",
               }}
             >
+              {read && <div style={{ fontStyle: "italic", marginBottom: 6 }}>{read}</div>}
               {passed ? check.right : `${check.wrong} ${t.checkAgain}`}
             </div>
           )}
