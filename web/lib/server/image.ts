@@ -22,7 +22,7 @@ export function imageModel(): string | null {
 /** The house style every example image is drawn in — appended, never left to
  *  the content model, so a pass can't talk the picture into a poster. */
 const IMAGE_STYLE =
-  "Style: clean textbook schematic, black ink lines on a plain white background, flat, no shading, no decorative text, no title; only the short labels named above.";
+  "Style: clean textbook schematic, black ink lines on a plain white background, flat, no shading, no decorative text, no title, no sentences; labels only as short tags (values, component or point names).";
 
 /**
  * One image, one call. Deliberately no retry and no fallback model: every

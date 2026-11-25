@@ -35,7 +35,7 @@ export function WorkedExample({ example }: { example: ConsumeExample }) {
       <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 12 }}>
         <Rich text={example.title} />
       </div>
-      {example.visual && <ExampleImage prompt={example.visual} alt={example.title} />}
+      <ExampleImage example={example} />
       <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
         {(example?.steps ?? []).map((s, i) => (
           <li

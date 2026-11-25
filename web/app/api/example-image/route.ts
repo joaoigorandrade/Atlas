@@ -1,6 +1,6 @@
-// The picture for a visual worked example (a circuit, a geometry setup). The
-// browser posts the example's `visual` prompt — only when the learner taps
-// for it — and gets back a signed URL. Auth-gated like /api/speech.
+// The picture for a worked example. The browser posts a prompt built from
+// the whole example — only when the learner taps for it — and gets back a
+// signed URL. Auth-gated like /api/speech.
 //
 // The cache is per learner on purpose: files live under
 // example-images/<user id>/<prompt hash>, in a private bucket only the
@@ -27,8 +27,8 @@ export const maxDuration = 60;
 const BUCKET = "example-images";
 /** Bump to abandon every stored image (a style change). */
 const VERSION = "1";
-/** A `visual` runs a few sentences; this only stops abuse. */
-const MAX_CHARS = 1_500;
+/** A whole worked example (title + steps + hint) runs well under this; it only stops abuse. */
+const MAX_CHARS = 6_000;
 /** Signed URLs are cheap to remint; a day outlives any reading session. */
 const SIGNED_SECONDS = 60 * 60 * 24;
 

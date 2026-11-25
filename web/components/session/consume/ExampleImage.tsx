@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { BLUE } from "./shared";
+import { ConsumeExample } from "@/lib/curriculum";
 import { useT } from "@/lib/i18n";
 import { color, font } from "@/lib/theme";
 
@@ -11,13 +12,22 @@ const STRINGS = {
 };
 
 /**
- * The picture for a visual worked example. Every draw is billed, so nothing is
+ * The picture for any worked example. The whole example goes into the prompt
+ * (title, every step, and the pass's `visual` hint when it wrote one), so the
+ * figure shows the example's own values. Every draw is billed, so nothing is
  * fetched until the learner taps — an example nobody opens costs nothing. The
  * server keeps each learner's draws, so a second tap (or a reload) is free.
  * Any failure renders nothing: the steps below stand on their own.
  */
-export function ExampleImage({ prompt, alt }: { prompt: string; alt: string }) {
+export function ExampleImage({ example }: { example: ConsumeExample }) {
   const t = useT(STRINGS);
+  const prompt = [
+    `Draw the figure for this worked example: ${example.title}`,
+    ...(example.steps ?? []).map((s, i) => `${i + 1}. ${s}`),
+    example.visual && `Figure: ${example.visual}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
   const [state, setState] = useState<"idle" | "loading" | "failed" | string>("idle");
   if (process.env.NEXT_PUBLIC_EXAMPLE_IMAGES === "0" || state === "failed") return null;
 
@@ -78,11 +88,11 @@ export function ExampleImage({ prompt, alt }: { prompt: string; alt: string }) {
         {t.drawing}
       </div>
     );
-  // eslint-disable-next-line @next/next/no-img-element -- a signed, per-learner URL; no optimizer
   return (
+    // eslint-disable-next-line @next/next/no-img-element -- a signed, per-learner URL; no optimizer
     <img
       src={state}
-      alt={alt}
+      alt={example.title}
       style={{ ...frame, objectFit: "contain", display: "block" }}
     />
   );

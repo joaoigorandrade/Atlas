@@ -62,8 +62,8 @@ export interface ConsumeExample {
   title: string;
   /** The worked steps, in order. */
   steps: string[];
-  /** English image prompt for a spatial example (a circuit, a geometry
-   *  setup). Drawn only when the learner taps for it — see ExampleImage. */
+  /** English figure hint for a spatial example (a circuit, a geometry
+   *  setup), added to the whole example when the learner taps for its figure. */
   visual?: string;
 }
 
