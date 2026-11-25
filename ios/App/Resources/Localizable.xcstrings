@@ -21,6 +21,16 @@
         }
       }
     },
+    "Desenhar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw"
+          }
+        }
+      }
+    },
     "Ver figura" : {
       "localizations" : {
         "en" : {
@@ -3882,6 +3892,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Writing…"
+          }
+        }
+      }
+    },
+    "Escrever" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write"
           }
         }
       }
@@ -8037,6 +8057,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your confidence against what you deliver"
+          }
+        }
+      }
+    },
+    "Sua execução" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your work"
           }
         }
       }

@@ -11,6 +11,7 @@
 
 import { logError, logWarning } from "@/lib/log";
 import * as json from "@/lib/server/streamingJson";
+import { toWire } from "@/lib/server/vision";
 
 /** Cheap default that reliably produces the structured JSON this app needs.
  *  `deepseek/deepseek-chat` is OpenRouter's alias for DeepSeek's latest V3
@@ -41,6 +42,7 @@ const BUSY_MESSAGE = "The writer is busy — try again in a moment.";
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  image?: string; // a PNG data URL sent with this message (./vision.ts)
 }
 
 /** Which model role a call wants: bulk content, the stricter judge (#28), the
@@ -61,7 +63,7 @@ function temperatureFor(role: ModelRole): number {
   return role === "content" ? 0.6 : 0;
 }
 
-class OpenRouterError extends Error {
+export class OpenRouterError extends Error {
   status: number;
   constructor(message: string, status: number) {
     super(message);
@@ -71,11 +73,9 @@ class OpenRouterError extends Error {
 }
 
 function modelChain(role: ModelRole): string[] {
-  const { OPENROUTER_MODEL, OPENROUTER_JUDGE_MODEL, OPENROUTER_VERIFY_MODEL } =
-    process.env;
-  const content = OPENROUTER_MODEL || DEFAULT_MODEL;
-  const judge = OPENROUTER_JUDGE_MODEL || content;
-  const verify = OPENROUTER_VERIFY_MODEL || judge;
+  const content = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const judge = process.env.OPENROUTER_JUDGE_MODEL || content;
+  const verify = process.env.OPENROUTER_VERIFY_MODEL || judge;
   const primary = { content, judge, verify, search: `${content}:online` }[role];
   const fallbacks = (process.env.OPENROUTER_FALLBACK_MODEL ?? "").split(",");
   const chain = fallbacks.map((s) => s.trim()).filter((m) => m && m !== primary);
@@ -123,7 +123,7 @@ async function chatOnce(
     signal: AbortSignal.timeout(REQUEST_MS),
     body: JSON.stringify({
       model,
-      messages,
+      messages: messages.map(toWire),
       temperature: temperatureFor(role),
       // Most models honor this (web search refuses it); the rest still get
       // the "JSON only" system prompt, and `extractJson` tolerates prose.
@@ -317,7 +317,7 @@ async function* chatStreamOnce(
       signal: abort.signal,
       body: JSON.stringify({
         model,
-        messages,
+        messages: messages.map(toWire),
         temperature: temperatureFor(role),
         stream: true,
         // A reasoning model plans the whole answer before writing a word, and
@@ -531,5 +531,3 @@ function logStream(
     }),
   );
 }
-
-export { OpenRouterError };

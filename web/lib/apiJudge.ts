@@ -188,6 +188,8 @@ export function fetchJudgePerform(
     task: string;
     rubric: Array<{ subPoint: string; mustConvey: string[] }>;
     answer: string;
+    /** Their drawing, a PNG data URL — read beside the written work. */
+    sketch?: string;
     language?: Language;
   },
   onVerdict?: (partial: Partial<FeynmanJudgement>) => void,

@@ -177,11 +177,13 @@ interface JudgePerformParams {
   task: string;
   rubric: Array<{ subPoint: string; mustConvey: string[] }>;
   work: string;
+  /** Their drawing, a PNG data URL — sent as an image beside the text. */
+  sketch?: string;
   language?: Language;
 }
 
 function performJudgeMessages(params: JudgePerformParams): ChatMessage[] {
-  const { topic, nodeLabel, task, rubric, work, language = "en" } = params;
+  const { topic, nodeLabel, task, rubric, work, sketch, language = "en" } = params;
   const rows = rubric
     .map((r, i) => `${i}. ${r.subPoint} — the work must show: ${r.mustConvey.join("; ")}`)
     .join("\n");
@@ -189,6 +191,7 @@ function performJudgeMessages(params: JudgePerformParams): ChatMessage[] {
     JUDGE_SYSTEM,
     {
       role: "user",
+      image: sketch,
       content: `The learner just carried out the procedure "${nodeLabel}" (topic: ${topic}) end to end, on one concrete case, showing their work.
 
 The case: """${task}"""
@@ -198,7 +201,13 @@ ${rows}
 
 Their work:
 ${learnerText("work", work)}
-
+${
+  sketch
+    ? `
+Their work also includes a drawing (the attached image). Read it as part of the run: values, labels, diagrams and arrows in it count as shown work, exactly like the text. Quote only from the written work; when a step's evidence is only in the drawing, leave its \`quote\` empty.
+`
+    : ""
+}
 Rule every step, by index. Compare the work against the key, and check the arithmetic and the units yourself: where the key gives a value, the learner's must equal it (an equivalent form — 0.5 for 1/2, a different but valid order of operations — still matches).
 - "good": the work carries this step out and its result is right. A different valid method that reaches the right result is "good" — you are checking the run, not a preferred route.
 - "skipped": the step is missing from the run.

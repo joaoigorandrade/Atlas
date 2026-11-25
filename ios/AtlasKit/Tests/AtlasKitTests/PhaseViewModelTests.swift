@@ -1,4 +1,5 @@
 import Foundation
+import PencilKit
 import Testing
 @testable import AtlasKit
 
@@ -168,6 +169,28 @@ private let dispute = #"""
     model.rerun()
     #expect(model.work.isEmpty)
     #expect(model.steps.count == 1)
+}
+
+@MainActor
+@Test func performTakesADrawingAloneAsARun() async throws {
+    let (_, session) = try pass(.perform, #"""
+    {"nodeId":"n","nodeLabel":"Limite","task":"t","scaffold":"s",
+     "steps":[{"id":"s1","step":"p","mustShow":["x"],"loadBearing":true}]}
+    """#)
+    let model = PerformViewModel(session: session, api: session.store.api)
+    await model.load()
+    #expect(!model.canSubmit)
+    let points = [CGPoint(x: 10, y: 10), CGPoint(x: 80, y: 60)].map {
+        PKStrokePoint(location: $0, timeOffset: 0, size: CGSize(width: 3, height: 3),
+                      opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+    }
+    let stroke = PKStroke(ink: PKInk(.pen, color: .black),
+                          path: PKStrokePath(controlPoints: points, creationDate: .now))
+    model.drawing = PKDrawing(strokes: [stroke])
+    #expect(model.canSubmit)
+    #expect(model.drawing.judgeDataURL?.hasPrefix("data:image/png;base64,") == true)
+    model.rerun()
+    #expect(model.drawing.strokes.isEmpty)
 }
 
 // MARK: - Connect

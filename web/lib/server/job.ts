@@ -71,6 +71,7 @@ import {
   poolOf,
   rubricRows,
   s,
+  sketchUrl,
   strs,
   type GenerateBody,
   type GenerateKind,
@@ -557,7 +558,8 @@ function buildJob(body: GenerateBody): Job {
 
     case "judge": {
       const answer = s(body.answer).slice(0, CAPS.freeText);
-      if (!answer.trim()) throw badRequest("answer is required");
+      const sketch = body.mode === "perform" ? sketchUrl(body.sketch) : undefined;
+      if (!answer.trim() && !sketch) throw badRequest("answer is required");
       // Never cached: the payload is a verdict on one learner's own words.
       // Streamed all the same — the verdict object arrives in under a second
       // and unblocks the screen while the critique is still being written.
@@ -663,7 +665,6 @@ function buildJob(body: GenerateBody): Job {
       }
       if (body.mode === "feynman") {
         const rubric = rubricRows(body);
-        if (!rubric.length) throw badRequest("rubric is required");
         const p = { topic, nodeLabel, rubric, explanation: answer, language };
         return uncached(
           async () => ({ judgement: await judgeFeynman(p) }),
@@ -677,7 +678,6 @@ function buildJob(body: GenerateBody): Job {
       if (body.mode === "recall") {
         if (!nodeLabel) throw badRequest("nodeLabel is required");
         const rubric = rubricRows(body);
-        if (!rubric.length) throw badRequest("rubric is required");
         const p = {
           topic,
           nodeLabel,
@@ -695,13 +695,13 @@ function buildJob(body: GenerateBody): Job {
       if (body.mode === "perform") {
         if (!nodeLabel) throw badRequest("nodeLabel is required");
         const rubric = rubricRows(body);
-        if (!rubric.length) throw badRequest("rubric is required");
         const p = {
           topic,
           nodeLabel,
           task: s(body.task).slice(0, CAPS.freeText),
           rubric,
           work: answer,
+          sketch,
           language,
         };
         return uncached(

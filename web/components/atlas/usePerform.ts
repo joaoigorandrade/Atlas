@@ -119,7 +119,7 @@ export function usePerform(deps: {
   const performSubmit = () => {
     const cur = performRef.current;
     if (!cur || cur.reported || judgingRef.current) return;
-    if (!cur.work.trim()) {
+    if (!cur.work.trim() && !cur.sketch) {
       showToast(tc().workspaceEmpty);
       return;
     }
@@ -138,6 +138,7 @@ export function usePerform(deps: {
           mustConvey: st.mustShow,
         })),
         answer: cur.work,
+        sketch: cur.sketch,
         language: languageRef.current,
       },
       // The verdicts stream first: the report opens on them while the

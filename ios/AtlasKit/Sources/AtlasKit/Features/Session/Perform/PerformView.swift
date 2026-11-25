@@ -1,4 +1,5 @@
 import Navigation
+import PencilKit
 import SwiftUI
 
 /// "Perform" — carry it out on this case, the way you would for real. Not
@@ -9,6 +10,7 @@ struct PerformView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
     @State private var model: PerformViewModel?
+    @State private var drawingTab = false
 
     var body: some View {
         Group {
@@ -123,12 +125,33 @@ struct PerformView: View {
             .scrollBounceBehavior(.basedOnSize)
 
             VStack(alignment: .leading, spacing: 0) {
-                AnswerEditor(text: $model.work,
-                             placeholder: String(localized: "Resolva — mostre cada passo e o que ele produz…"),
-                             dictation: model.dictation, minHeight: 150, tint: Palette.performInk)
-                    // `TextEditor` takes every point it is offered; the brief
-                    // above is what the learner reads while writing.
-                    .frame(maxHeight: 220)
+                // Write or draw — both go to the checker; switching clears neither.
+                Picker("Sua execução", selection: $drawingTab) {
+                    Text("Escrever").tag(false)
+                    Text("Desenhar").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 10)
+
+                if drawingTab {
+                    SketchCanvas(drawing: $model.drawing)
+                        .frame(height: 260)
+                        .boxed(Palette.card, border: Palette.hairlineStrong, radius: Metrics.panelRadius)
+                        .overlay(alignment: .bottomTrailing) {
+                            if !model.drawing.strokes.isEmpty {
+                                GhostButton("Limpar") { model.drawing = PKDrawing() }
+                                    .fixedSize()
+                                    .padding(6)
+                            }
+                        }
+                } else {
+                    AnswerEditor(text: $model.work,
+                                 placeholder: String(localized: "Resolva — mostre cada passo e o que ele produz…"),
+                                 dictation: model.dictation, minHeight: 150, tint: Palette.performInk)
+                        // `TextEditor` takes every point it is offered; the brief
+                        // above is what the learner reads while writing.
+                        .frame(maxHeight: 220)
+                }
 
                 if !model.message.isEmpty {
                     Text(verbatim: model.message)

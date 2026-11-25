@@ -140,8 +140,9 @@ export interface GenerateBody {
   cued?: boolean;
   /** judge-produce: the recognizer's confidence in the weakest span (W1.1). */
   confidence?: number;
-  /** judge-perform: the case the run was carried out on. */
+  /** judge-perform: the case the run was carried out on, and their drawing. */
   task?: string;
+  sketch?: unknown;
   problem?: string;
   hint?: string;
   /** judge-crucible: the learner revealed the reframe before answering. */
@@ -313,7 +314,7 @@ export const labels = (v: unknown, max: number = CAPS.listItems): string[] =>
 /** A judge rubric off the wire, capped. Shared by every mode that diffs an
  *  answer against rows — Feynman, Recall and Perform — because the *wire*
  *  shape is the same even where the grading is not. */
-export const rubricRows = (
+const rubricOf = (
   body: GenerateBody,
 ): Array<{ subPoint: string; mustConvey: string[] }> =>
   Array.isArray(body.rubric)
@@ -334,6 +335,26 @@ export const rubricRows = (
             .map((m) => m.slice(0, CAPS.nodeLabel * 4)),
         }))
     : [];
+
+/** The judged rubric, which every judge mode that reads one requires. */
+export function rubricRows(body: GenerateBody) {
+  const rows = rubricOf(body);
+  if (!rows.length) throw badRequest("rubric is required");
+  return rows;
+}
+
+/** About 1.5 MB of base64; a full canvas of line art is a fraction of it. */
+const SKETCH_MAX = 1_500_000;
+
+/** judge-perform's drawing, or nothing: only a PNG data URL under the cap
+ *  reaches a prompt. */
+export function sketchUrl(v: unknown): string | undefined {
+  return typeof v === "string" &&
+    v.length <= SKETCH_MAX &&
+    /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(v)
+    ? v
+    : undefined;
+}
 
 /**
  * Candidate nodes a request offers a generator to choose among — Connect's

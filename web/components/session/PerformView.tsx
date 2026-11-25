@@ -23,7 +23,7 @@ import {
   type TeachVerdict,
 } from "@/lib/curriculum";
 import { InkDots, StreamingText } from "@/components/Pending";
-import { MicButton } from "@/components/VoiceInput";
+import PerformWork from "@/components/session/perform/PerformWork";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
 import { ExampleImage } from "@/components/session/consume/ExampleImage";
@@ -52,6 +52,7 @@ export default function PerformView({
   judging,
   onExit,
   onWork,
+  onSketch,
   onNudge,
   onSubmit,
   onRerun,
@@ -65,6 +66,7 @@ export default function PerformView({
   judging: boolean;
   onExit: () => void;
   onWork: (value: string) => void;
+  onSketch: (png: string | undefined) => void;
   onNudge: () => void;
   onSubmit: () => void;
   onRerun: () => void;
@@ -81,6 +83,7 @@ export default function PerformView({
   // One fix in place per case; after that a failure gets a new case.
   const canFix = session.reported && !passed && !session.fixing;
   const field = useRef<HTMLTextAreaElement>(null);
+  const empty = busy || !(session.work.trim() || session.sketch);
 
   // Fixing lands on the line the report quoted — no new information, just
   // no hunting for it. Falls back to the end when the quote isn't verbatim.
@@ -166,38 +169,16 @@ export default function PerformView({
 
       {!session.reported && (
         <div style={{ marginTop: 22 }}>
-          <div style={{ ...kicker(10, "0.1em", color.inkGhost), marginBottom: 9 }}>
-            {copy.yourWork}
-          </div>
-          <textarea
-            ref={field}
-            data-testid="field-answer"
-            value={session.work}
-            disabled={busy}
-            onChange={(e) => onWork(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                if (session.work.trim() && !busy) onSubmit();
-              }
-            }}
-            placeholder={busy ? copy.judging : copy.placeholder}
-            rows={12}
-            style={{
-              width: "100%",
-              resize: "vertical",
-              padding: "14px 16px",
-              borderRadius: 3,
-              fontSize: 14.5,
-              lineHeight: 1.6,
-              fontFamily: font.serif,
-              border: `1px solid ${color.hairlineStrong}`,
-              background: color.card,
-              color: color.ink,
-              opacity: busy ? 0.6 : 1,
-            }}
+          <PerformWork
+            copy={copy}
+            work={session.work}
+            sketch={session.sketch}
+            busy={busy}
+            field={field}
+            onWork={onWork}
+            onSketch={onSketch}
+            onSubmit={onSubmit}
           />
-          <MicButton value={session.work} onChange={onWork} disabled={busy} />
 
           {session.nudged && (
             <div
@@ -222,16 +203,16 @@ export default function PerformView({
               className="at-press"
               data-testid="action-submit"
               onClick={onSubmit}
-              disabled={busy || !session.work.trim()}
+              disabled={empty}
               style={{
                 padding: "12px 20px",
-                background: busy || !session.work.trim() ? color.inkWash : accent,
-                color: busy || !session.work.trim() ? color.inkGhost : color.accentInk,
+                background: empty ? color.inkWash : accent,
+                color: empty ? color.inkGhost : color.accentInk,
                 border: "none",
                 borderRadius: 3,
                 fontSize: 14.5,
                 fontWeight: 600,
-                cursor: busy || !session.work.trim() ? "default" : "pointer",
+                cursor: empty ? "default" : "pointer",
               }}
             >
               {busy ? <InkDots size={3.5} /> : copy.submit}

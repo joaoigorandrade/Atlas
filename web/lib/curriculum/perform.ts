@@ -63,6 +63,9 @@ export interface PerformSession {
    *  One fix per case — a second failure gets a new case. Absent on every
    *  session saved before it. */
   fixing?: string[];
+  /** Their drawing, as a PNG data URL, read by the checker beside the text.
+   *  Absent when nothing is drawn, and on every session saved before it. */
+  sketch?: string;
 }
 
 export function performStart(nodeId: string): PerformSession {
@@ -80,6 +83,7 @@ export function performStart(nodeId: string): PerformSession {
 
 export type PerformAction =
   | { type: "work"; value: string }
+  | { type: "sketch"; value: string | undefined }
   | { type: "nudge" }
   | { type: "pending" }
   | {
@@ -102,6 +106,8 @@ export function performReducer(
   switch (action.type) {
     case "work":
       return { ...session, work: action.value };
+    case "sketch":
+      return { ...session, sketch: action.value };
     case "nudge":
       return { ...session, nudged: true };
     case "pending":
@@ -194,6 +200,10 @@ const PERFORM_COPY = {
     hint: "⌘↵ to submit",
     judging: "Checking your work…",
     loadBearing: "load-bearing",
+    write: "Write",
+    draw: "Draw",
+    undo: "Undo",
+    clear: "Clear",
   },
   "pt-BR": {
     kicker: "Perform",
@@ -216,6 +226,10 @@ const PERFORM_COPY = {
     hint: "⌘↵ para enviar",
     judging: "Conferindo sua execução…",
     loadBearing: "essencial",
+    write: "Escrever",
+    draw: "Desenhar",
+    undo: "Desfazer",
+    clear: "Limpar",
   },
 } as const;
 

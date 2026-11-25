@@ -264,6 +264,7 @@ export function phaseSheets(p: {
             judging={judging}
             onExit={exitPerform}
             onWork={(value) => dispatchPerform({ type: "work", value })}
+            onSketch={(value) => dispatchPerform({ type: "sketch", value })}
             onNudge={() => dispatchPerform({ type: "nudge" })}
             onSubmit={performSubmit}
             onRerun={performRerun}

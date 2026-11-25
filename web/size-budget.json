@@ -25,7 +25,7 @@
     "lib/server/fixtures.ts": 422,
     "lib/server/generate/map.ts": 412,
     "lib/server/job.ts": 791,
-    "lib/server/openrouter.ts": 536,
+    "lib/server/openrouter.ts": 534,
     "lib/speech.ts": 720
   }
 }

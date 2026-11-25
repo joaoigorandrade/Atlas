@@ -103,3 +103,38 @@ test("perform: a failed run leads with the fix, and the fix lands in the work", 
     "Step one holds, so step two applies.",
   );
 });
+
+test("perform: a drawing alone is a run, and it reaches the checker", async ({
+  page,
+}) => {
+  await openRun(page, {
+    "worked-cases": { state: "learning", phases_done: ["consume", "trace", "feynman"] },
+    "core-rule": "mastered",
+    foundations: "mastered",
+    notation: "mastered",
+  });
+  await openPhase(page, "worked-cases", "perform");
+  const sheet = page.getByTestId("phase-perform");
+  await expect(sheet.getByTestId("action-submit")).toBeDisabled();
+
+  await sheet.getByTestId("perform-tab-draw").click();
+  const box = (await sheet.getByTestId("perform-sketch").boundingBox())!;
+  await page.mouse.move(box.x + 40, box.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 200, box.y + 160, { steps: 8 });
+  await page.mouse.up();
+
+  // Switching tabs keeps it: the Clear button only enables on a drawing.
+  await sheet.getByTestId("perform-tab-write").click();
+  await sheet.getByTestId("perform-tab-draw").click();
+  await expect(sheet.getByTestId("sketch-clear")).toBeEnabled();
+
+  const judged = page.waitForRequest(
+    (r) => r.method() === "POST" && (r.postData() ?? "").includes('"mode":"perform"'),
+  );
+  await sheet.getByTestId("action-submit").click();
+  const body = JSON.parse((await judged).postData()!);
+  expect(body.sketch).toMatch(/^data:image\/png;base64,/);
+  expect(body.answer).toBe("");
+  await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
+});

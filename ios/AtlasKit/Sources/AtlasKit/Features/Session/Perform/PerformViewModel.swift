@@ -1,4 +1,5 @@
 import Observation
+import PencilKit
 import SwiftUI
 
 /// Perform's state: one real case, the work as the learner showed it, and the
@@ -18,6 +19,10 @@ final class PerformViewModel {
     private(set) var judging = false
     private(set) var message = ""
     var work = "" { didSet { if work != oldValue { park() } } }
+    /// Their drawing, read by the checker beside the work. ponytail: held in
+    /// memory only — not parked, so it does not survive leaving the screen or
+    /// hand off to the web. Park it (as strokes) when someone asks.
+    var drawing = PKDrawing()
 
     let dictation = Dictation()
 
@@ -42,7 +47,7 @@ final class PerformViewModel {
     var nudged: Bool { session.nudged }
     var response: String { session.response }
     var pending: Bool { session.pending }
-    var canSubmit: Bool { !judging && !work.trimmed.isEmpty }
+    var canSubmit: Bool { !judging && (!work.trimmed.isEmpty || !drawing.strokes.isEmpty) }
     var steps: [PerformStep] { content?.steps ?? [] }
     var passed: Bool { content.map(session.passed) ?? false }
     /// The two ways a run fails, kept apart because they are different failures:
@@ -171,6 +176,7 @@ final class PerformViewModel {
         rerunning = true
         fixing = []
         work = ""
+        drawing = PKDrawing()
         withAnimation(Motion.enter) { session = PerformSession(nodeId: node.id) }
         park()
         Task {
@@ -206,6 +212,7 @@ final class PerformViewModel {
             ])
         })
         context["answer"] = .string(session.work)
+        if let sketch = drawing.judgeDataURL { context["sketch"] = .string(sketch) }
         let sent = context
         judge = Task {
             defer { judging = false }
