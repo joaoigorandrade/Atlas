@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamFrame } from "@/lib/server/stream";
 
-const { generateJson, streamJsonObjects } = vi.hoisted(() => ({
+const { generateJson, streamJsonObjects, blindSolve } = vi.hoisted(() => ({
   generateJson: vi.fn(),
   streamJsonObjects: vi.fn(),
+  blindSolve: vi.fn(),
 }));
 
 vi.mock("@/lib/server/openrouter", () => ({ generateJson, streamJsonObjects }));
+vi.mock("@/lib/server/generate/verify", async (orig) => ({
+  ...(await orig<typeof import("@/lib/server/generate/verify")>()),
+  blindSolve,
+}));
 
 import { generateExamStream, type ExamParams } from "@/lib/server/generate/exam";
 
@@ -66,6 +71,18 @@ describe("generateExamStream", () => {
   beforeEach(() => {
     generateJson.mockReset();
     streamJsonObjects.mockReset();
+    blindSolve.mockReset().mockResolvedValue({});
+  });
+
+  it("leaves off a question whose key a blind solve disputes, and writes it again", async () => {
+    streams([item("n0", "A"), item("n1", "WRONG"), item("n0", "C"), item("n1", "D")]);
+    // The solver is sure of option 0 on "WRONG"; the key says 1.
+    blindSolve.mockImplementation(async ({ items }: { items: { stem: string }[] }) =>
+      items[0].stem === "WRONG" ? { q: { pick: 0, confidence: 0.95 } } : {},
+    );
+    tops({ questions: [item("n1", "B2")] });
+    const frames = await collect();
+    expect(frames.map((f) => (f.v as { q: string }).q)).toEqual(["A", "C", "D", "B2"]);
   });
 
   it("streams one frame per question, numbered in order, with no top-up when whole", async () => {

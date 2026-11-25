@@ -26,6 +26,7 @@ import type { Language } from "@/lib/i18n";
 import { generateJson, streamJsonObjects } from "@/lib/server/openrouter";
 import type { StreamFrame } from "@/lib/server/stream";
 import { arr, fail, interestNote, languageNote, obj, slug, str, user } from "./common";
+import { blindSolve, disputedIds } from "./verify";
 
 export interface ExamParams {
   topic: string;
@@ -74,6 +75,26 @@ export function checkQuestion(raw: unknown, at: string, ids: ReadonlySet<string>
   if (typeof key !== "number" || !Number.isInteger(key) || key < 0 || key >= EXAM_OPTIONS)
     fail(`${at}.correctIndex must be an integer 0-${EXAM_OPTIONS - 1}`);
   return { nodeId, q, opts, correctIndex: key, explain: str(r.explain, `${at}.explain`) };
+}
+
+/**
+ * Does the key survive a blind solve? Written in the same call as its
+ * question, a key is wrong often enough that its own `explain` argues for
+ * another option. One solve per question, labelled with its own concept.
+ * Fails open: an unreachable verifier keeps the question.
+ */
+async function keyHolds(params: ExamParams, d: Draft): Promise<boolean> {
+  const item = { id: "q", stem: d.q, options: d.opts, key: d.correctIndex };
+  try {
+    const solved = await blindSolve({
+      topic: params.topic,
+      nodeLabel: params.pool.find((p) => p.id === d.nodeId)?.label ?? params.topic,
+      items: [item],
+    });
+    return disputedIds([item], solved).length === 0;
+  } catch {
+    return true;
+  }
 }
 
 /** Two questions that differ only in case, spacing or punctuation are one. */
@@ -211,7 +232,9 @@ function examPrompt(
         .map((q) => `- ${q.slice(0, 200)}`)
         .join("\n")}\n`
     : "";
-  const shape = `{ "nodeId": "one of the ids above", "q": "the question", "opts": ["…", "…", "…", "…"], "correctIndex": 0, "explain": "…" }`;
+  // `work` comes first so the answer is computed before a key is committed
+  // to; it is never shown. Keys written first got argued against by `explain`.
+  const shape = `{ "nodeId": "one of the ids above", "q": "the question", "work": "solve it yourself, step by step, before writing any option", "opts": ["…", "…", "…", "…"], "correctIndex": 0, "explain": "…" }`;
   const output = opts.streamed
     ? `Write each question as a SEPARATE top-level JSON object, one after another, in the order of the list above — NOT wrapped in an array or an object, no markdown fences, no commentary before/after/between them. Exactly ${count} objects, each with this shape:
 ${shape}`
@@ -234,14 +257,19 @@ Rules:
 - Every question stands on its own: a learner reads only that question, never the others.
 - Never ask about a concept that is not listed, and never test trivia about the course itself ("which concept comes first").
 - Options are parallel in length and form; never "all of the above" or "none of the above"; the right one must not be the longest or the most qualified by habit.
-- \`explain\` says in 1-2 sentences why the right answer is right and what mistake the most tempting wrong one makes.
+- Write \`work\` first: solve the question in full and check the arithmetic. Then write the options so exactly ONE matches your result, and set \`correctIndex\` to it. If your result matches no option, or more than one, rewrite the options — never ship a key your own working disagrees with.
+- \`explain\` agrees with \`correctIndex\` and says in 1-2 sentences why the right answer is right and what mistake the most tempting wrong one makes.
 - Questions on the same concept test different things.
 
 ${output}${languageNote(language)}`;
 }
 
 /** Fill whatever `paper` still owes with one retried single-shot call. */
-async function topUp(params: ExamParams, paper: Paper): Promise<ExamQuestion[]> {
+async function topUp(
+  params: ExamParams,
+  paper: Paper,
+  last = false,
+): Promise<ExamQuestion[]> {
   const ids = new Set(Object.keys(paper.allocation));
   const taken = await generateJson(
     user(
@@ -253,8 +281,20 @@ async function topUp(params: ExamParams, paper: Paper): Promise<ExamQuestion[]> 
     fillValidator(paper, ids),
     { label: paper.questions.length ? "exam-topup" : "exam" },
   );
-  // Validated against a clone; replay onto the real paper (it takes them all).
-  return taken.map((q) => paper.take(q)).filter((q): q is ExamQuestion => q !== null);
+  // Validated against a clone; replay onto the real paper the ones whose key
+  // holds. The last round keeps a disputed one rather than ship a short paper.
+  const holds = last
+    ? taken.map(() => true)
+    : await Promise.all(taken.map((q) => keyHolds(params, q)));
+  return taken
+    .filter((_, i) => holds[i])
+    .map((q) => paper.take(q))
+    .filter((q): q is ExamQuestion => q !== null);
+}
+
+/** Top up until full: a round whose disputed keys left it short runs again. */
+async function fill(params: ExamParams, paper: Paper): Promise<void> {
+  for (let round = 0; !paper.full; round++) await topUp(params, paper, round === 2);
 }
 
 export async function generateExam(
@@ -262,7 +302,7 @@ export async function generateExam(
   rand: () => number = Math.random,
 ): Promise<ExamQuestion[]> {
   const paper = new Paper(examAllocation(params.pool, params.count, rand), rand);
-  await topUp(params, paper);
+  await fill(params, paper);
   return paper.questions;
 }
 
@@ -279,6 +319,7 @@ export async function* generateExamStream(
       { label: "exam-stream" },
     );
     for await (const draft of stream) {
+      if (paper.refusal(draft) || !(await keyHolds(params, draft))) continue;
       const q = paper.take(draft);
       if (q) yield { p: "questions", i: paper.questions.length - 1, v: q };
       if (paper.full) break;
@@ -294,7 +335,7 @@ export async function* generateExamStream(
   }
   if (paper.full) return;
   const from = paper.questions.length;
-  await topUp(params, paper);
+  await fill(params, paper);
   for (let i = from; i < paper.questions.length; i++)
     yield { p: "questions", i, v: paper.questions[i] };
 }
