@@ -20,10 +20,17 @@ const STRINGS = {
  * server keeps each learner's draws, so a second tap (or a reload) is free.
  * Any failure renders nothing: the steps below stand on their own.
  */
-export function ExampleImage({ example }: { example: ConsumeExample }) {
+export function ExampleImage({
+  example,
+  lead = "Draw the figure for this worked example:",
+}: {
+  example: Pick<ConsumeExample, "title" | "visual"> & { steps?: string[] };
+  /** Perform passes its own: the case's figure, never its solution. */
+  lead?: string;
+}) {
   const t = useT(STRINGS);
   const prompt = [
-    `Draw the figure for this worked example: ${example.title}`,
+    `${lead} ${example.title}`,
     ...(example.steps ?? []).map((s, i) => `${i + 1}. ${s}`),
     example.visual && `Figure: ${example.visual}`,
   ]

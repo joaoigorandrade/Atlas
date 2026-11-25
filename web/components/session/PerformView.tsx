@@ -26,6 +26,7 @@ import { InkDots, StreamingText } from "@/components/Pending";
 import { MicButton } from "@/components/VoiceInput";
 import PhaseShell from "@/components/session/parts/PhaseShell";
 import Rich from "@/components/Rich";
+import { ExampleImage } from "@/components/session/consume/ExampleImage";
 import { color, font, kicker } from "@/lib/theme";
 import { useLanguage } from "@/lib/i18n";
 
@@ -127,6 +128,12 @@ export default function PerformView({
         </div>
         <div style={{ fontFamily: font.serif, fontSize: 17, lineHeight: 1.5 }}>
           <Rich text={content.task} />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <ExampleImage
+            example={{ title: content.task }}
+            lead="Draw the figure for this problem with its given values only — never any step or result of the solution:"
+          />
         </div>
         {session.previous?.length ? (
           <div style={{ marginTop: 10, fontSize: 14, color: color.inkSoft }}>
