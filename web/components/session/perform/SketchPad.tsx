@@ -13,15 +13,18 @@ import { color, raw } from "@/lib/theme";
 
 const PAPER = raw("light").card;
 const INK = raw("light").ink;
-const HEIGHT = 360;
+// A phone keeps the case in view above the sheet: never more than ~45% of
+// the screen, never so small a figure will not fit.
+const HEIGHT = "clamp(220px, 45dvh, 360px)";
 
+// Laid on the paper's corner, so the sheet costs no extra row on a phone.
 const tool = {
   padding: "7px 12px",
-  background: color.card,
+  background: PAPER,
+  color: raw("light").inkMuted,
   border: `1px solid ${color.hairlineStrong}`,
   borderRadius: 3,
   fontSize: 12.5,
-  color: color.inkMuted,
   cursor: "pointer",
 } as const;
 
@@ -68,7 +71,7 @@ export default function SketchPad({
     if (!el) return;
     const dpr = window.devicePixelRatio || 1;
     el.width = Math.round(el.clientWidth * dpr);
-    el.height = Math.round(HEIGHT * dpr);
+    el.height = Math.round(el.clientHeight * dpr);
     paint(value);
     // Mount only: afterwards the canvas is the source and `value` its echo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,7 +127,7 @@ export default function SketchPad({
   };
 
   return (
-    <div>
+    <div style={{ position: "relative" }}>
       <canvas
         ref={canvas}
         data-testid="perform-sketch"
@@ -144,7 +147,7 @@ export default function SketchPad({
           opacity: disabled ? 0.6 : 1,
         }}
       />
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <div style={{ position: "absolute", right: 8, bottom: 8, display: "flex", gap: 6 }}>
         <button
           className="at-press"
           onClick={undo}

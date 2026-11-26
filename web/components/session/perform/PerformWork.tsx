@@ -34,39 +34,55 @@ export default function PerformWork({
   const [tab, setTab] = useState<"write" | "draw">(
     sketch && !work.trim() ? "draw" : "write",
   );
+  // A two-way segmented switch beside the label, not three look-alike
+  // kickers: on a phone it is the one thumb target the row needs.
   const tabStyle = (on: boolean) =>
     ({
-      ...kicker(10, "0.1em", on ? PERFORM_COLOR.accent : color.inkGhost),
-      padding: "0 0 6px",
-      marginRight: 16,
-      background: "none",
+      ...kicker(10, "0.1em", on ? color.accentInk : color.inkMuted),
+      minHeight: 32,
+      padding: "0 14px",
+      background: on ? PERFORM_COLOR.accent : "none",
       border: "none",
-      borderBottom: `2px solid ${on ? PERFORM_COLOR.accent : "transparent"}`,
+      borderRadius: 2,
       cursor: "pointer",
     }) as const;
 
   return (
     <>
       <div
-        role="tablist"
-        style={{ display: "flex", alignItems: "baseline", marginBottom: 9 }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 9,
+        }}
       >
-        <span style={{ ...kicker(10, "0.1em", color.inkGhost), marginRight: 16 }}>
-          {copy.yourWork}
-        </span>
-        {(["write", "draw"] as const).map((t) => (
-          <button
-            key={t}
-            role="tab"
-            aria-selected={tab === t}
-            data-testid={`perform-tab-${t}`}
-            onClick={() => setTab(t)}
-            style={tabStyle(tab === t)}
-          >
-            {copy[t]}
-            {t === "draw" && sketch ? " •" : ""}
-          </button>
-        ))}
+        <span style={kicker(10, "0.1em", color.inkGhost)}>{copy.yourWork}</span>
+        <div
+          role="tablist"
+          style={{
+            display: "flex",
+            padding: 2,
+            borderRadius: 3,
+            border: `1px solid ${color.hairlineStrong}`,
+            background: color.card,
+          }}
+        >
+          {(["write", "draw"] as const).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              data-testid={`perform-tab-${t}`}
+              onClick={() => setTab(t)}
+              style={tabStyle(tab === t)}
+            >
+              {copy[t]}
+              {t === "draw" && sketch ? " •" : ""}
+            </button>
+          ))}
+        </div>
       </div>
       {tab === "draw" ? (
         <SketchPad

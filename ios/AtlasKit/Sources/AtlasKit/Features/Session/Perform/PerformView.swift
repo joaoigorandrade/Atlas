@@ -126,16 +126,24 @@ struct PerformView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 // Write or draw — both go to the checker; switching clears neither.
-                Picker("Sua execução", selection: $drawingTab) {
-                    Text("Escrever").tag(false)
-                    Text("Desenhar").tag(true)
+                // A compact switch on the label's row, not a full-width bar: on
+                // a small phone every point here is taken from the brief.
+                HStack {
+                    Kicker("Sua execução", tint: Palette.performInk)
+                    Spacer(minLength: 12)
+                    Picker("Sua execução", selection: $drawingTab) {
+                        Text("Escrever").tag(false)
+                        Text("Desenhar").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
                 }
-                .pickerStyle(.segmented)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
 
                 if drawingTab {
+                    // The editor's own height, so switching never moves the brief.
                     SketchCanvas(drawing: $model.drawing)
-                        .frame(height: 260)
+                        .frame(minHeight: 150, maxHeight: 220)
                         .boxed(Palette.card, border: Palette.hairlineStrong, radius: Metrics.panelRadius)
                         .overlay(alignment: .bottomTrailing) {
                             if !model.drawing.strokes.isEmpty {
