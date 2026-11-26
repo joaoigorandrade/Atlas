@@ -281,8 +281,8 @@ export function useDerived(deps: {
   // actually due now, in minutes.
   const dueNow = useMemo(() => dealableCount(cards), [cards]);
   const fresh = useMemo(
-    () => freshConcepts(graph, states, cards),
-    [graph, states, cards],
+    () => freshConcepts(graph.nodes, states, form.goal, phasesDone, cards),
+    [graph, states, form.goal, phasesDone, cards],
   );
   const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow, fresh };
   const frontierTotal = graph.nodes.filter((n) => display[n.id] === "frontier").length;

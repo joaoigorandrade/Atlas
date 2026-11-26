@@ -51,8 +51,6 @@ const EN = {
   nothingToReview:
     "Nothing to review yet — learn your first concept and cards draft themselves",
   thisNode: "This node",
-  newLimitReached:
-    "Today’s new cards are in — the rest join the queue tomorrow, so the reviews they bring stay manageable.",
   cardsDealt: (n: number) =>
     `${n} new card${n === 1 ? "" : "s"} for your newest concepts — added to the end of this pass`,
   cardLeech: (label: string) =>
@@ -161,8 +159,6 @@ export const TOAST_STRINGS: Record<Language, typeof EN> = {
     nothingToReview:
       "Nada para revisar ainda — aprenda seu primeiro conceito e os cards se escrevem sozinhos",
     thisNode: "Este nó",
-    newLimitReached:
-      "Os cartões novos de hoje já entraram — os outros chegam amanhã, para as revisões não se acumularem.",
     cardsDealt: (n: number) =>
       `${n} ${n === 1 ? "cartão novo" : "cartões novos"} dos conceitos mais recentes — no fim desta rodada`,
     cardLeech: (label: string) =>

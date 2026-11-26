@@ -57,10 +57,11 @@ export interface GradeSync {
 
 /**
  * The queue. `adopt` receives the server's card whenever it overrules the
- * local copy — a refused (stale) grade, or an undo's restored state.
+ * local copy — a refused (stale) grade (`refused`), or an undo's restored
+ * state.
  */
 export function createGradeSync(
-  adopt: (topicId: string, card: StoredCard) => void,
+  adopt: (topicId: string, card: StoredCard, refused: boolean) => void,
 ): GradeSync {
   let queue: GradeOp[] = readStored();
   let running = false;
@@ -81,8 +82,22 @@ export function createGradeSync(
           const op = queue[0];
           try {
             const res = await send(op, keepalive);
-            if (op.kind === "undo" || ("conflict" in res && res.conflict))
-              adopt(op.topicId, res.card);
+            const refused = op.kind === "grade" && "conflict" in res && !!res.conflict;
+            // An undo's card is adopted only when nothing later for that card
+            // is queued: a re-grade behind it is the newer local truth.
+            const superseded =
+              op.kind === "undo" && queue.slice(1).some((q) => q.cardId === op.cardId);
+            if (refused || (op.kind === "undo" && !superseded))
+              adopt(op.topicId, res.card, refused);
+            // A refused grade wrote nothing, so an undo queued behind it has
+            // nothing of ours to take back — sent, it would take back the
+            // review that beat ours (the other device's).
+            if (refused) {
+              const i = queue.findIndex(
+                (q, j) => j > 0 && q.kind === "undo" && q.cardId === op.cardId,
+              );
+              if (i > 0) queue = queue.filter((_, j) => j !== i);
+            }
           } catch (err) {
             const e: AtlasError = toAtlasError(err);
             if (e.code === "notfound" && (op.tries ?? 0) < NOT_FOUND_TRIES) {

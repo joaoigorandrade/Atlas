@@ -106,7 +106,7 @@ export interface RetainSession {
   /** Cards dealt again later in this pass, in grading order — each as the
    *  scheduler left it, so its buttons carry its *next* step's intervals. A
    *  card comes back when its learning step lands inside the learn-ahead
-   *  window (`returnsThisPass`): a miss, or a new card's 10-minute step. */
+   *  window (`returnsThisPass`): a miss's 1-minute step. */
   requeued: ReviewCard[];
   /** Grade recorded per **deck position**, not per card id: a requeued card
    *  comes back under the same id, and keying by id lit its second slot on the
@@ -319,7 +319,12 @@ export function retainBudget(
   content: RetainContent,
 ): RetainBudget {
   const total = Math.max(1, retainDeck(session, content).length);
-  const doneCount = session.finished ? total : Object.keys(session.done).length;
+  // Every position before the card on screen is behind the learner — graded or
+  // suspended — plus the one on screen once graded (the fail stage). Counting
+  // grades alone left a suspended card "still to do" for the rest of the pass.
+  const doneCount = session.finished
+    ? total
+    : session.idx + (session.done[session.idx] ? 1 : 0);
   // A card costs what a card costs. Dividing the budget by however few cards
   // happened to be due made a two-card queue claim seven minutes each, which is
   // the opposite of the honest framing this bar exists for.

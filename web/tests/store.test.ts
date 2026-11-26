@@ -17,6 +17,7 @@ import { resetTables, seededTables } from "@/lib/server/fixtureTables";
 import {
   applyNodeDeltas,
   createTopic,
+  deleteCards,
   deleteNodes,
   deleteTopic,
   gradeCard,
@@ -215,7 +216,7 @@ describe("grading, through the server", () => {
     expect(out?.kind).toBe("graded");
     const [held] = await loadCards(db(), topic.id);
     expect(held.fsrs.reps).toBe(1);
-    expect(held.fsrs.introduced).toBe(at.toISOString());
+    expect(held.fsrs.last_review).toBe(at.toISOString());
     expect(reviews()).toHaveLength(1);
     expect(reviews()[0]).toMatchObject({
       card_id: "c1",
@@ -235,6 +236,34 @@ describe("grading, through the server", () => {
     expect(out?.kind).toBe("conflict");
     expect(out?.card.fsrs.reps).toBe(1);
     expect(reviews()).toHaveLength(1);
+  });
+
+  it("lets only one of two simultaneous grades write", async () => {
+    const topic = await makeTopic();
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [fresh("c1")]);
+    // Both read the card at rep 0 before either writes: the phone and the
+    // browser grading the same card in the same instant.
+    const [a, b] = await Promise.all([
+      gradeCard(db(), FIXTURE_USER_ID, topic.id, "c1", "good", {
+        now: at,
+        expectReps: 0,
+      }),
+      gradeCard(db(), FIXTURE_USER_ID, topic.id, "c1", "again", {
+        now: at,
+        expectReps: 0,
+      }),
+    ]);
+    expect([a?.kind, b?.kind].sort()).toEqual(["conflict", "graded"]);
+    expect(reviews()).toHaveLength(1);
+    expect((await loadCards(db(), topic.id))[0].fsrs.reps).toBe(1);
+  });
+
+  it("takes a card's review log with it when the card is deleted", async () => {
+    const topic = await makeTopic();
+    await putCards(db(), FIXTURE_USER_ID, topic.id, [fresh("c1")]);
+    await gradeCard(db(), FIXTURE_USER_ID, topic.id, "c1", "good", { now: at });
+    await deleteCards(db(), topic.id, ["c1"]);
+    expect(reviews()).toHaveLength(0);
   });
 
   it("undoes the latest review exactly, and only that one", async () => {

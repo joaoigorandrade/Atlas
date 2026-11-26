@@ -119,13 +119,18 @@ async function readCard(
   return data ? toCard(data as CardRow) : null;
 }
 
+/** Write the server-owned fields — only while the store still holds the copy
+ *  the caller read (`reps`). False when another write got there first: two
+ *  grades read at the same rep count both passed the old read-then-write, and
+ *  the later one silently replaced the earlier. */
 async function writeOwned(
   db: SupabaseClient,
   topicId: string,
   cardId: string,
   owned: ServerOwned,
-): Promise<void> {
-  const { error } = await db
+  reps: number,
+): Promise<boolean> {
+  const { data, error } = await db
     .from("cards")
     .update({
       fsrs: owned.fsrs,
@@ -134,8 +139,11 @@ async function writeOwned(
       updated_at: new Date().toISOString(),
     })
     .eq("topic_id", topicId)
-    .eq("id", cardId);
+    .eq("id", cardId)
+    .eq("fsrs->>reps", String(reps))
+    .select("id");
   if (error) fail("writeOwned", error);
+  return (data ?? []).length > 0;
 }
 
 export type GradeOutcome =
@@ -164,7 +172,8 @@ export async function gradeCard(
 ): Promise<GradeOutcome | null> {
   const held = await readCard(db, topicId, cardId);
   if (!held) return null;
-  if (opts.expectReps !== undefined && (held.fsrs.reps ?? 0) !== opts.expectReps)
+  const reps = held.fsrs.reps ?? 0;
+  if (opts.expectReps !== undefined && reps !== opts.expectReps)
     return { kind: "conflict", card: held };
   const { card, review, leech } = reviewStoredCard(
     held,
@@ -172,10 +181,19 @@ export async function gradeCard(
     opts.now ?? new Date(),
     opts.durationMs,
   );
-  await writeOwned(db, topicId, cardId, {
-    fsrs: card.fsrs,
-    suspended: !!card.suspended,
-  });
+  const swapped = await writeOwned(
+    db,
+    topicId,
+    cardId,
+    { fsrs: card.fsrs, suspended: !!card.suspended },
+    reps,
+  );
+  // Another grade landed between our read and our write: it stands, and this
+  // one is refused exactly as a stale `expectReps` is.
+  if (!swapped) {
+    const now = await readCard(db, topicId, cardId);
+    return now ? { kind: "conflict", card: now } : null;
+  }
   const { error } = await db.from("card_reviews").insert({
     topic_id: topicId,
     card_id: cardId,
@@ -219,14 +237,24 @@ export async function undoGrade(
   // Only the review that produced the card's current state can be undone — a
   // log row behind it would restore a state from before a later review.
   if (!last || last.reps !== (held.fsrs.reps ?? 0)) return null;
-  await writeOwned(db, topicId, cardId, last.before);
-  const { error: dropError } = await db
+  // The log row goes first, and only that row: a second undo racing this one
+  // finds nothing to take. Were the card write below to fail after it, the
+  // grade simply stands minus one log row — the old order (card first) left a
+  // restored card under a log row it no longer matched.
+  const { data: dropped, error: dropError } = await db
     .from("card_reviews")
     .delete()
     .eq("topic_id", topicId)
     .eq("card_id", cardId)
-    .eq("reps", last.reps);
+    .eq("reps", last.reps)
+    .select("id");
   if (dropError) fail("undoGrade/delete", dropError);
+  if (!(dropped ?? []).length) return null;
+  if (!(await writeOwned(db, topicId, cardId, last.before, last.reps))) {
+    // A grade slipped in between: it is the newer truth, so it stays.
+    logWarning("undo_grade_lost_race", null, { topicId, cardId });
+    return null;
+  }
   return {
     ...held,
     fsrs: last.before.fsrs,

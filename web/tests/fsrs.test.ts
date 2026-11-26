@@ -242,6 +242,19 @@ describe("retain: the pass over the deck", () => {
     expect(retainBudget(s, content).spent).toBe(Math.round(CARD_MINUTES));
   });
 
+  it("counts a suspended card as behind the learner, not still to do", () => {
+    const s = step(retainStart(), { type: "skip" });
+    const { doneCount, total } = retainBudget(s, content);
+    expect(total).toBe(content.cards.length);
+    expect(doneCount).toBe(1);
+    // The fail stage: the card on screen is graded, so it counts too.
+    const failed = step(step(retainStart(), { type: "flip" }), {
+      type: "grade",
+      grade: "again",
+    });
+    expect(retainBudget(failed, content).doneCount).toBe(1);
+  });
+
   it("counts what's left in each of Anki's queues, the card on screen included", () => {
     const mixed: RetainContent = {
       budgetMin: 6,
@@ -301,8 +314,9 @@ describe("learning steps inside the pass", () => {
     expect(queueOf(fresh)).toBe("new");
     const stepped = gradeStoredCard(fresh, "good", now);
     expect(queueOf(stepped)).toBe("learning");
-    // A new card's Good is a 10-minute step: it comes back this pass.
-    expect(returnsThisPass(stepped, now)).toBe(true);
+    // A new card's Good is a 10-minute step: it waits for its time, rather
+    // than being answered again a minute later in a short deck.
+    expect(returnsThisPass(stepped, now)).toBe(false);
     const later = new Date(Date.parse(stepped.fsrs.due));
     const graduated = gradeStoredCard(stepped, "good", later);
     expect(queueOf(graduated)).toBe("review");

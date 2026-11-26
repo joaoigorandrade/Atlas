@@ -1,11 +1,13 @@
 // The review queue's rules beyond the scheduler itself: fuzz that stays
-// honest on the buttons, leeches, the review log, Anki's queue order and its
-// daily new-card cap, which nodes still need a factory card, and the pass
-// actions that are not grades (skip, deal, undo).
+// honest on the buttons, leeches, the review log, Anki's queue order (with no
+// daily new-card cap), which nodes Review cards and which still need a factory
+// card, and the pass actions that are not grades (skip, deal, undo).
 
 import { describe, expect, it } from "vitest";
 import {
+  freshConcepts,
   isFactoryCard,
+  reviewableNodes,
   retainDeck,
   retainReducer,
   retainRewind,
@@ -25,13 +27,7 @@ import {
   toReviewCard,
   type StoredCard,
 } from "@/lib/fsrs";
-import {
-  dealableCount,
-  hasReviewWork,
-  introducedToday,
-  NEW_PER_DAY,
-  todaysQueue,
-} from "@/lib/fsrsQueue";
+import { dealableCount, hasReviewWork, todaysQueue } from "@/lib/fsrsQueue";
 import { seedDrafted } from "@/components/atlas/retainDraft";
 import { cardProblem } from "@/lib/server/cardShape";
 
@@ -94,13 +90,7 @@ describe("the review log and leeches", () => {
       reps: 1,
     });
     expect(review.before).toEqual({ fsrs: c.fsrs, suspended: false });
-    expect(card.fsrs.introduced).toBe(now.toISOString());
-  });
-
-  it("dates a card's introduction once, at its first review", () => {
-    const first = gradeStoredCard(fresh("c1"), "good", now);
-    const later = new Date(now.getTime() + 2 * DAY);
-    expect(gradeStoredCard(first, "good", later).fsrs.introduced).toBe(now.toISOString());
+    expect(card.fsrs.reps).toBe(1);
   });
 
   it("suspends a card the moment it lapses into a leech", () => {
@@ -139,23 +129,16 @@ describe("today's queue", () => {
     expect(deck.map((c) => c.id)).toEqual(["learn", "r-later", "r-late", "new1"]);
   });
 
-  it("brings in at most NEW_PER_DAY new cards, and says the rest are waiting", () => {
-    const cards = Array.from({ length: NEW_PER_DAY + 3 }, (_, i) => fresh(`n${i}`));
-    const { deck, remaining } = todaysQueue(cards, 600, now);
-    expect(deck).toHaveLength(NEW_PER_DAY);
-    expect(remaining).toBe(3);
-    expect(dealableCount(cards, now)).toBe(NEW_PER_DAY);
-  });
-
-  it("counts the day's allowance against cards already introduced", () => {
-    const seen = Array.from({ length: NEW_PER_DAY }, (_, i) =>
+  it("has no daily new-card cap: every due new card is dealable", () => {
+    const seen = Array.from({ length: 12 }, (_, i) =>
       gradeStoredCard(fresh(`s${i}`), "easy", new Date(now.getTime() - 3_600_000)),
     );
-    const cards = [...seen, fresh("waiting")];
-    expect(introducedToday(cards, now)).toBe(NEW_PER_DAY);
-    expect(hasReviewWork(cards, now)).toBe(false);
-    // A rolling day: tomorrow the allowance is back.
-    expect(hasReviewWork(cards, new Date(now.getTime() + DAY))).toBe(true);
+    const cards = [...seen, ...Array.from({ length: 25 }, (_, i) => fresh(`n${i}`))];
+    expect(dealableCount(cards, now)).toBe(25);
+    expect(hasReviewWork(cards, now)).toBe(true);
+    const { deck, remaining } = todaysQueue(cards, 15, now);
+    expect(deck).toHaveLength(10); // the minute budget still cuts one pass
+    expect(remaining).toBe(15);
   });
 
   it("never deals a suspended card", () => {
@@ -175,6 +158,26 @@ describe("which nodes still need a factory card", () => {
   it("counts only the factory's own cards as covering a node", () => {
     expect(uncoveredNodes(nodes, cards).map((n) => n.id)).toEqual(["a", "b"]);
     expect(isFactoryCard({ source: "Connect" })).toBe(false);
+  });
+
+  it("agrees with the queue chip on a quick look: no card until the rungs are done", () => {
+    const plan = ["consume", "explain", "retain"] as const;
+    const learned = [
+      { id: "read", phasePlan: [...plan] },
+      { id: "done", phasePlan: [...plan] },
+      { id: "gap", phasePlan: [...plan], gap: true },
+    ];
+    const states = { read: "learning", done: "mastered", gap: "learning" };
+    const phasesDone = { read: ["consume"], done: ["consume", "explain"] };
+    expect(
+      reviewableNodes(learned, states, "glance", phasesDone).map((n) => n.id),
+    ).toEqual(["done"]);
+    expect(
+      reviewableNodes(learned, states, "mastery", phasesDone).map((n) => n.id),
+    ).toEqual(["read", "done"]);
+    // The chip counts what a tap on Review would draft — the bug was "1 new"
+    // on the chip and "nothing to review" on the tap.
+    expect(freshConcepts(learned, states, "glance", phasesDone, [])).toBe(1);
   });
 
   it("files a draft for a Connect-only node, and skips a covered one", () => {

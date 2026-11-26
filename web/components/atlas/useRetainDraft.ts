@@ -6,16 +6,14 @@
 
 import { useCallback, useRef } from "react";
 import {
-  phasePlan,
   RETAIN_DRAFT_NODES,
-  retainDeck,
+  reviewableNodes,
   sectionText,
   retainReducer,
   uncoveredNodes,
   type ReviewCard,
 } from "@/lib/curriculum";
 import { toReviewCard, type StoredCard } from "@/lib/fsrs";
-import { newAllowance } from "@/lib/fsrsQueue";
 import { fetchRetain } from "@/lib/api";
 import { logWarning } from "@/lib/log";
 import type { Language } from "@/lib/i18n";
@@ -67,17 +65,11 @@ export function useRetainDraft(deps: {
   const retainPlan = useCallback(
     (store: readonly StoredCard[] = cardsRef.current) => {
       const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
-      // A quick look keeps what it used: its deck waits for the last rung
-      // before Retain, or a node carded after the reading is never re-carded.
-      const glance = formRef.current.goal === "glance";
-      const touched = graphRef.current.nodes.filter(
-        (n) =>
-          !n.gap &&
-          ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? "") &&
-          (!glance ||
-            phasePlan(n).every(
-              (p) => p === "retain" || phasesDoneRef.current[n.id]?.includes(p),
-            )),
+      const touched = reviewableNodes(
+        graphRef.current.nodes,
+        statesRef.current,
+        formRef.current.goal,
+        phasesDoneRef.current,
       );
       // One draft covers one draft's worth of nodes. Sending every uncovered
       // node asked for more cards than the factory will ever return, so the
@@ -117,21 +109,14 @@ export function useRetainDraft(deps: {
     warm.warm(plan.key, () => fetchRetain(plan.params, { prefetch: true }));
   }, [retainPlan, warm]);
 
-  /** Freshly drafted cards, dealt at the end of the open pass — as many as
-   *  today's new-card allowance has room for. */
+  /** Freshly drafted cards, dealt at the end of the open pass. */
   const dealFresh = useCallback(
     (seeded: StoredCard[]) => {
       const cur = retainRef.current;
       const content = retainContentRef.current;
       if (!cur || !content || cur.finished) return;
-      const waiting = retainDeck(cur, content)
-        .slice(cur.idx)
-        .filter((c) => c.queue === "new").length;
-      const room = Math.max(0, newAllowance(cardsRef.current) - waiting);
       const now = new Date();
-      const cards = seeded
-        .slice(0, room)
-        .map((c) => toReviewCard(c, now, languageRef.current));
+      const cards = seeded.map((c) => toReviewCard(c, now, languageRef.current));
       if (cards.length === 0) return;
       setRetain((prev) =>
         prev && retainContentRef.current
@@ -141,16 +126,7 @@ export function useRetainDraft(deps: {
       onDealt(cards);
       showToast(tc().cardsDealt(cards.length));
     },
-    [
-      cardsRef,
-      languageRef,
-      onDealt,
-      retainContentRef,
-      retainRef,
-      setRetain,
-      showToast,
-      tc,
-    ],
+    [languageRef, onDealt, retainContentRef, retainRef, setRetain, showToast, tc],
   );
 
   /**

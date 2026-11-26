@@ -79,6 +79,15 @@ const CONFLICT_KEYS: Record<string, string[]> = {
   node_content: ["topic_id", "node_id", "kind", "variant"],
 };
 
+/** A column as PostgREST reads it: a plain one, or `col->>key` — the text of
+ *  one key of a JSON column, which is how a compare-and-swap names `fsrs.reps`. */
+function cell(row: Row, column: string): unknown {
+  const [col, key] = column.split("->>");
+  if (key === undefined) return row[col];
+  const v = (row[col] as Row | null | undefined)?.[key];
+  return v === undefined || v === null ? null : String(v);
+}
+
 export function fixtureTable(name: string) {
   const filters: Filter[] = [];
   const sorts: { column: string; ascending: boolean }[] = [];
@@ -121,6 +130,15 @@ export function fixtureTable(name: string) {
         for (const topic of rowsOf("topics"))
           if ([...doomed].some((c) => c.id === topic.continent_id))
             topic.continent_id = null;
+      // `card_reviews` references its card, `on delete cascade`.
+      if (name === "cards")
+        seededTables.set(
+          "card_reviews",
+          rowsOf("card_reviews").filter(
+            (r) =>
+              ![...doomed].some((c) => c.topic_id === r.topic_id && c.id === r.card_id),
+          ),
+        );
       if (name === "topics")
         for (const child of ["nodes", "edges", "cards", "card_reviews", "node_content"]) {
           const ids = new Set([...doomed].map((row) => row.id));
@@ -145,7 +163,7 @@ export function fixtureTable(name: string) {
       return api;
     },
     eq: (column: string, value: unknown) => {
-      filters.push((row) => row[column] === value);
+      filters.push((row) => cell(row, column) === value);
       return api;
     },
     neq: (column: string, value: unknown) => {
@@ -193,16 +211,22 @@ export function fixtureTable(name: string) {
     },
     update: (patch: Row) => {
       mode = "write";
+      let returning = false;
       const applied = () => {
-        for (const row of matching()) Object.assign(row, patch);
-        pending = { data: null, error: null };
+        const hit = matching();
+        for (const row of hit) Object.assign(row, patch);
+        pending = { data: returning ? hit : null, error: null };
       };
       // The filters arrive after `update()`, and PostgREST applies all of them,
       // so the work waits for the await — applying on the first `eq` patched
       // every row the first filter matched.
       const chain = {
         eq: (column: string, value: unknown) => {
-          filters.push((row) => row[column] === value);
+          filters.push((row) => cell(row, column) === value);
+          return chain;
+        },
+        select: () => {
+          returning = true;
           return chain;
         },
         in: (column: string, values: unknown[]) => {

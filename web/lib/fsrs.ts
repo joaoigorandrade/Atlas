@@ -27,16 +27,10 @@ import type { Language } from "@/lib/i18n";
 
 export { fmtInterval };
 
-/** ts-fsrs card state with dates as ISO strings — JSON-snapshot safe.
- *
- *  `introduced` is ours, not ts-fsrs's: when the card was first reviewed. It
- *  rides in the scheduler state because, like the rest of it, only a grade may
- *  set it — that is what lets the queue cap how many new cards a day brings in
- *  (`NEW_PER_DAY`) without a second column a client could overwrite. */
+/** ts-fsrs card state with dates as ISO strings — JSON-snapshot safe. */
 export type StoredFsrsState = Omit<FsrsCard, "due" | "last_review"> & {
   due: string;
   last_review?: string;
-  introduced?: string;
 };
 
 /** One persisted review card: content + provenance + scheduler state. */
@@ -81,7 +75,7 @@ const RATING: Record<ReviewGrade, Grade> = {
 
 /** Exactly ts-fsrs's fields — named rather than spread, so the seed's `cid`
  *  and anything else riding on the scheduler's card never lands in storage. */
-function toStored(card: FsrsCard, introduced?: string): StoredFsrsState {
+function toStored(card: FsrsCard): StoredFsrsState {
   return {
     due: card.due.toISOString(),
     stability: card.stability,
@@ -93,14 +87,13 @@ function toStored(card: FsrsCard, introduced?: string): StoredFsrsState {
     lapses: card.lapses,
     state: card.state,
     ...(card.last_review ? { last_review: card.last_review.toISOString() } : null),
-    ...(introduced ? { introduced } : null),
   };
 }
 
 /** The scheduler's card, carrying the id its fuzz is seeded with. */
 function fromStored(state: StoredFsrsState, id = ""): FsrsCard {
-  // `introduced` rides along untouched; `toStored` names its fields, so
-  // nothing the scheduler carries through comes back out unasked.
+  // `toStored` names its fields, so nothing extra on a stored row (an old
+  // `introduced` stamp) comes back out.
   return {
     ...state,
     cid: id,
@@ -200,12 +193,10 @@ export function reviewStoredCard(
     now,
     RATING[grade],
   );
-  const introduced =
-    card.fsrs.introduced ?? (card.fsrs.reps ? undefined : now.toISOString());
   const leech = grade === "again" && !card.suspended && next.lapses >= LEECH_LAPSES;
   const graded: StoredCard = {
     ...card,
-    fsrs: toStored(next, introduced),
+    fsrs: toStored(next),
     ...(leech ? { suspended: true } : null),
   };
   return {
@@ -302,12 +293,16 @@ export function toReviewCard(
 }
 
 /**
- * How far ahead a learning step still counts as "this pass" — Anki's
- * learn-ahead limit. A card the scheduler puts back within it (a miss at 1 min,
- * a new card's 10-minute step) is dealt again before the pass ends, and graded
- * for real when it is; one due later waits for its day.
+ * How far ahead a learning step still counts as "this pass". Only a miss's
+ * 1-minute step fits: it comes back before the pass ends. Anki's 20-minute
+ * learn-ahead also pulled in a new card's 10-minute step, and in a short deck
+ * that step was answered ~60 s later, so every new card graduated in its first
+ * sitting (prod: four reviews of one card in under two minutes). A longer step
+ * now leaves the pass and is dealt when it is really due.
+ * ponytail: a miss can still come back a little under a minute early in a
+ * tiny deck; hold the card behind a countdown if that ever matters.
  */
-export const LEARN_AHEAD_MS = 20 * 60_000;
+export const LEARN_AHEAD_MS = 2 * 60_000;
 
 /** Does this just-graded card come back before today's pass ends? */
 export function returnsThisPass(card: StoredCard, now: Date = new Date()): boolean {

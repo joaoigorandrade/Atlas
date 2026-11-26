@@ -9,8 +9,8 @@ import { color } from "@/lib/theme";
 // winnable, and ends on a lit node — a good feeling to return to. Content ships a
 // sample streak history so the flame → popover → forgiving-freeze story reads as
 // designed; in the final product these aggregate the learner's real active days.
-import { RetainContent } from "./retain";
 import { uncoveredNodes } from "./cardSources";
+import { phasePlan } from "./phases";
 import { Language } from "@/lib/i18n";
 
 /** How one day sits in the streak: target met, absorbed by a freeze, missed, or today's pending day. */
@@ -153,30 +153,42 @@ export interface DailyQueue {
   fresh?: number;
 }
 
-/** Concepts learned but not yet carded — `DailyQueue.fresh`. */
-export function freshConcepts(
-  graph: { nodes: ReadonlyArray<{ id: string; gap?: boolean }> },
+/**
+ * The nodes Review cards: learned (learning, shaky or mastered), not gaps, and
+ * — on a quick look — only once every rung before Retain is done, so a node
+ * carded after its reading is never left un-recarded. One definition, read by
+ * the Review entry (`retainPlan`) and the queue chip (`freshConcepts`): the
+ * chip used to skip the quick-look rule and promised "1 new" that a tap then
+ * called "nothing to review".
+ */
+export function reviewableNodes<N extends ReviewNode>(
+  nodes: readonly N[],
   states: Record<string, string | undefined>,
-  cards: ReadonlyArray<{ nodeId: string; source: string }>,
-): number {
+  goal: string | undefined,
+  phasesDone: Done,
+): N[] {
   const touched = ["learning", "shaky", "mastered"];
-  return uncoveredNodes(
-    graph.nodes.filter((n) => !n.gap && touched.includes(states[n.id] ?? "")),
-    cards,
-  ).length;
+  return nodes.filter(
+    (n) =>
+      !n.gap &&
+      touched.includes(states[n.id] ?? "") &&
+      (goal !== "glance" ||
+        phasePlan(n).every((p) => p === "retain" || phasesDone[n.id]?.includes(p))),
+  );
 }
 
-/** The honest top-bar queue: minutes budget + cards due now, read off the FSRS forecast. */
-export function dailyQueue(
-  content: RetainContent | null,
-  fallbackMinutes: number,
-): DailyQueue {
-  if (!content) return { minutes: fallbackMinutes, cards: 0 };
-  const due = content.forecast?.find((f) => f.tone === "due");
-  const cards = due
-    ? parseInt(due.count, 10) || content.cards.length
-    : content.cards.length;
-  return { minutes: content.budgetMin, cards };
+type ReviewNode = Parameters<typeof phasePlan>[0] & { id: string; gap?: boolean };
+type Done = Record<string, readonly string[] | undefined>;
+
+/** Concepts learned but not yet carded — `DailyQueue.fresh`. */
+export function freshConcepts(
+  nodes: readonly ReviewNode[],
+  states: Record<string, string | undefined>,
+  goal: string | undefined,
+  phasesDone: Done,
+  cards: ReadonlyArray<{ nodeId: string; source: string }>,
+): number {
+  return uncoveredNodes(reviewableNodes(nodes, states, goal, phasesDone), cards).length;
 }
 
 /**

@@ -290,12 +290,12 @@ test("retain: a missed card comes back at the end of the same pass", async ({ pa
   await expect(sheet.getByText(new RegExp(`Card 2 (of|de) ${n + 1}$`))).toBeVisible();
 
   // The second card is new: Good puts it on its 10-minute learning step,
-  // which lands inside the pass, so it is dealt again too — as in Anki.
+  // which waits for its time instead of coming back a minute later — so the
+  // deck does not grow, and only the missed card is on a step this pass.
   await sheet.getByTestId("action-sure-1").click();
   await sheet.getByTestId("action-grade-good").click();
-  await expect(sheet.getByText(new RegExp(`Card 3 (of|de) ${n + 2}$`))).toBeVisible();
-  // The new/learning/review counts move with it: two cards now on a step.
-  await expect(sheet.getByLabel(/^(Learning|Aprendendo): 2$/)).toBeVisible();
+  await expect(sheet.getByText(new RegExp(`Card 3 (of|de) ${n + 1}$`))).toBeVisible();
+  await expect(sheet.getByLabel(/^(Learning|Aprendendo): 1$/)).toBeVisible();
 });
 
 test("persistence: a reload restores the run exactly", async ({ page }) => {

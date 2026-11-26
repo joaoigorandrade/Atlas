@@ -18,7 +18,6 @@ import {
   type ReviewGrade,
 } from "@/lib/curriculum";
 import {
-  dueCards,
   intervalLabels,
   returnsThisPass,
   reviewStoredCard,
@@ -79,10 +78,14 @@ export function useRetain(deps: {
   // server's to write. When it overrules ours — a stale copy refused, an undo
   // answered — its card replaces the local one.
   const syncRef = useRef<GradeSync | null>(null);
+  /** Drops an undo the server just overruled (set below, once the undo exists). */
+  const forgetUndoRef = useRef<(cardId: string) => void>(() => undefined);
   useEffect(() => {
-    const sync = createGradeSync((topicId, card) => {
+    const sync = createGradeSync((topicId, card, refused) => {
       if (topicId !== topicIdRef.current) return;
       setCards((prev) => prev.map((c) => (c.id === card.id ? card : c)));
+      // A refused grade wrote nothing: its undo would take back another's.
+      if (refused) forgetUndoRef.current(card.id);
     });
     syncRef.current = sync;
     return () => {
@@ -111,6 +114,10 @@ export function useRetain(deps: {
     syncRef,
     shownAtRef,
   });
+  forgetUndoRef.current = (cardId) => {
+    if (undoRef.current?.kind === "grade" && undoRef.current.card.id === cardId)
+      setUndo(null);
+  };
 
   const { retainPlan, warmRetain, draftInBackground } = useRetainDraft({
     run,
@@ -134,8 +141,7 @@ export function useRetain(deps: {
     // intervals on the grade buttons, forecast from actual due dates.
     const openFrom = (store: StoredCard[]): boolean => {
       if (!hasReviewWork(store)) {
-        // Due cards held back by the day's new-card allowance are not "clear".
-        showToast(dueCards(store).length ? tc().newLimitReached : tc().queueClear);
+        showToast(tc().queueClear);
         return false;
       }
       setRetainContent(
