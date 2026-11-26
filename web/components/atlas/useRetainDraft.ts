@@ -168,7 +168,9 @@ export function useRetainDraft(deps: {
         for (let i = 0; i < MAX_BACKGROUND_DRAFTS; i++) {
           const plan = retainPlan(known());
           if (plan.uncovered.length === 0) break;
-          const content = await fetchRetain(plan.params);
+          // Through the warm queue: a warm of this same draft may be in flight,
+          // and calling past it paid for the deck twice.
+          const content = await warm.run(plan.key, () => fetchRetain(plan.params), true);
           // The learner opened another map meanwhile: these are not its cards.
           if (topicIdRef.current !== topicId) break;
           const seeded = seedDrafted(content, known());
@@ -184,7 +186,7 @@ export function useRetainDraft(deps: {
         drafting.current = false;
       }
     },
-    [cardsRef, dealFresh, retainPlan, setCards, topicIdRef],
+    [cardsRef, dealFresh, retainPlan, setCards, topicIdRef, warm],
   );
 
   return { retainPlan, warmRetain, draftInBackground };
