@@ -933,6 +933,13 @@ describe("retainNodes", () => {
     expect(n.takeaways).toEqual(["x", "y", "z", "w"]);
     expect(retainNodes([{ ...plain, takeaways: [] }], 40)[0]).toEqual(plain);
   });
+
+  it("keeps the reading only under a cap", () => {
+    const plain = { id: "a", label: "A", state: "mastered" };
+    expect(retainNodes([{ ...plain, reading: "abcdef" }], 40, 3)[0].reading).toBe("abc");
+    expect(retainNodes([{ ...plain, reading: "abcdef" }], 40)[0]).toEqual(plain);
+    expect(retainNodes([{ ...plain, reading: "  " }], 40, 3)[0]).toEqual(plain);
+  });
 });
 
 describe("mapNodeBounds", () => {

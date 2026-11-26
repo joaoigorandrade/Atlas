@@ -126,24 +126,30 @@ export function validateRetain(
 }
 
 /** A draft's nodes as keyed: learned nodes only, each with at most four of its
- *  reading's key ideas — a card per idea (`retainCardBounds` counts them). A
- *  node sent without ideas keys exactly as it did before they existed. */
-export function retainNodes(raw: unknown, cap: number): RetainNode[] {
+ *  reading's key ideas — a card per idea (`retainCardBounds` counts them) — and
+ *  the reading itself, capped at `readingCap`. A node sent without either keys
+ *  exactly as it did before they existed. */
+export function retainNodes(raw: unknown, cap: number, readingCap = 0): RetainNode[] {
   return (Array.isArray(raw) ? raw : [])
     .filter(
-      (n): n is RetainNode & { takeaways?: unknown } =>
+      (n): n is RetainNode & { takeaways?: unknown; reading?: unknown } =>
         typeof n === "object" &&
         n !== null &&
         [n.id, n.label, n.state].every((v) => typeof v === "string") &&
         (!("summary" in n) || typeof n.summary === "string"),
     )
     .slice(0, cap)
-    .map(({ takeaways, ...rest }) => {
+    .map(({ takeaways, reading, ...rest }) => {
       const ideas = (Array.isArray(takeaways) ? takeaways : [])
         .filter((x): x is string => typeof x === "string" && !!x.trim())
         .slice(0, 4)
         .map((x) => x.slice(0, 300));
-      return ideas.length ? { ...rest, takeaways: ideas } : rest;
+      const text = typeof reading === "string" ? reading.trim().slice(0, readingCap) : "";
+      return {
+        ...rest,
+        ...(ideas.length ? { takeaways: ideas } : null),
+        ...(text ? { reading: text } : null),
+      };
     });
 }
 
@@ -154,6 +160,8 @@ type RetainNode = {
   summary?: string;
   /** The reading's key ideas — each one a fact that can be missed alone. */
   takeaways?: string[];
+  /** The whole reading (`sectionText`): what a Jev-sized deck must cover. */
+  reading?: string;
 };
 
 /**
@@ -217,9 +225,9 @@ function draftCards(
       `Write the review cards for the topic "${topic}": the spaced-repetition cards that keep these concepts alive for months. Each card will be answered many times, weeks apart, by someone who has not looked at the material since — so a card is a small retrieval task you are designing for that future learner.
 
 The concepts in rotation (id: label — state — what it taught):
-${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}${n.takeaways?.length ? `\n${n.takeaways.map((k) => `    · ${k}`).join("\n")}` : n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}`).join("\n")}
+${nodes.map((n) => `- ${n.id}: ${n.label} — ${n.state}${n.takeaways?.length ? `\n${n.takeaways.map((k) => `    · ${k}`).join("\n")}` : n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}${thorough && n.reading ? `\n  The reading it taught:\n<<<\n${n.reading}\n>>>` : ""}`).join("\n")}
 
-Every card asks only for what its node teaches, as summarised here. Never a real-world spec, typical value, date or name the node does not cover: a card about something the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
+Every card asks only for what its node teaches, as summarised here${thorough ? ", or what a standard course on exactly this concept treats as part of it (its rules, conditions, exceptions and classic pitfalls)" : ""}. Never a real-world spec, typical value, date or name the node does not cover: a card about something the learner was never taught grades trivia, not memory. If a card needs a value to be answered, state it on the card.
 
 WHAT MAKES A CARD WORK:
 - Focused: one detail per card. Never a list or a set on one card.
@@ -240,7 +248,10 @@ PICK THE TYPE BY WHAT THE CONCEPT IS:
 
 ${
   thorough
-    ? `SIZE: write ${band.min}-${band.max} cards — the learner must remember EVERYTHING important here, edge cases included. Cover every key idea (·) first, then spend the rest on what a learner gets wrong: boundary conditions, exceptions to the rule, the case where it does NOT apply, the look-alike it is confused with, a sign or unit that flips the result, a common wrong answer and why it fails. An edge case must follow from the concept itself, not from trivia it never covers. Ask every important fact from more than one angle — recall it, explain why it holds, apply it to a fresh case — since each is a separate retrieval. Each card still asks one distinct thing, never the same question reworded.`
+    ? `SIZE: write ${band.min}-${band.max} cards — the learner must remember EVERYTHING important here, edge cases included. Cover every key idea (·) first, then every special case, exception or warning the reading names — each its own card, for each method or situation it applies to — then spend the rest on what a learner gets wrong: boundary conditions, exceptions to the rule, the case where it does NOT apply, the look-alike it is confused with, a sign or unit that flips the result, a common wrong answer and why it fails. An edge case must follow from the concept itself, not from trivia it never covers. Ask every important fact from more than one angle — recall it, explain why it holds, apply it to a fresh case — since each is a separate retrieval. Each card still asks one distinct thing, never the same question reworded.
+
+DIFFICULTY: these cards keep someone who studied the concept sharp, so none may be passed by common sense or by reading the question. A cloze blank is never a word the sentence's grammar or an everyday meaning gives away (not "linear" after "applies to circuits that are…", not "separately" after "each source is computed…"): nor a bare "zero", "equal" or "opposite" the rule's name already implies: blank the condition, value or rule a learner actually forgets. At least half the cards are "apply" or "why". An "apply" case needs the method itself to solve — at least two real steps of it, with its numbers stated — never a single sum, one division or a one-step lookup, and its case differs from the reading's worked examples. Prefer the case that catches the classic mistake: the sign, the condition or the exception that a learner who half-knows the rule gets wrong.
+An "apply" case must have exactly one reading: name where each element connects (both of its ends), never "a node connects by two resistors". Before its "back", write "work": the full solution step by step, then check the result a second way (substitute it back, or another method). If the check disagrees, fix the case and solve again; "back" is the checked result only.`
     : `${sizeRule({
         unit: "cards",
         min: band.min,
@@ -260,7 +271,8 @@ Return JSON:
       "node": "a node id from the list",
       "cloze": ["text before the blank", "text after the blank"],   // recall only
       "answer": "…",                                                // recall only
-      "front": "…",                                                 // why / apply only
+      "front": "…",                                                 // why / apply only${thorough ? `
+      "work": "…",                                                  // apply only: solved, then checked` : ""}
       "back": "…",
       "reExplain": "…"
     }, ...

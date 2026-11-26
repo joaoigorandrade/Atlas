@@ -543,7 +543,7 @@ function buildJob(body: GenerateBody): Job {
     }
 
     case "retain": {
-      const nodes = retainNodes(body.nodes, CAPS.listItems);
+      const nodes = retainNodes(body.nodes, CAPS.listItems, CAPS.lesson);
       if (nodes.length === 0) throw badRequest("nodes must list learned nodes");
       const budgetMin =
         typeof body.budgetMin === "number" && body.budgetMin >= 3

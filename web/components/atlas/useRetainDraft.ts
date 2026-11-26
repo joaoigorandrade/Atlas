@@ -9,6 +9,7 @@ import {
   phasePlan,
   RETAIN_DRAFT_NODES,
   retainDeck,
+  sectionText,
   retainReducer,
   uncoveredNodes,
   type ReviewCard,
@@ -97,6 +98,8 @@ export function useRetainDraft(deps: {
             ...(n.summary ? { summary: n.summary } : null),
             // What the reading taught, so each key idea gets its own card.
             takeaways: consumeCacheRef.current[n.id]?.map((c) => c.takeaway),
+            // And the reading itself, so a deck can cover all of it.
+            reading: consumeCacheRef.current[n.id]?.map(sectionText).join("\n\n"),
           })),
           interests: formRef.current.interests,
           language: languageRef.current,
