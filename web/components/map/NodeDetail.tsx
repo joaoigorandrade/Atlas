@@ -46,6 +46,14 @@ const TAG: React.CSSProperties = {
   color: color.inkMuted,
 };
 
+/** A locked node's primary button: drawn, but inert. */
+const LOCKED = {
+  cursor: "default",
+  background: color.inkWash,
+  color: color.inkGhost,
+  boxShadow: "none",
+};
+
 interface NodeDetailProps {
   node: ConceptNode;
   displayState: NodeState;
@@ -76,6 +84,8 @@ interface NodeDetailProps {
   onPhaseAction: (node: ConceptNode, displayState: NodeState, phaseIdx: number) => void;
   /** Prune a frontier node as diagnosed-known — the aggressive faster lever. */
   onSkipKnown: (node: ConceptNode) => void;
+  /** A quick look ("Só quero saber"): its ladder ends on keeping what it used. */
+  quick?: boolean;
 }
 
 /**
@@ -126,6 +136,7 @@ function NodeDetailBody({
   onPrimaryAction,
   onPhaseAction,
   onSkipKnown,
+  quick,
 }: NodeDetailProps & { presence: PresenceState }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -200,8 +211,19 @@ function NodeDetailBody({
   );
   // A finished ladder that open gaps hold off green: the button closes one.
   const gapCta = !ctaPhase && displayState === "learning" ? gapIds[0] : undefined;
-  // A node just learned walks on to what it opened, not into a review of itself.
-  const walkOn = nextStopOf(displayState, dependentIds, display);
+  // A node just learned walks on to what it opened, not into a review of itself —
+  // but a quick look ends on keeping it: its cards first, walking on second.
+  const nextStop = nextStopOf(displayState, dependentIds, display);
+  const keepIt = !!quick && !ctaPhase && !reviewed && plan[currentPhase] === "retain";
+  const walkOn = keepIt ? undefined : nextStop;
+  const owed = () => onPrimaryAction(node, displayState);
+  const second: [string, string, () => void] | null = proving
+    ? ["action-walk-ladder", t.walkLadder(ctaPhaseLabel), owed]
+    : displayState === "frontier"
+      ? ["action-skip-known", t.skipKnown, () => onSkipKnown(node)]
+      : keepIt && nextStop
+        ? ["action-walk-on", t.walkOn(labelOf(nextStop)), () => onSelect(nextStop)]
+        : null;
 
   const chipStyle = {
     display: "inline-flex",
@@ -236,9 +258,9 @@ function NodeDetailBody({
     </button>
   );
 
-  const chips = (title: string, ids: string[], marginTop: number) =>
+  const chips = (title: string, ids: string[], margin: React.CSSProperties) =>
     ids.length > 0 && (
-      <div style={{ marginTop }}>
+      <div style={margin}>
         <div style={{ ...kicker(10), marginBottom: 10 }}>{title}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{ids.map(chip)}</div>
       </div>
@@ -354,14 +376,7 @@ function NodeDetailBody({
             </span>
             <span style={TAG}>{t.repairNote}</span>
           </div>
-          {parentIds.length > 0 && (
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ ...kicker(10), marginBottom: 10 }}>{t.spawnedFrom}</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                {parentIds.map(chip)}
-              </div>
-            </div>
-          )}
+          {chips(t.spawnedFrom, parentIds, { marginBottom: 22 })}
         </>
       ) : (
         <>
@@ -538,24 +553,9 @@ function NodeDetailBody({
 
       <Button
         data-testid="action-primary"
-        onClick={() =>
-          proving
-            ? onSkipKnown(node)
-            : walkOn
-              ? onSelect(walkOn)
-              : onPrimaryAction(node, displayState)
-        }
+        onClick={() => (proving ? onSkipKnown(node) : walkOn ? onSelect(walkOn) : owed())}
         accent={isGap ? stateColor : color.accent}
-        style={
-          locked
-            ? {
-                cursor: "default",
-                background: color.inkWash,
-                color: color.inkGhost,
-                boxShadow: "none",
-              }
-            : undefined
-        }
+        style={locked ? LOCKED : undefined}
       >
         {/* A part-read node's primary action is to get back into the reading,
             not to start something new. */}
@@ -565,28 +565,28 @@ function NodeDetailBody({
             ? t.resumeReading
             : gapCta
               ? t.closeGap(labelOf(gapCta))
-              : walkOn
-                ? t.walkOn(labelOf(walkOn))
-                : t.cta[displayState](ctaPhaseLabel)}
+              : keepIt
+                ? t.keepIt
+                : walkOn
+                  ? t.walkOn(labelOf(walkOn))
+                  : t.cta[displayState](ctaPhaseLabel)}
       </Button>
 
-      {(displayState === "frontier" || proving) && (
+      {second && (
         <Button
           variant="secondary"
           accent={color.inkMuted}
-          data-testid={proving ? "action-walk-ladder" : "action-skip-known"}
-          onClick={() =>
-            proving ? onPrimaryAction(node, displayState) : onSkipKnown(node)
-          }
+          data-testid={second[0]}
+          onClick={second[2]}
           style={{ marginTop: 10, fontSize: 14 }}
         >
-          {proving ? t.walkLadder(ctaPhaseLabel) : t.skipKnown}
+          {second[1]}
         </Button>
       )}
 
-      {chips(t.openGaps, gapIds, 24)}
-      {chips(edgeLabel.back, prereqIds, 24)}
-      {chips(edgeLabel.forward, dependentIds, 20)}
+      {chips(t.openGaps, gapIds, { marginTop: 24 })}
+      {chips(edgeLabel.back, prereqIds, { marginTop: 24 })}
+      {chips(edgeLabel.forward, dependentIds, { marginTop: 20 })}
     </div>
   );
 }

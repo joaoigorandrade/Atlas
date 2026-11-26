@@ -399,7 +399,6 @@ export default function AtlasApp({
     onSurface,
     jumpFrontier,
     toggleMomentum,
-    warmRetain,
     onPrimaryAction,
   } = spiral;
 
@@ -463,7 +462,7 @@ export default function AtlasApp({
     allFrontier,
     selectedId,
     isMap,
-    warmRetain,
+    warmRetain: spiral.warmRetain,
   });
   const feed = useFeed({ ...run, display, frontier: allFrontier, setScreen });
 
@@ -642,6 +641,7 @@ export default function AtlasApp({
             onPrimaryAction={onPrimaryAction}
             onPhaseAction={onPhaseAction}
             onSkipKnown={skipKnown}
+            quick={form.goal === "glance"}
           />
           {(feed.ready.length > 0 || mapFinished(graph, display)) && (
             <MapInvite
