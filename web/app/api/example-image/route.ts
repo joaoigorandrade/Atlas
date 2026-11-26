@@ -18,7 +18,7 @@ import {
   newRequestId,
   withRequestId,
 } from "@/lib/server/apiError";
-import { generateImage, imageModel } from "@/lib/server/image";
+import { generateImage, generateSvg, imageModel, svgPlan } from "@/lib/server/image";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseUrl } from "@/lib/supabase/config";
 
@@ -36,6 +36,7 @@ const EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/webp": "webp",
+  "image/svg+xml": "svg",
 };
 
 /** A double tap on one instance waits for the draw already in flight instead
@@ -94,7 +95,15 @@ export async function POST(request: Request) {
     let draw = inFlight.get(key);
     if (!draw) {
       draw = (async () => {
-        const img = await generateImage(prompt);
+        // Jev routes line schematics to an SVG (cheaper, crisp, exact labels);
+        // anything it isn't sure of — or an SVG that fails — draws as before.
+        const plan = await svgPlan(prompt);
+        const img = plan
+          ? await generateSvg(prompt, plan.effort).catch((err) => {
+              logError("example_svg_failed", err, { req: requestId });
+              return generateImage(prompt);
+            })
+          : await generateImage(prompt);
         const path = `${key}.${EXT[img.mime] ?? "png"}`;
         // Awaited, not `after()`: the signed URL below needs the object.
         const { error } = await storage.upload(path, img.bytes, {
