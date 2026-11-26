@@ -1,7 +1,7 @@
 // W0.1: the server re-derives state from the ledger, so a delta can't write a
 // state the ledger doesn't support.
 import { describe, expect, it } from "vitest";
-import { deriveRow, type LedgerRow } from "@/lib/server/store/derive";
+import { deriveRow, mergeLedger, type LedgerRow } from "@/lib/server/store/derive";
 
 const plan = [
   "consume",
@@ -55,5 +55,27 @@ describe("deriveRow", () => {
   });
   it("leaves a gap node's own state alone", () => {
     expect(deriveRow(row({ is_gap: true, state: "gap" }), 0, now).state).toBe("gap");
+  });
+});
+
+describe("mergeLedger", () => {
+  it("never lets a stale device drop a pass", () => {
+    const closed = { consume: "t", explain: "t", perform: "t" };
+    // The stale tab sends a shorter ledger; the stored one and the closed stamps win back perform.
+    expect(
+      mergeLedger(["consume", "explain"], ["consume", "explain", "perform"], closed),
+    ).toEqual(["consume", "explain", "perform"]);
+    // Already lost from phases_done: the closed stamp restores it.
+    expect(mergeLedger(["consume", "explain"], ["consume", "explain"], closed)).toEqual([
+      "consume",
+      "explain",
+      "perform",
+    ]);
+    // A fresh pass appends, with no duplicates.
+    expect(mergeLedger(["consume", "perform"], ["consume"], null)).toEqual([
+      "consume",
+      "perform",
+    ]);
+    expect(mergeLedger(["consume"], null, undefined)).toEqual(["consume"]);
   });
 });

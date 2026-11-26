@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fail } from "@/lib/server/store/shared";
+import { mergeLedger, type LedgerRow } from "@/lib/server/store/derive";
 import type { NodeDelta } from "@/lib/persistence";
 import {
   sectionText,
@@ -31,6 +32,18 @@ export async function applyNodeDeltas(
   deltas: NodeDelta[],
 ): Promise<void> {
   if (deltas.length === 0) return;
+  // A ledger is merged, never overwritten: a stale device must not undo a pass.
+  const ledgerIds = deltas.filter((d) => d.phasesDone != null).map((d) => d.id);
+  const held = new Map<string, Pick<LedgerRow, "phases_done" | "phase_closed_at">>();
+  if (ledgerIds.length) {
+    const { data, error } = await db
+      .from("nodes")
+      .select("id, phases_done, phase_closed_at")
+      .eq("topic_id", topicId)
+      .in("id", ledgerIds);
+    if (error) fail("applyNodeDeltas/ledger", error);
+    for (const r of data ?? []) held.set(r.id, r);
+  }
   const rows = deltas.map((d) => ({
     topic_id: topicId,
     id: d.id,
@@ -57,7 +70,15 @@ export async function applyNodeDeltas(
     ...(d.importance != null ? { importance: d.importance } : null),
     ...(d.difficulty != null ? { difficulty: d.difficulty } : null),
     ...(d.phasePlan != null ? { phase_plan: d.phasePlan } : null),
-    ...(d.phasesDone != null ? { phases_done: d.phasesDone } : null),
+    ...(d.phasesDone != null
+      ? {
+          phases_done: mergeLedger(
+            d.phasesDone,
+            held.get(d.id)?.phases_done,
+            held.get(d.id)?.phase_closed_at,
+          ),
+        }
+      : null),
     ...(d.consumeProgress !== undefined ? { consume_progress: d.consumeProgress } : null),
     ...(d.socraticProgress !== undefined
       ? { socratic_progress: d.socraticProgress }
