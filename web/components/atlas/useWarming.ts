@@ -181,7 +181,8 @@ export function useWarming(deps: {
                 ["learning", "shaky", "mastered"].includes(states[n.id] ?? "") &&
                 !cards.some((c) => c.nodeId === n.id),
             )
-            .map((n) => n.id)
+            // With its state: a quick look's deck is owed only once perform closes.
+            .map((n) => `${n.id}:${states[n.id]}`)
             .join(",")
         : "",
     [isMap, hydrated, graph, states, cards],

@@ -6,6 +6,7 @@
 
 import { useCallback, useRef } from "react";
 import {
+  phasePlan,
   RETAIN_DRAFT_NODES,
   retainDeck,
   retainReducer,
@@ -46,6 +47,7 @@ export function useRetainDraft(deps: {
     topicIdRef,
     setCards,
     retainContentRef,
+    phasesDoneRef,
   } = run;
   const { setRetain, retainRef } = sessions;
   const { showToast, tc } = toast;
@@ -64,10 +66,17 @@ export function useRetainDraft(deps: {
   const retainPlan = useCallback(
     (store: readonly StoredCard[] = cardsRef.current) => {
       const budgetMin = Math.min(15, Math.max(5, Math.round(formRef.current.target / 2)));
+      // A quick look keeps what it used: its deck waits for the last rung
+      // before Retain, or a node carded after the reading is never re-carded.
+      const glance = formRef.current.goal === "glance";
       const touched = graphRef.current.nodes.filter(
         (n) =>
           !n.gap &&
-          ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? ""),
+          ["learning", "shaky", "mastered"].includes(statesRef.current[n.id] ?? "") &&
+          (!glance ||
+            phasePlan(n).every(
+              (p) => p === "retain" || phasesDoneRef.current[n.id]?.includes(p),
+            )),
       );
       // One draft covers one draft's worth of nodes. Sending every uncovered
       // node asked for more cards than the factory will ever return, so the
@@ -94,7 +103,7 @@ export function useRetainDraft(deps: {
         },
       };
     },
-    [cardsRef, formRef, graphRef, statesRef, consumeCacheRef, languageRef],
+    [cardsRef, formRef, graphRef, statesRef, consumeCacheRef, languageRef, phasesDoneRef],
   );
 
   /** Draft the day's new cards ahead of the click. The result is discarded —
