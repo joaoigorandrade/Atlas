@@ -113,3 +113,24 @@ import Testing
 }
 
 
+
+/// The atlas under the trail, and it is silent when wrong: a city off its land
+/// floats in open sea, and a country whose name found no room goes unnamed.
+@Test func theAtlasRaisesLandUnderEveryCityAndNamesItsCountries() async throws {
+    let nodes = (0..<15).map { ConceptNode(id: "n\($0)", label: "Conceito \($0)") }
+    let edges = (1..<15).map { ConceptEdge("n\(($0 - 1) / 2)", "n\($0)") }
+    let map = TrailMap(ConceptGraph(nodes: nodes, edges: edges), width: 390)
+    // Fifteen concepts make three countries of about five, each big enough to
+    // be named after its capital.
+    #expect(Set(map.country.values).count == 3)
+    #expect(map.names.count == 3)
+
+    let bake = try #require(await AtlasTerrain.paint(AtlasInput(map, display: [:], dark: false)))
+    let res = AtlasTerrain.resolution(for: map.size)
+    let pixels = try #require(bake.land.dataProvider?.data as Data?)
+    for city in map.placed {
+        let i = Int(city.at.x * res), j = Int(city.at.y * res)
+        #expect(pixels[(j * bake.land.width + i) * 4 + 3] > 200, "\(city.id) stands in open sea")
+    }
+    #expect(!bake.spots.isEmpty)
+}

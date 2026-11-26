@@ -11,6 +11,7 @@ import SwiftUI
 public struct MapView: View {
     @Environment(AtlasStore.self) private var store
     @EnvironmentObject private var navigator: AtlasNavigator
+    @Environment(\.colorScheme) private var scheme
     @State private var model = MapViewModel()
 
     public init() {}
@@ -157,12 +158,14 @@ public struct MapView: View {
         GeometryReader { geo in
             let map = model.trail(store.graph, width: geo.size.width)
             let zoom = model.zoom
+            let sheet = AtlasInput(map, display: store.display, dark: scheme == .dark)
             ScrollViewReader { proxy in
                 ScrollView(zoom > 1 ? [.horizontal, .vertical] : .vertical) {
                     ZStack(alignment: .topLeading) {
-                        // Every edge in one canvas, over the whole map: an edge
-                        // reaching back three levels has to be drawn across the
-                        // bands it crosses, and a canvas per band would clip it.
+                        // The whole sheet in one canvas, under every city: a
+                        // road reaching back three levels has to be drawn
+                        // across the bands it crosses, and a canvas per band
+                        // would clip it.
                         Canvas { context, _ in draw(map, into: &context) }
                             .frame(width: map.size.width, height: map.size.height)
                         // The bands are real views, in order, so a concept can
@@ -176,11 +179,13 @@ public struct MapView: View {
                                         NodeMark(
                                             node: placed.node,
                                             state: store.display[placed.id] ?? .unknown,
+                                            capital: map.capitals[placed.id] != nil,
                                             selected: model.selection?.id == placed.id,
                                             changed: model.landing == placed.id,
                                             fade: retention[placed.id]
                                         ) { open(placed.node) }
-                                        .frame(width: TrailMap.slot - 12)
+                                        // The city on its territory's heart, so
+                                        // the baked land sits under it.
                                         .position(x: placed.at.x, y: TrailMap.band / 2)
                                     }
                                 }
@@ -188,6 +193,7 @@ public struct MapView: View {
                                 .id(band)
                             }
                         }
+                        .padding(.vertical, TrailMap.shore)
                     }
                     // The pinch scales the drawing, and the frame follows it so
                     // the scroll view's content is the size it now looks.
@@ -209,6 +215,9 @@ public struct MapView: View {
                 // back with something to show.
                 .onChange(of: store.subject) { _, _ in land(map, proxy, animated: false) }
                 .onChange(of: store.lastChanged) { _, _ in land(map, proxy, animated: true) }
+                // The atlas is baked off the main actor and repainted whenever
+                // a territory changes hands, the layout moves or the light does.
+                .task(id: sheet) { await model.paint(sheet) }
                 .overlay(alignment: .bottomTrailing) {
                     Button { recenter(map, proxy) } label: {
                         Image(systemName: "scope")
@@ -250,32 +259,109 @@ public struct MapView: View {
         withAnimation(Motion.enter) { proxy.scrollTo(placed.level, anchor: .center) }
     }
 
-    /// The edges, drawn top to bottom. Direction is the layout's job — a
-    /// prerequisite is always above what it unlocks — so there are no
-    /// arrowheads to keep the map quiet at a glance.
+    /// The sheet under the cities, back to front: the graticule, the baked land
+    /// (`AtlasTerrain`), the countries' names, the roads, the fog, and the
+    /// relief beside each city. Direction is the layout's job — a prerequisite
+    /// is always above what it unlocks — so there are no arrowheads.
     private func draw(_ map: TrailMap, into context: inout GraphicsContext) {
+        let sheet = CGRect(origin: .zero, size: map.size)
+        var grid = Path()
+        for x in stride(from: 0, through: sheet.width, by: 104) {
+            grid.move(to: CGPoint(x: x, y: 0))
+            grid.addLine(to: CGPoint(x: x, y: sheet.height))
+        }
+        for y in stride(from: 0, through: sheet.height, by: 104) {
+            grid.move(to: CGPoint(x: 0, y: y))
+            grid.addLine(to: CGPoint(x: sheet.width, y: y))
+        }
+        context.stroke(grid, with: .color(MapInk.graticule), lineWidth: 1)
+
+        let atlas = model.atlas
+        if let atlas {
+            context.draw(Image(decorative: atlas.land, scale: 1).interpolation(.high), in: sheet)
+            // Set like a country on an engraved atlas: widely spaced capitals.
+            for spot in atlas.spots {
+                context.draw(
+                    Text(verbatim: spot.name.uppercased())
+                        .font(.atlas(.serif, spot.size, weight: .semibold))
+                        .tracking(spot.spacing)
+                        .foregroundStyle(MapInk.countryInk),
+                    at: spot.at
+                )
+            }
+        }
+
+        // What a road looks like says what walking it means (`MapEdges.tsx`):
+        // solid ink between two concepts already reached, a gilt trail into
+        // the frontier, a faint dotted track through ground nobody has
+        // reached, and the re-planner's red dashes out to a gap.
+        let shown = store.display
         for link in map.links {
-            // Off the bottom of one disc and into the top of the next, so an
-            // edge never crosses the disc it starts from.
-            let from = CGPoint(x: link.from.x, y: link.from.y + 17)
-            let to = CGPoint(x: link.to.x, y: link.to.y - 19)
-            let reach = (to.y - from.y) * 0.45
+            let from = shown[link.out] ?? .unknown, to = shown[link.into] ?? .unknown
+            let trail = !link.dashed && from != .unknown && to == .frontier
+            let road = !link.dashed && from != .unknown && to != .unknown && !trail
+            let reach = (link.to.y - link.from.y) * 0.45
             var path = Path()
-            path.move(to: from)
-            path.addCurve(to: to,
-                          control1: CGPoint(x: from.x, y: from.y + reach),
-                          control2: CGPoint(x: to.x, y: to.y - reach))
-            // The last step into a frontier concept is the one the learner is
-            // about to take: it gets the gilt, everything else stays an ink road.
-            let next = store.display[link.into] == .frontier
-            context.stroke(
-                path,
-                with: .color(next
-                    ? Palette.gilt.opacity(0.7)
-                    : Palette.ink.opacity(link.dashed ? 0.16 : 0.32)),
-                style: .init(lineWidth: next ? 2 : 1.2, lineCap: .round,
-                             dash: link.dashed ? [4, 5] : [])
-            )
+            path.move(to: link.from)
+            path.addCurve(to: link.to,
+                          control1: CGPoint(x: link.from.x, y: link.from.y + reach),
+                          control2: CGPoint(x: link.to.x, y: link.to.y - reach))
+            let (ink, width, dash): (Color, CGFloat, [CGFloat]) =
+                link.dashed ? (NodeState.gap.color.opacity(0.6), 1.3, [5, 6])
+                : trail ? (Palette.gilt, 2, [7, 6])
+                : road ? (MapInk.road, 1.8, [])
+                : (MapInk.track, 1.3, [1.5, 5])
+            context.stroke(path, with: .color(ink), style: .init(lineWidth: width, lineCap: .round, dash: dash))
+        }
+
+        if let atlas {
+            context.draw(Image(decorative: atlas.fog, scale: 1).interpolation(.high), in: sheet)
+        }
+        for placed in map.placed where shown[placed.id] != .gap {
+            relief(placed.node.difficulty, at: placed.at, muted: (shown[placed.id] ?? .unknown) == .unknown,
+                   into: context)
+        }
+    }
+
+    /// How hard the climb is, drawn up and to the left of the city as an
+    /// engraved atlas draws a place (`Relief.tsx`): nothing on the lowland, one
+    /// hachured hill, or a small range of peaks shaded on the lee side.
+    private func relief(_ difficulty: NodeDifficulty?, at city: CGPoint, muted: Bool, into context: GraphicsContext) {
+        guard difficulty != .easy else { return }
+        var context = context
+        context.translateBy(x: city.x, y: city.y)
+        context.scaleBy(x: 1.7, y: 1.7) // the web's 1.3, on a city a size up (`NodeMark.scale`)
+        let ink = GraphicsContext.Shading.color(muted ? Palette.inkGhost : Palette.inkMuted)
+        func hill(_ x: CGFloat, _ y: CGFloat) {
+            var arc = Path()
+            arc.move(to: CGPoint(x: x - 6, y: y))
+            arc.addQuadCurve(to: CGPoint(x: x + 6, y: y), control: CGPoint(x: x, y: y - 7))
+            context.stroke(arc, with: ink, lineWidth: 1)
+            var hatch = Path()
+            for (a, b) in [((1.0, -3.0), (2.4, -0.4)), ((2.6, -2.4), (3.9, -0.3)), ((-0.6, -3.4), (0.6, -0.9))] {
+                hatch.move(to: CGPoint(x: x + a.0, y: y + a.1))
+                hatch.addLine(to: CGPoint(x: x + b.0, y: y + b.1))
+            }
+            context.stroke(hatch, with: ink, lineWidth: 0.55)
+        }
+        func peak(_ x: CGFloat, _ y: CGFloat, _ height: CGFloat = 11) {
+            var face = Path()
+            face.move(to: CGPoint(x: x - 5.5, y: y))
+            face.addLine(to: CGPoint(x: x, y: y - height))
+            face.addLine(to: CGPoint(x: x + 5.5, y: y))
+            context.fill(face, with: .color(Palette.paper))
+            context.stroke(face, with: ink, style: .init(lineWidth: 1, lineJoin: .round))
+            var hatch = Path()
+            for dx in [1.3, 2.6, 3.9] {
+                hatch.move(to: CGPoint(x: x + dx, y: y - height + dx / 5.5 * height + 1))
+                hatch.addLine(to: CGPoint(x: x + dx, y: y))
+            }
+            context.stroke(hatch, with: ink, lineWidth: 0.55)
+        }
+        if difficulty == .hard {
+            hill(-25, -5); peak(-19, -7, 9); peak(-12, -10)
+        } else {
+            hill(-16, -9)
         }
     }
 
@@ -359,12 +445,17 @@ public struct MapView: View {
 
 // MARK: - One concept
 
-/// A concept on the map: the disc, its name under it, and what it is called
-/// when that is worth saying. Everything about a level's arrangement is the
-/// layout's business — this only has to draw one of them.
+/// A concept drawn the way a war map draws a city (`MapNode.tsx`): its
+/// territory is the land baked under it (`AtlasTerrain`), and this is the town
+/// mark at its heart — filled in its mastery colour, a country's capital ringed
+/// twice, a mastered one sealed in wax — with its name hung underneath on a
+/// paper halo. The frontier sends out a gilt beacon. The city sits exactly on
+/// its point, so the land, the roads and the mark agree.
 private struct NodeMark: View {
     let node: ConceptNode
     let state: NodeState
+    /// The concept its country is named after.
+    let capital: Bool
     let selected: Bool
     /// The concept a pass just changed: it lands with the reward spring, which
     /// is what the design reserves for a concept going green.
@@ -373,81 +464,56 @@ private struct NodeMark: View {
     let fade: Double?
     let open: () -> Void
 
+    /// The button's reach, centred on the city.
+    static let reach: CGFloat = 44
+    /// The web's marks a size up: a phone is read at arm's length, and the web
+    /// draws them inside a zoomed-out canvas.
+    static let scale: CGFloat = 1.3
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
     @State private var landing = false
 
-    /// A mastered disc pales as its cards come due (W4.2): forgetting, shown
+    /// Not reached yet: drawn in a fainter ink, as the web locks it.
+    private var locked: Bool { state == .unknown }
+
+    /// The bar the concept is held to, as settlement rank: a city to master, a
+    /// town to use, a village to recognise — both lesser ranks with their names
+    /// in italic. A gap is drawn as a town, its ring dashed.
+    private var rank: NodeImportance { state == .gap ? .working : node.importance ?? .core }
+    private var italic: Bool { state == .gap || (!capital && rank != .core) }
+
+    /// One length per settlement: the capital's, the city's, the town's, the
+    /// village's.
+    private func sized(_ capital: CGFloat, _ city: CGFloat, _ town: CGFloat, _ village: CGFloat) -> CGFloat {
+        if self.capital { return capital }
+        return switch rank {
+        case .core: city
+        case .working: town
+        case .peripheral: village
+        }
+    }
+
+    /// A mastered city pales as its cards come due (W4.2): forgetting, shown
     /// where the learner plans.
     private var faded: Double {
         guard state == .mastered, let fade, fade < retentionTarget else { return 1 }
         return 0.4 + 0.6 * (fade / retentionTarget)
     }
 
-    /// The frontier is the biggest disc on the map and untouched territory the
-    /// smallest — size carries "where am I" before colour does.
-    private var diameter: CGFloat {
-        let base: CGFloat = switch state {
-        case .frontier: 28
-        case .unknown: 22
-        case .gap: 24
-        default: 25
-        }
-        return switch rank {
-        case .core: base
-        case .working: base * 0.8
-        case .peripheral: base * 0.65
-        }
-    }
-
-    /// The bar the concept is held to, drawn as the web's settlement rank: a
-    /// city to master, a town to use a size down, a village to recognise a size
-    /// below that — both lesser ranks with their names in italic. The button's
-    /// reach is unchanged. A gap is a sub-point of its parent, drawn full size.
-    private var rank: NodeImportance { state == .gap ? .core : node.importance ?? .core }
-    private var town: Bool { rank != .core }
-
     var body: some View {
         Button(action: open) {
-            VStack(spacing: 6) {
-                // A fixed zone, so every disc on a level sits on the same line
-                // whatever size its state gives it.
-                disc.frame(height: 52)
-                // Name and state on one ground: two grounds left a gap between
-                // them that the edge leaving this disc showed through.
-                VStack(spacing: 2) {
-                    Text(verbatim: node.label)
-                        .font(.atlas(.serif, state == .frontier ? 16 : 15))
-                        .italic(town)
-                        .foregroundStyle(state == .unknown ? Palette.inkMuted : Palette.ink)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        // Fell's italic leans past the width it measures at, and
-                        // the neighbour's label covered the overhang ("Funçõe"):
-                        // a narrower measure makes it wrap before it spills.
-                        .frame(maxWidth: town ? TrailMap.slot - 34 : nil)
-                    // Untouched territory says nothing: the pale disc is the whole
-                    // message, and a grid of "Desconhecido" under the half of the
-                    // map nobody has reached is noise. Nor does the frontier: its
-                    // pulse says it, and sixteen "Fronteira · pronto" in a row was
-                    // the loudest thing on the map. The legend names both.
-                    if state != .unknown && state != .frontier {
-                        Text(state.legend)
-                            .font(.atlas(.serif, 12.5))
-                            .foregroundStyle(Palette.inkMuted)
-                            .lineLimit(1)
-                    }
+            mark
+                .frame(width: Self.reach, height: Self.reach)
+                .contentShape(.rect)
+                .overlay(alignment: .top) {
+                    name
+                        .frame(width: TrailMap.slot - 12)
+                        .offset(y: Self.reach / 2 + 16 * Self.scale)
                 }
-                // A name is never printed over an edge, only in the paper
-                // around one: an edge from three levels up runs straight
-                // through the middle of this level on its way past.
-                .padding(.horizontal, 5)
-                .background(Palette.paper.opacity(0.92), in: .rect(cornerRadius: 3))
-            }
-            .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .opacity(locked && !selected ? 0.62 : 1)
         .scaleEffect(landing ? 1.18 : 1)
         .animation(reduceMotion ? nil : Motion.spring, value: landing)
         .task(id: changed) {
@@ -458,61 +524,146 @@ private struct NodeMark: View {
             landing = false
         }
         .accessibilityElement(children: .combine)
+        .accessibilityValue(Text(state.legend))
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityHint(Text("Abrir o conceito"))
     }
 
-    private var disc: some View {
-        let size = diameter
+    private var mark: some View {
+        let k = Self.scale
         return ZStack {
-            // The glow is the design's one flourish, and every lit concept gets
-            // it — the frontier's is simply the brightest.
-            if state != .unknown {
-                Circle().fill(state.color.opacity(state == .frontier ? 0.16 : 0.10))
-                    .frame(width: size * 1.75, height: size * 1.75)
-                Circle().strokeBorder(state.color.opacity(state == .frontier ? 0.4 : 0.25), lineWidth: 1.5)
-                    .frame(width: size * 1.75, height: size * 1.75)
-            }
             if state == .frontier {
-                // The map's only motion, and it is the one thing worth
-                // animating: where to go next. Under Reduce Motion the ring
-                // above still marks it.
-                Circle().strokeBorder(state.color.opacity(0.45), lineWidth: 1.5)
-                    .frame(width: size, height: size)
-                    .scaleEffect(pulsing && !reduceMotion ? 1.75 : 1)
-                    .opacity(pulsing && !reduceMotion ? 0 : 0.9)
+                Circle().stroke(Palette.gilt.opacity(0.45), lineWidth: 1)
+                    .frame(width: 28 * k, height: 28 * k)
+                // The map's only motion, and the one thing worth animating:
+                // where to go next. Under Reduce Motion the ring above marks it.
+                Circle().stroke(Palette.gilt, lineWidth: 2)
+                    .frame(width: 22 * k, height: 22 * k)
+                    .scaleEffect(pulsing && !reduceMotion ? 2 : 1)
+                    .opacity(pulsing && !reduceMotion ? 0 : 0.55)
                     .animation(
-                        reduceMotion ? nil : .easeOut(duration: 1.9).repeatForever(autoreverses: false),
+                        reduceMotion ? nil : .easeOut(duration: 2.6).repeatForever(autoreverses: false),
                         value: pulsing
                     )
             }
-            // A paper ring first, so the edges running under a pale disc stop
-            // showing through it.
-            Circle().fill(Palette.paper).frame(width: size + 7, height: size + 7)
-            Circle().fill(state.color.opacity(state == .unknown ? 0.4 : faded))
-                .frame(width: size, height: size)
-                .shadow(color: state.color.opacity(state == .unknown ? 0 : 0.3), radius: 5, y: 2)
             if selected {
-                Circle().strokeBorder(Palette.ink.opacity(0.3), lineWidth: 1.5)
-                    .frame(width: size * 1.75 + 7, height: size * 1.75 + 7)
+                Circle().stroke(Palette.accent, lineWidth: 2).frame(width: 34 * k, height: 34 * k)
             }
-            glyph
+            city.opacity(faded)
+            // Mastery is sealed: wax pressed over the city.
+            if state == .mastered {
+                WaxSeal().frame(width: sized(22, 18, 14, 11) * k, height: sized(22, 18, 14, 11) * k)
+            }
         }
         .task { pulsing = true }
     }
 
-    /// What the disc carries: a tick for a concept already finished, a pip for
-    /// one the learner can start now, nothing at all for territory ahead.
+    /// The settlement itself (`CityMark` in Relief.tsx): a city is a heavy ring
+    /// with an ink dot at its heart, a town a small open ring, a village a
+    /// smaller, finer one — and a capital a city ringed twice.
     @ViewBuilder
-    private var glyph: some View {
-        // A tick once the pass is finished — not for `learning`, which is a
-        // pass barely started and read as done beside its own "Aprendendo".
-        if state.meetsPrereq {
-            Image(systemName: "checkmark")
-                .font(.system(size: diameter * 0.44, weight: .bold))
-                .foregroundStyle(Palette.accentInk)
-        } else if state == .frontier {
-            Circle().fill(Palette.accentInk).frame(width: 7, height: 7)
+    private var city: some View {
+        let fill = state == .unknown ? Palette.paper : state.color
+        let ink = locked ? Palette.inkMuted : Palette.ink
+        if capital {
+            ring(9, fill: Palette.paper, ink: Palette.ink, line: 1.4)
+            ring(5.5, fill: fill, ink: ink, line: 1.6)
+            Circle().fill(Palette.ink).frame(width: 3.2 * Self.scale, height: 3.2 * Self.scale)
+        } else {
+            let (radius, line): (CGFloat, CGFloat) = switch rank {
+            case .core: (6, 1.8)
+            case .working: (4, 1.2)
+            case .peripheral: (2.8, 0.9)
+            }
+            ring(radius, fill: fill, ink: ink, line: line, dash: state == .gap ? [2.5, 2] : [])
+            if rank == .core {
+                Circle().fill(ink).frame(width: 2.6 * Self.scale, height: 2.6 * Self.scale)
+            }
         }
+    }
+
+    private func ring(_ radius: CGFloat, fill: Color, ink: Color, line: CGFloat, dash: [CGFloat] = []) -> some View {
+        let k = Self.scale
+        return Circle().fill(fill)
+            .overlay(Circle().stroke(ink, style: StrokeStyle(lineWidth: line * k, dash: dash.map { $0 * k })))
+            .frame(width: radius * 2 * k, height: radius * 2 * k)
+    }
+
+    /// The name, set under the city as an atlas sets it: a capital in small
+    /// capitals, a town or a village in italic.
+    private var name: some View {
+        HStack(spacing: 5) {
+            Text(verbatim: node.label)
+                .font(.atlas(capital ? .caps : .display, sized(17.5, 15.5, 13.5, 12.5)))
+                .italic(italic)
+                .foregroundStyle(selected ? Palette.accent : locked ? Palette.inkMuted : Palette.ink)
+                // Fell's italic leans past the width it measures at, and the
+                // neighbour's label covered the overhang ("Funçõe"): a narrower
+                // measure makes it wrap before it spills.
+                .frame(maxWidth: italic ? TrailMap.slot - 34 : nil)
+            if state == .gap {
+                Text(NodeState.gap.legend)
+                    .font(.atlas(.caps, 11))
+                    .textCase(.uppercase)
+                    .foregroundStyle(NodeState.gap.color)
+                    .padding(.horizontal, 5)
+                    .background(Palette.paper, in: .rect(cornerRadius: 2))
+                    .overlay(RoundedRectangle(cornerRadius: 2).strokeBorder(NodeState.gap.color.opacity(0.4)))
+                    .accessibilityHidden(true) // the value already says it
+            }
+        }
+        .multilineTextAlignment(.center)
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
+        // A paper halo, so a road or a border running under the name never
+        // strikes through it.
+        .shadow(color: Palette.paper, radius: 1.5)
+        .shadow(color: Palette.paper, radius: 4)
+        .contentShape(.rect)
+    }
+}
+
+/// A wax seal — `WaxSeal` in components/ui/Ornaments.tsx: what the atlas
+/// presses onto a concept once it is mastered. Drawn on the web's 22-unit box.
+private struct WaxSeal: View {
+    /// Sixteen lobes, as hot wax spreads from under a seal.
+    private static let outline: Path = {
+        var path = Path()
+        for i in 0...32 {
+            let angle = Double(i) / 32 * 2 * .pi - .pi / 2, r = i.isMultiple(of: 2) ? 10.0 : 8.9
+            let point = CGPoint(x: cos(angle) * r, y: sin(angle) * r)
+            if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+        return path
+    }()
+
+    private static let star: Path = {
+        var path = Path()
+        path.addLines([(0, -4), (1, -1), (4, 0), (1, 1), (0, 4), (-1, 1), (-4, 0), (-1, -1)].map { CGPoint(x: $0.0, y: $0.1) })
+        path.closeSubpath()
+        return path
+    }()
+
+    var body: some View {
+        Canvas { context, size in
+            context.translateBy(x: size.width / 2, y: size.height / 2)
+            context.scaleBy(x: size.width / 22, y: size.height / 22)
+            // The lighting is the wax's own, not a token: shade and gleam.
+            let shade = Color.black, gleam = Color(red: 1, green: 235 / 255, blue: 210 / 255)
+            context.fill(Self.outline.offsetBy(dx: 0.5, dy: 0.8), with: .color(Palette.rubric.opacity(0.35)))
+            context.fill(Self.outline, with: .color(Palette.rubric))
+            // The pressed face: a sunken ring, lit from the top-left.
+            let face = Path(ellipseIn: CGRect(x: -6.4, y: -6.4, width: 12.8, height: 12.8))
+            context.stroke(face, with: .color(shade.opacity(0.28)), lineWidth: 1.1)
+            context.stroke(face.offsetBy(dx: -0.5, dy: -0.5), with: .color(gleam.opacity(0.3)), lineWidth: 0.6)
+            // The device: a small compass star.
+            context.fill(Self.star, with: .color(shade.opacity(0.3)))
+            context.fill(Self.star.offsetBy(dx: -0.35, dy: -0.35), with: .color(gleam.opacity(0.28)))
+            var glint = context
+            glint.rotate(by: .degrees(-35))
+            glint.fill(Path(ellipseIn: CGRect(x: -5.8, y: -5.5, width: 4.4, height: 2.2)), with: .color(gleam.opacity(0.35)))
+        }
+        .accessibilityHidden(true)
     }
 }

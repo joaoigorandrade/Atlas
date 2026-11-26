@@ -114,6 +114,43 @@ func adaptive(_ light: UInt32, _ dark: UInt32,
     })
 }
 
+/// The map drawn as a map — `map` in lib/theme.ts: roads between known
+/// concepts, a gilt trail into the frontier, a graticule underneath. Mastery
+/// colours stay `NodeState.color`; these are the cartography around them.
+enum MapInk {
+    static let road = Palette.ink.opacity(0.38)
+    static let track = Palette.ink.opacity(0.16)
+    static let graticule = Palette.ink.opacity(0.08)
+    static let countryInk = Palette.ink.opacity(0.62)
+
+    /// The generated atlas (`AtlasTerrain`) paints pixels off the main actor,
+    /// so these are raw RGB, one set per scheme — `map.atlas` and `fog` there.
+    struct Atlas: Sendable {
+        let paper: [Double]
+        let ink: [Double]
+        /// Hand-colouring, one per country.
+        let regions: [[Double]]
+        /// The veil over the unreached: its colour, then its alpha.
+        let fog: [Double]
+    }
+
+    static let light = Atlas(
+        paper: [239, 230, 210], ink: [52, 40, 29],
+        // The colourist's box: rose madder, sap green, gamboge, a Prussian
+        // wash, lilac and ochre.
+        regions: [[214, 150, 146], [158, 184, 132], [222, 196, 120],
+                  [148, 170, 196], [190, 160, 190], [220, 168, 120]],
+        fog: [239, 230, 210, 0.66]
+    )
+    /// The same box by lamplight: the washes sunk toward the dark ground.
+    static let dark = Atlas(
+        paper: [21, 19, 15], ink: [214, 205, 188],
+        regions: [[92, 58, 56], [62, 80, 52], [96, 82, 46],
+                  [52, 66, 86], [78, 62, 80], [96, 70, 46]],
+        fog: [21, 19, 15, 0.7]
+    )
+}
+
 /// The four faces, as on the web (`font` in lib/theme.ts). All ship as TTFs in
 /// `App/Resources/Fonts/` listed in `UIAppFonts`; the two variable ones expose
 /// their named cuts, so `.weight()` resolves to a real cut.

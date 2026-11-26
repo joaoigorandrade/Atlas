@@ -27,8 +27,10 @@ struct TrailMap: Equatable {
     struct Link: Equatable {
         let from: CGPoint
         let to: CGPoint
-        /// The destination id, so the renderer can ask whether this is the last
-        /// step into the frontier without re-reading the node.
+        /// Both end ids, so the renderer can say what kind of road this is —
+        /// reached, the trail into the frontier, or a track — without
+        /// re-reading the nodes.
+        let out: String
         let into: String
         let dashed: Bool
     }
@@ -38,9 +40,22 @@ struct TrailMap: Equatable {
     /// what a name can be set in before it starts hyphenating.
     static let band: CGFloat = 134
     static let slot: CGFloat = 128
+    /// Open sea above the first band and below the last, so the coast and its
+    /// water lines close round the land instead of running off the sheet.
+    static let shore: CGFloat = 56
 
     let levels: [[Placed]]
     let links: [Link]
+    /// Which country each concept belongs to, drawn as a war map's: runs of
+    /// consecutive bands, about five concepts each (`regionsOf` in
+    /// atlasTerrain.ts, over the bands rather than `g`, because the bands are
+    /// what sit next to each other here).
+    let country: [String: Int]
+    /// Each named country's capital — the concept with the most roads — and
+    /// the name it lends the country. A country of three cities or fewer goes
+    /// unnamed: its name would only repeat a city's, set big over it.
+    let capitals: [String: Int]
+    let names: [Int: String]
     /// The whole map's size. Wider than the screen when a level holds more
     /// concepts than fit across it — that is what the horizontal scroll is for.
     let size: CGSize
@@ -101,7 +116,7 @@ struct TrailMap: Equatable {
                         level: band,
                         at: CGPoint(
                             x: content * CGFloat(position + 1) / CGFloat(line.count + 1),
-                            y: Self.band * (CGFloat(band) + 0.5)
+                            y: Self.shore + Self.band * (CGFloat(band) + 0.5)
                         )
                     )
                 }
@@ -117,13 +132,42 @@ struct TrailMap: Equatable {
             return above.reduce(0, +) / CGFloat(above.count)
         }
 
-        size = CGSize(width: content, height: Self.band * CGFloat(rows.count))
+        size = CGSize(width: content, height: Self.band * CGFloat(rows.count) + Self.shore * 2)
 
         let index = Dictionary(levels.flatMap { $0 }.map { ($0.id, $0.at) }, uniquingKeysWith: { first, _ in first })
         links = graph.edges.compactMap { edge in
             guard let from = index[edge.from], let to = index[edge.to] else { return nil }
-            return Link(from: from, to: to, into: edge.to, dashed: edge.dashed)
+            return Link(from: from, to: to, out: edge.from, into: edge.to, dashed: edge.dashed)
         }
+
+        // A country closes when adding the next band would overshoot its share
+        // by more than stopping short does.
+        var degree: [String: Int] = [:]
+        for edge in graph.edges { degree[edge.from, default: 0] += 1; degree[edge.to, default: 0] += 1 }
+        let total = rows.reduce(0) { $0 + $1.count }
+        let wanted = min(6, max(1, Int((Double(total) / 5).rounded())))
+        let share = Double(total) / Double(wanted)
+        var groups: [[Placed]] = [[]]
+        for row in rows {
+            let open = groups[groups.count - 1].count
+            if open > 0, groups.count < wanted,
+               abs(Double(open + row.count) - share) > abs(Double(open) - share) {
+                groups.append(row)
+            } else {
+                groups[groups.count - 1] += row
+            }
+        }
+        var country: [String: Int] = [:], capitals: [String: Int] = [:], names: [Int: String] = [:]
+        for (n, members) in groups.enumerated() {
+            for one in members { country[one.id] = n }
+            guard members.count > 3,
+                  let capital = members.max(by: { (degree[$0.id] ?? 0) < (degree[$1.id] ?? 0) }) else { continue }
+            capitals[capital.id] = n
+            names[n] = capital.node.label
+        }
+        self.country = country
+        self.capitals = capitals
+        self.names = names
     }
 }
 
@@ -148,6 +192,21 @@ final class MapViewModel {
     }
 
     func select(_ node: ConceptNode?) { selection = node }
+
+    /// The land and the fog under the trail, baked off the main actor.
+    private(set) var atlas: AtlasBake?
+    @ObservationIgnored private var painted: AtlasInput?
+
+    func paint(_ input: AtlasInput) async {
+        // A new layout drops the old land at once — it would sit under the
+        // wrong cities; a new colouring keeps it until the repaint lands, so
+        // winning a territory doesn't blink the map.
+        if painted?.size != input.size || painted?.seed != input.seed { atlas = nil }
+        let bake = await AtlasTerrain.paint(input)
+        guard !Task.isCancelled else { return }
+        atlas = bake
+        painted = input
+    }
 
     /// The legend strip under the title.
     var legend = false
