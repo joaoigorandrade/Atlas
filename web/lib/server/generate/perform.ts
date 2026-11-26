@@ -25,10 +25,7 @@ import {
 } from "./common";
 import {
   JUDGE_SYSTEM,
-  judgeStream,
   learnerText,
-  verdictPrefix,
-  VERDICT_FIRST_SHAPE,
   validateFeynmanJudgement,
   type FeynmanJudgement,
 } from "./judge";
@@ -233,14 +230,13 @@ export async function judgePerform(
   );
 }
 
-export function judgePerformStream(
+/** One frame, the full judgement. Verdict-first streaming ruled each step
+ *  before checking any arithmetic: a correct run by another valid route (source
+ *  transformation where the key used nodal equations) showed "wrong" on two
+ *  steps, with a "fix it" button, until the full judge overruled it. A gate
+ *  graded on numbers waits for the reasoned verdict. */
+export async function* judgePerformStream(
   params: JudgePerformParams,
 ): AsyncGenerator<StreamFrame> {
-  const count = params.rubric.length;
-  return judgeStream<FeynmanJudgement>(performJudgeMessages(params), {
-    firstShape: VERDICT_FIRST_SHAPE,
-    first: verdictPrefix(count),
-    full: validateFeynmanJudgement(count),
-    label: "judge-perform",
-  });
+  yield { p: "judgement", v: await judgePerform(params) };
 }
