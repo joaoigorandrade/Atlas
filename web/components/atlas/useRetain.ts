@@ -25,7 +25,7 @@ import {
   toReviewCard,
   type StoredCard,
 } from "@/lib/fsrs";
-import { hasReviewWork, retainContentFromStore } from "@/lib/fsrsQueue";
+import { forecastRows, hasReviewWork, retainContentFromStore } from "@/lib/fsrsQueue";
 import { fetchJudgeRecall, fetchRetain } from "@/lib/api";
 import type { Language } from "@/lib/i18n";
 import { createGradeSync, type GradeSync } from "@/components/atlas/gradeSync";
@@ -60,6 +60,7 @@ export function useRetain(deps: {
     formRef,
     graphRef,
     statesRef,
+    cards,
     cardsRef,
     topicIdRef,
     setCards,
@@ -89,6 +90,15 @@ export function useRetain(deps: {
       syncRef.current = null;
     };
   }, [setCards, topicIdRef]);
+
+  // The forecast beside an open pass follows the store: it was read once at
+  // open, so a draft landing behind it, or a grade, left it counting the old
+  // due cards.
+  useEffect(() => {
+    setRetainContent((prev) =>
+      prev ? { ...prev, forecast: forecastRows(cards, new Date(), languageRef.current) } : prev,
+    );
+  }, [cards, setRetainContent, languageRef]);
 
   /** When the card on screen was dealt — the review log's duration. */
   const shownAtRef = useRef(0);
