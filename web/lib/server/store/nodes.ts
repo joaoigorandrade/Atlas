@@ -2,10 +2,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fail } from "@/lib/server/store/shared";
-import { mergeLedger, type LedgerRow } from "@/lib/server/store/derive";
+import { mergeLedger } from "@/lib/server/store/derive";
 import type { NodeDelta } from "@/lib/persistence";
 import {
   sectionText,
+  type PhaseId,
   type ConsumeChunk,
   type NodeDifficulty,
   type NodeImportance,
@@ -32,17 +33,37 @@ export async function applyNodeDeltas(
   deltas: NodeDelta[],
 ): Promise<void> {
   if (deltas.length === 0) return;
-  // A ledger is merged, never overwritten: a stale device must not undo a pass.
+  // A ledger is merged, never overwritten: a stale device must not undo a
+  // pass the attempts log holds (`mergeLedger`).
   const ledgerIds = deltas.filter((d) => d.phasesDone != null).map((d) => d.id);
-  const held = new Map<string, Pick<LedgerRow, "phases_done" | "phase_closed_at">>();
+  const stored = new Map<string, PhaseId[] | null>();
+  const passed = new Map<string, Set<string>>();
   if (ledgerIds.length) {
     const { data, error } = await db
       .from("nodes")
-      .select("id, phases_done, phase_closed_at")
+      .select("id, phases_done")
       .eq("topic_id", topicId)
       .in("id", ledgerIds);
     if (error) fail("applyNodeDeltas/ledger", error);
-    for (const r of data ?? []) held.set(r.id, r);
+    for (const r of data ?? []) stored.set(r.id, r.phases_done);
+    // Only a node whose write drops a stored phase needs the log read.
+    const dropping = deltas.filter((d) =>
+      (stored.get(d.id) ?? []).some((p) => d.phasesDone && !d.phasesDone.includes(p)),
+    );
+    if (dropping.length) {
+      const { data: log, error: logError } = await db
+        .from("phase_attempts")
+        .select("node_id, phase")
+        .eq("topic_id", topicId)
+        .eq("passed", true)
+        .in(
+          "node_id",
+          dropping.map((d) => d.id),
+        );
+      if (logError) fail("applyNodeDeltas/attempts", logError);
+      for (const a of log ?? [])
+        passed.set(a.node_id, (passed.get(a.node_id) ?? new Set()).add(a.phase));
+    }
   }
   const rows = deltas.map((d) => ({
     topic_id: topicId,
@@ -74,8 +95,8 @@ export async function applyNodeDeltas(
       ? {
           phases_done: mergeLedger(
             d.phasesDone,
-            held.get(d.id)?.phases_done,
-            held.get(d.id)?.phase_closed_at,
+            stored.get(d.id),
+            passed.get(d.id) ?? new Set(),
           ),
         }
       : null),

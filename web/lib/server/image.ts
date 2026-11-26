@@ -67,7 +67,11 @@ export async function generateImage(
       cost: data.usage?.cost ?? null,
     }),
   );
-  return { mime: m[1], bytes: Buffer.from(m[2], "base64"), cost: data.usage?.cost ?? null };
+  return {
+    mime: m[1],
+    bytes: Buffer.from(m[2], "base64"),
+    cost: data.usage?.cost ?? null,
+  };
 }
 
 // ---- SVG instead of a raster draw --------------------------------------------
@@ -110,7 +114,8 @@ export async function svgPlan(prompt: string): Promise<{ effort: string } | null
 
 /** Anything that could run or fetch when the file is opened on its own. The
  *  learner sees it through <img> (inert), but a signed URL can be opened in a tab. */
-const UNSAFE_SVG = /<script|<foreignObject|\son\w+\s*=|javascript:|(?:xlink:)?href\s*=\s*["'](?!#)/i;
+const UNSAFE_SVG =
+  /<script|<foreignObject|\son\w+\s*=|javascript:|(?:xlink:)?href\s*=\s*["'](?!#)/i;
 
 /** The route has 60s (`maxDuration`); a slow SVG must give up while a ~10s
  *  raster fallback still fits. */
@@ -213,6 +218,9 @@ export async function generateSvg(
   );
   // Crowded labels still teach; a miswired circuit teaches the wrong thing.
   if (best.problems.some(isWiringProblem))
-    throw new OpenRouterError(`SVG still miswired: ${best.problems.filter(isWiringProblem)[0]}`, 502);
+    throw new OpenRouterError(
+      `SVG still miswired: ${best.problems.filter(isWiringProblem)[0]}`,
+      502,
+    );
   return { mime: "image/svg+xml", bytes: Buffer.from(withSymbols(best.svg)), cost };
 }

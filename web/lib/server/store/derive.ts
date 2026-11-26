@@ -30,20 +30,18 @@ export interface LedgerRow {
   phase_closed_at: Record<string, string> | null;
 }
 
-/** A node's ledger after a write: what the client sent, plus every phase the
- *  row already holds or ever closed (`phase_closed_at`). The ledger only grows
- *  (`ledgerAfter`), so a shorter list is a stale device, not an undo — a second
- *  tab still on an old snapshot wrote `[consume, explain]` over a perform pass
- *  logged a minute before, and the node fell back to Learning.
- *  ponytail: the placement diagnostic can legitimately drop a node's last gate
- *  (`applyDiagnosticLedger`); it runs on a fresh map, so nothing is stored yet. */
+/** A node's ledger after a write: what the client sent, plus every stored
+ *  phase it dropped that the attempts log shows was really passed. A client
+ *  still on an old snapshot (a second tab) wrote `[consume, explain]` over a
+ *  perform pass logged a minute before, and the node fell back to Learning.
+ *  A drop with no logged pass behind it stands — the placement diagnostic
+ *  trims a ledger, and so do seeds and resets, none of which log attempts. */
 export function mergeLedger(
   sent: readonly PhaseId[],
   stored: readonly PhaseId[] | null | undefined,
-  closedAt: Record<string, string> | null | undefined,
+  passed: ReadonlySet<string>,
 ): PhaseId[] {
-  const kept = [...(stored ?? []), ...(Object.keys(closedAt ?? {}) as PhaseId[])];
-  return [...sent, ...kept.filter((p, i) => !sent.includes(p) && kept.indexOf(p) === i)];
+  return [...sent, ...(stored ?? []).filter((p) => !sent.includes(p) && passed.has(p))];
 }
 
 /** What one row should say, given how many gap children are still open under

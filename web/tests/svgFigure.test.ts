@@ -7,7 +7,7 @@ const svg = (body: string) =>
 
 // V1 (vertical, + on top) drives R1 across the top; the loop closes along y=340.
 const LOOP =
-  '<!-- nets: N1=V1.0,R1.0; N2=R1.1,V1.1 -->' +
+  "<!-- nets: N1=V1.0,R1.0; N2=R1.1,V1.1 -->" +
   '<use id="V1" href="#vsource_v" x="100" y="200"/><use id="R1" href="#resistor" x="200" y="120"/>' +
   '<path d="M100 200V120H200M280 120H340V340H100V280"/>';
 
@@ -15,7 +15,9 @@ describe("figureProblems: labels", () => {
   it("passes a clean, wired, labelled circuit", () => {
     expect(
       figureProblems(
-        svg(`${LOOP}<text x="240" y="90" text-anchor="middle">R1 = 4 Ω</text><text x="130" y="250">12 V</text>`),
+        svg(
+          `${LOOP}<text x="240" y="90" text-anchor="middle">R1 = 4 Ω</text><text x="130" y="250">12 V</text>`,
+        ),
       ),
     ).toEqual([]);
   });
@@ -45,7 +47,9 @@ describe("figureProblems: labels", () => {
 describe("figureProblems: wiring", () => {
   it("flags unknown symbols and transforms, but not the model's own ids", () => {
     const p = figureProblems(
-      svg('<defs><path id="arr" d="M0 0"/></defs><use href="#arr"/><use href="#relay"/><use href="#arrow_up" transform="rotate(90)"/>'),
+      svg(
+        '<defs><path id="arr" d="M0 0"/></defs><use href="#arr"/><use href="#relay"/><use href="#arrow_up" transform="rotate(90)"/>',
+      ),
     );
     expect(p).toEqual([
       "#relay is not a predefined symbol",
@@ -56,20 +60,22 @@ describe("figureProblems: wiring", () => {
   it("flags a floating pin, a loose wire end, a wire through a symbol", () => {
     const p = figureProblems(
       svg(
-        '<!-- nets: A=R1.0; B=R1.1; C=C1.0; D=C1.1 -->' +
+        "<!-- nets: A=R1.0; B=R1.1; C=C1.0; D=C1.1 -->" +
           '<use id="R1" href="#resistor" x="200" y="200"/><path d="M100 200H200"/>' +
           '<use id="C1" href="#capacitor_v" x="400" y="100"/><path d="M400 60V220"/>',
       ),
     );
     expect(p).toContain("pin 1 of the resistor at (200,200) (280,200) touches no wire");
     expect(p).toContain("a wire end at (100,200) connects to nothing");
-    expect(p).toContain("a wire runs through the capacitor_v at (400,100); wires must stop at its pins");
+    expect(p).toContain(
+      "a wire runs through the capacitor_v at (400,100); wires must stop at its pins",
+    );
   });
 
   it("lets open ends finish on a terminal", () => {
     const p = figureProblems(
       svg(
-        '<!-- nets: IN=T1.0,R1.0; OUT=R1.1,T2.0 -->' +
+        "<!-- nets: IN=T1.0,R1.0; OUT=R1.1,T2.0 -->" +
           '<use id="T1" href="#terminal" x="100" y="200"/><use id="T2" href="#terminal" x="380" y="200"/>' +
           '<use id="R1" href="#resistor" x="200" y="200"/><path d="M100 200H200M280 200H380"/>',
       ),
@@ -78,7 +84,11 @@ describe("figureProblems: wiring", () => {
   });
 
   it("does not wire-check a figure with no circuit symbols (axes, free lines)", () => {
-    expect(figureProblems(svg('<path d="M500 500H560"/><path d="M100 100L140 100L120 130Z"/>'))).toEqual([]);
+    expect(
+      figureProblems(
+        svg('<path d="M500 500H560"/><path d="M100 100L140 100L120 130Z"/>'),
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -99,35 +109,45 @@ describe("figureProblems: netlist", () => {
 
   it("catches a split net, a missing pin, and a net naming a ghost", () => {
     const p = figureProblems(
-      svg(LOOP.replace("N2=R1.1,V1.1", "N2=R1.1,V1.1,Q9.0; N3=").replace("H340V340H100V280", "H340V340H100")),
+      svg(
+        LOOP.replace("N2=R1.1,V1.1", "N2=R1.1,V1.1,Q9.0; N3=").replace(
+          "H340V340H100V280",
+          "H340V340H100",
+        ),
+      ),
     );
     expect(p).toContain("net N2 names Q9.0, which is not a placed pin");
-    expect(p).toContain("net N2 is drawn split: R1.1, V1.1, Q9.0 are not all wired together");
+    expect(p).toContain(
+      "net N2 is drawn split: R1.1, V1.1, Q9.0 are not all wired together",
+    );
     const missing = figureProblems(svg(LOOP.replace("N2=R1.1,V1.1", "N2=R1.1")));
     expect(missing).toContain("V1.1 is in no net");
   });
 
   it("treats every ground symbol as one node, and crossings as unjoined", () => {
     const grounds =
-      '<!-- nets: N1=V1.0,R1.0; GND=V1.1,R1.1,G1.0,G2.0 -->' +
+      "<!-- nets: N1=V1.0,R1.0; GND=V1.1,R1.1,G1.0,G2.0 -->" +
       '<use id="V1" href="#vsource_v" x="100" y="200"/><use id="R1" href="#resistor_v" x="300" y="200"/>' +
       '<use id="G1" href="#ground" x="100" y="300"/><use id="G2" href="#ground" x="300" y="300"/>' +
       '<path d="M100 200V160H300V200M100 280V300M300 280V300"/>';
     expect(figureProblems(svg(grounds))).toEqual([]);
     // A wire crossing the N1 wire without ending on it does not join it.
-    const crossing = grounds.replace("N1=V1.0,R1.0", "N1=V1.0,R1.0,T1.0") +
+    const crossing =
+      grounds.replace("N1=V1.0,R1.0", "N1=V1.0,R1.0,T1.0") +
       '<use id="T1" href="#terminal" x="200" y="100"/><path d="M200 100V220"/><use id="T2" href="#terminal" x="200" y="220"/>';
     const p = figureProblems(svg(crossing.replace("GND=", "X=T2.0; GND=")));
-    expect(p).toContain("net N1 is drawn split: V1.0, R1.0, T1.0 are not all wired together");
+    expect(p).toContain(
+      "net N1 is drawn split: V1.0, R1.0, T1.0 are not all wired together",
+    );
   });
 
   it("rejects an empty drawing, even one with a netlist", () => {
     const p = figureProblems(svg("<!-- nets: N1=R1.0,R1.1 -->"));
     expect(p).toEqual(["the drawing is empty"]);
     expect(p.every(isWiringProblem)).toBe(true);
-    expect(figureProblems(svg('<!-- nets: N1=R1.0 --><text x="10" y="30">R1</text>'))).toContain(
-      "nets are declared but no circuit symbols are placed",
-    );
+    expect(
+      figureProblems(svg('<!-- nets: N1=R1.0 --><text x="10" y="30">R1</text>')),
+    ).toContain("nets are declared but no circuit symbols are placed");
   });
 
   it("survives junk path data", () => {
@@ -161,7 +181,9 @@ describe("tidyFigure", () => {
 
 describe("withSymbols", () => {
   it("keeps a model's background rect unstroked, but respects its own stroke", () => {
-    const out = withSymbols(svg('<rect width="800" height="600" fill="#fff"/><rect x="1" stroke="red"/>'));
+    const out = withSymbols(
+      svg('<rect width="800" height="600" fill="#fff"/><rect x="1" stroke="red"/>'),
+    );
     expect(out).toContain('<rect stroke="none" width="800"');
     expect(out).toContain('<rect x="1" stroke="red"/>');
   });
@@ -171,6 +193,8 @@ describe("withSymbols", () => {
     expect(out).toMatch(/^<svg[^>]*><defs><g id="resistor"/);
     expect(out).toContain('<g id="npn"');
     expect(out).toContain('<g id="vsource_vr"');
-    expect(out).toMatch(/<\/style><g fill="none" stroke="#000"[^>]*><use href="#npn"[^]*<\/g><\/svg>$/);
+    expect(out).toMatch(
+      /<\/style><g fill="none" stroke="#000"[^>]*><use href="#npn"[^]*<\/g><\/svg>$/,
+    );
   });
 });

@@ -59,23 +59,21 @@ describe("deriveRow", () => {
 });
 
 describe("mergeLedger", () => {
-  it("never lets a stale device drop a pass", () => {
-    const closed = { consume: "t", explain: "t", perform: "t" };
-    // The stale tab sends a shorter ledger; the stored one and the closed stamps win back perform.
+  it("keeps a logged pass a stale device dropped, and nothing else", () => {
+    const passed = new Set(["consume", "explain", "perform"]);
+    // The stale tab drops perform, which the attempts log holds: it stays.
     expect(
-      mergeLedger(["consume", "explain"], ["consume", "explain", "perform"], closed),
+      mergeLedger(["consume", "explain"], ["consume", "explain", "perform"], passed),
     ).toEqual(["consume", "explain", "perform"]);
-    // Already lost from phases_done: the closed stamp restores it.
-    expect(mergeLedger(["consume", "explain"], ["consume", "explain"], closed)).toEqual([
+    // A drop with no logged pass (placement, a seed, a reset) stands.
+    expect(mergeLedger(["consume"], ["consume", "crucible"], passed)).toEqual([
       "consume",
-      "explain",
-      "perform",
     ]);
-    // A fresh pass appends, with no duplicates.
-    expect(mergeLedger(["consume", "perform"], ["consume"], null)).toEqual([
+    // A fresh pass appends; nothing stored yet.
+    expect(mergeLedger(["consume", "perform"], ["consume"], passed)).toEqual([
       "consume",
       "perform",
     ]);
-    expect(mergeLedger(["consume"], null, undefined)).toEqual(["consume"]);
+    expect(mergeLedger(["consume"], null, new Set())).toEqual(["consume"]);
   });
 });

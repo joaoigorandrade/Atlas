@@ -16,7 +16,10 @@ function wires(svg: string): Array<[Pt, Pt]> {
   const segs: Array<[Pt, Pt]> = [];
   for (const [tag] of svg.matchAll(/<line\b[^>]*>/gi)) {
     const c = ["x1", "y1", "x2", "y2"].map((k) => num(tag, k) ?? 0);
-    segs.push([[c[0], c[1]], [c[2], c[3]]]);
+    segs.push([
+      [c[0], c[1]],
+      [c[2], c[3]],
+    ]);
   }
   for (const [tag] of svg.matchAll(/<path\b[^>]*>/gi)) {
     // A filled shape (an arrowhead) is not a wire.
@@ -27,7 +30,7 @@ function wires(svg: string): Array<[Pt, Pt]> {
     let start: Pt = [0, 0];
     let cmd = "";
     const toks = d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e-?\d+)?/g) ?? [];
-    for (let i = 0; i < toks.length; ) {
+    for (let i = 0; i < toks.length;) {
       if (/[a-zA-Z]/.test(toks[i])) cmd = toks[i++];
       const n = (k: number) => toks.slice(i, i + k).map(Number);
       const rel = cmd === cmd.toLowerCase();
@@ -45,7 +48,8 @@ function wires(svg: string): Array<[Pt, Pt]> {
       } else if (C === "H" || C === "V") {
         const [v] = n(1);
         i += 1;
-        const to: Pt = C === "H" ? [rel ? at[0] + v : v, at[1]] : [at[0], rel ? at[1] + v : v];
+        const to: Pt =
+          C === "H" ? [rel ? at[0] + v : v, at[1]] : [at[0], rel ? at[1] + v : v];
         segs.push([at, to]);
         at = to;
       } else {
@@ -68,7 +72,10 @@ function wires(svg: string): Array<[Pt, Pt]> {
 
 const onSeg = (p: Pt, [a, b]: [Pt, Pt], tol = 1.5) => {
   const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
-  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)));
+  const t = Math.max(
+    0,
+    Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)),
+  );
   return Math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]) <= tol;
 };
 /** Does a segment pass through a box's interior? (Sampled: wires are short.) */
@@ -129,13 +136,19 @@ function netProblems(
   for (const part of declared.split(";")) {
     const [name, list = ""] = part.split("=").map((t) => t.trim());
     if (!name) continue;
-    const refs = list.split(",").map((t) => t.trim()).filter(Boolean);
+    const refs = list
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
     for (const r of refs) {
       if (!ids.has(r)) out.push(`net ${name} names ${r}, which is not a placed pin`);
       else netOf.set(r, name);
     }
     const roots = new Set(refs.filter((r) => ids.has(r)).map(find));
-    if (roots.size > 1) out.push(`net ${name} is drawn split: ${refs.join(", ")} are not all wired together`);
+    if (roots.size > 1)
+      out.push(
+        `net ${name} is drawn split: ${refs.join(", ")} are not all wired together`,
+      );
   }
   for (const r of ids) if (!netOf.has(r!)) out.push(`${r} is in no net`);
 
@@ -145,7 +158,8 @@ function netProblems(
     byRoot.set(root, (byRoot.get(root) ?? new Set()).add(n));
   }
   for (const nets of byRoot.values())
-    if (nets.size > 1) out.push(`nets ${[...nets].join(" and ")} are shorted together by the drawing`);
+    if (nets.size > 1)
+      out.push(`nets ${[...nets].join(" and ")} are shorted together by the drawing`);
   return out;
 }
 
@@ -161,7 +175,9 @@ type Label = { text: string; box: Box; x: number; y: number; at: number; tag: st
 /** Everything the checks and the tidier read off a drawing. */
 function parse(svg: string) {
   const problems: string[] = [];
-  const ownIds = new Set([...svg.matchAll(/\sid\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]));
+  const ownIds = new Set(
+    [...svg.matchAll(/\sid\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]),
+  );
   const placed: Array<{ name: string; box: Box }> = [];
   const pins: Array<{ name: string; at: Pt; ref?: string; ground: boolean }> = [];
   for (const [tag] of svg.matchAll(/<use\b[^>]*>/gi)) {
@@ -172,7 +188,9 @@ function parse(svg: string) {
       continue;
     }
     if (attr(tag, "transform"))
-      problems.push(`<use href="#${ref}"> has a transform; use x/y and an orientation name`);
+      problems.push(
+        `<use href="#${ref}"> has a transform; use x/y and an orientation name`,
+      );
     const x = num(tag, "x") ?? 0;
     const y = num(tag, "y") ?? 0;
     const id = attr(tag, "id");
@@ -215,13 +233,19 @@ function labelBox(tag: string, text: string, x: number, y: number): Box {
   const left = anchor === "middle" ? x - w / 2 : anchor === "end" ? x - w : x;
   return [left, y - fs * 0.75, left + w, y + fs * 0.2];
 }
-const shift = (b: Box, dx: number, dy: number): Box => [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy];
+const shift = (b: Box, dx: number, dy: number): Box => [
+  b[0] + dx,
+  b[1] + dy,
+  b[2] + dx,
+  b[3] + dy,
+];
 
 /** Offsets a crowded label may move by, nearest first (at most 40px, so it
  *  stays by what it names). */
 const NUDGES: Pt[] = [];
 for (let dx = -40; dx <= 40; dx += 10)
-  for (let dy = -40; dy <= 40; dy += 10) if (Math.hypot(dx, dy) <= 40) NUDGES.push([dx, dy]);
+  for (let dy = -40; dy <= 40; dy += 10)
+    if (Math.hypot(dx, dy) <= 40) NUDGES.push([dx, dy]);
 NUDGES.sort((a, b) => Math.hypot(...a) - Math.hypot(...b));
 
 /**
@@ -241,7 +265,8 @@ export function tidyFigure(svg: string): string {
   for (const l of labels) {
     // A node or pin name (A, B, 1, E…) means WHERE it is: never moved.
     const fixed = [...l.text].length <= 2;
-    const at = (!fixed && NUDGES.find(([dx, dy]) => free(shift(l.box, dx, dy), done))) || [0, 0];
+    const at = (!fixed &&
+      NUDGES.find(([dx, dy]) => free(shift(l.box, dx, dy), done))) || [0, 0];
     if (at[0] || at[1]) moves.set(l.at, at);
     done.push(shift(l.box, at[0], at[1]));
   }
@@ -254,9 +279,26 @@ export function tidyFigure(svg: string): string {
       .replace(/(\sy\s*=\s*["'])([^"']*)/, (_, a, v) => a + (parseFloat(v) + m[1]));
   });
 
-  const all: Box[] = [...done, ...placed.map((s) => s.box), ...segs.map(([a, b]) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])] as Box)];
+  const all: Box[] = [
+    ...done,
+    ...placed.map((s) => s.box),
+    ...segs.map(
+      ([a, b]) =>
+        [
+          Math.min(a[0], b[0]),
+          Math.min(a[1], b[1]),
+          Math.max(a[0], b[0]),
+          Math.max(a[1], b[1]),
+        ] as Box,
+    ),
+  ];
   const fit: Box = all.reduce<Box>(
-    (u, b) => [Math.min(u[0], b[0] - 20), Math.min(u[1], b[1] - 20), Math.max(u[2], b[2] + 20), Math.max(u[3], b[3] + 20)],
+    (u, b) => [
+      Math.min(u[0], b[0] - 20),
+      Math.min(u[1], b[1] - 20),
+      Math.max(u[2], b[2] + 20),
+      Math.max(u[3], b[3] + 20),
+    ],
     canvas,
   );
   if (fit.some((v, i) => v !== canvas[i]))
@@ -285,19 +327,28 @@ export function figureProblems(svg: string): string[] {
     problems.push("nets are declared but no circuit symbols are placed");
 
   labels.forEach((a, i) => {
-    if (a.box[0] < canvas[0] || a.box[1] < canvas[1] || a.box[2] > canvas[2] || a.box[3] > canvas[3])
+    if (
+      a.box[0] < canvas[0] ||
+      a.box[1] < canvas[1] ||
+      a.box[2] > canvas[2] ||
+      a.box[3] > canvas[3]
+    )
       problems.push(`label "${a.text}" runs off the canvas`);
     for (const b of labels.slice(i + 1))
-      if (hit(a.box, b.box, 4)) problems.push(`label "${a.text}" overlaps label "${b.text}"`);
+      if (hit(a.box, b.box, 4))
+        problems.push(`label "${a.text}" overlaps label "${b.text}"`);
     for (const s of placed)
       if (hit(a.box, s.box, 2)) problems.push(`label "${a.text}" sits on the ${s.name}`);
-    if (segs.some((w) => crosses(w, a.box))) problems.push(`label "${a.text}" sits on a wire`);
+    if (segs.some((w) => crosses(w, a.box)))
+      problems.push(`label "${a.text}" sits on a wire`);
   });
 
   for (const p of pins)
     if (
       !segs.some((w) => onSeg(p.at, w)) &&
-      !pins.some((q) => q !== p && Math.hypot(q.at[0] - p.at[0], q.at[1] - p.at[1]) <= 1.5)
+      !pins.some(
+        (q) => q !== p && Math.hypot(q.at[0] - p.at[0], q.at[1] - p.at[1]) <= 1.5,
+      )
     )
       problems.push(`${p.name} (${p.at.join(",")}) touches no wire`);
   // Only a circuit (pinned symbols placed) has wiring to check; a graph's

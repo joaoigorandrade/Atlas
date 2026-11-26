@@ -271,8 +271,12 @@ Return JSON:
       "node": "a node id from the list",
       "cloze": ["text before the blank", "text after the blank"],   // recall only
       "answer": "…",                                                // recall only
-      "front": "…",                                                 // why / apply only${thorough ? `
-      "work": "…",                                                  // apply only: solved, then checked` : ""}
+      "front": "…",                                                 // why / apply only${
+        thorough
+          ? `
+      "work": "…",                                                  // apply only: solved, then checked`
+          : ""
+      }
       "back": "…",
       "reExplain": "…"
     }, ...

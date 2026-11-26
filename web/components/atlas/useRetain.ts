@@ -96,7 +96,9 @@ export function useRetain(deps: {
   // due cards.
   useEffect(() => {
     setRetainContent((prev) =>
-      prev ? { ...prev, forecast: forecastRows(cards, new Date(), languageRef.current) } : prev,
+      prev
+        ? { ...prev, forecast: forecastRows(cards, new Date(), languageRef.current) }
+        : prev,
     );
   }, [cards, setRetainContent, languageRef]);
 

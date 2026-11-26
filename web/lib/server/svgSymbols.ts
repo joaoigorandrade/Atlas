@@ -168,7 +168,10 @@ const turnBox = (b: Box, pt: (x: number, y: number) => [number, number]): Box =>
 
 // ---- multi-pin symbols (one orientation each) --------------------------------
 
-const MULTI: Record<string, { inner: string; box: Box | null; marks?: Mark[]; desc: string }> = {
+const MULTI: Record<
+  string,
+  { inner: string; box: Box | null; marks?: Mark[]; desc: string }
+> = {
   ground: {
     inner: '<path d="M0 0V12M-16 12H16M-10 18H10M-4 24H4"/>',
     box: [-16, 4, 16, 24],
@@ -263,25 +266,60 @@ const MULTI: Record<string, { inner: string; box: Box | null; marks?: Mark[]; de
 // ---- the library -------------------------------------------------------------
 
 export type Pt = [number, number];
-const PINS_H: Pt[] = [[0, 0], [80, 0]];
-const PINS_V: Pt[] = [[0, 0], [0, 80]];
+const PINS_H: Pt[] = [
+  [0, 0],
+  [80, 0],
+];
+const PINS_V: Pt[] = [
+  [0, 0],
+  [0, 80],
+];
 const MULTI_PINS: Record<string, Pt[]> = {
   ground: [[0, 0]],
   dot: [],
   terminal: [[0, 0]],
   loop_cw: [],
   loop_ccw: [],
-  npn: [[0, 0], [40, -40], [40, 40]],
-  pnp: [[0, 0], [40, -40], [40, 40]],
-  nmos: [[0, 0], [40, -40], [40, 40]],
-  pmos: [[0, 0], [40, -40], [40, 40]],
+  npn: [
+    [0, 0],
+    [40, -40],
+    [40, 40],
+  ],
+  pnp: [
+    [0, 0],
+    [40, -40],
+    [40, 40],
+  ],
+  nmos: [
+    [0, 0],
+    [40, -40],
+    [40, 40],
+  ],
+  pmos: [
+    [0, 0],
+    [40, -40],
+    [40, 40],
+  ],
   arrow_right: [],
   arrow_left: [],
   arrow_up: [],
   arrow_down: [],
-  opamp: [[0, -20], [0, 20], [100, 0]],
-  opamp_p: [[0, -20], [0, 20], [100, 0]],
-  transformer: [[0, -40], [0, 40], [60, -40], [60, 40]],
+  opamp: [
+    [0, -20],
+    [0, 20],
+    [100, 0],
+  ],
+  opamp_p: [
+    [0, -20],
+    [0, 20],
+    [100, 0],
+  ],
+  transformer: [
+    [0, -40],
+    [0, 40],
+    [60, -40],
+    [60, 40],
+  ],
 };
 
 export const SYMBOLS: Record<string, { svg: string; box: Box | null; pins: Pt[] }> = {};
@@ -313,7 +351,9 @@ const DEFS = `<defs>${Object.entries(SYMBOLS)
 export const SYMBOL_GUIDE = [
   'Standard symbols are PREDEFINED — never draw them, never write <defs> for them. Place one with <use href="#NAME" x="X" y="Y"/> (x/y only, NO transform), X and Y multiples of 20.',
   "Two-terminal symbols, each in four orientations: NAME has pin0 at (x,y) and pin1 at (x+80,y); NAME_r the same pins with pin0 on the right at (x+80,y); NAME_v has pin0 at (x,y) and pin1 at (x,y+80); NAME_vr the same pins with pin0 at the bottom (x,y+80). Names:",
-  ...Object.entries(TWO).map(([n, s]) => `- ${n}: ${s.desc}${s.pin0 ? `; ${s.pin0}` : ""}`),
+  ...Object.entries(TWO).map(
+    ([n, s]) => `- ${n}: ${s.desc}${s.pin0 ? `; ${s.pin0}` : ""}`,
+  ),
   "Other symbols (pins relative to x,y; one orientation):",
   ...Object.entries(MULTI)
     .filter(([, s]) => s.desc)
