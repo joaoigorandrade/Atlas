@@ -13,6 +13,8 @@ import {
 import { RETAIN_DRAFT_NODES, RetainContent, ReviewCard } from "@/lib/curriculum";
 import { Language } from "@/lib/i18n";
 import { generateJson } from "@/lib/server/openrouter";
+import { sizeDeck } from "./jev";
+import { logWarning } from "@/lib/log";
 
 const CARD_TYPES = ["recall", "why", "apply"] as const;
 
@@ -31,6 +33,11 @@ const CARD_SOURCE = "Consume";
  *  `retainCardBounds` — since the honest count is roughly one card per node the
  *  learner actually has in rotation. */
 export const RETAIN_CARD_BOUNDS = { min: 1, max: RETAIN_DRAFT_NODES } as const;
+
+/** The most cards one node may carry when Jev sizes its deck — the top of
+ *  `DECK_SIZE` in jev.ts. Each Jev-sized node is drafted in its own call, so
+ *  a big deck never has to fit one model request's timeout. */
+export const RETAIN_NODE_CARD_MAX = 20;
 
 /** The band to ask this particular draft for: about one card per node in
  *  rotation, clamped into `RETAIN_CARD_BOUNDS`. A three-node rotation asking
@@ -72,42 +79,48 @@ export function retainCardBounds(nodeCount: number): {
  * intervals from a language model was always the wrong shape anyway — the
  * scheduler knows them exactly.
  */
-export function validateRetain(budgetMin: number, nodeIds: Set<string>) {
+export function validateRetain(
+  budgetMin: number,
+  nodeIds: Set<string>,
+  max: number = RETAIN_CARD_BOUNDS.max,
+) {
   return (raw: unknown): RetainContent => {
     const root = obj(raw, "payload");
-    const cards: ReviewCard[] = arr(
-      root.cards,
-      "cards",
-      RETAIN_CARD_BOUNDS.min,
-      RETAIN_CARD_BOUNDS.max,
-    ).map((v, i) => {
-      const c = obj(v, `cards[${i}]`);
-      const node = slug(c.node, `cards[${i}].node`);
-      if (!nodeIds.has(node)) fail(`cards[${i}].node "${node}" is not a learned node id`);
-      const type = oneOf(c.type, CARD_TYPES, `cards[${i}].type`);
-      const hasCloze = Array.isArray(c.cloze) && typeof c.answer === "string";
-      const card: ReviewCard = {
-        id: `r${i + 1}`,
-        type,
-        source: CARD_SOURCE,
-        node,
-        // A cloze card's answer IS its back; models routinely omit `back`
-        // there, and rejecting that blocked the whole Review queue.
-        back: filled(hasCloze ? (c.back ?? c.answer) : c.back, `cards[${i}].back`),
-        fails: true,
-        reExplain: filled(c.reExplain, `cards[${i}].reExplain`),
-      };
-      if (hasCloze) {
-        const cloze = arr(c.cloze, `cards[${i}].cloze`, 2, 2).map((s, j) =>
-          filled(s, `cards[${i}].cloze[${j}]`),
-        );
-        card.cloze = [cloze[0], cloze[1]];
-        card.answer = filled(c.answer, `cards[${i}].answer`);
-      } else {
-        card.front = filled(c.front, `cards[${i}].front`);
-      }
-      return card;
-    });
+    const cards: ReviewCard[] = arr(root.cards, "cards", RETAIN_CARD_BOUNDS.min, max).map(
+      (v, i) => {
+        const c = obj(v, `cards[${i}]`);
+        const node = slug(c.node, `cards[${i}].node`);
+        if (!nodeIds.has(node))
+          fail(`cards[${i}].node "${node}" is not a learned node id`);
+        const type = oneOf(c.type, CARD_TYPES, `cards[${i}].type`);
+        const hasCloze = Array.isArray(c.cloze) && typeof c.answer === "string";
+        const card: ReviewCard = {
+          id: `r${i + 1}`,
+          type,
+          source: CARD_SOURCE,
+          node,
+          // A cloze card's answer IS its back; models routinely omit `back`
+          // there, and rejecting that blocked the whole Review queue.
+          back: filled(hasCloze ? (c.back ?? c.answer) : c.back, `cards[${i}].back`),
+          fails: true,
+          reExplain: filled(c.reExplain, `cards[${i}].reExplain`),
+        };
+        if (hasCloze) {
+          // A blank that ends the sentence leaves nothing after it: the model
+          // writes "…" or "" there, which is a full stop, not a missing part.
+          const cloze = arr(c.cloze, `cards[${i}].cloze`, 2, 2).map((s, j) =>
+            j === 1 && typeof s === "string" && /^[.…\s]*$/.test(s)
+              ? "."
+              : filled(s, `cards[${i}].cloze[${j}]`),
+          );
+          card.cloze = [cloze[0], cloze[1]];
+          card.answer = filled(c.answer, `cards[${i}].answer`);
+        } else {
+          card.front = filled(c.front, `cards[${i}].front`);
+        }
+        return card;
+      },
+    );
     return { budgetMin, cards };
   };
 }
@@ -164,11 +177,41 @@ export async function generateRetain(params: {
   language?: Language;
 }): Promise<RetainContent> {
   const { topic, budgetMin, nodes, language = "en" } = params;
-  // One card per thing the learner was taught: a reading's key ideas when the
-  // client sent them, else the node's one sentence.
+  // Jev decides each node's deck: everything important plus its edge cases.
+  // Each node is drafted on its own, in parallel, so the deck can be large.
+  const sized = await sizeDeck(topic, nodes);
+  if (sized) {
+    const drafts = await Promise.allSettled(
+      nodes.map((n) => {
+        const [min, max] = sized[n.id] ?? [5, 7];
+        return draftCards(topic, budgetMin, [n], { min, max }, language, true);
+      }),
+    );
+    drafts.forEach((d, i) => {
+      if (d.status === "rejected")
+        logWarning("retain_node_failed", d.reason, { topic, node: nodes[i].id });
+    });
+    const cards = drafts.flatMap((d) => (d.status === "fulfilled" ? d.value.cards : []));
+    // Every node failed: surface the error the caller already handles.
+    if (!cards.length) throw (drafts[0] as PromiseRejectedResult).reason;
+    return { budgetMin, cards: cards.map((c, i) => ({ ...c, id: `r${i + 1}` })) };
+  }
+  // No Jev: one card per thing the learner was taught — a reading's key ideas
+  // when the client sent them, else the node's one sentence.
   const band = retainCardBounds(
     nodes.reduce((n, node) => n + Math.max(1, node.takeaways?.length ?? 0), 0),
   );
+  return draftCards(topic, budgetMin, nodes, band, language, false);
+}
+
+function draftCards(
+  topic: string,
+  budgetMin: number,
+  nodes: RetainNode[],
+  band: { min: number; max: number },
+  language: Language,
+  thorough: boolean,
+): Promise<RetainContent> {
   return generateJson(
     user(
       `Write the review cards for the topic "${topic}": the spaced-repetition cards that keep these concepts alive for months. Each card will be answered many times, weeks apart, by someone who has not looked at the material since — so a card is a small retrieval task you are designing for that future learner.
@@ -195,13 +238,17 @@ PICK THE TYPE BY WHAT THE CONCEPT IS:
 "back" is the key a typed answer is graded against. For "why" and "apply", put in it only what the learner must produce — the one sentence that counts, nothing added to explain it. For "recall", "back" is the answer alone: the filled blank already shows the whole sentence, and both apps hide a back that only repeats it.
 "reExplain" is shown when the card is missed: under 60 words, it points at what forces the answer — the earlier idea it rests on, or one concrete case traced through — rather than restating the back, and it ends with one question.
 
-${sizeRule({
-  unit: "cards",
-  min: band.min,
-  max: band.max,
-  atMin: "a rotation whose nodes each carry one fact worth being asked for",
-  atMax: "a rotation where a node genuinely holds two separate facts",
-})} A node earns a second card only when it carries two facts that can be missed independently — never a second cut at the same one. Where a node lists its key ideas (·), each idea is such a fact and earns its own card, as far as the count allows.
+${
+  thorough
+    ? `SIZE: write ${band.min}-${band.max} cards — the learner must remember EVERYTHING important here, edge cases included. Cover every key idea (·) first, then spend the rest on what a learner gets wrong: boundary conditions, exceptions to the rule, the case where it does NOT apply, the look-alike it is confused with, a sign or unit that flips the result, a common wrong answer and why it fails. An edge case must follow from the concept itself, not from trivia it never covers. Ask every important fact from more than one angle — recall it, explain why it holds, apply it to a fresh case — since each is a separate retrieval. Each card still asks one distinct thing, never the same question reworded.`
+    : `${sizeRule({
+        unit: "cards",
+        min: band.min,
+        max: band.max,
+        atMin: "a rotation whose nodes each carry one fact worth being asked for",
+        atMax: "a rotation where a node genuinely holds two separate facts",
+      })} A node earns a second card only when it carries two facts that can be missed independently — never a second cut at the same one. Where a node lists its key ideas (·), each idea is such a fact and earns its own card, as far as the count allows.`
+}
 
 Write the cards only. Scheduling — when each card is next due, and what each grade button is worth — is the scheduler's job, not yours.
 
@@ -224,7 +271,11 @@ Two filled-in cards from an unrelated concept (reading a 24-hour clock), to show
 {"type": "recall", "node": "…", "cloze": ["On a 24-hour clock, an hour past 12 becomes the 12-hour time when you", "from it."], "answer": "subtract 12", "back": "subtract 12", "reExplain": "The 24-hour clock keeps counting after noon instead of starting again at 1. So 13 is one hour past noon. What do you take away from 13 to land back on 1?"}
 {"type": "why", "node": "…", "front": "On a 24-hour clock, why is 00:30 just after midnight rather than just after noon?", "back": "Because the 24-hour day starts counting at midnight, so hour 00 is the first hour after it.", "reExplain": "Noon is halfway through the count, at 12. Where does a count of 24 hours have to start for 12 to land in the middle?"}${languageNote(language)}`,
     ),
-    validateRetain(budgetMin, new Set(nodes.map((n) => n.id))),
+    validateRetain(
+      budgetMin,
+      new Set(nodes.map((n) => n.id)),
+      thorough ? RETAIN_NODE_CARD_MAX : RETAIN_CARD_BOUNDS.max,
+    ),
     { label: "retain" },
   );
 }

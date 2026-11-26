@@ -277,3 +277,51 @@ export async function sizeMap(
   logEvent("map_size", { topic: p.topic, goal: p.goal, band: pick });
   return [lo, hi];
 }
+
+// ---- 12. review-deck size ---------------------------------------------------
+
+const DECK_SIZE = {
+  "5-7":
+    "A narrow concept: one or two facts, each with its exceptions, look-alikes and worked cases.",
+  "8-11":
+    "A few separate facts, each with boundary cases, a common mix-up and a worked case.",
+  "12-15":
+    "Several facts, conditions or steps, each with its exceptions, failure cases and applications.",
+  "16-20":
+    "A rich concept: many facts, rules and exceptions, each worth asking from more than one angle.",
+};
+
+/** Per node, how many review cards cover everything important AND its edge
+ *  cases — Jev's top pick per node, null when Jev is unavailable (the caller's
+ *  one-card-per-idea band stands then). */
+export async function sizeDeck(
+  topic: string,
+  nodes: Array<{ id: string; label: string; summary?: string; takeaways?: string[] }>,
+): Promise<Record<string, [number, number]> | null> {
+  const a = await decide(
+    { topic },
+    Object.fromEntries(
+      nodes.map((n, i) => [
+        `cards_${i}`,
+        choice(
+          `Concept "${n.label}"${n.takeaways?.length ? ` — key ideas: ${n.takeaways.join(" | ")}` : n.summary ? ` — ${n.summary.slice(0, 400)}` : ""}.\nHow many spaced-repetition cards does a learner need to remember EVERYTHING important in it for months — every fact, condition and rule, plus its edge cases, exceptions and common confusions — with each card asking one distinct thing?`,
+          DECK_SIZE,
+        ),
+      ]),
+    ),
+    "deck-size",
+  );
+  if (!a) return null;
+  // ponytail: top pick, not `sureChoice` — same reason as `sizeMap`: an
+  // ordinal size rarely clears SURE, and the validator band stays wide.
+  const out: Record<string, [number, number]> = {};
+  nodes.forEach((n, i) => {
+    const c = a[`cards_${i}`];
+    if (c?.type !== "choice") return;
+    const [lo, hi] = c.choice.split("-").map(Number);
+    if (lo && hi) out[n.id] = [lo, hi];
+  });
+  if (!Object.keys(out).length) return null;
+  logEvent("deck_size", { topic, picks: Object.values(out).map((b) => b.join("-")) });
+  return out;
+}

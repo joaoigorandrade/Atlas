@@ -1104,3 +1104,23 @@ describe("a quick look's restated concept", () => {
     ).toEqual(["definicao", "resolver"]);
   });
 });
+
+describe("validateRetain cloze tail", () => {
+  it("reads a placeholder after a sentence-final blank as a full stop", () => {
+    const out = validateRetain(
+      8,
+      new Set(["a"]),
+    )({
+      cards: [
+        {
+          type: "recall",
+          node: "a",
+          cloze: ["Keys left are", "…"],
+          answer: "smaller",
+          reExplain: "Why?",
+        },
+      ],
+    });
+    expect(out.cards[0].cloze).toEqual(["Keys left are", "."]);
+  });
+});

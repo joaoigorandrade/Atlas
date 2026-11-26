@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sizeMap } from "@/lib/server/generate/jev";
+import { sizeDeck, sizeMap } from "@/lib/server/generate/jev";
 
 const answering = (choice: string, confidence: number) => {
   const fetch = vi.fn(
@@ -52,5 +52,43 @@ describe("sizeMap", () => {
     const fetch = answering("8-11", 0.9);
     expect(await sizeMap({ topic: "binary trees", goal: "pareto" })).toBeUndefined();
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("sizeDeck", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("gives each node its own band, by id", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "k");
+    vi.stubEnv("ATLAS_FIXTURES", "");
+    const ans = (choice: string) => ({
+      type: "choice",
+      choice,
+      confidence: 0.3,
+      probabilities: {},
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ answers: { cards_0: ans("16-20"), cards_1: ans("5-7") } }),
+          ),
+      ),
+    );
+    expect(
+      await sizeDeck("binary trees", [
+        { id: "bst", label: "BST invariant" },
+        { id: "leaf", label: "Leaf" },
+      ]),
+    ).toEqual({ bst: [16, 20], leaf: [5, 7] });
+  });
+
+  it("no Jev leaves the one-card-per-idea band", async () => {
+    vi.stubEnv("DECIDE_MODEL", "off");
+    expect(await sizeDeck("binary trees", [{ id: "bst", label: "BST" }])).toBeNull();
   });
 });
