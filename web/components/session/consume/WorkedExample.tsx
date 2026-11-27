@@ -7,8 +7,11 @@ import { useT } from "@/lib/i18n";
 import { color, font } from "@/lib/theme";
 import Rich from "@/components/Rich";
 
-export function WorkedExample({ example }: { example: ConsumeExample }) {
+export function WorkedExample({ example }: { example?: ConsumeExample }) {
   const t = useT(STRINGS);
+  // A section still streaming in has its paragraphs before its example: a reading
+  // nobody has opened yet (a fresh map, a deeper level) arrives exactly like that.
+  if (!example) return null;
   return (
     <div
       style={{
