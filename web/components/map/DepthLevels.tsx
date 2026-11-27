@@ -5,13 +5,7 @@
 // mastered. A level is bonus — nothing here nudges, and ignoring it costs
 // nothing anywhere else.
 
-import {
-  STATE_COLOR,
-  baseIdOf,
-  levelsOf,
-  type ConceptNode,
-  type NodeState,
-} from "@/lib/curriculum";
+import { baseIdOf, levelsOf, type ConceptNode, type NodeState } from "@/lib/curriculum";
 import { color, font, kicker } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import { STRINGS } from "@/components/map/nodeDetailCopy";
@@ -66,14 +60,14 @@ export default function DepthLevels({
                 borderRadius: 7,
                 cursor: level ? "pointer" : "default",
                 color: level ? color.ink : color.inkGhost,
+                // Mastered is the fill, selected the frame — two channels, since
+                // the dark theme's accent and mastered green are nearly one colour.
                 background: mastered ? color.successBg : color.card,
-                border: `1px solid ${
+                border:
                   i === at
-                    ? color.accent
-                    : mastered
-                      ? STATE_COLOR.mastered
-                      : color.hairlineStrong
-                }`,
+                    ? `2px solid ${color.accent}`
+                    : `1px solid ${color.hairlineStrong}`,
+                fontWeight: i === at ? 600 : 400,
               }}
             >
               {ROMAN[i]}
