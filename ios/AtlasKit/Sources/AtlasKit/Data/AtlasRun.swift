@@ -136,7 +136,7 @@ public struct AtlasRun: Codable, Sendable, Identifiable {
             graph.nodes[index].x = at.x
             graph.nodes[index].y = at.y
         }
-        self.graph = graph
+        self.graph = graph.core
         // Folded, so emptied: the mirror re-encodes this run, and a stale map
         // left here was folded back over the nodes on the next launch — which
         // put a node the learner had dragged back where it started.
@@ -301,6 +301,11 @@ public struct NodeDelta: Encodable, Sendable {
     public var importance: NodeImportance?
     public var difficulty: NodeDifficulty?
     public var phasePlan: [Phase]?
+    /// A base's deeper levels, sent with the rest of what the map wrote. A
+    /// level node's `depth` is on the wire for parity; this build never spawns
+    /// one, and drops those it loads (`ConceptGraph.core`).
+    public var deeper: [DepthSpec]?
+    public var depth: Int?
     /// The phases finished on this node. The one *derived-from* field the
     /// client owns: state is computed from it, so a save that carried the state
     /// and not the ledger would re-derive a different state on the next open.
@@ -343,6 +348,8 @@ public struct NodeDelta: Encodable, Sendable {
         try c.encodeIfPresent(importance, forKey: .importance)
         try c.encodeIfPresent(difficulty, forKey: .difficulty)
         try c.encodeIfPresent(phasePlan, forKey: .phasePlan)
+        try c.encodeIfPresent(deeper, forKey: .deeper)
+        try c.encodeIfPresent(depth, forKey: .depth)
         try c.encodeIfPresent(phasesDone, forKey: .phasesDone)
         // Double optional: absent means "leave it", `.some(nil)` means "clear
         // it". Collapsing the two would make un-shaking a node impossible.
@@ -358,7 +365,7 @@ public struct NodeDelta: Encodable, Sendable {
 
     private enum Key: String, CodingKey {
         case id, label, summary, g, week, x, y, isGap, state, kind, domain, phasePlan, phasesDone
-        case importance, difficulty
+        case importance, difficulty, deeper, depth
         case shakyReason
         case reviewed, consumeProgress, socraticProgress, feynmanProgress
         case connectProgress, phaseProgress, prereqs

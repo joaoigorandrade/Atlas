@@ -154,6 +154,14 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
     /// and it lives in the parallel `PhasesDoneMap` beside `shakyReasons` and
     /// `reviewedNodes`, so completing a phase doesn't rewrite the graph.
     public var phasePlan: [Phase]?
+    /// Up to two harder levels past this concept, written by the map
+    /// generation. This build has no screen for them; it only carries them onto
+    /// the rows a map built here creates, so the web can offer them.
+    public var deeper: [DepthSpec]?
+    /// Set on a deeper level (2 or 3) the web spawned past a mastered concept.
+    /// This build has no screen for levels, so a run drops them on load
+    /// (`ConceptGraph.core`); absent on every ordinary node.
+    public var depth: Int?
 
     public init(
         id: String, label: String, summary: String? = nil, state: NodeState = .unknown,
@@ -192,7 +200,15 @@ public struct ConceptNode: Codable, Sendable, Identifiable, Hashable {
             .flatMap { NodeDifficulty(rawValue: $0) }
         phasePlan = (try? c.decodeIfPresent([String].self, forKey: .phasePlan))?
             .compactMap(Phase.init(rawValue:))
+        deeper = try? c.decodeIfPresent([DepthSpec].self, forKey: .deeper)
+        depth = try? c.decodeIfPresent(Int.self, forKey: .depth)
     }
+}
+
+/// One deeper level as the map writes it — `DepthSpec` in `lib/curriculum/types.ts`.
+public struct DepthSpec: Codable, Sendable, Hashable {
+    public let label: String
+    public let summary: String
 }
 
 /// How a generated map travels: a laid-out node carrying its own prerequisites,
@@ -294,6 +310,20 @@ public struct ConceptGraph: Codable, Sendable, Equatable {
 
     public init(nodes: [ConceptNode] = [], edges: [ConceptEdge] = []) {
         self.nodes = nodes; self.edges = edges
+    }
+
+    /// The map without its deeper levels — the web's `coreGraph`. A level is a
+    /// bonus node the web hangs off a mastered concept and never draws; kept
+    /// here it would be a stray dot and a share of every progress number.
+    /// Dropped on load rather than filtered at each reader, and safe to drop:
+    /// the save baseline is taken from this graph, so nothing asks the server
+    /// to delete the rows, and a card on a level still finds its own content.
+    public var core: ConceptGraph {
+        guard nodes.contains(where: { $0.depth != nil }) else { return self }
+        let kept = nodes.filter { $0.depth == nil }
+        let ids = Set(kept.map(\.id))
+        return ConceptGraph(
+            nodes: kept, edges: edges.filter { ids.contains($0.from) && ids.contains($0.to) })
     }
 }
 

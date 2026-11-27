@@ -114,6 +114,9 @@ export interface NodeDelta {
   importance?: ConceptNode["importance"];
   difficulty?: ConceptNode["difficulty"];
   phasePlan?: readonly PhaseId[];
+  /** The levels past it (a base) or which level it is (a spawned level). */
+  deeper?: ConceptNode["deeper"];
+  depth?: ConceptNode["depth"];
   /** Finished phases, in order — mastery state is derived from this. */
   phasesDone?: readonly PhaseId[];
   consumeProgress?: ConsumeProgress | null;

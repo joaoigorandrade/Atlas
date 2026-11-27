@@ -13,6 +13,7 @@ import {
   daysUntil,
   displayStates,
   orderedFrontier,
+  mapProgress,
   paceStatus,
   goalName,
   unmetPathOf,
@@ -161,15 +162,24 @@ export function useDerived(deps: {
   );
   displayRef.current = display;
 
-  const masteredCount = graph.nodes.filter((n) => states[n.id] === "mastered").length;
-  const masteryPct = graph.nodes.length
-    ? Math.round((masteredCount / graph.nodes.length) * 100)
-    : 0;
+  const {
+    mastered: masteredCount,
+    masteryPct,
+    frontierTotal,
+  } = mapProgress(graph, states, display);
 
   const selectedNode = graph.nodes.find((n) => n.id === selectedId) ?? null;
   const selectedDisplayState: NodeState | null = selectedNode
     ? display[selectedNode.id]
     : null;
+  // What the drawer reads about the selected node beside the node itself.
+  const at = selectedNode?.id ?? "";
+  const selectedFacts = {
+    reviewed: run.reviewedNodes.includes(at),
+    phasesDone: phasesDone[at],
+    shakyReason: run.shakyReasons[at],
+    consumeProgress: run.consumeProgress[at],
+  };
 
   // "Learn these first": a selected locked node highlights its unlearned
   // prerequisite chain on the canvas.
@@ -285,7 +295,6 @@ export function useDerived(deps: {
     [graph, states, form.goal, phasesDone, cards],
   );
   const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow, fresh };
-  const frontierTotal = graph.nodes.filter((n) => display[n.id] === "frontier").length;
   const frontierConcept = nextUp[0]?.node.label ?? null;
   const subject = form.topic.trim() || t.yourMap;
   const goalLabel = goalName(form.goal, language) ?? t.generalMastery;
@@ -298,21 +307,11 @@ export function useDerived(deps: {
     const liveGrouped = maps.some((m) => m.subject === runSubject && m.continent);
     const others = maps
       .filter((m) => m.subject !== runSubject && !m.continent)
-      .map((m) => {
-        const otherDisplay = displayStates(m.states, m.graph);
-        const mastered = m.graph.nodes.filter(
-          (n) => m.states[n.id] === "mastered",
-        ).length;
-        return {
-          subject: m.subject,
-          goalLabel: goalName(m.goal, language) ?? t.generalMastery,
-          masteryPct: m.graph.nodes.length
-            ? Math.round((mastered / m.graph.nodes.length) * 100)
-            : 0,
-          frontierTotal: m.graph.nodes.filter((n) => otherDisplay[n.id] === "frontier")
-            .length,
-        };
-      });
+      .map((m) => ({
+        subject: m.subject,
+        goalLabel: goalName(m.goal, language) ?? t.generalMastery,
+        ...mapProgress(m.graph, m.states),
+      }));
     // Blank topic: "+ New map" leaving — its card is in `others`, no phantom.
     return graph.nodes.length && !liveGrouped && form.topic.trim()
       ? [{ subject, goalLabel, masteryPct, frontierTotal }, ...others]
@@ -362,6 +361,7 @@ export function useDerived(deps: {
     masteryPct,
     selectedNode,
     selectedDisplayState,
+    selectedFacts,
     lockedPath,
     allFrontier,
     nextUp,

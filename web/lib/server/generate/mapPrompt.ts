@@ -155,7 +155,7 @@ export const EVIDENCE_RULE = `Three booleans per concept decide which demanding 
 
 /** One node as the model writes it — shared by the single-shot and streamed
  *  prompts so the two can't ask for different fields. */
-export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "domainWhy": "only when the domain differs from the topic's", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard", "contested": false, "transferable": true, "individual": false}`;
+export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "domainWhy": "only when the domain differs from the topic's", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard", "contested": false, "transferable": true, "individual": false, "deeper": []}`;
 
 export const graphShape = (ask: [number, number]) => `{
   "about": ${ABOUT_SHAPE.slice(10, -1)},
@@ -249,6 +249,16 @@ For this goal, every node's importance/difficulty pair must be one of: ${pairs}.
  *  teach the gist rather than restate the label. */
 export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a learner who has never met this concept what it actually is and what it lets them do — concrete and specific to this topic. Never restate the label ("Gradient Descent is about gradient descent"), never describe the concept's role in the map or its difficulty, never start with "This concept".`;
 
+/**
+ * Optional depth past a concept (levels II and III), offered to a learner only
+ * after they master it and never counted toward the map. Most concepts have
+ * none; a quick look never does, since it is not trying to go anywhere.
+ */
+export const DEPTH_RULE = (goal: GoalKind) =>
+  goal === "glance"
+    ? `"deeper" is always [].`
+    : `"deeper" lists 0-2 HARDER LEVELS of that same concept, for a learner who has mastered it and wants to go further — level II, then level III. Most concepts get []: give levels only where the concept genuinely has harder layers a serious learner would study next (a deeper formalism, a harder class of cases, the expert's version), usually never for a "fact". Each level is {"label": "1-3 word name", "summary": "one sentence on what this level adds beyond the one before"}. A level goes BEYOND its concept — never a restatement, a prerequisite, or any other concept on this map — and level III goes beyond level II.`;
+
 /** Jev's size pick (`sizeMap`) is the last word: the quick-look hint and the
  *  domain rows each claim to override the size rule, so this overrides them. */
 const sizeSet = ([lo, hi]: [number, number], goal: GoalKind) =>
@@ -262,6 +272,7 @@ ${KIND_RULE}
 ${DOMAIN_RULE}
 ${ABOUT_RULE}
 ${EVIDENCE_RULE}
+${DEPTH_RULE(goal)}
 ${axesRule(goal)}
 ${sizeRule({
   unit: "concepts",

@@ -12,7 +12,7 @@ import { color } from "@/lib/theme";
 // Transformations pass (conceptual, per the design) plus the Gaussian
 // Elimination procedure (list-like) so the conditional is real, not decorative.
 import { StateMap } from "./replan";
-import { ConceptNode } from "./types";
+import { ConceptNode, isCore } from "./types";
 import { Language } from "@/lib/i18n";
 
 /** The Connect phase's violet palette (its accent everywhere it appears). */
@@ -249,7 +249,10 @@ export function connectPool(
   return nodes
     .filter(
       (n) =>
-        !n.gap && n.id !== excludeId && CONNECT_POOL_STATES.includes(states[n.id] ?? ""),
+        !n.gap &&
+        isCore(n) &&
+        n.id !== excludeId &&
+        CONNECT_POOL_STATES.includes(states[n.id] ?? ""),
     )
     .sort(
       (a, b) =>

@@ -35,6 +35,8 @@ export * from "./adherence";
 export * from "./calibration";
 export * from "./goalDate";
 export * from "./replan";
+export * from "./depth";
+export * from "./boundary";
 export * from "./spacing";
 export * from "./confidence";
 export * from "./topicMeta";

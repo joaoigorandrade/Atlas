@@ -31,6 +31,7 @@ import {
   diagnosticFixture,
 } from "@/lib/server/fixturesPhases";
 import { fixtureTable } from "@/lib/server/fixtureTables";
+import { FIXTURE_DEEPER } from "@/lib/server/fixturesDepth";
 import type { GenerateBody } from "@/lib/server/job";
 
 export { FIXTURES };
@@ -98,6 +99,7 @@ function mapNodes(goal?: GoalKind, n = goal === "glance" ? 2 : MAP.length): MapN
       id,
       label,
       summary: `What ${label.toLowerCase()} is, in one line.`,
+      ...(FIXTURE_DEEPER[id] ? { deeper: FIXTURE_DEEPER[id] } : null),
       kind: axes[0],
       importance: axes[2],
       difficulty: axes[3],

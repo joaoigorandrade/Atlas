@@ -63,7 +63,28 @@ export interface ConceptNode {
   x: number;
   y: number;
   gap?: boolean;
+  /** Up to two harder levels past this concept (II, III), written by the map
+   *  generation where the topic really has them. Shared by every learner on
+   *  the map; absent on maps built before levels existed. */
+  deeper?: DepthSpec[];
+  /** Set on a spawned level node (`spawnDepth`): which level of its base it is.
+   *  Absent on every ordinary node, which is level I. */
+  depth?: 2 | 3;
 }
+
+/** One deeper level as the map writes it. */
+export interface DepthSpec {
+  label: string;
+  summary: string;
+}
+
+/** Whether a node is part of the map proper. A deeper level is bonus: it runs
+ *  every phase, but no total — progress, pace, frontier, exam — counts it. */
+export const isCore = (n: Pick<ConceptNode, "depth">): boolean => !n.depth;
+
+/** The base concept a level node belongs to (`foo~2` → `foo`); itself for a
+ *  base. Map ids are kebab slugs, so `~` never occurs in one. */
+export const baseIdOf = (id: string): string => id.split("~")[0];
 
 /** [from, to, dashed?] — direction is prerequisite → dependent. */
 export type ConceptEdge = readonly [string, string, boolean?];

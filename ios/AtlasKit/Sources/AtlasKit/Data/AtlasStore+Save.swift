@@ -246,6 +246,7 @@ extension AtlasStore {
                     delta.importance = node.importance
                     delta.difficulty = node.difficulty
                     delta.phasePlan = node.phasePlan
+                    delta.deeper = node.deeper
                 }
                 deltas.append(delta)
             }

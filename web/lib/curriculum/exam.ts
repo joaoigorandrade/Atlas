@@ -8,7 +8,7 @@
 // concept the learner misses is pointed back to on the map, where its own
 // phases (and Retain) are what close it.
 
-import type { ConceptGraph } from "./types";
+import { isCore, type ConceptGraph } from "./types";
 
 export const EXAM_SIZES = [5, 10, 20, 30] as const;
 export type ExamSize = (typeof EXAM_SIZES)[number];
@@ -52,7 +52,8 @@ export function mapFinished(
   graph: ConceptGraph,
   states: Record<string, string | undefined>,
 ): boolean {
-  return graph.nodes.length > 0 && graph.nodes.every((n) => states[n.id] === "mastered");
+  const core = graph.nodes.filter(isCore);
+  return core.length > 0 && core.every((n) => states[n.id] === "mastered");
 }
 
 /**
@@ -85,7 +86,7 @@ export function examPool(
   graph: ConceptGraph,
   rand: () => number = Math.random,
 ): Array<{ id: string; label: string }> {
-  const nodes = graph.nodes.filter((n) => !n.gap);
+  const nodes = graph.nodes.filter((n) => !n.gap && isCore(n));
   const pool = nodes.length ? nodes : graph.nodes;
   const picked =
     pool.length <= EXAM_POOL_MAX

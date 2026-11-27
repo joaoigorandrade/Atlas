@@ -7,8 +7,9 @@
 // sends out a beacon; the selected one is ringed; one on the "learn these
 // first" path gets an amber ring of its own.
 
-import type { ConceptNode, NodeState } from "@/lib/curriculum";
-import { STATE_COLOR, stateLabel } from "@/lib/curriculum";
+import { useMemo } from "react";
+import type { ConceptEdge, ConceptNode, NodeState } from "@/lib/curriculum";
+import { STATE_COLOR, baseIdOf, coreGraph, levelsOf, stateLabel } from "@/lib/curriculum";
 import { useLanguage } from "@/lib/i18n";
 import { RETENTION_TARGET } from "@/lib/fsrs";
 import { color, font, map, motion, transition, alpha } from "@/lib/theme";
@@ -37,6 +38,7 @@ export default function MapNode({
   earned,
   gapLabel,
   fade,
+  levels = [],
   onSelect,
   onDown,
   onOpen,
@@ -58,6 +60,9 @@ export default function MapNode({
   /** The state this node just earned, while the celebration runs. */
   earned?: NodeState;
   gapLabel: string;
+  /** One entry per level (I, II, III) of a concept the map gave deeper
+   *  levels: whether that level is mastered. Empty for every other node. */
+  levels?: boolean[];
   onSelect: () => void;
   onDown: (e: React.MouseEvent) => void;
   onOpen: () => void;
@@ -230,6 +235,29 @@ export default function MapNode({
           }}
         >
           {node.label}
+          {/* I · II · III, filled as each is mastered — plain shapes, no
+              filter, so Safari's zoom never re-rasterises them. */}
+          {levels.length > 0 && (
+            <svg
+              data-testid="depth-pips"
+              aria-label={`${levels.filter(Boolean).length}/${levels.length}`}
+              width={levels.length * 8 - 2}
+              height={6}
+              style={{ flex: "0 0 auto" }}
+            >
+              {levels.map((done, i) => (
+                <circle
+                  key={i}
+                  cx={i * 8 + 3}
+                  cy={3}
+                  r={2.4}
+                  fill={done ? STATE_COLOR.mastered : color.paper}
+                  stroke={color.ink}
+                  strokeWidth={0.9}
+                />
+              ))}
+            </svg>
+          )}
           {state === "gap" && (
             <span
               style={{
@@ -254,4 +282,32 @@ export default function MapNode({
       </div>
     </div>
   );
+}
+
+/**
+ * What the canvas draws of a graph that holds deeper levels. A level is a
+ * hidden node: the map draws only the map proper, gives a base with levels its
+ * pips (I · II · III, filled per mastered level), and rings the base's dot
+ * while one of its levels is the selection.
+ */
+export function useLevels(
+  allNodes: ConceptNode[],
+  allEdges: ConceptEdge[],
+  selectedId: string | null,
+  display: Record<string, NodeState>,
+) {
+  const core = useMemo(
+    () => coreGraph({ nodes: allNodes, edges: allEdges }),
+    [allNodes, allEdges],
+  );
+  const pips = useMemo(() => {
+    const out: Record<string, boolean[]> = {};
+    for (const n of core.nodes)
+      if (n.deeper?.length)
+        out[n.id] = levelsOf({ nodes: allNodes }, n).map(
+          (l) => !!l && display[l.id] === "mastered",
+        );
+    return out;
+  }, [core, allNodes, display]);
+  return { ...core, selectedId: selectedId && baseIdOf(selectedId), pips };
 }

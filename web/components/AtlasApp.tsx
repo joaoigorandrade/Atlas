@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useLive } from "@/components/atlas/useLive";
 import { useDayRollover } from "@/components/atlas/useDayRollover";
 import { useExam } from "@/components/atlas/useExam";
+import { useDepth } from "@/components/atlas/useDepth";
 import { useFeed } from "@/components/atlas/useFeed";
 import { useLanguageSwitch } from "@/components/atlas/useLanguageSwitch";
 import { usePhaseParking } from "@/components/atlas/phaseParking";
@@ -465,6 +466,7 @@ export default function AtlasApp({
     warmRetain: spiral.warmRetain,
   });
   const feed = useFeed({ ...run, display, frontier: allFrontier, setScreen });
+  const goDeeper = useDepth(run, setSelectedId, onPrimaryAction);
 
   // Hold the paper blank until the saved-run fetch settles — a resumed run
   // must open on the map, never flash the welcome screen first. The mark is
@@ -538,15 +540,13 @@ export default function AtlasApp({
       {showCanvas && (
         <MapCanvas
           screen={screen as "map" | "building" | "diagnostic"}
-          nodes={usingFakeMap ? fake.placeholderMap(form.goal).nodes : graph.nodes}
-          edges={usingFakeMap ? fake.placeholderMap(form.goal).edges : graph.edges}
+          {...(usingFakeMap ? fake.placeholderMap(form.goal) : { ...graph, positions })}
           spawnedIds={spawnedIds}
           staggered={usingFakeMap}
           display={display}
           cards={run.cards}
           lockedPath={lockedPath}
           earned={earnedNodes}
-          positions={usingFakeMap ? fake.placeholderMap(form.goal).positions : positions}
           view={view}
           selectedId={selectedId}
           hoverId={hoverId}
@@ -623,10 +623,7 @@ export default function AtlasApp({
             nodes={graph.nodes}
             edges={graph.edges}
             display={display}
-            reviewed={selectedNode ? reviewedNodes.includes(selectedNode.id) : false}
-            phasesDone={selectedNode ? phasesDone[selectedNode.id] : undefined}
-            shakyReason={selectedNode ? shakyReasons[selectedNode.id] : undefined}
-            consumeProgress={selectedNode ? consumeProgress[selectedNode.id] : undefined}
+            {...derived.selectedFacts}
             // A node with no sentence of its own has one on the way (the warm
             // pass and the hover both start it) — unless it already failed, or
             // there is no network to write it over.
@@ -639,6 +636,7 @@ export default function AtlasApp({
             }
             onSelect={pickNode}
             onPrimaryAction={onPrimaryAction}
+            onGoDeeper={goDeeper}
             onPhaseAction={onPhaseAction}
             onSkipKnown={skipKnown}
             quick={form.goal === "glance"}

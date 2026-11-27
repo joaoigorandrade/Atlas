@@ -9,6 +9,8 @@ import {
   ConceptNode,
   NodeState,
   ProgressState,
+  baseIdOf,
+  isCore,
 } from "./types";
 import { CELL_BUDGET, cellOf, type NodeDifficulty } from "./cells";
 import { phasePlan, planGates, type PhaseId, type PhasesDoneMap } from "./phases";
@@ -125,7 +127,7 @@ export function orderedFrontier(
   goal: GoalKind,
 ): PlanEntry[] {
   const entries: PlanEntry[] = graph.nodes
-    .filter((n) => display[n.id] === "frontier")
+    .filter((n) => isCore(n) && display[n.id] === "frontier")
     .map((node) => ({
       node,
       unlocks: [...descendantsOf(node.id, graph.edges)].filter((d) => {
@@ -150,8 +152,8 @@ export function frontierTarget(
 ): string | null {
   const plan = orderedFrontier(display, graph, goal);
   if (plan[0]) return plan[0].node.id;
-  const inFlight = graph.nodes.filter((n) =>
-    ["learning", "shaky", "gap"].includes(display[n.id] ?? "unknown"),
+  const inFlight = graph.nodes.filter(
+    (n) => isCore(n) && ["learning", "shaky", "gap"].includes(display[n.id] ?? "unknown"),
   );
   return inFlight.sort((a, b) => a.x - b.x)[0]?.id ?? null;
 }
@@ -235,7 +237,9 @@ export function paceStatus(
   daysLeft: number,
   phasesDone: PhasesDoneMap = {},
 ): PaceStatus {
-  const open = graph.nodes.filter((n) => !n.gap && states[n.id] !== "mastered");
+  const open = graph.nodes.filter(
+    (n) => !n.gap && isCore(n) && states[n.id] !== "mastered",
+  );
   const minutes = open.reduce((sum, n) => sum + minutesLeft(n, phasesDone[n.id]), 0);
   const remaining = open.length;
   const neededPerDay = Math.ceil(minutes / Math.max(1, daysLeft));
@@ -260,7 +264,7 @@ export interface GapSpec {
 }
 
 /** Nodes spawned mid-map belong to the current (post-replay) week. */
-const SPAWN_WEEK = 4;
+export const SPAWN_WEEK = 4;
 
 /**
  * The restructure itself: a new red gap node hung under its parent by a
@@ -316,9 +320,12 @@ export function neighboursOf(graph: ConceptGraph, node: ConceptNode) {
     gapIds,
     parentIds: node.gap ? into.map(([from]) => from) : [],
     prereqIds: node.gap ? [] : into.filter(([, , dashed]) => !dashed).map(([f]) => f),
+    // A deeper level hangs off its base by a solid edge, but it is bonus — the
+    // drawer's level row offers it, never "Unlocks" or the walk-on button.
     dependentIds: graph.edges
       .filter(([from, to, dashed]) => from === node.id && !dashed && !gapIds.includes(to))
-      .map(([, to]) => to),
+      .map(([, to]) => to)
+      .filter((to) => baseIdOf(to) === to),
   };
 }
 
@@ -350,45 +357,4 @@ export function removeNode(graph: ConceptGraph, id: string): ConceptGraph {
     nodes: graph.nodes.filter((n) => n.id !== id),
     edges: graph.edges.filter(([from, to]) => from !== id && to !== id),
   };
-}
-
-/**
- * Where one concept's teaching ends and its neighbours' begins.
- *
- * Every per-node generation used to see only its own label and its *direct*
- * prereqs, so it had no way to know that a concept two columns back already
- * taught the thing it is re-deriving, or that the concept after it is the one
- * that owns the extension it just wandered into. The learner reads the same
- * material twice and meets the next concept already spoiled.
- *
- * `prior` is every ancestor over solid edges — what the learner has already
- * been taught and may be built on. `later` is every other concept on the map —
- * what belongs to somebody else's pass and must not be taught here.
- *
- * Gap nodes are excluded from both: they are spawned per learner, and a
- * per-learner list in the prompt would fork the shared `content_cache` row
- * that two learners on the same topic otherwise hash to.
- */
-export function conceptBoundary(
-  graph: ConceptGraph,
-  nodeId: string,
-): { priorLabels: string[]; laterLabels: string[] } {
-  const solid = graph.edges.filter(([, , dashed]) => !dashed);
-  const ancestors = new Set<string>();
-  const queue = [nodeId];
-  while (queue.length) {
-    const cur = queue.shift()!;
-    for (const [from, to] of solid)
-      if (to === cur && !ancestors.has(from) && from !== nodeId) {
-        ancestors.add(from);
-        queue.push(from);
-      }
-  }
-  const priorLabels: string[] = [];
-  const laterLabels: string[] = [];
-  for (const n of graph.nodes) {
-    if (n.gap || n.id === nodeId) continue;
-    (ancestors.has(n.id) ? priorLabels : laterLabels).push(n.label);
-  }
-  return { priorLabels, laterLabels };
 }

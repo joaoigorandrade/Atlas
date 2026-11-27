@@ -83,6 +83,8 @@ export function projectNodes(run: {
       importance: node.importance,
       difficulty: node.difficulty,
       phasePlan: node.phasePlan,
+      deeper: node.deeper,
+      depth: node.depth,
       // The record mastery state is derived from — the one progress field that
       // must never be dropped from a delta.
       phasesDone: run.phasesDone[node.id] ?? [],

@@ -44,6 +44,9 @@ export const STRINGS = {
     ledTo: "What it led to",
     finishFirst: "Finish first",
     thenComes: "Then comes",
+    levels: "Levels",
+    levelLocked: "Reached by going deeper",
+    goDeeper: (level: string) => `Go deeper · Level ${level}`,
   },
   "pt-BR": {
     cta: {
@@ -80,5 +83,8 @@ export const STRINGS = {
     ledTo: "No que isso deu",
     finishFirst: "Termine isso antes",
     thenComes: "Depois vem",
+    levels: "Níveis",
+    levelLocked: "Alcançado indo mais fundo",
+    goDeeper: (level: string) => `Ir mais fundo · Nível ${level}`,
   },
 } as const;

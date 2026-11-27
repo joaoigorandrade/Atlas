@@ -26,6 +26,7 @@ import type {
   MisconceptionRecord,
   ModalityTally,
   ProgressState,
+  DepthSpec,
   NodeDifficulty,
   NodeImportance,
   NodeKind,
@@ -91,6 +92,8 @@ type NodeRow = {
   importance: NodeImportance;
   difficulty: NodeDifficulty;
   phase_plan: PhaseId[];
+  deeper: DepthSpec[] | null;
+  depth: 2 | 3 | null;
   phases_done: PhaseId[];
   consume_progress: ConsumeProgress | null;
   socratic_progress: SocraticSession | null;
@@ -116,7 +119,7 @@ export type CardRow = {
 
 const TOPIC_COLUMNS = `id, subject, goal, interests, pareto_pct, exam_date, language, calib_samples, misconceptions, modality_tally, lit_today, updated_at, ${AXIS_COLUMNS}, continent:continents(id, name, scopes)`;
 const NODE_COLUMNS =
-  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, importance, difficulty, phase_plan, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress, phase_closed_at";
+  "topic_id, id, label, summary, g, week, x, y, is_gap, state, shaky_reason, reviewed, kind, domain, importance, difficulty, phase_plan, deeper, depth, phases_done, consume_progress, socratic_progress, feynman_progress, connect_progress, phase_progress, phase_closed_at";
 export const CARD_COLUMNS =
   "topic_id, id, node_id, type, source, content, fsrs, suspended";
 
@@ -190,6 +193,8 @@ function assemble(
         : null),
       ...(n.phase_plan?.length ? { phasePlan: n.phase_plan } : null),
       ...(n.is_gap ? { gap: true } : null),
+      ...(n.deeper?.length ? { deeper: n.deeper } : null),
+      ...(n.depth ? { depth: n.depth } : null),
     };
     out.graph.nodes.push(node);
     out.states[n.id] = n.state;

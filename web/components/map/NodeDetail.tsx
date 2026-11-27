@@ -36,6 +36,7 @@ import NodeSeal from "@/components/map/NodeSeal";
 import { WaxSeal } from "@/components/ui/Ornaments";
 import Button from "@/components/ui/Button";
 import { SkipNudge } from "@/components/map/SkipNudge";
+import DepthLevels from "@/components/map/DepthLevels";
 
 /** The right-aligned small-caps note a row carries. */
 const TAG: React.CSSProperties = {
@@ -44,6 +45,18 @@ const TAG: React.CSSProperties = {
   fontSize: 10,
   letterSpacing: "0.08em",
   color: color.inkMuted,
+};
+
+/** The round marker a ladder row (or a gap's one repair step) leads with. */
+const STATION: React.CSSProperties = {
+  width: 22,
+  height: 22,
+  borderRadius: "50%",
+  flex: "0 0 auto",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 12,
 };
 
 /** A locked node's primary button: drawn, but inert. */
@@ -84,6 +97,8 @@ interface NodeDetailProps {
   onPhaseAction: (node: ConceptNode, displayState: NodeState, phaseIdx: number) => void;
   /** Prune a frontier node as diagnosed-known — the aggressive faster lever. */
   onSkipKnown: (node: ConceptNode) => void;
+  /** Open the next deeper level of a mastered node (`useDepth`). */
+  onGoDeeper?: (fromId: string) => void;
   /** A quick look ("Só quero saber"): its ladder ends on keeping what it used. */
   quick?: boolean;
 }
@@ -136,6 +151,7 @@ function NodeDetailBody({
   onPrimaryAction,
   onPhaseAction,
   onSkipKnown,
+  onGoDeeper,
   quick,
 }: NodeDetailProps & { presence: PresenceState }) {
   const t = useT(STRINGS);
@@ -195,6 +211,10 @@ function NodeDetailBody({
   // A tapped ahead-of-recommendation phase awaiting the gentle skip nudge.
   const [pendingSkip, setPendingSkip] = useState<number | null>(null);
   useEffect(() => setPendingSkip(null), [node.id, displayState]);
+  const runPhase = (i: number) => (
+    setPendingSkip(null),
+    onPhaseAction(node, displayState, i)
+  );
 
   // An edge means a different thing per domain, so the words on it must too:
   // "set the stage for" where the map is read in time, "finish before you
@@ -339,6 +359,7 @@ function NodeDetailBody({
         )}
       </div>
 
+      <DepthLevels {...{ node, nodes, display, onSelect, onGoDeeper }} />
       {isGap ? (
         <>
           <div style={{ ...kicker(10), marginBottom: 10 }}>{t.repair}</div>
@@ -356,14 +377,7 @@ function NodeDetailBody({
           >
             <span
               style={{
-                width: 22,
-                height: 22,
-                borderRadius: "50%",
-                flex: "0 0 auto",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 12,
+                ...STATION,
                 background: `${alpha(stateColor, 13)}`,
                 border: `1px solid ${stateColor}`,
                 color: stateColor,
@@ -462,15 +476,8 @@ function NodeDetailBody({
                 >
                   <span
                     style={{
+                      ...STATION,
                       position: "relative",
-                      width: 22,
-                      height: 22,
-                      borderRadius: "50%",
-                      flex: "0 0 auto",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
                       // Opaque, so the route line passes behind the station.
                       background:
                         status === "done"
@@ -537,15 +544,8 @@ function NodeDetailBody({
               nudge={phaseSkipNudge(plan[currentPhase], language)}
               doFirst={t.doFirst(phaseLabel(plan[currentPhase]))}
               skipTo={t.skipTo(phaseLabel(plan[pendingSkip]))}
-              onDoFirst={() => {
-                setPendingSkip(null);
-                onPhaseAction(node, displayState, currentPhase);
-              }}
-              onSkip={() => {
-                const target = pendingSkip;
-                setPendingSkip(null);
-                onPhaseAction(node, displayState, target);
-              }}
+              onDoFirst={() => runPhase(currentPhase)}
+              onSkip={() => runPhase(pendingSkip)}
             />
           )}
         </>

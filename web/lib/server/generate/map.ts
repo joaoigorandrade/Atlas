@@ -34,7 +34,9 @@ async function sizedBounds(params: MapParams) {
 }
 import {
   claim,
+  deeperOf,
   inherit,
+  pruneDeeper,
   restartGuard,
   validateMapConcept,
   type RawConcept,
@@ -159,6 +161,7 @@ export function validateGraphPart(
       // A missing sentence costs one node its rail copy, not the learner their
       // whole map — the rail falls back to the state line.
       summary: n.summary ? str(n.summary, `nodes[${i}].summary`) : undefined,
+      ...deeperOf(n.deeper),
       ...nodeAxes(n, goal),
     };
   });
@@ -180,12 +183,8 @@ export function validateGraphPart(
     fail("too few valid edges — every node needs prerequisites wired");
   // A prerequisite cycle would permanently lock those nodes on the map —
   // Kahn must consume every node or the payload is rejected (#16).
-  if (
-    kahn(
-      nodes.map((n) => n.id),
-      edges,
-    ).visited < nodes.length
-  )
+  const ids = nodes.map((n) => n.id);
+  if (kahn(ids, edges).visited < nodes.length)
     fail("edges contain a prerequisite cycle — the map must be a DAG");
   return { nodes, edges, meta };
 }
@@ -203,10 +202,11 @@ function layoutMapNodes(mapNodes: MapNode[]): MapNode[] {
   const { edges } = graphFromMapNodes(mapNodes);
   return withPrereqs(
     layoutGraph(
-      mapNodes.map(({ id, label, summary, ...axes }) => ({
+      mapNodes.map(({ id, label, summary, deeper, ...axes }) => ({
         id,
         label,
         summary,
+        ...deeperOf(deeper),
         ...nodeAxes(axes),
       })),
       edges,
@@ -250,7 +250,7 @@ ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`,
     { label: "curriculum-map" },
   );
   if ("scopes" in raw) return { scopes: raw.scopes };
-  const laid = withPrereqs(layoutGraph(raw.nodes, raw.edges), raw.edges);
+  const laid = withPrereqs(layoutGraph(pruneDeeper(raw.nodes), raw.edges), raw.edges);
   const nodes = withGoalPlan(laid, params.goal);
   noteChain(nodes, params.topic);
   return raw.meta ? { nodes, meta: raw.meta } : { nodes };
@@ -367,7 +367,7 @@ least one. ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`
       yield { p: "nodes", i: yielded++, v: withGoalPlan([node], params.goal)[0] };
     }
 
-    const laid = layoutMapNodes(await backstopAxes(accepted, params));
+    const laid = layoutMapNodes(pruneDeeper(await backstopAxes(accepted, params)));
     const settled = withGoalPlan(laid, params.goal);
     // The one whole-graph check per-concept validation can't make. Throwing
     // here is deliberate: it is mid-stream, so nothing is written to

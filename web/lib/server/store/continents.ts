@@ -64,7 +64,8 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
  *
  * A charted sibling is its concepts in stage order; an uncharted scope is its
  * offer's note, since its concepts don't exist yet. Gap nodes are left out for
- * the same reason `conceptBoundary` leaves them out: they are per learner.
+ * the same reason `conceptBoundary` leaves them out: they are per learner. So
+ * are deeper levels — a spawned one here would fork every sibling's map row.
  * `[]` for a topic outside a continent, which keys to the row it always did.
  *
  * ponytail: every label goes in; cap per sibling if continents get large.
@@ -94,6 +95,7 @@ export async function neighboursOf(db: Db, topicId: string): Promise<string[]> {
     ? await db
         .from("nodes")
         .select("topic_id, label, is_gap")
+        .is("depth", null)
         .in(
           "topic_id",
           members.map((m) => m.id),

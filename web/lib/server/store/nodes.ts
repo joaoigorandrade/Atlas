@@ -12,6 +12,7 @@ import {
   type NodeImportance,
 } from "@/lib/curriculum";
 import type { GenerateBody } from "@/lib/server/jobInput";
+import { deeperOf } from "@/lib/server/generate/mapConcept";
 
 // ------------------------------------------------------------------ nodes --
 
@@ -91,6 +92,12 @@ export async function applyNodeDeltas(
     ...(d.importance != null ? { importance: d.importance } : null),
     ...(d.difficulty != null ? { difficulty: d.difficulty } : null),
     ...(d.phasePlan != null ? { phase_plan: d.phasePlan } : null),
+    // Written once (map build, level spawn); a client that never heard of them
+    // — an older build — sends neither and leaves them standing. Both are
+    // re-checked here: a client's stray `depth` would trip the column's check
+    // and fail the whole batch, and `deeper` is the same shape the map wrote.
+    ...(d.deeper != null ? { deeper: deeperOf(d.deeper).deeper ?? null } : null),
+    ...(d.depth === 2 || d.depth === 3 ? { depth: d.depth } : null),
     ...(d.phasesDone != null
       ? {
           phases_done: mergeLedger(

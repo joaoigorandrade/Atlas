@@ -4,7 +4,13 @@
 // Presentational — the session lives in `useExam`.
 
 import { useMemo } from "react";
-import { examScore, examTotal, examWaiting, previousAttempt } from "@/lib/curriculum";
+import {
+  examScore,
+  examTotal,
+  examWaiting,
+  isCore,
+  previousAttempt,
+} from "@/lib/curriculum";
 import type { ExamState } from "@/components/atlas/useExam";
 import Sheet from "@/components/Sheet";
 import Masthead from "@/components/ui/Masthead";
@@ -52,7 +58,8 @@ export default function ExamView({
   );
   const labelOf = (id: string) => labels.get(id) ?? id;
   // Every concept the paper may draw on: the map less its repairs.
-  const concepts = graph.nodes.filter((n) => !n.gap).length || graph.nodes.length;
+  const concepts =
+    graph.nodes.filter((n) => !n.gap && isCore(n)).length || graph.nodes.length;
   const question = session.questions[session.index];
   const total = examTotal(session);
   const answered = session.questions.filter(

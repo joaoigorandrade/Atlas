@@ -1,7 +1,7 @@
 {
   "default": 400,
   "files": {
-    "components/AtlasApp.tsx": 923,
+    "components/AtlasApp.tsx": 921,
     "components/DashboardScreen.tsx": 497,
     "components/SettingsScreen.tsx": 434,
     "components/analytics/CalibrationView.tsx": 649,
@@ -22,7 +22,7 @@
     "components/session/SocraticView.tsx": 452,
     "lib/api.ts": 781,
     "lib/curriculum/socratic.ts": 458,
-    "lib/server/fixtures.ts": 422,
+    "lib/server/fixtures.ts": 424,
     "lib/server/generate/map.ts": 412,
     "lib/server/job.ts": 791,
     "lib/server/openrouter.ts": 534,

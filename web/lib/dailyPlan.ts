@@ -18,6 +18,7 @@ import {
   daysUntil,
   displayStates,
   heldUntil,
+  isCore,
   orderedFrontier,
   phasePlan,
   primaryPhase,
@@ -55,7 +56,8 @@ function itemFor(t: PlanTopic, now: Date): DayItem {
   const due = dealableCount(t.cards ?? [], now);
   const display = displayStates(t.states, t.graph);
   const inFlight = t.graph.nodes.filter(
-    (n) => !n.gap && (display[n.id] === "learning" || display[n.id] === "shaky"),
+    (n) =>
+      !n.gap && isCore(n) && (display[n.id] === "learning" || display[n.id] === "shaky"),
   );
   const frontier = orderedFrontier(display, t.graph, t.goal as GoalKind).map(
     (e) => e.node,

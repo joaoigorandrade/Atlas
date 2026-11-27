@@ -16,6 +16,7 @@ import {
   renameContinent,
 } from "@/lib/continents";
 import { logWarning } from "@/lib/log";
+import { coreGraph, mapProgress } from "@/lib/curriculum";
 import type { ScopeOffer } from "@/lib/api";
 import type { ErrorContext } from "@/lib/errorCopy";
 import type { RunState } from "@/components/atlas/useRunState";
@@ -65,16 +66,12 @@ export function useContinents(
       const m = {
         id: t.id,
         subject: t.subject,
-        graph: live ? graph : t.graph,
+        // The map proper: a deeper level is bonus, never a country's progress.
+        graph: coreGraph(live ? graph : t.graph),
         states: live ? states : t.states,
         positions: live ? positions : t.positions,
       };
-      const mastered = m.graph.nodes.filter((n) => m.states[n.id] === "mastered").length;
-      const total = m.graph.nodes.length;
-      c.members.push({
-        ...m,
-        masteryPct: total ? Math.round((mastered / total) * 100) : 0,
-      });
+      c.members.push({ ...m, masteryPct: mapProgress(m.graph, m.states).masteryPct });
     }
     for (const c of by.values()) {
       c.uncharted = c.scopes.filter(

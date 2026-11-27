@@ -13,7 +13,7 @@ import {
 import { color, layout } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import NodeHoverCard, { useDwell, usePeek } from "@/components/map/NodeHoverCard";
-import MapNode from "@/components/map/MapNode";
+import MapNode, { useLevels } from "@/components/map/MapNode";
 import { nodeRetention, type StoredCard } from "@/lib/fsrs";
 import MapEdges from "@/components/map/MapEdges";
 import { regionsOf, seedOf } from "@/components/map/atlasTerrain";
@@ -122,8 +122,8 @@ export default memo(MapCanvas, (a, b) =>
 
 function MapCanvas({
   screen,
-  nodes,
-  edges,
+  nodes: allNodes,
+  edges: allEdges,
   spawnedIds,
   staggered = false,
   display,
@@ -132,7 +132,7 @@ function MapCanvas({
   earned: won = {},
   positions,
   view,
-  selectedId,
+  selectedId: sel,
   hoverId,
   consumeProgress,
   reviewedNodes,
@@ -152,6 +152,7 @@ function MapCanvas({
   covered,
 }: MapCanvasProps) {
   const t = useT(STRINGS);
+  const { nodes, edges, selectedId, pips } = useLevels(allNodes, allEdges, sel, display);
   const elRef = useRef<HTMLDivElement | null>(null);
   const handlers = {
     onWheel,
@@ -231,19 +232,18 @@ function MapCanvas({
     const lit = box.w < layout.phone ? ids.find((id) => display[id] === "frontier") : "";
     onView(fitView(bounds, box, insets, lit ? positions[lit] : undefined));
   }, [screen, bounds, box, insetLeft, insetRight, onView, ids, display, positions]);
+  const matching = useMemo(
+    () =>
+      new Set(nodes.filter((n) => n.label.toLowerCase().includes(q)).map((n) => n.id)),
+    [nodes, q],
+  );
   const clear = useCallback(
     (id: string) =>
       (display[id] ?? "unknown") !== "unknown" ||
       id === selectedId ||
       Boolean(lockedPath?.has(id) || highlighted?.has(id)) ||
-      Boolean(
-        q &&
-        nodes
-          .find((n) => n.id === id)
-          ?.label.toLowerCase()
-          .includes(q),
-      ),
-    [display, selectedId, lockedPath, highlighted, q, nodes],
+      Boolean(q && matching.has(id)),
+    [display, selectedId, lockedPath, highlighted, q, matching],
   );
 
   // Everything inside the transformed layer, built once per change to the map
@@ -317,9 +317,10 @@ function MapCanvas({
             building={building}
             selected={selectedId === node.id}
             onPath={Boolean(lockedPath?.has(node.id)) && selectedId !== node.id}
-            matches={!q || node.label.toLowerCase().includes(q)}
+            matches={!q || matching.has(node.id)}
             earned={won[node.id]}
             gapLabel={t.gap}
+            levels={pips[node.id]}
             fade={retention[node.id]}
             onSelect={() => on.current.onNodeSelect(node.id)}
             onDown={(e) => {
@@ -335,7 +336,7 @@ function MapCanvas({
       </>
     ),
     // prettier-ignore
-    [bounds, stages, building, ids, edges, positions, display, regions, seed, dragging, highlighted, lockedPath, hover, screen, clear, nodes, staggered, spawnedIds, selectedId, q, won, t.gap, land.territory, retention],
+    [bounds, stages, building, ids, edges, positions, display, regions, seed, dragging, highlighted, lockedPath, hover, screen, clear, nodes, pips, matching, staggered, spawnedIds, selectedId, q, won, t.gap, land.territory, retention],
   );
 
   return (
