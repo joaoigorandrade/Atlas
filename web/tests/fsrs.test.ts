@@ -87,19 +87,16 @@ describe("FSRS store (#21)", () => {
     expect(weekCount + solidCount).toBe(1);
   });
 
-  it("the queue is budgeted to the daily minutes", () => {
+  it("deals every due card: the daily minutes are a target, not a cut", () => {
     const many = Array.from({ length: 20 }, (_, i) => card(`c${i}`));
     const content = retainContentFromStore(many, 6, now);
-    expect(content.cards.length).toBe(4); // floor(6 / 1.5)
+    expect(content.cards.length).toBe(20);
     expect(content.budgetMin).toBe(6);
-    // The budget cut 16 due cards off the deck, and an empty deck alone can't
-    // say so — "Fila limpa" was told over a queue with 16 cards still in it.
-    expect(content.remaining).toBe(16);
   });
 
-  it("a queue that really is clear reports nothing left over", () => {
+  it("deals nothing once every card is scheduled ahead", () => {
     const scheduled = gradeStoredCard(card("b"), "good", now);
-    expect(retainContentFromStore([scheduled], 60, now).remaining).toBe(0);
+    expect(retainContentFromStore([scheduled], 60, now).cards).toEqual([]);
   });
 });
 

@@ -9,10 +9,6 @@ export const STRINGS = {
     retainReview: "Retain · Review",
     doneForToday: "Done for today",
     queueClear: "Queue clear. You ended on a green node.",
-    budgetSpent: (n: number) =>
-      `Today’s budget is spent. ${n} due card${n === 1 ? "" : "s"} still waiting.`,
-    budgetSpentBody:
-      "Not a clear queue — the day’s minutes are gone, which is the point of budgeting them. The rest keeps until tomorrow, or raise your daily target to take them now.",
     finishedBody:
       "Short, winnable, and it lit something up — the feeling that pulls you back tomorrow. FSRS has already scheduled every card for its next optimal moment.",
     litUpToday: (labels: string) => `Lit up today · ${labels}`,
@@ -34,7 +30,7 @@ export const STRINGS = {
     todaysBudget: "Today’s budget",
     dailyTarget: (min: number) => `Today’s review · ${min} min`,
     budgetBody:
-      "Framed in minutes, never a wall of cards. When the target’s met, you’re done — guilt-free.",
+      "Your daily goal, in minutes. The deck is every card due — stop whenever you like; what you leave stays due for next time.",
     retentionHealth: "Retention health · FSRS forecast",
     flipHint:
       "answer it in your head first — then say how sure you are to show the answer",
@@ -57,12 +53,6 @@ export const STRINGS = {
     retainReview: "Retain · Revisão",
     doneForToday: "Terminado por hoje",
     queueClear: "Fila zerada. Você terminou num nó verde.",
-    budgetSpent: (n: number) =>
-      `A meta de hoje foi cumprida. Ainda ${
-        n === 1 ? "há 1 cartão vencido" : `há ${n} cartões vencidos`
-      } esperando.`,
-    budgetSpentBody:
-      "A fila não está limpa — os minutos do dia acabaram, que é justamente para isso que eles são orçados. O resto espera amanhã, ou aumente sua meta diária para pegá-los agora.",
     finishedBody:
       "Curto, vencível, e acendeu alguma coisa — a sensação que te traz de volta amanhã. O FSRS já agendou cada card para seu próximo momento ideal.",
     litUpToday: (labels: string) => `Acendeu hoje · ${labels}`,
@@ -86,7 +76,7 @@ export const STRINGS = {
     todaysBudget: "Orçamento de hoje",
     dailyTarget: (min: number) => `Revisão de hoje · ${min} min`,
     budgetBody:
-      "Pensado em minutos, nunca uma parede de cards. Quando a meta é cumprida, você terminou — sem culpa.",
+      "Sua meta diária, em minutos. A fila traz todos os cartões vencidos — pare quando quiser; o que ficar continua vencido para a próxima vez.",
     retentionHealth: "Saúde da retenção · previsão FSRS",
     flipHint:
       "responda de cabeça primeiro — depois diga o quanto tem certeza para ver a resposta",

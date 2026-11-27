@@ -82,17 +82,13 @@ export interface ReviewCard {
 
 /** Everything the Retain surface needs for one day's honest queue. */
 export interface RetainContent {
-  /** The daily target from onboarding — the queue budget, in minutes. */
+  /** The daily target from onboarding, in minutes — reported against, never
+   *  a cut: the deck is every due card. */
   budgetMin: number;
   /** Built from real due dates by `forecastRows`. Absent on the generator's
    *  output, which is a card factory rather than a queue. */
   forecast?: ForecastRow[];
   cards: ReviewCard[];
-  /** Due cards the budget could not fit today. Zero means the queue really is
-   *  clear; anything else means "budget spent", which is a different sentence
-   *  and used to be told as the same one. Absent on the generator's output,
-   *  which drafts cards rather than budgeting a queue. */
-  remaining?: number;
 }
 
 /** The stages of one card: question → flip → grade, or the fail aside. */
@@ -340,16 +336,13 @@ export function retainQueueLabel(
   content: RetainContent,
   lang: Language = "en",
 ): string {
-  const over = content.remaining ?? 0;
   if (lang === "pt-BR") {
-    if (session.finished)
-      return over > 0 ? `Meta cumprida · ${over} esperando` : "Fila limpa";
+    if (session.finished) return "Fila limpa";
     const { left, total, doneCount } = retainBudget(session, content);
     const n = total - doneCount;
     return `~${left} min restantes · ${n} ${n === 1 ? "cartão" : "cartões"}`;
   }
-  if (session.finished)
-    return over > 0 ? `Budget spent · ${over} waiting` : "Queue clear";
+  if (session.finished) return "Queue clear";
   const { left, total, doneCount } = retainBudget(session, content);
   const n = total - doneCount;
   return `~${left} min left · ${n} ${n === 1 ? "card" : "cards"}`;

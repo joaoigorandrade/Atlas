@@ -11,34 +11,28 @@ import type { Language } from "@/lib/i18n";
 const DAY_MS = 86_400_000;
 
 /**
- * Today's deck, in Anki's order: cards on a learning step first (they are
- * mid-lesson), then graduated reviews most overdue first, then new cards — all
- * cut to the minute budget. No daily new-card cap: every due card is dealable.
- * `remaining` is every due card the budget did not fit.
+ * Today's deck: every due card, in Anki's order — cards on a learning step
+ * first (they are mid-lesson), then graduated reviews most overdue first, then
+ * new cards. No cap of any kind: not per day, not per pass. The daily minutes
+ * are a target the forecast reports against, never a cut.
  */
-export function todaysQueue(
-  cards: StoredCard[],
-  budgetMin: number,
-  now: Date = new Date(),
-): { deck: StoredCard[]; remaining: number } {
+export function todaysQueue(cards: StoredCard[], now: Date = new Date()): StoredCard[] {
   const due = dueCards(cards, now);
-  const learning = due.filter((c) => queueOf(c) === "learning");
-  const review = due.filter((c) => queueOf(c) === "review");
-  const fresh = due.filter((c) => queueOf(c) === "new");
-  const slots = Math.max(1, Math.floor(budgetMin / CARD_MINUTES));
-  const deck = [...learning, ...review, ...fresh].slice(0, slots);
-  return { deck, remaining: due.length - deck.length };
+  return [
+    ...due.filter((c) => queueOf(c) === "learning"),
+    ...due.filter((c) => queueOf(c) === "review"),
+    ...due.filter((c) => queueOf(c) === "new"),
+  ];
 }
 
-/** Every card today could deal, before the minute budget cuts it: what the
- *  queue chip and the daily plan count. */
+/** Every card today deals: what the queue chip and the daily plan count. */
 export function dealableCount(cards: StoredCard[], now: Date = new Date()): number {
-  return todaysQueue(cards, Number.POSITIVE_INFINITY, now).deck.length;
+  return dueCards(cards, now).length;
 }
 
 /** Is there anything to deal today? */
 export function hasReviewWork(cards: StoredCard[], now: Date = new Date()): boolean {
-  return todaysQueue(cards, CARD_MINUTES, now).deck.length > 0;
+  return cards.some((c) => isDue(c, now));
 }
 
 /** The retention-health forecast, read from the real card table. */
@@ -89,11 +83,9 @@ export function retainContentFromStore(
   now: Date = new Date(),
   lang: Language = "en",
 ): RetainContent {
-  const { deck, remaining } = todaysQueue(cards, budgetMin, now);
   return {
     budgetMin,
     forecast: forecastRows(cards, now, lang),
-    cards: deck.map((c): ReviewCard => toReviewCard(c, now, lang)),
-    remaining,
+    cards: todaysQueue(cards, now).map((c): ReviewCard => toReviewCard(c, now, lang)),
   };
 }

@@ -125,24 +125,23 @@ describe("today's queue", () => {
       reviewCard("r-later", 5),
       learning(),
     ];
-    const { deck } = todaysQueue(cards, 60, now);
+    const deck = todaysQueue(cards, now);
     expect(deck.map((c) => c.id)).toEqual(["learn", "r-later", "r-late", "new1"]);
   });
 
-  it("has no daily new-card cap: every due new card is dealable", () => {
+  it("has no cap, daily or per pass: every due card is dealt", () => {
     const seen = Array.from({ length: 12 }, (_, i) =>
       gradeStoredCard(fresh(`s${i}`), "easy", new Date(now.getTime() - 3_600_000)),
     );
     const cards = [...seen, ...Array.from({ length: 25 }, (_, i) => fresh(`n${i}`))];
     expect(dealableCount(cards, now)).toBe(25);
     expect(hasReviewWork(cards, now)).toBe(true);
-    const { deck, remaining } = todaysQueue(cards, 15, now);
-    expect(deck).toHaveLength(10); // the minute budget still cuts one pass
-    expect(remaining).toBe(15);
+    // Nor a per-pass cut: one open deals all 25.
+    expect(todaysQueue(cards, now)).toHaveLength(25);
   });
 
   it("never deals a suspended card", () => {
-    expect(todaysQueue([{ ...fresh("s"), suspended: true }], 60, now).deck).toEqual([]);
+    expect(todaysQueue([{ ...fresh("s"), suspended: true }], now)).toEqual([]);
   });
 });
 

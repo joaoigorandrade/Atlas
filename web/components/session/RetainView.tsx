@@ -145,7 +145,6 @@ export default function RetainView({
             {session.finished ? (
               <>
                 <Finished
-                  remaining={content.remaining ?? 0}
                   litNodes={litNodes}
                   adherence={adherence}
                   litToday={litToday}
