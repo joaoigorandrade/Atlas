@@ -64,10 +64,12 @@ test("perform: a re-run asks for a new case and quotes where the last one broke"
   await sheet.getByTestId("action-submit").click();
   await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
   // One fix in place per case: the first failure offers it, the second only a
-  // new case.
+  // new case. The second miss shows this case's answer for what broke.
+  await expect(sheet.getByTestId("perform-answer")).toHaveCount(0);
   await sheet.getByTestId("action-fix").click();
   await sheet.getByTestId("action-submit").click();
   await expect(sheet.getByTestId("perform-verdict")).toBeVisible({ timeout: 20_000 });
+  await expect(sheet.getByTestId("perform-answer").first()).toBeVisible();
 
   const fetched = page.waitForRequest(
     (r) => r.url().includes("/api/generate") && r.postDataJSON()?.kind === "perform",

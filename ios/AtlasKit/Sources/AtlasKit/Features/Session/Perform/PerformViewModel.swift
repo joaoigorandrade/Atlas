@@ -153,6 +153,12 @@ final class PerformViewModel {
     /// fix per case — a second failure gets a new case.
     private(set) var fixing: [String] = []
     var canFix: Bool { reported && !passed && fixing.isEmpty }
+    /// True for a step whose answer the report shows: the run failed after
+    /// its one fix, and this step is among what it owed.
+    func revealsAnswer(_ step: PerformStep) -> Bool {
+        reported && !passed && !fixing.isEmpty
+            && (broken.isEmpty ? skipped : broken).contains { $0.id == step.id }
+    }
 
     /// Fix it on this case: keep the work, clear the report, and submit again.
     func fix() {

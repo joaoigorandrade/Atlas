@@ -82,6 +82,10 @@ export default function PerformView({
   const missed = performSkipped(session, content);
   // One fix in place per case; after that a failure gets a new case.
   const canFix = session.reported && !passed && !session.fixing;
+  // The second miss on a case shows the key for what broke: the re-run is a
+  // new case, so seeing this one's answer teaches without giving the next away.
+  const owed = new Set((broken.length ? broken : missed).map((s) => s.id));
+  const reveal = session.reported && !passed && !!session.fixing;
   const field = useRef<HTMLTextAreaElement>(null);
   const empty = busy || !(session.work.trim() || session.sketch);
 
@@ -301,6 +305,16 @@ export default function PerformView({
                         }}
                       >
                         {session.quotes[step.id]}
+                      </div>
+                    )}
+                    {reveal && owed.has(step.id) && (
+                      <div data-testid="perform-answer" style={{ marginTop: 8, fontSize: 14 }}>
+                        <div style={kicker(9.5, "0.1em", accent)}>{copy.answer}</div>
+                        {step.mustShow.map((m) => (
+                          <div key={m}>
+                            <Rich text={m} />
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

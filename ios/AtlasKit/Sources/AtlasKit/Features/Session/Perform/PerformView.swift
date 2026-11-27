@@ -295,6 +295,23 @@ struct PerformView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // The second miss on a case shows the key for what broke: the
+                // re-run is a new case, so this answer teaches without giving
+                // the next one away. Mirrors the web's `perform-answer`.
+                if model.revealsAnswer(step) {
+                    Text("O que ele dá neste caso")
+                        .font(.atlas(.caps, 11.5))
+                        .tracking(1.6)
+                        .textCase(.uppercase)
+                        .foregroundStyle(Palette.performInk)
+                        .padding(.top, 6)
+                    ForEach(step.mustShow, id: \.self) { line in
+                        Text(verbatim: line)
+                            .font(.atlas(.serif, 14.5))
+                            .foregroundStyle(Palette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
