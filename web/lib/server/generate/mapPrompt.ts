@@ -155,7 +155,7 @@ export const EVIDENCE_RULE = `Three booleans per concept decide which demanding 
 
 /** One node as the model writes it — shared by the single-shot and streamed
  *  prompts so the two can't ask for different fields. */
-export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "domainWhy": "only when the domain differs from the topic's", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard", "contested": false, "transferable": true, "individual": false, "deeper": []}`;
+export const NODE_SHAPE = `{"id": "short-kebab-id", "label": "Concept Name", "summary": "one sentence on what this concept is", "kind": "fact|concept|procedure|principle", "domain": "formal|executable|empirical|interpretive|performative|craft|general", "domainWhy": "only when the domain differs from the topic's", "importance": "core|working|peripheral", "difficulty": "easy|medium|hard", "contested": false, "transferable": true, "individual": false, "deeper": [{"label": "Harder Level", "summary": "what it adds"}]}`;
 
 export const graphShape = (ask: [number, number]) => `{
   "about": ${ABOUT_SHAPE.slice(10, -1)},
@@ -257,7 +257,7 @@ export const SUMMARY_RULE = `"summary" is ONE sentence (max ~22 words) telling a
 export const DEPTH_RULE = (goal: GoalKind) =>
   goal === "glance"
     ? `"deeper" is always [].`
-    : `"deeper" lists 0-2 HARDER LEVELS of that same concept, for a learner who has mastered it and wants to go further — level II, then level III. Most concepts get []: give levels only where the concept genuinely has harder layers a serious learner would study next (a deeper formalism, a harder class of cases, the expert's version), usually never for a "fact". Each level is {"label": "1-3 word name", "summary": "one sentence on what this level adds beyond the one before"}. A level goes BEYOND its concept — never a restatement, a prerequisite, or any other concept on this map — and level III goes beyond level II.`;
+    : `"deeper" lists 0-2 HARDER LEVELS of that same concept, for a learner who has mastered it and wants to go further — level II, then level III. The shape above shows one level only to show its form. Give levels where the concept genuinely has harder layers a serious learner would study next (a deeper formalism, a harder class of cases, the expert's version) — on a typical map that is roughly a quarter of the concepts, mostly the "core" and "hard" ones, and almost never a "fact"; every other concept gets []. Each level is {"label": "1-3 word name", "summary": "one sentence on what this level adds beyond the one before"}. A level goes BEYOND its concept — never a restatement, a prerequisite, or any other concept on this map — and level III goes beyond level II.`;
 
 /** Jev's size pick (`sizeMap`) is the last word: the quick-look hint and the
  *  domain rows each claim to override the size rule, so this overrides them. */

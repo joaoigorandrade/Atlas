@@ -232,8 +232,8 @@ function buildJob(body: GenerateBody): Job {
         language,
         // The map kind's own version, so a map-prompt change never re-bills every
         // kind through `VERSION`. 2: "about" header (W1.1); 3: one named chapter
-        // maps that chapter; 4: a glance ends on its use; 5: caps, never pads; 6: levels.
-        mapV: 6,
+        // maps that chapter; 4: a glance ends on its use; 5: caps, never pads; 6-7: levels.
+        mapV: 7,
       };
       return {
         kind: "curriculum",
