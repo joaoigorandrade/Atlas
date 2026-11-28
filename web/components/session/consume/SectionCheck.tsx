@@ -155,9 +155,6 @@ export function SectionCheck({
                 question={t.betQuestion}
                 onPick={(stake) => onAnswer(held.oi, held.correct, stake)}
               />
-              <div style={{ fontSize: 12, color: color.inkFaint, marginTop: 10 }}>
-                {t.betLegend}
-              </div>
             </div>
           ) : !answer && mode === "open" ? (
             <OpenAnswer

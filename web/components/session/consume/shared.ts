@@ -20,7 +20,7 @@ export const STRINGS = {
       n > 0
         ? `This is the reading. ${n} sections, each with a worked example${figures ? " and a diagram" : ""} — read them straight through.`
         : "This is the reading —",
-    // Names the rung this node really owes next — not every plan has Socratic.
+    // Names the rung this node still owes — none once the ladder is walked.
     introTail: (phase?: string) =>
       `Rewrite any section to fit how you think, tap a term for its meaning before it’s used, and ask about any passage that doesn’t land. ${phase ? `The practice starts in ${phase}, after this.` : "This reading is all this concept asks of you."}`,
     writingFirst: "Writing your first section…",
@@ -78,11 +78,11 @@ export const STRINGS = {
     // ---- the closing beat
     recapKicker: "Session · Consume — complete",
     recapTitle: (t: string) => `That was ${t}.`,
-    // No phase: a recognise-only node, whose reading was the whole of it.
+    // No phase: a re-read of a concept whose ladder is already walked.
     recapLead: (phase?: string) =>
       phase
         ? `Everything below came out of the reading you just did. ${phase} starts from here, and works from it without letting you look back.`
-        : "That is all this concept asks of you — to recognise it when you meet it. Review keeps it from fading.",
+        : "You have already walked this concept. Review keeps it from fading.",
     recapSections: (n: number) => `${n} section${n === 1 ? "" : "s"} read`,
     recapMinutes: (n: number) => `~${n} min`,
     recapTerms: (n: number) => `${n} term${n === 1 ? "" : "s"} met`,
@@ -107,13 +107,8 @@ export const STRINGS = {
     pretestKnown: "You already had this — the full section is one tap away",
     pretestMissedMark: "Your guess before reading missed — the answer is in here",
     pretestGuessed: "Your guess was right, but you weren't sure — read it to be sure",
-    // ---- the ink bet on a pretest answer
     yourAnswer: "Your answer",
-    betQuestion: "Bet your ink — how sure are you of that answer?",
-    betLegend:
-      "Not sure wins 1, risks nothing · fairly sure wins 2, loses 1 · very sure wins 3, loses 3",
-    inkWon: (n: number) => `+${n} ink`,
-    inkLost: (n: number) => (n > 0 ? `−${n} ink` : "no ink lost"),
+    betQuestion: "How sure are you of that answer?",
     confidentMiss:
       "You were very sure. A miss you were sure of is the one that sticks once you read the fix.",
   },
@@ -186,7 +181,7 @@ export const STRINGS = {
     recapLead: (phase?: string) =>
       phase
         ? `Tudo abaixo saiu da leitura que você acabou de fazer. ${phase} começa daqui, e trabalha em cima disso sem deixar você olhar de volta.`
-        : "É tudo o que este conceito pede de você — reconhecê-lo quando aparecer. A revisão evita que ele se apague.",
+        : "Você já percorreu este conceito. A revisão evita que ele se apague.",
     recapSections: (n: number) => `${n} ${n === 1 ? "seção lida" : "seções lidas"}`,
     recapMinutes: (n: number) => `~${n} min`,
     recapTerms: (n: number) => `${n} ${n === 1 ? "termo visto" : "termos vistos"}`,
@@ -213,11 +208,7 @@ export const STRINGS = {
     pretestMissedMark: "Seu palpite antes da leitura errou — a resposta está aqui",
     pretestGuessed: "Seu palpite acertou, mas sem certeza — leia para ter certeza",
     yourAnswer: "Sua resposta",
-    betQuestion: "Aposte sua tinta — quão seguro você está dessa resposta?",
-    betLegend:
-      "Sem certeza ganha 1, não arrisca nada · bastante seguro ganha 2, perde 1 · muito seguro ganha 3, perde 3",
-    inkWon: (n: number) => `+${n} de tinta`,
-    inkLost: (n: number) => (n > 0 ? `−${n} de tinta` : "nenhuma tinta perdida"),
+    betQuestion: "Quão seguro você está dessa resposta?",
     confidentMiss:
       "Você estava muito seguro. Um erro com certeza é o que mais fixa quando você lê a correção.",
   },

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { InkDots, SkeletonBars } from "@/components/Pending";
 import { InlineError } from "@/components/ErrorState";
 import {
+  LADDER,
   type PhaseId,
   phaseLabel,
   altControls,
@@ -38,9 +39,8 @@ import type { ConsumeSession } from "./consume/shared";
 interface ConsumeViewProps {
   /** The node this session teaches — titles the view. */
   title: string;
-  /** The node's own ladder — the breadcrumb draws this, not the catalogue,
-   *  since a `fact` and a `principle` no longer run the same rungs. */
-  plan: readonly PhaseId[];
+  /** Rungs already closed: the CTA names only what is still owed. */
+  done?: readonly PhaseId[];
   /** The node's reading pass — sections streamed in so far (see `streaming`). */
   chunks: ConsumeChunk[];
   /** More sections are still being written — the deepest in hand isn't the last yet. */
@@ -87,7 +87,7 @@ interface ConsumeViewProps {
 export default function ConsumeView({
   form: { topic, goal },
   title,
-  plan,
+  done = [],
   chunks,
   streaming = false,
   session,
@@ -192,9 +192,8 @@ export default function ConsumeView({
   // preference doesn't count as reaching for it — it's a default they set once.
   const simpleFlag = simpleCount >= 3 && session.preferred !== "simpler";
 
-  const breadcrumb = plan.map(phaseLabel).join(" → ");
-  // The rung owed next, per kind — none on a recognise-only (Consume, Retain) plan.
-  const next = plan.find((p) => p !== "consume" && p !== "retain");
+  const breadcrumb = LADDER.map(phaseLabel).join(" → ");
+  const next = LADDER.find((p) => p !== "consume" && p !== "retain" && !done.includes(p));
   const nextLabel = next && phaseLabel(next);
   // Every section known before it was read: proving it beats re-learning it.
   const knewAll = pretestClean(session, chunks.length);
@@ -407,7 +406,7 @@ export default function ConsumeView({
           >
             {knewAll && (
               <Button data-testid="action-prove-known" onClick={onProve}>
-                {t.recapProve(phaseLabel(proofGate(plan)))}
+                {t.recapProve(phaseLabel(proofGate(LADDER)))}
               </Button>
             )}
             <button

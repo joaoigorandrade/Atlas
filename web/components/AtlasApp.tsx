@@ -702,7 +702,7 @@ export default function AtlasApp({
           <ConsumeView
             form={form}
             title={nodeOf(consume.nodeId)?.label ?? "Concept"}
-            plan={planOf(consume.nodeId)}
+            done={phasesDone[consume.nodeId]}
             chunks={consumeChunks}
             streaming={consumeStreaming}
             session={consume}

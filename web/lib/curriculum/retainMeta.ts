@@ -74,14 +74,14 @@ export function reviewGrades(
     : REVIEW_GRADES;
 }
 
-/** The micro-Socratic aside "Explain" opens on any revealed card. */
+/** The aside "Explain" opens on any revealed card. */
 export const REVIEW_ASIDE =
-  "A 30-second Socratic aside: don’t restate the answer — ask what forces it. Which earlier concept makes this true? Trace one concrete example through and watch where the rule takes it.";
+  "A 30-second aside: don’t restate the answer — ask what forces it. Which earlier concept makes this true? Trace one concrete example through and watch where the rule takes it.";
 
 const REVIEW_ASIDE_PT =
-  "Uma pausa Socrática de 30 segundos: não repita a resposta — pergunte o que a obriga a ser verdadeira. Que conceito anterior torna isso verdadeiro? Percorra um exemplo concreto e veja até onde a regra leva.";
+  "Uma pausa de 30 segundos: não repita a resposta — pergunte o que a obriga a ser verdadeira. Que conceito anterior torna isso verdadeiro? Percorra um exemplo concreto e veja até onde a regra leva.";
 
-/** Language-aware micro-Socratic aside. */
+/** Language-aware review aside. */
 export function reviewAside(lang: Language = "en"): string {
   return lang === "pt-BR" ? REVIEW_ASIDE_PT : REVIEW_ASIDE;
 }

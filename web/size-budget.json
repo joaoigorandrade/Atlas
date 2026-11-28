@@ -10,7 +10,7 @@
     "components/map/LeftRail.tsx": 402,
     "components/map/NodeDetail.tsx": 585,
     "components/map/StreakFlame.tsx": 422,
-    "components/session/ConsumeView.tsx": 1137,
+    "components/session/ConsumeView.tsx": 1136,
     "components/session/RetainCard.tsx": 413,
     "lib/api.ts": 545,
     "lib/server/job.ts": 425,
