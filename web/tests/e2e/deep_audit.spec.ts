@@ -122,11 +122,12 @@ test.describe("Deep Web Feature Audit", () => {
     await expect(nodePanel).toHaveAttribute("data-node", FIRST_NODE);
     audit.passedChecks.push("Node selection opens detail rail");
 
-    // Verify phase buttons on rail
-    for (let p = 0; p <= 5; p++) {
+    // Verify phase buttons on rail: the one ladder, and nothing past it.
+    for (let p = 0; p < 4; p++) {
       await expect(page.getByTestId(`action-phase-${p}`)).toBeVisible();
     }
-    audit.passedChecks.push("All 6 phase action buttons present in node detail");
+    await expect(page.getByTestId("action-phase-4")).toHaveCount(0);
+    audit.passedChecks.push("All 4 phase action buttons present in node detail");
   });
 
   test("3. Phase 0 (Consume): Prose Sections, Checks, Models, Recap", async ({

@@ -28,34 +28,16 @@ test.describe("Full Visual Browser Tour", () => {
     await page.goto("/");
     await expect(page.getByTestId("screen-welcome")).toBeVisible();
     await page.getByTestId("field-topic").fill(TOPIC);
-    await page.getByTestId("action-mode-mastery").click();
-    await page.getByTestId("action-goal-mastery").click();
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "01_welcome.png") });
 
-    // 2. Build & Diagnostic Placement Quiz
+    // 2. Build — one flow: no mode, no goal, no placement quiz.
     await page.getByTestId("action-build").click();
-    await expect(page.getByTestId("screen-diagnostic")).toBeVisible({ timeout: 30_000 });
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "02_diagnostic_start.png") });
-
-    await page.getByTestId("action-take-placement").click();
-    for (let i = 0; i < 5; i++) {
-      const opt = page.getByTestId("action-answer-1");
-      await expect(opt).toBeVisible({ timeout: 20_000 });
-      if (i === 0) {
-        await page.waitForTimeout(400);
-        await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, "03_diagnostic_question.png"),
-        });
-      }
-      await opt.click();
-      await page.getByTestId("action-next").click();
-    }
-    await page.getByTestId("action-start").click({ timeout: 20_000 });
 
     // 3. Map Canvas & TopBar
-    await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
+    await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map", {
+      timeout: 30_000,
+    });
     await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
     await page.waitForTimeout(1000);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "04_map_canvas.png") });
@@ -67,9 +49,8 @@ test.describe("Full Visual Browser Tour", () => {
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "05_node_detail.png") });
 
-    // 5. Phase 0: Consume (Reading pass). The placement above pruned this
-    // node as known, ledger and all — so walk the spiral from a fresh frontier,
-    // or the recap would rightly have nothing left to hand off to.
+    // 5. Phase 0: Consume (Reading pass), from a fresh frontier so the recap
+    // has a rung left to hand off to.
     await openRun(page, { [FIRST_NODE]: "frontier" });
     await openPhase(page, FIRST_NODE, "consume");
     const consumeSheet = page.getByTestId("phase-consume");
@@ -92,10 +73,8 @@ test.describe("Full Visual Browser Tour", () => {
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "07_consume_recap.png") });
 
-    // 7. The hand-off out of the reading goes to the rung the node OWES, which
-    // is Explain, and then Discriminate for a concept — not a phase named in
-    // the handler. This step used to assert Socratic and passed, because the
-    // CTA was hard-coded to it and skipped whatever the plan put in between.
+    // 7. The hand-off out of the reading goes to the rung the node OWES —
+    // Explain — not a phase named in the handler.
     await recap.getByTestId("action-begin-next").click();
     await expect(page.getByTestId("phase-explain")).toBeVisible();
     await page.waitForTimeout(500);
