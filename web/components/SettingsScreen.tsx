@@ -3,9 +3,6 @@
 import type { CSSProperties } from "react";
 import {
   DAILY_TARGETS,
-  goals,
-  goalDateLabel,
-  localDay,
   reminderCopy,
   STATE_COLOR,
   type AdherenceState,
@@ -23,9 +20,6 @@ const STRINGS = {
     back: "← Back",
     settings: "Settings",
     tuneTheRun: "Tune the run",
-    goal: "Goal",
-    goalHint: "steers what we prune and prioritize",
-    examDateHint: "the countdown and pace math read this",
     dailyTarget: "Daily target",
     dailyTargetHint: "streak unit & honest queue budget",
     minutes: (min: number) => `${min} min`,
@@ -60,9 +54,6 @@ const STRINGS = {
     back: "← Voltar",
     settings: "Configurações",
     tuneTheRun: "Ajuste a jornada",
-    goal: "Objetivo",
-    goalHint: "orienta o que priorizamos e deixamos de lado",
-    examDateHint: "alimenta a contagem regressiva e o cálculo de ritmo",
     dailyTarget: "Meta diária",
     dailyTargetHint: "unidade de sequência e orçamento honesto de fila",
     minutes: (min: number) => `${min} min`,
@@ -255,42 +246,6 @@ export default function SettingsScreen({
         >
           {t.tuneTheRun}
         </h1>
-
-        <Section label={t.goal} hint={t.goalHint}>
-          <div style={{ display: "flex", gap: 10 }}>
-            {goals(language).map(([key, label]) => (
-              <button
-                className="at-press"
-                key={key}
-                onClick={() => onChange({ goal: key })}
-                style={optionStyle(form.goal === key, true)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
-            <span style={{ fontSize: 14, color: color.inkSoft }}>
-              {goalDateLabel(form.goal, language)}{" "}
-              <span style={{ color: color.inkGhost }}>— {t.examDateHint}</span>
-            </span>
-            <input
-              type="date"
-              value={form.examDate}
-              min={localDay()}
-              onChange={(e) => onChange({ examDate: e.target.value })}
-              style={{
-                background: color.card,
-                border: `1px solid ${color.hairlineStrong}`,
-                borderRadius: 3,
-                padding: "9px 12px",
-                fontSize: 14,
-                color: color.ink,
-                fontFamily: font.sans,
-              }}
-            />
-          </div>
-        </Section>
 
         <Section label={t.language} hint={t.languageHint}>
           <div style={{ display: "flex", gap: 10 }}>

@@ -87,41 +87,8 @@ function useParked(
 
 /** Every session mirror in the app, run once from `AtlasApp`. */
 export function usePhaseParking(deps: { run: RunState; sessions: SessionState }): void {
-  const { run, sessions } = deps;
-  const { setSocraticProgress, setFeynmanProgress, setPhaseProgress } = run;
-  const { socratic, feynman, crucible, perform } = sessions;
-
-  // A finished pass drops out — coming back to a node you completed should
-  // offer the pass again, not the "understood" panel. A turn still being
-  // written is skipped: what's saved stays the last complete state rather than
-  // a bubble stuck on its dots.
-  useEffect(() => {
-    if (!socratic || socratic.log.some((t) => t.pending)) return;
-    const { nodeId } = socratic;
-    setSocraticProgress((prev) => {
-      if (socratic.done) {
-        if (!prev[nodeId]) return prev;
-        const { [nodeId]: _gone, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [nodeId]: socratic };
-    });
-  }, [socratic, setSocraticProgress]);
-
-  // Same mirror for the teach-back. A pass mid-judgement is skipped, and a
-  // finished one drops out in `advanceFromFeynman`, once its gaps have
-  // actually reached the map.
-  useEffect(() => {
-    if (!feynman || feynman.pending) return;
-    const { nodeId } = feynman;
-    setFeynmanProgress((prev) => ({ ...prev, [nodeId]: feynman }));
-  }, [feynman, setFeynmanProgress]);
-
-  // The transfer attempt. Parked even mid-grade: the attempt is the work, and
-  // `submitted` flips only when the verdict lands, so what is stored is always
-  // a session the view can reopen.
-  useParked(crucible, "crucible", setPhaseProgress);
-  // The run, as they showed it — skipped while the checker has it, on the
-  // teach-back's precedent.
+  const { setPhaseProgress } = deps.run;
+  const { perform } = deps.sessions;
+  // The run, as they showed it — skipped while the checker has it.
   useParked(perform, "perform", setPhaseProgress, perform?.pending === true);
 }

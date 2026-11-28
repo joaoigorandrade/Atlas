@@ -10,18 +10,16 @@
 import { useMemo } from "react";
 import {
   calibItems,
-  daysUntil,
   displayStates,
   orderedFrontier,
   mapProgress,
-  paceStatus,
-  goalName,
   unmetPathOf,
   type AltKey,
   type NodeState,
   type ProgressState,
   type StateMap,
   freshConcepts,
+  isCore,
 } from "@/lib/curriculum";
 import { dealableCount } from "@/lib/fsrsQueue";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -44,8 +42,6 @@ export function useDerived(deps: {
   screen: Screen;
   user: { email: string; name?: string };
   selectedId: string | null;
-  /** Concept generations revealed so far during onboarding's staged reveal. */
-  reveal: number;
   momentumPlaying: boolean;
   momentumWeek: number;
   /** Assigned here so every handler reads the *displayed* state, not the
@@ -63,7 +59,6 @@ export function useDerived(deps: {
     screen,
     user,
     selectedId,
-    reveal,
     momentumPlaying,
     momentumWeek,
     displayRef,
@@ -83,35 +78,9 @@ export function useDerived(deps: {
     maps,
     consumeCache,
     modelCache,
-    socraticCache,
-    feynmanCache,
-    connectCache,
-    crucibleCache,
-    discriminateCache,
-    predictCache,
-    traceCache,
-    drillCache,
-    recallCache,
     performCache,
   } = run;
-  const {
-    consume,
-    liveConsume,
-    liveModel,
-    socratic,
-    liveSocratic,
-    feynman,
-    liveFeynman,
-    connect,
-    crucible,
-    discriminate,
-    predict,
-    trace,
-    drill,
-    recall,
-    perform,
-    consumeChunksRef,
-  } = sessions;
+  const { consume, liveConsume, liveModel, perform, consumeChunksRef } = sessions;
 
   // ---- derived ----------------------------------------------------------
 
@@ -132,18 +101,18 @@ export function useDerived(deps: {
   // What the canvas shows: the live state map, with generations past the reveal
   // masked during onboarding only (masked on every non-map screen, the dashboard
   // lost its real frontier) and lit-after-this-week states masked in the replay.
-  const staging = screen === "building" || screen === "diagnostic";
+  const staging = screen === "building";
   const visibleStates = useMemo<StateMap>(
     () =>
       Object.fromEntries(
         graph.nodes.map((n) => [
           n.id,
-          (staging && n.g > reveal) || (momentumPlaying && n.week > momentumWeek)
+          staging || (momentumPlaying && n.week > momentumWeek)
             ? "unknown"
             : states[n.id],
         ]),
       ),
-    [graph, staging, reveal, momentumPlaying, momentumWeek, states],
+    [graph, staging, momentumPlaying, momentumWeek, states],
   );
   // Concepts the learner just moved. Tracked against stored progress rather
   // than `display`, which is masked during onboarding and by the replay, and
@@ -198,18 +167,8 @@ export function useDerived(deps: {
   );
   // Only the top 3 are worth naming in the UI ("next up")…
   const nextUp = useMemo(() => allFrontier.slice(0, 3), [allFrontier]);
-  // …and the pace check against the real deadline (#23) — an exam goal
-  // without a date gets no fabricated countdown.
-  const pace = useMemo(
-    () =>
-      // A date that has already passed is not a deadline — it would divide the
-      // remaining territory by a floor of one day and demand a fabricated
-      // 12-hour pace. No countdown beats a wrong one (#23).
-      daysUntil(form.examDate) > 0
-        ? paceStatus(states, graph, form.target, daysUntil(form.examDate), phasesDone)
-        : null,
-    [form.examDate, form.target, states, graph, phasesDone],
-  );
+  // No deadline in the one flow, so no pace check (docs/PLAN-FLOW.md).
+  const pace = null;
 
   // The live calibration readings, resolved against the node labels — read by
   // the Calibration surface and the left-rail "N over" alert.
@@ -243,25 +202,6 @@ export function useDerived(deps: {
     !!openModelKey &&
     !modelCache[openModelKey] &&
     !(liveModel?.key === openModelKey && liveModel.done);
-  // Same fallback as Consume: the committed pass if it exists, otherwise
-  // whatever has streamed in for this node so far.
-  const socraticSteps = socratic
-    ? (socraticCache[socratic.nodeId] ??
-      (liveSocratic?.nodeId === socratic.nodeId ? liveSocratic.steps : undefined))
-    : undefined;
-  const feynmanBeats = feynman
-    ? (feynmanCache[feynman.nodeId] ??
-      (liveFeynman?.nodeId === feynman.nodeId ? liveFeynman.beats : undefined))
-    : undefined;
-  const connectContent = connect ? connectCache[connect.nodeId] : undefined;
-  const crucibleContent = crucible ? crucibleCache[crucible.nodeId] : undefined;
-  const discriminateContent = discriminate
-    ? discriminateCache[discriminate.nodeId]
-    : undefined;
-  const predictContent = predict ? predictCache[predict.nodeId] : undefined;
-  const traceContent = trace ? traceCache[trace.nodeId] : undefined;
-  const drillContent = drill ? drillCache[drill.nodeId] : undefined;
-  const recallContent = recall ? recallCache[recall.nodeId] : undefined;
   const performContent = perform ? performCache[perform.nodeId] : undefined;
 
   // ---- Home (dashboard) + profile derived ------------------------------
@@ -297,7 +237,7 @@ export function useDerived(deps: {
   const queue = { minutes: Math.ceil(dueNow * 1.5), cards: dueNow, fresh };
   const frontierConcept = nextUp[0]?.node.label ?? null;
   const subject = form.topic.trim() || t.yourMap;
-  const goalLabel = goalName(form.goal, language) ?? t.generalMastery;
+  const goalLabel = t.concepts(graph.nodes.filter(isCore).length);
 
   // The dashboard's "Your maps" grid: the live run's numbers stay live (they
   // update mid-session, before any save lands); every other saved map reads
@@ -309,7 +249,7 @@ export function useDerived(deps: {
       .filter((m) => m.subject !== runSubject && !m.continent)
       .map((m) => ({
         subject: m.subject,
-        goalLabel: goalName(m.goal, language) ?? t.generalMastery,
+        goalLabel: t.concepts(m.graph.nodes.filter(isCore).length),
         ...mapProgress(m.graph, m.states),
       }));
     // Blank topic: "+ New map" leaving — its card is in `others`, no phantom.
@@ -323,7 +263,6 @@ export function useDerived(deps: {
     form.topic,
     subject,
     goalLabel,
-    language,
     masteryPct,
     frontierTotal,
     t,
@@ -371,15 +310,6 @@ export function useDerived(deps: {
     consumeStreaming,
     modelBeats,
     modelStreaming,
-    socraticSteps,
-    feynmanBeats,
-    connectContent,
-    crucibleContent,
-    discriminateContent,
-    predictContent,
-    traceContent,
-    drillContent,
-    recallContent,
     performContent,
     displayName,
     initials,

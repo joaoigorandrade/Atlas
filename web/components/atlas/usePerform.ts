@@ -44,6 +44,9 @@ export function usePerform(deps: {
   languageRef: React.RefObject<Language>;
   judgingRef: React.RefObject<boolean>;
   setJudging: (v: boolean) => void;
+  /** A run that closed the rung goes straight into "Guardar": the first pass
+   *  over the concept's new cards (docs/PLAN-FLOW.md §5). */
+  onLearned: (node: ConceptNode) => void;
 }) {
   const {
     run,
@@ -58,6 +61,7 @@ export function usePerform(deps: {
     languageRef,
     judgingRef,
     setJudging,
+    onLearned,
   } = deps;
   const { graphRef, formRef, performCacheRef, setPhaseProgress, phaseProgressRef } = run;
   const { setPerformCache } = run;
@@ -209,6 +213,10 @@ export function usePerform(deps: {
       // `exitPerform` keeps it for the same reason — a rung that did not close
       // is something to come back to, which is Crucible's rule too.
       dropParked(setPhaseProgress, cur.nodeId, "perform");
+      setPerform(null);
+      setSelectedId(cur.nodeId);
+      onLearned(node);
+      return;
     }
     leaveTo(cur.nodeId);
   };

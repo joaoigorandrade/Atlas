@@ -21,9 +21,6 @@ import {
   type Page,
 } from "@playwright/test";
 
-/** Mirrors DIAGNOSTIC_COUNT in lib/curriculum.ts. */
-const DIAGNOSTIC_COUNT = 5;
-
 export const TOPIC = "Linear algebra";
 /** The first concept on the fixture map (lib/server/fixtures.ts). */
 export const FIRST_NODE = "foundations";
@@ -77,12 +74,12 @@ async function writeTables(request: APIRequestContext, tables: Tables): Promise<
   expect(res.ok()).toBeTruthy();
 }
 
-/** Onboarding, driven for real: topic → goal → build → placement → map.
+/** Onboarding, driven for real: topic → build → map. There is one flow, so
+ *  nothing to pick and no placement.
  *
- *  `settleMs` pauses after each placement answer. Each answer moves the
- *  frontier, and the warm pass only fires once the plan has been still for
- *  600ms (`useWarming`), so a spec that asserts on what that pass requests has
- *  to give it the quiet it waits for, rather than rely on the clicks being slow. */
+ *  `settleMs` pauses on the map. The warm pass only fires once the plan has
+ *  been still for 600ms (`useWarming`), so a spec that asserts on what that
+ *  pass requests has to give it the quiet it waits for. */
 export async function runOnboarding(
   page: Page,
   { settleMs = 0 }: { settleMs?: number } = {},
@@ -90,22 +87,11 @@ export async function runOnboarding(
   await page.goto("/");
   await page.getByTestId("screen-welcome").waitFor();
   await page.getByTestId("field-topic").fill(TOPIC);
-  await page.getByTestId("action-mode-mastery").click();
-  await page.getByTestId("action-goal-mastery").click();
   await page.getByTestId("action-build").click();
-  // The placement panel opens as soon as its first question lands. Answering
-  // it for real (rather than skipping) is the point: the map the rest of the
-  // suite seeds from is a *placed* map, states and all.
-  await page.getByTestId("screen-diagnostic").waitFor({ timeout: 30_000 });
-  await page.getByTestId("action-take-placement").click();
-  for (let i = 0; i < DIAGNOSTIC_COUNT; i++) {
-    // The fixture question's correct option is index 1 (lib/server/fixtures.ts).
-    await page.getByTestId("action-answer-1").click({ timeout: 20_000 });
-    await page.getByTestId("action-next").click();
-    if (settleMs) await page.waitForTimeout(settleMs);
-  }
-  await page.getByTestId("action-start").click({ timeout: 20_000 });
-  await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
+  await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map", {
+    timeout: 30_000,
+  });
+  if (settleMs) await page.waitForTimeout(settleMs);
 }
 
 /**
@@ -113,8 +99,8 @@ export async function runOnboarding(
  *
  * The first call in a worker builds the run and keeps its rows; later calls
  * re-seed them (with `states` applied) and reload. `states` is how a spec lands
- * on a concept that is already learned — a Crucible spec needs a mastered
- * neighbour to draw on, and earning one through the UI is six phases of setup.
+ * on a concept that is already learned — earning one through the UI is three phases of
+ * setup.
  */
 let captured: Tables | null = null;
 
@@ -141,8 +127,8 @@ function cached(): Tables | null {
 const LEDGER: Record<string, PhaseId[]> = {
   frontier: [],
   learning: ["consume"],
-  shaky: ["consume", "socratic", "feynman", "connect"],
-  mastered: ["consume", "socratic", "feynman", "connect", "crucible"],
+  shaky: ["consume", "explain"],
+  mastered: ["consume", "explain", "perform"],
 };
 
 /** What a spec forces onto one node: a display state (the common case, which

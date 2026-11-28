@@ -172,8 +172,7 @@ export function reviewableNodes<N extends ReviewNode>(
     (n) =>
       !n.gap &&
       touched.includes(states[n.id] ?? "") &&
-      (goal !== "glance" ||
-        phasePlan(n).every((p) => p === "retain" || phasesDone[n.id]?.includes(p))),
+      phasePlan(n).every((p) => p === "retain" || phasesDone[n.id]?.includes(p)),
   );
 }
 

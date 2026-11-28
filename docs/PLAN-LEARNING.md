@@ -1,5 +1,9 @@
 # Plan — the fastest deep way to learn anything
 
+> **Superseded (2026-11-27) by `docs/PLAN-FLOW.md`.** Atlas now has one flow
+> (Consume → Explain → Perform → Retain → Mock Exam); the mastery ladder this
+> plan was written for is gone. Kept for its findings and evidence only.
+
 Written 2026-09-29 on `main` @ 0aea4a8. This is the one plan for what Atlas
 teaches and how learners experience it. `PLAN-QUALITY.md` was about the
 codebase; `RESEARCH-LEARNER-FLOWS.md` is the evidence behind this plan (four

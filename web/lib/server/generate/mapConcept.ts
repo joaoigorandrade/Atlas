@@ -180,7 +180,7 @@ export function validateMapConcept(
     // sentence still lands on the map.
     summary: c.summary ? str(c.summary, `concept[${index}].summary`) : undefined,
     ...deeperOf(c.deeper),
-    ...nodeAxes(c, goal),
+    ...nodeAxes(c),
     prereqs: [...new Set(prereqs)],
   };
 }

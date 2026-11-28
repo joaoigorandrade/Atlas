@@ -11,7 +11,6 @@ import {
   type NodeState,
   type PaceStatus,
   type PlanEntry,
-  goalCountdown,
 } from "@/lib/curriculum";
 import { color, font, kicker, layout, transition, alpha } from "@/lib/theme";
 import { useLanguage, useT } from "@/lib/i18n";
@@ -128,7 +127,6 @@ export default memoLatest(LeftRail);
 function LeftRail({
   subject,
   goal,
-  pace,
   nextUp,
   masteryPct,
   calibOver,
@@ -186,41 +184,6 @@ function LeftRail({
           {subject}
         </div>
         <TopicAxesLine />
-        {pace && (
-          <div
-            style={{
-              marginTop: 8,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              fontSize: 12.5,
-              color: color.amberInk,
-              background: color.amberBg,
-              border: "1px solid rgba(var(--amber-ink),.24)",
-              borderRadius: 2,
-              padding: "4px 9px",
-            }}
-          >
-            <span
-              style={{ width: 5, height: 5, borderRadius: "50%", background: color.gilt }}
-            />
-            {goalCountdown(goal, pace.daysLeft, language)}
-          </div>
-        )}
-        {pace && (
-          <div
-            style={{
-              marginTop: 9,
-              fontSize: 12.5,
-              lineHeight: 1.5,
-              color: pace.onTrack ? color.accent : color.amberInk,
-            }}
-          >
-            {pace.onTrack
-              ? t.onPace(pace.neededPerDay, pace.remaining)
-              : t.behindPace(pace.neededPerDay, pace.targetPerDay)}
-          </div>
-        )}
       </div>
 
       {nextUp.length > 0 && (

@@ -96,19 +96,11 @@ export interface PlanEntry {
 }
 
 export const GOAL_ORDER_CAPTION: Record<GoalKind, string> = {
-  exam: "ordered to your exam — highest leverage first",
-  project: "ordered to your build — unlocks the tools first",
-  mastery: "foundations first — depth over speed",
-  pareto: "ordered by leverage — the vital few first",
-  glance: "a quick look — just what it is and how to use it",
+  glance: "ordered by what each concept unlocks",
 };
 
 const GOAL_ORDER_CAPTION_PT: Record<GoalKind, string> = {
-  exam: "ordenado para sua prova — maior alavancagem primeiro",
-  project: "ordenado para sua construção — desbloqueia as ferramentas primeiro",
-  mastery: "fundamentos primeiro — profundidade antes de velocidade",
-  pareto: "ordenado por alavancagem — o essencial primeiro",
-  glance: "uma olhada rápida — só o que é e como usar",
+  glance: "ordenado pelo que cada conceito desbloqueia",
 };
 
 /** Language-aware plan-ordering caption. */
@@ -124,7 +116,7 @@ export function goalOrderCaption(goal: GoalKind, lang: Language = "en"): string 
 export function orderedFrontier(
   display: Record<string, NodeState>,
   graph: ConceptGraph,
-  goal: GoalKind,
+  _goal: GoalKind,
 ): PlanEntry[] {
   const entries: PlanEntry[] = graph.nodes
     .filter((n) => isCore(n) && display[n.id] === "frontier")
@@ -135,11 +127,7 @@ export function orderedFrontier(
         return s === "unknown" || s === "frontier";
       }).length,
     }));
-  entries.sort((a, b) =>
-    goal === "mastery"
-      ? a.node.x - b.node.x
-      : b.unlocks - a.unlocks || a.node.x - b.node.x,
-  );
+  entries.sort((a, b) => b.unlocks - a.unlocks || a.node.x - b.node.x);
   return entries;
 }
 
@@ -165,19 +153,7 @@ export function frontierTarget(
 export const PHASE_MINUTES: Record<PhaseId, number> = {
   consume: 10,
   explain: 4,
-  discriminate: 4,
-  provenance: 6,
-  socratic: 8,
-  steelman: 10,
-  predict: 5,
-  trace: 5,
-  feynman: 8,
   perform: 10,
-  drill: 3,
-  produce: 8,
-  connect: 5,
-  crucible: 10,
-  recall: 5,
   retain: 0,
 };
 

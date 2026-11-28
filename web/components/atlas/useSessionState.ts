@@ -14,25 +14,11 @@
 
 import { useCallback, useRef, useState } from "react";
 import type {
-  ConnectSession,
   ConsumeChunk,
   ConsumeModelBeat,
-  CrucibleSession,
-  FeynmanBeat,
-  DiscriminateSession,
-  DrillSession,
   ExplainSession,
-  FeynmanSession,
   PerformSession,
-  ProduceSession,
-  ProvenanceSession,
-  SteelmanSession,
-  PredictSession,
-  RecallSession,
-  TraceSession,
   RetainSession,
-  SocraticSession,
-  SocraticStep,
 } from "@/lib/curriculum";
 import type { ConsumeSession } from "@/components/session/ConsumeView";
 
@@ -60,29 +46,7 @@ export function useSessionState() {
   const [consume, setConsume] = useState<ConsumeSession | null>(null);
   const [liveConsume, setLiveConsume] = useState<LiveConsume | null>(null);
   const [liveModel, setLiveModel] = useState<LiveModel | null>(null);
-  const [socratic, setSocratic] = useState<SocraticSession | null>(null);
-  const [liveSocratic, setLiveSocratic] = useState<{
-    nodeId: string;
-    steps: SocraticStep[];
-  } | null>(null);
-  const [feynman, setFeynman] = useState<FeynmanSession | null>(null);
-  const [liveFeynman, setLiveFeynman] = useState<{
-    nodeId: string;
-    beats: FeynmanBeat[];
-  } | null>(null);
-  const [connect, setConnect] = useState<ConnectSession | null>(null);
-  const [crucible, setCrucible] = useState<CrucibleSession | null>(null);
-  // The six phases the catalogue added in its growth to twelve. One slot
-  // each, like every phase before them.
-  const [discriminate, setDiscriminate] = useState<DiscriminateSession | null>(null);
-  const [predict, setPredict] = useState<PredictSession | null>(null);
-  const [trace, setTrace] = useState<TraceSession | null>(null);
-  const [drill, setDrill] = useState<DrillSession | null>(null);
-  const [recall, setRecall] = useState<RecallSession | null>(null);
   const [perform, setPerform] = useState<PerformSession | null>(null);
-  const [provenance, setProvenance] = useState<ProvenanceSession | null>(null);
-  const [steelman, setSteelman] = useState<SteelmanSession | null>(null);
-  const [produce, setProduce] = useState<ProduceSession | null>(null);
   const [explain, setExplain] = useState<ExplainSession | null>(null);
   const [retain, setRetain] = useState<RetainSession | null>(null);
 
@@ -90,36 +54,10 @@ export function useSessionState() {
   consumeRef.current = consume;
   const liveConsumeRef = useRef(liveConsume);
   liveConsumeRef.current = liveConsume;
-  const socraticRef = useRef(socratic);
-  socraticRef.current = socratic;
-  const liveSocraticRef = useRef(liveSocratic);
-  liveSocraticRef.current = liveSocratic;
-  const feynmanRef = useRef(feynman);
-  feynmanRef.current = feynman;
-  const liveFeynmanRef = useRef(liveFeynman);
-  liveFeynmanRef.current = liveFeynman;
-  const crucibleRef = useRef(crucible);
-  crucibleRef.current = crucible;
   const retainRef = useRef(retain);
   retainRef.current = retain;
-  const discriminateRef = useRef(discriminate);
-  discriminateRef.current = discriminate;
-  const predictRef = useRef(predict);
-  predictRef.current = predict;
-  const traceRef = useRef(trace);
-  traceRef.current = trace;
-  const drillRef = useRef(drill);
-  drillRef.current = drill;
-  const recallRef = useRef(recall);
-  recallRef.current = recall;
   const performRef = useRef(perform);
   performRef.current = perform;
-  const provenanceRef = useRef(provenance);
-  provenanceRef.current = provenance;
-  const steelmanRef = useRef(steelman);
-  steelmanRef.current = steelman;
-  const produceRef = useRef(produce);
-  produceRef.current = produce;
   const explainRef = useRef(explain);
   explainRef.current = explain;
   /** The reading pass on screen — committed sections, or the streaming ones
@@ -138,17 +76,6 @@ export function useSessionState() {
     setConsume(null);
     setLiveConsume(null);
     setLiveModel(null);
-    setSocratic(null);
-    setLiveSocratic(null);
-    setFeynman(null);
-    setLiveFeynman(null);
-    setConnect(null);
-    setCrucible(null);
-    setDiscriminate(null);
-    setPredict(null);
-    setTrace(null);
-    setDrill(null);
-    setRecall(null);
     setPerform(null);
     setExplain(null);
     setRetain(null);
@@ -163,50 +90,9 @@ export function useSessionState() {
     liveConsumeRef,
     liveModel,
     setLiveModel,
-    socratic,
-    setSocratic,
-    socraticRef,
-    liveSocratic,
-    setLiveSocratic,
-    liveSocraticRef,
-    feynman,
-    setFeynman,
-    feynmanRef,
-    liveFeynman,
-    setLiveFeynman,
-    liveFeynmanRef,
-    connect,
-    setConnect,
-    crucible,
-    setCrucible,
-    crucibleRef,
-    discriminate,
-    setDiscriminate,
-    discriminateRef,
-    predict,
-    setPredict,
-    predictRef,
-    trace,
-    setTrace,
-    traceRef,
-    drill,
-    setDrill,
-    drillRef,
-    recall,
-    setRecall,
-    recallRef,
     perform,
     setPerform,
     performRef,
-    provenance,
-    setProvenance,
-    provenanceRef,
-    steelman,
-    setSteelman,
-    steelmanRef,
-    produce,
-    setProduce,
-    produceRef,
     explain,
     setExplain,
     explainRef,

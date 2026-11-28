@@ -46,25 +46,8 @@ struct WelcomeView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
-                    VStack(alignment: .leading, spacing: 11) {
-                        Text("Até onde você quer ir?")
-                            .font(.atlas(.serif, 15.5))
-                            .foregroundStyle(Palette.inkSoft)
-                        modeCard(
-                            "Só quero saber",
-                            "De uma a três paradas. Leia, veja como explicar, tente uma vez.",
-                            "minutos · sem teste", on: quick
-                        ) { onboarding.form.goal = .glance }
-                        modeCard(
-                            "Domínio",
-                            "O atlas completo: teste de nivelamento e uma escada funda em cada conceito.",
-                            "semanas · no ritmo do seu objetivo", on: !quick
-                        ) { if quick { onboarding.form.goal = onboarding.masteryGoal } }
-                    }
-                    .padding(.top, 26)
-                    .accessibilityElement(children: .contain)
-
-                    if !quick { masterySetup.transition(.opacity.combined(with: .move(edge: .top))) }
+                    // One flow (docs/PLAN-FLOW.md): no mode to pick. The iOS parity
+                    // wave removes the mastery setup below; until then it is unreachable.
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)

@@ -71,7 +71,7 @@ describe("mapGeometry", () => {
   });
 
   it("cuts one ring segment per phase, marked by the ledger", () => {
-    const arcs = phaseArcs(["consume", "socratic", "feynman"], ["consume"], 15, 13);
+    const arcs = phaseArcs(["consume", "explain", "perform"], ["consume"], 15, 13);
     expect(arcs).toHaveLength(3);
     expect(arcs.map((a) => a.done)).toEqual([true, false, false]);
     expect(phaseArcs([], [], 15, 13)).toEqual([]);

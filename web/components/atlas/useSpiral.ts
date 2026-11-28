@@ -20,57 +20,25 @@ import {
   phasePlan,
   proofGate,
   primaryPhase,
-  SOCRATIC_STEPS,
-  connectCards,
-  connectDraftReady,
-  connectReducer,
-  connectStart,
   afterPretest,
   normaliseConsumeProgress,
-  gapParentOf,
   markTodayMet,
   openGapIds,
   preferredModality,
-  recordMisconception,
-  recurringMisconceptions,
-  socraticOutcome,
-  socraticPlan,
-  socraticReducer,
-  socraticStart,
   type AltKey,
   type ConceptNode,
   type PhaseId,
-  type ConnectAction,
   type ConsumeChunk,
   type ConsumeModelBeat,
   type ConsumeProgress,
-  type GapSpec,
   type NodeState,
-  type SocraticAction,
-  type SocraticStep,
-  heldUntil,
-  hoursLeft,
 } from "@/lib/curriculum";
-import { newStoredCard } from "@/lib/fsrs";
-import {
-  fetchConsumeModelStream,
-  fetchConsumeStream,
-  fetchJudgeSocratic,
-  fetchSocraticStream,
-  fetchJudgeConnect,
-} from "@/lib/api";
+import {} from "@/lib/fsrs";
+import { fetchConsumeModelStream, fetchConsumeStream } from "@/lib/api";
 import { usePhaseLedger } from "@/components/atlas/phaseLedger";
-import { useDiscriminate } from "@/components/atlas/useDiscriminate";
 import { useExplain } from "@/components/atlas/useExplain";
-import { usePredict } from "@/components/atlas/usePredict";
-import { useTrace } from "@/components/atlas/useTrace";
-import { useDrill } from "@/components/atlas/useDrill";
-import { useRecall } from "@/components/atlas/useRecall";
-import { omitKey } from "@/components/atlas/phaseParking";
+import {} from "@/components/atlas/phaseParking";
 import { usePerform } from "@/components/atlas/usePerform";
-import { useDomainPhases } from "@/components/atlas/useDomainPhases";
-import { useCrucible } from "@/components/atlas/useCrucible";
-import { useFeynman } from "@/components/atlas/useFeynman";
 import { usePassage } from "@/components/atlas/usePassage";
 import { useRetain } from "@/components/atlas/useRetain";
 import type { Language } from "@/lib/i18n";
@@ -105,7 +73,6 @@ export function useSpiral(deps: {
   judgingRef: React.RefObject<boolean>;
   setJudging: (v: boolean) => void;
   setConsumeFailed: (v: { nodeId: string; retry: () => void } | null) => void;
-  setSocraticRetry: (v: (() => void) | null) => void;
   momentumPlaying: boolean;
   setMomentumPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setMomentumWeek: React.Dispatch<React.SetStateAction<number>>;
@@ -131,7 +98,6 @@ export function useSpiral(deps: {
     judgingRef,
     setJudging,
     setConsumeFailed,
-    setSocraticRetry,
     momentumPlaying,
     setMomentumPlaying,
     setMomentumWeek,
@@ -141,37 +107,25 @@ export function useSpiral(deps: {
   const { showToast, showError, tc } = toast;
   const {
     graphRef,
-    formRef,
     statesRef,
     setStates,
-    setCards,
     setAdherence,
     setLitToday,
     reviewedNodes,
     setPhasesDone,
     phasesDoneRef,
     shakyReasonsRef,
-    setMisconceptions,
-    misconceptionsRef,
     setModalityTally,
     modalityTallyRef,
     setConsumeCache,
     consumeCacheRef,
     setModelCache,
     modelCacheRef,
-    setSocraticCache,
-    socraticCacheRef,
-    connectCacheRef,
     setConsumeProgress,
     consumeProgressRef,
-    socraticProgressRef,
-    setConnectProgress,
-    connectProgressRef,
     setPhaseProgress,
     phaseProgressRef,
     setShakyReason,
-    attachGap,
-    removeGapNode,
   } = run;
   const {
     consume,
@@ -180,13 +134,6 @@ export function useSpiral(deps: {
     setLiveConsume,
     liveConsumeRef,
     setLiveModel,
-    socratic,
-    setSocratic,
-    socraticRef,
-    setLiveSocratic,
-    liveSocraticRef,
-    connect,
-    setConnect,
     consumeChunksRef,
   } = sessions;
   const {
@@ -196,13 +143,9 @@ export function useSpiral(deps: {
     consumeParams,
     modelParams,
     modelKey,
-    socraticParams,
-    connectParams,
     prereqNodesOf,
     loadConsume,
     loadModel,
-    loadSocratic,
-    loadConnect,
   } = gen;
 
   // The phase ledger — what each node has finished, and the mastery state
@@ -218,21 +161,10 @@ export function useSpiral(deps: {
     setPhaseProgress,
     phaseProgressRef,
     warmOne,
-    quick: useCallback(() => formRef.current.goal === "glance", [formRef]),
   });
-  const { completePhase, settle, markStarted, warmNext, armChallenge, disarmChallenge } =
-    ledger;
-  /** The node a gap hangs off, looked up on the live graph. */
-  const gapParent = (gapId: string) => {
-    const id = gapParentOf(graphRef.current, gapId);
-    return graphRef.current.nodes.find((n) => n.id === id);
-  };
+  const { completePhase, markStarted, warmNext, armChallenge, disarmChallenge } = ledger;
 
-  // The six phases the catalogue added in its growth to twelve, one hook
-  // each. Split out of this module on the `phaseLedger` precedent: the spiral
-  // is one state machine because its phases transition *into each other*, and
-  // none of these do — each is entered from the node's plan, grades one thing,
-  // and exits to the map.
+  // Explain and Perform, one hook each, on the `phaseLedger` precedent.
   const phaseDeps = {
     run,
     sessions,
@@ -246,26 +178,16 @@ export function useSpiral(deps: {
   };
   const judgeDeps = { languageRef, judgingRef, setJudging };
 
-  const discriminate = useDiscriminate({ ...phaseDeps });
-
-  const { enterPredict, dispatchPredict, advanceFromPredict, exitPredict } = usePredict({
+  // Retain is mounted below; a passed Perform hands on to it through a ref.
+  const enterReviewRef = useRef<() => void>(() => {});
+  const perform = usePerform({
     ...phaseDeps,
+    ...judgeDeps,
+    onLearned: (node) => {
+      litUp(node);
+      enterReviewRef.current();
+    },
   });
-
-  const { enterTrace, dispatchTrace, advanceFromTrace, exitTrace } = useTrace({
-    ...phaseDeps,
-  });
-
-  const { enterDrill, dispatchDrill, advanceFromDrill, exitDrill } = useDrill({
-    ...phaseDeps,
-  });
-
-  const recall = useRecall({ ...phaseDeps, ...judgeDeps });
-
-  const perform = usePerform({ ...phaseDeps, ...judgeDeps });
-
-  // The three phases the domain axis adds — see `useDomainPhases`.
-  const domainPhases = useDomainPhases({ ...phaseDeps, ...judgeDeps });
 
   // ---- map actions ------------------------------------------------------
 
@@ -635,306 +557,6 @@ export function useSpiral(deps: {
 
   // ---- Socratic (Phase 3a) ---------------------------------------------
 
-  /**
-   * Open the Socratic surface on a node, generating its questioning script
-   * first if needed. The node moves Unknown/Frontier → Learning and the
-   * contingent-questioning session begins on its first probe.
-   */
-  const enterSocratic = useCallback(
-    (node: ConceptNode) => {
-      // The written pass is longer than the pass the learner runs: `steps`
-      // carries spare probes past the plan, and only a struggling learner ever
-      // spends them (`socraticReducer`). So a session opens on the plan.
-      const open = (steps: SocraticStep[], total = socraticPlan(steps)) => {
-        markStarted(node);
-        // The reading handed off. Without this, a node whose pass was read to
-        // the end and then left for the map is indistinguishable from one
-        // that went on to be questioned — see `readingPhaseIndex`.
-        setConsumeProgress((prev) =>
-          prev[node.id] && !prev[node.id].handedOff
-            ? { ...prev, [node.id]: { ...prev[node.id], handedOff: true } }
-            : prev,
-        );
-        // A pass left part-answered resumes on the probe it stopped at, with
-        // its transcript, scaffolding level and ruled-out replies intact.
-        // A session saved while parked on a step that hadn't streamed in yet
-        // has to be re-hydrated against the steps we now hold, or it reopens
-        // with nothing to answer and nothing coming.
-        const saved = socraticProgressRef.current[node.id];
-        setSocratic(
-          saved
-            ? socraticReducer(saved, { type: "hydrate", total }, steps)
-            : socraticStart(node.id, steps, total),
-        );
-        setSelectedId(node.id);
-        setScreen("socratic");
-        // Socratic hands straight off to Feynman — warm it now rather than
-        // waiting on the general pass's settle delay to notice the state flip.
-        warmNext(node, "socratic");
-      };
-      const cached = socraticCacheRef.current[node.id];
-      if (cached) {
-        open(cached);
-        return;
-      }
-      const key = warmKey("socratic", node.id);
-      // A background warm is already writing this — join it rather than
-      // starting a second, duplicate request.
-      if (warm.has(key)) {
-        generate(
-          key,
-          tc().kickerSocratic,
-          tc().preparingQuestions(node.label),
-          () => loadSocratic(node),
-          (steps) => open(steps),
-        );
-        return;
-      }
-      const live = liveSocraticRef.current; // still streaming: rejoin, don't re-bill
-      if (live?.nodeId === node.id) return open(live.steps, SOCRATIC_STEPS);
-      if (loadingRef.current) return;
-      // Nothing cached and nothing warming: open on the first probe and let
-      // the rest arrive behind it, the way Consume already does.
-      setLiveSocratic({ nodeId: node.id, steps: [] });
-      open([], SOCRATIC_STEPS);
-      let receivedAny = false;
-      // The authoritative arrival order, kept in the closure so the hydrate
-      // dispatch below sees the same array the reducer will read.
-      const arrived: SocraticStep[] = [];
-      fetchSocraticStream(socraticParams(node), (step, index) => {
-        receivedAny = true;
-        arrived[index] = step;
-        setLiveSocratic((prev) =>
-          prev?.nodeId === node.id ? { nodeId: node.id, steps: [...arrived] } : prev,
-        );
-        // The session may be parked waiting for exactly this step.
-        setSocratic((prev) =>
-          prev?.nodeId === node.id
-            ? socraticReducer(prev, { type: "hydrate" }, arrived)
-            : prev,
-        );
-      })
-        .then((steps) => {
-          setSocraticCache((prev) =>
-            prev[node.id] ? prev : { ...prev, [node.id]: steps },
-          );
-          setLiveSocratic((prev) => (prev?.nodeId === node.id ? null : prev));
-          // A short pass still has to be finishable — and now that the whole
-          // pass is in hand its real plan is known, so the re-cap caps at the
-          // core count: a three-probe concept stops at three instead of
-          // running the four-step estimate out.
-          setSocratic((prev) =>
-            prev?.nodeId === node.id
-              ? socraticReducer(
-                  prev,
-                  { type: "hydrate", total: socraticPlan(steps) },
-                  steps,
-                )
-              : prev,
-          );
-        })
-        .catch((err: unknown) => {
-          // A partial pass is still a usable pass — the probes that landed are
-          // answerable — so this stays a notice rather than closing the screen.
-          if (receivedAny) {
-            showError(err, { context: "content" });
-            return;
-          }
-          setScreen("map");
-          setSocratic(null);
-          setLiveSocratic(null);
-          showError(err, {
-            context: "content",
-            retry: () => enterSocraticRef.current?.(node),
-          });
-        });
-    },
-    [
-      warmNext,
-      liveSocraticRef,
-      markStarted,
-      tc,
-      generate,
-      loadSocratic,
-      socraticParams,
-      showError,
-      warm,
-      setLiveSocratic,
-      setSocratic,
-      setConsumeProgress,
-      setSocraticCache,
-      socraticCacheRef,
-      socraticProgressRef,
-      warmKey,
-      loadingRef,
-      setScreen,
-      setSelectedId,
-    ],
-  );
-  const enterSocraticRef = useRef(enterSocratic);
-  enterSocraticRef.current = enterSocratic;
-
-  /** Steps for the node on screen — the cached array once it lands, or the
-   *  live one still streaming in behind it. Without this fallback every
-   *  Socratic control (send, "I'm stuck", "Just tell me") is a silent no-op
-   *  for as long as the pass is still generating. */
-  const socraticStepsFor = (nodeId: string): SocraticStep[] | undefined => {
-    const cached = socraticCacheRef.current[nodeId];
-    if (cached?.length) return cached;
-    const live = liveSocraticRef.current;
-    return live?.nodeId === nodeId ? live.steps : undefined;
-  };
-
-  const dispatchSocratic = (action: SocraticAction) => {
-    // Every wrong turn reaching the roll-up comes from the judge now
-    // (`socraticAnswer`): neither client ever rendered the scripted replies
-    // this used to file from, so a typed answer is the only reply there is.
-    setSocratic((prev) => {
-      if (!prev) return prev;
-      const steps = socraticStepsFor(prev.nodeId);
-      if (!steps?.length) return prev;
-      // Whether this pass earned its ending (and any prerequisite-gap flag)
-      // is settled once, at completion, in `advanceFromSocratic` (#C) — not
-      // mid-dialogue here.
-      return socraticReducer(prev, action, steps, languageRef.current);
-    });
-  };
-
-  /** File a misconception the judge named into the run-wide roll-up. Once per
-   *  judgement: the verdict frame files it, and the full judgement only fills
-   *  in if the verdict never arrived on its own. */
-  const fileMisconception = (label: string, nodeLabel: string) => {
-    setMisconceptions((list) => recordMisconception(list, label, nodeLabel));
-  };
-
-  /**
-   * The live judging loop (#25): the learner's own typed answer goes to the
-   * server judge; the classified verdict drives the same contingent rules the
-   * scripted replies used — correct advances, near hints, wrong gets caught.
-   */
-  const socraticAnswer = (text: string) => {
-    const session = socraticRef.current;
-    if (!session || judgingRef.current) return;
-    const steps = socraticStepsFor(session.nodeId);
-    const step = steps?.[session.step];
-    const node = graphRef.current.nodes.find((n) => n.id === session.nodeId);
-    if (!step || !node) return;
-    setJudging(true);
-    const apply = (action: SocraticAction) =>
-      setSocratic((prev) =>
-        prev?.nodeId === session.nodeId
-          ? socraticReducer(prev, action, steps, languageRef.current)
-          : prev,
-      );
-    // The turns since this step opened — the tutor's actual last question
-    // (which may be a reframe, not the opening prompt) plus enough history
-    // that a repeated hint or a misgraded reframe doesn't happen twice (#A).
-    let openIdx = 0;
-    for (let i = session.log.length - 1; i >= 0; i--) {
-      if (session.log[i].role === "ai" && session.log[i].move) {
-        openIdx = i;
-        break;
-      }
-    }
-    const sinceStepOpen = session.log.slice(openIdx);
-    const lastAiTurn = [...session.log].reverse().find((t) => t.role === "ai");
-    // The judge grades the union of these and the new answer: one answer built
-    // across two turns reads as answered, not as missed twice.
-    const said = sinceStepOpen.flatMap((t) =>
-      t.role === "learner" && t.text ? [t.text] : [],
-    );
-    const attempt = said.length + 1;
-    // The answer lands in the transcript on send, with the tutor's bubble
-    // already writing beside it. Verdict-first: the classification arrives
-    // about a second in and moves the tutor on; the wording fills that
-    // same bubble when it lands.
-    apply({ type: "answer", text });
-    setSocraticRetry(null);
-    // Wrapped so the retry can re-run *just the judge*: the learner's answer
-    // is already in the transcript, and sending it twice would put it there
-    // twice. `retryJudge` re-opens the bubble this fills.
-    const runJudge = (): Promise<void> => {
-      let applied = false;
-      return fetchJudgeSocratic(
-        {
-          topic: formRef.current.topic,
-          nodeLabel: node.label,
-          question: lastAiTurn?.text ?? step.prompt,
-          reference: step.tell,
-          sufficient: step.sufficient,
-          said,
-          answer: text,
-          history: sinceStepOpen.map((t) => ({ role: t.role, text: t.text })),
-          attempt,
-          misconceptions: step.replies
-            .filter((r) => r.quality !== "correct")
-            .map((r) => ({ label: r.label, quality: r.quality })),
-          // …and what this learner keeps getting wrong everywhere else, so a
-          // repeat is named as a repeat instead of caught cold again.
-          recurring: recurringMisconceptions(misconceptionsRef.current),
-          help: session.help,
-          language: languageRef.current,
-        },
-        (partial) => {
-          if (!partial.quality) return;
-          // The input stays gated until the wording lands — a second answer
-          // racing the first would break "at most one pending turn", and the
-          // learner is reading the verdict anyway.
-          applied = true;
-          if (partial.misconception) fileMisconception(partial.misconception, node.label);
-          apply({
-            type: "judged",
-            answer: text,
-            quality: partial.quality,
-            response: partial.response ?? "",
-            covered: partial.covered,
-            pending: !partial.response,
-          });
-        },
-        // …and the wording types itself into that bubble as it is written.
-        (draft) => {
-          if (draft.response)
-            apply({ type: "stream", text: draft.response, pending: true });
-        },
-      )
-        .then((j) => {
-          if (!applied && j.misconception) fileMisconception(j.misconception, node.label);
-          apply(
-            applied
-              ? { type: "stream", text: j.response }
-              : {
-                  type: "judged",
-                  answer: text,
-                  quality: j.quality,
-                  response: j.response,
-                  covered: j.covered,
-                },
-          );
-        })
-        .catch((err: unknown) => {
-          // Don't strand the open bubble on its dots — but don't fill it with
-          // the failure either. Writing `err.message` in here was the tutor
-          // saying "OpenRouter 502" to a learner mid-question; the turn is
-          // marked failed instead and the view offers the retry.
-          apply({ type: "judgeFailed" });
-          const again = () => {
-            if (judgingRef.current) return;
-            setSocraticRetry(null);
-            setJudging(true);
-            apply({ type: "retryJudge" });
-            void runJudge();
-          };
-          // Offered in two places on purpose: the toast is where the learner is
-          // looking the moment it fails, and the bubble is where they look when
-          // they come back to the screen a minute later.
-          setSocraticRetry(() => again);
-          showError(err, { context: "judge", retry: again });
-        })
-        .finally(() => setJudging(false));
-    };
-    void runJudge();
-  };
-
   /** Back to the map with the node selected and centred. Three exits below
    *  had these four lines each; `usePerform` keeps the same helper for the
    *  same reason. */
@@ -945,243 +567,18 @@ export function useSpiral(deps: {
     later(() => centerOn(nodeId), 30);
   };
 
-  const exitSocratic = () => {
-    // Already unparked, so leaving a finished pass by the map must still settle it.
-    if (socratic?.done) return advanceFromSocratic(true);
-    leaveTo(socratic?.nodeId);
-    setSocratic(null);
-  };
-
-  // ---- Connect (Phase 4 · Elaboration) ---------------------------------
-
-  // Connect hands off to the owed phase, resolved below — out of a forward reference.
+  // A phase hands off to the owed one, resolved below — out of a forward reference.
   const enterOwedRef = useRef<(node: ConceptNode) => void>(() => {});
   const enterOwed = (node: ConceptNode) => enterOwedRef.current(node);
 
   // Explain sits behind the reading and hands on to the owed rung — see `useExplain`.
   const explain = useExplain({ ...phaseDeps, enterOwed });
 
-  // Feynman's handlers live in `useFeynman`, on the `useCrucible` precedent.
-  const {
-    enterFeynman,
-    feynmanBeatsFor,
-    dispatchFeynman,
-    feynmanTeach,
-    exitFeynman,
-    advanceFromFeynman,
-  } = useFeynman({
-    ...phaseDeps,
-    ...judgeDeps,
-    warm,
-    loadingRef,
-    leaveTo,
-    enterOwed,
-    fileMisconception,
-  });
-
-  /**
-   * Closing the Connect rung, from either exit — the finished pass and the
-   * nothing-to-wire skip. "Now prove it transfers" only means something while
-   * the plan still has a gate that can prove it: on a plan that *ends* at
-   * Connect the reason is a trap, since `primaryPhase` re-opens the last gate
-   * and closing it writes the reason again. Such a plan is finished here.
-   */
-  const completeConnect = useCallback(
-    (node: ConceptNode) => {
-      // Only a Crucible still ahead makes "now prove it transfers" true — a
-      // `fact` runs Recall next, and the reason used to outlive it.
-      const owes =
-        phasePlan(node).includes("crucible") &&
-        !phasesDoneRef.current[node.id]?.includes("crucible");
-      completePhase(node, "connect", owes ? "connect-complete" : undefined);
-      if (owes) setShakyReason(node.id, "connect-complete");
-    },
-    [completePhase, phasesDoneRef, setShakyReason],
-  );
-
-  /** Open the Connect surface on a node, generating its elaboration content
-   *  first if needed. Candidates are drawn from nodes the learner has actually
-   *  touched — the links are personal and true, never generic trivia. */
-  const enterConnect = useCallback(
-    (node: ConceptNode) => {
-      // Nothing touched yet means nothing true to wire into: skip the phase,
-      // but close its rung on the way past or `stateFromPlan` can never lift
-      // the node — which left a map's first node stuck on Learning forever.
-      if (connectParams(node).pool.length === 0) {
-        showToast(tc().nothingToWire(node.label));
-        completeConnect(node);
-        return enterOwedRef.current(node);
-      }
-      const open = () => {
-        setStates((prev) =>
-          prev[node.id] === "unknown" || prev[node.id] === undefined
-            ? { ...prev, [node.id]: "learning" }
-            : prev,
-        );
-        // Resume the pass if one was left open — the links already written
-        // are the learner's words, not something to re-earn.
-        setConnect(connectProgressRef.current[node.id] ?? connectStart(node.id));
-        setSelectedId(node.id);
-        setScreen("connect");
-        // Connect ends by handing the node to the Crucible, and the mastered
-        // set its problem keys on doesn't change in between.
-        warmNext(node, "connect");
-      };
-      if (connectCacheRef.current[node.id]) {
-        open();
-        return;
-      }
-      generate(
-        warmKey("connect", node.id),
-        tc().kickerConnect,
-        tc().findingWires(node.label),
-        () => loadConnect(node),
-        open,
-      );
-    },
-    [
-      warmNext,
-      tc,
-      connectParams,
-      completeConnect,
-      generate,
-      loadConnect,
-      showToast,
-      setConnect,
-      connectCacheRef,
-      connectProgressRef,
-      setStates,
-      warmKey,
-      setScreen,
-      setSelectedId,
-    ],
-  );
-
-  const dispatchConnect = (action: ConnectAction) => {
-    setConnect((prev) => {
-      if (!prev) return prev;
-      const content = connectCacheRef.current[prev.nodeId];
-      if (!content) return prev;
-      return connectReducer(prev, action, content);
-    });
-  };
-
-  /**
-   * Confirm a link — checked first (W1.5). The judge rules the learner's own
-   * sentence `true | vague | false`; a false one is not confirmed, and the
-   * line that says why stays under the box. These sentences become cards.
-   */
-  const connectConfirm = (id: string) => {
-    const cur = connect;
-    const content = cur && connectCacheRef.current[cur.nodeId];
-    const cand = content?.cands.find((c) => c.id === id);
-    const draft = cur?.drafts[id] ?? "";
-    if (!cur || !content || !cand || judgingRef.current) return;
-    if (!connectDraftReady(draft, cand.rel)) return;
-    setJudging(true);
-    fetchJudgeConnect({
-      topic: formRef.current.topic,
-      nodeLabel: content.centerLabel,
-      question: cand.label,
-      reference: cand.rel,
-      answer: draft,
-      language: languageRef.current,
-    })
-      .then((j) =>
-        dispatchConnect({
-          type: "confirm",
-          id,
-          ruling: { verdict: j.verdict, line: j.response },
-        }),
-      )
-      // An unreachable judge must not wedge the phase: the link confirms on
-      // the learner's own words, as it did before there was a check.
-      .catch(() => dispatchConnect({ type: "confirm", id }))
-      .finally(() => setJudging(false));
-  };
-
-  const exitConnect = () => {
-    // Park the pass, don't discard it: ← Map is "come back to this later".
-    if (connect) setConnectProgress((prev) => ({ ...prev, [connect.nodeId]: connect }));
-    leaveTo(connect?.nodeId);
-    setConnect(null);
-  };
-
-  /**
-   * Understood and connected: the learner made real links (each drafted a card
-   * for Retain), so Connect (Phase 4) is complete. The node moves Learning →
-   * Shaky — its next phase is the Crucible, where transfer is proven.
-   */
-  const advanceFromConnect = () => {
-    if (!connect) return;
-    const node = graphRef.current.nodes.find((n) => n.id === connect.nodeId);
-    const content = connectCacheRef.current[connect.nodeId];
-    const drafted = content ? connectCards(connect, content, languageRef.current) : [];
-    // Confirmed links + accepted mnemonic become REAL persisted cards (#21) —
-    // they surface in Review without a generation inventing them. The card id
-    // is the link's own identity, not a timestamp, so re-doing the phase
-    // rewrites its cards in place instead of stacking a second copy of every
-    // one of them into the review queue.
-    if (node && drafted.length) {
-      const now = new Date();
-      setCards((prev) => {
-        const byId = new Map(prev.map((c) => [c.id, c]));
-        for (const c of drafted) {
-          const existing = byId.get(c.key);
-          byId.set(
-            c.key,
-            existing
-              ? { ...existing, front: c.front, back: c.back }
-              : newStoredCard(
-                  {
-                    id: c.key,
-                    nodeId: node.id,
-                    // A mnemonic is order-recall, not a "why" — grading it as
-                    // one would misreport what the learner actually proved.
-                    type: c.kind === "mnemonic" ? "recall" : "why",
-                    source: "Connect",
-                    front: c.front,
-                    back: c.back,
-                  },
-                  now,
-                ),
-          );
-        }
-        return [...byId.values()];
-      });
-    }
-    if (node) completeConnect(node);
-    // Finished — the parked copy has nothing left to come back to.
-    setConnectProgress(omitKey(connect.nodeId));
-    setConnect(null);
-    if (!node) return setScreen("map");
-    setSelectedId(node.id);
-    showToast(tc().cardsDrafted(drafted.length));
-    // The plan decides what opens — skipped rungs, a fact's Recall, or the map.
-    enterOwedPhase(node, () => leaveTo(node.id));
-  };
-
-  // ---- Crucible (Phase 5 · application / transfer) — see `useCrucible` ---
-
   /** A node just went green — the day's winnable end, from any path there. */
   const litUp = (node: ConceptNode) => {
     setLitToday((prev) => (prev.includes(node.label) ? prev : [...prev, node.label]));
     setAdherence((prev) => markTodayMet(prev));
   };
-
-  const {
-    enterCrucible,
-    dispatchCrucible,
-    crucibleSubmit,
-    advanceFromCrucible,
-    exitCrucible,
-  } = useCrucible({
-    ...phaseDeps,
-    ...judgeDeps,
-    leaveTo,
-    enterOwed,
-    litUp,
-  });
 
   // ---- Retain (Phase 6 · Review queue / FSRS) — see `useRetain` -----------
   const { retainPlan, warmRetain, enterReview, reviewActions } = useRetain({
@@ -1195,6 +592,7 @@ export function useSpiral(deps: {
     later,
     enterSession,
   });
+  enterReviewRef.current = enterReview;
 
   // ---- Calibration (§12 · Metacognition) -------------------------------
 
@@ -1212,85 +610,6 @@ export function useSpiral(deps: {
     const node = graphRef.current.nodes.find((n) => n.id === nodeId);
     if (!node) return;
     setSelectedId(nodeId);
-    enterCrucible(node);
-  };
-
-  /**
-   * The pass is done — but "done" isn't automatically "understood" (#C). A
-   * gap node closes only when every step was reconstructed, not told; a
-   * regular node hands off to Feynman when it was, with a softer note if it
-   * took a hint or two, and — leaning on "Just tell me" (or the judge calling
-   * "lost") twice or more — the node stays in Learning and a real gap gets
-   * attached under it instead of a promise the old toast never kept.
-   */
-  const advanceFromSocratic = (stay = false) => {
-    const session = socratic;
-    const node = graphRef.current.nodes.find((n) => n.id === session?.nodeId);
-    setSocratic(null);
-    if (!session || !node) return setScreen("map");
-    const outcome = socraticOutcome(session, !!node.gap);
-    if (node.gap) {
-      const closed = outcome === "unaided";
-      const parent = closed ? gapParent(node.id) : undefined;
-      if (closed) removeGapNode(node.id);
-      setScreen("map");
-      setSelectedId(closed ? (parent?.id ?? null) : node.id);
-      // Gaps hold a finished ladder off green, so closing the last one under
-      // it is the moment the parent is mastered.
-      if (parent && settle(parent) === "mastered") {
-        litUp(parent);
-        return showToast(tc().lastGapClosed(parent.label), tc().mapUpdated);
-      }
-      showToast(
-        closed ? tc().gapClosed(node.label) : tc().stillLeaning(node.label),
-        closed ? tc().mapUpdated : tc().gapNotClosed,
-      );
-      return;
-    }
-    if (outcome === "flagged") {
-      // Land on the map first: it's where the learner stays if the reading
-      // below can't be reopened (nothing cached, a generation already in
-      // flight), rather than on a screen whose session was just cleared.
-      setScreen("map");
-      setSelectedId(node.id);
-      // ponytail: a synthetic gap (no model-authored label/reason like
-      // Feynman/Crucible's) — promote to a generated one if it needs richer
-      // framing than "foundations" later.
-      const spec: GapSpec = {
-        id: `gap-soc-${node.id}`,
-        label: tc().socraticGapLabel(node.label),
-        reason: tc().socraticGapReason,
-        dx: -140,
-        dy: 150,
-      };
-      attachGap(node.id, spec);
-      // The rung closes even here: a pass told through is a weakness to
-      // *record*, not to punish by holding the phase open. The gap above and
-      // the Shaky reason carry it, and the ledger will not call the node
-      // mastered while the gap stands — so the reading below is an offer now
-      // rather than the only door out. The ref is written alongside the state
-      // because `enterSession` reads it synchronously, one line down.
-      completePhase(node, "socratic", "socratic-told");
-      const saved = consumeProgressRef.current[node.id];
-      if (saved) {
-        const reread = { ...saved, idx: 0, collapsed: {}, handedOff: false };
-        consumeProgressRef.current = {
-          ...consumeProgressRef.current,
-          [node.id]: reread,
-        };
-        setConsumeProgress((prev) =>
-          prev[node.id] ? { ...prev, [node.id]: reread } : prev,
-        );
-      }
-      showToast(tc().leaningOnTold(node.label), tc().reReadFirst);
-      if (!stay) enterSession(node);
-      return;
-    }
-    // Reasoned through unaided — the rung closes and the plan says what opens.
-    // `completePhase` writes its ref in this tick, so the answer is current.
-    completePhase(node, "socratic");
-    if (stay) leaveTo(node.id);
-    else enterOwedPhase(node);
   };
 
   // ---- Consume → Socratic hand-off -------------------------------------
@@ -1325,22 +644,9 @@ export function useSpiral(deps: {
    * where a learner goes next, and the same function the CTA reads to name
    * itself, so a button cannot promise a phase it won't open.
    *
-   * Every hand-off that named its target instead skipped whatever the plan put
-   * in front of it: the recap jumped to Socratic (past Discriminate, and past
-   * Provenance once domains added it) and Socratic jumped to Feynman (past
-   * Steelman). Being IN the plan is not enough. `exhausted` takes a finished one.
+   * A hand-off that names its target instead skips whatever the plan put in
+   * front of it. `exhausted` takes a finished one.
    */
-  /** A last gate on its night's hold (W4.1) says so from the map instead of
-   *  opening. Recall and the Crucible check their own slots, in their words. */
-  const heldOnMap = (node: ConceptNode, phase: PhaseId) => {
-    const until = heldUntil(phaseProgressRef.current[node.id]?.[phase]);
-    if (!until || phase === "recall" || phase === "crucible") return false;
-    setScreen("map");
-    setSelectedId(node.id);
-    showToast(tc().gateHeld(phaseLabel(phase), node.label, hoursLeft(until)));
-    return true;
-  };
-
   const enterOwedPhase = (
     node: ConceptNode,
     exhausted: () => void = () => setScreen("map"),
@@ -1349,7 +655,7 @@ export function useSpiral(deps: {
     disarmChallenge();
     const next = primaryPhase(phasePlan(node), phasesDoneRef.current[node.id], state);
     if (!next) exhausted();
-    else if (!heldOnMap(node, next)) enterPhase[next](node);
+    else enterPhase[next](node);
   };
   enterOwedRef.current = (node) => enterOwedPhase(node, () => leaveTo(node.id));
 
@@ -1358,12 +664,6 @@ export function useSpiral(deps: {
   /** The recap's "you knew every section": straight to the proof gate, under
    *  the challenge that credits the ladder on a cold pass (W3.4). */
   const proveFromConsume = () => leaveConsume((node) => skipKnown(node));
-  /** "I know this — test me" is a deliberate jump, not a hand-off, so it keeps
-   *  its target; a plan with no Crucible falls back to the owed rung. */
-  const consumeSkipCrucible = () =>
-    leaveConsume((node) =>
-      phasePlan(node).includes("crucible") ? enterCrucible(node) : enterOwedPhase(node),
-    );
 
   /** "Review prerequisite" — routes to the weakest direct prereq (shaky over
    *  merely learning) via the same session each state opens from the map. */
@@ -1406,19 +706,7 @@ export function useSpiral(deps: {
   const enterPhase: Record<PhaseId, (node: ConceptNode) => void> = {
     consume: enterSession,
     explain: explain.enterExplain,
-    discriminate: discriminate.enterDiscriminate,
-    socratic: enterSocratic,
-    predict: enterPredict,
-    trace: enterTrace,
-    feynman: enterFeynman,
     perform: perform.enterPerform,
-    provenance: domainPhases.enterProvenance,
-    steelman: domainPhases.enterSteelman,
-    produce: domainPhases.enterProduce,
-    drill: enterDrill,
-    connect: enterConnect,
-    crucible: enterCrucible,
-    recall: recall.enterRecall,
     // Retain isn't entered on a node — it's the shared review queue.
     retain: () => enterReview(),
   };
@@ -1431,7 +719,6 @@ export function useSpiral(deps: {
     // The targeted Socratic micro-pass the spec promises (#12) — completing it
     // removes the gap node from the map. A gap runs no plan of its own.
     if (displayState === "gap") {
-      enterSocratic(node);
       return;
     }
     // A node with a part-read reading pass resumes it, whatever the plan says
@@ -1451,7 +738,6 @@ export function useSpiral(deps: {
     );
     const closeGap = (g: ConceptNode) => {
       setSelectedId(g.id);
-      enterSocratic(g);
     };
     enterOwedPhase(node, gap ? () => closeGap(gap) : enterReview, displayState);
   };
@@ -1481,7 +767,6 @@ export function useSpiral(deps: {
     // Every phase opens from its own row, done or not: re-reading and re-doing
     // are first-class actions. Only the jump-ahead needs saying out loud, and
     // the nudge has already said it.
-    if (heldOnMap(node, phase)) return;
     if (idx > current) {
       markStarted(node);
       showToast(tc().jumpingAhead(phaseLabel(phase), node.label));
@@ -1546,55 +831,17 @@ export function useSpiral(deps: {
     consumeAskPassage,
     consumeToggleCollapse,
     exitConsume,
-    enterSocratic,
-    socraticStepsFor,
-    dispatchSocratic,
-    socraticAnswer,
-    exitSocratic,
-    enterFeynman,
-    feynmanBeatsFor,
-    dispatchFeynman,
-    feynmanTeach,
-    exitFeynman,
-    enterConnect,
-    dispatchConnect,
-    connectConfirm,
-    exitConnect,
-    advanceFromFeynman,
-    advanceFromConnect,
-    enterCrucible,
-    dispatchCrucible,
-    crucibleSubmit,
-    advanceFromCrucible,
-    exitCrucible,
-    ...discriminate,
     explain,
-    enterPredict,
-    dispatchPredict,
-    advanceFromPredict,
-    exitPredict,
-    enterTrace,
-    dispatchTrace,
-    advanceFromTrace,
-    exitTrace,
-    enterDrill,
-    dispatchDrill,
-    advanceFromDrill,
-    exitDrill,
-    ...recall,
     ...perform,
-    domainPhases,
     retainPlan,
     enterReview,
     reviewActions,
     enterCalib,
     exitCalib,
     closeCalibGap,
-    advanceFromSocratic,
     finishConsume,
     beginNextFromConsume,
     proveFromConsume,
-    consumeSkipCrucible,
     consumeRoutePrereq,
     onNodeDoubleClick,
     skipKnown,

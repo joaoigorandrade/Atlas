@@ -44,8 +44,6 @@ export async function openTopic(
       subject: form.topic,
       goal: form.goal,
       interests: form.interests,
-      paretoPct: form.paretoPct,
-      examDate: form.examDate,
       ...(language ? { language } : null),
       ...(form.continentId ? { continentId: form.continentId } : null),
     };

@@ -5,14 +5,11 @@ import { useLive } from "@/components/atlas/useLive";
 import { useDayRollover } from "@/components/atlas/useDayRollover";
 import { useExam } from "@/components/atlas/useExam";
 import { useDepth } from "@/components/atlas/useDepth";
-import { useFeed } from "@/components/atlas/useFeed";
 import { useLanguageSwitch } from "@/components/atlas/useLanguageSwitch";
 import { usePhaseParking } from "@/components/atlas/phaseParking";
 import {
   calibOverCount,
   mapFinished,
-  DIAGNOSTIC_COUNT,
-  crucibleMasters,
   phasePlan,
   frontierTarget,
   reviewCard,
@@ -28,7 +25,6 @@ import { color, font, layout } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, Topic } from "@/lib/persistence";
 import BuildingOverlay from "@/components/onboarding/BuildingOverlay";
-import DiagnosticPanel from "@/components/onboarding/DiagnosticPanel";
 import * as fake from "@/components/onboarding/fakeMap";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import DashboardScreen from "@/components/DashboardScreen";
@@ -37,14 +33,10 @@ import { useContinents } from "@/components/atlas/useContinents";
 import ProfileScreen from "@/components/ProfileScreen";
 import SettingsScreen from "@/components/SettingsScreen";
 import ConsumeView from "@/components/session/ConsumeView";
-import SocraticView from "@/components/session/SocraticView";
-import FeynmanView from "@/components/session/FeynmanView";
-import CrucibleView from "@/components/session/CrucibleView";
 import { phaseSheets } from "@/components/session/PhaseSheets";
 import RetainView from "@/components/session/RetainView";
 import CalibrationView from "@/components/analytics/CalibrationView";
 import ExamView from "@/components/session/ExamView";
-import FeedView from "@/components/session/FeedView";
 import MapInvite from "@/components/map/MapInvite";
 import GeneratingOverlay, { type Loading } from "@/components/GeneratingOverlay";
 import LeftRail from "@/components/map/LeftRail";
@@ -98,7 +90,7 @@ export default function AtlasApp({
   const warm = useMemo(() => createWarmQueue(), []);
   // The live phase sessions and the streams feeding them.
   const sessions = useSessionState();
-  const { consume, socratic, feynman, crucible, retain, reset: resetSessions } = sessions;
+  const { consume, retain, reset: resetSessions } = sessions;
   const [screen, setScreenNow] = useState<Screen>("welcome");
   const setScreen = usePageTurn(screen, setScreenNow);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -127,9 +119,6 @@ export default function AtlasApp({
     retry: () => void;
   } | null>(null);
   const online = useOnline();
-  /** Re-runs the judge for a Socratic turn whose grading failed — held here so
-   *  the failed bubble can offer it, not just the toast. */
-  const [socraticRetry, setSocraticRetry] = useState<(() => void) | null>(null);
   const languageRef = useLive(language);
 
   const toastChannel = useToast(supabase, languageRef);
@@ -197,7 +186,6 @@ export default function AtlasApp({
     positions,
     setPositions,
     positionsRef,
-    feynmanCache,
     retainContent,
     consumeProgress,
     adherence,
@@ -269,18 +257,13 @@ export default function AtlasApp({
     [form.goal, graphRef, displayRef],
   );
 
-  // Onboarding: topic in, map out, placement answered.
+  // Onboarding: topic in, map out.
   const {
-    diagnostic,
-    answered,
-    reveal,
     upload,
     scopes,
     buildNote,
     build,
     pickScope,
-    answerDiagnostic,
-    startMap,
     reset: resetOnboarding,
   } = useOnboarding({
     run,
@@ -353,7 +336,6 @@ export default function AtlasApp({
     judgingRef,
     setJudging,
     setConsumeFailed,
-    setSocraticRetry,
     momentumPlaying,
     setMomentumPlaying,
     setMomentumWeek,
@@ -372,27 +354,14 @@ export default function AtlasApp({
     consumeAskPassage,
     consumeToggleCollapse,
     exitConsume,
-    dispatchSocratic,
-    socraticAnswer,
-    exitSocratic,
-    dispatchFeynman,
-    feynmanTeach,
-    exitFeynman,
-    advanceFromFeynman,
-    dispatchCrucible,
-    crucibleSubmit,
-    advanceFromCrucible,
-    exitCrucible,
     enterReview,
     reviewActions,
     enterCalib,
     exitCalib,
     closeCalibGap,
-    advanceFromSocratic,
     finishConsume,
     beginNextFromConsume,
     proveFromConsume,
-    consumeSkipCrucible,
     consumeRoutePrereq,
     onNodeDoubleClick,
     skipKnown,
@@ -410,7 +379,6 @@ export default function AtlasApp({
     screen,
     user,
     selectedId,
-    reveal,
     momentumPlaying,
     momentumWeek,
     displayRef,
@@ -437,9 +405,6 @@ export default function AtlasApp({
     consumeStreaming,
     modelBeats,
     modelStreaming,
-    socraticSteps,
-    feynmanBeats,
-    crucibleContent,
     displayName,
     initials,
     greeting,
@@ -465,7 +430,6 @@ export default function AtlasApp({
     isMap,
     warmRetain: spiral.warmRetain,
   });
-  const feed = useFeed({ ...run, display, frontier: allFrontier, setScreen });
   const goDeeper = useDepth(run, setSelectedId, onPrimaryAction);
 
   // Hold the paper blank until the saved-run fetch settles — a resumed run
@@ -571,19 +535,6 @@ export default function AtlasApp({
 
       {screen === "building" && <BuildingOverlay note={buildNote} />}
 
-      {screen === "diagnostic" && (
-        <DiagnosticPanel
-          questions={diagnostic}
-          // The placement always asks this many, even when the panel opens on
-          // the first one and the rest are still being written.
-          expected={DIAGNOSTIC_COUNT}
-          answered={answered}
-          onAnswer={answerDiagnostic}
-          onSkip={startMap}
-          onStart={startMap}
-        />
-      )}
-
       {isMap && (
         <>
           <TopBar
@@ -639,12 +590,10 @@ export default function AtlasApp({
             onGoDeeper={goDeeper}
             onPhaseAction={onPhaseAction}
             onSkipKnown={skipKnown}
-            quick={form.goal === "glance"}
           />
-          {(feed.ready.length > 0 || mapFinished(graph, display)) && (
+          {mapFinished(graph, display) && (
             <MapInvite
-              feedInk={feed.ready.length ? feed.ink : undefined}
-              onOpen={feed.ready.length ? feed.open : () => setScreen("exam")}
+              onOpen={() => setScreen("exam")}
               insetLeft={!narrow || railOpen ? layout.leftRail : 0}
               insetRight={selectedNode && (!narrow || detailOpen) ? layout.nodePanel : 0}
             />
@@ -773,7 +722,7 @@ export default function AtlasApp({
             onOpenPassage={consumeOpenPassage}
             onClosePassage={consumeClosePassage}
             onAskPassage={consumeAskPassage}
-            onSkipCrucible={consumeSkipCrucible}
+            onKnowIt={proveFromConsume}
             onRoutePrereq={consumeRoutePrereq}
             incomplete={
               consumeFailed?.nodeId === consume.nodeId
@@ -783,71 +732,7 @@ export default function AtlasApp({
           />,
         )}
 
-      {openSheet === "socratic" &&
-        socratic &&
-        socraticSteps &&
-        sheetBoundary(
-          <SocraticView
-            title={nodeOf(socratic.nodeId)?.label ?? "Concept"}
-            plan={planOf(socratic.nodeId)}
-            session={socratic}
-            judging={judging}
-            gapMode={nodeOf(socratic.nodeId)?.gap ?? false}
-            onExit={exitSocratic}
-            onAnswer={socraticAnswer}
-            done={phasesDone[socratic.nodeId]}
-            dispatch={dispatchSocratic}
-            onAdvance={() => advanceFromSocratic()}
-            onRetryJudge={socraticRetry ?? undefined}
-          />,
-        )}
-
-      {openSheet === "feynman" &&
-        feynman &&
-        feynmanBeats &&
-        sheetBoundary(
-          <FeynmanView
-            topic={form.topic}
-            title={nodeOf(feynman.nodeId)?.label ?? "Concept"}
-            plan={planOf(feynman.nodeId)}
-            beats={feynmanBeats}
-            session={feynman}
-            judging={judging}
-            ready={!!feynmanCache[feynman.nodeId]}
-            onExit={exitFeynman}
-            onBegin={() => dispatchFeynman({ type: "begin" })}
-            onTeach={feynmanTeach}
-            onScaffold={() => dispatchFeynman({ type: "scaffold" })}
-            onOpenFix={(beatId) => dispatchFeynman({ type: "openFix", beatId })}
-            onCloseFix={() => dispatchFeynman({ type: "closeFix" })}
-            onFix={(judged) => dispatchFeynman({ type: "fixJudged", ...judged })}
-            onTeachAgain={() => dispatchFeynman({ type: "teachAgain" })}
-            onAdvance={advanceFromFeynman}
-          />,
-        )}
-
-      {openSheet === "crucible" &&
-        crucible &&
-        crucibleContent &&
-        sheetBoundary(
-          <CrucibleView
-            content={crucibleContent}
-            session={crucible}
-            plan={planOf(crucible.nodeId)}
-            judging={judging}
-            onExit={exitCrucible}
-            onConfidence={(level) => dispatchCrucible({ type: "confidence", level })}
-            onAttempt={(value) => dispatchCrucible({ type: "attempt", value })}
-            onSubmit={crucibleSubmit}
-            onToggleReExplain={() => dispatchCrucible({ type: "toggleReExplain" })}
-            onRetry={() => dispatchCrucible({ type: "retry" })}
-            onFinish={advanceFromCrucible}
-            lifts={crucibleMasters(graph, crucible.nodeId, phasesDone)}
-          />,
-        )}
-
-      {/* The six phases of the catalogue's growth to twelve. One branch each:
-          each owns its own screen, its own content shape and its own grader. */}
+      {/* Explain and Perform — each owns its own screen, content shape and grader. */}
       {phaseSheets({
         openSheet,
         topic: form.topic,
@@ -890,11 +775,6 @@ export default function AtlasApp({
             onOpenNode={(id) => (setScreen("map"), pickNode(id))}
           />,
         )}
-      {openSheet === "feed" &&
-        sheetBoundary(
-          <FeedView feed={feed} topic={form.topic} onRead={spiral.enterSession} />,
-        )}
-
       {/* Mounted through its own fade-out; `loading` is already null by then,
           so the last phase/message are kept for the exit frame. */}
       <GeneratingOverlay

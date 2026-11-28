@@ -21,6 +21,7 @@ import type {
   ReviewCardType,
   ReviewGrade,
   ReviewQueue,
+  CardTrace,
 } from "@/lib/curriculum";
 import { fmtInterval } from "@/lib/fsrsCopy";
 import type { Language } from "@/lib/i18n";
@@ -34,7 +35,7 @@ export type StoredFsrsState = Omit<FsrsCard, "due" | "last_review"> & {
 };
 
 /** One persisted review card: content + provenance + scheduler state. */
-export interface StoredCard {
+export interface StoredCard extends CardTrace {
   id: string;
   /** The map node this card keeps alive. */
   nodeId: string;

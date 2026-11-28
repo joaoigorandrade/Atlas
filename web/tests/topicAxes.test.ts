@@ -68,19 +68,21 @@ describe("withTopicAxes", () => {
   it("an unset axis keys to the pre-change row", async () => {
     const plain = resolveJob(consume as never).key;
     const stamped = await withTopicAxes(db, { ...consume, topicId: "u" } as never);
-    expect(resolveJob(stamped).key).toBe(plain);
+    // Only the one-flow stamp (`quickLook`) is on it; nothing else re-keys it.
+    expect(resolveJob(stamped).key).toBe(
+      resolveJob({ ...consume, quickLook: true } as never).key,
+    );
     const spanish = await withTopicAxes(db, { ...consume, topicId: "t" } as never);
     expect(resolveJob(spanish).key).not.toBe(plain);
   });
 
-  it("a quick look keys its own rows and says so in the prompt; other goals don't", async () => {
+  it("every topic is the one flow: stamped as a quick look, whatever its row says", async () => {
     const plain = resolveJob(consume as never).key;
-    const exam = await withTopicAxes(db, { ...consume, topicId: "e" } as never);
-    expect((exam as { quickLook?: boolean }).quickLook).toBeUndefined();
-    expect(resolveJob(exam).key).toBe(plain);
-    const quick = await withTopicAxes(db, { ...consume, topicId: "g" } as never);
-    expect((quick as { quickLook?: boolean }).quickLook).toBe(true);
-    expect(resolveJob(quick).key).not.toBe(plain);
-    expect(topicNote(quick as never)).toContain("QUICK LOOK");
+    for (const id of ["e", "g"]) {
+      const quick = await withTopicAxes(db, { ...consume, topicId: id } as never);
+      expect((quick as { quickLook?: boolean }).quickLook).toBe(true);
+      expect(resolveJob(quick).key).not.toBe(plain);
+      expect(topicNote(quick as never)).toContain("QUICK LOOK");
+    }
   });
 });

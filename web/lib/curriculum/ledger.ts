@@ -41,7 +41,4 @@ export function ledgerAfter(
  * procedure right first time is the walk Trace rehearses. A cold Crucible is
  * the challenge above and credits everything.
  */
-export const CREDITS: Partial<Record<PhaseId, readonly PhaseId[]>> = {
-  feynman: ["socratic"],
-  perform: ["trace"],
-};
+export const CREDITS: Partial<Record<PhaseId, readonly PhaseId[]>> = {};

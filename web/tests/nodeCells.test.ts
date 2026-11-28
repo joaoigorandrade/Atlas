@@ -103,13 +103,10 @@ describe("withNodeCell", () => {
 });
 
 describe("axesRule", () => {
-  it("names only the cells the learner's goal allows", async () => {
+  it("names only the cells a map may hold", async () => {
     const { axesRule } = await import("@/lib/server/generate/mapPrompt");
-    const project = axesRule("project");
-    expect(project).toMatch(/core\/easy, core\/medium, working\/easy, working\/medium\./);
-    expect(project).not.toMatch(/core\/hard/);
-    expect(axesRule("mastery")).toMatch(/peripheral\/hard/);
-    expect(axesRule("mastery")).toMatch(/at least half the concepts are "core"/);
+    expect(axesRule("glance")).toMatch(/working\/easy, working\/medium\./);
+    expect(axesRule("glance")).not.toMatch(/core\//);
   });
 });
 

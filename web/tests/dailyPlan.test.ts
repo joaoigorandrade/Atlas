@@ -56,48 +56,18 @@ describe("dailyPlan", () => {
     expect(plan[0].next).toEqual({ label: "A", phase: "consume" });
   });
 
-  it("skips a gate held until tomorrow, and a map with nothing to do today", () => {
-    const held = topic("Held", {
-      states: { a: "learning" },
-      phasesDone: { a: ["consume", "explain"] },
-      phaseProgress: { a: { discriminate: { opensAt: now.getTime() + day } } },
-    });
+  it("skips a map with nothing to do today", () => {
     const reviewed = gradeStoredCard(dueCard("r"), "good", now);
     const idle = topic("Idle", {
       states: { a: "mastered", b: "mastered" },
       phasesDone: {
-        a: [
-          "consume",
-          "explain",
-          "discriminate",
-          "socratic",
-          "feynman",
-          "connect",
-          "crucible",
-          "recall",
-        ],
-        b: [
-          "consume",
-          "explain",
-          "discriminate",
-          "socratic",
-          "feynman",
-          "connect",
-          "crucible",
-          "recall",
-        ],
+        a: ["consume", "explain", "perform"],
+        b: ["consume", "explain", "perform"],
       },
       cards: [reviewed],
     });
-    // Held's only open rung waits until tomorrow and nothing is due; Idle is
-    // mastered with its card reviewed today. Neither is today's work.
-    expect(dailyPlan([held, idle], 60, now)).toEqual([]);
-    // A day later the gate has opened.
-    const tomorrow = new Date(now.getTime() + 2 * day);
-    expect(dailyPlan([held], 60, tomorrow)[0].next).toEqual({
-      label: "A",
-      phase: "discriminate",
-    });
+    // Mastered with its card reviewed today: not today's work.
+    expect(dailyPlan([idle], 60, now)).toEqual([]);
   });
 
   it("stops at the day's minutes, but always offers one map", () => {

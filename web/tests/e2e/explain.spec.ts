@@ -41,8 +41,8 @@ test("the model, a wrong reply taught, the right one, then the owed rung", async
   await expect(sheet.getByTestId("reply-right")).toBeVisible();
   await sheet.getByTestId("action-finish").click();
 
-  // On to the owed rung — a concept's Discriminate — not back to the map.
-  await expect(page.getByTestId("phase-discriminate")).toBeVisible();
+  // On to the owed rung — Perform — not back to the map.
+  await expect(page.getByTestId("phase-perform")).toBeVisible();
   await expect(async () => {
     const row = (await readNodeRows(page.request)).find((r) => r.id === "notation")!;
     expect(row.phases_done).toContain("explain");

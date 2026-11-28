@@ -1,13 +1,10 @@
 # AGENTS.md
 
-Atlas is a learning platform built around a living concept map (see `docs/SPEC.md`
-for the full product spec, `README.md` for the overview). The onboarding flow
-(welcome → building → diagnostic → map), Phase 1 (Plan — the map's
-re-planning behavior: gap spawning, goal-conditioned ordering, pace warnings,
-skip pruning), and the session phases (all sixteen: Consume, Explain, Discriminate,
-Provenance, Socratic, Steelman, Predict, Trace, Feynman, Perform, Drill, Produce,
-Connect, Crucible, Recall, Retain — Provenance, Steelman and Produce are the three the
-domain axis added, for interpretive and performative nodes) are implemented; all content is AI-generated per topic via
+Atlas is a learning platform built around a living concept map. Since the
+2026-11-27 pivot it has **one flow** (`docs/PLAN-FLOW.md` is the design): a map
+of 1-4 concepts, each run through the same four phases — Consume → Explain →
+Perform → Retain — and a Mock Exam that closes the map. A concept can go
+deeper (levels II and III). All content is AI-generated per topic via
 OpenRouter (see "AI content generation" below).
 
 ## Repository layout
@@ -101,9 +98,8 @@ with a Portuguese string and no English one is unfinished, on either client.
 - Never concatenate a sentence out of a stem and a clause: the two languages
   don't put the pieces in the same order. Write both sentences whole, and let
   an interpolation carry only a value.
-- Phase names (Consume, Explain, Discriminate, Provenance, Socratic, Steelman, Predict,
-  Trace, Feynman, Perform, Drill, Produce, Connect, Crucible, Recall, Retained) are
-  product vocabulary and stay English in both languages. Everything a learner
+- Phase names (Consume, Explain, Perform, Retained) are product vocabulary and
+  stay English in both languages. Everything a learner
   reads around them is translated. They live in `PHASE_DEFS`
   (`lib/curriculum/phases.ts`); a new phase adds its label there and to
   `PHASE_SKIP_NUDGE`, which is `Record<PhaseId, string>` so TypeScript catches
@@ -111,133 +107,51 @@ with a Portuguese string and no English one is unfinished, on either client.
 - On iOS the mechanism is different — a String Catalogue, not a lookup table —
   and `ios/AGENTS.md` §Copy is the rule there. The requirement is the same one.
 
-## The phase catalogue
+## The one ladder
 
-A node does not run a fixed spiral. It carries a **kind** — `fact`, `concept`,
-`procedure` or `principle` (Merrill, with Process folded into Principle) —
-written by the map generation, and a **phase plan** resolved from that kind at
-build time and _stored on the node_. `lib/curriculum/phases.ts` holds the
-catalogue: `PHASE_ORDER` (canonical order), `PHASE_DEFS` (label + the signal
-each phase extracts) and `PHASE_PLAN` (kind → plan).
+Every node runs `LADDER` (`lib/curriculum/phases.ts`): Consume → Explain →
+Perform → Retain, stamped on the node at build and stored in
+`nodes.phase_plan`. There is no goal, no placement, no overnight hold and no
+gap spawning; `topics.goal` is always `"glance"` (the server writes it whatever
+a client sends) because it is what the `quickLook` cache-key axis is stamped
+from.
 
-Two rules make the whole thing work:
-
-- **State is derived from the plan, not the other way round.** A node stores
-  which phases it has finished (`phasesDone`, a parallel map beside
-  `shakyReasons` and `reviewedNodes`) and `stateFromPlan`
-  (`lib/curriculum/calibration.ts`) says what that makes it. It used to be the
-  reverse — `phaseIndex(state, reviewed)` indexed a fixed six-tuple — which is
-  why every node ran the same six rungs and why exactly one line in `useSpiral`
-  could write `mastered`. Nothing writes a mastery literal any more; handlers
-  call `completePhase(node, phase)` on `phaseLedger` and the state falls out.
-  Retain is the exception: it is closed by `reviewed` (real review history),
-  not by a session, so `planGates()` excludes it from what gates mastery.
-- **A plan is frozen at build.** Editing `PHASE_PLAN` ships a new ladder for
-  maps built after it and cannot re-cut a run already in progress. A phase
-  joins `PHASE_ORDER` only in the release that implements it, so the catalogue
-  is never inconsistent with what exists.
-
-Three invariants are pinned by tests in `tests/curriculum.test.ts` and are
-silent when broken: every plan is a subsequence of `PHASE_ORDER`, every plan
-starts at Consume and ends at Retain, and every phase has at least one home.
-
-Every phase is **purpose-built**: its own reducer in `lib/curriculum/<phase>.ts`,
-its own generator and validator in `lib/server/generate/<phase>.ts`, its own
-grader, its own palette and its own screen. Not a prompt profile over another
-phase's engine — a phase that is another phase with a new prompt extracts no
-new signal, so it is a setting, not a phase. What the sixteen _do_ share is
-plumbing: `generate()`, the warm queue, `phaseLedger`, and `PhaseShell` (the
-`Masthead` and the ladder along the bottom). The line is that layout and
-transport are shared; reducers, content shapes and gates are not.
-
-The gates differ on purpose, and `tests/curriculum.test.ts` pins each one.
-Recall takes partial credit because memory is partial; Perform takes none,
-because a run with a wrong intermediate result is a failed run; Trace wants an
-_unbroken_ prefix rather than a fraction, since a run that broke at the first
-link and guessed the rest followed nothing; Discriminate adds a cap on
-over-inclusion, because calling every case an instance scores by luck rather
-than by the boundary. A gate that quietly became a shared two-thirds threshold
-is the sixteen collapsing back into a few with extra files.
-
-**Explain** rides behind Consume on every plan but `performative` (whose ladder
-is production, not prose): five cards model how to explain the concept, then a
-listener voices its misconception and the learner picks the reply that defuses
-it (signal: _explanation design_). It is outside `GATE_CAP` and kept on every
-bar, so it never displaces a heavier rung; it is never a plan's `lastGate`, so
-nothing waits a night on it; and finishing it hands on to the owed rung rather
-than exiting to the map. A miss is taught on the spot and retried — no Shaky
-reason. Maps built before it keep their stored plans: there is no backfill,
-since adding a gate to a finished ladder would turn mastered nodes back to
-Learning.
-
-Four rules sit around the gates, and `tests/learningGates.test.ts` pins them:
-
-- **Open gaps hold mastery.** `stateFromPlan` takes the node's open gap count
-  (`openGapIds`, read off the gap flag, not the edge's dash) and a finished
-  ladder with a gap under it stays Learning; closing the last gap is what
-  lifts it (`phaseLedger.settle`). So a Feynman teach-back gates through its
-  gaps, and `attachGap`/`removeGapNode` write `graphRef` through in the same
-  tick so the ledger counts them.
-- **Some proofs wait a night** (`lib/curriculum/spacing.ts`). Every completed
-  phase on a node holds the plan's **last gate** ~20h (`heldGate` — Recall on a
-  concept, the Crucible on a procedure or principle; `{ opensAt }` merged into
-  its `phase_progress` slot, written through the ref because the hand-off reads
-  it in the same tick), so no node goes green on the day it was learned. A
-  failed Recall re-holds it. A "prove it" challenge releases the hold on its
-  proof gate (`armChallenge`), and `heldOnMap` in `useSpiral` (the iOS session
-  shell) turns a held gate back to the map for every phase that doesn't say so
-  on its own screen, as Recall and the Crucible do. A Crucible passed on
-  the guided rung closes its gap but not the rung: the node stays Shaky and the
-  cold problem is parked to open the next day (`useCrucible`). Retained ✓ needs
-  a Good/Easy on a card that went `RETAINED_MIN_DAYS` unseen. A mastered city
-  fades on the map as its deck's FSRS retrievability drops below 90%
-  (`nodeRetention` — a display property like `frontier`, never stored; the
-  Swift mirror computes the FSRS-6 curve itself, since the phone runs no
-  scheduler).
-- **No gate is passed by clicking.** A Connect link is confirmed only with the
-  learner's own words (`connectDraftReady`); a Consume check is open-answer
-  first and answered once; Feynman's Fix-this is written and judged against
-  that row's `mustConvey`, not picked from options.
-- **Confidence is one scale** (`CONFIDENCE_FELT`, `lib/curriculum/confidence.ts`),
-  tapped before the work — Crucible, every Predict forecast, the start of a
-  Discriminate/Drill/Recall run (`ConfidenceGate`), and each review card's flip
-  (`TurnOver`) — and folded into a running mean per node (`mergeCalib`).
-
-Kind is also the **second lever**: `kindNote(kind, phase)`
-(`lib/server/generate/common.ts`) changes how a phase that every plan contains
-is written — a `fact` gets no worked example and no figure, a `procedure`'s
-worked example _is_ the material, a `principle` must carry its causal chain in
-a figure. It returns `""` for `concept`, which is what every node was before
-kinds existed, and for the same reason `nodeKind` is omitted from the cache key
-when it is `concept` (`job.ts`) — so no existing `content_cache` row was
-orphaned and no `VERSION` bump was owed.
-
-The third lever is the **cell** (`lib/curriculum/cells.ts`): importance ×
-difficulty, tagged by the map generation. Importance sets the _bar_ and so the
-plan — `core` masters (the kind's full ladder), `working` uses (Consume, one
-applied rung by kind via `appliedRung`, Retain), `peripheral` recognises
-(Consume, Retain). Difficulty sets the _budget_ under that bar (`CELL_BUDGET`,
-`cellNote`, `consumeBand`), never the bar. The goal decides which cells a map
-may hold (`GOAL_CELLS`; `clampCell` backs up the prompt). The cell is a cache-key
-axis stamped **by the server** from the stored row (`withNodeCell`), like
-`neighbours`; core/medium is omitted so it keys to the pre-grid row. Both
-clients post active seconds per phase to `/api/v1/topics/:id/time`
-(`nodes.phase_seconds`) — tune the budgets from that, not from intuition.
+- **State is derived from the ledger.** A node stores which phases it finished
+  (`phasesDone`) and `stateFromPlan` (`lib/curriculum/calibration.ts`) says what
+  that makes it. Nothing writes a mastery literal; handlers call
+  `completePhase(node, phase)` on `phaseLedger`. A concept is learned when its
+  Perform passes; Retain is closed by review history (`reviewed`), never by a
+  session, so `planGates()` excludes it.
+- **Hand-offs read the plan.** Only `enterOwedPhase` decides what opens next. A
+  passed Perform hands on to the "Guardar" pass over the concept's cards
+  (`onLearned` → `enterReview`); the map then walks on to the next concept.
+- **Every phase is purpose-built**: its own reducer in `lib/curriculum/`, its
+  own generator and validator in `lib/server/generate/`, its own grader and
+  screen. What they share is plumbing — `generate()`, the warm queue,
+  `phaseLedger`, `PhaseShell` — and the per-concept **spine**
+  (`lib/curriculum/spine.ts`): ranked key ideas, most-used cases, edge cases and
+  misconceptions with ids, which every phase reads. The spine is data, not a
+  shared engine.
+- **No gate is passed by clicking.** A Consume check is open-answer first and
+  answered once; Perform is judged step by step against `mustShow`; a review
+  card answered in own words is graded by the `recall` judge, which only
+  _suggests_ the grade. A missed card never changes the map.
+- **Kind** (`fact | concept | procedure | principle`) changes how a phase is
+  written (`kindNote`), never which phases run. **Difficulty** sizes the work
+  (`CELL_BUDGET`, `consumeBand`); every node is `working`.
+- **Levels** (`lib/curriculum/depth.ts`): a mastered concept with `deeper` specs
+  can spawn level II, then III — a hidden node on the same city that runs the
+  same `LADDER`; `isCore` keeps it out of every total.
 
 The rail is driven by `data-phase` (the phase id), never by
-`action-phase-${i}`: plans vary in length, so index N is a different phase on a
-different node.
+`action-phase-${i}`.
 
 ## AI content generation
 
 All learning content is generated per topic through OpenRouter — the concept
 map at onboarding (`kind: "curriculum"`, streamed one concept at a time in
-prerequisite order; the placement questions follow one at a time as
-`diagnosticQuestion`, since each one's difficulty depends on the last answer),
-and each phase's material on first entry (`consume`, `explain`, `discriminate`, `socratic`,
-`predict`, `trace`, `feynman`, `perform`, `drill`, `connect`, `crucible`,
-`recall`, `retain`), cached per node for the run in
-`AtlasApp`.
+prerequisite order), and each phase's material on first entry (`consume`,
+`explain`, `perform`, `retain`), cached per node for the run in `AtlasApp`.
 One kind is smaller than a phase: `summary` writes the single sentence the node
 rail says about a concept, and exists only as a backfill — a generated map
 writes every node's `summary` inline, but a run built before summaries (or a
@@ -306,7 +220,7 @@ probabilities out, in ~0.5s for a fraction of a cent. Wherever a call's job
 is to _pick from a fixed set_, Jev is asked first and its answer counts only
 at or above `SURE`; below that, or on any failure, the call site runs the LLM
 path it always had. The questions live in `generate/jevJudge.ts` (every judge
-mode but Perform and Crucible: the ruling is told to the LLM and pinned over
+mode but Perform: the ruling is told to the LLM and pinned over
 every frame through `judgeStream`'s `decided`, so the critique can never argue
 with the verdict) and `generate/jev.ts` (verify's blind solve, the Consume
 boundary check that keeps an overlapping pass out of `content_cache`, the map's
@@ -341,8 +255,8 @@ how content is stored, addressed or read on either client.
   same row. A new kind goes here, not in a route.
 - **`lib/warm.ts`** — the client's deduped, concurrency-capped background queue.
   `AtlasApp` batch-reads the cache for the nodes ahead on map open, warms the
-  misses, and hands off phase-to-phase (Consume warms Socratic, Feynman warms
-  Connect, Connect warms Crucible). A click on something already warming joins
+  misses, and hands off phase-to-phase (Consume warms Explain, Explain warms
+  Perform). A click on something already warming joins
   that request rather than starting a second one.
 
 The rule that makes it safe: a warm and the click that follows must derive
@@ -401,17 +315,16 @@ kind, where latency is dominated by sequential output decoding:
   can't be centred until their height is known, so the settling pass re-yields
   every node at its original index and frame replacement folds it in.
 - A surface that renders a streamed list must not derive "am I on the last
-  one?" from the array's length. `SocraticSession` carries an explicit `total`
-  for exactly this reason; deriving it from `.length` ends the session as soon
-  as the learner answers the first item. (Feynman needs no `total`: the learner
-  teaches the whole concept once, and the rubric is graded as a set.)
+  one?" from the array's length: carry an explicit total, or the session ends
+  as soon as the learner answers the first item that has landed.
 - A surface that dispatches against streamed content must read it the same way
-  it renders it — the committed cache _or_ the live stream (`socraticStepsFor`,
-  `feynmanBeatsFor`). Reading only the cache makes every action a silent no-op
+  it renders it — the committed cache _or_ the live stream (Consume reads
+  `consumeCache` or `liveConsume`). Reading only the cache makes every action a silent no-op
   until the stream finishes, which looks like a dead button, not a wait.
-- **`after()`** (`app/api/generate/route.ts`) warms the new map's frontier
-  server-side once the build response has flushed, so the first node click is a
-  cache hit. It records through the same `logGenerationCalls` helper as
+- **`after()`** (`app/api/generate/route.ts`) can warm the new map's frontier
+  server-side once the build response has flushed. It is off for the one flow
+  (the client warms every concept; WS8 in `docs/PLAN-FLOW.md` moves spines to
+  the server). It records through the same `logGenerationCalls` helper as
   everything else.
 
 `generation_log` rows are _model calls_ (what tracks spend), and `job_id`
@@ -514,4 +427,4 @@ Platform.dc.html` in the Claude Design project). Two things a pseudo-class
 
 ## Verifying changes
 
-`npm run build` must pass. For UI changes, drive the real flow: `npm run start -- -p 3100`, then use Playwright with the preinstalled Chromium (`executablePath: '/opt/pw-browsers/chromium'`) to click through welcome → build → diagnostic → map and screenshot.
+`npm run build` must pass. For UI changes, drive the real flow: `npm run start -- -p 3100`, then use Playwright with the preinstalled Chromium (`executablePath: '/opt/pw-browsers/chromium'`) to click through welcome → build → map and screenshot.

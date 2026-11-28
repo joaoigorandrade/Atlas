@@ -15,8 +15,7 @@ import {
   ConceptNode,
   MapNode,
   nodeAxes,
-  resolvePlan,
-  withGoalPlan,
+  LADDER,
   type GoalKind,
   asMapMeta,
   graphFromMapNodes,
@@ -62,13 +61,6 @@ export interface ScopeOffer {
   note: string;
 }
 
-/** W3.1's evidence as the model wrote it on a concept. */
-const evidence = (n: RawConcept) => ({
-  contested: n.contested,
-  transferable: n.transferable,
-  individual: n.individual,
-});
-
 /** Kahn's longest-path depth over `ids` (the queue is read as it grows), and
  *  how many nodes it consumed — fewer than all of them means a cycle. */
 function kahn(ids: string[], edges: ConceptEdge[]) {
@@ -100,20 +92,15 @@ function layoutGraph(rawNodes: RawConcept[], edges: ConceptEdge[]): ConceptNode[
   }
   const byCol: Record<number, string[]> = {};
   for (const n of rawNodes) (byCol[depth[n.id]] = byCol[depth[n.id]] ?? []).push(n.id);
-  const degree = (id: string) => edges.filter(([a, b]) => a === id || b === id).length;
   return rawNodes.map((n): ConceptNode => {
     const d = depth[n.id];
     const col = byCol[d];
     const i = col.indexOf(n.id);
     return {
       ...n, // id, label, summary and the four axes, exactly as validated
-      // Resolved here, once, and stored on the node. Recomputing it on every
-      // read would mean shipping a new catalogue silently re-cut the ladder
-      // under a run already in progress.
-      phasePlan: resolvePlan(n.kind, n.domain, n.importance, n.difficulty, {
-        ...evidence(n),
-        neighbours: degree(n.id),
-      }),
+      // Stored on the node, so a later change to the ladder cannot re-cut a
+      // run already in progress.
+      phasePlan: LADDER,
       state: "unknown" as const,
       g: d + 1,
       week: 0,
@@ -142,7 +129,7 @@ export function validateScopeOffer(raw: unknown): ScopeOffer[] | null {
 export function validateGraphPart(
   raw: unknown,
   bounds: { min: number; max: number } = mapNodeBounds(),
-  goal?: GoalKind,
+  _goal?: GoalKind,
 ): { nodes: RawConcept[]; edges: ConceptEdge[]; meta?: MapMeta } {
   const root = obj(raw, "payload");
   // Only a header the model wrote: a defaulted one would stamp `general` over
@@ -162,7 +149,7 @@ export function validateGraphPart(
       // whole map — the rail falls back to the state line.
       summary: n.summary ? str(n.summary, `nodes[${i}].summary`) : undefined,
       ...deeperOf(n.deeper),
-      ...nodeAxes(n, goal),
+      ...nodeAxes(n),
     };
   });
   if (nodes.length < bounds.min) fail(`only ${nodes.length} distinct concepts`);
@@ -251,7 +238,7 @@ ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`,
   );
   if ("scopes" in raw) return { scopes: raw.scopes };
   const laid = withPrereqs(layoutGraph(pruneDeeper(raw.nodes), raw.edges), raw.edges);
-  const nodes = withGoalPlan(laid, params.goal);
+  const nodes = laid;
   noteChain(nodes, params.topic);
   return raw.meta ? { nodes, meta: raw.meta } : { nodes };
 }
@@ -348,15 +335,7 @@ least one. ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`
       // re-space and never cross.
       const node: MapNode = {
         ...item,
-        // Provisional (Connect's ration needs the whole map); the frame below
-        // carries the goal's plan, or a quick look warms the kind's whole ladder.
-        phasePlan: resolvePlan(
-          item.kind,
-          item.domain,
-          item.importance,
-          item.difficulty,
-          evidence(item),
-        ),
+        phasePlan: LADDER,
         state: "unknown",
         g: d + 1,
         week: 0,
@@ -364,11 +343,11 @@ least one. ${mapRules(bounds.ask, params.goal, sized)}${languageNote(language)}`
         y: 440 + i * 140,
       };
       accepted.push(node);
-      yield { p: "nodes", i: yielded++, v: withGoalPlan([node], params.goal)[0] };
+      yield { p: "nodes", i: yielded++, v: node };
     }
 
     const laid = layoutMapNodes(pruneDeeper(await backstopAxes(accepted, params)));
-    const settled = withGoalPlan(laid, params.goal);
+    const settled = laid;
     // The one whole-graph check per-concept validation can't make. Throwing
     // here is deliberate: it is mid-stream, so nothing is written to
     // `content_cache` and reopening retries, while the learner keeps the map
@@ -407,5 +386,3 @@ export {
   mapNodeBounds,
   type MapParams,
 } from "./mapPrompt";
-
-export { validateDiagnosticQuestion, type RawDiagnostic } from "./diagnosticQuestion";

@@ -9,24 +9,12 @@
 //
 // The W0.3 eval panel measures the disputed-key rate with the same functions.
 
-import type {
-  ConsumeChunk,
-  DiscriminateContent,
-  DrillContent,
-  ExplainContent,
-  PredictContent,
-  ProvenanceContent,
-  TraceContent,
-} from "@/lib/curriculum";
-import { PROVENANCE_RULINGS, sectionText } from "@/lib/curriculum";
+import type { ConsumeChunk, ExplainContent } from "@/lib/curriculum";
+import { sectionText } from "@/lib/curriculum";
 import { logEvent } from "@/lib/log";
 import { generateJson } from "@/lib/server/openrouter";
 import { arr, fail, obj, user } from "./common";
 import { jevSolve } from "./jev";
-import { DISCRIMINATE_CASE_BOUNDS } from "./discriminate";
-import { DRILL_REP_BOUNDS } from "./drill";
-import { PREDICT_SETUP_BOUNDS } from "./predict";
-import { PROVENANCE_CLAIM_BOUNDS } from "./provenance";
 
 /** One closed item, as the solver sees it (minus `key`). */
 export interface ClosedItem {
@@ -127,8 +115,7 @@ export function disputedIds(
 
 // ---- per-kind adapters -------------------------------------------------------
 
-type Verifiable =
-  "discriminate" | "explain" | "predict" | "trace" | "drill" | "provenance";
+type Verifiable = "explain";
 
 interface Adapter<T> {
   items: (c: T) => { context?: string; items: ClosedItem[] };
@@ -139,22 +126,7 @@ interface Adapter<T> {
   min: (c: T) => number;
 }
 
-const RULINGS = [...PROVENANCE_RULINGS];
-
 export const VERIFY: { [K in Verifiable]: Adapter<VerifyPayload[K]> } = {
-  discriminate: {
-    items: (c) => ({
-      context: c.ask,
-      items: c.cases.map((x) => ({
-        id: x.id,
-        stem: x.candidate,
-        options: x.readings,
-        key: x.answerIndex,
-      })),
-    }),
-    drop: (c, ids) => ({ ...c, cases: c.cases.filter((x) => !ids.includes(x.id)) }),
-    min: () => DISCRIMINATE_CASE_BOUNDS.min,
-  },
   // One check, so a dispute can't be dropped — it regenerates, as Trace does.
   explain: {
     items: (c) => ({
@@ -172,65 +144,10 @@ export const VERIFY: { [K in Verifiable]: Adapter<VerifyPayload[K]> } = {
     drop: (c) => c,
     min: () => 1,
   },
-  predict: {
-    items: (c) => ({
-      items: c.setups.map((x) => ({
-        id: x.id,
-        stem: x.situation,
-        options: x.outcomes,
-        key: x.answerIndex,
-      })),
-    }),
-    drop: (c, ids) => ({ ...c, setups: c.setups.filter((x) => !ids.includes(x.id)) }),
-    min: () => PREDICT_SETUP_BOUNDS.min,
-  },
-  trace: {
-    items: (c) => ({
-      context: `The running case: ${c.scenario}\nEach item gives where the case has got to; pick what happens next.`,
-      items: c.stages.map((x) => ({
-        id: x.id,
-        stem: x.reached,
-        options: x.nexts,
-        key: x.answerIndex,
-      })),
-    }),
-    drop: (c) => c,
-    min: (c) => c.stages.length,
-  },
-  drill: {
-    items: (c) => ({
-      items: c.reps.map((x) => ({
-        id: x.id,
-        stem: x.prompt,
-        options: x.answers,
-        key: x.answerIndex,
-      })),
-    }),
-    drop: (c, ids) => ({ ...c, reps: c.reps.filter((x) => !ids.includes(x.id)) }),
-    min: () => DRILL_REP_BOUNDS.min,
-  },
-  provenance: {
-    items: (c) => ({
-      context: `The source: "${c.source.title}" — ${c.source.attribution}, ${c.source.date}.\nExcerpt: ${c.source.excerpt}\n\nFor each claim, rule what THIS source does: "asserts" (it states it, but its word is the only evidence), "proves" (the source is good evidence the claim is true — e.g. it is itself the record of the thing), or "neither" (the source does not speak to it).`,
-      items: c.claims.map((x) => ({
-        id: x.id,
-        stem: x.claim,
-        options: RULINGS,
-        key: RULINGS.indexOf(x.ruling),
-      })),
-    }),
-    drop: (c, ids) => ({ ...c, claims: c.claims.filter((x) => !ids.includes(x.id)) }),
-    min: () => PROVENANCE_CLAIM_BOUNDS.min,
-  },
 };
 
 interface VerifyPayload {
-  discriminate: DiscriminateContent;
   explain: ExplainContent;
-  predict: PredictContent;
-  trace: TraceContent;
-  drill: DrillContent;
-  provenance: ProvenanceContent;
 }
 
 export const isVerifiable = (kind: string): kind is Verifiable => kind in VERIFY;
@@ -265,7 +182,7 @@ export async function verified<K extends Verifiable>(
     }
     if (round === 1) {
       logEvent("verify_disputed", { kind, disputed: disputed.length });
-      return size >= 1 && kind !== "trace" ? kept : content;
+      return size >= 1 ? kept : content;
     }
     content = await make();
   }

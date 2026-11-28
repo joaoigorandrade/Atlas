@@ -3,10 +3,6 @@ import {
   validateChoice,
   validateConsume,
   validateConsumeModel,
-  validateCrucible,
-  validateDiagnosticQuestion,
-  validateFeynman,
-  validateFeynmanJudgement,
   mapNodeBounds,
   validateGraphPart,
   validateMapConcept,
@@ -15,10 +11,9 @@ import {
   retainNodes,
   validateRetain,
   validateScopeOffer,
-  validateSocratic,
   validateSummary,
 } from "@/lib/server/generate";
-import { kindNote } from "@/lib/server/generate/common";
+import {} from "@/lib/server/generate/common";
 import { graphFromMapNodes, RETAIN_DRAFT_NODES } from "@/lib/curriculum";
 import { migrateConsume, type LegacyConsumeChunk } from "@/lib/contentMigrate";
 
@@ -102,40 +97,31 @@ describe("validateMapConcept", () => {
   });
   const ids = (...xs: string[]) => new Map(xs.map((x) => [x, x]));
 
-  it("reads the cost axes leniently — unknown is core / medium", () => {
+  it("reads the cost axes leniently — unknown is working / medium", () => {
     const plain = validateMapConcept(concept(), 0, new Map());
-    expect([plain.importance, plain.difficulty]).toEqual(["core", "medium"]);
+    expect([plain.importance, plain.difficulty]).toEqual(["working", "medium"]);
     const odd = validateMapConcept(
       concept({ importance: "crucial", difficulty: "brutal" }),
       0,
       new Map(),
     );
-    expect([odd.importance, odd.difficulty]).toEqual(["core", "medium"]);
+    expect([odd.importance, odd.difficulty]).toEqual(["working", "medium"]);
     const tagged = validateMapConcept(
       concept({ importance: "peripheral", difficulty: "hard" }),
       0,
       new Map(),
     );
-    expect([tagged.importance, tagged.difficulty]).toEqual(["peripheral", "hard"]);
+    expect([tagged.importance, tagged.difficulty]).toEqual(["working", "hard"]);
   });
 
-  it("clamps a cell the learner's goal does not allow", () => {
-    // An exam keeps only easy peripheral context.
-    const exam = validateMapConcept(
-      concept({ importance: "peripheral", difficulty: "hard" }),
+  it("every concept is something to use, whatever importance the model wrote", () => {
+    const tagged = validateMapConcept(
+      concept({ importance: "core", difficulty: "easy" }),
       0,
       new Map(),
-      "exam",
+      "glance",
     );
-    expect([exam.importance, exam.difficulty]).toEqual(["peripheral", "easy"]);
-    // Mastery holds every cell.
-    const mastery = validateMapConcept(
-      concept({ importance: "peripheral", difficulty: "hard" }),
-      0,
-      new Map(),
-      "mastery",
-    );
-    expect([mastery.importance, mastery.difficulty]).toEqual(["peripheral", "hard"]);
+    expect([tagged.importance, tagged.difficulty]).toEqual(["working", "easy"]);
   });
 
   it("normalizes the id and keeps prereqs that already landed", () => {
@@ -268,289 +254,11 @@ describe("graphFromMapNodes", () => {
 
 // ---- diagnostic question: one objective 4-option probe, graded server-side ----
 
-function diagnosticPayload(over: Record<string, unknown> = {}) {
-  return {
-    nodeId: "n3",
-    q: "What binds to what?",
-    note: "note",
-    opts: ["A", "B", "C", "D"],
-    correctIndex: 1,
-    ...over,
-  };
-}
-
-describe("validateDiagnosticQuestion", () => {
-  const ids = new Set(["n0", "n1", "n2", "n3"]);
-
-  it("accepts a well-formed question", () => {
-    const out = validateDiagnosticQuestion(diagnosticPayload(), ids);
-    expect(out.nodeId).toBe("n3");
-    expect(out.opts).toHaveLength(4);
-    expect(out.correctIndex).toBe(1);
-  });
-
-  it("rejects a question probing a concept the map never established", () => {
-    expect(() =>
-      validateDiagnosticQuestion(diagnosticPayload({ nodeId: "n9" }), ids),
-    ).toThrow(/is not one of the offered candidates/);
-  });
-
-  it("rejects anything but exactly 4 options", () => {
-    expect(() =>
-      validateDiagnosticQuestion(diagnosticPayload({ opts: ["A", "B", "C"] }), ids),
-    ).toThrow(/opts/);
-  });
-
-  it("rejects a correctIndex outside 0-3", () => {
-    expect(() =>
-      validateDiagnosticQuestion(diagnosticPayload({ correctIndex: 4 }), ids),
-    ).toThrow(/correctIndex/);
-  });
-
-  // The other three kinds exist because a 4-option question measures
-  // recognition, and placement drives what the map prunes. Each carries
-  // exactly the answer key `gradeDiagnostic` needs to rule on it.
-
-  it("reads a payload with no type as the four-option question it always was", () => {
-    expect(validateDiagnosticQuestion(diagnosticPayload(), ids).type).toBe("mcq");
-  });
-
-  it("takes a computed answer as a bare value, and drops the options", () => {
-    const out = validateDiagnosticQuestion(
-      diagnosticPayload({ type: "compute", expected: "3/4", opts: undefined }),
-      ids,
-    );
-    expect(out.type).toBe("compute");
-    expect(out.expected).toEqual(["3/4"]);
-    expect(out.opts).toEqual([]);
-    // Nothing to pick, so nothing can accidentally match a picked index.
-    expect(out.correctIndex).toBe(-1);
-  });
-
-  it("takes a spoken answer as every utterance that counts", () => {
-    const out = validateDiagnosticQuestion(
-      diagnosticPayload({ type: "speak", accept: ["esta bien", "todo bien"] }),
-      ids,
-    );
-    expect(out.expected).toEqual(["esta bien", "todo bien"]);
-  });
-
-  it("takes a chronology as the shuffled items plus their true order", () => {
-    const out = validateDiagnosticQuestion(
-      diagnosticPayload({
-        type: "order",
-        opts: ["Schism", "Nicaea", "Trent"],
-        correctOrder: ["Nicaea", "Schism", "Trent"],
-      }),
-      ids,
-    );
-    expect(out.opts.map((o) => o.label)).toEqual(["Schism", "Nicaea", "Trent"]);
-    expect(out.expected).toEqual(["Nicaea", "Schism", "Trent"]);
-  });
-
-  it("rejects a chronology whose answer names something that is not an option", () => {
-    // Otherwise the learner can never produce the expected sequence.
-    expect(() =>
-      validateDiagnosticQuestion(
-        diagnosticPayload({
-          type: "order",
-          opts: ["Schism", "Nicaea", "Trent"],
-          correctOrder: ["Nicaea", "Schism", "Avignon"],
-        }),
-        ids,
-      ),
-    ).toThrow(/not one of the options/);
-  });
-
-  it("rejects a kind that arrived without its answer key", () => {
-    // Unmarkable is worse than malformed: it would pass every learner.
-    expect(() =>
-      validateDiagnosticQuestion(diagnosticPayload({ type: "compute" }), ids),
-    ).toThrow(/expected/);
-    expect(() =>
-      validateDiagnosticQuestion(diagnosticPayload({ type: "speak" }), ids),
-    ).toThrow(/accept/);
-  });
-
-  it("reads an unrecognised kind as the four-option question", () => {
-    expect(
-      validateDiagnosticQuestion(diagnosticPayload({ type: "interpretive-dance" }), ids)
-        .type,
-    ).toBe("mcq");
-  });
-});
-
 // ---- feynman: template echoes (#10) -------------------------------------------
-
-function feynmanPayload(mustConvey: [string, string, string]) {
-  return {
-    beats: [0, 1, 2].map((i) => ({
-      subPoint: `point ${i}`,
-      mustConvey: [mustConvey[i]],
-      fix: {
-        probe: "probe",
-        replies: [
-          { label: "right", correct: true, response: "yes" },
-          { label: "wrong", correct: false, response: "no" },
-        ],
-      },
-      gapLabel: "gap label",
-      gapReason: "gap reason",
-    })),
-  };
-}
-
-describe("validateFeynman", () => {
-  it("accepts a concrete, checkable rubric", () => {
-    const beats = validateFeynman("n1")(
-      feynmanPayload([
-        "that a matrix times a vector recombines the columns",
-        "that the transformation keeps the grid evenly spaced",
-        "that the origin never moves",
-      ]),
-    );
-    expect(beats.length).toBe(3);
-    expect(beats[0].mustConvey).toHaveLength(1);
-  });
-
-  it("accepts a two-row rubric — a short concept is explained in two", () => {
-    const { beats } = feynmanPayload([
-      "that a matrix times a vector recombines the columns",
-      "that the origin never moves",
-      "unused",
-    ]);
-    expect(validateFeynman("n1")({ beats: beats.slice(0, 2) })).toHaveLength(2);
-  });
-
-  it("rejects rubric rows that echo the prompt template (#10)", () => {
-    expect(() =>
-      validateFeynman("n1")(
-        feynmanPayload([
-          "a complete, precise answer",
-          "what the learner says",
-          "a real misconception",
-        ]),
-      ),
-    ).toThrow(/echoes the prompt template/);
-  });
-});
 
 // ---- socratic: template echoes -------------------------------------------------
 
-describe("validateSocratic", () => {
-  // Two core probes plus the one spare is the shortest written pass. The floor
-  // is on the written array, not the plan: a pass that skipped its spare has
-  // nothing to sell a struggling learner.
-  it("accepts two core probes and the one held-back spare", () => {
-    const probe = (spare: boolean) => ({
-      spare,
-      move: "Clarify",
-      prompt: "what does it do?",
-      replies: [
-        {
-          label: "it recombines the columns",
-          quality: "correct",
-          response: "yes",
-        },
-        {
-          label: "it rotates the grid",
-          quality: "wrong",
-          response: "no — that is one case",
-        },
-        {
-          label: "something about columns",
-          quality: "near",
-          response: "keep going",
-        },
-      ],
-      hint: "count the columns",
-      tell: "it takes a combination of the columns",
-    });
-    const out = validateSocratic({
-      steps: [probe(false), probe(false), probe(true)],
-    });
-    expect(out).toHaveLength(3);
-    expect(out.filter((step) => !step.spare)).toHaveLength(2);
-  });
-
-  it("rejects reply labels that echo the prompt template", () => {
-    const step = {
-      move: "Clarify",
-      prompt: "p",
-      replies: [
-        { label: "what the learner says", quality: "correct", response: "r" },
-        { label: "b", quality: "wrong", response: "r" },
-        { label: "c", quality: "near", response: "r" },
-      ],
-      hint: "h",
-      tell: "t",
-    };
-    expect(() => validateSocratic({ steps: [step, step, step] })).toThrow(
-      /echoes the prompt template/,
-    );
-  });
-});
-
 // ---- crucible: draws + self-identical errors (#15, #10) ------------------------
-
-function cruciblePayload(draws: string[], redText: string) {
-  return {
-    draws,
-    problems: [
-      { tag: "novel", q: "q", hint: "h", placeholder: "p", sample: "s" },
-      { tag: "guided", q: "q", hint: "h", placeholder: "p", sample: "s" },
-    ],
-    transfer: [
-      { verdict: "good", text: "carried over fine" },
-      { verdict: "good", text: "also fine" },
-      { verdict: "red", text: redText },
-    ],
-    gapLabel: "the missing piece",
-    gapReason: "because",
-    reExplain: "re-explain",
-  };
-}
-
-describe("validateCrucible", () => {
-  it("filters draws to real mastered node labels (#15)", () => {
-    const out = validateCrucible("n1", "Node", ["Vectors"])(
-      cruciblePayload(
-        ["Chess", "Vectors"],
-        "used row-major order, so the result was transposed",
-      ),
-    );
-    expect(out.draws).toEqual(["Vectors"]);
-  });
-
-  it("fails validation when no draw names a real node (#15)", () => {
-    expect(() =>
-      validateCrucible("n1", "Node", ["Vectors"])(
-        cruciblePayload(["Chess"], "real error text described here"),
-      ),
-    ).toThrow(/draws must name concepts/);
-  });
-
-  it("returns the difficulty ladder in the requested language", () => {
-    const payload = cruciblePayload(
-      ["Vectors"],
-      "used row-major order, so the result was transposed",
-    );
-    expect(
-      validateCrucible("n1", "Node", ["Vectors"], "pt-BR")(payload).rungs[0].label,
-    ).toBe("Lembrar uma definição");
-    expect(validateCrucible("n1", "Node", ["Vectors"])(payload).rungs[0].label).toBe(
-      "Recall a definition",
-    );
-  });
-
-  it("rejects the captured self-identical error text (#10)", () => {
-    expect(() =>
-      validateCrucible("n1", "Node", ["Vectors"])(
-        cruciblePayload(["Vectors"], "resulting in [4, 2] instead of [4, 2]"),
-      ),
-    ).toThrow(/identical/);
-  });
-});
 
 // ---- choice: open-ended answers mapped onto the closed option list -----------
 
@@ -699,54 +407,6 @@ describe("validateConsume", () => {
 });
 
 // ---- judge: feynman verdicts must cover the whole rubric ---------------------
-
-describe("validateFeynmanJudgement", () => {
-  const judgement = (over: Record<string, unknown> = {}) => ({
-    verdicts: [
-      { i: 0, verdict: "good" },
-      { i: 1, verdict: "skipped" },
-      { i: 2, verdict: "confused", quote: "they said this bit" },
-    ],
-    response: "I followed the first part, but I never learned why it holds.",
-    jargon: ["eigenbasis"],
-    ...over,
-  });
-
-  it("accepts one ruling per rubric row", () => {
-    const out = validateFeynmanJudgement(3)(judgement());
-    expect(out.verdicts.map((v) => v.i)).toEqual([0, 1, 2]);
-  });
-
-  // A row with no verdict spawns no gap, so a judge that reports only the rows
-  // it found interesting marks the learner clean on material they never
-  // explained. Failing routes it through the corrective retry instead.
-  it("rejects a rubric row left unjudged — an unjudged row spawns no gap", () => {
-    expect(() =>
-      validateFeynmanJudgement(3)(
-        judgement({
-          verdicts: [
-            { i: 0, verdict: "good" },
-            { i: 2, verdict: "confused" },
-          ],
-        }),
-      ),
-    ).toThrow(/missing 1/);
-  });
-
-  it("keeps the first ruling when the judge second-guesses an index", () => {
-    const out = validateFeynmanJudgement(2)(
-      judgement({
-        verdicts: [
-          { i: 0, verdict: "good" },
-          { i: 0, verdict: "confused" },
-          { i: 1, verdict: "skipped" },
-        ],
-      }),
-    );
-    expect(out.verdicts).toHaveLength(2);
-    expect(out.verdicts[0].verdict).toBe("good");
-  });
-});
 
 // ---- model view: one lens over one section -----------------------------------
 
@@ -971,39 +631,6 @@ describe("mapNodeBounds", () => {
 // one lever, and how a phase is *written* for that kind is the other. It had no
 // coverage of either sort — fixture mode ignores `nodeKind`, so the e2e suite
 // can only prove the kind reaches the wire, not that it changes anything.
-
-describe("kindNote", () => {
-  it("says nothing for `concept`, so an existing map's prompts are unchanged", () => {
-    // Byte-identical is the requirement, not merely similar: it is what lets
-    // the cache key omit `concept` and keep every row already written.
-    for (const phase of ["consume", "connect", "crucible"] as const) {
-      expect(kindNote("concept", phase)).toBe("");
-      expect(kindNote(undefined, phase)).toBe("");
-    }
-  });
-
-  it("tells a fact not to explain, and a principle to draw the mechanism", () => {
-    expect(kindNote("fact", "consume")).toMatch(/FACT/);
-    expect(kindNote("fact", "consume")).toMatch(/NO figure/i);
-    expect(kindNote("principle", "consume")).toMatch(/FIGURE IS REQUIRED/i);
-    expect(kindNote("procedure", "consume")).toMatch(/WORKED EXAMPLE/i);
-  });
-
-  it("gives every note its own blank lines, so it can't fuse with the prose", () => {
-    // It is interpolated straight into a template between two other blocks.
-    const note = kindNote("procedure", "crucible");
-    expect(note.startsWith("\n")).toBe(true);
-    expect(note.endsWith("\n")).toBe(true);
-  });
-
-  it("leaves Connect and Crucible alone for a fact", () => {
-    // Deliberate, and the sharpest open question in the catalogue: a fact has
-    // nothing to elaborate or transfer, so the notes are empty — but the plan
-    // still makes the learner run both phases. See the ladder, not the note.
-    expect(kindNote("fact", "connect")).toBe("");
-    expect(kindNote("fact", "crucible")).toBe("");
-  });
-});
 
 // ---- the fence around a learner's own words ---------------------------------
 

@@ -9,7 +9,6 @@
 import { fetchStream } from "./api";
 import { AtlasError } from "./errors";
 import type { Language } from "./i18n";
-import { verdictReady } from "./curriculum/socraticLadder";
 
 /**
  * A judge call, verdict-first.
@@ -54,65 +53,6 @@ async function judge<T>(
   return last;
 }
 
-export interface SocraticJudgement {
-  quality: "correct" | "partial" | "near" | "wrong" | "lost";
-  response: string;
-  /** Which of the step's `sufficient` pieces everything said so far covers. */
-  covered?: number[];
-  /** The wrong idea in a few words, on a caught "near"/"wrong" — filed into the
-   *  run's misconception roll-up so a repeat can be named as one. */
-  misconception?: string;
-}
-
-export function fetchJudgeSocratic(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    question: string;
-    reference: string;
-    answer: string;
-    history?: Array<{ role: "ai" | "learner"; text: string }>;
-    attempt?: number;
-    misconceptions?: Array<{ label: string; quality: string }>;
-    /** What this learner keeps getting wrong run-wide (`recurringMisconceptions`). */
-    recurring?: string[];
-    help?: number;
-    /** This probe's own bar, when the pass wrote one. */
-    sufficient?: string[];
-    /** Everything already said on this step — the verdict grades the union. */
-    said?: string[];
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<SocraticJudgement>) => void,
-  onDraft?: (draft: Partial<SocraticJudgement>) => void,
-): Promise<SocraticJudgement> {
-  // A "partial" prefix without its ledger is held back for the full object:
-  // what it banked decides whether it costs a rung (`verdictReady`).
-  const ready = (v: Partial<SocraticJudgement>) =>
-    verdictReady(v, params.sufficient) && onVerdict?.(v);
-  return judge({ kind: "judge", mode: "socratic", ...params }, ready, onDraft);
-}
-
-/** One ruling per position, plus the written read. The gate reads the two
- *  rulings independently — see `steelmanPassed`. */
-export interface SteelmanJudgement {
-  verdicts: Array<{
-    positionId: string;
-    verdict: "strong" | "thin" | "strawman";
-    quote?: string;
-  }>;
-  response: string;
-  /** Whether the disconfirmer could actually be met (W1.6). */
-  disconfirmer?: "real" | "vacuous";
-}
-
-/** One spoken turn's ruling. `thin` is the important one: understood, and the
- *  target form was routed around. */
-export interface ProduceJudgement {
-  verdict: "good" | "thin" | "wrong";
-  read: string;
-}
-
 export interface FeynmanJudgement {
   /** One ruling per rubric row, by index — `quote` carries the learner's own
    *  words on a gap, so the map can say them back. */
@@ -124,42 +64,6 @@ export interface FeynmanJudgement {
   response: string;
   /** Terms they used but never unpacked. */
   jargon: string[];
-}
-
-export function fetchJudgeFeynman(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    rubric: Array<{ subPoint: string; mustConvey: string[] }>;
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<FeynmanJudgement>) => void,
-  onDraft?: (draft: Partial<FeynmanJudgement>) => void,
-): Promise<FeynmanJudgement> {
-  return judge({ kind: "judge", mode: "feynman", ...params }, onVerdict, onDraft);
-}
-
-export interface CrucibleJudgement {
-  outcome: "pass" | "partial";
-  transfer: Array<{ verdict: "good" | "red"; text: string }>;
-  gapLabel?: string;
-  gapReason?: string;
-  reExplain?: string;
-}
-
-export function fetchJudgeCrucible(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    problem: string;
-    hint: string;
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<CrucibleJudgement>) => void,
-): Promise<CrucibleJudgement> {
-  return judge({ kind: "judge", mode: "crucible", ...params }, onVerdict);
 }
 
 /** Grades a cold retrieval against its rubric. Shares the Feynman judgement
@@ -198,68 +102,11 @@ export function fetchJudgePerform(
   return judge({ kind: "judge", mode: "perform", ...params }, onVerdict, onDraft);
 }
 
-/** Rules BOTH cases of a contested question in one call — the phase's standard
- *  is that the weaker side is measured the same way as the stronger one, and a
- *  judge shown both at once can actually apply it. `answer` is the
- *  disconfirmer. */
-export function fetchJudgeSteelman(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    question: string;
-    positions: Array<{ id: string; label: string; heldBy: string; mustCover: string[] }>;
-    cases: Record<string, string>;
-    holds: string;
-    answer: string;
-    language?: Language;
-  },
-  onVerdict?: (partial: Partial<SteelmanJudgement>) => void,
-): Promise<SteelmanJudgement> {
-  return judge({ kind: "judge", mode: "steelman", ...params }, onVerdict);
-}
-
-/** Rules one spoken turn: understood, understood-but-avoided, or not landed.
- *  `answer` is the transcript — no audio ever leaves the browser. */
-export function fetchJudgeProduce(
-  params: {
-    topic: string;
-    nodeLabel: string;
-    scene: string;
-    cue: string;
-    targetForms: string[];
-    answer: string;
-    language?: Language;
-    /** The recognizer's confidence in the weakest span, when dictated (W1.1). */
-    confidence?: number;
-  },
-  onVerdict?: (partial: Partial<ProduceJudgement>) => void,
-): Promise<ProduceJudgement> {
-  return judge({ kind: "judge", mode: "produce", ...params }, onVerdict);
-}
-
 /** Maps a free-text answer onto a closed option list (the open-ended half of
  *  placement, the Consume hook, and the Feynman fix pass). */
 export interface ChoiceJudgement {
   index: number;
   response: string;
-}
-
-export interface ConnectJudgement {
-  verdict: "true" | "vague" | "false";
-  response: string;
-}
-
-/** A Connect link checked before it is confirmed (W1.5). */
-export function fetchJudgeConnect(params: {
-  topic: string;
-  nodeLabel: string;
-  /** The concept on the other end of the link. */
-  question: string;
-  reference: string;
-  answer: string;
-  language?: Language;
-}): Promise<ConnectJudgement> {
-  return judge({ kind: "judge", mode: "connect", ...params });
 }
 
 export function fetchJudgeChoice(

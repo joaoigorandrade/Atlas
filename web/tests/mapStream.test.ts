@@ -44,7 +44,7 @@ function serveFrames(frames: unknown[]) {
 
 afterEach(() => vi.unstubAllGlobals());
 
-const params = { topic: "Rust", goal: "mastery" as const };
+const params = { topic: "Rust", goal: "glance" as const };
 
 describe("fetchCurriculumMapStream", () => {
   it("reports a growing map, and patches a slot that arrives twice", async () => {

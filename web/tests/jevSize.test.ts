@@ -42,17 +42,6 @@ describe("sizeMap", () => {
       await sizeMap({ topic: "why is the sea salty?", goal: "glance" }),
     ).toBeUndefined();
   });
-
-  it("a full map gets a range", async () => {
-    answering("8-11", 0.9);
-    expect(await sizeMap({ topic: "binary trees", goal: "mastery" })).toEqual([8, 11]);
-  });
-
-  it("pareto is sized by its share, never asked", async () => {
-    const fetch = answering("8-11", 0.9);
-    expect(await sizeMap({ topic: "binary trees", goal: "pareto" })).toBeUndefined();
-    expect(fetch).not.toHaveBeenCalled();
-  });
 });
 
 describe("sizeDeck", () => {

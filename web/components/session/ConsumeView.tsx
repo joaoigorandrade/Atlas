@@ -51,7 +51,7 @@ interface ConsumeViewProps {
   /** More beats are still on the way for the open view. */
   modelStreaming?: boolean;
   onExit: () => void;
-  /** Subject (context for own-words judging); goal "glance" = no guessing, question on top. */
+  /** Subject (context for own-words judging); the one flow shows the topic as the kicker. */
   form: Pick<OnboardingForm, "topic" | "goal">;
   /** The end-of-section check was answered — right or wrong. */
   onCheck: (chunkId: string, oi: number, correct: boolean) => void;
@@ -77,7 +77,7 @@ interface ConsumeViewProps {
   onClosePassage: () => void;
   /** Submit the question — the answer streams back into `session.passage`. */
   onAskPassage: (question: string) => void;
-  onSkipCrucible: () => void;
+  onKnowIt: () => void;
   onRoutePrereq: () => void;
   /** Set when the reading pass stopped mid-stream. The sections that landed
    *  stay exactly as they are; this is the notice pinned under them. */
@@ -107,7 +107,7 @@ export default function ConsumeView({
   onOpenPassage,
   onClosePassage,
   onAskPassage,
-  onSkipCrucible,
+  onKnowIt,
   onRoutePrereq,
   incomplete,
 }: ConsumeViewProps) {
@@ -160,9 +160,9 @@ export default function ConsumeView({
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   // A section whose prose was on screen while it was still being written (no
   // check yet) is never pretested: the check landing would hide what the
-  // learner is already reading. Nor is anything on a quick look.
+  // learner is already reading. Every other section asks its check first.
   const readBare = useRef(new Set<string>());
-  for (const c of visible) if (goal === "glance" || !c.check) readBare.current.add(c.id);
+  for (const c of visible) if (!c.check) readBare.current.add(c.id);
 
   // The section the open lens belongs to, looked up rather than carried in
   // session state: while the pass is still streaming a section can be replaced
@@ -474,7 +474,7 @@ export default function ConsumeView({
           variant="secondary"
           full={false}
           accent={color.inkMuted}
-          onClick={onSkipCrucible}
+          onClick={onKnowIt}
           style={{ padding: "5px 12px", fontSize: 13 }}
         >
           {t.iKnowThis}

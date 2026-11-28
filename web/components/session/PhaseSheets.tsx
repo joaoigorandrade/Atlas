@@ -1,29 +1,19 @@
 "use client";
 
-// Every per-node phase sheet that postdates the original spiral: the six the
-// catalogue added, the three the domain axis added, and Explain.
+// The per-node phase sheets after the reading: Explain and Perform.
 //
 // A function rather than a component — these are sibling blocks in AtlasApp's
 // render, and wrapping them would put a boundary between the shell and the
 // sheet transition it drives. Lifted out because the shell is meant to compose
-// hooks and render, and fifteen phases' worth of sheet blocks had buried that.
+// hooks and render.
 //
 // It takes the four bundles whole rather than forty named props. That is the
 // point: a phase added here costs one block, not another dozen names threaded
 // through the shell.
 
-import ConnectView from "@/components/session/ConnectView";
-import ProduceView from "@/components/session/ProduceView";
-import ProvenanceView from "@/components/session/ProvenanceView";
-import SteelmanView from "@/components/session/SteelmanView";
 import type { ReactNode } from "react";
-import DiscriminateView from "@/components/session/DiscriminateView";
-import DrillView from "@/components/session/DrillView";
 import ExplainView from "@/components/session/ExplainView";
 import PerformView from "@/components/session/PerformView";
-import PredictView from "@/components/session/PredictView";
-import RecallView from "@/components/session/RecallView";
-import TraceView from "@/components/session/TraceView";
 import type { ConceptGraph, PhaseId } from "@/lib/curriculum";
 import type { useSpiral } from "@/components/atlas/useSpiral";
 import type { useDerived } from "@/components/atlas/useDerived";
@@ -59,64 +49,15 @@ export function phaseSheets(p: {
     spiral,
     derived,
   } = p;
-  const { discriminate, predict, trace, drill, recall, perform } = sessions;
+  const { perform } = sessions;
+  const { performContent } = derived;
   const {
-    discriminateContent,
-    predictContent,
-    traceContent,
-    drillContent,
-    recallContent,
-    performContent,
-  } = derived;
-  const {
-    dispatchDiscriminate,
-    advanceFromDiscriminate,
-    exitDiscriminate,
-    dispatchPredict,
-    advanceFromPredict,
-    exitPredict,
-    dispatchTrace,
-    advanceFromTrace,
-    exitTrace,
-    dispatchDrill,
-    advanceFromDrill,
-    exitDrill,
-    dispatchRecall,
-    recallSubmit,
-    advanceFromRecall,
-    exitRecall,
     dispatchPerform,
     performSubmit,
     performRerun,
     advanceFromPerform,
     exitPerform,
-    domainPhases,
-    dispatchConnect,
-    connectConfirm,
-    advanceFromConnect,
-    exitConnect,
   } = spiral;
-  const { connect } = sessions;
-  const { connectContent } = derived;
-  const {
-    dispatchProvenance,
-    advanceFromProvenance,
-    exitProvenance,
-    dispatchSteelman,
-    steelmanSubmit,
-    advanceFromSteelman,
-    exitSteelman,
-    produceSubmit,
-    dispatchProduce,
-    advanceFromProduce,
-    exitProduce,
-  } = domainPhases;
-  const { provenance, steelman, produce } = sessions;
-  const provenanceContent = provenance
-    ? run.provenanceCache[provenance.nodeId]
-    : undefined;
-  const steelmanContent = steelman ? run.steelmanCache[steelman.nodeId] : undefined;
-  const produceContent = produce ? run.produceCache[produce.nodeId] : undefined;
   const { explain } = sessions;
   const explainContent = explain ? run.explainCache[explain.nodeId] : undefined;
   const titleOf = (id: string) =>
@@ -142,116 +83,6 @@ export function phaseSheets(p: {
           />,
         )}
 
-      {openSheet === "discriminate" &&
-        discriminate &&
-        discriminateContent &&
-        sheetBoundary(
-          <DiscriminateView
-            topic={topic}
-            title={titleOf(discriminate.nodeId)}
-            plan={planOf(discriminate.nodeId)}
-            content={discriminateContent}
-            session={discriminate}
-            onExit={exitDiscriminate}
-            onSure={(level) => dispatchDiscriminate({ type: "sure", level })}
-            onCall={(index, read) => dispatchDiscriminate({ type: "call", index, read })}
-            onNext={() => dispatchDiscriminate({ type: "next" })}
-            onAdvance={advanceFromDiscriminate}
-          />,
-        )}
-
-      {openSheet === "predict" &&
-        predict &&
-        predictContent &&
-        sheetBoundary(
-          <PredictView
-            topic={topic}
-            title={titleOf(predict.nodeId)}
-            plan={planOf(predict.nodeId)}
-            content={predictContent}
-            session={predict}
-            onExit={exitPredict}
-            onSure={(level) => dispatchPredict({ type: "sure", level })}
-            onCommit={(index, read) => dispatchPredict({ type: "commit", index, read })}
-            onNext={() => dispatchPredict({ type: "next" })}
-            onAdvance={advanceFromPredict}
-          />,
-        )}
-
-      {openSheet === "trace" &&
-        trace &&
-        traceContent &&
-        sheetBoundary(
-          <TraceView
-            topic={topic}
-            title={titleOf(trace.nodeId)}
-            plan={planOf(trace.nodeId)}
-            content={traceContent}
-            session={trace}
-            onExit={exitTrace}
-            onStep={(index, read) => dispatchTrace({ type: "step", index, read })}
-            onNext={() => dispatchTrace({ type: "next" })}
-            onAdvance={advanceFromTrace}
-          />,
-        )}
-
-      {openSheet === "drill" &&
-        drill &&
-        drillContent &&
-        sheetBoundary(
-          <DrillView
-            topic={topic}
-            title={titleOf(drill.nodeId)}
-            plan={planOf(drill.nodeId)}
-            content={drillContent}
-            session={drill}
-            onExit={exitDrill}
-            onSure={(level) => dispatchDrill({ type: "sure", level })}
-            onAnswer={(index) => dispatchDrill({ type: "answer", index })}
-            onNext={() => dispatchDrill({ type: "next" })}
-            onAdvance={advanceFromDrill}
-          />,
-        )}
-
-      {openSheet === "connect" &&
-        connect &&
-        connectContent &&
-        sheetBoundary(
-          <ConnectView
-            content={connectContent}
-            session={connect}
-            plan={planOf(connect.nodeId)}
-            onExit={exitConnect}
-            onSelect={(id) => dispatchConnect({ type: "select", id })}
-            onDraft={(id, value) => dispatchConnect({ type: "draft", id, value })}
-            onConfirm={connectConfirm}
-            onPickMnemonic={(index) => dispatchConnect({ type: "pickMnemonic", index })}
-            onDraftMnemonic={(value) => dispatchConnect({ type: "draftMnemonic", value })}
-            onAcceptMnemonic={() => dispatchConnect({ type: "acceptMnemonic" })}
-            onFinish={advanceFromConnect}
-            judging={judging}
-          />,
-        )}
-
-      {openSheet === "recall" &&
-        recall &&
-        recallContent &&
-        sheetBoundary(
-          <RecallView
-            title={titleOf(recall.nodeId)}
-            plan={planOf(recall.nodeId)}
-            content={recallContent}
-            session={recall}
-            judging={judging}
-            onExit={exitRecall}
-            onWrite={(value) => dispatchRecall({ type: "write", value })}
-            onCue={() => dispatchRecall({ type: "cue" })}
-            onSubmit={recallSubmit}
-            onSure={(level) => dispatchRecall({ type: "sure", level })}
-            onAdvance={advanceFromRecall}
-          />,
-        )}
-
       {openSheet === "perform" &&
         perform &&
         performContent &&
@@ -270,61 +101,6 @@ export function phaseSheets(p: {
             onRerun={performRerun}
             onFix={(steps) => dispatchPerform({ type: "fix", steps })}
             onAdvance={advanceFromPerform}
-          />,
-        )}
-
-      {openSheet === "provenance" &&
-        provenance &&
-        provenanceContent &&
-        sheetBoundary(
-          <ProvenanceView
-            title={titleOf(provenance.nodeId)}
-            plan={planOf(provenance.nodeId)}
-            content={provenanceContent}
-            session={provenance}
-            onExit={exitProvenance}
-            onRule={(ruling) => dispatchProvenance({ type: "rule", ruling })}
-            onNext={() => dispatchProvenance({ type: "next" })}
-            onAdvance={advanceFromProvenance}
-          />,
-        )}
-
-      {openSheet === "steelman" &&
-        steelman &&
-        steelmanContent &&
-        sheetBoundary(
-          <SteelmanView
-            title={titleOf(steelman.nodeId)}
-            plan={planOf(steelman.nodeId)}
-            content={steelmanContent}
-            session={steelman}
-            judging={judging}
-            onExit={exitSteelman}
-            onWrite={(positionId, text) =>
-              dispatchSteelman({ type: "write", positionId, text })
-            }
-            onHold={(positionId, disconfirmer) =>
-              dispatchSteelman({ type: "hold", positionId, disconfirmer })
-            }
-            onSubmit={steelmanSubmit}
-            onAdvance={advanceFromSteelman}
-          />,
-        )}
-
-      {openSheet === "produce" &&
-        produce &&
-        produceContent &&
-        sheetBoundary(
-          <ProduceView
-            title={titleOf(produce.nodeId)}
-            plan={planOf(produce.nodeId)}
-            content={produceContent}
-            session={produce}
-            judging={judging}
-            onExit={exitProduce}
-            onSubmit={produceSubmit}
-            onNext={() => dispatchProduce({ type: "next" })}
-            onAdvance={advanceFromProduce}
           />,
         )}
     </>

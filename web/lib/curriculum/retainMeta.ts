@@ -1,8 +1,7 @@
 // The review card's vocabulary: its kinds, Anki's three queues, the grade
 // buttons, and which cards are the Retain factory's own. Split from
 // `retain.ts`, which keeps the session engine.
-import { CONNECT_COLOR } from "./connect";
-import { CRUCIBLE_COLOR } from "./crucible";
+import { color } from "@/lib/theme";
 import { STATE_COLOR } from "./types";
 import { Language } from "@/lib/i18n";
 
@@ -13,8 +12,8 @@ export type ReviewCardType = "recall" | "why" | "apply";
 export const REVIEW_TYPE_META: Record<ReviewCardType, { label: string; color: string }> =
   {
     recall: { label: "Recall", color: STATE_COLOR.learning },
-    why: { label: "Explain why", color: CONNECT_COLOR.accent },
-    apply: { label: "Application", color: CRUCIBLE_COLOR.accent },
+    why: { label: "Explain why", color: color.phaseConnect },
+    apply: { label: "Application", color: color.phaseCrucible },
   };
 
 const REVIEW_TYPE_LABEL_PT: Record<ReviewCardType, string> = {

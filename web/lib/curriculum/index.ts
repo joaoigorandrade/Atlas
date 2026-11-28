@@ -1,44 +1,28 @@
-// The concept-map vocabulary, mastery-state machine, and the pure session
-// engines (Socratic, Feynman, Connect, Crucible, Retain reducers).
+// The concept-map vocabulary, node-state machine, and the pure session engines
+// (Consume, Explain, Perform, Retain reducers; the exam).
 // All *content* is generated per topic by the AI through `/api/generate`;
 // this module holds only types, tokens, and logic.
 
 export * from "./phases";
 export * from "./cells";
-export * from "./glance";
 export * from "./domains";
 export * from "./answerCheck";
-export * from "./diagnostic";
 export * from "./types";
 export * from "./consume";
-export * from "./feed";
 export * from "./explain";
-export * from "./socratic";
-export * from "./feynman";
-export * from "./connect";
-export * from "./crucible";
-export * from "./discriminate";
-export * from "./predict";
-export * from "./trace";
 export * from "./perform";
-export * from "./produce";
-export * from "./provenance";
-export * from "./steelman";
-export * from "./drill";
 export * from "./exam";
 export * from "./examHistory";
-export * from "./recall";
 export * from "./retain";
 export * from "./retainMeta";
 export * from "./cardSources";
 export * from "./adherence";
 export * from "./calibration";
-export * from "./goalDate";
 export * from "./replan";
 export * from "./depth";
 export * from "./boundary";
 export * from "./spacing";
 export * from "./confidence";
 export * from "./topicMeta";
-export * from "./rationing";
 export * from "./ledger";
+export * from "./spine";

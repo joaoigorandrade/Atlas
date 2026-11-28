@@ -23,8 +23,7 @@ export const PART_OF_WORK =
 
 export async function withSyllabus(params: MapParams): Promise<MapParams> {
   const part = PART_OF_WORK.test(params.topic);
-  if ((params.goal !== "exam" && !part) || params.outline?.trim() || params.scoped)
-    return params;
+  if (!part || params.outline?.trim() || params.scoped) return params;
   // Asked as "the standard course", a named chapter came back as another
   // textbook's chapter of the same number — Sadiku's "Leis básicas" for Nilsson.
   // Memory of a book's contents stays unreliable: Nilsson's chapters 3-8 came

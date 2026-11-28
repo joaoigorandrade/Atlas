@@ -221,7 +221,7 @@ function examPrompt(
   plan: Readonly<Record<string, number>>,
   opts: { streamed: boolean; asked: readonly string[] },
 ): string {
-  const { topic, goal, interests, pool, difficulty, language = "en" } = params;
+  const { topic, interests, pool, difficulty, language = "en" } = params;
   const count = Object.values(plan).reduce((s, n) => s + n, 0);
   const lines = pool
     .filter((p) => plan[p.id])
@@ -245,7 +245,7 @@ ${shape}`
     ...exactly ${count}
   ]
 }`;
-  return `Write a MOCK EXAM on "${topic}" for a learner who has just finished studying every concept below. It is a rehearsal for being tested on the whole subject${goal === "exam" ? " — they are preparing for a real exam, so write in the register and style of one" : ""}.
+  return `Write a MOCK EXAM on "${topic}" for a learner who has just finished studying every concept below. It is a rehearsal for being tested on the whole subject.
 ${interestNote(interests)}
 
 Write exactly ${count} multiple-choice questions, each with exactly ${EXAM_OPTIONS} options and one correct answer. Tag each with the id of the concept it tests. How many questions each concept gets — exactly this many, no more, no fewer:

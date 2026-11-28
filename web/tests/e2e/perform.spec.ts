@@ -1,9 +1,5 @@
-// Perform, end to end — the twelfth phase, and the recite family's second.
-//
-// What this covers beyond Recall's spec: one engine really does serve two
-// phases with two different briefs, addressed at two different cache rows, on
-// two different screens. A family that collapsed to one would show up here as
-// Perform opening Recall's surface or reading Recall's content.
+// Perform, end to end — the third rung of the one ladder: one real case, the
+// work shown, judged step by step.
 
 import { expect, test } from "@playwright/test";
 import { openPhase, openRun, readNodeRows } from "./helpers";
@@ -12,7 +8,7 @@ test("perform: its own surface, its own brief, its own rung", async ({ page }) =
   await openRun(page, {
     "worked-cases": {
       state: "learning",
-      phases_done: ["consume", "trace", "feynman"],
+      phases_done: ["consume", "explain"],
     },
     "core-rule": "mastered",
     foundations: "mastered",
@@ -22,10 +18,7 @@ test("perform: its own surface, its own brief, its own rung", async ({ page }) =
 
   const sheet = page.getByTestId("phase-perform");
   await expect(sheet).toBeVisible();
-  // Its own screen and its own surface. Perform keeps the case on screen —
-  // it is not a memory test — where Recall gives a blank page and withholds
-  // everything.
-  await expect(page.getByTestId("phase-recall")).toHaveCount(0);
+  // Its own screen: Perform keeps the case on screen — it is not a memory test.
   await expect(sheet.getByTestId("perform-task")).toBeVisible();
   await expect(sheet.getByTestId("perform-verdict")).toHaveCount(0);
 
@@ -53,7 +46,7 @@ test("perform: a re-run asks for a new case and quotes where the last one broke"
   // reading the report. The failed run is logged, the server's `rerun` moves,
   // and a case is fetched fresh.
   await openRun(page, {
-    "worked-cases": { state: "learning", phases_done: ["consume", "trace", "feynman"] },
+    "worked-cases": { state: "learning", phases_done: ["consume", "explain"] },
     "core-rule": "mastered",
     foundations: "mastered",
     notation: "mastered",
@@ -84,7 +77,7 @@ test("perform: a failed run leads with the fix, and the fix lands in the work", 
   page,
 }) => {
   await openRun(page, {
-    "worked-cases": { state: "learning", phases_done: ["consume", "trace", "feynman"] },
+    "worked-cases": { state: "learning", phases_done: ["consume", "explain"] },
     "core-rule": "mastered",
     foundations: "mastered",
     notation: "mastered",
@@ -110,7 +103,7 @@ test("perform: a drawing alone is a run, and it reaches the checker", async ({
   page,
 }) => {
   await openRun(page, {
-    "worked-cases": { state: "learning", phases_done: ["consume", "trace", "feynman"] },
+    "worked-cases": { state: "learning", phases_done: ["consume", "explain"] },
     "core-rule": "mastered",
     foundations: "mastered",
     notation: "mastered",

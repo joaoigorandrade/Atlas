@@ -17,7 +17,7 @@ import { generateExamStream, type ExamParams } from "@/lib/server/generate/exam"
 
 const params: ExamParams = {
   topic: "Statistics",
-  goal: "mastery",
+  goal: "glance",
   interests: "",
   pool: [
     { id: "n0", label: "Mean" },

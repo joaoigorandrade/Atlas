@@ -25,38 +25,38 @@ function applied(before: Store, run: (set: never) => void): Store {
 
 const store: Store = {
   n1: {
-    crucible: { nodeId: "n1", attempt: "my transfer" },
+    explain: { nodeId: "n1", attempt: "my transfer" },
     perform: { nodeId: "n1", work: "my run" },
   },
-  n2: { crucible: { nodeId: "n2", attempt: "other node" } },
+  n2: { explain: { nodeId: "n2", attempt: "other node" } },
 };
 
 describe("parkedSession", () => {
   it("reads back the slot a phase parked", () => {
-    expect(parkedSession(store, "n1", "crucible")).toEqual({
+    expect(parkedSession(store, "n1", "explain")).toEqual({
       nodeId: "n1",
       attempt: "my transfer",
     });
   });
 
   it("is undefined for a node or a phase with nothing parked", () => {
-    expect(parkedSession(store, "n1", "drill")).toBeUndefined();
-    expect(parkedSession(store, "nobody", "crucible")).toBeUndefined();
+    expect(parkedSession(store, "n1", "retain")).toBeUndefined();
+    expect(parkedSession(store, "nobody", "explain")).toBeUndefined();
     // The caller falls back to a fresh session on undefined, so a store that
     // has never been written must not throw its way there.
-    expect(parkedSession({}, "n1", "crucible")).toBeUndefined();
+    expect(parkedSession({}, "n1", "explain")).toBeUndefined();
   });
 });
 
 describe("dropParked", () => {
   it("forgets one phase and leaves the node's other phases alone", () => {
-    const after = applied(store, (set) => dropParked(set, "n1", "crucible"));
-    expect(after.n1.crucible).toBeUndefined();
+    const after = applied(store, (set) => dropParked(set, "n1", "explain"));
+    expect(after.n1.explain).toBeUndefined();
     expect(after.n1.perform).toEqual({ nodeId: "n1", work: "my run" });
   });
 
   it("leaves other nodes untouched", () => {
-    const after = applied(store, (set) => dropParked(set, "n1", "crucible"));
+    const after = applied(store, (set) => dropParked(set, "n1", "explain"));
     expect(after.n2).toEqual(store.n2);
   });
 
@@ -64,8 +64,8 @@ describe("dropParked", () => {
     // Returning the same object is what keeps a drop that changed nothing off
     // the save debounce — an advance past a phase nobody parked must not
     // queue a write for every node it touches.
-    const after = applied(store, (set) => dropParked(set, "n1", "drill"));
+    const after = applied(store, (set) => dropParked(set, "n1", "retain"));
     expect(after).toBe(store);
-    expect(applied(store, (set) => dropParked(set, "ghost", "crucible"))).toBe(store);
+    expect(applied(store, (set) => dropParked(set, "ghost", "explain"))).toBe(store);
   });
 });

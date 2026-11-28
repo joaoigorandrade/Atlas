@@ -37,7 +37,7 @@ describe("deriveRow", () => {
   });
   it("a full ledger masters, a shaky reason holds it, an open gap holds it", () => {
     const full = {
-      phases_done: ["consume", "trace", "feynman", "perform"],
+      phases_done: ["consume", "explain", "perform"],
     } as Partial<LedgerRow>;
     expect(deriveRow(row(full), 0, now).state).toBe("mastered");
     expect(deriveRow(row({ ...full, shaky_reason: "crucible-fail" }), 0, now).state).toBe(
@@ -47,11 +47,14 @@ describe("deriveRow", () => {
   });
   it("stamps each phase the first time it closes and never moves a stamp", () => {
     const { closedAt } = deriveRow(
-      row({ phases_done: ["consume", "trace"], phase_closed_at: { consume: "earlier" } }),
+      row({
+        phases_done: ["consume", "explain"],
+        phase_closed_at: { consume: "earlier" },
+      }),
       0,
       now,
     );
-    expect(closedAt).toEqual({ consume: "earlier", trace: now });
+    expect(closedAt).toEqual({ consume: "earlier", explain: now });
   });
   it("leaves a gap node's own state alone", () => {
     expect(deriveRow(row({ is_gap: true, state: "gap" }), 0, now).state).toBe("gap");
@@ -66,9 +69,9 @@ describe("mergeLedger", () => {
       mergeLedger(["consume", "explain"], ["consume", "explain", "perform"], passed),
     ).toEqual(["consume", "explain", "perform"]);
     // A drop with no logged pass (placement, a seed, a reset) stands.
-    expect(mergeLedger(["consume"], ["consume", "crucible"], passed)).toEqual([
-      "consume",
-    ]);
+    expect(
+      mergeLedger(["consume"], ["consume", "perform"], new Set(["consume"])),
+    ).toEqual(["consume"]);
     // A fresh pass appends; nothing stored yet.
     expect(mergeLedger(["consume", "perform"], ["consume"], passed)).toEqual([
       "consume",

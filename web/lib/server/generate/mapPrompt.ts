@@ -7,21 +7,10 @@
 // file is what pushed it past its ceiling once the domain axis landed.
 
 import { sizeRule } from "./common";
-import {
-  DIFFICULTIES,
-  GOAL_CELLS,
-  IMPORTANCES,
-  PARETO_DEFAULT,
-  type GoalKind,
-} from "@/lib/curriculum";
+import { DIFFICULTIES, IMPORTANCES, MAP_CELLS, type GoalKind } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 
 const GOAL_HINT: Record<GoalKind, string> = {
-  exam: "The learner is preparing for an exam — cover the canonical syllabus of exactly what the topic names.",
-  project: "The learner wants to build something real — bias toward applicable tools.",
-  mastery:
-    "The learner wants deep general mastery — favor the conceptual foundations of exactly what the topic names.",
-  pareto: "", // supplied per-request by `paretoNote` — it depends on the chosen share.
   glance:
     "The learner just wants to KNOW what this is and use it once — a quick first look, not a course. Build the smallest map that answers that: ONE concept when the topic is one idea, never more than THREE, each one the learner can understand and try on a real case in minutes. ANSWER FIRST: the first concept IS the direct answer to what the learner asked (for 'why is the sea salty?', the origin of sea salt — not the water cycle), with NO prerequisites; any further concept only deepens or applies it and lists the first one as its prerequisite. When the topic is a tool, method or technique, the map ends with the learner USING it for what it is for — its main application on a real case — not with more ways to manipulate it. Never put background the learner did not ask about in front of the answer. This overrides every concept count and ordering rule below, the domain rows included.",
 };
@@ -29,9 +18,6 @@ const GOAL_HINT: Record<GoalKind, string> = {
 export interface MapParams {
   topic: string;
   goal: GoalKind;
-  /** Share of real-world results to cover when goal is "pareto" (#pareto):
-   *  a smaller map of only the highest-leverage concepts. */
-  paretoPct?: number;
   /** Extracted syllabus/outline text that grounds the map (#30), if uploaded. */
   outline?: string;
   /** This topic IS a scope the learner just picked off a too-broad offer, so
@@ -47,20 +33,8 @@ export interface MapParams {
   language?: Language;
 }
 
-/** The opening every curriculum-adjacent prompt shares: what to build, what
- *  grounds it, and the too-broad escape hatch. */
-function paretoNote(params: MapParams): string {
-  if (params.goal !== "pareto") return "";
-  const pct = params.paretoPct ?? PARETO_DEFAULT;
-  return `The learner wants a Pareto map: only the concepts that carry roughly the top ${pct}% of real-world results in this topic, at the least effort. Ruthlessly drop edge cases, history, rarely-used variants and completeness-for-its-own-sake — keep what a competent practitioner actually uses ${pct === 80 ? "most weeks" : "every day"}. A smaller, higher-leverage map is the goal, not coverage.`;
-}
-
 /** The band for a request: Pareto sizes by its share, a quick look by its own. */
-export const boundsFor = (p: Pick<MapParams, "goal" | "paretoPct">) =>
-  mapNodeBounds(
-    p.goal === "pareto" ? (p.paretoPct ?? PARETO_DEFAULT) : undefined,
-    p.goal,
-  );
+export const boundsFor = (p: Pick<MapParams, "goal">) => mapNodeBounds(undefined, p.goal);
 
 /** Concept-count band per map: the range the prompt asks for, plus the
  *  validator bounds around it. A Pareto map is deliberately smaller. */
@@ -125,7 +99,7 @@ export function mapContext(params: MapParams): string {
   const continent = params.neighbours?.length
     ? `\nThis map is one country of a larger continent the learner is charting. The NEIGHBOURING maps below are separate maps with their own concepts:\n${params.neighbours.map((n) => `- ${n}`).join("\n")}\nNo concept on this map may duplicate or re-teach one of theirs. Where this topic genuinely rests on one of them, start from it as known instead of mapping it again.\n`
     : "";
-  return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}${paretoNote(params)}
+  return `Build a prerequisite concept map for the topic "${topic}". ${GOAL_HINT[goal]}
 ${PART_OF_WORK}
 ${grounding}${continent}
 ${escape}`;
@@ -225,17 +199,13 @@ Whatever the domain: a topic that names ONE PART of a larger work takes its conc
  * being generated in the first place.
  */
 const AXES_MIX: Record<GoalKind, string> = {
-  pareto: `Roughly half the concepts "core" and half "working".`,
-  exam: `Roughly 40% "core" and the rest "working"; "peripheral" only for easy context the syllabus itself names.`,
-  project: `Roughly 40% "core" and 60% "working". A hard idea the build needs is a TOOL here: rate its difficulty by how hard it is to USE, not by how hard it is to understand inside.`,
-  mastery: `Weight the map to the core: at least half the concepts are "core". "working" and "peripheral" fill in what the core needs around it.`,
   glance: `Every concept is "working".`,
 };
 
 export function axesRule(goal: GoalKind): string {
-  const pairs = GOAL_CELLS[goal]
-    .map((c) => `${IMPORTANCES[Number(c[0]) - 1]}/${DIFFICULTIES[Number(c[1]) - 1]}`)
-    .join(", ");
+  const pairs = MAP_CELLS.map(
+    (c) => `${IMPORTANCES[Number(c[0]) - 1]}/${DIFFICULTIES[Number(c[1]) - 1]}`,
+  ).join(", ");
   return `"importance" is judged against the learner's goal above, never in general, and says how far the learner must take the concept:
   "core" — the goal rests on it: a hub many others build on, or a capstone the goal is about. The learner must MASTER it.
   "working" — the learner must be able to USE it to reach the core, not master it: a tool, a stepping stone.

@@ -64,7 +64,7 @@ describe.skipIf(!run)("verify backfill (W2.1)", () => {
           continue;
         }
         const kind = row.kind as Kind;
-        const a = VERIFY[kind] as unknown as (typeof VERIFY)["drill"];
+        const a = VERIFY[kind] as unknown as (typeof VERIFY)["explain"];
         const content = payload.content as never;
         const { context, items } = a.items(content);
         const bad = disputedIds(
@@ -73,7 +73,7 @@ describe.skipIf(!run)("verify backfill (W2.1)", () => {
         );
         if (!bad.length) continue;
         const kept = a.drop(content, bad);
-        if (a.items(kept).items.length >= a.min(kept) && kind !== "trace") {
+        if (a.items(kept).items.length >= a.min(kept)) {
           report.push(`${kind} ${row.key.slice(0, 10)}: ${bad.length} item(s) dropped`);
           await write(row.key, { ...payload, content: kept });
         } else {

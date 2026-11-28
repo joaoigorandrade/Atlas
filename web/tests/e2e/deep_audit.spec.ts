@@ -65,9 +65,7 @@ test.describe("Deep Web Feature Audit", () => {
     }
   });
 
-  test("1. Onboarding Flow: Welcome, Options, Diagnostic Quiz, Map Generation", async ({
-    page,
-  }) => {
+  test("1. Onboarding Flow: Welcome, Map Generation", async ({ page }) => {
     attachAuditListeners(page, audit);
     await clearRuns(page.request);
 
@@ -75,32 +73,14 @@ test.describe("Deep Web Feature Audit", () => {
     await expect(page.getByTestId("screen-welcome")).toBeVisible();
     audit.passedChecks.push("Welcome screen visible");
 
-    // Check goal choices
-    await page.getByTestId("action-mode-mastery").click();
-    await page.getByTestId("action-goal-project").click();
-    await page.getByTestId("action-goal-mastery").click();
-    audit.passedChecks.push("Goal toggles functional");
-
     // Fill topic
     await page.getByTestId("field-topic").fill(TOPIC);
     await page.getByTestId("action-build").click();
     audit.passedChecks.push("Topic entered and build initiated");
 
-    // Diagnostic quiz
-    await expect(page.getByTestId("screen-diagnostic")).toBeVisible({ timeout: 30_000 });
-    audit.passedChecks.push("Diagnostic screen loaded");
-
-    await page.getByTestId("action-take-placement").click();
-    for (let i = 0; i < 5; i++) {
-      const option = page.getByTestId("action-answer-1");
-      await expect(option).toBeVisible({ timeout: 20_000 });
-      await option.click();
-      await page.getByTestId("action-next").click();
-    }
-    audit.passedChecks.push("5 diagnostic questions answered");
-
-    await page.getByTestId("action-start").click({ timeout: 20_000 });
-    await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map");
+    await expect(page.getByTestId("app")).toHaveAttribute("data-screen", "map", {
+      timeout: 30_000,
+    });
     await expect(page.getByTestId("app")).toHaveAttribute("data-hydrated", "1");
     audit.passedChecks.push("Successfully transitioned to Map screen");
   });
@@ -175,84 +155,6 @@ test.describe("Deep Web Feature Audit", () => {
     await expect(recap).toBeVisible();
     await expect(recap.getByTestId("action-begin-next")).toBeVisible();
     audit.passedChecks.push("Consume recap screen displayed with Socratic hand-off");
-  });
-
-  test("4. Phase 1 (Socratic): Probes, Text Submission, Feedback", async ({ page }) => {
-    attachAuditListeners(page, audit);
-    await openRun(page, { [FIRST_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, "socratic");
-
-    const sheet = page.getByTestId("phase-socratic");
-    await expect(sheet).toBeVisible();
-    audit.passedChecks.push("Socratic sheet rendered");
-
-    for (let i = 0; i < 3; i++) {
-      const field = sheet.getByTestId("field-answer");
-      if (!(await field.isVisible().catch(() => false))) break;
-      await field.fill("This is my understanding of the core concept and its rules.");
-      const submit = sheet.getByTestId("action-submit");
-      await expect(submit).toBeVisible();
-      await submit.click();
-      await page.waitForTimeout(500);
-    }
-    audit.passedChecks.push("Socratic probes answered and submitted");
-  });
-
-  test("5. Phase 2 (Feynman): Teach-back, Rubric, Gap Detection", async ({ page }) => {
-    attachAuditListeners(page, audit);
-    await openRun(page, { [FIRST_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, "feynman");
-
-    const sheet = page.getByTestId("phase-feynman");
-    await expect(sheet).toBeVisible();
-    await sheet.getByTestId("action-begin").click();
-    audit.passedChecks.push("Feynman teach-back begun");
-
-    for (let i = 0; i < 2; i++) {
-      const field = sheet.getByTestId("field-answer");
-      await expect(field).toBeVisible({ timeout: 10_000 });
-      await field.fill(`Explaining concept beat ${i + 1} simply as if to a newcomer.`);
-      const last = i === 1;
-      await sheet.getByTestId(last ? "action-submit" : "action-next").click();
-    }
-    audit.passedChecks.push("Feynman beats submitted");
-
-    const advance = sheet.getByTestId("action-advance");
-    await expect(advance).toBeVisible({ timeout: 20_000 });
-    audit.passedChecks.push("Feynman evaluation and advance button displayed");
-  });
-
-  test("6. Phase 3 (Connect): Concept Relationships & Linking", async ({ page }) => {
-    attachAuditListeners(page, audit);
-    await openRun(page, { [FIRST_NODE]: "learning", [SECOND_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, "connect");
-
-    const sheet = page.getByTestId("phase-connect");
-    await expect(sheet).toBeVisible();
-    audit.passedChecks.push("Connect sheet rendered");
-  });
-
-  test("7. Phase 4 (Crucible): Transfer Problem & Calibration", async ({ page }) => {
-    attachAuditListeners(page, audit);
-    await openRun(page, { [FIRST_NODE]: "shaky", [SECOND_NODE]: "mastered" });
-    await openPhase(page, FIRST_NODE, "crucible");
-
-    const sheet = page.getByTestId("phase-crucible");
-    await expect(sheet).toBeVisible();
-    audit.passedChecks.push("Crucible sheet rendered");
-
-    // Confidence rating
-    const conf = sheet.getByTestId("action-confidence-2");
-    if (await conf.isVisible().catch(() => false)) {
-      await conf.click();
-      audit.passedChecks.push("Crucible confidence rating selected");
-    }
-
-    const field = sheet.getByTestId("field-answer");
-    await expect(field).toBeVisible();
-    await field.fill("Applying this knowledge in a practical transfer scenario.");
-    await sheet.getByTestId("action-submit").click();
-    audit.passedChecks.push("Crucible transfer problem answered and submitted");
   });
 
   test("8. Phase 5 (Retain): Spaced Repetition Flashcards & FSRS Grading", async ({

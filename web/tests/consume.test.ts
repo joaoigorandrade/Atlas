@@ -13,10 +13,10 @@ import {
   preferredModality,
   planGates,
   stateFromPlan,
-  LEGACY_PHASE_PLAN,
   readingProgress,
   type ConsumeProgress,
   type ModalityTally,
+  LADDER,
 } from "@/lib/curriculum";
 import { altParagraphs, segmentsForChunk } from "@/lib/speech";
 import { validatePassage } from "@/lib/server/generate";
@@ -75,7 +75,7 @@ describe("readingProgress", () => {
 // ---- the phase spiral, derived from what the learner has finished ---------
 
 describe("phaseIndex over a node's own plan", () => {
-  const PLAN = LEGACY_PHASE_PLAN;
+  const PLAN = LADDER;
 
   it("points at Consume while the reading is unfinished", () => {
     // Consume only enters `phasesDone` when the pass is read through, so a
@@ -102,28 +102,19 @@ describe("phaseIndex over a node's own plan", () => {
 
 describe("stateFromPlan", () => {
   it("keeps a part-read node out of frontier without finishing a phase", () => {
-    expect(stateFromPlan(LEGACY_PHASE_PLAN, [])).toBe("unknown");
-    expect(stateFromPlan(LEGACY_PHASE_PLAN, [], { started: true })).toBe("learning");
+    expect(stateFromPlan(LADDER, [])).toBe("unknown");
+    expect(stateFromPlan(LADDER, [], { started: true })).toBe("learning");
   });
 
   it("goes green when the last gate closes, not when Retain does", () => {
-    const gates = planGates(LEGACY_PHASE_PLAN);
-    expect(stateFromPlan(LEGACY_PHASE_PLAN, gates)).toBe("mastered");
-    expect(stateFromPlan(LEGACY_PHASE_PLAN, gates.slice(0, -1))).toBe("learning");
+    const gates = planGates(LADDER);
+    expect(stateFromPlan(LADDER, gates)).toBe("mastered");
+    expect(stateFromPlan(LADDER, gates.slice(0, -1))).toBe("learning");
   });
 
   it("holds a finished plan at shaky while a reason stands", () => {
-    const gates = planGates(LEGACY_PHASE_PLAN);
-    expect(stateFromPlan(LEGACY_PHASE_PLAN, gates, { shaky: "crucible-fail" })).toBe(
-      "shaky",
-    );
-  });
-
-  it("reaches mastered through a plan with no Crucible in it", () => {
-    // The whole point of the inversion: green was reachable only by passing
-    // Crucible, because exactly one line in `useSpiral` wrote it.
-    const plan = ["consume", "socratic", "retain"] as const;
-    expect(stateFromPlan(plan, ["consume", "socratic"])).toBe("mastered");
+    const gates = planGates(LADDER);
+    expect(stateFromPlan(LADDER, gates, { shaky: "crucible-fail" })).toBe("shaky");
   });
 });
 
@@ -278,14 +269,7 @@ describe("prove it on sight", () => {
     total: 3,
     pretest: { a: true, b: true, c: true },
   };
-  const plan = [
-    "consume",
-    "discriminate",
-    "socratic",
-    "crucible",
-    "recall",
-    "retain",
-  ] as const;
+  const plan = LADDER;
 
   it("needs every section guessed right, over a finished pass of two or more", () => {
     expect(pretestClean(clean)).toBe(true);
@@ -305,7 +289,7 @@ describe("prove it on sight", () => {
 
   it("offers the proof gate once — not after it was tried, nor on a Shaky node", () => {
     expect(provesOnSight(plan, ["consume"], "learning", clean)).toBe(true);
-    expect(provesOnSight(plan, ["consume", "crucible"], "learning", clean)).toBe(false);
+    expect(provesOnSight(plan, ["consume", "perform"], "learning", clean)).toBe(false);
     expect(provesOnSight(plan, ["consume"], "shaky", clean, "crucible-fail")).toBe(false);
     expect(provesOnSight(plan, ["consume"], "learning", clean, "crucible-fail")).toBe(
       false,

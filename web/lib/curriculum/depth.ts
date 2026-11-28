@@ -4,7 +4,7 @@
 // on it unchanged; what makes it bonus is that no total counts it (`isCore`).
 
 import { DIFFICULTIES } from "./cells";
-import { resolvePlan } from "./phases";
+import { LADDER } from "./phases";
 import { SPAWN_WEEK, displayStates, type StateMap } from "./replan";
 import {
   baseIdOf,
@@ -47,7 +47,7 @@ export function spawnDepth(
     ...(base.domain ? { domain: base.domain } : null),
     ...(base.importance ? { importance: base.importance } : null),
     difficulty,
-    phasePlan: resolvePlan(kind, base.domain ?? "general", base.importance, difficulty),
+    phasePlan: LADDER,
     g: from.g,
     week: SPAWN_WEEK,
     x: from.x,

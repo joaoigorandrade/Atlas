@@ -11,7 +11,7 @@
 // and a hit is served without re-validation, which is exactly why the shape has
 // to be checked here rather than assumed.
 
-import type { ConsumeChunk, FeynmanBeat } from "@/lib/curriculum";
+import type { ConsumeChunk } from "@/lib/curriculum";
 
 /** A cached chunk from before the reading-first Consume rewrite: one short
  *  body string, a prediction on every chunk, verdict copy hanging off the
@@ -50,20 +50,6 @@ export function migrateConsume(
         };
       }),
     ]),
-  );
-}
-
-/** Teach-back rubrics written before the blank-page rewrite are scripts, not
- *  rubrics: a learner monologue and three canned replies, with nothing to grade
- *  an explanation against. There is no `mustConvey` to recover from them, so
- *  they are dropped and the node writes a fresh rubric on its next teach-back. */
-export function usableRubrics(
-  cached: Record<string, FeynmanBeat[]> | undefined,
-): Record<string, FeynmanBeat[]> {
-  return Object.fromEntries(
-    Object.entries(cached ?? {}).filter(([, beats]) =>
-      beats?.every((b) => Array.isArray(b?.mustConvey) && b.mustConvey.length),
-    ),
   );
 }
 

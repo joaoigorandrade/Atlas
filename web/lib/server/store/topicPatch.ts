@@ -16,7 +16,6 @@ export async function patchTopic(
   patch: TopicPatch,
 ): Promise<void> {
   const row = {
-    ...(patch.goal !== undefined ? { goal: patch.goal } : null),
     ...(patch.interests !== undefined ? { interests: patch.interests } : null),
     ...(patch.paretoPct !== undefined ? { pareto_pct: patch.paretoPct } : null),
     ...(patch.examDate !== undefined ? { exam_date: patch.examDate } : null),

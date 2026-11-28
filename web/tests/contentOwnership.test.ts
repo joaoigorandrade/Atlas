@@ -72,7 +72,9 @@ describe("the batch warm", () => {
   beforeEach(async () => {
     recorded.calls = [];
     const { resolveJob } = await import("@/lib/server/job");
-    shared.current = { [resolveJob(consume as never).key!]: { chunks: [{ id: "c1" }] } };
+    // The route stamps the topic's axes first; every topic carries the one-flow stamp.
+    const stamped = { ...consume, quickLook: true };
+    shared.current = { [resolveJob(stamped as never).key!]: { chunks: [{ id: "c1" }] } };
   });
 
   it("records a hit against the topic that asked for it", async () => {

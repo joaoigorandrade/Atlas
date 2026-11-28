@@ -7,27 +7,13 @@ import type {
   AltKey,
   ConsumeChunk,
   ConsumeModelBeat,
-  CrucibleContent,
-  DiagnosticDifficulty,
-  DiscriminateContent,
   ExplainContent,
-  DrillContent,
-  DiagnosticQuestion,
-  ElaborationContent,
-  FeynmanBeat,
   GoalKind,
   MapNode,
   Domain,
   NodeKind,
-  ProduceContent,
-  ProvenanceContent,
-  SteelmanContent,
   PerformContent,
-  PredictContent,
-  RecallContent,
   RetainContent,
-  TraceContent,
-  SocraticStep,
 } from "@/lib/curriculum";
 import { AtlasError, codeForStatus, isErrorCode, toAtlasError } from "@/lib/errors";
 import { addressed, generationEpoch } from "@/lib/generationTopic";
@@ -198,42 +184,6 @@ export async function fetchCurriculumMapStream(
   const scopes = collectFrames<ScopeOffer>(frames, "scopes");
   if (scopes.length > 0) return { scopes };
   return { nodes: collectFrames<MapNode>(frames, "nodes") };
-}
-
-export interface DiagnosticQuestionParams {
-  topic: string;
-  goal: GoalKind;
-  interests: string;
-  language?: Language;
-  /**
-   * What settles a claim in this topic, which decides the SHAPE of the probe —
-   * `compute` for formal, `speak` for performative, `order` for interpretive
-   * (see `DIAGNOSTIC_SHAPE`). Read off the map's nodes with `topicDomainOf`.
-   *
-   * Required, and deliberately: this field was optional when the axis shipped,
-   * so both call sites simply never passed it, `nodeAxes` resolved `general`
-   * on every request, and every learner in production got the default MCQ
-   * while the table sat unreachable. Nothing errored. Making it required is
-   * the only check that cannot be forgotten — `topicDomainOf` always returns
-   * an answer, so satisfying it costs a caller nothing, and `general` still
-   * keys to the row a pre-domain request wrote.
-   */
-  domain: Domain;
-  /** Concept nodes this question may probe — already-asked ones excluded. */
-  pool: Array<{ id: string; label: string }>;
-  difficulty: DiagnosticDifficulty;
-}
-
-/**
- * One placement question at the given difficulty. Called again only once the
- * learner has answered the previous one — the next difficulty is a function
- * of that answer (see `stepDifficulty` in lib/curriculum.ts), so the
- * questions can't be pre-fetched as a batch.
- */
-export function fetchDiagnosticQuestion(
-  params: DiagnosticQuestionParams,
-): Promise<DiagnosticQuestion> {
-  return post<DiagnosticQuestion>({ kind: "diagnosticQuestion", ...params });
 }
 
 // Each fetcher pairs with a `<kind>Request` builder returning the exact body
@@ -484,108 +434,6 @@ export async function fetchPassageStream(
   return collectFrames<string>(frames, "answer");
 }
 
-export const socraticRequest = (params: {
-  topic: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  /** The concepts around this one on the map: what earlier passes already
-   *  taught, and what later ones own. Keeps a pass inside its own concept
-   *  instead of re-teaching a prerequisite or spoiling the next node. */
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "socratic", ...params });
-
-export async function fetchSocratic(
-  params: Parameters<typeof socraticRequest>[0],
-  opts?: FetchOpts,
-): Promise<SocraticStep[]> {
-  return (await post<{ steps: SocraticStep[] }>(socraticRequest(params), opts)).steps;
-}
-
-/** Foreground Socratic: the tutor's first probe renders as soon as it's
- *  written, the rest follow. Background warms stay on `fetchSocratic`. */
-export async function fetchSocraticStream(
-  params: Parameters<typeof socraticRequest>[0],
-  onStep: (step: SocraticStep, index: number) => void,
-): Promise<SocraticStep[]> {
-  const frames = await fetchStream(socraticRequest(params), (frame) => {
-    if (frame.p === "steps" && "i" in frame) onStep(frame.v as SocraticStep, frame.i);
-  });
-  return collectFrames<SocraticStep>(frames, "steps");
-}
-
-export const feynmanRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  interests: string;
-  language?: Language;
-  /** The concepts around this one on the map: what earlier passes already
-   *  taught, and what later ones own. Keeps a pass inside its own concept
-   *  instead of re-teaching a prerequisite or spoiling the next node. */
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "feynman", ...params });
-
-export async function fetchFeynman(
-  params: Parameters<typeof feynmanRequest>[0],
-  opts?: FetchOpts,
-): Promise<FeynmanBeat[]> {
-  return (await post<{ beats: FeynmanBeat[] }>(feynmanRequest(params), opts)).beats;
-}
-
-/** Foreground Feynman: the first beat opens the teach-back, the rest follow.
- *  This is the largest payload of any phase, so it gains the most. */
-export async function fetchFeynmanStream(
-  params: Parameters<typeof feynmanRequest>[0],
-  onBeat: (beat: FeynmanBeat, index: number) => void,
-): Promise<FeynmanBeat[]> {
-  const frames = await fetchStream(feynmanRequest(params), (frame) => {
-    if (frame.p === "beats" && "i" in frame) onBeat(frame.v as FeynmanBeat, frame.i);
-  });
-  return collectFrames<FeynmanBeat>(frames, "beats");
-}
-
-export const connectRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  pool: Array<{ id: string; label: string }>;
-  interests: string;
-  language?: Language;
-}) => ({ kind: "connect", ...params });
-
-export async function fetchConnect(
-  params: Parameters<typeof connectRequest>[0],
-  opts?: FetchOpts,
-): Promise<ElaborationContent> {
-  return (await post<{ content: ElaborationContent }>(connectRequest(params), opts))
-    .content;
-}
-
-export const crucibleRequest = (params: {
-  topic: string;
-  nodeId: string;
-  nodeLabel: string;
-  masteredLabels: string[];
-  interests: string;
-  language?: Language;
-  /** The concepts around this one on the map: what earlier passes already
-   *  taught, and what later ones own. Keeps a pass inside its own concept
-   *  instead of re-teaching a prerequisite or spoiling the next node. */
-  priorLabels?: string[];
-  laterLabels?: string[];
-}) => ({ kind: "crucible", ...params });
-
-export async function fetchCrucible(
-  params: Parameters<typeof crucibleRequest>[0],
-  opts?: FetchOpts,
-): Promise<CrucibleContent> {
-  return (await post<{ content: CrucibleContent }>(crucibleRequest(params), opts))
-    .content;
-}
-
 // The six phases of the catalogue's growth to twelve. One request builder and
 // one fetcher each: they take the same inputs, but each returns its own shape,
 // and a shared builder would be a place for two of them to drift into one.
@@ -611,19 +459,6 @@ export interface NodeRequest {
   laterLabels?: string[];
 }
 
-export const discriminateRequest = (params: NodeRequest) => ({
-  kind: "discriminate",
-  ...params,
-});
-
-export async function fetchDiscriminate(
-  params: Parameters<typeof discriminateRequest>[0],
-  opts?: FetchOpts,
-): Promise<DiscriminateContent> {
-  return (await post<{ content: DiscriminateContent }>(discriminateRequest(params), opts))
-    .content;
-}
-
 export const explainRequest = (params: NodeRequest) => ({ kind: "explain", ...params });
 
 export async function fetchExplain(
@@ -633,42 +468,6 @@ export async function fetchExplain(
   return (await post<{ content: ExplainContent }>(explainRequest(params), opts)).content;
 }
 
-export const predictRequest = (params: NodeRequest) => ({ kind: "predict", ...params });
-
-export async function fetchPredict(
-  params: Parameters<typeof predictRequest>[0],
-  opts?: FetchOpts,
-): Promise<PredictContent> {
-  return (await post<{ content: PredictContent }>(predictRequest(params), opts)).content;
-}
-
-export const traceRequest = (params: NodeRequest) => ({ kind: "trace", ...params });
-
-export async function fetchTrace(
-  params: Parameters<typeof traceRequest>[0],
-  opts?: FetchOpts,
-): Promise<TraceContent> {
-  return (await post<{ content: TraceContent }>(traceRequest(params), opts)).content;
-}
-
-export const drillRequest = (params: NodeRequest) => ({ kind: "drill", ...params });
-
-export async function fetchDrill(
-  params: Parameters<typeof drillRequest>[0],
-  opts?: FetchOpts,
-): Promise<DrillContent> {
-  return (await post<{ content: DrillContent }>(drillRequest(params), opts)).content;
-}
-
-export const recallRequest = (params: NodeRequest) => ({ kind: "recall", ...params });
-
-export async function fetchRecall(
-  params: Parameters<typeof recallRequest>[0],
-  opts?: FetchOpts,
-): Promise<RecallContent> {
-  return (await post<{ content: RecallContent }>(recallRequest(params), opts)).content;
-}
-
 export const performRequest = (params: NodeRequest) => ({ kind: "perform", ...params });
 
 export async function fetchPerform(
@@ -676,41 +475,6 @@ export async function fetchPerform(
   opts?: FetchOpts,
 ): Promise<PerformContent> {
   return (await post<{ content: PerformContent }>(performRequest(params), opts)).content;
-}
-
-export const provenanceRequest = (params: Omit<NodeRequest, "interests">) => ({
-  kind: "provenance",
-  ...params,
-});
-
-export async function fetchProvenance(
-  params: Parameters<typeof provenanceRequest>[0],
-  opts?: FetchOpts,
-): Promise<ProvenanceContent> {
-  return (await post<{ content: ProvenanceContent }>(provenanceRequest(params), opts))
-    .content;
-}
-
-export const steelmanRequest = (params: Omit<NodeRequest, "interests">) => ({
-  kind: "steelman",
-  ...params,
-});
-
-export async function fetchSteelman(
-  params: Parameters<typeof steelmanRequest>[0],
-  opts?: FetchOpts,
-): Promise<SteelmanContent> {
-  return (await post<{ content: SteelmanContent }>(steelmanRequest(params), opts))
-    .content;
-}
-
-export const produceRequest = (params: NodeRequest) => ({ kind: "produce", ...params });
-
-export async function fetchProduce(
-  params: Parameters<typeof produceRequest>[0],
-  opts?: FetchOpts,
-): Promise<ProduceContent> {
-  return (await post<{ content: ProduceContent }>(produceRequest(params), opts)).content;
 }
 
 export const retainRequest = (params: {

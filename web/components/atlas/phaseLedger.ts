@@ -18,9 +18,7 @@
 import { useCallback, useRef } from "react";
 import { recordAttempt } from "@/lib/attempts";
 import {
-  heldGate,
   heldUntil,
-  holdFrom,
   ledgerAfter,
   openGapIds,
   phasePlan,
@@ -56,8 +54,6 @@ export function usePhaseLedger(deps: {
    *  Retain is excluded because it has no per-node generation to pull: it is
    *  the shared review queue, warmed on its own schedule by `retainPlan`. */
   warmOne: (kind: Exclude<PhaseId, "retain">, node: ConceptNode) => void;
-  /** A "just want to know" map: its Perform runs in the same sitting, no night. */
-  quick: () => boolean;
 }) {
   const {
     graphRef,
@@ -69,7 +65,6 @@ export function usePhaseLedger(deps: {
     setPhaseProgress,
     phaseProgressRef,
     warmOne,
-    quick,
   } = deps;
   /** The node under a "prove it" challenge, if any. Session-only on purpose:
    *  a reload drops it, which fails safe — the attempt just credits itself. */
@@ -87,12 +82,6 @@ export function usePhaseLedger(deps: {
       setPhaseProgress(patch);
     },
     [phaseProgressRef, setPhaseProgress],
-  );
-  /** Hold `phase` on this node for a night (`spacing.ts`). Merged into the
-   *  slot, so a session parked there survives the wait. */
-  const hold = useCallback(
-    (id: string, phase: PhaseId) => patchSlot(id, phase, holdFrom()),
-    [patchSlot],
   );
   /** End a hold early — a "prove it" challenge is exempt from the night. */
   const release = useCallback(
@@ -150,10 +139,6 @@ export function usePhaseLedger(deps: {
       // several of these in one tick, and each needs to see the last.
       phasesDoneRef.current = { ...phasesDoneRef.current, [node.id]: done };
       setPhasesDone((p) => ({ ...p, [node.id]: done }));
-      // Anything studied on a node pushes its last gate a night out (W4.1):
-      // the proof has to outlast the sitting it was learned in.
-      const gate = quick() ? null : heldGate(plan, done, phase);
-      if (gate) hold(node.id, gate);
       const held = shakyReasonsRef.current[node.id];
       const reason = reasonAfter(plan, done, phase, shaky, held);
       if (held && !reason) setShakyReason(node.id, null);
@@ -161,16 +146,7 @@ export function usePhaseLedger(deps: {
       setStates((p) => ({ ...p, [node.id]: state }));
       return state;
     },
-    [
-      phasesDoneRef,
-      setPhasesDone,
-      shakyReasonsRef,
-      setShakyReason,
-      setStates,
-      gapsOf,
-      hold,
-      quick,
-    ],
+    [phasesDoneRef, setPhasesDone, shakyReasonsRef, setShakyReason, setStates, gapsOf],
   );
 
   /**
@@ -249,7 +225,6 @@ export function usePhaseLedger(deps: {
     completePhase,
     settle,
     gapsOf,
-    hold,
     markStarted,
     warmNext,
     armChallenge,

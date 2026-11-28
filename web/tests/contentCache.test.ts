@@ -116,13 +116,12 @@ describe("contentKey", () => {
     const base = {
       kind: "curriculum" as const,
       topic: "Rust",
-      goal: "mastery" as const,
+      goal: "glance" as const,
     };
     expect(resolveJob({ ...base, interests: "game dev" }).key).toBe(
       resolveJob({ ...base, interests: "web servers" }).key,
     );
     // Everything the map *is* derived from still separates.
-    expect(resolveJob(base).key).not.toBe(resolveJob({ ...base, goal: "exam" }).key);
     expect(resolveJob(base).key).not.toBe(
       resolveJob({ ...base, outline: "Unit 1: Ownership" }).key,
     );
@@ -133,14 +132,14 @@ describe("contentKey", () => {
   // and `domain` do: absent at its default, so every map row written before
   // the flag existed keeps its address and no VERSION bump is owed.
   it("keys an ordinary build to the row it always had", () => {
-    const base = { kind: "curriculum" as const, topic: "Rust", goal: "mastery" as const };
+    const base = { kind: "curriculum" as const, topic: "Rust", goal: "glance" as const };
     expect(resolveJob({ ...base, scoped: false }).key).toBe(resolveJob(base).key);
   });
 
   it("separates a picked scope, which asks a different prompt", () => {
     // Same topic string, two different questions: "is this too broad?" versus
     // "the learner already answered that — build it."
-    const base = { kind: "curriculum" as const, topic: "Rust", goal: "mastery" as const };
+    const base = { kind: "curriculum" as const, topic: "Rust", goal: "glance" as const };
     expect(resolveJob({ ...base, scoped: true }).key).not.toBe(resolveJob(base).key);
   });
 
@@ -195,19 +194,6 @@ describe("the curriculum warm addresses the learner's own rows", () => {
 
   it("matches for consume, including the prerequisite label list", () => {
     expect(resolveJob(warmConsume).key).toBe(resolveJob(clientConsume).key);
-  });
-
-  it("matches for socratic, where the warm passes an unused nodeId", () => {
-    const client = {
-      kind: "socratic" as const,
-      topic: "Rust",
-      nodeLabel: "Ownership",
-      interests: "game dev",
-      language: "en" as const,
-    };
-    expect(resolveJob({ ...client, nodeId: "ownership" }).key).toBe(
-      resolveJob(client).key,
-    );
   });
 
   it("still separates nodes — a warm for one node is not a hit for another", () => {
@@ -306,13 +292,13 @@ describe("the curriculum warm addresses the learner's own rows", () => {
 
   it("writes the pre-grid prompt for the default cell and a note for the rest", () => {
     expect(cellNote(undefined, "consume")).toBe("");
-    expect(cellNote("12", "drill")).toBe("");
+    expect(cellNote("12", "perform")).toBe("");
     expect(consumeBand("12")).toEqual({ min: 2, max: 5 });
     expect(cellNote("22", "consume")).toMatch(/WORKING TOOL/);
     expect(cellNote("33", "consume")).toMatch(/BLACK BOX/);
     expect(cellNote("33", "consume")).not.toMatch(/HARD for newcomers/);
     expect(cellNote("13", "consume")).toMatch(/misconception/);
-    expect(cellNote("13", "drill")).toMatch(/climb/);
+    expect(cellNote("13", "perform")).toMatch(/climb/);
     expect(consumeBand("31")).toEqual({ min: 2, max: 2 });
   });
 });

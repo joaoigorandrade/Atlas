@@ -166,7 +166,8 @@ function objectsFor(prompt: string): unknown[] {
   if (isJudge(prompt))
     return [{ quality: "near" }, { quality: "near", response: "the streamed critique" }];
   if (isPassage(prompt)) return passageObjs;
-  if (isConsume(prompt)) return repeatSection ? [...consumeObjs, consumeObjs[1]] : consumeObjs;
+  if (isConsume(prompt))
+    return repeatSection ? [...consumeObjs, consumeObjs[1]] : consumeObjs;
   return [{}];
 }
 
@@ -265,262 +266,6 @@ async function drain(
   return frames;
 }
 
-describe("curriculum map + adaptive placement, split prompts", () => {
-  it("generates the map on its own — no bundled diagnostic", async () => {
-    const { generateMap } = await import("@/lib/server/generate");
-    const result = await generateMap({ topic: "Rust", goal: "mastery" });
-
-    if ("scopes" in result) throw new Error("expected a map, not scope offers");
-    // Layout is computed server-side, never trusted from the model.
-    expect(result.nodes).toHaveLength(12);
-    expect(result.nodes[0].state).toBe("unknown");
-    expect(typeof result.nodes[0].x).toBe("number");
-    // Edges travel on the nodes, so a partial list is still a real graph.
-    expect(result.nodes[0].prereqs).toEqual([]);
-    expect(result.nodes[1].prereqs).toEqual(["n0"]);
-    expect("diagnostic" in result).toBe(false);
-  });
-
-  it("asks one objective placement question at the requested difficulty", async () => {
-    const { generateMap, generateDiagnosticQuestion } =
-      await import("@/lib/server/generate");
-    const map = await generateMap({ topic: "Rust", goal: "mastery" });
-    if ("scopes" in map) throw new Error("expected a map, not scope offers");
-
-    const question = await generateDiagnosticQuestion({
-      topic: "Rust",
-      goal: "mastery",
-      interests: "",
-      nodeCandidates: map.nodes.map((n) => ({ id: n.id, label: n.label })),
-      difficulty: "medium",
-    });
-
-    // The tag is the probed concept's label — the panel reads it as a noun
-    // ("<tag> and everything under it is marked known"), and the progress bar
-    // already carries the count.
-    expect(question.tag).toBe("Concept 3");
-    expect(question.difficulty).toBe("medium");
-    expect(question.nodeId).toBe("n3");
-    expect(question.opts).toHaveLength(4);
-    expect(question.correctIndex).toBe(2);
-    expect(question.gap).toEqual({
-      id: "gap-diag-n3",
-      label: "Gap 3",
-      reason: "you missed the binding rule",
-      dx: -85,
-      dy: 148,
-    });
-  });
-
-  it("streams the map a concept at a time, then settles the layout", async () => {
-    const { generateMapStream } = await import("@/lib/server/generate");
-    const frames = await drain(generateMapStream({ topic: "Rust", goal: "mastery" }));
-
-    const nodes = frames.filter((f) => f.p === "nodes");
-    // 12 as written, then 12 again in the settling pass that re-centres each
-    // column now its height is known — same slots, so assembly folds them.
-    expect(nodes).toHaveLength(24);
-    expect(nodes.slice(0, 12).map((f) => f.i)).toEqual([...Array(12).keys()]);
-    expect(nodes.slice(12).map((f) => f.i)).toEqual([...Array(12).keys()]);
-
-    // The whole claim: the first concept is on screen long before the last is
-    // written, rather than the map landing in one piece at the end.
-    expect(nodes[0].at).toBeLessThan(nodes[11].at / 2);
-
-    // Layout is the server's, and a node arrives already placed.
-    const first = nodes[0].v as {
-      id: string;
-      x: number;
-      g: number;
-      prereqs: string[];
-    };
-    expect(first.id).toBe("n0");
-    expect(first.g).toBe(1);
-    expect(typeof first.x).toBe("number");
-    expect(first.prereqs).toEqual([]);
-  });
-
-  it("assembles into exactly what the single-shot pass would have returned", async () => {
-    // The round-trip that makes streaming safe to cache: /api/generate writes
-    // the assembled payload under the job's normal key, so a streamed map and
-    // a generated-in-one-piece map must be indistinguishable to `content_cache`.
-    const { generateMap, generateMapStream } = await import("@/lib/server/generate");
-    const { framesToPayload } = await import("@/lib/server/stream");
-    const { resolveJob } = await import("@/lib/server/job");
-
-    const shape = resolveJob({
-      kind: "curriculum",
-      topic: "Rust",
-      goal: "mastery",
-    }).shape!;
-    const frames = await drain(generateMapStream({ topic: "Rust", goal: "mastery" }));
-    const assembled = framesToPayload(
-      frames.map(({ p, i, v }) => (i === undefined ? { p, v } : { p, i, v })),
-      shape,
-    );
-
-    expect(assembled).toEqual(await generateMap({ topic: "Rust", goal: "mastery" }));
-  });
-
-  it("streams scope offers for a too-broad topic, and nothing else (#30)", async () => {
-    const { generateMapStream } = await import("@/lib/server/generate");
-    tooBroad = true;
-    try {
-      const frames = await drain(
-        generateMapStream({ topic: "Science", goal: "mastery" }),
-      );
-      expect(frames.map((f) => f.p)).toEqual(["scopes", "scopes"]);
-      expect((frames[0].v as { label: string }).label).toBe("Ownership And Borrowing");
-    } finally {
-      tooBroad = false;
-    }
-  });
-
-  it("falls back to the single-shot map when its stream is unusable", async () => {
-    const { generateMapStream } = await import("@/lib/server/generate");
-    breakStream = true;
-    try {
-      const frames = await drain(generateMapStream({ topic: "Rust", goal: "mastery" }));
-      // The learner still gets a complete map — it just arrives at once, from
-      // the retried path, instead of concept by concept.
-      expect(frames).toHaveLength(12);
-      expect(frames.map((f) => f.i)).toEqual([...Array(12).keys()]);
-    } finally {
-      breakStream = false;
-    }
-  });
-
-  it("falls back to the single-shot path when the stream is unusable", async () => {
-    const { generateSocraticStream } = await import("@/lib/server/generate");
-    breakStream = true;
-    try {
-      const frames = await drain(
-        generateSocraticStream({
-          topic: "Rust",
-          nodeLabel: "Ownership",
-          interests: "",
-        }),
-      );
-      // The learner still gets a complete pass — it just arrives all at once,
-      // from the retried path, instead of item by item.
-      expect(frames).toHaveLength(4);
-      expect(frames.map((f) => f.i)).toEqual([0, 1, 2, 3]);
-    } finally {
-      breakStream = false;
-    }
-  });
-
-  it("falls back when the stream ends cleanly having written nothing", async () => {
-    // The real failure the audit caught: an empty completion ends the stream
-    // without throwing, so `yielded` stayed 0, no fallback fired, and the
-    // route answered 502 while the documented safety net looked fine.
-    const { generateSocraticStream } = await import("@/lib/server/generate");
-    emptyStream = true;
-    try {
-      const frames = await drain(
-        generateSocraticStream({
-          topic: "Rust",
-          nodeLabel: "Ownership",
-          interests: "",
-        }),
-      );
-      expect(frames).toHaveLength(4);
-    } finally {
-      emptyStream = false;
-    }
-  });
-
-  it("streams the judge's verdict ahead of its critique", async () => {
-    const { judgeSocraticStream } = await import("@/lib/server/generate");
-    const frames = await drain(
-      judgeSocraticStream({
-        topic: "Rust",
-        nodeLabel: "Ownership",
-        question: "why?",
-        reference: "because",
-        answer: "the owner drops it",
-      }),
-    );
-    expect(frames).toHaveLength(2);
-    expect(frames.every((f) => f.p === "judgement")).toBe(true);
-    // Frame 1 unblocks the screen; frame 2 fills in the wording.
-    expect(frames[0].v).toEqual({ quality: "near" });
-    expect(frames[1].v).toEqual({
-      quality: "near",
-      response: "the streamed critique",
-    });
-    expect(frames[0].at).toBeLessThan(frames[1].at);
-  });
-
-  it("still delivers a critique when the judge stream dies after the verdict", async () => {
-    const { judgeSocraticStream } = await import("@/lib/server/generate");
-    truncateJudge = true;
-    try {
-      const frames = await drain(
-        judgeSocraticStream({
-          topic: "Rust",
-          nodeLabel: "Ownership",
-          question: "why?",
-          reference: "because",
-          answer: "the owner drops it",
-        }),
-      );
-      // The verdict streamed; the critique came off the retried single-shot
-      // path, which is the corrective retry the judge is not allowed to lose.
-      expect(frames).toHaveLength(2);
-      expect(frames[1].v).toEqual({
-        quality: "near",
-        response: "the retried critique",
-      });
-    } finally {
-      truncateJudge = false;
-    }
-  });
-
-  it("ships the first Socratic probe before the last is written", async () => {
-    const { generateSocraticStream } = await import("@/lib/server/generate");
-    const frames = await drain(
-      generateSocraticStream({
-        topic: "Rust",
-        nodeLabel: "Ownership",
-        interests: "",
-      }),
-    );
-    expect(frames).toHaveLength(4);
-    expect(frames.every((f) => f.p === "steps")).toBe(true);
-    expect(frames.map((f) => f.i)).toEqual([0, 1, 2, 3]);
-    expect(frames[0].at).toBeLessThan(frames[3].at);
-  });
-
-  it("ships the first Feynman beat before the last, with its own gap offsets", async () => {
-    const { generateFeynmanStream } = await import("@/lib/server/generate");
-    const frames = await drain(
-      generateFeynmanStream({
-        topic: "Rust",
-        nodeId: "ownership",
-        nodeLabel: "Ownership",
-        interests: "",
-      }),
-    );
-    expect(frames).toHaveLength(4);
-    expect(frames.map((f) => f.i)).toEqual([0, 1, 2, 3]);
-    expect(frames[0].at).toBeLessThan(frames[3].at);
-
-    // Ids and gap offsets are assigned server-side per index, so a beat
-    // validated alone is identical to one validated inside an array.
-    const beats = frames.map(
-      (f) => f.v as { id: string; gap: { dx: number; dy: number } },
-    );
-    expect(beats.map((b) => b.id)).toEqual([
-      "ft-ownership-1",
-      "ft-ownership-2",
-      "ft-ownership-3",
-      "ft-ownership-4",
-    ]);
-    expect(new Set(beats.map((b) => `${b.gap.dx},${b.gap.dy}`)).size).toBe(4);
-  });
-});
-
 // ---- "ask about this": the learner's own question about a passage ----------
 
 describe("the reading pass", () => {
@@ -582,14 +327,21 @@ describe("a repeated section", () => {
     repeatSection = true;
     try {
       const frames = await drain(
-        generateConsumeStream({ topic: "Rust", nodeLabel: "Ownership", prereqLabels: [], interests: "" }),
+        generateConsumeStream({
+          topic: "Rust",
+          nodeLabel: "Ownership",
+          prereqLabels: [],
+          interests: "",
+        }),
       );
       expect(frames.some((f) => (f.i ?? 0) > 1)).toBe(false);
       const payload = framesToPayload(
         frames.map(({ p, i, v, partial }) => ({ p, i: i!, v, partial })),
         { chunks: { min: 2, max: 5 } },
       ) as { chunks: Array<{ kicker: string }> } | null;
-      expect(payload?.chunks.map((c) => c.kicker)).toEqual(consumeObjs.map((c) => c.kicker));
+      expect(payload?.chunks.map((c) => c.kicker)).toEqual(
+        consumeObjs.map((c) => c.kicker),
+      );
     } finally {
       repeatSection = false;
     }

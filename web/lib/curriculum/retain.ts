@@ -12,6 +12,7 @@ import { color } from "@/lib/theme";
 // map, so retention failure re-enters Phase 1. Content ships the Linear
 // Transformations rotation of cards so the tap → flip → grade → alive-loop is
 // real, not decorative.
+import type { CardTrace } from "./spine";
 import { STATE_COLOR } from "./types";
 import type { ReviewCardType, ReviewGrade, ReviewQueue } from "./retainMeta";
 import { Language } from "@/lib/i18n";
@@ -52,12 +53,12 @@ export interface ForecastRow {
  * loop (flags its node Shaky), and `reExplain` is the 30-second Socratic aside
  * shown right there when it's missed.
  */
-export interface ReviewCard {
+export interface ReviewCard extends CardTrace {
   id: string;
   type: ReviewCardType;
   /** Which session auto-generated it — the provenance line ("from your … session"). */
   source: string;
-  /** The node this card keeps alive; a miss flags it Shaky on the map. */
+  /** The node this card keeps alive. */
   node: string;
   /** Cloze halves around the blank (recall cloze cards only). */
   cloze?: [string, string];

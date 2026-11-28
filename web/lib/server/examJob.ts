@@ -2,13 +2,11 @@
 // `job.ts` resolves the per-node kinds, and this one belongs to no node — it
 // spans the whole pool.
 
-import { asExamDifficulty, asExamSize, type GoalKind } from "@/lib/curriculum";
+import { asExamDifficulty, asExamSize } from "@/lib/curriculum";
 import type { Language } from "@/lib/i18n";
 import { generateExam, generateExamStream } from "@/lib/server/generate/exam";
-import { badRequest, poolOf, s, type GenerateBody } from "./jobInput";
+import { badRequest, poolOf, type GenerateBody } from "./jobInput";
 import type { Job } from "./job";
-
-const GOALS: readonly GoalKind[] = ["exam", "project", "mastery", "pareto", "glance"];
 
 export function examJob(
   body: GenerateBody,
@@ -18,7 +16,7 @@ export function examJob(
   if (pool.length === 0) throw badRequest("pool must list the map's concepts");
   const params = {
     ...base,
-    goal: GOALS.includes(s(body.goal) as GoalKind) ? (body.goal as GoalKind) : "mastery",
+    goal: "glance" as const,
     pool,
     count: asExamSize(body.count),
     difficulty: asExamDifficulty(body.difficulty),

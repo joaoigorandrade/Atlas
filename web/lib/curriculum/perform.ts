@@ -5,11 +5,38 @@ import { color } from "@/lib/theme";
 // procedure most easily fakes) — the learner runs it, and what is graded is
 // what each step actually produced on this case.
 //
-// Only a `procedure` runs this. A fact is had, a concept is told apart, a
-// principle is a mechanism you forecast and walk.
+// Every node runs it; the task's form follows the node's kind
+// (docs/PLAN-FLOW.md §3).
 
-import { TeachVerdict } from "./feynman";
+import { STATE_COLOR } from "./types";
 import { Language } from "@/lib/i18n";
+
+/** How one step of a run was judged: shown well, left out, or wrong. */
+export type TeachVerdict = "good" | "skipped" | "confused";
+
+const VERDICT_LABEL: Record<TeachVerdict, string> = {
+  good: "Done right",
+  skipped: "Skipped",
+  confused: "Wrong",
+};
+
+const VERDICT_LABEL_PT: Record<TeachVerdict, string> = {
+  good: "Feito certo",
+  skipped: "Pulado",
+  confused: "Errado",
+};
+
+/** Language-aware step verdict label for a run's report. */
+export function verdictLabel(verdict: TeachVerdict, lang: Language = "en"): string {
+  return (lang === "pt-BR" ? VERDICT_LABEL_PT : VERDICT_LABEL)[verdict];
+}
+
+/** Green = shown well, grey = skipped, red = wrong. */
+export const VERDICT_COLOR: Record<TeachVerdict, string> = {
+  good: STATE_COLOR.mastered,
+  skipped: STATE_COLOR.unknown,
+  confused: STATE_COLOR.gap,
+};
 
 /** Perform's accent: a working green — the colour of something being done
  *  rather than discussed. */

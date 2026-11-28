@@ -4,17 +4,9 @@ import { describe, expect, it } from "vitest";
 import { TOAST_STRINGS } from "@/lib/toastCopy";
 import { STRINGS as DASHBOARD_STRINGS } from "@/components/atlas/dashboardCopy";
 import { STRINGS as RETAIN_STRINGS } from "@/components/session/retainCopy";
-import { STRINGS as CRUCIBLE_STRINGS } from "@/components/session/crucibleCopy";
 import { STRINGS as DASHBOARD_SCREEN_STRINGS } from "@/components/dashboardScreenCopy";
-import { STRINGS as SOCRATIC_STRINGS } from "@/components/session/socraticCopy";
 import { STRINGS as NODE_DETAIL_STRINGS } from "@/components/map/nodeDetailCopy";
-import {
-  EXPLAIN_COPY,
-  GOAL_DATE_COPY,
-  PRODUCE_COPY,
-  PROVENANCE_COPY,
-  STEELMAN_COPY,
-} from "@/lib/curriculum";
+import { EXPLAIN_COPY } from "@/lib/curriculum";
 
 // The bug this file exists to catch: a lang-aware helper (`confidenceLevels`,
 // `reviewAside`, `goals`, …) exists and is *ignored* at the call site, which
@@ -82,15 +74,9 @@ describe("i18n coverage", () => {
     ["toast", TOAST_STRINGS],
     ["dashboard", DASHBOARD_STRINGS],
     ["retain", RETAIN_STRINGS],
-    ["crucible", CRUCIBLE_STRINGS],
     ["dashboard screen", DASHBOARD_SCREEN_STRINGS],
-    ["socratic", SOCRATIC_STRINGS],
     ["node detail", NODE_DETAIL_STRINGS],
     ["explain", EXPLAIN_COPY],
-    ["provenance", PROVENANCE_COPY],
-    ["steelman", STEELMAN_COPY],
-    ["produce", PRODUCE_COPY],
-    ["goal date", GOAL_DATE_COPY],
   ])("builds every %s line in both languages", (_name, table) => {
     for (const lang of ["en", "pt-BR"] as const) {
       const entries = table[lang] as Record<string, unknown>;

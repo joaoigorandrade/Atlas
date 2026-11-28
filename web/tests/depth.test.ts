@@ -119,7 +119,7 @@ describe("a deeper level counts toward nothing", () => {
     expect(mapProgress(two, states).masteryPct).toBe(50);
     const open = { ...states, "a~2": "unknown" } as StateMap;
     expect(
-      orderedFrontier(displayStates(open, two), two, "exam").map((e) => e.node.id),
+      orderedFrontier(displayStates(open, two), two, "glance").map((e) => e.node.id),
     ).toEqual(["b"]);
   });
 

@@ -165,13 +165,10 @@ describe("projectCards and projectTopic", () => {
   it("omits a language nobody has recorded rather than guessing one", () => {
     const shot = JSON.parse(
       projectTopic({
-        goal: "exam",
+        goal: "glance",
         interests: "",
-        paretoPct: 20,
-        examDate: "",
         language: null,
         calibSamples: [],
-        misconceptions: [],
         modalityTally: {},
         litToday: [],
       }),

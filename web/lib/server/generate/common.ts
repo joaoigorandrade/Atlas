@@ -299,20 +299,12 @@ const KIND_NOTES: Record<
       "THIS CONCEPT IS A PROCEDURE. The order is the procedure's own steps, each named by the purpose it serves, and the check-back asks the listener which step comes next on a case they have not seen.",
     consume:
       "THIS CONCEPT IS A PROCEDURE — an ordered sequence the learner must be able to carry out. The WORKED EXAMPLE is the material, not an illustration hung off it: show the steps being run, in order, on a real case, and say what each step is for. A figure is worth it only if it carries the order.",
-    connect:
-      "THIS CONCEPT IS A PROCEDURE. Link on SELECTION — which procedure applies when, and what distinguishes the cases where this one is right from the ones where a neighbouring procedure is.",
-    crucible:
-      "THIS CONCEPT IS A PROCEDURE. The problem must require the learner to SELECT this procedure, not merely run it: give a situation where choosing correctly is the hard part, not the arithmetic.",
   },
   principle: {
     explain:
       "THIS CONCEPT IS A PRINCIPLE. The order is the causal chain, one link per idea, and the check-back asks the listener to predict what changes when one link changes.",
     consume:
       "THIS CONCEPT IS A PRINCIPLE — a causal relation or multi-stage mechanism. Give the mechanism and its derivation, not just the statement. A FIGURE IS REQUIRED and must carry the causal chain: each node a stage, each edge what that stage hands the next.",
-    connect:
-      "THIS CONCEPT IS A PRINCIPLE. Link on COMPOSITION — which principles combine with this one, and which appear to contradict it and why they don't.",
-    crucible:
-      "THIS CONCEPT IS A PRINCIPLE. Give a novel situation the principle PREDICTS, and ask for the prediction — not for a restatement of the relation.",
   },
 };
 
@@ -347,52 +339,28 @@ const DOMAIN_NOTES: Record<
       "THIS IS A FORMAL DOMAIN — a claim here is settled by DERIVING it from stated rules. Give the derivation, not only the result, and work the example all the way through with real values so the learner sees every line. Never assert a step the reader is expected to take on trust.",
     perform:
       "THIS IS A FORMAL DOMAIN. The run produces a definite VALUE or expression, so the case must have exactly one correct answer and the final step must state it plainly — it is checked arithmetically, not read as prose. Name the intermediate quantity each step produces.",
-    drill:
-      "THIS IS A FORMAL DOMAIN. Drill RECOGNITION, never arithmetic: which rule applies, is this form eligible, does this condition hold. A call the learner can make in two seconds when fluent.",
-    crucible:
-      "THIS IS A FORMAL DOMAIN. Set the problem in a field the learner did not meet it in, and make SEEING that this structure applies the hard part — not the computation once it is seen.",
   },
   executable: {
     consume:
       "THIS IS AN EXECUTABLE DOMAIN — a claim here is settled by RUNNING it. Show the thing running, and show it failing: the failure mode teaches more than the happy path. Never describe behaviour the learner could simply be shown.",
-    trace:
-      "THIS IS AN EXECUTABLE DOMAIN. Walk the state, not the source: what each step leaves behind for the next one, and what is true after each line rather than what each line says.",
     perform:
       "THIS IS AN EXECUTABLE DOMAIN. The work must be something that RUNS, and the steps are what a correct run produces — an output, a passing check, a handled failure — never a description of the approach.",
   },
   empirical: {
     consume:
       "THIS IS AN EMPIRICAL DOMAIN — a claim here is settled by MEASUREMENT, and every measurement carries uncertainty. Give the quantity, how it is measured, and what would make the measurement wrong. A mechanism with no observable consequence is not finished.",
-    predict:
-      "THIS IS AN EMPIRICAL DOMAIN. Ask for the forecast of a measurement — a direction and a rough magnitude — from conditions and values the situation states. The result must follow from those stated values and the principle; never cite an observed reading, record or experiment the situation did not give.",
   },
   interpretive: {
     consume:
       "THIS IS AN INTERPRETIVE DOMAIN — a claim here is settled by a SOURCE read in context, and honest readers disagree. Anchor the passage to a date spine and to named actors, and say what was MATERIALLY at stake, not only what was argued. Name sources as sources. Where a position is contested, attribute it to who holds it and give that position its strongest form; never adjudicate a question of faith, and never present one tradition's reading as the neutral one.",
-    socratic:
-      "THIS IS AN INTERPRETIVE DOMAIN. Push on mechanism and material cause — who gained what, what an act actually cost, why it worked — rather than on doctrine or on which side was right.",
-    connect:
-      "THIS IS AN INTERPRETIVE DOMAIN. Link FORWARD IN TIME: what this made possible, what it foreclosed, and which later episode is unintelligible without it.",
-    crucible:
-      "THIS IS AN INTERPRETIVE DOMAIN. Transfer is not a novel field — it is a DIFFERENT CASE of the same kind. Give another episode and ask whether the same analysis holds and where it breaks.",
   },
   performative: {
     consume:
       "THIS IS A PERFORMATIVE DOMAIN — competence here is PRODUCTION, in real time, and explanation is not a substitute for it. Lead with comprehensible material the learner meets in use, slightly beyond what they can already produce. If a rule is worth stating at all, state it in two lines AT THE END, never as the opening. An essay about the skill is the wrong pass entirely.",
-    discriminate:
-      "THIS IS A PERFORMATIVE DOMAIN. Use MINIMAL PAIRS from real use, where the choice changes what is actually communicated — not textbook sentences that only illustrate a rule.",
-    drill:
-      "THIS IS A PERFORMATIVE DOMAIN. Drill PRODUCTION at speed, not recognition: the learner should be making the form, not picking it. Short items, no reading time.",
-    recall:
-      "THIS IS A PERFORMATIVE DOMAIN. Retrieval means PRODUCING the item from meaning, never recognising it among options.",
   },
   craft: {
     consume:
       "THIS IS A CRAFT DOMAIN — the work happens AWAY FROM THE SCREEN, on real material, and it is irreversible. Write a BRIEF, not an essay: what this stage produces, the tolerances that matter, the two or three ways it actually goes wrong, and what to have ready before starting. Assume the learner is standing up with tools in reach.",
-    discriminate:
-      "THIS IS A CRAFT DOMAIN. Contrast work that is within tolerance against work that is not, described concretely enough to judge by eye or by measurement, and name the failure each one leads to.",
-    predict:
-      "THIS IS A CRAFT DOMAIN, and the material does not forgive. Ask the learner to forecast the FAILURE before they commit: what goes wrong if this dimension is off, and at which later stage it shows up. Running the failure here is what stops them running it in the material.",
     perform:
       "THIS IS A CRAFT DOMAIN, so this is a DEBRIEF of work the learner has already done away from the screen — not a task to carry out on the page. The case is the stage they just built; the steps are what their REPORT has to contain for the work to be diagnosable: what fit, what gapped, the measurement of the worst joint, what they would redo. Grade the reported work, and say what the reported symptom implies about the cause.",
   },

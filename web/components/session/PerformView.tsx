@@ -15,8 +15,8 @@ import {
   performCopy,
   performPassed,
   performSkipped,
-  verdictLabel,
   VERDICT_COLOR,
+  verdictLabel,
   type PerformContent,
   type PerformSession,
   type PhaseId,
@@ -308,7 +308,10 @@ export default function PerformView({
                       </div>
                     )}
                     {reveal && owed.has(step.id) && (
-                      <div data-testid="perform-answer" style={{ marginTop: 8, fontSize: 14 }}>
+                      <div
+                        data-testid="perform-answer"
+                        style={{ marginTop: 8, fontSize: 14 }}
+                      >
                         <div style={kicker(9.5, "0.1em", accent)}>{copy.answer}</div>
                         {step.mustShow.map((m) => (
                           <div key={m}>

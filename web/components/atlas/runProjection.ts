@@ -15,17 +15,13 @@
 import type {
   CalibSample,
   ConceptGraph,
-  ConnectSession,
   ConsumeProgress,
-  FeynmanSession,
-  MisconceptionRecord,
   ModalityTally,
   PhaseProgress,
   OnboardingForm,
   PhasesDoneMap,
   ProgressState,
   ShakyReason,
-  SocraticSession,
   StateMap,
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
@@ -51,9 +47,6 @@ export function projectNodes(run: {
   phasesDone: PhasesDoneMap;
   reviewedNodes: string[];
   consumeProgress: Record<string, ConsumeProgress>;
-  socraticProgress: Record<string, SocraticSession>;
-  feynmanProgress: Record<string, FeynmanSession>;
-  connectProgress: Record<string, ConnectSession>;
   phaseProgress: Record<string, PhaseProgress>;
 }): Record<string, string> {
   const reviewed = new Set(run.reviewedNodes);
@@ -89,9 +82,6 @@ export function projectNodes(run: {
       // must never be dropped from a delta.
       phasesDone: run.phasesDone[node.id] ?? [],
       consumeProgress: run.consumeProgress[node.id] ?? null,
-      socraticProgress: run.socraticProgress[node.id] ?? null,
-      feynmanProgress: run.feynmanProgress[node.id] ?? null,
-      connectProgress: run.connectProgress[node.id] ?? null,
       // `{}` rather than `null`, because `phase_progress` is NOT NULL and
       // `applyNodeDeltas` reads a wire `null` on such a column as "the client
       // said nothing" and leaves the row alone. An empty object is how a
@@ -156,22 +146,16 @@ export function projectCards(cards: StoredCard[]): Record<string, string> {
 export function projectTopic(topic: {
   goal: string;
   interests: string;
-  paretoPct: number;
-  examDate: string;
   language: Language | null;
   calibSamples: CalibSample[];
-  misconceptions: MisconceptionRecord[];
   modalityTally: ModalityTally;
   litToday: string[];
 }): string {
   return JSON.stringify({
     goal: topic.goal,
     interests: topic.interests,
-    paretoPct: topic.paretoPct,
-    examDate: topic.examDate,
     ...(topic.language ? { language: topic.language } : null),
     calibSamples: topic.calibSamples,
-    misconceptions: topic.misconceptions,
     modalityTally: topic.modalityTally,
     litToday: topic.litToday,
   });

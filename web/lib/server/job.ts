@@ -7,56 +7,29 @@
 
 import type { Language } from "@/lib/i18n";
 import {
-  generateConnect,
   generateConsume,
   generateConsumeModel,
   generateConsumeModelStream,
   generateConsumeStream,
-  generateCrucible,
-  generateDiscriminate,
-  generateDrill,
   generateExplain,
-  generateDiagnosticQuestion,
-  generateFeynman,
-  generateFeynmanStream,
   generateMap,
   generateMapStream,
   generatePassage,
   generatePassageStream,
   generatePerform,
-  generateProduce,
-  generateProvenance,
-  generateSteelman,
-  generatePredict,
-  generateRecall,
-  generateTrace,
   generateRetain,
   retainNodes,
-  generateSocratic,
-  generateSocraticStream,
   generateSummary,
   judgeChoice,
   judgeChoiceStream,
-  judgeCrucible,
-  judgeCrucibleStream,
-  judgeFeynman,
-  judgeFeynmanStream,
   judgePerform,
-  judgePerformStream,
-  judgeProduce,
-  judgeProduceStream,
-  judgeSteelman,
-  judgeSteelmanStream,
   judgeRecall,
   judgeRecallStream,
-  judgeSocratic,
-  judgeSocraticStream,
+  judgePerformStream,
   mapNodeBounds,
   continentLinksParams,
   linksPayload,
   verifiedRun,
-  judgeConnect,
-  judgeConnectStream,
 } from "@/lib/server/generate";
 import { contentKey, type CacheableKind } from "@/lib/server/contentCache";
 import { examJob } from "./examJob";
@@ -68,11 +41,9 @@ import {
   topicAxes,
   labels,
   nodeAxes,
-  poolOf,
   rubricRows,
   s,
   sketchUrl,
-  strs,
   type GenerateBody,
   type GenerateKind,
 } from "./jobInput";
@@ -85,16 +56,9 @@ import { FIXTURES, fixturePayload } from "@/lib/server/fixtures";
 import { otherFixture } from "@/lib/server/fixturesPhases";
 import {
   ALT_KEYS,
-  DIAGNOSTIC_DIFFICULTIES,
   CONSUME_SECTION_BOUNDS,
-  FEYNMAN_BEAT_BOUNDS,
-  SOCRATIC_MAX_STEPS,
-  SOCRATIC_MIN_WRITTEN,
   MODEL_BEAT_BOUNDS,
-  PARETO_DEFAULT,
-  PARETO_LEVELS,
   type AltKey,
-  type DiagnosticDifficulty,
   type GoalKind,
 } from "@/lib/curriculum";
 
@@ -200,17 +164,8 @@ function buildJob(body: GenerateBody): Job {
 
   switch (body.kind) {
     case "curriculum": {
-      const goal: GoalKind = ["exam", "project", "mastery", "pareto", "glance"].includes(
-        s(body.goal),
-      )
-        ? (body.goal as GoalKind)
-        : "mastery";
-      // Only the offered shares are honored — an arbitrary number would fork
-      // the shared map cache for no gain.
-      const paretoPct =
-        goal === "pareto"
-          ? (PARETO_LEVELS.find((p) => p === body.paretoPct) ?? PARETO_DEFAULT)
-          : undefined;
+      // One flow: whatever goal an older client sends, the map is built for it.
+      const goal: GoalKind = "glance";
       // `interests` is deliberately absent. The map prompt never used it —
       // interests flavor analogies inside a concept, not which concepts the
       // topic is made of — so keying on it split byte-identical maps across
@@ -219,7 +174,6 @@ function buildJob(body: GenerateBody): Job {
       const params = {
         topic,
         goal,
-        ...(paretoPct === undefined ? {} : { paretoPct }),
         // Omitted unless true, so an ordinary build still keys to the row it
         // always did. A scoped build genuinely asks a different prompt and
         // earns its own row rather than forking the common one.
@@ -247,8 +201,8 @@ function buildJob(body: GenerateBody): Job {
         // The header-carrying map first; a map cached before the header still
         // assembles through the second shape.
         shape: [
-          { nodes: mapNodeBounds(paretoPct, goal), meta: "one" },
-          { nodes: mapNodeBounds(paretoPct, goal) },
+          { nodes: mapNodeBounds(undefined, goal), meta: "one" },
+          { nodes: mapNodeBounds(undefined, goal) },
           { scopes: { min: 2, max: 3 } },
         ],
       };
@@ -267,37 +221,6 @@ function buildJob(body: GenerateBody): Job {
     }
     case "continentLinks": // which maps of a continent share material
       return cacheable("continentLinks", continentLinksParams(body, topic), linksPayload);
-
-    case "diagnosticQuestion": {
-      const pool = poolOf(body);
-      if (pool.length === 0) throw badRequest("pool must list candidate nodes");
-      const difficulty: DiagnosticDifficulty = DIAGNOSTIC_DIFFICULTIES.includes(
-        body.difficulty as DiagnosticDifficulty,
-      )
-        ? (body.difficulty as DiagnosticDifficulty)
-        : "medium";
-      const params = {
-        topic,
-        goal: ["exam", "project", "mastery"].includes(s(body.goal))
-          ? (body.goal as GoalKind)
-          : "mastery",
-        interests,
-        language,
-        nodeCandidates: pool,
-        difficulty,
-        // The probe's SHAPE follows the domain: compute it for formal, speak
-        // it for performative, order it for interpretive. Placement is what
-        // the map prunes on, so a recognition-only probe mis-prunes.
-        ...nodeAxes(body),
-      };
-      // Never cached: which question comes next depends on how the learner
-      // answered the last one, so no two placements share this call's inputs.
-      return {
-        kind: "diagnosticQuestion",
-        key: null,
-        run: async () => ({ ...(await generateDiagnosticQuestion(params)) }),
-      };
-    }
 
     case "consume": {
       if (!nodeLabel) throw badRequest("nodeLabel is required");
@@ -384,152 +307,9 @@ function buildJob(body: GenerateBody): Job {
       };
     }
 
-    case "socratic": {
-      if (!nodeLabel) throw badRequest("nodeLabel is required");
-      const params = {
-        topic,
-        nodeLabel,
-        interests,
-        language,
-        ...boundary(body),
-        ...nodeAxes(body),
-      };
-      return {
-        kind: "socratic",
-        key: contentKey("socratic", params),
-        run: async () => ({ steps: await generateSocratic(params) }),
-        stream: () => generateSocraticStream(params),
-        // Mirrors `validateSocratic`'s bound, not the core count the prompt
-        // asks for — the spares are part of the written pass.
-        shape: {
-          steps: { min: SOCRATIC_MIN_WRITTEN, max: SOCRATIC_MAX_STEPS },
-        },
-      };
-    }
-
-    case "feynman": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      const params = {
-        topic,
-        nodeId,
-        nodeLabel,
-        interests,
-        language,
-        ...boundary(body),
-      };
-      return {
-        kind: "feynman",
-        key: contentKey("feynman", params),
-        run: async () => ({ beats: await generateFeynman(params) }),
-        stream: () => generateFeynmanStream(params),
-        // Mirrors `validateFeynman`'s bound, which is also the band the prompt
-        // asks for — a rubric is as long as the concept genuinely is.
-        shape: { beats: { ...FEYNMAN_BEAT_BOUNDS } },
-      };
-    }
-
-    case "connect": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      const pool = poolOf(body);
-      if (pool.length === 0) throw badRequest("pool must list prior nodes");
-      return cacheable(
-        "connect",
-        { topic, nodeId, nodeLabel, pool, interests, language, ...nodeAxes(body) },
-        async (p) => ({ content: await generateConnect(p) }),
-      );
-    }
-
-    case "crucible": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      // A redo of a passed Crucible used to serve the problem the learner had
-      // just solved — a transfer test you have seen before tests recall, not
-      // transfer. Omitted when 0 so every row written before this keeps its
-      // address, exactly like `boundary`.
-      return cacheable(
-        "crucible",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          masteredLabels: labels(body.masteredLabels),
-          interests,
-          language,
-          ...boundary(body),
-          ...(rerun ? { rerun } : {}),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateCrucible(p) }),
-      );
-    }
-
-    // The item phases. Each generates its own shape — cases, setups,
-    // stages, reps — so each gets its own case here rather than one arm with a
-    // phase field: the payloads are genuinely different, not one table renamed.
-    case "discriminate":
-      return cacheable("discriminate", itemParams(), async (p) => ({
-        content: await generateDiscriminate(p),
-      }));
     case "explain":
       return cacheable("explain", itemParams(), async (p) => ({
         content: await generateExplain(p),
-      }));
-
-    // The three phases the domain axis adds. Each is its own case for the same
-    // reason the item phases are: the payloads are genuinely different shapes,
-    // not one table renamed.
-    case "provenance": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "provenance",
-        { topic, nodeId, nodeLabel, language, ...boundary(body), ...nodeAxes(body) },
-        async (p) => ({ content: await generateProvenance(p) }),
-      );
-    }
-
-    case "steelman": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "steelman",
-        { topic, nodeId, nodeLabel, language, ...boundary(body), ...nodeAxes(body) },
-        async (p) => ({ content: await generateSteelman(p) }),
-      );
-    }
-
-    case "produce": {
-      if (!nodeId || !nodeLabel) throw badRequest("nodeId and nodeLabel are required");
-      return cacheable(
-        "produce",
-        {
-          topic,
-          nodeId,
-          nodeLabel,
-          // No `interests`: unread by the prompt, so it only forked rows per learner.
-          language,
-          ...boundary(body),
-          ...nodeAxes(body),
-        },
-        async (p) => ({ content: await generateProduce(p) }),
-      );
-    }
-
-    case "predict":
-      return cacheable("predict", itemParams(), async (p) => ({
-        content: await generatePredict(p),
-      }));
-
-    case "trace":
-      return cacheable("trace", itemParams(), async (p) => ({
-        content: await generateTrace(p),
-      }));
-
-    case "drill":
-      return cacheable("drill", itemParams(), async (p) => ({
-        content: await generateDrill(p),
-      }));
-
-    case "recall":
-      return cacheable("recall", itemParams(), async (p) => ({
-        content: await generateRecall(p),
       }));
 
     case "perform": {
@@ -595,86 +375,6 @@ function buildJob(body: GenerateBody): Job {
         );
       }
       if (!nodeLabel) throw badRequest("nodeLabel is required");
-      if (body.mode === "socratic") {
-        const history = Array.isArray(body.history)
-          ? body.history
-              .filter(
-                (t): t is { role: "ai" | "learner"; text: string } =>
-                  typeof t === "object" &&
-                  t !== null &&
-                  (t.role === "ai" || t.role === "learner") &&
-                  typeof t.text === "string",
-              )
-              .slice(-8)
-              .map((t) => ({
-                role: t.role,
-                text: t.text.slice(0, CAPS.freeText),
-              }))
-          : undefined;
-        const misconceptions = Array.isArray(body.misconceptions)
-          ? body.misconceptions
-              .filter(
-                (m): m is { label: string; quality: string } =>
-                  typeof m === "object" &&
-                  m !== null &&
-                  typeof m.label === "string" &&
-                  typeof m.quality === "string",
-              )
-              .slice(0, CAPS.listItems)
-          : undefined;
-        const recurring = strs(body.recurring, CAPS.listItems);
-        const p = {
-          topic,
-          nodeLabel,
-          question: s(body.question).slice(0, CAPS.freeText),
-          reference: s(body.reference).slice(0, CAPS.freeText),
-          sufficient: strs(body.sufficient, 3),
-          said: strs(body.said, 8),
-          answer,
-          history,
-          attempt:
-            typeof body.attempt === "number"
-              ? Math.max(1, Math.round(body.attempt))
-              : undefined,
-          misconceptions,
-          recurring,
-          help:
-            typeof body.help === "number"
-              ? Math.max(0, Math.min(3, Math.round(body.help)))
-              : undefined,
-          language,
-        };
-        return uncached(
-          async () => ({ judgement: await judgeSocratic(p) }),
-          () => judgeSocraticStream(p),
-        );
-      }
-      if (body.mode === "connect") {
-        const p = {
-          topic,
-          nodeLabel,
-          question: s(body.question).slice(0, CAPS.nodeLabel),
-          reference: s(body.reference).slice(0, CAPS.freeText),
-          answer,
-          language,
-        };
-        return uncached(
-          async () => ({ judgement: await judgeConnect(p) }),
-          () => judgeConnectStream(p),
-        );
-      }
-      if (body.mode === "feynman") {
-        const rubric = rubricRows(body);
-        const p = { topic, nodeLabel, rubric, explanation: answer, language };
-        return uncached(
-          async () => ({ judgement: await judgeFeynman(p) }),
-          () => judgeFeynmanStream(p),
-        );
-      }
-      // Recall and Perform grade the same verdict rows and nothing else in
-      // common: one reads a retrieval, the other checks a run against the case
-      // it was given. Separate modes, separate prompts, separate labels in the
-      // generation log.
       if (body.mode === "recall") {
         if (!nodeLabel) throw badRequest("nodeLabel is required");
         const rubric = rubricRows(body);
@@ -707,72 +407,6 @@ function buildJob(body: GenerateBody): Job {
         return uncached(
           async () => ({ judgement: await judgePerform(p) }),
           () => judgePerformStream(p),
-        );
-      }
-      if (body.mode === "crucible") {
-        const p = {
-          topic,
-          nodeLabel,
-          problem: s(body.problem).slice(0, CAPS.freeText),
-          hint: s(body.hint).slice(0, CAPS.freeText),
-          attempt: answer,
-          hinted: body.hinted === true,
-          language,
-        };
-        return uncached(
-          async () => ({ judgement: await judgeCrucible(p) }),
-          () => judgeCrucibleStream(p),
-        );
-      }
-      if (body.mode === "steelman") {
-        if (!nodeLabel) throw badRequest("nodeLabel is required");
-        const positions = (body.positions ?? [])
-          .filter((x) => typeof x?.id === "string" && typeof x?.label === "string")
-          .slice(0, 2)
-          .map((x) => ({
-            id: x.id,
-            label: x.label.slice(0, CAPS.nodeLabel * 2),
-            heldBy: String(x.heldBy ?? "").slice(0, CAPS.nodeLabel * 2),
-            mustCover: labels(x.mustCover, 4),
-          }));
-        if (positions.length !== 2) throw badRequest("two positions are required");
-        const cases: Record<string, string> = {};
-        for (const pos of positions)
-          cases[pos.id] = s(body.cases?.[pos.id]).slice(0, CAPS.freeText);
-        const p = {
-          topic,
-          nodeLabel,
-          question: s(body.question).slice(0, CAPS.freeText),
-          positions,
-          cases,
-          holds: s(body.holds).slice(0, CAPS.nodeLabel),
-          disconfirmer: answer,
-          language,
-        };
-        return uncached(
-          async () => ({ judgement: await judgeSteelman(p) }),
-          () => judgeSteelmanStream(p),
-        );
-      }
-      if (body.mode === "produce") {
-        if (!nodeLabel) throw badRequest("nodeLabel is required");
-        const p = {
-          topic,
-          nodeLabel,
-          scene: s(body.scene).slice(0, CAPS.freeText),
-          cue: s(body.cue).slice(0, CAPS.freeText),
-          targetForms: labels(body.targetForms, 3),
-          said: answer,
-          language,
-          // Stamped from the topic, not taken from the client (W1.1).
-          ...(body.targetLanguage ? { heardIn: s(body.targetLanguage) } : {}),
-          ...(typeof body.confidence === "number"
-            ? { confidence: Math.max(0, Math.min(1, body.confidence)) }
-            : {}),
-        };
-        return uncached(
-          async () => ({ judgement: await judgeProduce(p) }),
-          () => judgeProduceStream(p),
         );
       }
       throw badRequest(`unknown judge mode "${String(body.mode)}"`);

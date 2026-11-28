@@ -15,63 +15,26 @@
 import { useCallback, useRef } from "react";
 import {
   conceptBoundary,
-  connectPool,
   type AltKey,
   type ConceptNode,
   type ConsumeChunk,
-  type CrucibleContent,
-  type ElaborationContent,
   phasePlan,
   primaryPhase,
-  type FeynmanBeat,
   type NodeKind,
   type PhaseId,
-  type DiscriminateContent,
   type ExplainContent,
-  type PredictContent,
-  type TraceContent,
-  type DrillContent,
-  type RecallContent,
   type PerformContent,
-  type ProduceContent,
-  type ProvenanceContent,
-  type SteelmanContent,
-  type SocraticStep,
   type NodeState,
 } from "@/lib/curriculum";
 import {
-  connectRequest,
   consumeRequest,
-  crucibleRequest,
-  feynmanRequest,
-  fetchConnect,
   fetchConsume,
   fetchConsumeModel,
-  fetchCrucible,
-  fetchDiscriminate,
   fetchExplain,
-  fetchDrill,
-  fetchFeynman,
   fetchPerform,
-  fetchPredict,
-  fetchRecall,
-  fetchTrace,
-  fetchSocratic,
   fetchSummary,
-  discriminateRequest,
   explainRequest,
-  drillRequest,
   performRequest,
-  produceRequest,
-  provenanceRequest,
-  steelmanRequest,
-  fetchProduce,
-  fetchProvenance,
-  fetchSteelman,
-  predictRequest,
-  recallRequest,
-  socraticRequest,
-  traceRequest,
   summaryRequest,
   WarmDeclined,
 } from "@/lib/api";
@@ -100,10 +63,8 @@ export function warmKindsFor(
   done: readonly PhaseId[] = [],
   depth = 2,
 ): WarmKind[] {
-  // A gap runs no plan of its own — one targeted Socratic pass closes it.
-  if (state === "gap") return ["socratic"];
   // Locked: nothing to warm until its prerequisites clear.
-  if (state === undefined || state === "unknown") return [];
+  if (state === undefined || state === "unknown" || state === "gap") return [];
   const plan = phasePlan(node);
   const next = primaryPhase(plan, done, state);
   return (next ? plan.slice(plan.indexOf(next)) : [])
@@ -161,37 +122,13 @@ export function useGeneration(opts_: {
     graphRef,
     statesRef,
     consumeCacheRef,
-    socraticCacheRef,
-    feynmanCacheRef,
-    connectCacheRef,
-    crucibleCacheRef,
-    discriminateCacheRef,
-    predictCacheRef,
-    traceCacheRef,
-    drillCacheRef,
-    recallCacheRef,
     performCacheRef,
-    provenanceCacheRef,
-    steelmanCacheRef,
-    produceCacheRef,
     explainCacheRef,
     setGraph,
     setSummaryFailed,
     setConsumeCache,
     setModelCache,
-    setSocraticCache,
-    setFeynmanCache,
-    setConnectCache,
-    setCrucibleCache,
-    setDiscriminateCache,
-    setPredictCache,
-    setTraceCache,
-    setDrillCache,
-    setRecallCache,
     setPerformCache,
-    setProvenanceCache,
-    setSteelmanCache,
-    setProduceCache,
     setExplainCache,
   } = run;
 
@@ -376,93 +313,8 @@ export function useGeneration(opts_: {
     [formRef, languageRef],
   );
 
-  // Socratic carries no `nodeKind` — no kind steers it — but it does carry
-  // the domain: `interpretive` pushes the questioning onto material cause
-  // rather than doctrine, and the server keys on it. Feynman carries neither.
-  const socraticParams = useCallback(
-    (node: ConceptNode) => {
-      const { nodeKind: _kind, ...params } = nodeParams(node);
-      return params;
-    },
-    [nodeParams],
-  );
-  const feynmanParams = useCallback(
-    (node: ConceptNode) => {
-      const { nodeKind: _kind, domain: _domain, ...params } = nodeParams(node);
-      return params;
-    },
-    [nodeParams],
-  );
-
-  /**
-   * Connect's prior-node pool (see `connectPool`). It is part of the cache key,
-   * which is why it must be derived the same way for a warm and for the real
-   * entry.
-   */
-  const connectParams = useCallback(
-    (node: ConceptNode) => {
-      const pool = connectPool(graphRef.current.nodes, statesRef.current, node.id);
-      return {
-        modelKey,
-        warmKey,
-        topic: formRef.current.topic,
-        nodeId: node.id,
-        nodeLabel: node.label,
-        pool,
-        interests: formRef.current.interests,
-        language: languageRef.current,
-        nodeKind: node.kind,
-        domain: node.domain,
-      };
-    },
-    [formRef, graphRef, statesRef, languageRef],
-  );
-
-  const crucibleParams = useCallback(
-    (node: ConceptNode) => ({
-      ...nodeParams(node),
-      masteredLabels: learnedLabels(),
-    }),
-    [learnedLabels, nodeParams],
-  );
-
-  // The six phases the catalogue added in its growth to twelve. Each takes
-  // the same inputs and returns its own shape, so each gets its own params
-  // builder and loader — one shared pair would be the seam two of them
-  // eventually collapse through.
-
-  const loadDiscriminate = useNodeLoader(
-    fetchDiscriminate,
-    nodeParams,
-    setDiscriminateCache,
-  );
-
-  const loadPredict = useNodeLoader(fetchPredict, nodeParams, setPredictCache);
-
-  const loadTrace = useNodeLoader(fetchTrace, nodeParams, setTraceCache);
-
-  const loadDrill = useNodeLoader(fetchDrill, nodeParams, setDrillCache);
-
-  const loadRecall = useNodeLoader(fetchRecall, nodeParams, setRecallCache);
-
+  // Explain and Perform each get their own loader over the node's params.
   const loadPerform = useNodeLoader(fetchPerform, nodeParams, setPerformCache);
-
-  // The three phases the domain axis adds. Provenance and Steelman take no
-  // interests: an analogy drawn from the learner's hobbies has no business in
-  // a source reading or a contested question.
-  const sourceParams = useCallback(
-    (node: ConceptNode) => {
-      const { interests: _interests, ...params } = nodeParams(node);
-      return params;
-    },
-    [nodeParams],
-  );
-
-  const loadProvenance = useNodeLoader(fetchProvenance, sourceParams, setProvenanceCache);
-
-  const loadSteelman = useNodeLoader(fetchSteelman, sourceParams, setSteelmanCache);
-
-  const loadProduce = useNodeLoader(fetchProduce, nodeParams, setProduceCache);
 
   const loadExplain = useNodeLoader(fetchExplain, nodeParams, setExplainCache);
 
@@ -535,14 +387,6 @@ export function useGeneration(opts_: {
     return beats;
   };
 
-  const loadSocratic = useNodeLoader(fetchSocratic, socraticParams, setSocraticCache);
-
-  const loadFeynman = useNodeLoader(fetchFeynman, feynmanParams, setFeynmanCache);
-
-  const loadConnect = useNodeLoader(fetchConnect, connectParams, setConnectCache);
-
-  const loadCrucible = useNodeLoader(fetchCrucible, crucibleParams, setCrucibleCache);
-
   /** Already in memory? Then the screen opens with no request at all. */
   const isCached = useCallback(
     (kind: WarmKind, nodeId: string): boolean => {
@@ -553,54 +397,13 @@ export function useGeneration(opts_: {
           return !!graphRef.current.nodes.find((n) => n.id === nodeId)?.summary;
         case "consume":
           return !!consumeCacheRef.current[nodeId];
-        case "socratic":
-          return !!socraticCacheRef.current[nodeId];
-        case "feynman":
-          return !!feynmanCacheRef.current[nodeId];
-        case "connect":
-          return !!connectCacheRef.current[nodeId];
-        case "crucible":
-          return !!crucibleCacheRef.current[nodeId];
-        case "discriminate":
-          return !!discriminateCacheRef.current[nodeId];
-        case "predict":
-          return !!predictCacheRef.current[nodeId];
-        case "trace":
-          return !!traceCacheRef.current[nodeId];
-        case "drill":
-          return !!drillCacheRef.current[nodeId];
-        case "recall":
-          return !!recallCacheRef.current[nodeId];
         case "perform":
           return !!performCacheRef.current[nodeId];
-        case "provenance":
-          return !!provenanceCacheRef.current[nodeId];
-        case "steelman":
-          return !!steelmanCacheRef.current[nodeId];
-        case "produce":
-          return !!produceCacheRef.current[nodeId];
         case "explain":
           return !!explainCacheRef.current[nodeId];
       }
     },
-    [
-      connectCacheRef,
-      consumeCacheRef,
-      crucibleCacheRef,
-      feynmanCacheRef,
-      graphRef,
-      socraticCacheRef,
-      discriminateCacheRef,
-      predictCacheRef,
-      traceCacheRef,
-      drillCacheRef,
-      recallCacheRef,
-      performCacheRef,
-      provenanceCacheRef,
-      steelmanCacheRef,
-      produceCacheRef,
-      explainCacheRef,
-    ],
+    [consumeCacheRef, graphRef, performCacheRef, explainCacheRef],
   );
 
   /** The request body `/api/content` batches to answer "is this already
@@ -616,49 +419,13 @@ export function useGeneration(opts_: {
           return node.gap ? null : summaryRequest(summaryParams(node));
         case "consume":
           return consumeRequest(consumeParams(node));
-        case "socratic":
-          return socraticRequest(socraticParams(node));
-        case "feynman":
-          return feynmanRequest(feynmanParams(node));
-        case "connect": {
-          const params = connectParams(node);
-          // A one-node map has nobody to wire into yet.
-          return params.pool.length ? connectRequest(params) : null;
-        }
-        case "crucible":
-          return crucibleRequest(crucibleParams(node));
-        case "discriminate":
-          return discriminateRequest(nodeParams(node));
-        case "predict":
-          return predictRequest(nodeParams(node));
-        case "trace":
-          return traceRequest(nodeParams(node));
-        case "drill":
-          return drillRequest(nodeParams(node));
-        case "recall":
-          return recallRequest(nodeParams(node));
         case "perform":
           return performRequest(nodeParams(node));
-        case "provenance":
-          return provenanceRequest(sourceParams(node));
-        case "steelman":
-          return steelmanRequest(sourceParams(node));
-        case "produce":
-          return produceRequest(nodeParams(node));
         case "explain":
           return explainRequest(nodeParams(node));
       }
     },
-    [
-      summaryParams,
-      consumeParams,
-      socraticParams,
-      feynmanParams,
-      connectParams,
-      crucibleParams,
-      nodeParams,
-      sourceParams,
-    ],
+    [summaryParams, consumeParams, nodeParams],
   );
 
   /** Take a batch-cache hit straight into memory — no model, no waiting. */
@@ -678,32 +445,8 @@ export function useGeneration(opts_: {
         return;
       case "consume":
         return put(setConsumeCache, p.chunks as ConsumeChunk[] | undefined);
-      case "socratic":
-        return put(setSocraticCache, p.steps as SocraticStep[] | undefined);
-      case "feynman":
-        return put(setFeynmanCache, p.beats as FeynmanBeat[] | undefined);
-      case "connect":
-        return put(setConnectCache, p.content as ElaborationContent | undefined);
-      case "crucible":
-        return put(setCrucibleCache, p.content as CrucibleContent | undefined);
-      case "discriminate":
-        return put(setDiscriminateCache, p.content as DiscriminateContent | undefined);
-      case "predict":
-        return put(setPredictCache, p.content as PredictContent | undefined);
-      case "trace":
-        return put(setTraceCache, p.content as TraceContent | undefined);
-      case "drill":
-        return put(setDrillCache, p.content as DrillContent | undefined);
-      case "recall":
-        return put(setRecallCache, p.content as RecallContent | undefined);
       case "perform":
         return put(setPerformCache, p.content as PerformContent | undefined);
-      case "provenance":
-        return put(setProvenanceCache, p.content as ProvenanceContent | undefined);
-      case "steelman":
-        return put(setSteelmanCache, p.content as SteelmanContent | undefined);
-      case "produce":
-        return put(setProduceCache, p.content as ProduceContent | undefined);
       case "explain":
         return put(setExplainCache, p.content as ExplainContent | undefined);
     }
@@ -720,57 +463,13 @@ export function useGeneration(opts_: {
           return warm.warm(key, () => loadSummary(node, true));
         case "consume":
           return warm.warm(key, () => loadConsume(node, true));
-        case "socratic":
-          return warm.warm(key, () => loadSocratic(node, true));
-        case "feynman":
-          return warm.warm(key, () => loadFeynman(node, true));
-        case "connect":
-          return warm.warm(key, () => loadConnect(node, true));
-        case "crucible":
-          return warm.warm(key, () => loadCrucible(node, true));
-        case "discriminate":
-          return warm.warm(key, () => loadDiscriminate(node, true));
-        case "predict":
-          return warm.warm(key, () => loadPredict(node, true));
-        case "trace":
-          return warm.warm(key, () => loadTrace(node, true));
-        case "drill":
-          return warm.warm(key, () => loadDrill(node, true));
-        case "recall":
-          return warm.warm(key, () => loadRecall(node, true));
         case "perform":
           return warm.warm(key, () => loadPerform(node, true));
-        case "provenance":
-          return warm.warm(key, () => loadProvenance(node, true));
-        case "steelman":
-          return warm.warm(key, () => loadSteelman(node, true));
-        case "produce":
-          return warm.warm(key, () => loadProduce(node, true));
         case "explain":
           return warm.warm(key, () => loadExplain(node, true));
       }
     },
-    [
-      isCached,
-      requestFor,
-      warm,
-      loadSummary,
-      loadConsume,
-      loadSocratic,
-      loadFeynman,
-      loadConnect,
-      loadCrucible,
-      loadDiscriminate,
-      loadPredict,
-      loadTrace,
-      loadDrill,
-      loadRecall,
-      loadPerform,
-      loadProvenance,
-      loadSteelman,
-      loadProduce,
-      loadExplain,
-    ],
+    [isCached, requestFor, warm, loadSummary, loadConsume, loadPerform, loadExplain],
   );
 
   return {
@@ -784,10 +483,6 @@ export function useGeneration(opts_: {
     consumeParams,
     summaryParams,
     modelParams,
-    socraticParams,
-    feynmanParams,
-    connectParams,
-    crucibleParams,
     nodeParams,
     warmKey,
     opts,
@@ -796,19 +491,7 @@ export function useGeneration(opts_: {
     loadConsume,
     modelKey,
     loadModel,
-    loadSocratic,
-    loadFeynman,
-    loadConnect,
-    loadCrucible,
-    loadDiscriminate,
-    loadPredict,
-    loadTrace,
-    loadDrill,
-    loadRecall,
     loadPerform,
-    loadProvenance,
-    loadSteelman,
-    loadProduce,
     loadExplain,
     isCached,
     requestFor,

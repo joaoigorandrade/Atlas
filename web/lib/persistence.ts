@@ -16,7 +16,6 @@
 import {
   migrateConsume,
   usableShapes,
-  usableRubrics,
   type LegacyConsumeChunk,
 } from "@/lib/contentMigrate";
 import { AtlasError, codeForStatus, isErrorCode } from "@/lib/errors";
@@ -25,12 +24,9 @@ import type {
   CalibSample,
   ConceptGraph,
   ConceptNode,
-  ConnectSession,
   ConsumeChunk,
   ConsumeModelBeat,
   ConsumeProgress,
-  FeynmanSession,
-  MisconceptionRecord,
   ModalityTally,
   ProgressState,
   RetainContent,
@@ -38,7 +34,6 @@ import type {
   PhasesDoneMap,
   PhaseId,
   ShakyReason,
-  SocraticSession,
   StateMap,
   TopicAxes,
   TopicTarget,
@@ -68,7 +63,7 @@ export interface Topic {
   examDate: string;
   language: Language | null;
   calibSamples: CalibSample[];
-  misconceptions: MisconceptionRecord[];
+  misconceptions: unknown[];
   modalityTally: ModalityTally;
   litToday: string[];
   updatedAt: string;
@@ -79,9 +74,9 @@ export interface Topic {
   phasesDone: PhasesDoneMap;
   reviewedNodes: string[];
   consumeProgress: Record<string, ConsumeProgress>;
-  socraticProgress: Record<string, SocraticSession>;
-  feynmanProgress: Record<string, FeynmanSession>;
-  connectProgress: Record<string, ConnectSession>;
+  socraticProgress: Record<string, unknown>;
+  feynmanProgress: Record<string, unknown>;
+  connectProgress: Record<string, unknown>;
   /** Every *other* phase's session, node id → phase id → session. The four
    *  maps above are the pre-catalogue columns and keep their own shape; a
    *  later phase lands here, so adding one is a key rather than a migration. */
@@ -120,9 +115,9 @@ export interface NodeDelta {
   /** Finished phases, in order — mastery state is derived from this. */
   phasesDone?: readonly PhaseId[];
   consumeProgress?: ConsumeProgress | null;
-  socraticProgress?: SocraticSession | null;
-  feynmanProgress?: FeynmanSession | null;
-  connectProgress?: ConnectSession | null;
+  socraticProgress?: unknown;
+  feynmanProgress?: unknown;
+  connectProgress?: unknown;
   /** Whole, not merged: one delta says everything that is parked. */
   phaseProgress?: PhaseProgress;
   /** Prerequisites to attach — only meaningful for a node being created. */
@@ -136,7 +131,7 @@ export interface TopicPatch {
   examDate?: string;
   language?: Language;
   calibSamples?: CalibSample[];
-  misconceptions?: MisconceptionRecord[];
+  misconceptions?: unknown[];
   modalityTally?: ModalityTally;
   litToday?: string[];
   continentId?: string | null;
@@ -358,21 +353,15 @@ export function foldContent(items: ContentItem[]): RunCaches {
   // The two payloads whose shape changed under them. See lib/contentMigrate.ts:
   // a row the normalization carried over from the `caches` column may predate
   // either rewrite, and a hit is never re-validated.
-  // The six newest phases have no shape guard on the way in, so they get one
+  // Explain and Perform have no shape guard on the way in, so they get one
   // here — see `usableShapes`. Each names the array its screen reads first.
   return {
     ...caches,
-    discriminate: usableShapes(caches.discriminate, "cases"),
     explain: usableShapes(caches.explain, "order"),
-    predict: usableShapes(caches.predict, "setups"),
-    trace: usableShapes(caches.trace, "stages"),
-    drill: usableShapes(caches.drill, "reps"),
-    recall: usableShapes(caches.recall, "rubric"),
     perform: usableShapes(caches.perform, "steps"),
     consume: migrateConsume(
       caches.consume as unknown as Record<string, LegacyConsumeChunk[]>,
     ),
-    feynman: usableRubrics(caches.feynman),
   };
 }
 

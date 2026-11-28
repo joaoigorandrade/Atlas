@@ -99,8 +99,6 @@ interface NodeDetailProps {
   onSkipKnown: (node: ConceptNode) => void;
   /** Open the next deeper level of a mastered node (`useDepth`). */
   onGoDeeper?: (fromId: string) => void;
-  /** A quick look ("Só quero saber"): its ladder ends on keeping what it used. */
-  quick?: boolean;
 }
 
 /**
@@ -152,7 +150,6 @@ function NodeDetailBody({
   onPhaseAction,
   onSkipKnown,
   onGoDeeper,
-  quick,
 }: NodeDetailProps & { presence: PresenceState }) {
   const t = useT(STRINGS);
   const { language } = useLanguage();
@@ -231,19 +228,15 @@ function NodeDetailBody({
   );
   // A finished ladder that open gaps hold off green: the button closes one.
   const gapCta = !ctaPhase && displayState === "learning" ? gapIds[0] : undefined;
-  // A node just learned walks on to what it opened, not into a review of itself —
-  // but a quick look ends on keeping it: its cards first, walking on second.
-  const nextStop = nextStopOf(displayState, dependentIds, display);
-  const keepIt = !!quick && !ctaPhase && !reviewed && plan[currentPhase] === "retain";
-  const walkOn = keepIt ? undefined : nextStop;
+  // A node just learned walks on to what it opened: its cards were kept in the
+  // "Guardar" pass right after Perform, and their due status shows on its own.
+  const walkOn = nextStopOf(displayState, dependentIds, display);
   const owed = () => onPrimaryAction(node, displayState);
   const second: [string, string, () => void] | null = proving
     ? ["action-walk-ladder", t.walkLadder(ctaPhaseLabel), owed]
     : displayState === "frontier"
       ? ["action-skip-known", t.skipKnown, () => onSkipKnown(node)]
-      : keepIt && nextStop
-        ? ["action-walk-on", t.walkOn(labelOf(nextStop)), () => onSelect(nextStop)]
-        : null;
+      : null;
 
   const chipStyle = {
     display: "inline-flex",
@@ -565,11 +558,9 @@ function NodeDetailBody({
             ? t.resumeReading
             : gapCta
               ? t.closeGap(labelOf(gapCta))
-              : keepIt
-                ? t.keepIt
-                : walkOn
-                  ? t.walkOn(labelOf(walkOn))
-                  : t.cta[displayState](ctaPhaseLabel)}
+              : walkOn
+                ? t.walkOn(labelOf(walkOn))
+                : t.cta[displayState](ctaPhaseLabel)}
       </Button>
 
       {second && (

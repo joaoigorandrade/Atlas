@@ -159,21 +159,18 @@ describe("which nodes still need a factory card", () => {
     expect(isFactoryCard({ source: "Connect" })).toBe(false);
   });
 
-  it("agrees with the queue chip on a quick look: no card until the rungs are done", () => {
-    const plan = ["consume", "explain", "retain"] as const;
+  it("agrees with the queue chip: no card until the rungs are done", () => {
+    const plan = ["consume", "explain", "perform", "retain"] as const;
     const learned = [
       { id: "read", phasePlan: [...plan] },
       { id: "done", phasePlan: [...plan] },
       { id: "gap", phasePlan: [...plan], gap: true },
     ];
     const states = { read: "learning", done: "mastered", gap: "learning" };
-    const phasesDone = { read: ["consume"], done: ["consume", "explain"] };
+    const phasesDone = { read: ["consume"], done: ["consume", "explain", "perform"] };
     expect(
       reviewableNodes(learned, states, "glance", phasesDone).map((n) => n.id),
     ).toEqual(["done"]);
-    expect(
-      reviewableNodes(learned, states, "mastery", phasesDone).map((n) => n.id),
-    ).toEqual(["read", "done"]);
     // The chip counts what a tap on Review would draft — the bug was "1 new"
     // on the chip and "nothing to review" on the tap.
     expect(freshConcepts(learned, states, "glance", phasesDone, [])).toBe(1);

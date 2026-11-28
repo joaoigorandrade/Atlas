@@ -5,20 +5,8 @@
 import type {
   ConsumeChunk,
   ConsumeModelBeat,
-  SocraticStep,
-  FeynmanBeat,
-  ElaborationContent,
-  CrucibleContent,
-  DiscriminateContent,
   ExplainContent,
-  PredictContent,
-  TraceContent,
-  DrillContent,
-  RecallContent,
   PerformContent,
-  ProvenanceContent,
-  SteelmanContent,
-  ProduceContent,
   RetainContent,
 } from "@/lib/curriculum";
 
@@ -34,41 +22,15 @@ export interface RunCaches {
   consume: Record<string, ConsumeChunk[]>;
   /** Lens views already opened, keyed `model:<nodeId>:<chunkId>:<lens>`. */
   models: Record<string, ConsumeModelBeat[]>;
-  socratic: Record<string, SocraticStep[]>;
-  feynman: Record<string, FeynmanBeat[]>;
-  connect: Record<string, ElaborationContent>;
-  crucible: Record<string, CrucibleContent>;
   explain: Record<string, ExplainContent>;
-  // The six phases of the catalogue's growth to twelve. Each keyed by node
-  // id, exactly like the eight before them.
-  discriminate: Record<string, DiscriminateContent>;
-  predict: Record<string, PredictContent>;
-  trace: Record<string, TraceContent>;
-  drill: Record<string, DrillContent>;
-  recall: Record<string, RecallContent>;
   perform: Record<string, PerformContent>;
-  provenance: Record<string, ProvenanceContent>;
-  steelman: Record<string, SteelmanContent>;
-  produce: Record<string, ProduceContent>;
   retain: RetainContent | null;
 }
 
 export const emptyCaches = (): RunCaches => ({
   consume: {},
   models: {},
-  socratic: {},
-  feynman: {},
-  connect: {},
-  crucible: {},
   explain: {},
-  discriminate: {},
-  predict: {},
-  trace: {},
-  drill: {},
-  recall: {},
   perform: {},
-  provenance: {},
-  steelman: {},
-  produce: {},
   retain: null,
 });

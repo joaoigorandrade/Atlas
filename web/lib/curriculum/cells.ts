@@ -13,10 +13,6 @@
 // And the learner's goal decides which cells a map may hold at all
 // (`GOAL_CELLS`): material the goal does not need is never generated.
 
-import type { GoalKind } from "./calibration";
-import type { Domain } from "./domains";
-import type { NodeKind, PhaseId } from "./phases";
-
 /**
  * How much the learner's GOAL rests on a concept — judged against the goal,
  * never in general. `core` is a hub or a capstone, `working` is needed to use
@@ -62,50 +58,11 @@ export function cellOf(
   return `${IMPORTANCES.indexOf(importance) + 1}${DIFFICULTIES.indexOf(difficulty) + 1}` as Cell;
 }
 
-const ALL_CELLS: readonly Cell[] = ["11", "12", "13", "21", "22", "23", "31", "32", "33"];
-
-/**
- * Which cells each goal lets a map hold. A Pareto map carries nothing the
- * learner only has to recognise; an exam keeps only the easy context; a
- * project uses its hard ideas as tools rather than studying them; mastery
- * holds everything, weighted to the core by the map prompt.
- */
-export const GOAL_CELLS: Record<GoalKind, readonly Cell[]> = {
-  pareto: ["11", "12", "13", "21", "22"],
-  exam: ["11", "12", "13", "21", "22", "23", "31"],
-  project: ["11", "12", "21", "22"],
-  mastery: ALL_CELLS,
-  // A first look: every node is something to use, never something to master.
-  glance: ["21", "22"],
-};
-
-/**
- * The nearest cell the goal allows. The prompt names the allowed cells, so this
- * is the backstop for a model that ignored it: rather than fail a whole map, a
- * node keeps its row and gives up difficulty first (it is still learnable at
- * that bar), and only moves row when its row is closed to the goal.
- */
-export function clampCell(
-  goal: GoalKind,
-  importance: NodeImportance,
-  difficulty: NodeDifficulty,
-): { importance: NodeImportance; difficulty: NodeDifficulty } {
-  const allowed = GOAL_CELLS[goal];
-  const i = IMPORTANCES.indexOf(importance);
-  const d = DIFFICULTIES.indexOf(difficulty);
-  let best = { importance, difficulty };
-  let bestCost = Infinity;
-  for (const cell of allowed) {
-    const ci = Number(cell[0]) - 1;
-    const cd = Number(cell[1]) - 1;
-    const cost = Math.abs(ci - i) * 10 + (cd <= d ? d - cd : 5 + cd - d);
-    if (cost < bestCost) {
-      bestCost = cost;
-      best = { importance: IMPORTANCES[ci], difficulty: DIFFICULTIES[cd] };
-    }
-  }
-  return best;
-}
+/** The cells a map's level-I concepts may hold: every node is something to use
+ *  (`working`). A deeper level raises difficulty a step (`spawnDepth`).
+ *  ponytail: "23" (working/hard) stays closed until the map prompt's rework
+ *  (docs/PLAN-FLOW.md WS2) opens it with a mapV bump. */
+export const MAP_CELLS: readonly Cell[] = ["21", "22"];
 
 /**
  * Minutes a node should cost the learner, whole ladder, by cell.
@@ -124,32 +81,3 @@ export const CELL_BUDGET: Record<Cell, number> = {
   "32": 6,
   "33": 6,
 };
-
-/**
- * The one applied rung that proves a `use` node, by preference: whatever makes
- * the learner DO the thing this kind of concept is for. The domain goes first
- * where it replaces the kind's ladder outright — speaking is the use of a
- * language, carrying the stage out is the use of a craft.
- */
-const USE_RUNGS: Record<NodeKind, readonly PhaseId[]> = {
-  fact: ["drill", "discriminate", "recall"],
-  concept: ["discriminate", "predict"],
-  procedure: ["perform", "trace", "drill"],
-  principle: ["predict", "trace"],
-};
-
-const DOMAIN_USE: Partial<Record<Domain, readonly PhaseId[]>> = {
-  performative: ["produce"],
-  craft: ["perform"],
-};
-
-/** The first preferred applied rung present in the node's full ladder. */
-export function appliedRung(
-  full: readonly PhaseId[],
-  kind: NodeKind,
-  domain: Domain,
-): PhaseId | undefined {
-  return [...(DOMAIN_USE[domain] ?? []), ...USE_RUNGS[kind]].find((p) =>
-    full.includes(p),
-  );
-}

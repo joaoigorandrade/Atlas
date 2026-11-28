@@ -101,62 +101,13 @@ test.describe("Full Visual Browser Tour", () => {
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "07a_explain.png") });
     await passExplain(page);
-    const discriminateSheet = page.getByTestId("phase-discriminate");
-    await expect(discriminateSheet).toBeVisible();
+    // Explain hands on to the owed rung: Perform.
+    const performSheet = page.getByTestId("phase-perform");
+    await expect(performSheet).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: path.join(SCREENSHOT_DIR, "07b_handoff_discriminate.png"),
+      path: path.join(SCREENSHOT_DIR, "07b_handoff_perform.png"),
     });
-
-    // 8. Phase: Socratic
-    await openRun(page, { [FIRST_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, "socratic");
-    const socraticSheet = page.getByTestId("phase-socratic");
-    await expect(socraticSheet).toBeVisible();
-    const ansField = socraticSheet.getByTestId("field-answer");
-    await expect(ansField).toBeVisible();
-    await ansField.fill(
-      "It clarifies the distinction between the rule and its concrete instances.",
-    );
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "08_phase_socratic.png") });
-    await socraticSheet.getByTestId("action-submit").click();
-    await page.waitForTimeout(800);
-
-    // 9. Phase: Feynman
-    await openRun(page, { [FIRST_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, "feynman");
-    const feynmanSheet = page.getByTestId("phase-feynman");
-    await expect(feynmanSheet).toBeVisible();
-    await feynmanSheet.getByTestId("action-begin").click();
-    await feynmanSheet
-      .getByTestId("field-answer")
-      .fill("The rule holds generally because the underlying premises are satisfied.");
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "09_phase_feynman.png") });
-
-    // 9. Phase 3: Connect
-    await openRun(page, { [FIRST_NODE]: "learning", [SECOND_NODE]: "learning" });
-    await openPhase(page, FIRST_NODE, "connect");
-    const connectSheet = page.getByTestId("phase-connect");
-    await expect(connectSheet).toBeVisible();
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "10_phase_connect.png") });
-
-    // 10. Phase 4: Crucible
-    await openRun(page, { [FIRST_NODE]: "shaky", [SECOND_NODE]: "mastered" });
-    await openPhase(page, FIRST_NODE, "crucible");
-    const crucibleSheet = page.getByTestId("phase-crucible");
-    await expect(crucibleSheet).toBeVisible();
-    const conf = crucibleSheet.getByTestId("action-confidence-2");
-    if (await conf.isVisible().catch(() => false)) await conf.click();
-    await crucibleSheet
-      .getByTestId("field-answer")
-      .fill(
-        "The constraint is invariant under transformation, so the conclusion still applies.",
-      );
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "11_phase_crucible.png") });
 
     // 11. Phase 5: Retain (Flashcards)
     await openRun(page, { [FIRST_NODE]: "mastered", [SECOND_NODE]: "mastered" });

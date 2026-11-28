@@ -91,41 +91,26 @@ describe("foldContent drops payloads the renderer cannot read", () => {
   });
 
   it("drops a phase payload carrying the wrong array", () => {
-    // The real case: the old shared shape held `items`, and TraceView reads
-    // `stages`. Truthy, so the render branch opened; undefined on deref, so it
-    // crashed.
+    // A shared shape held `items` where PerformView reads `steps`. Truthy, so
+    // the render branch opened; undefined on deref, so it crashed.
     const caches = foldContent([
-      row("trace", { nodeId: "n", nodeLabel: "N", items: [{ id: "i" }] }),
+      row("perform", { nodeId: "n", nodeLabel: "N", items: [{ id: "i" }] }),
     ] as never);
-    expect(caches.trace).toEqual({});
+    expect(caches.perform).toEqual({});
   });
 
   it("keeps a payload in the shape its screen actually reads", () => {
-    const good = { nodeId: "n", nodeLabel: "N", scenario: "s", stages: [{ id: "t" }] };
-    const caches = foldContent([row("trace", good)] as never);
-    expect(caches.trace.n).toEqual(good);
+    const good = { nodeId: "n", nodeLabel: "N", task: "t", steps: [{ id: "s" }] };
+    const caches = foldContent([row("perform", good)] as never);
+    expect(caches.perform.n).toEqual(good);
   });
 
-  it("guards every one of the six, each on its own field", () => {
+  it("guards Explain and Perform, each on its own field", () => {
     // A phase missing from the guard is a phase that can still be handed a
     // stale row, which is exactly how this shipped.
     const wrong = { nodeId: "n", nodeLabel: "N", items: [] };
-    const caches = foldContent([
-      row("discriminate", wrong),
-      row("predict", wrong),
-      row("trace", wrong),
-      row("drill", wrong),
-      row("recall", wrong),
-      row("perform", wrong),
-    ] as never);
-    for (const kind of [
-      "discriminate",
-      "predict",
-      "trace",
-      "drill",
-      "recall",
-      "perform",
-    ] as const)
+    const caches = foldContent([row("explain", wrong), row("perform", wrong)] as never);
+    for (const kind of ["explain", "perform"] as const)
       expect(caches[kind], `${kind} kept a stale-shaped row`).toEqual({});
   });
 });

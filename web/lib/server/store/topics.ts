@@ -20,10 +20,7 @@ import type {
   CalibSample,
   ConceptEdge,
   ConceptNode,
-  ConnectSession,
   ConsumeProgress,
-  FeynmanSession,
-  MisconceptionRecord,
   ModalityTally,
   ProgressState,
   DepthSpec,
@@ -33,7 +30,6 @@ import type {
   PhaseId,
   PhaseProgress,
   ShakyReason,
-  SocraticSession,
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
 import { fail, readAll } from "@/lib/server/store/shared";
@@ -66,7 +62,7 @@ type TopicRow = {
   exam_date: string;
   language: string | null;
   calib_samples: CalibSample[];
-  misconceptions: MisconceptionRecord[];
+  misconceptions: unknown[];
   modality_tally: ModalityTally;
   lit_today: string[];
   updated_at: string;
@@ -96,9 +92,9 @@ type NodeRow = {
   depth: 2 | 3 | null;
   phases_done: PhaseId[];
   consume_progress: ConsumeProgress | null;
-  socratic_progress: SocraticSession | null;
-  feynman_progress: FeynmanSession | null;
-  connect_progress: ConnectSession | null;
+  socratic_progress: unknown;
+  feynman_progress: unknown;
+  connect_progress: unknown;
   phase_progress: PhaseProgress | null;
   phase_closed_at: Record<string, string> | null;
 };
@@ -345,7 +341,8 @@ export async function createTopic(
       {
         user_id: userId,
         subject: topic.subject,
-        goal: topic.goal ?? "exam",
+        // One flow: whatever an older client sends (docs/PLAN-FLOW.md).
+        goal: "glance",
         interests: topic.interests ?? "",
         pareto_pct: topic.paretoPct ?? 20,
         exam_date: topic.examDate ?? "",

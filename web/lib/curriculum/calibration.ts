@@ -6,7 +6,7 @@
 // actually went. Overconfidence — felt solid, failed — is the thing this
 // surface exists to catch, because that gap is fluency masquerading as mastery.
 // The curve → per-node breakdown → "jump to its Crucible" loop reads it.
-import { CONNECT_COLOR } from "./connect";
+import { color } from "@/lib/theme";
 import { pretestClean, type ConsumeProgress } from "./consume";
 import { planGates, proofGate, type PhaseId } from "./phases";
 import { ConceptEdge, NodeState, ProgressState, STATE_COLOR, ShakyReason } from "./types";
@@ -56,7 +56,7 @@ export function calibVerdictLabel(verdict: CalibVerdict, lang: Language = "en"):
 }
 
 /** The violet "your tendency" trend line, shared with the Connect accent. */
-export const CALIB_TREND_COLOR = CONNECT_COLOR.accent;
+export const CALIB_TREND_COLOR = color.phaseConnect;
 
 /** Which side of the diagonal a reading falls on. */
 export function calibVerdict(felt: number, real: number): CalibVerdict {
@@ -303,49 +303,19 @@ export function provesOnSight(
 // whether a node with nothing finished looks started, which is
 // `stateFromPlan`'s `started` option.
 
-/** `glance` is "just want to know": a 1-3 node map, each node on `GLANCE_PLAN`,
- *  no placement, no overnight hold. Not in `GOALS` — it is the other mode of
- *  the welcome screen, not one of mastery's goals. */
-export type GoalKind = "exam" | "project" | "mastery" | "pareto" | "glance";
-
-export const GOALS: ReadonlyArray<[GoalKind, string]> = [
-  ["exam", "Pass an exam"],
-  ["project", "Build a project"],
-  ["mastery", "General mastery"],
-  ["pareto", "Pareto (80/20)"],
-];
-
-const GOALS_PT: ReadonlyArray<[GoalKind, string]> = [
-  ["exam", "Passar em uma prova"],
-  ["project", "Construir um projeto"],
-  ["mastery", "Domínio geral"],
-  ["pareto", "Pareto (80/20)"],
-];
-
-/** Language-aware onboarding goal options. */
-export function goals(lang: Language = "en"): ReadonlyArray<[GoalKind, string]> {
-  return lang === "pt-BR" ? GOALS_PT : GOALS;
-}
+/** The one flow (docs/PLAN-FLOW.md). The id stays "glance" on the wire and in
+ *  `topics.goal`: it is what every surviving topic already stores and what the
+ *  `quickLook` cache-key axis is stamped from, so renaming it would re-key
+ *  every cached generation. */
+export type GoalKind = "glance";
 
 export const DAILY_TARGETS = [10, 15, 20, 30] as const;
-
-/** How much of the topic a Pareto map covers: the share of real-world results
- *  the learner wants, which the map prompt turns into a concept count. */
-export const PARETO_LEVELS = [20, 50, 80] as const;
-export const PARETO_DEFAULT = 20;
 
 export interface OnboardingForm {
   topic: string;
   goal: GoalKind;
   interests: string;
   target: number;
-  /** ISO date (YYYY-MM-DD) of the goal's date — the exam, the trip, the
-   *  deadline; any goal may set one (W4.5). The name predates that and is kept
-   *  for the wire. "" = not set: no countdown instead of a fabricated one. */
-  examDate: string;
-  /** Coverage share when goal is "pareto"; absent = PARETO_DEFAULT (also what
-   *  every pre-Pareto saved run has). */
-  paretoPct?: number;
 }
 
 export const DEFAULT_FORM: OnboardingForm = {
@@ -355,7 +325,6 @@ export const DEFAULT_FORM: OnboardingForm = {
   goal: "glance",
   interests: "",
   target: 15,
-  examDate: "",
 };
 
 /** Every ancestor of `id` (including itself) along prerequisite edges. */

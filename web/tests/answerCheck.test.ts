@@ -3,7 +3,6 @@ import {
   checkNumeric,
   checkOrder,
   checkText,
-  gradeDiagnostic,
   normalizeText,
   parseNumber,
 } from "@/lib/curriculum";
@@ -122,62 +121,5 @@ describe("checkOrder", () => {
     expect(checkOrder(["a", "b", "c"], ["a", "b", "c"])).toBe(true);
     expect(checkOrder(["a", "c", "b"], ["a", "b", "c"])).toBe(false);
     expect(checkOrder(["a", "b"], ["a", "b", "c"])).toBe(false);
-  });
-});
-
-describe("gradeDiagnostic", () => {
-  const base = {
-    tag: "t",
-    q: "q",
-    note: "n",
-    nodeId: "eigen",
-    difficulty: "medium" as const,
-    opts: [],
-    correctIndex: -1,
-  };
-
-  it("grades a four-option question by the option picked", () => {
-    const q = { ...base, type: "mcq" as const, correctIndex: 2 };
-    expect(gradeDiagnostic(q, 2)).toBe(true);
-    expect(gradeDiagnostic(q, 0)).toBe(false);
-  });
-
-  it("reads a question written before the axis as a four-option one", () => {
-    // Every placement already stored has no `type`; it must keep grading.
-    const q = { ...base, correctIndex: 1 };
-    expect(gradeDiagnostic(q, 1)).toBe(true);
-    expect(gradeDiagnostic(q, 3)).toBe(false);
-  });
-
-  it("grades a computed answer by value, not by spelling", () => {
-    const q = { ...base, type: "compute" as const, expected: ["3/4"] };
-    expect(gradeDiagnostic(q, "0.75")).toBe(true);
-    expect(gradeDiagnostic(q, "0,75")).toBe(true);
-    expect(gradeDiagnostic(q, "0.8")).toBe(false);
-  });
-
-  it("grades a spoken answer against every accepted utterance", () => {
-    const q = { ...base, type: "speak" as const, expected: ["esta bien", "todo bien"] };
-    expect(gradeDiagnostic(q, "Está bien.")).toBe(true);
-    expect(gradeDiagnostic(q, "todo bien")).toBe(true);
-    expect(gradeDiagnostic(q, "no se")).toBe(false);
-  });
-
-  it("grades a chronology by the sequence", () => {
-    const q = {
-      ...base,
-      type: "order" as const,
-      expected: ["Nicaea", "Schism", "Trent"],
-    };
-    expect(gradeDiagnostic(q, ["Nicaea", "Schism", "Trent"])).toBe(true);
-    expect(gradeDiagnostic(q, ["Schism", "Nicaea", "Trent"])).toBe(false);
-  });
-
-  it("is wrong, never a throw, when the answer is the wrong shape for its kind", () => {
-    // This runs on the onboarding path; a bad client answer must not crash it.
-    expect(gradeDiagnostic({ ...base, type: "compute", expected: ["4"] }, 4)).toBe(false);
-    expect(gradeDiagnostic({ ...base, type: "mcq", correctIndex: 0 }, "0")).toBe(false);
-    expect(gradeDiagnostic({ ...base, type: "order" }, ["a"])).toBe(false);
-    expect(gradeDiagnostic({ ...base, type: "speak" }, "anything")).toBe(false);
   });
 });

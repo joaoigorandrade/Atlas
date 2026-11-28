@@ -35,12 +35,8 @@ import {
   checkItem,
   disputedIds,
   generateConsume,
-  generateDiscriminate,
-  generateDrill,
   generateMap,
-  generatePredict,
-  generateProvenance,
-  generateTrace,
+  generateExplain,
 } from "@/lib/server/generate";
 import type { Language } from "@/lib/i18n";
 
@@ -50,47 +46,43 @@ interface PanelTopic {
   topic: string;
   goal: GoalKind;
   language: Language;
-  paretoPct?: number;
   /** What the flows care about on this topic. */
   expect?: { locale?: RegExp; latex?: boolean };
 }
 
 /** Two per domain, en and pt-BR, including the four research topics. */
 export const PANEL: PanelTopic[] = [
-  { topic: "Linear algebra", goal: "exam", language: "en", expect: { latex: true } },
+  { topic: "Linear algebra", goal: "glance", language: "en", expect: { latex: true } },
   // A named chapter maps that chapter only — no circuit-variables recap from ch. 1.
   {
     topic: "Circuitos elétricos — capítulo 2 (Nilsson & Riedel)",
-    goal: "exam",
+    goal: "glance",
     language: "pt-BR",
     expect: { latex: true },
   },
-  { topic: "Probabilidade", goal: "mastery", language: "pt-BR", expect: { latex: true } },
-  { topic: "Git version control", goal: "pareto", paretoPct: 50, language: "en" },
-  { topic: "Python para análise de dados", goal: "exam", language: "pt-BR" },
-  { topic: "Human cardiovascular physiology", goal: "exam", language: "en" },
-  { topic: "Mudanças climáticas", goal: "pareto", paretoPct: 50, language: "pt-BR" },
-  { topic: "Igreja Antiga", goal: "mastery", language: "pt-BR" },
-  { topic: "The French Revolution", goal: "mastery", language: "en" },
-  { topic: "Espanhol para viagem", goal: "pareto", paretoPct: 20, language: "pt-BR" },
-  { topic: "Conversational Italian", goal: "pareto", paretoPct: 20, language: "en" },
+  { topic: "Probabilidade", goal: "glance", language: "pt-BR", expect: { latex: true } },
+  { topic: "Git version control", goal: "glance", language: "en" },
+  { topic: "Python para análise de dados", goal: "glance", language: "pt-BR" },
+  { topic: "Human cardiovascular physiology", goal: "glance", language: "en" },
+  { topic: "Mudanças climáticas", goal: "glance", language: "pt-BR" },
+  { topic: "Igreja Antiga", goal: "glance", language: "pt-BR" },
+  { topic: "The French Revolution", goal: "glance", language: "en" },
+  { topic: "Espanhol para viagem", goal: "glance", language: "pt-BR" },
+  { topic: "Conversational Italian", goal: "glance", language: "en" },
   {
     topic: "Finanças pessoais",
-    goal: "pareto",
-    paretoPct: 20,
+    goal: "glance",
     language: "pt-BR",
     expect: { locale: /tesouro|cdi|selic|fgc|imposto de renda|\bIR\b/gi },
   },
-  { topic: "Sourdough baking", goal: "project", language: "en" },
+  { topic: "Sourdough baking", goal: "glance", language: "en" },
 ];
 
-type ClosedKind = "discriminate" | "predict" | "trace" | "drill" | "provenance";
+// ponytail: Explain is the one closed kind left; the panel is rebuilt for the
+// one flow in the flow review (docs/PLAN-FLOW.md, Stage E).
+type ClosedKind = "explain";
 const CLOSED: Record<ClosedKind, (p: never) => Promise<unknown>> = {
-  discriminate: generateDiscriminate,
-  predict: generatePredict,
-  trace: generateTrace,
-  drill: generateDrill,
-  provenance: generateProvenance,
+  explain: generateExplain,
 };
 
 /** Nodes per map whose closed items are generated and solved. */
@@ -100,7 +92,6 @@ async function evalTopic(t: PanelTopic) {
   const map = (await generateMap({
     topic: t.topic,
     goal: t.goal,
-    paretoPct: t.paretoPct,
     language: t.language,
   })) as { nodes?: MapNode[]; scopes?: unknown; meta?: MapMeta };
   if (!map.nodes) return { topic: t.topic, scoped: true };

@@ -214,7 +214,7 @@ const STATE_CONFIDENCE_PT: Record<NodeState, string> = {
  * design (AGENTS.md §"Both languages, always").
  */
 function gate(plan?: readonly PhaseId[]): string {
-  return phaseLabel(plan?.length ? proofGate(plan) : "crucible");
+  return phaseLabel(plan?.length ? proofGate(plan) : "perform");
 }
 
 /** Language-aware state-confidence copy. `plan` names the gate the Shaky line

@@ -18,12 +18,10 @@
 // anywhere in its chain re-runs the hydrate on every render.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useDomainPhaseCaches } from "@/components/atlas/useDomainPhaseCaches";
 import { useLive } from "@/components/atlas/useLive";
 import { omitKey } from "@/components/atlas/phaseParking";
 import {
   DEFAULT_FORM,
-  PARETO_DEFAULT,
   emptyGraph,
   freshAdherence,
   mergeCalib,
@@ -36,27 +34,15 @@ import {
   type ConsumeChunk,
   type ConsumeModelBeat,
   type ConsumeProgress,
-  type ConnectSession,
   type PhaseProgress,
-  type CrucibleContent,
-  type DiscriminateContent,
-  type DrillContent,
   type PerformContent,
-  type PredictContent,
-  type RecallContent,
-  type TraceContent,
-  type ElaborationContent,
-  type FeynmanBeat,
-  type FeynmanSession,
+  type ExplainContent,
   type GapSpec,
-  type MisconceptionRecord,
   type ModalityTally,
   type OnboardingForm,
   type RetainContent,
   type PhasesDoneMap,
   type ShakyReason,
-  type SocraticSession,
-  type SocraticStep,
   type StateMap,
 } from "@/lib/curriculum";
 import type { StoredCard } from "@/lib/fsrs";
@@ -142,24 +128,8 @@ export function useRunState(opts: {
   // Per-node generated content, cached for the run so re-entering a phase
   // doesn't re-bill a generation. Retain is global (one queue per day).
   const [consumeCache, setConsumeCache] = useState<Record<string, ConsumeChunk[]>>({});
-  const [socraticCache, setSocraticCache] = useState<Record<string, SocraticStep[]>>({});
-  const [feynmanCache, setFeynmanCache] = useState<Record<string, FeynmanBeat[]>>({});
-  const [connectCache, setConnectCache] = useState<Record<string, ElaborationContent>>(
-    {},
-  );
-  const [crucibleCache, setCrucibleCache] = useState<Record<string, CrucibleContent>>({});
-  // The six phases added in the catalogue's growth to twelve — one cache
-  // each, keyed by node like every phase before them.
-  const [discriminateCache, setDiscriminateCache] = useState<
-    Record<string, DiscriminateContent>
-  >({});
-  const [predictCache, setPredictCache] = useState<Record<string, PredictContent>>({});
-  const [traceCache, setTraceCache] = useState<Record<string, TraceContent>>({});
-  const [drillCache, setDrillCache] = useState<Record<string, DrillContent>>({});
-  const [recallCache, setRecallCache] = useState<Record<string, RecallContent>>({});
   const [performCache, setPerformCache] = useState<Record<string, PerformContent>>({});
-  // The three phases the domain axis adds, and Explain — see `useDomainPhaseCaches`.
-  const domainCaches = useDomainPhaseCaches();
+  const [explainCache, setExplainCache] = useState<Record<string, ExplainContent>>({});
   // Model views (a lens opened over one section of the reading), keyed by
   // `modelKey`. Per (node, section, lens) rather than per node: a learner opens
   // one lens on the section that didn't land, not twenty across the pass.
@@ -174,33 +144,12 @@ export function useRunState(opts: {
   // Which lens this learner keeps opening, run-wide — the evidence behind
   // the adaptive-modality default.
   const [modalityTally, setModalityTally] = useState<ModalityTally>({});
-  // …and the unfinished ones, per node, persisted so re-entering a pass lands
-  // back on the probe the learner stopped at with the transcript intact.
-  const [socraticProgress, setSocraticProgress] = useState<
-    Record<string, SocraticSession>
-  >({});
-  // …and the unfinished teach-backs, per node, persisted for the same reason
-  // Socratic's are: a Gap Report is somewhere to come back to, not something
-  // to re-earn by teaching the whole concept again.
-  const [feynmanProgress, setFeynmanProgress] = useState<Record<string, FeynmanSession>>(
-    {},
-  );
-  // …and the unfinished ones, per node, for the same reason Socratic's and
-  // Feynman's are kept: links the learner wrote in their own words are work,
-  // not something to re-earn because they stepped back to the map.
-  const [connectProgress, setConnectProgress] = useState<Record<string, ConnectSession>>(
-    {},
-  );
   // …and the same again for every phase built after the catalogue, which park
   // by phase id in one `phase_progress` column rather than earning a column
   // and a migration each. Same reason as the four above: a Crucible attempt
   // and a Perform run are long-form work, and a refresh is not a decision to
   // throw them away.
   const [phaseProgress, setPhaseProgress] = useState<Record<string, PhaseProgress>>({});
-  /** What this learner keeps getting wrong, across nodes and across sessions.
-   *  The pass state above is discarded the moment a pass finishes; this is the
-   *  part worth keeping, and the judge reads it back on every answer. */
-  const [misconceptions, setMisconceptions] = useState<MisconceptionRecord[]>([]);
   // §13 Adherence — starts honest: no fabricated streak, one freeze banked.
   const [adherence, setAdherence] = useState<AdherenceState>(freshAdherence);
   // Labels of nodes that reached Mastered this session run.
@@ -244,26 +193,14 @@ export function useRunState(opts: {
   const cardsRef = useLive(cards);
   const consumeCacheRef = useLive(consumeCache);
   const modelCacheRef = useLive(modelCache);
-  const socraticCacheRef = useLive(socraticCache);
-  const feynmanCacheRef = useLive(feynmanCache);
-  const connectCacheRef = useLive(connectCache);
-  const crucibleCacheRef = useLive(crucibleCache);
-  const discriminateCacheRef = useLive(discriminateCache);
-  const predictCacheRef = useLive(predictCache);
-  const traceCacheRef = useLive(traceCache);
-  const drillCacheRef = useLive(drillCache);
-  const recallCacheRef = useLive(recallCache);
   const performCacheRef = useLive(performCache);
+  const explainCacheRef = useLive(explainCache);
   const retainContentRef = useLive(retainContent);
   const consumeProgressRef = useLive(consumeProgress);
   const modalityTallyRef = useLive(modalityTally);
-  const socraticProgressRef = useLive(socraticProgress);
-  const feynmanProgressRef = useLive(feynmanProgress);
-  const connectProgressRef = useLive(connectProgress);
   const phaseProgressRef = useLive(phaseProgress);
   const phasesDoneRef = useLive(phasesDone);
   const shakyReasonsRef = useLive(shakyReasons);
-  const misconceptionsRef = useLive(misconceptions);
 
   // ---- the mutators the phases reach for ---------------------------------
 
@@ -358,17 +295,8 @@ export function useRunState(opts: {
   const contentCaches = useRef([
     [setConsumeCache, "consume"],
     [setModelCache, "models"],
-    [setSocraticCache, "socratic"],
-    [setFeynmanCache, "feynman"],
-    [setConnectCache, "connect"],
-    [setCrucibleCache, "crucible"],
-    [setDiscriminateCache, "discriminate"],
-    [setPredictCache, "predict"],
-    [setTraceCache, "trace"],
-    [setDrillCache, "drill"],
-    [setRecallCache, "recall"],
     [setPerformCache, "perform"],
-    ...domainCaches.contentTables,
+    [setExplainCache, "explain"],
   ] as const).current;
 
   const clearCaches = useCallback(() => {
@@ -390,11 +318,7 @@ export function useRunState(opts: {
       setCards(t.cards ?? []);
       setConsumeProgress(t.consumeProgress ?? {});
       setModalityTally(t.modalityTally ?? {});
-      setSocraticProgress(t.socraticProgress ?? {});
-      setFeynmanProgress(t.feynmanProgress ?? {});
-      setConnectProgress(t.connectProgress ?? {});
       setPhaseProgress(t.phaseProgress ?? {});
-      setMisconceptions(t.misconceptions ?? []);
     },
     [clearCaches],
   );
@@ -456,8 +380,6 @@ export function useRunState(opts: {
         topic: topic.subject,
         goal: topic.goal as OnboardingForm["goal"],
         interests: topic.interests,
-        paretoPct: topic.paretoPct,
-        examDate: topic.examDate,
         target: targetRef.current,
       });
       setGraph(topic.graph);
@@ -597,20 +519,14 @@ export function useRunState(opts: {
         phasesDone,
         reviewedNodes,
         consumeProgress,
-        socraticProgress,
-        feynmanProgress,
-        connectProgress,
         phaseProgress,
       });
       const cardShots = projectCards(cards);
       const topicShot = projectTopic({
         goal: form.goal,
         interests: form.interests,
-        examDate: form.examDate,
-        paretoPct: form.paretoPct ?? PARETO_DEFAULT,
         language: runLanguage ?? null,
         calibSamples,
-        misconceptions,
         modalityTally,
         litToday,
       });
@@ -648,11 +564,7 @@ export function useRunState(opts: {
     cards,
     consumeProgress,
     modalityTally,
-    socraticProgress,
-    feynmanProgress,
-    connectProgress,
     phaseProgress,
-    misconceptions,
   ]);
 
   // The learner's own row — the streak, the daily target, the interface
@@ -701,37 +613,12 @@ export function useRunState(opts: {
     modelCache,
     setModelCache,
     modelCacheRef,
-    socraticCache,
-    setSocraticCache,
-    socraticCacheRef,
-    feynmanCache,
-    setFeynmanCache,
-    feynmanCacheRef,
-    connectCache,
-    setConnectCache,
-    connectCacheRef,
-    crucibleCache,
-    discriminateCache,
-    setDiscriminateCache,
-    discriminateCacheRef,
-    predictCache,
-    setPredictCache,
-    predictCacheRef,
-    traceCache,
-    setTraceCache,
-    traceCacheRef,
-    drillCache,
-    setDrillCache,
-    drillCacheRef,
-    recallCache,
-    setRecallCache,
-    recallCacheRef,
     performCache,
     setPerformCache,
     performCacheRef,
-    ...domainCaches,
-    setCrucibleCache,
-    crucibleCacheRef,
+    explainCache,
+    setExplainCache,
+    explainCacheRef,
     retainContent,
     setRetainContent,
     retainContentRef,
@@ -741,21 +628,9 @@ export function useRunState(opts: {
     modalityTally,
     setModalityTally,
     modalityTallyRef,
-    socraticProgress,
-    setSocraticProgress,
-    socraticProgressRef,
-    feynmanProgress,
-    setFeynmanProgress,
-    feynmanProgressRef,
-    connectProgress,
-    setConnectProgress,
-    connectProgressRef,
     phaseProgress,
     setPhaseProgress,
     phaseProgressRef,
-    misconceptions,
-    setMisconceptions,
-    misconceptionsRef,
     adherence,
     setAdherence,
     litToday,

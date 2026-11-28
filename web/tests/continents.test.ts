@@ -41,7 +41,7 @@ const consume = {
 const curriculum = {
   kind: "curriculum" as const,
   topic: "Calculus",
-  goal: "mastery" as const,
+  goal: "glance" as const,
 };
 
 describe("the neighbours axis in the cache key", () => {
@@ -71,7 +71,7 @@ describe("the prompts", () => {
   });
 
   it("tell a map build what its neighbours already carry", () => {
-    const base = { topic: "Calculus", goal: "mastery" as const };
+    const base = { topic: "Calculus", goal: "glance" as const };
     expect(mapContext(base)).not.toContain("continent");
     expect(mapContext({ ...base, neighbours: ["Probability: Sample spaces"] })).toContain(
       "Probability: Sample spaces",

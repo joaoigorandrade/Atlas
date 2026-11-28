@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CONNECT_COLOR,
   STATE_COLOR,
   reviewAside,
   reviewGrades,
@@ -23,7 +22,7 @@ import { STRINGS } from "@/components/session/retainCopy";
 // The micro-Socratic aside borrows Connect's violet; the fail re-explanation
 // borrows the learning-blue and the flagged node the shaky-amber, so each reads
 // the same here as it does on the map.
-const ASIDE_ACCENT = CONNECT_COLOR.accent;
+const ASIDE_ACCENT = color.phaseConnect;
 
 const keycap: CSSProperties = {
   fontFamily: font.caps,
@@ -48,7 +47,6 @@ const keycap: CSSProperties = {
 export default function ActiveCard({
   card,
   session,
-  nodeLabel,
   compact,
   onFlip,
   onGrade,
@@ -369,41 +367,6 @@ export default function ActiveCard({
               <Rich text={card.reExplain} />
             </div>
           </div>
-
-          {session.wroteBack && card.fails && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 13,
-                background: color.dangerBg,
-                border: "1px solid rgba(var(--state-shaky),.35)",
-                borderRadius: 3,
-                padding: "15px 18px",
-                marginBottom: 16,
-              }}
-            >
-              <span
-                style={{
-                  width: 11,
-                  height: 11,
-                  borderRadius: "50%",
-                  background: STATE_COLOR.shaky,
-                  flex: "0 0 auto",
-                  marginTop: 5,
-                  animation: "markPop .5s cubic-bezier(.34,1.56,.64,1) both",
-                }}
-              />
-              <div>
-                <div style={{ fontFamily: font.serif, fontSize: 17, marginBottom: 3 }}>
-                  {t.nodeFlaggedShaky(nodeLabel)}
-                </div>
-                <div style={{ fontSize: 13.5, color: color.inkMuted, lineHeight: 1.55 }}>
-                  {t.retentionFailureBody}
-                </div>
-              </div>
-            </div>
-          )}
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button

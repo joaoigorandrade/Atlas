@@ -16,20 +16,12 @@
 import type {
   ConsumeChunk,
   ConsumeModelBeat,
-  CrucibleContent,
-  ElaborationContent,
-  FeynmanBeat,
   MapNode,
   RetainContent,
-  SocraticStep,
 } from "@/lib/curriculum";
-import { GLANCE_PLAN, resolvePlan, type GoalKind } from "@/lib/curriculum";
+import { LADDER, type NodeDifficulty, type NodeKind } from "@/lib/curriculum";
 import { FIXTURES } from "@/lib/fixtureMode";
-import {
-  PHASE_CONTENT,
-  domainPhaseJudgement,
-  diagnosticFixture,
-} from "@/lib/server/fixturesPhases";
+import { PHASE_CONTENT } from "@/lib/server/fixturesPhases";
 import { fixtureTable } from "@/lib/server/fixtureTables";
 import { FIXTURE_DEEPER } from "@/lib/server/fixturesDepth";
 import type { GenerateBody } from "@/lib/server/job";
@@ -65,32 +57,23 @@ function vars(body: GenerateBody): Vars {
 
 // ---- the map ---------------------------------------------------------------
 
-/** Every kind is represented, so fixture mode exercises the per-kind ladder
- *  and the per-kind prompt rather than only the `concept` path — and every
- *  rank and relief, so the map draws towns, hills and mountains. */
-const MAP: Array<[string, string, string[], ...Parameters<typeof resolvePlan>]> = [
-  ["foundations", "Foundations", [], "concept", "general"],
-  ["notation", "Notation", ["foundations"], "fact", "general", "core", "easy"],
-  ["core-rule", "The core rule", ["notation"], "principle", "general", "core", "hard"],
-  ["worked-cases", "Worked cases", ["core-rule"], "procedure", "general"],
-  ["edge-cases", "Edge cases", ["core-rule"], "concept", "general", "working"],
-  [
-    "putting-it-together",
-    "Putting it together",
-    ["worked-cases", "edge-cases"],
-    "procedure",
-    "general",
-  ],
+/** Four concepts — the most a map holds — one of each kind, so fixture mode
+ *  exercises every Perform form and both reliefs. */
+const MAP: Array<[string, string, string[], NodeKind, NodeDifficulty]> = [
+  ["foundations", "Foundations", [], "concept", "easy"],
+  ["notation", "Notation", ["foundations"], "fact", "easy"],
+  ["core-rule", "The core rule", ["notation"], "principle", "medium"],
+  ["worked-cases", "Worked cases", ["core-rule"], "procedure", "medium"],
 ];
 
 const TOO_BROAD = { scopes: ["Stars", "Cells"].map((l) => ({ label: l, note: l })) };
 
 /** Column = topological depth, row = position within it — the same left-to-right
  *  reading the real layout produces, without the layout pass. */
-function mapNodes(goal?: GoalKind, n = goal === "glance" ? 2 : MAP.length): MapNode[] {
+function mapNodes(): MapNode[] {
   const depth = new Map<string, number>();
   const rows = new Map<number, number>();
-  return MAP.slice(0, n).map(([id, label, prereqs, ...axes]) => {
+  return MAP.map(([id, label, prereqs, kind, difficulty]) => {
     const g = prereqs.reduce((d, p) => Math.max(d, (depth.get(p) ?? 0) + 1), 0);
     depth.set(id, g);
     const row = rows.get(g) ?? 0;
@@ -100,10 +83,10 @@ function mapNodes(goal?: GoalKind, n = goal === "glance" ? 2 : MAP.length): MapN
       label,
       summary: `What ${label.toLowerCase()} is, in one line.`,
       ...(FIXTURE_DEEPER[id] ? { deeper: FIXTURE_DEEPER[id] } : null),
-      kind: axes[0],
-      importance: axes[2],
-      difficulty: axes[3],
-      phasePlan: goal === "glance" ? GLANCE_PLAN : resolvePlan(...axes),
+      kind,
+      importance: "working" as const,
+      difficulty,
+      phasePlan: LADDER,
       prereqs,
       state: "unknown" as const,
       g,
@@ -160,116 +143,6 @@ const consumeChunks = (v: Vars): ConsumeChunk[] =>
     },
   }));
 
-const socraticSteps = (v: Vars): SocraticStep[] =>
-  [0, 1, 2].map((i) => ({
-    id: `s${i + 1}`,
-    move: "Clarify" as const,
-    prompt: `In your own words, what does ${v.nodeLabel} let you do that you could not do without it?`,
-    // Two pieces, so fixture mode draws the ledger instead of skipping it.
-    sufficient: [
-      `${v.nodeLabel} states a rule, not an example`,
-      `what ${v.topic} needs it for`,
-    ],
-    replies: [
-      {
-        label: "It names the rule and what follows from it",
-        quality: "correct" as const,
-        response: "Yes — that is exactly the move.",
-      },
-      {
-        label: "It is a special case of something else",
-        quality: "wrong" as const,
-        response: "Not quite — that is one instance, not the rule.",
-      },
-    ],
-    hint: "Look at what the second paragraph ruled out.",
-    tell: `${v.nodeLabel} states the rule the rest of ${v.topic} leans on.`,
-    ...(i === 2 ? { spare: true } : null),
-  }));
-
-const feynmanBeats = (v: Vars): FeynmanBeat[] =>
-  [0, 1].map((i) => ({
-    id: `b${i + 1}`,
-    subPoint: `${["What it claims", "Why it holds"][i]} in ${v.nodeLabel}`,
-    mustConvey: [
-      i === 0
-        ? `that ${v.nodeLabel} states a rule, not an example`
-        : `that the rule follows from the step before it`,
-    ],
-    fix: {
-      probe: `Say the ${i === 0 ? "claim" : "reason"} again, without the jargon.`,
-      replies: [
-        { label: "the rule itself", correct: true, response: "That is it." },
-        {
-          label: "one example of it",
-          correct: false,
-          response: "That is a case, not the rule.",
-        },
-      ],
-    },
-    gap: {
-      id: `${v.nodeId}-gap-${i + 1}`,
-      label: `${v.nodeLabel}: ${["the claim", "the reason"][i]}`,
-      reason: "Left unexplained in the teach-back.",
-      dx: 0,
-      dy: 90 + i * 60,
-    },
-  }));
-
-const connectContent = (v: Vars): ElaborationContent => ({
-  centerId: v.nodeId,
-  centerLabel: v.nodeLabel,
-  encoding: "conceptual",
-  detectNote: "This concept is relational, not a list — links, not mnemonics.",
-  center: { x: 290, y: 210 },
-  cands: [
-    { id: v.ids[0], label: v.labels[0], x: 90, y: 90, rel: `sets up ${v.nodeLabel}` },
-    {
-      id: v.ids[1],
-      label: v.labels[1],
-      x: 470,
-      y: 300,
-      rel: `is constrained by ${v.nodeLabel}`,
-    },
-  ],
-});
-
-const crucibleContent = (v: Vars): CrucibleContent => ({
-  centerId: v.nodeId,
-  centerLabel: v.nodeLabel,
-  draws: [v.labels[0]],
-  rungs: [{ label: "Recall a definition" }, { label: "Apply it in a new frame" }],
-  gap: {
-    id: `${v.nodeId}-transfer`,
-    label: `${v.nodeLabel} under a new frame`,
-    reason: "The rule was recalled but not carried across.",
-    dx: 0,
-    dy: 100,
-  },
-  problems: [
-    {
-      tag: "Novel transfer",
-      q: `A case you have not seen: apply ${v.nodeLabel} where the usual framing does not hold. What do you get?`,
-      hint: "Start from what the rule actually requires, not from the example you read.",
-      placeholder: "Work it through…",
-      sample:
-        "The rule still applies, because its requirement is met — the framing is what changed.",
-    },
-    {
-      tag: "Guided re-attempt",
-      q: `Same case, one step at a time: what does ${v.nodeLabel} require, and is it met here?`,
-      hint: "Name the requirement first, then check it.",
-      placeholder: "Step one…",
-      sample: "The requirement is met, so the result carries over unchanged.",
-    },
-  ],
-  transfer: [
-    { verdict: "good", text: "You named the rule correctly." },
-    { verdict: "red", text: "The new framing was treated as a new rule." },
-  ],
-  reExplain: `The rule in ${v.nodeLabel} does not care about the framing — only about its requirement being met.`,
-});
-
 const retainContent = (body: GenerateBody, v: Vars): RetainContent => ({
   budgetMin: typeof body.budgetMin === "number" ? body.budgetMin : 8,
   cards: [
@@ -287,7 +160,7 @@ const retainContent = (body: GenerateBody, v: Vars): RetainContent => ({
     {
       id: "r2",
       type: "why",
-      source: "Feynman",
+      source: "Consume",
       node: v.ids[1],
       front: `Why does ${v.labels[1]} hold?`,
       back: "Because it follows from the step before it, given the same requirement.",
@@ -303,22 +176,14 @@ const modelBeats = (v: Vars): ConsumeModelBeat[] =>
     text: `${["First, hold the section's claim still.", "Then apply it to the case in front of you.", "What you are left with is the takeaway, arrived at rather than asserted."][i]} (${v.nodeLabel})`,
   }));
 
-// The six phases of the catalogue's growth to twelve. Each fixture is written
-// against its own shape, so fixture mode exercises the real per-phase surface
-// rather than one payload wearing six names — which is exactly the drift these
-// phases were split apart to avoid.
-
 function judgement(body: GenerateBody): Record<string, unknown> {
-  const own = domainPhaseJudgement(body);
-  if (own) return own;
   switch (body.mode) {
     case "choice":
       return { index: 0, response: "You named the mechanism." };
-    // The recite pair grades on the Feynman verdict rows — one ruling per
-    // rubric row — so all three answer from the same shape.
+    // A card answered in own words and a Perform run both grade on verdict
+    // rows — one ruling per rubric row.
     case "recall":
     case "perform":
-    case "feynman":
       return {
         // One ruling per rubric row: a row left unjudged spawns no gap, and the
         // validator on the live path rejects it for exactly that reason.
@@ -329,17 +194,6 @@ function judgement(body: GenerateBody): Record<string, unknown> {
         })),
         response: "You had the claim. The reason behind it never arrived.",
         jargon: [],
-      };
-    case "crucible":
-      return {
-        outcome: "partial",
-        transfer: [
-          { verdict: "good", text: "The rule was recalled correctly." },
-          { verdict: "red", text: "It was not carried into the new framing." },
-        ],
-        gapLabel: "Transfer under a new frame",
-        gapReason: "The requirement was re-derived instead of checked.",
-        reExplain: "The rule holds wherever its requirement is met.",
       };
     default:
       return { quality: "correct", response: "Yes — that is the move." };
@@ -354,11 +208,9 @@ export function fixturePayload(
   const v = vars(body);
   switch (kind) {
     case "curriculum": // "Everything" is too broad, so a spec can chart a continent.
-      return /^everything$/i.test(v.topic) ? TOO_BROAD : { nodes: mapNodes(body.goal) };
+      return /^everything$/i.test(v.topic) ? TOO_BROAD : { nodes: mapNodes() };
     case "summary":
       return { summary: `What ${v.nodeLabel} is, in one line.` };
-    case "diagnosticQuestion":
-      return { ...diagnosticFixture(body, v.labels[0], v.ids[0]) };
     case "consume":
       return { chunks: consumeChunks(v) };
     case "model":
@@ -370,10 +222,6 @@ export function fixturePayload(
           "Nothing in the sentence depends on the example around it — that is why it generalizes.",
         ],
       };
-    case "socratic":
-      return { steps: socraticSteps(v) };
-    case "feynman":
-      return { beats: feynmanBeats(v) };
     case "retain":
       return { content: retainContent(body, v) };
     case "judge":
@@ -384,11 +232,7 @@ export function fixturePayload(
 }
 
 /** Every phase whose payload is `{ content }`, written from the job's vars. */
-const CONTENT: Record<string, (v: Vars) => unknown> = {
-  connect: connectContent,
-  crucible: crucibleContent,
-  ...PHASE_CONTENT,
-};
+const CONTENT: Record<string, (v: Vars) => unknown> = PHASE_CONTENT;
 
 // ---- the Supabase stand-in -------------------------------------------------
 

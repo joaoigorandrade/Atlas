@@ -103,10 +103,8 @@ vi.mock("@/lib/persistence", () => ({
 
 const form = {
   topic: "Kalman Filters",
-  goal: "mastery" as const,
+  goal: "glance" as const,
   interests: "",
-  paretoPct: 20,
-  examDate: "",
   target: 15,
 };
 

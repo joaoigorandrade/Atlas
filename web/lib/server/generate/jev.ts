@@ -6,7 +6,6 @@
 
 import type { ConsumeChunk, GoalKind, MapNode } from "@/lib/curriculum";
 import { sectionText } from "@/lib/curriculum";
-import { clampCell } from "@/lib/curriculum/cells";
 import { logEvent } from "@/lib/log";
 import { choice, decide, noul, sureChoice, sureNoul, type Answer } from "../decide";
 import { KIND_RULE, type MapParams } from "./mapPrompt";
@@ -170,11 +169,13 @@ export async function backstopAxes(
         n.importance) as MapNode["importance"];
       const difficulty = (sureChoice(a?.difficulty) ??
         n.difficulty) as MapNode["difficulty"];
-      const cell =
-        p.goal && importance && difficulty
-          ? clampCell(p.goal, importance, difficulty)
-          : { importance, difficulty };
-      const next = { ...n, kind, ...cell };
+      // Every concept is something to use; only difficulty is Jev's to move.
+      const next = {
+        ...n,
+        kind,
+        importance: importance && ("working" as const),
+        difficulty,
+      };
       if (
         next.kind !== n.kind ||
         next.importance !== n.importance ||
@@ -240,7 +241,7 @@ const MAP_SIZE = {
 export async function sizeMap(
   p: Pick<MapParams, "topic" | "goal" | "outline" | "neighbours" | "part">,
 ): Promise<[number, number] | undefined> {
-  if (p.goal === "pareto" || p.part) return undefined;
+  if (p.part) return undefined;
   const glance = p.goal === "glance";
   const a = await decide(
     glance

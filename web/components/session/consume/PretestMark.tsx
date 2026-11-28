@@ -8,7 +8,7 @@
 // Renders nothing for a section whose pretest has nothing to say.
 
 import { BLUE, STRINGS, WRONG } from "./shared";
-import { inkDelta, type ConsumeProgress } from "@/lib/curriculum";
+import { type ConsumeProgress } from "@/lib/curriculum";
 import { useT } from "@/lib/i18n";
 import { color, kicker } from "@/lib/theme";
 
@@ -27,15 +27,10 @@ export function PretestMark({
   // Folded: only a known section says so. Open: once guessed, until checked.
   if (folded ? !right : right === undefined || p.checks[id]) return null;
   const stake = p.stakes[id];
-  const ink =
-    stake === undefined
-      ? ""
-      : ` · ${right ? t.inkWon(inkDelta(stake, true)) : t.inkLost(-inkDelta(stake, false))}`;
   return (
     <div data-testid={right ? "consume-pretest-known" : "consume-pretest-missed"}>
       <div style={{ ...kicker(9.5, "0.1em", right ? BLUE : WRONG), marginBottom: 6 }}>
         {folded ? t.pretestKnown : right ? t.pretestGuessed : t.pretestMissedMark}
-        {ink}
       </div>
       {!right && stake === 2 && (
         <div style={{ fontSize: 14, color: color.inkSoft, marginBottom: 14 }}>

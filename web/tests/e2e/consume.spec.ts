@@ -68,7 +68,7 @@ test("consume: knowing every section before reading offers the proof gate (W3.4)
   // The ladder stays one tap away; proving it is the lead.
   await expect(recap.getByTestId("action-begin-next")).toBeVisible();
   await recap.getByTestId("action-prove-known").click();
-  await expect(page.getByTestId("phase-crucible")).toBeVisible();
+  await expect(page.getByTestId("phase-perform")).toBeVisible();
 });
 
 test("node detail: a reading known end to end leads with proving it (W3.4)", async ({
@@ -101,5 +101,5 @@ test("node detail: a reading known end to end leads with proving it (W3.4)", asy
   await expect(panel.getByTestId("action-primary")).toContainText("prove it");
   await expect(panel.getByTestId("action-walk-ladder")).toBeVisible();
   await panel.getByTestId("action-primary").click();
-  await expect(page.getByTestId("phase-crucible")).toBeVisible();
+  await expect(page.getByTestId("phase-perform")).toBeVisible();
 });

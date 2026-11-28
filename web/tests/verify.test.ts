@@ -13,18 +13,22 @@ vi.mock("@/lib/server/openrouter", () => ({
 }));
 
 import { disputedIds, verified, type ClosedItem } from "@/lib/server/generate/verify";
-import type { DrillContent } from "@/lib/curriculum";
 
-const drill = (n: number, tag = "a"): DrillContent => ({
+const explain = (tag = "a"): import("@/lib/curriculum").ExplainContent => ({
   nodeId: "n",
   nodeLabel: "N",
-  reps: Array.from({ length: n }, (_, i) => ({
-    id: `${tag}${i}`,
-    prompt: `p${i}`,
-    answers: ["x", "y"],
-    answerIndex: 0,
-    rule: "r",
-  })),
+  problem: "p",
+  analogy: { text: "a", breaks: "b" },
+  order: ["o1", "o2", "o3"],
+  misconception: { belief: "m", tempting: "t" },
+  checkBack: { question: "q", rightAnswer: "r" },
+  listener: {
+    says: `says-${tag}`,
+    replies: [
+      { label: "right reply here", correct: true, why: "w" },
+      { label: "wrong reply here", correct: false, why: "w" },
+    ],
+  },
 });
 const meta = { topic: "T", nodeLabel: "N" };
 
@@ -56,23 +60,17 @@ describe("disputedIds", () => {
 });
 
 describe("verified", () => {
-  it("drops a disputed rep while the floor holds", async () => {
-    solverAnswers.push({ a0: { pick: 1, confidence: 0.95 } });
-    const out = await verified("drill", meta, async () => drill(6));
-    expect(out.reps.map((r) => r.id)).not.toContain("a0");
-    expect(out.reps).toHaveLength(5);
-  });
-  it("regenerates once when dropping would breach the floor", async () => {
-    solverAnswers.push({ a0: { pick: 1, confidence: 0.95 } }, {});
+  it("regenerates once when the listener check is disputed", async () => {
+    solverAnswers.push({ "ex-n": { pick: 1, confidence: 0.95 } }, {});
     let made = 0;
-    const out = await verified("drill", meta, async () => drill(5, made++ ? "b" : "a"));
+    const out = await verified("explain", meta, async () => explain(made++ ? "b" : "a"));
     expect(made).toBe(2);
-    expect(out.reps[0].id).toBe("b0");
+    expect(out.listener.says).toBe("says-b");
   });
   it("ships unverified when the solver fails", async () => {
     const { generateJson } = await import("@/lib/server/openrouter");
     vi.mocked(generateJson).mockRejectedValueOnce(new Error("down"));
-    const out = await verified("drill", meta, async () => drill(5));
-    expect(out.reps).toHaveLength(5);
+    const out = await verified("explain", meta, async () => explain());
+    expect(out.listener.says).toBe("says-a");
   });
 });

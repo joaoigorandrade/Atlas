@@ -58,16 +58,13 @@ export function useRetain(deps: {
   const {
     formRef,
     graphRef,
-    statesRef,
     cards,
     cardsRef,
     topicIdRef,
     setCards,
-    setStates,
     setRetainContent,
     retainContentRef,
     setReviewedNodes,
-    setShakyReason,
     recordCalib,
   } = run;
   const { setRetain, retainRef } = sessions;
@@ -327,16 +324,9 @@ export function useRetain(deps: {
         prev.includes(card.node) ? prev : [...prev, card.node],
       );
     }
-    // Flag once: a card missed again on its next trip has already said so.
-    let shaky: UndoEntry["shaky"];
-    if (grade === "again" && card.fails && statesRef.current[card.node] !== "shaky") {
-      shaky = { node: card.node, prev: statesRef.current[card.node] };
-      setStates((prev) =>
-        prev[card.node] === "shaky" ? prev : { ...prev, [card.node]: "shaky" },
-      );
-      setShakyReason(card.node, "review-miss");
-      showToast(tc().cardFlaggedShaky(nodeLabel(card.node)), tc().mapUpdated);
-    }
+    // A miss never touches the map (docs/PLAN-FLOW.md §5): the card shows its
+    // re-explanation and a way back to the section, and FSRS re-deals it.
+    const shaky: UndoEntry["shaky"] = undefined;
     // A leech is pulled from rotation by the grade itself; the fail stage's
     // re-teach is the way back to it.
     if (graded?.leech) showToast(tc().cardLeech(nodeLabel(card.node)));

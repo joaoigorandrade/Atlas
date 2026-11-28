@@ -4,7 +4,6 @@ import { pressable } from "@/components/ui/Button";
 import {
   CALIB_COLOR,
   CALIB_TREND_COLOR,
-  CRUCIBLE_COLOR,
   STATE_COLOR,
   calibCoach,
   calibRows,
@@ -507,7 +506,7 @@ function Readout({
               lineHeight: 1.4,
             }}
           >
-            <CaptureHook color={CRUCIBLE_COLOR.accent} text={t.hookCrucible} />
+            <CaptureHook color={color.phaseCrucible} text={t.hookCrucible} />
             <CaptureHook color={color.accent} text={t.hookReview} />
             <CaptureHook color={STATE_COLOR.frontier} text={t.hookConsume} />
           </div>

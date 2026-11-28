@@ -49,18 +49,14 @@ describe("loadContent", () => {
     answering(
       items(
         { kind: "consume", payload: [section] },
-        { kind: "socratic", payload: [{ id: "s1" }] },
-        { kind: "feynman", payload: [{ mustConvey: ["x"] }] },
-        { kind: "connect", payload: { centerId: "lat" } },
-        { kind: "crucible", payload: { problem: "…" } },
+        { kind: "explain", payload: { nodeId: "lat", order: ["a"] } },
+        { kind: "perform", payload: { nodeId: "lat", steps: [{ id: "s1" }] } },
       ),
     );
     const caches = await loadContent("t1");
     expect(caches.consume.lat).toHaveLength(1);
-    expect(caches.socratic.lat).toHaveLength(1);
-    expect(caches.feynman.lat).toHaveLength(1);
-    expect(caches.connect.lat).toBeTruthy();
-    expect(caches.crucible.lat).toBeTruthy();
+    expect(caches.explain.lat).toBeTruthy();
+    expect(caches.perform.lat).toBeTruthy();
   });
 
   // The envelope is the server's business now: `renderShape` takes it off in
@@ -72,12 +68,12 @@ describe("loadContent", () => {
   it("takes the payload as the shape its screen renders", async () => {
     answering(
       items({
-        kind: "connect",
-        payload: { centerId: "lat", content: "not an envelope" },
+        kind: "perform",
+        payload: { steps: [], content: "not an envelope" },
       }),
     );
     const caches = await loadContent("t1");
-    expect(caches.connect.lat).toEqual({ centerId: "lat", content: "not an envelope" });
+    expect(caches.perform.lat).toEqual({ steps: [], content: "not an envelope" });
   });
 
   it("keys a walkthrough by its variant, so two lenses are two payloads", async () => {
@@ -102,11 +98,9 @@ describe("loadContent", () => {
   it("ignores a kind this build has no bucket for", async () => {
     // A server ahead of this client must degrade, not throw: an unknown kind is
     // content this version cannot draw, and everything else still has to land.
-    answering(
-      items({ kind: "someFutureKind" }, { kind: "socratic", payload: [{ id: "s1" }] }),
-    );
+    answering(items({ kind: "someFutureKind" }, { kind: "consume", payload: [section] }));
     const caches = await loadContent("t1");
-    expect(caches.socratic.lat).toHaveLength(1);
+    expect(caches.consume.lat).toHaveLength(1);
   });
 
   it("reshapes a reading written before the current section shape", async () => {
@@ -118,11 +112,6 @@ describe("loadContent", () => {
     const [chunk] = (await loadContent("t1")).consume.lat;
     expect(chunk.body).toEqual(["flat"]);
     expect(chunk.terms).toEqual([]);
-  });
-
-  it("drops a teach-back rubric with nothing to grade against", async () => {
-    answering(items({ kind: "feynman", payload: [{ mustConvey: [] }] }));
-    expect((await loadContent("t1")).feynman.lat).toBeUndefined();
   });
 
   it("asks for everything when no screen has narrowed it", async () => {
