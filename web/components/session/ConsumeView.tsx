@@ -397,12 +397,7 @@ export default function ConsumeView({
           )}
 
           <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 18,
-              flexWrap: "wrap",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}
           >
             {knewAll && (
               <Button data-testid="action-prove-known" onClick={onProve}>
@@ -430,21 +425,24 @@ export default function ConsumeView({
             >
               {t.recapBegin(nextLabel)}
             </button>
-            <button
-              className="at-press"
-              onClick={onExit}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                fontFamily: "inherit",
-                fontSize: 13.5,
-                color: color.inkMuted,
-                cursor: "pointer",
-              }}
-            >
-              {t.recapBackToMap}
-            </button>
+            {/* With nothing owed, the CTA above already goes back to the map. */}
+            {nextLabel && (
+              <button
+                className="at-press"
+                onClick={onExit}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  fontFamily: "inherit",
+                  fontSize: 13.5,
+                  color: color.inkMuted,
+                  cursor: "pointer",
+                }}
+              >
+                {t.recapBackToMap}
+              </button>
+            )}
           </div>
         </div>
       </Sheet>
