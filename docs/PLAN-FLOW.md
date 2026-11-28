@@ -474,9 +474,10 @@ Landed (web):
   Shaky.
 - Contracts: `lib/curriculum/spine.ts` (`Spine`, `CardTrace`, `CardFormat`,
   `SpineSignal`); `ReviewCard` and `StoredCard` extend `CardTrace`.
-- Migrations written, **not applied**: `20261128000000_card_trace.sql` (card
-  columns), `20261128000100_one_flow.sql` (drops the one mastery topic — "Europa
-  medieval", 34 nodes, 0 started, 0 cards — and defaults `goal` to `glance`).
+- Migrations applied to prod on 2026-11-28: `20261128100946_card_trace.sql`
+  (card columns), `20261128100951_one_flow.sql` (dropped the one mastery topic —
+  "Europa medieval", 34 nodes, 0 started, 0 cards — and defaults `goal` to
+  `glance`).
 - iOS: the "Domínio" card is gone from the welcome screen (AtlasKit builds for
   the simulator).
 
