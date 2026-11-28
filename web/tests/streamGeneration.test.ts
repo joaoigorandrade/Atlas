@@ -114,6 +114,8 @@ let tooBroad = false;
 
 /** Set to write each object across several deltas, the way a real model does —
  *  which is what gives the token-by-token layer anything to redraw. */
+/** The model writing its last section twice over (seen in prod). */
+let repeatSection = false;
 let splitDeltas = false;
 
 const isJudge = (prompt: string) => prompt.includes("You judge a learner's answer");
@@ -164,7 +166,7 @@ function objectsFor(prompt: string): unknown[] {
   if (isJudge(prompt))
     return [{ quality: "near" }, { quality: "near", response: "the streamed critique" }];
   if (isPassage(prompt)) return passageObjs;
-  if (isConsume(prompt)) return consumeObjs;
+  if (isConsume(prompt)) return repeatSection ? [...consumeObjs, consumeObjs[1]] : consumeObjs;
   return [{}];
 }
 
@@ -569,6 +571,27 @@ describe("the reading pass", () => {
       );
     } finally {
       splitDeltas = false;
+    }
+  });
+});
+
+describe("a repeated section", () => {
+  it("is dropped, not shown or cached twice", async () => {
+    const { generateConsumeStream } = await import("@/lib/server/generate");
+    const { framesToPayload } = await import("@/lib/server/stream");
+    repeatSection = true;
+    try {
+      const frames = await drain(
+        generateConsumeStream({ topic: "Rust", nodeLabel: "Ownership", prereqLabels: [], interests: "" }),
+      );
+      expect(frames.some((f) => (f.i ?? 0) > 1)).toBe(false);
+      const payload = framesToPayload(
+        frames.map(({ p, i, v, partial }) => ({ p, i: i!, v, partial })),
+        { chunks: { min: 2, max: 5 } },
+      ) as { chunks: Array<{ kicker: string }> } | null;
+      expect(payload?.chunks.map((c) => c.kicker)).toEqual(consumeObjs.map((c) => c.kicker));
+    } finally {
+      repeatSection = false;
     }
   });
 });

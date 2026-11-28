@@ -192,9 +192,14 @@ export function oneVisual(): (c: ConsumeChunk) => ConsumeChunk {
   };
 }
 
+/** A section's identity for spotting a repeat: the model has written the same
+ *  section twice in a row (a one-word fix, then the whole thing again), and
+ *  each copy validates on its own. */
+const sectionKey = (kicker: string) => kicker.trim().toLowerCase();
+
 export function validateConsume(raw: unknown): ConsumeChunk[] {
   const root = obj(raw, "payload");
-  return arr(
+  const chunks = arr(
     root.chunks,
     "chunks",
     CONSUME_SECTION_BOUNDS.min,
@@ -202,6 +207,9 @@ export function validateConsume(raw: unknown): ConsumeChunk[] {
   )
     .map(validateConsumeSection)
     .map(oneVisual());
+  const keys = chunks.map((c) => sectionKey(c.kicker));
+  if (new Set(keys).size !== keys.length) fail("chunks repeat a section");
+  return chunks;
 }
 
 function consumeContext(
@@ -346,16 +354,23 @@ ${CONSUME_SECTION_EXAMPLE}${languageNote(params.language)}`,
     const checked: StreamFrame[] = [];
     const pending: Promise<void>[] = [];
     const capVisual = oneVisual();
+    const seen: string[] = [];
     for await (const chunk of stream) {
       while (checked.length) yield checked.shift()!;
       // Past the cap the payload fails its shape and is never cached, so every
       // learner on this node would pay for the same over-long reading again.
       if (yielded >= CONSUME_SECTION_BOUNDS.max) break;
+      // A repeat of a section already sent is dropped, draft and all — a
+      // draft of it would sit at the next index with nothing to finish it.
+      const key = sectionKey(chunk.value.kicker);
+      if (chunk.partial ? seen.some((k) => k.startsWith(key)) : seen.includes(key))
+        continue;
       if (chunk.partial) {
         yield { p: "chunks", i: yielded, v: withoutCheck(chunk.value), partial: true };
         continue;
       }
       const i = yielded++;
+      seen.push(key);
       chunk.value = capVisual(chunk.value);
       yield { p: "chunks", i, v: withoutCheck(chunk.value) };
       if (chunk.value.check)
