@@ -228,6 +228,7 @@ export default function TopicComposer({
 
       {!topic.trim() && (
         <div
+          className="at-stagger"
           style={{
             display: "flex",
             flexWrap: "wrap",

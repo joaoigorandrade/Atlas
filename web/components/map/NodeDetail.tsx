@@ -282,7 +282,7 @@ function NodeDetailBody({
   return (
     <div
       data-testid="panel-node"
-      className="at-node-panel"
+      className="at-node-panel at-stagger"
       data-node={node?.id ?? ""}
       role="complementary"
       aria-label={node?.label}

@@ -96,7 +96,7 @@ export default function ProfileScreen({
     >
       <Masthead back={t.home} onBack={onHome} kicker={t.profile} accent={color.accent} />
 
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div className="at-stagger-page" style={{ flex: 1, overflowY: "auto" }}>
         <div
           style={{
             maxWidth: 760,

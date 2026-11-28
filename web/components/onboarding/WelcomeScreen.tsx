@@ -100,7 +100,10 @@ export default function WelcomeScreen({
           animation: `fadeUp ${motion.duration.deliberate}ms ${motion.ease.enter} both`,
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <div
+          className="at-stagger at-welcome-head"
+          style={{ textAlign: "center", marginBottom: 28 }}
+        >
           <CompassRose size={46} />
           <div style={{ ...kicker(12, "0.22em"), margin: "14px 0 12px" }}>{t.kicker}</div>
           <h1

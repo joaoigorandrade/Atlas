@@ -8,6 +8,12 @@ body {
   padding: 0;
 }
 
+/* A tap on iOS flashes a grey box over the paper; `.at-press` already answers
+   the finger, so the system flash only muddies it. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* The page is an old sheet: Garamond on rag paper. `font-size-adjust` holds
    the x-height where the app's sizes were tuned (for a sans) — it is the one
    knob for how large the whole atlas reads. Fell has a single weight, so a
@@ -775,6 +781,7 @@ html[data-turn="back"]::view-transition-new(root) {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    animation-delay: 0s !important;
   }
 }
 
@@ -896,5 +903,119 @@ html[data-turn="back"]::view-transition-new(root) {
 @media (hover: none) and (pointer: coarse) {
   .at-kbd-hint {
     display: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Phone motion.
+
+   On a phone a screen arrives all at once into a narrow column, so its lines
+   are set in one after another, the way a compositor fills a forme: the
+   `.at-stagger` children (or `.at-stagger-page`'s grandchildren, for a page
+   whose body sits inside a scroller) rise in with a short cascade. Transform
+   and opacity only, `backwards` fill so a child's own inline transform is
+   back in force the moment its entrance ends.
+   ------------------------------------------------------------------------ */
+@media (max-width: 767px) {
+  .at-stagger > *,
+  .at-stagger-page > * > * {
+    animation: fadeUp 460ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .at-stagger > :nth-child(2),
+  .at-stagger-page > * > :nth-child(2) {
+    animation-delay: 50ms;
+  }
+  .at-stagger > :nth-child(3),
+  .at-stagger-page > * > :nth-child(3) {
+    animation-delay: 100ms;
+  }
+  .at-stagger > :nth-child(4),
+  .at-stagger-page > * > :nth-child(4) {
+    animation-delay: 150ms;
+  }
+  .at-stagger > :nth-child(5),
+  .at-stagger-page > * > :nth-child(5) {
+    animation-delay: 200ms;
+  }
+  .at-stagger > :nth-child(6),
+  .at-stagger-page > * > :nth-child(6) {
+    animation-delay: 250ms;
+  }
+  .at-stagger > :nth-child(n + 7),
+  .at-stagger-page > * > :nth-child(n + 7) {
+    animation-delay: 300ms;
+  }
+
+  /* The node sheet is a bottom sheet: it wears the grabber that says so. */
+  .at-node-panel::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    margin-left: -19px;
+    border-radius: 2px;
+    background: rgba(var(--ink), 0.2);
+  }
+
+  /* The plan drawer comes in from the edge its toggle sits on. */
+  .at-plan-rail {
+    animation: railIn 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes railIn {
+  from {
+    opacity: 0;
+    transform: translateX(-36px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The welcome rose turns and settles on north as the page opens. */
+.at-welcome-head > svg:first-child {
+  animation: roseTurn 1400ms cubic-bezier(0.2, 0.8, 0.3, 1) 120ms backwards;
+}
+@keyframes roseTurn {
+  0% {
+    opacity: 0;
+    transform: rotate(-200deg) scale(0.6);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(14deg) scale(1.06);
+  }
+  78% {
+    transform: rotate(-5deg) scale(1);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* A reading section rises into the page as it scrolls into view — driven by
+   the scroll itself (a compositor timeline, no JS, no observer). Browsers
+   without scroll timelines simply show the prose. */
+@supports (animation-timeline: view()) {
+  @media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+    [data-chunk-id] {
+      animation: chunkRise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+    }
+  }
+}
+@keyframes chunkRise {
+  from {
+    opacity: 0.15;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

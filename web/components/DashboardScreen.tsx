@@ -175,7 +175,7 @@ export default function DashboardScreen({
         </button>
       </Masthead>
 
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div className="at-stagger-page" style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", padding: "44px 40px 80px" }}>
           <div style={{ ...kicker(11), marginBottom: 10 }}>{dateLabel}</div>
           <h1

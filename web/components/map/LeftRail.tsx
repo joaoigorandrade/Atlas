@@ -151,7 +151,7 @@ function LeftRail({
     TERRITORY_ORDER.slice(0, i).reduce((n, s) => n + count(s), 0);
   return (
     <div
-      className="at-plan-rail"
+      className="at-plan-rail at-stagger"
       style={{
         position: "absolute",
         top: layout.topBar,
