@@ -197,9 +197,11 @@ function unwrap(value: unknown): unknown[] {
   if (Array.isArray(only)) return only;
   // One key holding one object is the same refusal, per item: asked for bare
   // objects the model numbers them instead — `{"secao1": {...}}`,
-  // `{"passo1": {...}}` — and the wrapper failed as `chunks[0].example`. No
-  // payload here is a single field, so a lone key is never the item itself.
-  return only && typeof only === "object" && !Array.isArray(only) ? [only] : [value];
+  // `{"passo1": {...}}` — and the wrapper failed as `chunks[0].example`. Only a
+  // NUMBERED key: the map's `{"about": {...}}` header is one field by design, and
+  // unwrapping it dropped every map's domain, shape and lenses.
+  const numbered = /\d$/.test(keys[0]);
+  return numbered && only && typeof only === "object" ? [only] : [value];
 }
 
 /**

@@ -174,6 +174,16 @@ describe("slots", () => {
     expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a"]);
   });
 
+  // The map's first frame is a one-field header; unwrapping it handed the
+  // concept validator `{domain, shape, …}` and lost every map's meta.
+  it("leaves the map's {about: {...}} header whole", () => {
+    const raws = ['{"about":{"domain":"formal","shape":"plan"}}'];
+    const keep = (v: unknown) => v;
+    expect([...slots(raws, 0, "curriculum-map-stream", keep)]).toEqual([
+      { about: { domain: "formal", shape: "plan" } },
+    ]);
+  });
+
   it("unwraps a bare top-level array too", () => {
     const raws = ['[{"kicker":"a","example":{}}]'];
     expect([...slots(raws, 0, "consume-stream", asSection)]).toEqual(["a"]);
